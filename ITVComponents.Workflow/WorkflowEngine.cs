@@ -1220,6 +1220,12 @@ namespace ITVComponents.Workflow
                 LogEnvironment.LogEvent(
                     $"Format data of user task '{node.Id}' in instance '{instance.Id}' could not be evaluated " +
                     $"for the title: {ex.OutlineException()}", LogSeverity.Warning);
+                // Auch in die Instanz-Historie: die Folge ist fuer den Endbenutzer sichtbar (im Titel steht
+                // der Prototyp statt der Werte), die Ursache stand bisher aber nur im System-Log. Wer den
+                // Vorgang im Monitoring aufmacht, soll sie dort finden.
+                instance.Log("FormatDataFailed", node.Id,
+                    "the format data could not be evaluated - title and description stay unformatted "
+                    + "(an object literal needs script mode with 'return')", HistorySeverity.Warning);
                 return title;
             }
 

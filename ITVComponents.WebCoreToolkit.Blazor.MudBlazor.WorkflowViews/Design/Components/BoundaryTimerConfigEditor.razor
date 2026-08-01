@@ -152,7 +152,10 @@
         => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";
 
     /// <summary>Die Fristen des Timers (nie null, damit die Tabelle nicht sonderbehandelt werden muss).</summary>
-    private List<BoundaryDeadline> Deadlines => Node?.Deadlines ??= new List<BoundaryDeadline>();
+    private List<BoundaryDeadline> Deadlines
+        => Node is null
+            ? new List<BoundaryDeadline>()
+            : Node.Deadlines ??= new List<BoundaryDeadline>();
 
     /// <summary>
     /// Holt eine noch als Stunden-Liste gespeicherte Definition einmalig in die neue Form. Beim ÖFFNEN und

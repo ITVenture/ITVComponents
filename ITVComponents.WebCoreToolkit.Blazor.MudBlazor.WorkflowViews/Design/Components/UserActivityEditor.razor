@@ -75,10 +75,20 @@
             @* Format data: EIN Datenobjekt fuer die Formatierung von Titel UND Beschreibung. *@
             <MudText Typo="Typo.caption" Class="mt-3">Format data (CScript object for title &amp; description)</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                Optional. Returns an object whose members fill placeholders in <b>title and description</b> — e.g.
-                <code>{ InvoiceNo: invoiceNumber }</code> for a text like <code>Invoice [InvoiceNo:0000000000]</code>.
-                Evaluated over the current variables when the task is opened; the texts stay multilingual (one
-                prototype per culture). Empty = title and description are shown as-is.
+                Optional. Returns an object whose members fill placeholders in <b>title and description</b> —
+                for a text like <code>Invoice [InvoiceNo:0000000000]</code>.
+                An object literal must not <b>start</b> the expression (there a <code>{</code> would open a
+                block), so write it as an assignment: <code>x = { InvoiceNo: invoiceNumber }</code> — or use
+                the <i>Script block</i> mode with <code>return { … };</code>. The helper name is irrelevant and
+                is thrown away: expressions are evaluated against a copy of the variables. Gets it wrong and
+                title and description stay as the raw pattern — the reason lands in the log and in the instance
+                history. Empty = title and description are shown as-is.
+            </MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                <b>When it is evaluated:</b> for the <b>title</b> once, when the task appears — it is frozen
+                into the work list with the values of that moment. For the <b>description</b> every time the
+                task is opened, so it shows the current state. Multilingual texts stay multilingual: every
+                culture is formatted as its own prototype.
             </MudText>
             <CScriptField @ref="formatDataField" Height="120" Value="@Node.FormatData"
                           ValueChanged="@(v => Node.FormatData = v)"

@@ -10,9 +10,13 @@ namespace ITVComponents.Workflow.Expressions
     /// <see cref="IExpressionEvaluator"/>.
     /// </summary>
     /// <remarks>
-    /// Die Instanz-Variablen bilden den Scope. Bedingungen werden bewusst gegen eine Kopie der
-    /// Variablen ausgewertet, damit eine Bedingung den Instanzzustand nicht versehentlich
-    /// veraendert.
+    /// Die Instanz-Variablen bilden den Scope. Ausgewertet wird <b>immer</b> gegen eine KOPIE davon -
+    /// nicht nur bei Bedingungen: ein Ausdruck darf den Instanzzustand nicht veraendern. Das ist keine
+    /// Formalie, sondern der Grund, warum eine Hilfszuweisung erlaubt ist. <c>x = {A: 1}</c> ist die
+    /// uebliche Schreibweise fuer ein Objekt-Literal im Ausdrucks-Modus (am ANFANG lehnt der Parser die
+    /// geschweifte Klammer ab, weil dort ein Block stuende) - und ohne die Kopie truege die Instanz
+    /// danach eine Variable <c>x</c> mit sich herum, persistiert und fuer jede spaetere Bedingung
+    /// sichtbar.
     /// </remarks>
     public class CScriptExpressionEvaluator : IExpressionEvaluator
     {

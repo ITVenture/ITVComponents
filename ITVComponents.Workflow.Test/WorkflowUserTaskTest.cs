@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.Formatting;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
@@ -106,6 +107,133 @@ namespace ITVComponents.Workflow.Test
 
             Assert.AreEqual("Invoice 4711",
                 instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).TaskTitle);
+        }
+
+        [TestMethod]
+        public void UserTask_Descriptor_CarriesTheFormatData_AndTheRawDescription()
+        {
+            // Der Titel wird beim PARKEN formatiert (er steht fertig in der Arbeitsliste), die Beschreibung
+            // erst beim ANZEIGEN. Der Descriptor muss dafuer beides mitbringen: die rohe Beschreibung UND
+            // das ausgewertete Datenobjekt.
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Title = "Invoice [InvoiceNo]";
+                node.Description = "Please approve invoice [InvoiceNo] for [Customer].";
+                node.FormatData = "return {InvoiceNo: number, Customer: customer};";
+                node.FormatDataMode = ScriptMode.Block;
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t",
+                new Dictionary<string, object> { { "number", "4711" }, { "customer", "ACME" } });
+            Token token = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting);
+
+            UserTaskDescriptor descriptor = engine.DescribeUserTask(instance.Id, token.Id);
+            Assert.AreEqual("Invoice 4711", descriptor.Title, "der Titel ist beim Parken formatiert worden.");
+            Assert.AreEqual("Please approve invoice [InvoiceNo] for [Customer].", descriptor.Description,
+                "die Beschreibung kommt ROH heraus - formatiert wird sie in der Anzeige.");
+            Assert.IsNotNull(descriptor.FormatData, "...und dafuer muss das Datenobjekt mitkommen.");
+
+            // Genau der Schritt, den die Anzeige macht: Datenobjekt.FormatText(Prototyp).
+            Assert.AreEqual("Please approve invoice 4711 for ACME.",
+                descriptor.FormatData.FormatText(descriptor.Description,
+                    TextFormat.DefaultFormatPolicyWithPrimitives));
+        }
+
+        [TestMethod]
+        public void UserTask_FormatDataAsExpression_WithAnObjectLiteral_FormatsNothing()
+        {
+            // DIE Falle: ScriptMode.Expression ist der Standard, und der Ausdrucks-Parser lehnt ein
+            // Objekt-Literal am Anfang ab. Titel UND Beschreibung bleiben dann als Prototyp stehen - der
+            // Fehler steht nur im Log. Festgehalten, damit die Diagnose beim naechsten Mal schneller geht.
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Title = "Invoice [InvoiceNo]";
+                node.Description = "Approve [InvoiceNo].";
+                node.FormatData = "{InvoiceNo: number}";   // ohne 'return', Modus Expression (Standard)
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t",
+                new Dictionary<string, object> { { "number", "4711" } });
+            Token token = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting);
+
+            Assert.AreEqual("Invoice [InvoiceNo]", token.TaskTitle,
+                "der Prototyp bleibt stehen, wenn das Datenobjekt nicht auswertbar ist.");
+            Assert.IsNull(engine.DescribeUserTask(instance.Id, token.Id).FormatData,
+                "und die Anzeige bekommt kein Datenobjekt - die Beschreibung bliebe ebenso roh.");
+        }
+
+        [TestMethod]
+        public void UserTask_FormatDataAsExpression_WithAnAssignedObjectLiteral_Works()
+        {
+            // Der Parser stoert sich nur an einem '{' am ANFANG (dort waere es ein Block). Steht das
+            // Objekt-Literal rechts von einer Zuweisung, ist der Ausdrucks-Modus voellig in Ordnung - und
+            // spart den Modus-Schalter. Der Wert der Zuweisung ist zugleich das Ergebnis des Ausdrucks.
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Title = "Invoice [InvoiceNo]";
+                node.Description = "Approve [InvoiceNo].";
+                node.FormatData = "x = {InvoiceNo: number}";   // Modus Expression (Standard)
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t",
+                new Dictionary<string, object> { { "number", "4711" } });
+            Token token = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting);
+
+            Assert.AreEqual("Invoice 4711", token.TaskTitle);
+
+            UserTaskDescriptor descriptor = engine.DescribeUserTask(instance.Id, token.Id);
+            Assert.AreEqual("Approve 4711.",
+                descriptor.FormatData.FormatText(descriptor.Description,
+                    TextFormat.DefaultFormatPolicyWithPrimitives));
+
+            // Und die Zuweisung darf nichts hinterlassen: der Auswerter arbeitet auf einer KOPIE des
+            // Scopes. Sonst truege jede Instanz eine Hilfsvariable aus der Formatierung mit sich herum -
+            // persistiert, sichtbar im Monitoring und im Zugriff jeder spaeteren Bedingung.
+            Assert.IsFalse(instance.Variables.ContainsKey("x"),
+                "die Hilfsvariable der Formatierung darf nicht im Instanz-Scope landen.");
+        }
+
+        [TestMethod]
+        public void UserTask_FormatDataAsBlock_WithoutReturn_FormatsNothing()
+        {
+            // Die zweite Falle derselben Familie: ein Block OHNE return liefert null - ohne Fehler.
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Title = "Invoice [InvoiceNo]";
+                node.FormatData = "{InvoiceNo: number}";
+                node.FormatDataMode = ScriptMode.Block;
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t",
+                new Dictionary<string, object> { { "number", "4711" } });
+
+            Assert.AreEqual("Invoice [InvoiceNo]",
+                instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).TaskTitle);
+        }
+
+        [TestMethod]
+        public void UserTask_CultureJsonTitle_IsFormattedPerLanguage()
+        {
+            // Kultur-JSON: JEDE Sprach-Property wird als Prototyp formatiert, das Objekt bleibt JSON.
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Title = "{\"de\":\"Rechnung [InvoiceNo]\",\"fr\":\"Facture [InvoiceNo]\"}";
+                node.FormatData = "return {InvoiceNo: number};";
+                node.FormatDataMode = ScriptMode.Block;
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t",
+                new Dictionary<string, object> { { "number", "4711" } });
+
+            string title = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).TaskTitle;
+            StringAssert.Contains(title, "Rechnung 4711");
+            StringAssert.Contains(title, "Facture 4711");
+            StringAssert.Contains(title, "\"de\"", "und bleibt mehrsprachig - uebersetzt wird beim Anzeigen.");
         }
 
         [TestMethod]
