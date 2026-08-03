@@ -277,13 +277,24 @@ namespace ITVComponents.Workflow
         /// <param name="payloadVariables">optionale Variablen, die vor dem Weiterlauf gesetzt werden</param>
         /// <returns>true, wenn mindestens ein wartendes Token weitergelaufen ist</returns>
         public bool SignalWorkflow(string instanceId, string signalName,
-            IDictionary<string, object> payloadVariables = null)
+            IDictionary<string, object> payloadVariables = null, string correlationKey = null)
+        {
+            return SignalInstance(instanceId, signalName, payloadVariables, correlationKey, broadcast: false);
+        }
+
+        /// <summary>
+        /// Der gemeinsame Kern der Zustellung an EINE Instanz (inline: speichern und vortreiben).
+        /// <paramref name="broadcast"/> entscheidet, welche Wartepunkte angesprochen werden - siehe
+        /// <see cref="Accepts"/>.
+        /// </summary>
+        private bool SignalInstance(string instanceId, string signalName,
+            IDictionary<string, object> payloadVariables, string correlationKey, bool broadcast)
         {
             WorkflowInstance instance = store.GetInstance(instanceId)
                 ?? throw new InvalidOperationException($"No instance found for '{instanceId}'.");
 
             var waiting = instance.Tokens
-                .Where(t => t.Status == TokenStatus.Waiting && t.WaitingSignal == signalName)
+                .Where(t => Accepts(instance, t, signalName, correlationKey, broadcast))
                 .ToList();
             if (waiting.Count == 0)
             {
@@ -302,8 +313,7 @@ namespace ITVComponents.Workflow
                 // Instanz-Scope. Ausserhalb einer Region ist das genau wie bisher.
                 ApplyPayload(Scope(instance, token), payloadVariables);
                 instance.Log("SignalReceived", token.NodeId, signalName);
-                token.WaitingSignal = null;
-                token.DueUtc = null;
+                ClearWait(token);
                 token.Status = TokenStatus.Active;
                 MoveAlongSingleOutgoing(instance, definition, token);
             }
@@ -374,19 +384,112 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
-        /// Liefert ein Signal ueber Korrelation an alle passenden wartenden Instanzen des Stores.
+        /// Nimmt ein wartendes Token dieses Ereignis an? Die EINE Regel dafuer - sie gilt fuer den
+        /// gezielten wie den korrelierten wie den Rundruf-Weg, sonst empfaengt derselbe Wartepunkt je nach
+        /// Aufrufweg etwas anderes.
+        /// </summary>
+        /// <remarks>
+        /// Ein Wartepunkt ohne ausgewiesene Art (Altbestand, Benutzer-Aufgabe, Subworkflow) gilt als
+        /// <see cref="WaitKind.Message"/> - gerichtet ist die vorsichtigere Annahme.
+        /// <para>
+        /// Beim gerichteten Weg ohne Korrelationsschluessel greift bewusst KEINE Pruefung: der Aufrufer
+        /// hat die Instanz bereits benannt, das IST die Adressierung. Der Schluessel ist nur noetig, wenn
+        /// dieselbe Instanz an mehreren Stellen auf denselben Namen wartet.
+        /// </para></remarks>
+        private static bool Accepts(WorkflowInstance instance, Token token, string signalName,
+            string correlationKey, bool broadcast)
+        {
+            if (token.Status != TokenStatus.Waiting || token.WaitingSignal != signalName)
+            {
+                return false;
+            }
+
+            WaitKind kind = token.WaitingKind ?? WaitKind.Message;
+            if (broadcast)
+            {
+                return kind == WaitKind.Signal;
+            }
+
+            if (correlationKey == null)
+            {
+                return true;
+            }
+
+            // Der Schluessel des Wartepunkts schlaegt den der Instanz: er ist der spezifischere und der
+            // spaeter entstandene.
+            return token.WaitingCorrelation != null
+                ? token.WaitingCorrelation == correlationKey
+                : instance.CorrelationKey == correlationKey || instance.Id == correlationKey;
+        }
+
+        /// <summary>Loescht alle Warte-Anker eines Tokens, das seinen Wartepunkt verlaesst.</summary>
+        private static void ClearWait(Token token)
+        {
+            token.WaitingSignal = null;
+            token.WaitingCorrelation = null;
+            token.WaitingKind = null;
+            token.DueUtc = null;
+        }
+
+        /// <summary>
+        /// Liefert eine <b>gerichtete Nachricht</b> ueber Korrelation an alle passenden wartenden
+        /// Instanzen.
         /// </summary>
         /// <param name="signalName">der Signalname</param>
-        /// <param name="correlationKey">der Korrelationsschluessel (oder eine Instanz-Id)</param>
+        /// <param name="correlationKey">
+        /// der Korrelationsschluessel - der eines Wartepunkts
+        /// (<see cref="WaitNode.CorrelationExpression"/>), der der Instanz oder ihre Id
+        /// </param>
         /// <param name="payloadVariables">optionale Variablen, die vor dem Weiterlauf gesetzt werden</param>
         /// <returns>die Anzahl der Instanzen, die weitergelaufen sind</returns>
+        /// <remarks>
+        /// <b>Ohne Korrelationsschluessel erreicht dieser Weg nur noch Wartepunkte der Art
+        /// <see cref="WaitKind.Signal"/></b> (er verhaelt sich dann wie
+        /// <see cref="BroadcastSignal"/>). Frueher traf ein schluessselloser Aufruf JEDE Instanz, die auf
+        /// den Namen wartete - eine offene Flanke: zwei Vorgaenge desselben Musters weckten einander.
+        /// Wer wirklich alle meint, sagt es jetzt mit <see cref="BroadcastSignal"/>.
+        /// </remarks>
         public int DeliverSignal(string signalName, string correlationKey = null,
             IDictionary<string, object> payloadVariables = null)
         {
+            if (correlationKey == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Signal '{signalName}' was delivered without a correlation key - it reaches broadcast " +
+                    "wait points only. Pass a key to address a message wait, or call BroadcastSignal to say " +
+                    "so explicitly.", LogSeverity.Report);
+                return BroadcastSignal(signalName, payloadVariables);
+            }
+
             int count = 0;
             foreach (WorkflowInstance instance in store.FindWaitingForSignal(signalName, correlationKey).ToList())
             {
-                if (SignalWorkflow(instance.Id, signalName, payloadVariables))
+                if (SignalWorkflow(instance.Id, signalName, payloadVariables, correlationKey))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// <b>Rundruf</b>: erreicht jeden Wartepunkt der Art <see cref="WaitKind.Signal"/> mit diesem
+        /// Namen in jeder laufenden Instanz - ohne Korrelation. Fuer Ereignisse, die die ganze Anlage
+        /// betreffen.
+        /// </summary>
+        /// <returns>die Anzahl der Instanzen, die weitergelaufen sind</returns>
+        /// <remarks>
+        /// Je Instanz ein eigener, versionsgeprueter Commit - bewusst keine gemeinsame Transaktion ueber
+        /// alle Empfaenger: ein Rundruf kann tausende Instanzen treffen, und eine davon, die gerade
+        /// anderweitig committet, darf nicht die restlichen mitreissen.
+        /// </remarks>
+        public int BroadcastSignal(string signalName, IDictionary<string, object> payloadVariables = null)
+        {
+            int count = 0;
+            foreach (WorkflowInstance instance in store.FindWaitingForBroadcast(signalName).ToList())
+            {
+                if (SignalInstance(instance.Id, signalName, payloadVariables, null, broadcast: true))
                 {
                     count++;
                 }
@@ -787,8 +890,21 @@ namespace ITVComponents.Workflow
         /// selbst voranzutreiben. Liefert die Ids der nun aktiven Tokens - der Runner reiht sie als
         /// Zweig-Tasks ein. Retry bei Versionskonflikt.
         /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="signalName">der Signalname</param>
+        /// <param name="payloadVariables">optionale Variablen fuer den Weiterlauf</param>
+        /// <param name="correlationKey">
+        /// optionaler Korrelationsschluessel: wartet die Instanz an mehreren Stellen auf denselben Namen,
+        /// waehlt er den gemeinten Wartepunkt aus. Null = alle Wartepunkte dieses Namens in dieser Instanz
+        /// (die Instanz ist ja bereits gezielt angesprochen).
+        /// </param>
+        /// <param name="broadcast">
+        /// true fuer einen <b>Rundruf</b>: dann werden nur Wartepunkte der Art
+        /// <see cref="WaitKind.Signal"/> geweckt, unabhaengig von jeder Korrelation
+        /// </param>
         public IReadOnlyList<string> ReactivateSignal(string instanceId, string signalName,
-            IDictionary<string, object> payloadVariables = null)
+            IDictionary<string, object> payloadVariables = null, string correlationKey = null,
+            bool broadcast = false)
         {
             if (instanceId == null)
             {
@@ -798,7 +914,7 @@ namespace ITVComponents.Workflow
             return ReactivateAndCommit(instanceId, "ReactivateSignal", (fresh, definition) =>
             {
                 var waiting = fresh.Tokens
-                    .Where(t => t.Status == TokenStatus.Waiting && t.WaitingSignal == signalName)
+                    .Where(t => Accepts(fresh, t, signalName, correlationKey, broadcast))
                     .ToList();
                 if (waiting.Count == 0)
                 {
@@ -814,8 +930,7 @@ namespace ITVComponents.Workflow
                     // Payload in den Scope des empfangenden Zweigs (siehe SignalWorkflow).
                     ApplyPayload(Scope(fresh, token), payloadVariables);
                     fresh.Log("SignalReceived", token.NodeId, signalName);
-                    token.WaitingSignal = null;
-                    token.DueUtc = null;
+                    ClearWait(token);
                     token.Status = TokenStatus.Active;
                     if (!MoveAlongSingleOutgoing(fresh, definition, token))
                     {
@@ -1140,10 +1255,13 @@ namespace ITVComponents.Workflow
                     return RouteExclusive(instance, definition, token, gateway);
 
                 case WaitNode wait:
-                    token.Status = TokenStatus.Waiting;
-                    token.WaitingSignal = wait.SignalName;
-                    instance.Log("Waiting", node.Id, wait.SignalName);
-                    return true;
+                    return ParkForSignal(instance, token, wait);
+
+                case TerminateEndNode terminate:
+                    return Terminate(instance, definition, token, terminate);
+
+                case EventGatewayNode eventGateway:
+                    return ProcessEventGateway(instance, definition, token, eventGateway);
 
                 case UserActivityNode userTask:
                     return ParkUserTask(instance, token, userTask);
@@ -1189,6 +1307,123 @@ namespace ITVComponents.Workflow
                 $"Branch of instance '{instance.Id}' parked at node '{node.Id}' for execution target " +
                 $"'{node.ExecutionTarget}' - waiting for a runner that serves this target.", LogSeverity.Report);
             return true;
+        }
+
+        /// <summary>
+        /// Parkt einen Zweig an einem <b>Wartepunkt</b>: Signalname, Art (gerichtete Nachricht oder
+        /// Rundruf) und - falls der Knoten einen Ausdruck dafuer hat - der aufgeloeste
+        /// Korrelationsschluessel gehen an das Token.
+        /// </summary>
+        /// <remarks>
+        /// Der Korrelationsschluessel wird JETZT ausgewertet und nicht beim Zustellen: hier steht der
+        /// Variablen-Stack des Zweigs zur Verfuegung, und nur hier ist der Wert eindeutig. Ein Fehler im
+        /// Ausdruck faultet die Instanz - ein Wartepunkt, dessen Schluessel nicht berechenbar ist, waere
+        /// nie erreichbar, und das faende man erst, wenn die Nachricht ausbleibt.
+        /// </remarks>
+        private bool ParkForSignal(WorkflowInstance instance, Token token, WaitNode node)
+        {
+            string correlation = null;
+            if (!string.IsNullOrWhiteSpace(node.CorrelationExpression))
+            {
+                try
+                {
+                    object value = evaluator.Evaluate(node.CorrelationExpression, Scope(instance, token),
+                        node.CorrelationExpressionMode);
+                    correlation = value?.ToString();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Correlation of wait node '{node.Id}' in instance '{instance.Id}' could not be " +
+                        $"resolved: {ex.OutlineException()}", LogSeverity.Error);
+                    Fault(instance, $"Correlation of wait node '{node.Id}' failed: {ex.Message}", node.Id);
+                    return false;
+                }
+            }
+
+            token.Status = TokenStatus.Waiting;
+            token.WaitingSignal = node.SignalName;
+            token.WaitingKind = node.WaitKind;
+            token.WaitingCorrelation = string.IsNullOrWhiteSpace(correlation) ? null : correlation;
+            instance.Log("Waiting", node.Id,
+                token.WaitingCorrelation == null
+                    ? node.SignalName
+                    : $"{node.SignalName} [{token.WaitingCorrelation}]");
+            return true;
+        }
+
+        /// <summary>
+        /// Beendet die GANZE Instanz ueber einen <see cref="TerminateEndNode"/>: alle Tokens werden
+        /// verbraucht, laufende Subworkflows abgebrochen. Den Uebergang auf
+        /// <see cref="WorkflowStatus.Completed"/> macht anschliessend <c>UpdateTerminalStatus</c> von
+        /// selbst - es findet schlicht kein lebendes Token mehr vor.
+        /// </summary>
+        /// <remarks>
+        /// Der Scope des terminierenden Zweigs wird vorher in den Instanz-Scope veroeffentlicht. Ohne das
+        /// zoege die Ergebnis-Abbildung aus einem Stack, der innerhalb einer parallelen Region noch auf
+        /// dem Stand des Splits steht - der Zweig, der abbricht, ist aber der einzige, der weiss, warum.
+        /// </remarks>
+        private bool Terminate(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            TerminateEndNode node)
+        {
+            if (token.Variables != null)
+            {
+                instance.Variables.Clear();
+                foreach (KeyValuePair<string, object> pair in token.Variables)
+                {
+                    instance.Variables[pair.Key] = pair.Value;
+                }
+
+                token.Variables = null;
+            }
+
+            foreach (Token other in instance.Tokens)
+            {
+                other.Status = TokenStatus.Consumed;
+                other.DueUtc = null;
+            }
+
+            instance.Log("Terminated", node.Id, node.Name);
+
+            // Kind-Instanzen wuerden sonst verwaist weiterlaufen - sie haben keinen Elternprozess mehr,
+            // der ihr Ergebnis abholt. Bewusster Seiteneffekt mitten im Vortrieb; denselben Weg geht
+            // ProcessCallWorkflow beim Anlegen.
+            foreach (WorkflowInstance child in store.FindChildInstances(instance.Id).ToList())
+            {
+                if (child.Status is WorkflowStatus.Running or WorkflowStatus.Waiting or WorkflowStatus.Faulted)
+                {
+                    CancelWorkflow(child.Id);
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Betritt ein <b>ereignisbasiertes Gateway</b>: das Token wird verbraucht und je Ausgang entsteht
+        /// ein Kind-Token, das an seinem Wartepunkt parkt. Das erste, das weiterlaeuft, verbraucht seine
+        /// Geschwister (siehe <see cref="KillRaceSiblings"/>).
+        /// </summary>
+        /// <remarks>
+        /// Die Kinder bekommen KEINE eigenen Variablen-Kopien wie bei einem parallelen Split: es ueberlebt
+        /// genau eines, es gibt also nichts zusammenzufuehren - und eine Kopie je Zweig wuerde nur die
+        /// Frage aufwerfen, wessen Stand der Gewinner mitnimmt.
+        /// </remarks>
+        private bool ProcessEventGateway(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            EventGatewayNode node)
+        {
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(node.Id);
+            if (outgoing.Count < 2)
+            {
+                Fault(instance,
+                    $"Event gateway '{node.Id}' has {outgoing.Count} outgoing flow(s) - it needs at least two " +
+                    "events to race.", node.Id);
+                return false;
+            }
+
+            token.Status = TokenStatus.Consumed;
+            instance.Log("EventGateway", node.Id, $"{outgoing.Count} event(s) racing");
+            return SpawnOutgoing(instance, outgoing, token, asSplit: false, raceTokenId: token.Id);
         }
 
         /// <summary>
@@ -1710,6 +1945,42 @@ namespace ITVComponents.Workflow
                 t.Status = TokenStatus.Consumed;
                 t.DueUtc = null;
             }
+        }
+
+        /// <summary>
+        /// Entscheidet das Rennen an einem ereignisbasierten Gateway: laeuft ein Token weiter, das dort um
+        /// die Wette gewartet hat, werden seine Geschwister verbraucht - samt der an IHNEN haengenden
+        /// Fristen-Timer und Nebenpfade.
+        /// </summary>
+        /// <remarks>
+        /// Beim Gewinner wird die Zugehoerigkeit geloescht: er ist ab hier ein gewoehnliches Token. Ohne
+        /// das wuerde ein spaeterer Durchlauf desselben Gateways (Wiederholungs-Schleife) ihn faelschlich
+        /// zu den Geschwistern des neuen Rennens zaehlen - die Gateway-Id ist dieselbe, die Token-Id des
+        /// neuen Rennens aber nicht.
+        /// </remarks>
+        private static void KillRaceSiblings(WorkflowInstance instance, Token winner)
+        {
+            string raceId = winner.RaceTokenId;
+            if (string.IsNullOrEmpty(raceId))
+            {
+                return;
+            }
+
+            foreach (Token sibling in instance.Tokens
+                         .Where(t => t.RaceTokenId == raceId && !ReferenceEquals(t, winner)
+                                     && t.Status != TokenStatus.Consumed)
+                         .ToList())
+            {
+                sibling.Status = TokenStatus.Consumed;
+                sibling.DueUtc = null;
+                sibling.WaitingSignal = null;
+                sibling.WaitingCorrelation = null;
+                sibling.WaitingKind = null;
+                ClearUserTask(sibling);
+                KillBoundaryTokens(instance, sibling.Id);
+            }
+
+            winner.RaceTokenId = null;
         }
 
         /// <summary>
@@ -2735,17 +3006,19 @@ namespace ITVComponents.Workflow
                 return;
             }
 
-            // Nur die tatsaechlich erreichten End-Knoten zaehlen (ein nie durchlaufener Alternativausgang
-            // darf das Ergebnis nicht bestimmen).
-            List<EndNode> reached = instance.Tokens
+            // Nur die tatsaechlich erreichten Ergebnis-Knoten zaehlen (ein nie durchlaufener
+            // Alternativausgang darf das Ergebnis nicht bestimmen). Ueber IResultNode zaehlt der
+            // Terminate-Knoten gleichberechtigt mit - sonst endete ein Abbruch ohne jede Aussage darueber,
+            // warum.
+            List<IResultNode> reached = instance.Tokens
                 .Where(t => t.Status == TokenStatus.Consumed)
-                .Select(t => definition.GetNode(t.NodeId) as EndNode)
+                .Select(t => definition.GetNode(t.NodeId) as IResultNode)
                 .Where(e => e?.Outputs is { Count: > 0 })
                 .GroupBy(e => e.Id, StringComparer.Ordinal)
                 .Select(g => g.First())
                 .ToList();
 
-            EndNode end = SelectDeclaring(reached, "workflow results", $"Instance '{instance.Id}'");
+            IResultNode end = SelectDeclaring(reached, "workflow results", $"Instance '{instance.Id}'");
             if (end == null)
             {
                 return;
@@ -2783,7 +3056,8 @@ namespace ITVComponents.Workflow
         /// Normalfall (der Validator meldet mehrere als Fehler); gibt es doch mehrere, gewinnt deterministisch
         /// der mit der kleinsten Id - mit Log-Zeile, damit die Mehrdeutigkeit nicht still bleibt.
         /// </summary>
-        private static T SelectDeclaring<T>(List<T> declaring, string what, string owner) where T : WorkflowNode
+        private static T SelectDeclaring<T>(List<T> declaring, string what, string owner)
+            where T : class, INodeIdentity
         {
             if (declaring == null || declaring.Count == 0)
             {
@@ -3496,9 +3770,20 @@ namespace ITVComponents.Workflow
         /// arbeiten parallele Zweige ab hier isoliert; der zugehoerige Join fuehrt die Kopien wieder
         /// zusammen. Bei genau einem Ausgang ist es eine Durchreiche - der Strang bleibt auf seiner Ebene.
         /// </remarks>
-        private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing, Token source)
+        /// <param name="asSplit">
+        /// null = nach der Zahl der Ausgaenge entscheiden (der Normalfall). false erzwingt die
+        /// Durchreiche trotz mehrerer Ausgaenge - das braucht das <b>Rennen</b> am ereignisbasierten
+        /// Gateway: dort ueberlebt genau ein Strang, eigene Scope-Kopien je Zweig waeren also nur eine
+        /// Frage danach, wessen Stand der Gewinner mitnimmt.
+        /// </param>
+        /// <param name="raceTokenId">
+        /// gesetzt fuer die Kinder eines ereignisbasierten Gateways: die Id des Gateway-Tokens, die sie
+        /// als Geschwister desselben Rennens ausweist
+        /// </param>
+        private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing, Token source,
+            bool? asSplit = null, string raceTokenId = null)
         {
-            bool split = outgoing.Count > 1;
+            bool split = asSplit ?? outgoing.Count > 1;
             Dictionary<string, object> sourceScope = Scope(instance, source);
 
             // Erst alle Kanten pruefen und ihr Mapping anwenden, dann die Tokens setzen: scheitert eine
@@ -3518,7 +3803,8 @@ namespace ITVComponents.Workflow
                     NodeId = flow.TargetId,
                     Status = TokenStatus.Active,
                     Variables = split ? CopyScope(sourceScope) : CopyScope(source?.Variables),
-                    SplitTokenId = split ? source?.Id : source?.SplitTokenId
+                    SplitTokenId = split ? source?.Id : source?.SplitTokenId,
+                    RaceTokenId = raceTokenId
                 };
 
                 if (!ApplyFlowInputs(instance, token, flow))
@@ -3567,6 +3853,10 @@ namespace ITVComponents.Workflow
             // eventuell laufender Nebenpfad sind damit gegenstandslos. Der EINE Durchgang, durch den
             // jedes Token einen Knoten verlaesst - deshalb hier und nicht an jeder Aufrufstelle.
             KillBoundaryTokens(instance, token.Id);
+
+            // Aus demselben Grund hier: laeuft ein Token weiter, das an einem ereignisbasierten Gateway um
+            // die Wette gewartet hat, ist das Rennen entschieden.
+            KillRaceSiblings(instance, token);
 
             token.NodeId = flow.TargetId;
             token.Status = TokenStatus.Active;

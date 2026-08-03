@@ -209,6 +209,29 @@ namespace ITVComponents.Workflow.EntityFramework
         /// ist die Selbstheilung fuer einen mittendrin abgestuerzten Halter.
         /// </summary>
         public DateTime? TimerLeaseUntilUtc { get; set; }
+
+        /// <summary>
+        /// Bei einem Token, das an einem ereignisbasierten Gateway um die Wette wartet: die Id des
+        /// Gateway-Tokens (alle Geschwister desselben Rennens teilen sie); sonst null.
+        /// </summary>
+        public string RaceTokenId { get; set; }
+
+        /// <summary>
+        /// Der Korrelationsschluessel DIESES Wartepunkts (aus dem Ausdruck des Wartepunkt-Knotens), oder
+        /// null - dann gilt der Schluessel der Instanz.
+        /// </summary>
+        public string WaitingCorrelation { get; set; }
+
+        /// <summary>
+        /// Die Art des Wartepunkts als Zahl (<c>WaitKind</c>: 0 = gerichtete Nachricht, 1 = Rundruf),
+        /// oder null bei allen anderen Wartearten.
+        /// </summary>
+        /// <remarks>
+        /// Als Spalte und nicht nur im Modell, damit ein Rundruf seine Empfaenger in der DATENBANK
+        /// auswaehlen kann - sonst muesste er fuer jede wartende Instanz erst deren Definition laden, nur
+        /// um die Art des Wartepunkts zu erfahren.
+        /// </remarks>
+        public int? WaitingKind { get; set; }
     }
 
     /// <summary>
@@ -410,6 +433,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.Status);
                 e.HasIndex(n => n.WaitingSignal);
                 e.HasIndex(n => n.DueUtc);
+                // Die Zustellung sucht nach Name UND Art (gerichtete Nachricht gegen Rundruf) - ein
+                // Rundruf traefe sonst erst nach dem Laden aller gleichnamig Wartenden seine Auswahl.
+                e.HasIndex(n => new { n.WaitingSignal, n.WaitingKind });
+                // Der Korrelationsschluessel des Wartepunkts: die zweite Art, einen Empfaenger zu finden.
+                e.HasIndex(n => n.WaitingCorrelation);
                 e.HasIndex(n => n.WaitingTarget);
                 // DER Abfrage-Index der Arbeitsliste: "offene Aufgaben dieses Tenants, ggf. einer Art".
                 // Status steht hinten, weil er die geringste Trennschaerfe hat (jede Liste sucht Waiting).

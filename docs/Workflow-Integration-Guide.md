@@ -592,6 +592,10 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
   einen langen Schritt in einem sonst seriellen Ablauf. Details: [§14](#14-eine-aktivität-über-eine-sammlung-parallelisieren).
   **Keine Schema-Änderung** (steckt im Definitions-JSON).
 
+- **Ereignisbasiertes Gateway, Terminate, Message/Signal.** Ein Rennen zwischen mehreren Wartepunkten,
+  ein Abbruch der ganzen Instanz, und die Trennung gerichtete Nachricht gegen Rundruf. Details:
+  [§17](#17-ereignisse-rennen-rundruf-und-abbruch). **Schema-Änderung:** drei Spalten auf `Tokens`.
+
 - **Dringlichkeit einer Instanz (`WorkflowInstance.Priority`).** Bestimmt, in welcher Reihenfolge die
   Hintergrund-Verarbeitung Instanzen aufgreift. Details: [§13](#13-dringlichkeit-priorität-von-instanzen).
   **Schema-Änderung:** eine Spalte `Priority` auf `WorkflowInstances` (+ Index) → Migration
@@ -1378,3 +1382,83 @@ CREATE INDEX "IX_WorkflowInstances_Status_Priority"
 
 `2` ist `WorkflowPriority.Normal`. Der Index bedient die Sortierung des Aufgriffs („die dringendsten der
 laufenden zuerst").
+
+## 17. Ereignisse: Rennen, Rundruf und Abbruch
+
+Drei Bausteine, die zusammen den häufigsten Rest an Ereignis-Logik abdecken. Alle drei sind
+**rückwärtsverträglich**, bis auf eine bewusste Ausnahme (siehe „Was sich ändert" am Ende).
+
+### Ereignisbasiertes Gateway — „was zuerst kommt, gewinnt"
+
+`EventGatewayNode` wartet auf mehrere Ereignisse gleichzeitig; das erste, das eintrifft, gewinnt, die
+übrigen werden verworfen. Umgesetzt als **Rennen echter Tokens**: das Gateway verbraucht sein Token und
+setzt je Ausgang ein Kind-Token auf den dahinterliegenden Wartepunkt.
+
+Das ist der Grund, warum es keinen Sonderweg im Store braucht — es sind ganz gewöhnliche wartende Tokens,
+und die Aufgriffs-Abfragen für Signale und Timer bleiben unverändert. Im Monitoring stehen alle Kandidaten
+nebeneinander.
+
+Hinter jedem Ausgang muss ein Knoten stehen, der **wartet** (Wait, Timer, User task) — der Validator
+lehnt alles andere als Fehler ab. Eine Aktivität liefe sofort durch und gewänne immer.
+
+Die Zweige bekommen **keine** eigenen Variablen-Kopien wie bei einem AND-Split: es überlebt genau einer,
+es gibt nichts zusammenzuführen.
+
+### Terminate — die ganze Instanz beenden
+
+`TerminateEndNode` verwirft alle Tokens und bricht laufende Subworkflows ab; die Instanz gilt danach als
+regulär beendet (`Completed`), nicht als abgebrochen. Beliebig viele je Definition — er zählt nicht als
+*der* eine End-Knoten.
+
+Er trägt ein eigenes **Result**, und das sollte man setzen: sonst endet der Workflow ohne jede Aussage
+darüber, warum. Quelle ist der Scope des **terminierenden Zweigs** (er wird dafür in den Instanz-Scope
+veröffentlicht) — innerhalb einer parallelen Region steht der Instanz-Stack noch auf dem Stand des Splits,
+und nur der abbrechende Zweig kennt den Grund.
+
+### Message gegen Signal
+
+Bisher gab es nur „ein Wartepunkt wartet auf einen Namen", und wer wen erreicht, entschied allein der
+Aufrufer. Jetzt sagt es der **Knoten**:
+
+| `WaitKind` | Bedeutung |
+| --- | --- |
+| `Message` (Standard) | Gerichtet. Erreicht nur den Wartepunkt, zu dem die Zustellung korreliert. **Ohne passenden Schlüssel kommt sie nicht an.** |
+| `Signal` | Rundruf. Erreicht jeden gleichnamigen Wartepunkt in jeder laufenden Instanz, ohne Korrelation. |
+
+Dazu wurde der **Korrelationsschlüssel des Wartepunkts** überhaupt erst wirksam. `CorrelationExpression`
+war zwar deklariert und im Editor sichtbar, wurde aber **nirgends ausgewertet** — korreliert wurde
+ausschließlich über den Schlüssel der Instanz, und der steht beim Anlegen fest. Jetzt wird der Ausdruck
+beim **Parken** ausgewertet und am Token abgelegt. Damit lässt sich auf etwas korrelieren, das der Prozess
+selbst gerade erzeugt hat, und dieselbe Instanz kann an mehreren Stellen auf verschiedene Schlüssel warten.
+Der Schlüssel des Wartepunkts schlägt den der Instanz — er ist der spezifischere.
+
+Ein Ausdruck, der nicht auswertbar ist, **faultet** die Instanz. Ein Wartepunkt, dessen Schlüssel sich
+nicht berechnen lässt, wäre nie erreichbar, und das fände man erst, wenn die Nachricht ausbleibt.
+
+Die API:
+
+```csharp
+engine.SignalWorkflow(instanceId, name, payload, correlationKey);  // gezielt an eine Instanz
+engine.DeliverSignal(name, correlationKey, payload);               // korreliert über alle Instanzen
+engine.BroadcastSignal(name, payload);                             // Rundruf
+runner.Signal(instanceId, name, payload, priority, correlationKey);
+runner.Broadcast(name, payload);                                   // fächert auf N Aufträge auf
+```
+
+Der Rundruf über den Runner erzeugt bewusst **einen Auftrag je Instanz**: jeder bekommt seinen eigenen
+versionsgeprüften Commit und seine eigene Stufe. Ein Rundruf kann tausende Instanzen treffen — eine
+davon, die gerade anderweitig committet, darf die restlichen nicht mitreißen.
+
+### Was sich ändert
+
+**`DeliverSignal(name)` ohne Korrelationsschlüssel erreicht keine Message-Wartepunkte mehr**, sondern nur
+noch Rundruf-Wartepunkte. Vorher traf ein schlüsselloser Aufruf **jede** Instanz, die auf den Namen
+wartete — zwei Vorgänge desselben Musters weckten einander. Wer das wirklich will, sagt es jetzt mit
+`BroadcastSignal` und stellt die betroffenen Wartepunkte auf `WaitKind.Signal`.
+
+### Schema
+
+Drei nullable Spalten auf `Tokens` (`RaceTokenId`, `WaitingCorrelation`, `WaitingKind`) plus zwei Indizes
+→ Migration **`EventGatewayAndSignalKind`** je Provider-Projekt. Laufende Instanzen bleiben gültig: alle
+drei Spalten null bedeutet „kein Rennen, kein eigener Schlüssel, gerichtete Nachricht" — also das
+bisherige Verhalten.

@@ -52,7 +52,8 @@ namespace ITVComponents.Workflow.ParallelProcessing
                         break;
                     case WorkflowTrigger.Signal:
                         EnqueueBranches(task,
-                            engine.ReactivateSignal(task.InstanceId, task.SignalName, task.Payload));
+                            engine.ReactivateSignal(task.InstanceId, task.SignalName, task.Payload,
+                                task.CorrelationKey, task.Broadcast));
                         break;
                     case WorkflowTrigger.Timer:
                         EnqueueBranches(task,

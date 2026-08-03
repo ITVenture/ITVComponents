@@ -1,18 +1,20 @@
 @using ITVComponents.Workflow.Model
 
 @*
-    Konfiguriert den End-Knoten: das ERGEBNIS des Workflows. Ist etwas deklariert, besteht der
-    Variablen-Stack beim Abschluss genau daraus - und damit sieht ein Aufrufer (CallWorkflow) genau
-    dieses Ergebnis. Leer = wie bisher, der komplette Stack ist das Ergebnis.
+    Konfiguriert das ERGEBNIS eines Abschluss-Knotens. Ist etwas deklariert, besteht der Variablen-Stack
+    beim Abschluss genau daraus - und damit sieht ein Aufrufer (CallWorkflow) genau dieses Ergebnis.
+    Leer = wie bisher, der komplette Stack ist das Ergebnis.
+
+    Bewusst gegen IResultNode und nicht gegen den End-Knoten: der Terminate-Knoten deklariert sein
+    Ergebnis nach denselben Regeln, und zwei Editoren dafuer liefen mit der Zeit auseinander - genau wie
+    zwei Auswertungen in der Engine.
 *@
 
 @if (Node is not null)
 {
     <MudText Typo="Typo.caption" Class="mt-4">Result</MudText>
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
-        Map instance variables to result names. Declared here, the scope is reduced to exactly this result when
-        the workflow completes - that result is what a calling workflow receives. Leave empty to return the
-        whole variable stack.
+        @(HelperText ?? DefaultHelperText)
     </MudText>
     <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="variable" TargetPlaceholder="result name"
                        AddPlaceholder="new result" />
@@ -25,6 +27,14 @@
 }
 
 @code {
-    /// <summary>Der zu konfigurierende End-Knoten.</summary>
-    [Parameter] public EndNode? Node { get; set; }
+    private const string DefaultHelperText =
+        "Map instance variables to result names. Declared here, the scope is reduced to exactly this result "
+        + "when the workflow completes - that result is what a calling workflow receives. Leave empty to "
+        + "return the whole variable stack.";
+
+    /// <summary>Der zu konfigurierende Abschluss-Knoten (End oder Terminate).</summary>
+    [Parameter] public IResultNode? Node { get; set; }
+
+    /// <summary>Abweichender Hinweistext; null = der Standardtext für den End-Knoten.</summary>
+    [Parameter] public string? HelperText { get; set; }
 }

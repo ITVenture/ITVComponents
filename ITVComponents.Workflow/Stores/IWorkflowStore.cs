@@ -55,10 +55,29 @@ namespace ITVComponents.Workflow.Stores
 
         /// <summary>
         /// Findet Instanzen mit einem wartenden Token auf das angegebene Signal. Ist
-        /// <paramref name="correlationKey"/> gesetzt, werden nur Instanzen mit passendem
-        /// Korrelationsschluessel (oder passender Id) geliefert.
+        /// <paramref name="correlationKey"/> gesetzt, werden nur Instanzen geliefert, bei denen der
+        /// Schluessel passt - entweder am <b>Wartepunkt</b> (<c>Token.WaitingCorrelation</c>) oder an der
+        /// Instanz (Korrelationsschluessel oder Id).
         /// </summary>
+        /// <remarks>
+        /// Der Schluessel am Wartepunkt ist der spezifischere: er entsteht erst beim Warten und kann
+        /// deshalb auf etwas zeigen, das der Prozess selbst gerade erzeugt hat. Eine Instanz kann an
+        /// mehreren Stellen auf verschiedene Schluessel warten - deswegen reicht der Filter an der Instanz
+        /// allein nicht.
+        /// </remarks>
         IEnumerable<WorkflowInstance> FindWaitingForSignal(string signalName, string correlationKey = null);
+
+        /// <summary>
+        /// Findet Instanzen mit einem wartenden Token, das einen <b>Rundruf</b> dieses Namens erwartet
+        /// (<c>Token.WaitingKind == WaitKind.Signal</c>) - ohne Korrelation.
+        /// </summary>
+        /// <remarks>
+        /// Eigene Abfrage statt eines Filters am Ergebnis von <see cref="FindWaitingForSignal"/>: ein
+        /// Rundruf kann tausende Instanzen betreffen, und die Auswahl gehoert in die Datenbank. Sonst
+        /// muesste fuer jede Instanz erst ihre Definition geladen werden, nur um die Art des Wartepunkts
+        /// zu erfahren.
+        /// </remarks>
+        IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string signalName);
 
         /// <summary>Findet Instanzen mit einem faelligen Timer-Token (DueUtc &lt;= nowUtc).</summary>
         /// <remarks>

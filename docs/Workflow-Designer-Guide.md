@@ -252,8 +252,15 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Ports:** ein Ausgang.
 - **Eigenschaften:**
   - **Signal name** — auf welches Signal gewartet wird.
-  - **Correlation (CScript)** — Ausdruck, der den Korrelationsschlüssel bildet; nur ein Signal mit gleichem
-    Schlüssel weckt genau dieses Token.
+  - **Kind** — **Message** (Standard) oder **Signal**. Eine *Message* ist gerichtet: sie erreicht nur den
+    Wartepunkt, zu dem sie korreliert — **ohne passenden Schlüssel kommt sie gar nicht an**. Ein *Signal*
+    ist ein Rundruf: er erreicht jeden gleichnamigen Wartepunkt in jeder laufenden Instanz, ohne
+    Korrelation. Für Ereignisse, die die ganze Anlage betreffen („Tagesabschluss gestartet").
+  - **Correlation (CScript)** — nur bei *Message*. Der Ausdruck wird ausgewertet, **wenn der Zweig hier
+    parkt**, über dessen Variablen — er kann also auf etwas zeigen, das der Prozess selbst gerade erst
+    erzeugt hat (eine Bestellnummer aus dem vorigen Schritt). Wartet dieselbe Instanz an mehreren Stellen,
+    hat jeder Wartepunkt seinen eigenen Schlüssel. Leer = es gilt der Korrelationsschlüssel der Instanz
+    (oder ihre Id).
 
 ### Timer ⏰ (`fa-clock`)
 
@@ -336,6 +343,22 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 > hängt niemanden auf: er bekommt eine **Kopie** des Scopes, schreibt nicht zurück, und wird verworfen,
 > sobald das Haupt-Token weiterzieht.
 
+### Event gateway ⚡ (`fa-bolt`)
+
+- **Zweck:** wartet auf **mehrere Ereignisse gleichzeitig** — das erste, das eintrifft, gewinnt, die
+  übrigen werden verworfen. Der Fall „Antwort **oder** Frist", „Zusage, Absage **oder** Rückfrage".
+- **Symbol im Graphen:** ⚡ in einer **Raute** (wie die anderen Gateways), Name darunter.
+- **Ports:** ein Eingang, **mindestens zwei** Ausgänge.
+- **Die eine Regel:** hinter jedem Ausgang muss ein Knoten stehen, der auch wirklich **wartet** — ein
+  **Wait**, ein **Timer** oder eine **User task**. Eine Aktivität liefe sofort durch und gewänne jedes
+  Rennen; das Gateway wäre ein stiller Nicht-Effekt, dem man im Bild nichts ansieht. Der Validator meldet
+  das als **Fehler**.
+- **Wie es läuft:** das Gateway setzt je Ausgang ein Token auf den dahinterliegenden Wartepunkt. Das sind
+  gewöhnliche wartende Tokens — im Monitoring sieht man alle Kandidaten nebeneinander stehen. Sobald einer
+  weiterläuft, verschwinden die anderen.
+- **Keine Zweig-Kopien:** anders als beim AND-Split bekommen die Zweige **keine** eigenen Variablen-Kopien.
+  Es überlebt genau einer, es gibt also nichts zusammenzuführen.
+
 ### Side end ⏹ (`fa-circle-stop`)
 
 - **Zweck:** Schliesst einen **Nebenpfad** ab. Verbraucht das Token — und **beendet den Workflow nicht**.
@@ -344,6 +367,25 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
   (sonst Fehler), und ein regulärer End-Knoten würde das *Ergebnis der ganzen Instanz* festschreiben,
   obwohl nur die Eskalation gelaufen ist. Der Validator meldet es als Fehler, wenn ein Nebenpfad den
   End-Knoten erreichen kann.
+
+### Terminate ✕ (`fa-circle-xmark`)
+
+- **Zweck:** beendet die **ganze Instanz** sofort — alle anderen Zweige werden verworfen, laufende
+  Subworkflows abgebrochen. Der klassische Abbruch aus einem Nebenpfad heraus („Kunde hat storniert" — der
+  Rest der Bearbeitung ist gegenstandslos).
+- **Symbol im Graphen:** ✕ in einem **Kreis** — dieselbe Grundform wie das Ende, unübersehbar anders.
+- **Ports:** ein Eingang, kein Ausgang. Beliebig viele je Definition (er zählt **nicht** als *der* eine
+  End-Knoten).
+- **Unterschied zum End-Knoten:** der verbraucht nur **sein** Token und lässt die Geschwister weiterlaufen
+  — die Instanz endet erst, wenn das letzte Token weg ist. Hier endet sie mit diesem einen Zweig.
+- **Der Workflow gilt danach als regulär beendet** (`Completed`), nicht als abgebrochen. Ein Abbruch von
+  außen ist etwas anderes und bleibt `Cancelled`.
+- **Eigenschaften:**
+  - **Result** — wie beim End-Knoten. **Sollte gesetzt werden**: ohne Ergebnis endet der Workflow auf
+    diesem Weg ohne jede Aussage darüber, *warum*. Quelle ist der Scope des **terminierenden Zweigs** — er
+    wird dafür in den Instanz-Scope veröffentlicht, denn innerhalb einer parallelen Region steht der
+    Instanz-Stack noch auf dem Stand des Splits, und der abbrechende Zweig ist der einzige, der den Grund
+    kennt.
 
 ### End ⚑ (`fa-flag-checkered`)
 

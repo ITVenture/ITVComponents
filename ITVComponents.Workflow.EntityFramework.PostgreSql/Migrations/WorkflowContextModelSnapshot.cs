@@ -96,6 +96,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("NodeId")
                         .HasColumnType("text");
 
+                    b.Property<string>("RaceTokenId")
+                        .HasColumnType("text");
+
                     b.Property<string>("SplitTokenId")
                         .HasColumnType("text");
 
@@ -129,8 +132,14 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("VariablesJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("WaitingCorrelation")
+                        .HasColumnType("text");
+
                     b.Property<string>("WaitingForChildInstanceId")
                         .HasColumnType("text");
+
+                    b.Property<int?>("WaitingKind")
+                        .HasColumnType("integer");
 
                     b.Property<string>("WaitingSignal")
                         .HasColumnType("text");
@@ -148,9 +157,13 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("WaitingCorrelation");
+
                     b.HasIndex("WaitingSignal");
 
                     b.HasIndex("WaitingTarget");
+
+                    b.HasIndex("WaitingSignal", "WaitingKind");
 
                     b.HasIndex("TenantId", "TaskKey", "Status");
 

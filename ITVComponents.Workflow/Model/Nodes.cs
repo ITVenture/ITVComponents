@@ -79,7 +79,33 @@ namespace ITVComponents.Workflow.Model
     /// Endpunkt eines Zweigs. Erreicht ein Token diesen Knoten, wird es verbraucht. Sind danach
     /// keine Tokens mehr aktiv oder wartend, ist der Workflow abgeschlossen.
     /// </summary>
-    public class EndNode : WorkflowNode
+    /// <summary>
+    /// Alles, was eine Knoten-Id hat. Existiert, damit Meldungen ueber mehrfach deklarierte Dinge
+    /// ("... auf 2 Knoten deklariert") sowohl fuer Knotenklassen als auch fuer die Vertraege darueber
+    /// formuliert werden koennen.
+    /// </summary>
+    public interface INodeIdentity
+    {
+        /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>
+        string Id { get; }
+    }
+
+    /// <summary>
+    /// Ein Knoten, der das <b>Ergebnis</b> des Workflows deklariert. Gemeinsamer Vertrag von
+    /// <see cref="EndNode"/> und <see cref="TerminateEndNode"/>, damit die Ergebnis-Abbildung nur an
+    /// EINER Stelle ausgewertet wird - sonst laufen regulaeres Ende und Abbruch auseinander, und der
+    /// Unterschied faellt erst dem auf, der das Ergebnis vermisst.
+    /// </summary>
+    public interface IResultNode : INodeIdentity
+    {
+        /// <summary>Die Ergebnis-Abbildung; leer = der ganze Variablenstack ist das Ergebnis.</summary>
+        List<ActivityOutputBinding> Outputs { get; }
+
+        /// <summary>Zusaetzlich erhalten bleibende Variablen.</summary>
+        List<string> RetainVariables { get; }
+    }
+
+    public class EndNode : WorkflowNode, IResultNode
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.End;
@@ -284,6 +310,26 @@ namespace ITVComponents.Workflow.Model
     }
 
     /// <summary>
+    /// Wen ein eintreffendes Ereignis erreicht.
+    /// </summary>
+    public enum WaitKind
+    {
+        /// <summary>
+        /// <b>Gerichtete Nachricht</b> (Standard): erreicht nur den Wartepunkt, zu dem sie korreliert -
+        /// ueber <see cref="WaitNode.CorrelationExpression"/>, ersatzweise den Korrelationsschluessel
+        /// oder die Id der Instanz. Ohne passenden Schluessel kommt sie NICHT an.
+        /// </summary>
+        Message,
+
+        /// <summary>
+        /// <b>Rundruf</b>: erreicht jeden Wartepunkt dieses Namens in jeder laufenden Instanz, ohne
+        /// Korrelation. Fuer Ereignisse, die die ganze Anlage betreffen („Tagesabschluss gestartet",
+        /// „Preisliste aktualisiert").
+        /// </summary>
+        Signal
+    }
+
+    /// <summary>
     /// Ein Wartepunkt, der den Workflow anhaelt, bis ein benanntes Signal eintrifft (z.B. eine
     /// Benutzereingabe oder ein externes Ereignis). Das Token wird waehrenddessen als wartend
     /// persistiert.
@@ -297,10 +343,25 @@ namespace ITVComponents.Workflow.Model
         public string SignalName { get; set; }
 
         /// <summary>
-        /// Optionaler CScript-Ausdruck, der ueber den Variablen der Instanz einen
-        /// Korrelationsschluessel liefert. Trifft ein Signal mit Korrelationsschluessel ein, findet
-        /// es so die richtige wartende Instanz. Null bedeutet Korrelation ueber die Instanz-Id.
+        /// Ob dieser Wartepunkt eine <b>gerichtete Nachricht</b> erwartet (Standard) oder ein
+        /// <b>Rundruf</b> ist. Siehe <see cref="Model.WaitKind"/> - der Unterschied entscheidet, wen ein
+        /// eintreffendes Ereignis erreicht.
         /// </summary>
+        public WaitKind WaitKind { get; set; } = WaitKind.Message;
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck, der den <b>Korrelationsschluessel dieses Wartepunkts</b> liefert -
+        /// ausgewertet, wenn der Zweig hier parkt, und am Token abgelegt. Eine eintreffende Nachricht
+        /// findet den Wartepunkt darueber. Leer = es gilt der Korrelationsschluessel der Instanz (oder
+        /// ihre Id).
+        /// </summary>
+        /// <remarks>
+        /// Der Unterschied zum Instanz-Schluessel ist der Zeitpunkt: der steht beim Anlegen fest, dieser
+        /// hier erst beim Warten. Erst damit laesst sich auf etwas korrelieren, das der Prozess selbst
+        /// gerade erst erzeugt hat - eine Bestellnummer aus dem vorigen Schritt, ein Vorgang aus einem
+        /// Fremdsystem. Wartet dieselbe Instanz an mehreren Stellen, hat jeder Wartepunkt seinen eigenen
+        /// Schluessel.
+        /// </remarks>
         public string CorrelationExpression { get; set; }
 
         /// <summary>
@@ -652,6 +713,91 @@ namespace ITVComponents.Workflow.Model
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.SidePathEnd;
+    }
+
+    /// <summary>
+    /// Beendet die <b>ganze Instanz</b> sofort: alle anderen Zweige werden verworfen, laufende
+    /// Subworkflows abgebrochen. Der Workflow gilt danach als regulaer beendet
+    /// (<see cref="Instances.WorkflowStatus.Completed"/>), nicht als abgebrochen.
+    /// </summary>
+    /// <remarks>
+    /// Der Unterschied zum <see cref="EndNode"/>: der verbraucht nur SEIN Token und laesst die
+    /// Geschwister weiterlaufen - die Instanz endet erst, wenn das letzte Token weg ist. Hier endet sie
+    /// mit diesem einen Zweig. Der klassische Fall ist der Abbruch aus einem Nebenpfad heraus („Kunde hat
+    /// storniert" - der Rest der Bearbeitung ist gegenstandslos).
+    /// <para>
+    /// Er deklariert ein <see cref="Outputs"/> wie der End-Knoten, und das ist Absicht: sonst endet ein
+    /// Workflow auf diesem Weg ohne jede Aussage darueber, WARUM. Anders als beim End-Knoten ist die
+    /// Quelle des Ergebnisses der Scope des <b>terminierenden Zweigs</b> - er wird dafuer in den
+    /// Instanz-Scope veroeffentlicht. Anders geht es nicht: innerhalb einer parallelen Region steht der
+    /// Instanz-Scope noch auf dem Stand des Splits, und der Zweig, der abbricht, ist der einzige, der
+    /// weiss warum.
+    /// </para>
+    /// <para>
+    /// Er zaehlt NICHT als der eine End-Knoten der Definition - es darf beliebig viele geben, wie beim
+    /// <see cref="SidePathEndNode"/>.
+    /// </para></remarks>
+    public class TerminateEndNode : WorkflowNode, IResultNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.TerminateEnd;
+
+        /// <summary>
+        /// Das Ergebnis des Workflows bei Abbruch ueber diesen Knoten - gleiche Bedeutung wie
+        /// <see cref="EndNode.Outputs"/>, nur aus dem Scope des terminierenden Zweigs. Leer = der ganze
+        /// Stack ist das Ergebnis.
+        /// </summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>Zusaetzlich zum Ergebnis erhalten bleibende Variablen.</summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// Ereignisbasiertes Gateway: wartet auf <b>mehrere</b> Ereignisse gleichzeitig - das erste, das
+    /// eintrifft, gewinnt, die uebrigen werden verworfen. „Antwort oder Frist", „Zusage, Absage oder
+    /// Rueckfrage".
+    /// </summary>
+    /// <remarks>
+    /// Umgesetzt als Rennen echter Tokens: das Gateway verbraucht sein Token und setzt je Ausgang ein
+    /// Kind-Token auf den dahinterliegenden Wartepunkt. Das sind ganz gewoehnliche wartende Tokens - die
+    /// Aufgriffs-Abfragen fuer Signale und Timer bleiben damit unveraendert, und ein Rennen kostet keine
+    /// Sonderbehandlung im Store. Sobald eines weiterlaeuft, verbraucht die Engine seine Geschwister
+    /// (siehe <see cref="Instances.Token.RaceTokenId"/>).
+    /// <para>
+    /// Deshalb muss hinter JEDEM Ausgang ein Knoten stehen, der auch wirklich <b>parkt</b> (Wartepunkt,
+    /// Timer, Benutzer-Aufgabe). Eine automatische Aktivitaet liefe sofort durch und gewaenne jedes
+    /// Rennen - das Gateway waere ein stiller Nicht-Effekt. Der Validator lehnt das ab.
+    /// </para>
+    /// <para>
+    /// Die Zweige bekommen bewusst KEINE eigenen Variablen-Kopien wie bei einem parallelen Split: es
+    /// ueberlebt genau einer, es gibt also nichts zusammenzufuehren.
+    /// </para></remarks>
+    public class EventGatewayNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.EventGateway;
+
+        /// <summary>
+        /// Darf dieser Knoten hinter einem Ausgang des Gateways stehen? Nur Knoten, die auf ein
+        /// <b>Ereignis</b> warten - ein Wartepunkt, ein Timer oder eine Benutzer-Aufgabe.
+        /// </summary>
+        /// <remarks>
+        /// Die Regel liegt am Modell und nicht im Validator, weil sie an mehreren Stellen gebraucht wird
+        /// (Pruefung und Oberflaeche) - dieselbe Ueberlegung wie bei
+        /// <see cref="BoundaryTimerNode.CanHost"/>. Bewusst NICHT dabei:
+        /// <list type="bullet">
+        /// <item><description>eine automatische Aktivitaet - sie liefe sofort durch und gewaenne jedes
+        /// Rennen, das Gateway waere ein stiller Nicht-Effekt;</description></item>
+        /// <item><description>ein Subworkflow-Aufruf - der parkt zwar, startet aber echte Arbeit, die
+        /// beim Verlieren des Rennens weggeworfen wuerde;</description></item>
+        /// <item><description>eine Aktivitaet mit Ausfuehrungs-Ziel - sie wartet auf einen Runner, nicht
+        /// auf ein Ereignis.</description></item>
+        /// </list></remarks>
+        public static bool CanRace(WorkflowNode node)
+        {
+            return node is WaitNode or TimerNode or UserActivityNode;
+        }
     }
 
     /// <summary>

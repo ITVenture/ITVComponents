@@ -236,6 +236,9 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.SplitTokenId = token.SplitTokenId;
                 tr.BoundaryOwnerTokenId = token.BoundaryOwnerTokenId;
                 tr.BoundaryIteration = token.BoundaryIteration;
+                tr.RaceTokenId = token.RaceTokenId;
+                tr.WaitingCorrelation = token.WaitingCorrelation;
+                tr.WaitingKind = (int?)token.WaitingKind;
                 // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
                 // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
                 // ist der Aufgaben-Stempel, den die Engine beim Parken setzt und beim Abschluss leert.
@@ -297,21 +300,49 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             using WorkflowContext ctx = contextFactory();
             int waiting = (int)TokenStatus.Waiting;
-            List<string> ids = ctx.Tokens
-                .Where(t => t.Status == waiting && t.WaitingSignal == signalName)
-                .Select(t => t.InstanceId)
-                .Distinct()
-                .ToList();
 
-            List<WorkflowInstance> found = LoadInstances(ctx, ids);
-            // Korrelation an der Instanz (nicht mehr an der Token-Zeile denormalisiert) - die
-            // Kandidatenmenge ist klein, daher in-memory.
+            // Der Schluessel am WARTEPUNKT wird in der Datenbank gefiltert - er ist der spezifischere und
+            // trennt die Kandidaten am staerksten. Der Schluessel an der Instanz bleibt der Rueckfall fuer
+            // Wartepunkte ohne eigenen (die Kandidatenmenge ist dann klein, daher in-memory).
+            IQueryable<TokenRow> candidates = ctx.Tokens
+                .Where(t => t.Status == waiting && t.WaitingSignal == signalName);
             if (correlationKey != null)
             {
-                found = found.Where(i => i.CorrelationKey == correlationKey || i.Id == correlationKey).ToList();
+                candidates = candidates.Where(t => t.WaitingCorrelation == correlationKey
+                                                   || t.WaitingCorrelation == null);
+            }
+
+            List<string> ids = candidates.Select(t => t.InstanceId).Distinct().ToList();
+            List<WorkflowInstance> found = LoadInstances(ctx, ids);
+            if (correlationKey != null)
+            {
+                found = found
+                    .Where(i => i.Tokens.Any(t => t.Status == TokenStatus.Waiting
+                                                  && t.WaitingSignal == signalName
+                                                  && (t.WaitingCorrelation == correlationKey
+                                                      || (t.WaitingCorrelation == null
+                                                          && (i.CorrelationKey == correlationKey
+                                                              || i.Id == correlationKey)))))
+                    .ToList();
             }
 
             return found;
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string signalName)
+        {
+            using WorkflowContext ctx = contextFactory();
+            int waiting = (int)TokenStatus.Waiting;
+            int broadcast = (int)Model.WaitKind.Signal;
+            // Die Auswahl gehoert in die Datenbank: ein Rundruf kann tausende Instanzen betreffen, und
+            // ohne die Art an der Token-Zeile muesste fuer jede erst die Definition geladen werden.
+            List<string> ids = ctx.Tokens
+                .Where(t => t.Status == waiting && t.WaitingSignal == signalName && t.WaitingKind == broadcast)
+                .Select(t => t.InstanceId)
+                .Distinct()
+                .ToList();
+            return LoadInstances(ctx, ids);
         }
 
         /// <inheritdoc/>
@@ -623,6 +654,9 @@ namespace ITVComponents.Workflow.EntityFramework
                     SplitTokenId = t.SplitTokenId,
                     BoundaryOwnerTokenId = t.BoundaryOwnerTokenId,
                     BoundaryIteration = t.BoundaryIteration,
+                    RaceTokenId = t.RaceTokenId,
+                    WaitingCorrelation = t.WaitingCorrelation,
+                    WaitingKind = (Model.WaitKind?)t.WaitingKind,
                     TaskKey = t.TaskKey,
                     TaskPermission = t.TaskPermission,
                     AssignedTo = t.AssignedTo,

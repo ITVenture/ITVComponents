@@ -109,9 +109,35 @@ namespace ITVComponents.Workflow.Stores
         {
             return instances.Values
                 .Where(i => i.Status == WorkflowStatus.Waiting)
-                .Where(i => correlationKey == null || i.CorrelationKey == correlationKey || i.Id == correlationKey)
-                .Where(i => i.WaitingTokens.Any(t => t.WaitingSignal == signalName))
+                .Where(i => i.WaitingTokens.Any(t => t.WaitingSignal == signalName
+                                                     && Correlates(i, t, correlationKey)))
                 .ToList();
+        }
+
+        /// <inheritdoc/>
+        public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string signalName)
+        {
+            return instances.Values
+                .Where(i => i.Status == WorkflowStatus.Waiting)
+                .Where(i => i.WaitingTokens.Any(t => t.WaitingSignal == signalName
+                                                     && t.WaitingKind == Model.WaitKind.Signal))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Passt der Schluessel zu diesem Wartepunkt? Der Schluessel am Token schlaegt den der Instanz -
+        /// dieselbe Regel wie in der Engine.
+        /// </summary>
+        private static bool Correlates(WorkflowInstance instance, Token token, string correlationKey)
+        {
+            if (correlationKey == null)
+            {
+                return true;
+            }
+
+            return token.WaitingCorrelation != null
+                ? token.WaitingCorrelation == correlationKey
+                : instance.CorrelationKey == correlationKey || instance.Id == correlationKey;
         }
 
         /// <inheritdoc/>

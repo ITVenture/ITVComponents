@@ -238,7 +238,9 @@
         (NodeKind.BoundaryTimer, "Deadline", "fa-solid fa-bell", "Deadline — hangs on a step where the token parks and triggers a side path (escalation) when the time is up. Does not hold up the main flow."),
         (NodeKind.ExclusiveGateway, "XOR", "fa-solid fa-code-branch", "Exclusive gateway (XOR) — takes exactly one outgoing path based on conditions."),
         (NodeKind.ParallelGateway, "AND", "fa-solid fa-arrows-split-up-and-left", "Parallel gateway (AND) — splits into all branches, or joins them back together."),
+        (NodeKind.EventGateway, "Event", "fa-solid fa-bolt", "Event gateway — waits for several events at once; the first one to arrive wins and the others are dropped. Every outgoing path must lead to a wait point, a timer or a user task."),
         (NodeKind.SidePathEnd, "Side end", "fa-solid fa-circle-stop", "Side-path end — closes an escalation path. Consumes the token WITHOUT completing the workflow."),
+        (NodeKind.TerminateEnd, "Terminate", "fa-solid fa-circle-xmark", "Terminate — ends the WHOLE instance at once: every other branch is dropped and running subworkflows are cancelled. Carries its own result, so the outcome says why."),
         (NodeKind.End, "End", "fa-solid fa-flag-checkered", "End — completes the instance. Exactly one per definition; defines the result.")
     };
 
@@ -679,6 +681,8 @@
             NodeKind.ParallelGateway => new ParallelGatewayNode(),
             NodeKind.BoundaryTimer => new BoundaryTimerNode(),
             NodeKind.SidePathEnd => new SidePathEndNode(),
+            NodeKind.TerminateEnd => new TerminateEndNode(),
+            NodeKind.EventGateway => new EventGatewayNode(),
             _ => new AutomatedActivityNode()
         };
 

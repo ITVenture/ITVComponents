@@ -46,6 +46,14 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// <param name="tokenId">bei <see cref="WorkflowTrigger.Advance"/>: der vorzutreibende Zweig</param>
         /// <param name="signalName">bei <see cref="WorkflowTrigger.Signal"/>: der Signalname</param>
         /// <param name="payload">bei <see cref="WorkflowTrigger.Signal"/>: optionale Variablen</param>
+        /// <param name="correlationKey">
+        /// bei <see cref="WorkflowTrigger.Signal"/>: waehlt den gemeinten Wartepunkt aus, wenn die Instanz
+        /// an mehreren Stellen auf denselben Namen wartet
+        /// </param>
+        /// <param name="broadcast">
+        /// bei <see cref="WorkflowTrigger.Signal"/>: true fuer einen <b>Rundruf</b> - dann werden nur
+        /// Wartepunkte der Art Rundruf geweckt, nicht die gerichteten
+        /// </param>
         /// <param name="priority">
         /// die Dringlichkeit der Instanz (kleinere Zahl = wichtiger). Der Wert geht unveraendert an den
         /// Task-Processor - dort entscheidet er, wie oft die Warteschlange dieser Stufe im Auswahl-Zyklus
@@ -53,13 +61,15 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// </param>
         public WorkflowTask(string instanceId, WorkflowTrigger trigger, string tokenId = null,
             string signalName = null, IDictionary<string, object> payload = null,
-            int priority = WorkflowPriority.Normal)
+            int priority = WorkflowPriority.Normal, string correlationKey = null, bool broadcast = false)
         {
             InstanceId = instanceId ?? throw new ArgumentNullException(nameof(instanceId));
             Trigger = trigger;
             TokenId = tokenId;
             SignalName = signalName;
             Payload = payload;
+            CorrelationKey = correlationKey;
+            Broadcast = broadcast;
             // TaskBase.Priority ist bewusst nur von abgeleiteten Klassen setzbar - genau dafuer.
             Priority = priority;
             // Wichtig: Schedules darf nicht null sein - ParallelTaskProcessor.EnqueueTask iteriert
@@ -85,6 +95,12 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// <summary>Bei <see cref="WorkflowTrigger.Signal"/>: optionale Variablen fuer den Weiterlauf.</summary>
         public IDictionary<string, object> Payload { get; }
 
+        /// <summary>Bei <see cref="WorkflowTrigger.Signal"/>: der Korrelationsschluessel, oder null.</summary>
+        public string CorrelationKey { get; }
+
+        /// <summary>Bei <see cref="WorkflowTrigger.Signal"/>: ist das ein Rundruf?</summary>
+        public bool Broadcast { get; }
+
         /// <inheritdoc/>
         public override IResourceLock DemandExclusive()
         {
@@ -100,7 +116,9 @@ namespace ITVComponents.Workflow.ParallelProcessing
                    && task.InstanceId == InstanceId
                    && task.Trigger == Trigger
                    && task.TokenId == TokenId
-                   && task.SignalName == SignalName;
+                   && task.SignalName == SignalName
+                   && task.CorrelationKey == CorrelationKey
+                   && task.Broadcast == Broadcast;
         }
 
         /// <inheritdoc/>

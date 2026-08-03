@@ -62,14 +62,45 @@
                         workflow is <b>not</b> completed. Its deadline waits for the next interval.
                     </MudAlert>
                     break;
+                case TerminateEndNode terminate:
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                        Ends the <b>whole instance</b> at once: every other branch is dropped and running
+                        subworkflows are cancelled. The workflow counts as completed, not cancelled.
+                    </MudAlert>
+                    <EndConfigEditor Node="terminate"
+                                     HelperText="@("Why did it stop? Without a result the outcome says nothing about the reason. The source is the scope of the branch that terminated - it is published to the instance first.")" />
+                    break;
+                case EventGatewayNode:
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        Waits for several events at once — the first one to arrive wins, the others are
+                        dropped. Every outgoing connection must lead to a <b>wait point</b>, a <b>timer</b>
+                        or a <b>user task</b>; anything else would run straight through and always win.
+                    </MudAlert>
+                    break;
                 case WaitNode wait:
                     <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
-                    <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
-                    <CScriptField @key="@("corr-" + Node.Id)" @ref="exprField" Height="240"
-                                  Value="@wait.CorrelationExpression"
-                                  ValueChanged="@(v => wait.CorrelationExpression = v)"
-                                  Mode="wait.CorrelationExpressionMode"
-                                  ModeChanged="@(m => wait.CorrelationExpressionMode = m)" />
+                    <MudSelect T="WaitKind" @bind-Value="wait.WaitKind" Label="Kind" Dense="true"
+                               Margin="Margin.Dense" Class="mt-2">
+                        <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
+                        <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Signal — a broadcast reaches every waiting instance</MudSelectItem>
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        A <b>message</b> without a matching correlation key does not arrive at all. A
+                        <b>signal</b> ignores correlation — use it for events that concern the whole system.
+                    </MudText>
+                    @if (wait.WaitKind == WaitKind.Message)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
+                        <CScriptField @key="@("corr-" + Node.Id)" @ref="exprField" Height="240"
+                                      Value="@wait.CorrelationExpression"
+                                      ValueChanged="@(v => wait.CorrelationExpression = v)"
+                                      Mode="wait.CorrelationExpressionMode"
+                                      ModeChanged="@(m => wait.CorrelationExpressionMode = m)" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Evaluated when the branch parks, over its variables — so it can key on something
+                            the process itself just produced. Empty = the instance's own correlation key.
+                        </MudText>
+                    }
                     break;
                 case TimerNode timer:
                     <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>

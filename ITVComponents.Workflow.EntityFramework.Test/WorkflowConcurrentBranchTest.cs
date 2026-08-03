@@ -381,6 +381,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             public int? GetInstancePriority(string instanceId) => inner.GetInstancePriority(instanceId);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
+            public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string s) => inner.FindWaitingForBroadcast(s);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime now, string o, TimeSpan l, int m) => inner.ClaimDueTimers(now, o, l, m);
             public DateTime? PeekNextTimerDueUtc(DateTime now) => inner.PeekNextTimerDueUtc(now);
@@ -440,6 +441,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
+            public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string s) => inner.FindWaitingForBroadcast(s);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime now, string o, TimeSpan l, int m) => inner.ClaimDueTimers(now, o, l, m);
             public DateTime? PeekNextTimerDueUtc(DateTime now) => inner.PeekNextTimerDueUtc(now);

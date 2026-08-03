@@ -324,6 +324,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public bool TryCommitInstance(WorkflowInstance instance, int baseVersion) => inner.TryCommitInstance(instance, baseVersion);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
+            public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string s) => inner.FindWaitingForBroadcast(s);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime now, string o, TimeSpan l, int m) => inner.ClaimDueTimers(now, o, l, m);
             public DateTime? PeekNextTimerDueUtc(DateTime now) => inner.PeekNextTimerDueUtc(now);

@@ -179,6 +179,42 @@ namespace ITVComponents.Workflow.Instances
         public int? BoundaryIteration { get; set; }
 
         /// <summary>
+        /// Bei einem Token, das an einem <see cref="Model.EventGatewayNode"/> um die Wette wartet: die Id
+        /// des (verbrauchten) Gateway-Tokens. Alle Geschwister desselben Rennens tragen denselben Wert;
+        /// sobald eines weiterlaeuft, werden die uebrigen verbraucht. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Beim Gewinner wird der Wert geloescht, sobald er seinen Wartepunkt verlaesst - danach ist er
+        /// ein ganz gewoehnliches Token. Ohne dieses Loeschen wuerde ein spaeteres Rennen mit derselben
+        /// Gateway-Id (Wiederholungs-Schleife) alte Geschwister mit einbeziehen.
+        /// </remarks>
+        public string RaceTokenId { get; set; }
+
+        /// <summary>
+        /// Bei einem an einem <see cref="Model.WaitNode"/> wartenden Token: der aufgeloeste
+        /// Korrelationsschluessel dieses Wartepunkts (aus
+        /// <see cref="Model.WaitNode.CorrelationExpression"/>), oder null.
+        /// </summary>
+        /// <remarks>
+        /// Am TOKEN und nicht an der Instanz, weil er beim Warten entsteht und nicht beim Anlegen: eine
+        /// Instanz kann an mehreren Stellen auf verschiedene Schluessel warten. Ist er null, gilt der
+        /// Korrelationsschluessel der Instanz (oder ihre Id) - das bisherige Verhalten.
+        /// </remarks>
+        public string WaitingCorrelation { get; set; }
+
+        /// <summary>
+        /// Bei einem an einem <see cref="Model.WaitNode"/> wartenden Token: ob es eine gerichtete
+        /// Nachricht oder einen Rundruf erwartet (<see cref="Model.WaitKind"/>). Null bei allen anderen
+        /// Wartearten.
+        /// </summary>
+        /// <remarks>
+        /// Am Token gefuehrt, damit die Auswahl der Empfaenger in der DATENBANK stattfinden kann: ein
+        /// Rundruf muss alle passenden Tokens finden, ohne fuer jede Instanz erst ihre Definition zu
+        /// laden.
+        /// </remarks>
+        public Model.WaitKind? WaitingKind { get; set; }
+
+        /// <summary>
         /// Uebernimmt den GESAMTEN Zustand eines anderen Tokens (alles ausser <see cref="Id"/>).
         /// </summary>
         /// <remarks>
@@ -208,6 +244,9 @@ namespace ITVComponents.Workflow.Instances
             SplitTokenId = source.SplitTokenId;
             BoundaryOwnerTokenId = source.BoundaryOwnerTokenId;
             BoundaryIteration = source.BoundaryIteration;
+            RaceTokenId = source.RaceTokenId;
+            WaitingCorrelation = source.WaitingCorrelation;
+            WaitingKind = source.WaitingKind;
             TaskKey = source.TaskKey;
             TaskPermission = source.TaskPermission;
             AssignedTo = source.AssignedTo;
@@ -248,6 +287,9 @@ namespace ITVComponents.Workflow.Instances
                    && a.SplitTokenId == b.SplitTokenId
                    && a.BoundaryOwnerTokenId == b.BoundaryOwnerTokenId
                    && Nullable.Equals(a.BoundaryIteration, b.BoundaryIteration)
+                   && a.RaceTokenId == b.RaceTokenId
+                   && a.WaitingCorrelation == b.WaitingCorrelation
+                   && Nullable.Equals(a.WaitingKind, b.WaitingKind)
                    && a.TaskKey == b.TaskKey && a.TaskPermission == b.TaskPermission
                    && a.AssignedTo == b.AssignedTo && a.TaskTitle == b.TaskTitle
                    && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)

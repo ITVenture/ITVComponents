@@ -95,7 +95,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         {
             NodeKind.ExclusiveGateway => ("×", 20),
             NodeKind.ParallelGateway => ("+", 20),
+            // Ein Blitz fuer das Rennen: hier entscheidet, was zuerst eintrifft. Bewusst nicht die
+            // BPMN-Doppelkreis-Zeichnung - die braucht eine eigene Form, und der Unterschied zu AND/XOR
+            // muss auf 50px vor allem SCHNELL lesbar sein.
+            NodeKind.EventGateway => ("⚡", 18),
             NodeKind.BoundaryTimer => ("🔔", 15),
+            // Das Kreuz im Kreis: dieselbe Grundform wie das Ende, aber unuebersehbar anders - der
+            // Unterschied zwischen "dieser Zweig ist fertig" und "ALLES ist vorbei".
+            NodeKind.TerminateEnd => ("✕", 20),
             _ => null
         };
 
@@ -668,7 +675,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     return (46, 46);
                 case NodeKind.ExclusiveGateway:
                 case NodeKind.ParallelGateway:
+                case NodeKind.EventGateway:
                     return (50, 50);
+                case NodeKind.TerminateEnd:
+                    // Wie das Ende: es IST ein Ende - nur ein durchgreifendes.
+                    return (46, 46);
                 case NodeKind.SidePathEnd:
                     // Etwas kleiner als das Ende: ein Nebenpfad-Abschluss ist die leisere Aussage.
                     return (38, 38);
@@ -712,9 +723,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             {
                 case NodeKind.Start:
                 case NodeKind.End:
+                case NodeKind.TerminateEnd:
                     return NodeShape.Ellipse;
                 case NodeKind.ExclusiveGateway:
                 case NodeKind.ParallelGateway:
+                case NodeKind.EventGateway:
                     return NodeShape.Diamond;
                 case NodeKind.Wait:
                 case NodeKind.Timer:

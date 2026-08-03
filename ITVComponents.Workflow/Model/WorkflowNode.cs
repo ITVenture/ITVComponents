@@ -42,7 +42,19 @@ namespace ITVComponents.Workflow.Model
         BoundaryTimer,
 
         /// <summary>Endpunkt eines <b>Nebenpfads</b>: verbraucht das Token, ohne den Workflow zu beenden.</summary>
-        SidePathEnd
+        SidePathEnd,
+
+        /// <summary>
+        /// Beendet die <b>ganze Instanz</b> sofort - auch alle anderen laufenden Zweige und
+        /// Subworkflows.
+        /// </summary>
+        TerminateEnd,
+
+        /// <summary>
+        /// Ereignisbasiertes Gateway: wartet auf <b>mehrere</b> Ereignisse gleichzeitig; das erste, das
+        /// eintrifft, gewinnt, die uebrigen werden verworfen.
+        /// </summary>
+        EventGateway
     }
 
     /// <summary>
@@ -69,7 +81,9 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(CallWorkflowNode), "call")]
     [JsonDerivedType(typeof(BoundaryTimerNode), "boundarytimer")]
     [JsonDerivedType(typeof(SidePathEndNode), "sidepathend")]
-    public abstract class WorkflowNode
+    [JsonDerivedType(typeof(TerminateEndNode), "terminateend")]
+    [JsonDerivedType(typeof(EventGatewayNode), "eventgateway")]
+    public abstract class WorkflowNode : INodeIdentity
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>
         public string Id { get; set; }

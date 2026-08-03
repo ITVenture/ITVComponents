@@ -231,10 +231,35 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// nicht" - die Instanz selbst bleibt davon unberuehrt.
         /// </param>
         public void Signal(string instanceId, string signalName, IDictionary<string, object> payload = null,
-            int? priority = null)
+            int? priority = null, string correlationKey = null)
         {
             processor.EnqueueTask(new WorkflowTask(instanceId, WorkflowTrigger.Signal, null, signalName, payload,
-                Band(priority ?? store.GetInstancePriority(instanceId))));
+                Band(priority ?? store.GetInstancePriority(instanceId)), correlationKey));
+        }
+
+        /// <summary>
+        /// Reiht einen <b>Rundruf</b> ein: jede Instanz, die an einem Rundruf-Wartepunkt dieses Namens
+        /// haengt, bekommt einen eigenen Auftrag. Die Verarbeitung laeuft nebenlaeufig; die Methode kehrt
+        /// sofort zurueck.
+        /// </summary>
+        /// <returns>die Anzahl der eingereihten Instanzen</returns>
+        /// <remarks>
+        /// Bewusst ein Auftrag JE INSTANZ und nicht einer fuer alle: jeder bekommt seinen eigenen
+        /// versionsgeprueften Commit, seine eigene Stufe und darf einzeln scheitern. Ein Rundruf kann
+        /// tausende Instanzen treffen - eine davon, die gerade anderweitig committet, darf die restlichen
+        /// nicht mitreissen.
+        /// </remarks>
+        public int Broadcast(string signalName, IDictionary<string, object> payload = null)
+        {
+            int count = 0;
+            foreach (WorkflowInstance instance in store.FindWaitingForBroadcast(signalName).ToList())
+            {
+                processor.EnqueueTask(new WorkflowTask(instance.Id, WorkflowTrigger.Signal, null, signalName,
+                    payload, Band(instance.Priority), correlationKey: null, broadcast: true));
+                count++;
+            }
+
+            return count;
         }
 
         /// <summary>Reiht die aktiven Zweige einer bereits geladenen Instanz ein (mit ihrer Stufe).</summary>

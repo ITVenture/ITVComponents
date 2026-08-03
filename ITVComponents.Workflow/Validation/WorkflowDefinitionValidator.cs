@@ -157,13 +157,15 @@ namespace ITVComponents.Workflow.Validation
                 int outs = outCount.TryGetValue(n.Id, out int o) ? o : 0;
                 int ins = inCount.TryGetValue(n.Id, out int i) ? i : 0;
 
-                // Nebenpfad-Ende verbraucht sein Token wie das End - nur ohne den Workflow zu beenden.
-                if (n.Kind != NodeKind.End && n.Kind != NodeKind.SidePathEnd && outs == 0)
+                // Nebenpfad-Ende und Abbruch verbrauchen ihr Token wie das End - der eine ohne den
+                // Workflow zu beenden, der andere indem er ihn ganz beendet.
+                bool terminatesBranch = n.Kind is NodeKind.End or NodeKind.SidePathEnd or NodeKind.TerminateEnd;
+                if (!terminatesBranch && outs == 0)
                 {
                     issues.Add(Error(n.Id, $"Node '{Label(n)}' has no outgoing connection - a token would get stuck."));
                 }
 
-                if ((n.Kind == NodeKind.End || n.Kind == NodeKind.SidePathEnd) && outs > 0)
+                if (terminatesBranch && outs > 0)
                 {
                     issues.Add(Warn(n.Id, $"End node '{Label(n)}' has outgoing connections - they are ignored."));
                 }
@@ -231,6 +233,11 @@ namespace ITVComponents.Workflow.Validation
                 if (n is AutomatedActivityNode iterating && iterating.Iteration != null)
                 {
                     issues.AddRange(IterationIssues(iterating));
+                }
+
+                if (n is EventGatewayNode)
+                {
+                    issues.AddRange(EventGatewayIssues(n, flows, byId, outs));
                 }
 
                 if (n is UserActivityNode task)
@@ -306,6 +313,45 @@ namespace ITVComponents.Workflow.Validation
 
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Prueft ein ereignisbasiertes Gateway. Die eine Regel, die zaehlt: hinter jedem Ausgang muss
+        /// etwas stehen, das auch wirklich <b>wartet</b>.
+        /// </summary>
+        /// <remarks>
+        /// Steht dort eine automatische Aktivitaet, laeuft sie sofort durch und gewinnt jedes Rennen - das
+        /// Gateway waere ein stiller Nicht-Effekt, und im Diagramm saehe man ihm das nicht an. Deshalb ein
+        /// Fehler und keine Warnung.
+        /// </remarks>
+        private static IEnumerable<ValidationIssue> EventGatewayIssues(WorkflowNode node,
+            List<SequenceFlow> flows, Dictionary<string, WorkflowNode> byId, int outgoing)
+        {
+            var issues = new List<ValidationIssue>();
+            if (outgoing < 2)
+            {
+                issues.Add(Error(node.Id,
+                    $"Event gateway '{Label(node)}' has {outgoing} outgoing connection(s) - it needs at least " +
+                    "two events to race."));
+            }
+
+            foreach (SequenceFlow flow in flows.Where(f => f.SourceId == node.Id))
+            {
+                if (flow.TargetId == null || !byId.TryGetValue(flow.TargetId, out WorkflowNode target))
+                {
+                    continue;
+                }
+
+                if (!EventGatewayNode.CanRace(target))
+                {
+                    issues.Add(Error(node.Id,
+                        $"Event gateway '{Label(node)}' leads to '{Label(target)}', which does not wait for an " +
+                        "event. Only a wait point, a timer or a user task can take part in the race - anything " +
+                        "else would run straight through and always win."));
+                }
+            }
+
+            return issues;
         }
 
         /// <summary>
