@@ -50,6 +50,30 @@ namespace ITVComponents.Json
             Strategy<DefaultJsonStrategy>(NativeStrategy).ExtendNativeProtocolType<TProto,TExt>(discriminator);
         }
 
+        /// <summary>
+        /// Meldet einen Typ fuer <see cref="SerializationTypingMode.AssistedPolymorphism"/> unter einem
+        /// stabilen <b>Kurznamen</b> an. Ohne Registrierung wird der <c>AssemblyQualifiedName</c>
+        /// geschrieben (unveraendertes Verhalten).
+        /// </summary>
+        /// <remarks>
+        /// Fuer alles, was laenger liegt als ein Prozessaufruf: der Kurzname ueberlebt das Umbenennen und
+        /// Verschieben der Klasse, und er ist zusammen mit
+        /// <see cref="RestrictManualTypesToRegistered"/> eine Positivliste gegen das Laden beliebiger
+        /// Typen aus fremden Daten. Der Name gehoert zum Datenformat und darf sich nachtraeglich nicht
+        /// mehr aendern.
+        /// </remarks>
+        public static void RegisterManualType<T>(string alias) => ManualTypeRegistry.Register<T>(alias);
+
+        /// <summary>Meldet einen Typ unter einem stabilen Kurznamen an (siehe <see cref="RegisterManualType{T}"/>).</summary>
+        public static void RegisterManualType(Type type, string alias) => ManualTypeRegistry.Register(type, alias);
+
+        /// <summary>
+        /// Beschraenkt das Auflösen von Typen im aktuellen Ausfuehrungsfluss auf registrierte Kurznamen -
+        /// ein <c>AssemblyQualifiedName</c> in den Daten wird dann nicht geladen. Beim Dispose gilt wieder
+        /// der vorige Zustand.
+        /// </summary>
+        public static IDisposable RestrictManualTypesToRegistered() => ManualTypeRegistry.RestrictToRegisteredTypes();
+
         public static string EncryptJsonValues(this string jsonString, string password = null, string strategy = null)
         {
             return Strategy<IJsonStrategy>(strategy).EncryptJsonValues(jsonString, password);

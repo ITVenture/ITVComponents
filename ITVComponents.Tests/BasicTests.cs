@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -37,6 +38,71 @@ namespace ITVComponents.Tests
             s = fu.EncryptJsonValues(p);
             fu2 = JsonHelper.FromJsonString<Fubar>(s, SerializationTypingMode.StaticTyping);
             Assert.AreEqual(fu.Fu, $"encrypt:{fu2.Fu.Decrypt()}");
+        }
+
+        /// <summary>
+        /// Generische Listen ueber AssistedPolymorphism. Frueher unlesbar: der Zieltyp wurde unbedingt zum
+        /// Array erweitert, aus List&lt;T&gt; wurde List&lt;T&gt;[]. Arrays gingen, Listen nicht.
+        /// </summary>
+        [TestMethod]
+        public void TestAssistedPolymorphismWithCollections()
+        {
+            var list = new List<Fubar> { new Fubar { Fu = "one" }, new Fubar { Fu = "two" } };
+            var listJson = JsonHelper.ToJson(list, SerializationTypingMode.AssistedPolymorphism, null);
+            var list2 = JsonHelper.FromJsonString<List<Fubar>>(listJson, SerializationTypingMode.AssistedPolymorphism);
+            Assert.IsNotNull(list2);
+            Assert.AreEqual(2, list2.Count);
+            Assert.AreEqual("one", list2[0].Fu);
+
+            // Arrays liefen schon vorher - und muessen weiter laufen.
+            var array = new[] { new Fubar { Fu = "a" }, new Fubar { Fu = "b" } };
+            var arrayJson = JsonHelper.ToJson(array, SerializationTypingMode.AssistedPolymorphism, null);
+            var array2 = JsonHelper.FromJsonString<Fubar[]>(arrayJson, SerializationTypingMode.AssistedPolymorphism);
+            Assert.AreEqual(2, array2.Length);
+            Assert.AreEqual("b", array2[1].Fu);
+        }
+
+        /// <summary>
+        /// Registrierter Kurzname statt AssemblyQualifiedName: das Format haengt dann nicht mehr an
+        /// Assembly und Version - der Sinn der Uebung fuer langlebig abgelegte Daten.
+        /// </summary>
+        [TestMethod]
+        public void TestAssistedPolymorphismWithRegisteredAlias()
+        {
+            JsonHelper.RegisterManualType<Aliased>("test-aliased");
+            var value = new Aliased { Name = "x", Count = 3 };
+
+            var json = JsonHelper.ToJson(value, SerializationTypingMode.AssistedPolymorphism, null);
+            Assert.IsTrue(json.Contains("test-aliased"), "the short name must be what lands in the payload.");
+            Assert.IsFalse(json.Contains("ITVComponents.Tests, Version"),
+                "no assembly-qualified name - that is the whole point.");
+
+            var back = JsonHelper.FromJsonString<Aliased>(json, SerializationTypingMode.AssistedPolymorphism);
+            Assert.AreEqual("x", back.Name);
+            Assert.AreEqual(3, back.Count);
+        }
+
+        /// <summary>
+        /// Unter der Beschraenkung wird ein AssemblyQualifiedName NICHT geladen - und der Wert geht
+        /// trotzdem nicht still verloren, sondern bleibt als UnresolvedPayload erhalten.
+        /// </summary>
+        [TestMethod]
+        public void TestRestrictedManualTypesRefuseArbitraryTypes()
+        {
+            // Ohne Registrierung geschrieben => AssemblyQualifiedName im Datenstrom.
+            var json = JsonHelper.ToJson(new Fubar { Fu = "Bar" }, SerializationTypingMode.AssistedPolymorphism, null);
+            Assert.IsTrue(json.Contains("ITVComponents.Tests"));
+
+            using (JsonHelper.RestrictManualTypesToRegistered())
+            {
+                var refused = JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.AssistedPolymorphism);
+                Assert.IsNull(refused, "an unregistered type must not be loaded under the restriction.");
+            }
+
+            // Ohne Beschraenkung laeuft derselbe Datenstrom wie bisher - die Prozesskommunikation
+            // haengt daran.
+            var allowed = JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.AssistedPolymorphism);
+            Assert.AreEqual("Bar", allowed.Fu);
         }
 
         [TestMethod]
@@ -106,6 +172,14 @@ namespace ITVComponents.Tests
         public class Fubar
         {
             public string Fu { get; set; }
+        }
+
+        /// <summary>Ein Datensatz, der unter einem stabilen Kurznamen angemeldet wird.</summary>
+        public class Aliased
+        {
+            public string Name { get; set; }
+
+            public int Count { get; set; }
         }
 
         public class SecretBag
