@@ -1,7 +1,11 @@
 using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
@@ -10,6 +14,7 @@ using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Runtime;
+using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
 
 namespace ITVComponents.Workflow
@@ -54,16 +59,30 @@ namespace ITVComponents.Workflow
         /// Ziel aufgenommen. Null/leer = die Engine fuehrt nur ziel-lose Aktivitaeten aus (der
         /// nicht-verteilte Standard).
         /// </param>
+        /// <param name="historyFilter">
+        /// Entscheidet, welche Eintraege ueberhaupt ins Ablauf-Protokoll der von dieser Engine
+        /// vorangetriebenen Instanzen kommen. Null = der prozessweite
+        /// <see cref="WorkflowHistoryFilter.Default"/>. Eine Definition kann die Mindest-Stufe einzeln
+        /// uebersteuern (<see cref="WorkflowDefinition.MinHistorySeverity"/>).
+        /// </param>
         public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
-            IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null)
+            IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null,
+            IWorkflowHistoryFilter historyFilter = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
             this.evaluator = evaluator ?? new CScriptExpressionEvaluator();
             this.hostTargets = new HashSet<string>(
                 hostTargets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            HistoryFilter = historyFilter;
             Runtime = new WorkflowRuntimeContext();
         }
+
+        /// <summary>
+        /// Der Protokoll-Filter dieser Engine (siehe Konstruktor). Null = der prozessweite
+        /// <see cref="WorkflowHistoryFilter.Default"/>.
+        /// </summary>
+        public IWorkflowHistoryFilter HistoryFilter { get; set; }
 
         /// <summary>
         /// Die Ausfuehrungs-Ziele, die diese Engine/dieser Host bedient (siehe Konstruktor). Der Runner
@@ -85,8 +104,17 @@ namespace ITVComponents.Workflow
         /// treibt sie ueber <see cref="RunBranch"/> voran. Fuer den sequenziellen/einfachen Betrieb siehe
         /// <see cref="StartWorkflow"/>.
         /// </summary>
+        /// <param name="definitionId">die Id der Definition</param>
+        /// <param name="initialVariables">Startvariablen, oder null</param>
+        /// <param name="correlationKey">optionaler Korrelationsschluessel fuer Signale</param>
+        /// <param name="priority">
+        /// die Dringlichkeit der neuen Instanz (kleinere Zahl = wichtiger, siehe
+        /// <see cref="WorkflowPriority"/>), oder null fuer die Vorgabe der Definition
+        /// (<see cref="WorkflowDefinition.DefaultPriority"/>) bzw. <see cref="WorkflowPriority.Normal"/>
+        /// </param>
         public WorkflowInstance CreateInstance(string definitionId,
-            IDictionary<string, object> initialVariables = null, string correlationKey = null)
+            IDictionary<string, object> initialVariables = null, string correlationKey = null,
+            int? priority = null)
         {
             WorkflowDefinition definition = store.GetDefinition(definitionId)
                 ?? throw new InvalidOperationException($"No definition found for '{definitionId}'.");
@@ -117,6 +145,8 @@ namespace ITVComponents.Workflow
                 DefinitionVersion = definition.Version,
                 Status = WorkflowStatus.Running,
                 CorrelationKey = correlationKey,
+                Priority = priority ?? definition.DefaultPriority ?? WorkflowPriority.Normal,
+                HistoryFilter = FilterFor(definition),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -163,13 +193,64 @@ namespace ITVComponents.Workflow
         /// <param name="definitionId">die Id der Definition</param>
         /// <param name="initialVariables">Startvariablen, oder null</param>
         /// <param name="correlationKey">optionaler Korrelationsschluessel fuer Signale</param>
+        /// <param name="priority">
+        /// die Dringlichkeit der neuen Instanz, oder null fuer die Vorgabe der Definition. Fuer DIESEN
+        /// (sequenziellen) Weg ohne Wirkung - der Wert wird nur mitgefuehrt, damit ein spaeter
+        /// uebernehmender Runner ihn kennt.
+        /// </param>
         /// <returns>die gestartete Instanz</returns>
         public WorkflowInstance StartWorkflow(string definitionId,
-            IDictionary<string, object> initialVariables = null, string correlationKey = null)
+            IDictionary<string, object> initialVariables = null, string correlationKey = null,
+            int? priority = null)
         {
-            WorkflowInstance instance = CreateInstance(definitionId, initialVariables, correlationKey);
+            WorkflowInstance instance = CreateInstance(definitionId, initialVariables, correlationKey, priority);
             Advance(instance, LoadDefinition(instance));
             return instance;
+        }
+
+        /// <summary>
+        /// Setzt die Dringlichkeit einer laufenden Instanz neu (kleinere Zahl = wichtiger, siehe
+        /// <see cref="WorkflowPriority"/>). Wirkt auf die noch nicht eingereihten Zweige: der naechste
+        /// Poll des Runners nimmt sie mit der neuen Stufe auf. Bereits in der Warteschlange stehende
+        /// Auftraege behalten ihre alte Stufe - sie sind ohnehin gleich dran.
+        /// </summary>
+        /// <returns>true, wenn die Aenderung gespeichert wurde; false bei unbekannter Instanz</returns>
+        public bool SetPriority(string instanceId, int priority)
+        {
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Priority of workflow instance '{instanceId}' could not be changed: no such instance.",
+                    LogSeverity.Warning);
+                return false;
+            }
+
+            if (instance.Priority == priority)
+            {
+                return true;
+            }
+
+            int previous = instance.Priority;
+            using (WorkflowExecutionScope.UseTenant(instance.TenantId))
+            {
+                instance.HistoryFilter = FilterFor(store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion));
+                instance.Priority = priority;
+                instance.Log("PriorityChanged", detail:
+                    $"{WorkflowPriority.Name(previous)} -> {WorkflowPriority.Name(priority)}");
+
+                // Versionsgepruefter Commit: laeuft gerade ein Zweig, gewinnt dessen Commit und die
+                // Aenderung muss wiederholt werden - sie darf den Zweig-Fortschritt nicht ueberschreiben.
+                if (!store.TryCommitInstance(instance, instance.Version))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Priority of workflow instance '{instanceId}' could not be changed: a concurrent commit " +
+                        "won the race. Retry.", LogSeverity.Warning);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1849,12 +1930,33 @@ namespace ITVComponents.Workflow
             }
 
             var outputs = new Dictionary<string, object>(StringComparer.Ordinal);
+
+            // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen Instanz)
+            // gehoert dem Scope und endet mit dem Vortrieb. Bewusst EINMAL - auch fuer eine parallele
+            // Iteration: ein Plugin wird unter seinem Namen geteilt, 1000 Elemente wuerden es nicht 1000
+            // mal neu laden, und ein nebenlaeufiges Resolve waere fuer den Scope selbst eine Zumutung.
+            IWorkflowActivity activity;
+            try
+            {
+                activity = activityScope.Resolve(node.ActivityRef);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Activity '{node.ActivityRef}' of node '{node.Id}' in workflow instance '{instance.Id}' " +
+                    $"could not be resolved: {ex.OutlineException()}", LogSeverity.Error);
+                return HandleActivityFailure(instance, definition, token, node, ex.Message, applyOutputs: false, null);
+            }
+
+            if (node.Iteration != null && node.Iteration.IsConfigured)
+            {
+                return RunActivityIteration(instance, definition, token, node, node.Iteration, activity, inputs,
+                    outputs, scope);
+            }
+
             var context = new WorkflowActivityContext(instance, node, inputs, outputs, scope);
             try
             {
-                // On-demand aufgeloest; die Lebensdauer der Aktivitaet (bei Plugins: der geladenen
-                // Instanz) gehoert dem Scope und endet mit dem Vortrieb.
-                IWorkflowActivity activity = activityScope.Resolve(node.ActivityRef);
                 activity.Execute(context);
             }
             catch (Exception ex)
@@ -1881,6 +1983,443 @@ namespace ITVComponents.Workflow
             ResetAttempts(scope, node.AttemptVariable);
             instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
             return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
+        }
+
+        /// <summary>
+        /// Fuehrt eine Aktivitaet <b>je Element einer Sammlung</b> aus - je nach
+        /// <see cref="ActivityIteration.MaxParallel"/> nacheinander oder mehrere gleichzeitig - und fasst
+        /// die Ergebnisse zu Listen zusammen (je Ausgabeparameter eine Liste in Eingabe-Reihenfolge).
+        /// </summary>
+        /// <remarks>
+        /// Der Zweig bleibt EIN Zweig: keine zusaetzlichen Tokens, keine Zweig-Sperren, ein Commit am
+        /// Ende. Fuer die Persistenz ist der Knoten damit derselbe atomare Schritt wie eine gewoehnliche
+        /// Aktivitaet - ein Absturz mittendrin wiederholt ihn ganz.
+        /// <para>
+        /// Jeder Element-Lauf bekommt eigene Ein-/Ausgaben und eine <b>Kopie</b> des Variablen-Scopes.
+        /// Schreibzugriffe auf diese Kopie kann die Engine nicht zusammenfuehren (welcher von 1000
+        /// Laeufen haette recht?) - sie verwirft sie, protokolliert aber die erkannten Namen als Warnung,
+        /// damit ein so gebautes Skript nicht still das Falsche tut.
+        /// </para></remarks>
+        private bool RunActivityIteration(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            AutomatedActivityNode node, ActivityIteration iteration, IWorkflowActivity activity,
+            IDictionary<string, object> inputs, Dictionary<string, object> outputs,
+            Dictionary<string, object> scope)
+        {
+            if (!TryReadCollection(instance, node, inputs, iteration.ItemsInput, out List<object> items))
+            {
+                return false;
+            }
+
+            // Was fruehere Durchlaeufe schon geschafft haben (Wiederholungs-Schleife). Bewusst hier
+            // aufgeloest, VOR der Arbeit: eine falsch gebundene Uebernahme soll auffliegen, bevor 1000
+            // Elemente laufen - und nicht erst, wenn das Ergebnis zusammengesetzt wird.
+            List<object> carriedOver = null;
+            if (!string.IsNullOrWhiteSpace(iteration.CarryOverInput)
+                && !TryReadCollection(instance, node, inputs, iteration.CarryOverInput, out carriedOver))
+            {
+                return false;
+            }
+
+            int parallelism = iteration.MaxParallel <= 0 ? Environment.ProcessorCount : iteration.MaxParallel;
+            parallelism = Math.Max(1, Math.Min(parallelism, Math.Max(1, items.Count)));
+            string itemParameter = iteration.EffectiveItemParameter;
+
+            var itemOutputs = new Dictionary<string, object>[items.Count];
+            var itemFailures = new IterationFailure[items.Count];
+            var attempted = new bool[items.Count];
+            var discardedWrites = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+
+            instance.Log("Iteration", node.Id,
+                $"{items.Count} item(s) of '{iteration.ItemsInput}', parallelism {parallelism}",
+                HistorySeverity.Verbose);
+
+            if (items.Count > 0)
+            {
+                var options = new ParallelOptions { MaxDegreeOfParallelism = parallelism };
+                Parallel.For(0, items.Count, options, (i, state) =>
+                {
+                    // Nach einem Abbruch (ContinueOnError = false) werden noch nicht begonnene Elemente
+                    // uebersprungen; die bereits laufenden laufen aus - abwuergen kann die Engine sie nicht.
+                    if (state.ShouldExitCurrentIteration)
+                    {
+                        return;
+                    }
+
+                    var singleInputs = new Dictionary<string, object>(inputs, StringComparer.Ordinal)
+                    {
+                        [itemParameter] = items[i]
+                    };
+                    if (!string.IsNullOrWhiteSpace(iteration.IndexParameter))
+                    {
+                        singleInputs[iteration.IndexParameter] = i;
+                    }
+
+                    var singleOutputs = new Dictionary<string, object>(StringComparer.Ordinal);
+                    Dictionary<string, object> singleScope = CopyScope(scope);
+                    var context = new WorkflowActivityContext(instance, node, singleInputs, singleOutputs,
+                        singleScope);
+                    attempted[i] = true;
+                    try
+                    {
+                        activity.Execute(context);
+                        if (context.Failed)
+                        {
+                            // Kontrolliert abgelehnt - kein Absturz. Der Unterschied bleibt sichtbar:
+                            // ExceptionType bleibt null.
+                            itemFailures[i] = new IterationFailure
+                            {
+                                Item = items[i],
+                                Index = i,
+                                Message = context.FailureMessage ?? "(no message)"
+                            };
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Die Ausnahme wird als DATEN mitgenommen (Typ + ausgeschriebener Stacktrace), nicht
+                        // als Objekt: die Fehlerliste landet ueber die Ausgabe-Bindung in einer Variable und
+                        // damit im JSON des Commits - ein Exception-Objekt liesse den scheitern.
+                        itemFailures[i] = new IterationFailure
+                        {
+                            Item = items[i],
+                            Index = i,
+                            Message = ex.Message,
+                            ExceptionType = ex.GetType().FullName,
+                            ExceptionDetail = ex.OutlineException()
+                        };
+                        LogEnvironment.LogEvent(
+                            $"Activity '{node.ActivityRef}' of node '{node.Id}' in workflow instance " +
+                            $"'{instance.Id}' failed on item {i}: {ex.OutlineException()}", LogSeverity.Error);
+                    }
+
+                    itemOutputs[i] = singleOutputs;
+                    CollectDiscardedWrites(scope, singleScope, discardedWrites);
+
+                    if (itemFailures[i] != null && !iteration.ContinueOnError)
+                    {
+                        state.Stop();
+                    }
+                });
+            }
+
+            // Je Ausgabeparameter, den irgendein Element gesetzt hat, eine Liste in EINGABE-Reihenfolge
+            // (nicht in Fertigstellungs-Reihenfolge) - sonst waere das Ergebnis einer parallelen Iteration
+            // von Lauf zu Lauf anders sortiert. Elemente ohne Wert stehen als null drin, damit die
+            // Positionen zur Eingabeliste passen.
+            foreach (string key in DistinctOutputKeys(itemOutputs))
+            {
+                var values = new List<object>(items.Count);
+                for (int i = 0; i < items.Count; i++)
+                {
+                    values.Add(itemOutputs[i] != null && itemOutputs[i].TryGetValue(key, out object value)
+                        ? value
+                        : null);
+                }
+
+                outputs[key] = AsTypedResult(values);
+            }
+
+            // Drei Sichten auf denselben Durchlauf, jede mit einem eigenen Zweck:
+            //   failedItems  - was gescheitert ist (Diagnose, paart mit failedMessages)
+            //   pendingItems - was NOCH OFFEN ist (gescheitert PLUS nach einem Abbruch nie versucht).
+            //                  Das ist der Eingang einer Wiederholung: wer nur die gescheiterten
+            //                  wiederholt, verliert nach einem Abbruch die nie versuchten still.
+            //   succeededItems - was FERTIG ist, und zwar als Ergebnis (ItemResultOutput), nicht als
+            //                  Eingabe. Die beiden Formen sind absichtlich verschieden: Offenes muss
+            //                  wieder in die Sammlung passen, Fertiges ist das Resultat.
+            var failures = new List<object>();
+            var pendingItems = new List<object>();
+            var succeededItems = new List<object>(carriedOver ?? Enumerable.Empty<object>());
+            int carriedCount = succeededItems.Count;
+            int missingResults = 0;
+            int skipped = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (itemFailures[i] != null)
+                {
+                    failures.Add(itemFailures[i]);
+                    pendingItems.Add(items[i]);
+                }
+                else if (attempted[i])
+                {
+                    succeededItems.Add(ResultOf(iteration, items, itemOutputs, i, ref missingResults));
+                }
+                else
+                {
+                    skipped++;
+                    pendingItems.Add(items[i]);
+                }
+            }
+
+            int succeeded = succeededItems.Count - carriedCount;
+
+            if (missingResults > 0)
+            {
+                // Der Knoten sagt, das fertige Element stehe unter diesem Namen - dann muss es da auch
+                // stehen. Sonst enthaelt die Erfolgsliste Luecken, die spaeter niemand mehr zuordnen kann.
+                string detail =
+                    $"{missingResults} of {succeeded} successful item(s) did not write the declared result " +
+                    $"parameter '{iteration.ItemResultOutput}' - they are null in " +
+                    $"'{iteration.SucceededItemsOutput}'.";
+                instance.Log("IterationResultMissing", node.Id, detail, HistorySeverity.Warning);
+                LogEnvironment.LogEvent(
+                    $"Activity '{node.ActivityRef}' of node '{node.Id}' in workflow instance " +
+                    $"'{instance.Id}': {detail}", LogSeverity.Warning);
+            }
+
+            if (!string.IsNullOrWhiteSpace(iteration.FailedItemsOutput))
+            {
+                outputs[iteration.FailedItemsOutput] = AsTypedResult(failures);
+            }
+
+            if (!string.IsNullOrWhiteSpace(iteration.PendingItemsOutput))
+            {
+                outputs[iteration.PendingItemsOutput] = AsTypedResult(pendingItems);
+            }
+
+            if (!string.IsNullOrWhiteSpace(iteration.SucceededItemsOutput))
+            {
+                outputs[iteration.SucceededItemsOutput] = AsTypedResult(succeededItems);
+            }
+
+            if (!string.IsNullOrWhiteSpace(iteration.SucceededCountOutput))
+            {
+                // Bewusst NUR dieser Durchlauf, ohne die Uebernahme - sonst waere die Zahl beim zweiten
+                // Versuch nicht mehr die Zahl der hier erledigten Elemente.
+                outputs[iteration.SucceededCountOutput] = succeeded;
+            }
+
+            if (!discardedWrites.IsEmpty)
+            {
+                string names = string.Join(", ", discardedWrites.Keys.OrderBy(k => k, StringComparer.Ordinal));
+                instance.Log("IterationVariablesDiscarded", node.Id, names, HistorySeverity.Warning);
+                LogEnvironment.LogEvent(
+                    $"Activity '{node.ActivityRef}' of node '{node.Id}' in workflow instance '{instance.Id}' " +
+                    $"wrote to the variable scope during an iteration; those writes were discarded because every " +
+                    $"item runs on its own copy of the scope: {names}. Return values through the declared " +
+                    "outputs instead - they are collected per item.", LogSeverity.Warning);
+            }
+
+            if (failures.Count == 0)
+            {
+                instance.Log("IterationCompleted", node.Id,
+                    carriedCount == 0
+                        ? $"{succeeded} item(s) succeeded"
+                        : $"{succeeded} item(s) succeeded ({carriedCount} carried over from earlier attempts, " +
+                          $"{succeededItems.Count} in total)",
+                    HistorySeverity.Verbose);
+                ApplyOutputs(instance, scope, node, outputs);
+                ResetAttempts(scope, node.AttemptVariable);
+                instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
+                return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
+            }
+
+            // Die erste Ursache steht in der Meldung - sie ist es, die den Abbruch ausgeloest hat, und sie
+            // erspart beim Lesen des Protokolls den Umweg ueber die Fehlerliste.
+            var first = (IterationFailure)failures[0];
+            string message = skipped == 0
+                ? $"{failures.Count} of {items.Count} item(s) failed, first at index {first.Index}: " +
+                  $"{Shorten(first.Message)}"
+                : $"{failures.Count} of {items.Count} item(s) failed ({skipped} not attempted after the " +
+                  $"abort), first at index {first.Index}: {Shorten(first.Message)}";
+
+            // Die Teilergebnisse werden bewusst uebernommen - auch beim Abbruch. Sie sind das, was den
+            // Fehler-Ausgang brauchbar macht: welche Elemente durch sind und welche nicht.
+            instance.Log("IterationFailed", node.Id, message, HistorySeverity.Warning);
+            return HandleActivityFailure(instance, definition, token, node, message, applyOutputs: true, outputs);
+        }
+
+        /// <summary>
+        /// Liest einen Eingabeparameter als Sammlung. Dieselben Regeln fuer die Iterations-Sammlung und
+        /// die Uebernahme frueherer Durchlaeufe - eine Zeichenkette ist auch hier ein Fehler und keine
+        /// Folge von Zeichen.
+        /// </summary>
+        /// <remarks>
+        /// Ein <b>fehlender Schluessel</b> ist immer ein Modellierungsfehler, auch bei der Uebernahme:
+        /// <c>ResolveInputs</c> legt fuer JEDE Bindung einen Eintrag an - eine gebundene, aber noch nicht
+        /// gesetzte Variable steht als <c>null</c> drin. „Nicht da" heisst also nicht „erster Durchlauf",
+        /// sondern „gar nicht gebunden". Den Unterschied still zu verwischen waere teuer: eine vertippte
+        /// Uebernahme verloere bei jedem Versuch das Ergebnis aller vorigen.
+        /// </remarks>
+        /// <returns>false, wenn die Instanz dabei gefaultet ist</returns>
+        private static bool TryReadCollection(WorkflowInstance instance, AutomatedActivityNode node,
+            IDictionary<string, object> inputs, string parameter, out List<object> result)
+        {
+            result = new List<object>();
+            if (!inputs.TryGetValue(parameter, out object bound))
+            {
+                Fault(instance,
+                    $"Iteration of node '{node.Id}' reads a collection from input parameter " +
+                    $"'{parameter}', but the node does not bind that parameter.", node.Id);
+                return false;
+            }
+
+            // Hat der Zweig zwischendurch geparkt (Benutzer-Aufgabe, Timer, Signal), ist die Sammlung
+            // durch den JSON-Round-Trip der Variablen gegangen und kaeme als JsonElement zurueck - das
+            // ist KEIN IEnumerable und liesse ausgerechnet den zweiten Durchlauf einer
+            // Wiederholungs-Schleife auflaufen. Materialize macht daraus wieder Liste/Dictionary/Primitive.
+            object raw = WorkflowJson.Materialize(bound);
+
+            switch (raw)
+            {
+                case null:
+                    // Leer ist ein Normalfall: keine Datei zu signieren - oder, bei der Uebernahme, der
+                    // erste Durchlauf einer Wiederholungs-Schleife, der noch nichts geschafft hat.
+                    return true;
+                case string text:
+                    Fault(instance,
+                        $"Iteration of node '{node.Id}': input parameter '{parameter}' is a string " +
+                        $"('{Shorten(text)}'), not a collection. Iterating it character by character is almost " +
+                        "certainly not what was meant - bind a list instead.", node.Id);
+                    return false;
+                case IEnumerable enumerable:
+                    result = enumerable.Cast<object>().ToList();
+                    return true;
+                default:
+                    Fault(instance,
+                        $"Iteration of node '{node.Id}': input parameter '{parameter}' is of type " +
+                        $"'{raw.GetType().FullName}', which is not enumerable.", node.Id);
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Das <b>fertige</b> Element eines erfolgreichen Durchlaufs: der Wert des deklarierten
+        /// Ergebnis-Parameters, ersatzweise (wenn keiner deklariert ist) das unveraenderte
+        /// Eingabe-Element. Hat der Lauf den deklarierten Parameter nicht geschrieben, wird das
+        /// mitgezaehlt - der Aufrufer meldet es gesammelt statt einmal je Element.
+        /// </summary>
+        private static object ResultOf(ActivityIteration iteration, List<object> items,
+            Dictionary<string, object>[] itemOutputs, int index, ref int missingResults)
+        {
+            if (string.IsNullOrWhiteSpace(iteration.ItemResultOutput))
+            {
+                return items[index];
+            }
+
+            Dictionary<string, object> single = itemOutputs[index];
+            if (single != null && single.TryGetValue(iteration.ItemResultOutput, out object value))
+            {
+                return value;
+            }
+
+            missingResults++;
+            return null;
+        }
+
+        /// <summary>
+        /// Macht aus einer Ergebnis-Liste ein <b>Array</b> - typisiert, wenn alle Elemente denselben
+        /// Laufzeittyp haben, sonst <c>object[]</c>. Eine Iterations-Ausgabe ist damit immer ein Array.
+        /// </summary>
+        /// <remarks>
+        /// Das entscheidet, ob das Ergebnis eine Park-Grenze typtreu uebersteht: ein
+        /// <c>List&lt;object&gt;</c> traegt keinen brauchbaren Elementtyp, ein <c>SignItem[]</c> schon -
+        /// und dessen Kurzname ist ueber <c>WorkflowJson.RegisterVariableType</c> anmeldbar. Ohne diesen
+        /// Schritt waere jede Iterations-Ausgabe nach dem naechsten Wartepunkt untypisiert, egal was
+        /// angemeldet ist.
+        /// <para>
+        /// Immer ein Array - nicht mal Array, mal Liste: die Form der Ausgabe soll nicht davon abhaengen,
+        /// wie einheitlich die Daten zufaellig ausgefallen sind. Nullwerte (dort ist nichts fertig
+        /// geworden) zwingen bei Werttypen auf <c>object[]</c>, weil ein <c>int[]</c> kein null aufnimmt.
+        /// </para></remarks>
+        private static Array AsTypedResult(List<object> values)
+        {
+            Type common = null;
+            bool hasNull = false;
+            bool mixed = false;
+            foreach (object value in values)
+            {
+                if (value == null)
+                {
+                    hasNull = true;
+                    continue;
+                }
+
+                Type type = value.GetType();
+                if (common == null)
+                {
+                    common = type;
+                }
+                else if (common != type)
+                {
+                    mixed = true;
+                    break;
+                }
+            }
+
+            Type elementType = mixed || common == null || (hasNull && common.IsValueType)
+                ? typeof(object)
+                : common;
+
+            var array = Array.CreateInstance(elementType, values.Count);
+            for (int i = 0; i < values.Count; i++)
+            {
+                array.SetValue(values[i], i);
+            }
+
+            return array;
+        }
+
+        /// <summary>
+        /// Die Ausgabeparameter, die irgendein Element-Lauf gesetzt hat - in der Reihenfolge ihres ersten
+        /// Auftretens, damit das Ergebnis reproduzierbar bleibt.
+        /// </summary>
+        private static IEnumerable<string> DistinctOutputKeys(Dictionary<string, object>[] itemOutputs)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var keys = new List<string>();
+            foreach (Dictionary<string, object> single in itemOutputs)
+            {
+                if (single == null)
+                {
+                    continue;
+                }
+
+                foreach (string key in single.Keys)
+                {
+                    if (seen.Add(key))
+                    {
+                        keys.Add(key);
+                    }
+                }
+            }
+
+            return keys;
+        }
+
+        /// <summary>
+        /// Sammelt die Variablen-Namen, die ein Element-Lauf auf seiner Scope-Kopie geaendert oder neu
+        /// angelegt hat (und die deshalb verworfen werden). Best effort: eine in sich veraenderte
+        /// Referenz (z.B. eine Liste, an die angehaengt wurde) sieht das nicht.
+        /// </summary>
+        private static void CollectDiscardedWrites(Dictionary<string, object> baseScope,
+            Dictionary<string, object> itemScope, ConcurrentDictionary<string, byte> sink)
+        {
+            if (baseScope == null || itemScope == null)
+            {
+                return;
+            }
+
+            // Nur Lesezugriffe auf baseScope - waehrend der Iteration schreibt die Engine dort nicht, und
+            // gleichzeitiges Lesen eines Dictionary ist zulaessig.
+            foreach (KeyValuePair<string, object> pair in itemScope)
+            {
+                if (!baseScope.TryGetValue(pair.Key, out object original) || !Equals(original, pair.Value))
+                {
+                    sink.TryAdd(pair.Key, 0);
+                }
+            }
+        }
+
+        /// <summary>Kuerzt einen Text fuer eine Fehlermeldung/ein Protokoll-Detail.</summary>
+        private static string Shorten(string text, int max = 120)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length <= max)
+            {
+                return text;
+            }
+
+            return text.Substring(0, max) + "...";
         }
 
         /// <summary>
@@ -2350,6 +2889,12 @@ namespace ITVComponents.Workflow
                     RootInstanceId = instance.EffectiveRootInstanceId,
                     CallDepth = instance.CallDepth + 1,
                     Status = WorkflowStatus.Running,
+                    // Der Subworkflow erbt die Dringlichkeit seines Aufrufers: er ist ein Stueck von
+                    // dessen Arbeit, und der Aufrufer wartet auf ihn. Eine eigene Vorgabe der
+                    // Sub-Definition wuerde genau das verkehren - ein dringender Prozess wuerde an
+                    // seinem eigenen Unterschritt haengen bleiben.
+                    Priority = instance.Priority,
+                    HistoryFilter = FilterFor(subDef),
                     CreatedUtc = now,
                     UpdatedUtc = now
                 };
@@ -3146,9 +3691,31 @@ namespace ITVComponents.Workflow
 
         private WorkflowDefinition LoadDefinition(WorkflowInstance instance)
         {
-            return store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion)
+            WorkflowDefinition definition = store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion)
                 ?? throw new InvalidOperationException(
                     $"No definition '{instance.DefinitionId}' v{instance.DefinitionVersion} for instance '{instance.Id}'.");
+
+            // Die eine Stelle, an der die Engine jede Instanz in die Hand bekommt (jeder Vortrieb laedt
+            // seine Definition) - damit auch die eine Stelle, an der der Protokoll-Filter haengt. Eine
+            // frisch aus dem Store geladene Instanz traegt ihn sonst nicht.
+            instance.HistoryFilter = FilterFor(definition);
+            return definition;
+        }
+
+        /// <summary>
+        /// Der fuer eine Definition geltende Protokoll-Filter: der Filter der Engine (ersatzweise der
+        /// prozessweite Standard), ueberschrieben von der Mindest-Stufe der Definition, falls sie eine
+        /// setzt.
+        /// </summary>
+        private IWorkflowHistoryFilter FilterFor(WorkflowDefinition definition)
+        {
+            IWorkflowHistoryFilter filter = HistoryFilter ?? WorkflowHistoryFilter.Default;
+            if (definition?.MinHistorySeverity == null)
+            {
+                return filter;
+            }
+
+            return WorkflowHistoryFilter.OverrideMinSeverity(filter, definition.MinHistorySeverity.Value);
         }
 
         /// <summary>

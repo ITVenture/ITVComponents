@@ -19,6 +19,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// <summary>Status als Name (Running/Waiting/Completed/Faulted/Cancelled).</summary>
         public string Status { get; init; } = "";
 
+        /// <summary>
+        /// Die Dringlichkeit der Instanz in der Hintergrund-Abarbeitung (kleinere Zahl = wichtiger).
+        /// </summary>
+        public int Priority { get; init; }
+
         /// <summary>Korrelationsschluessel, oder null.</summary>
         public string? CorrelationKey { get; init; }
 

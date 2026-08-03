@@ -99,6 +99,12 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        public int? GetInstancePriority(string instanceId)
+        {
+            return GetInstance(instanceId)?.Priority;
+        }
+
+        /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindWaitingForSignal(string signalName, string correlationKey = null)
         {
             return instances.Values
@@ -114,6 +120,7 @@ namespace ITVComponents.Workflow.Stores
             return instances.Values
                 .Where(i => i.Status == WorkflowStatus.Waiting)
                 .Where(i => i.WaitingTokens.Any(t => t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc))
+                .OrderBy(i => i.Priority)
                 .ToList();
         }
 
@@ -164,7 +171,12 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindRunnable()
         {
-            return instances.Values.Where(i => i.Status == WorkflowStatus.Running).ToList();
+            // Die dringendsten zuerst - dieselbe Zusage wie beim EF-Store, damit ein Test nicht auf einer
+            // Reihenfolge fusst, die es nur hier gibt.
+            return instances.Values
+                .Where(i => i.Status == WorkflowStatus.Running)
+                .OrderBy(i => i.Priority)
+                .ToList();
         }
 
         /// <inheritdoc/>

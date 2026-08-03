@@ -95,6 +95,19 @@ namespace ITVComponents.Workflow.Instances
         public WorkflowStatus Status { get; set; } = WorkflowStatus.Running;
 
         /// <summary>
+        /// Die Dringlichkeit dieser Instanz in der Hintergrund-Abarbeitung - <b>kleinere Zahl =
+        /// wichtiger</b> (siehe <see cref="WorkflowPriority"/>). Die Ausfuehrungsschicht reicht den Wert
+        /// unveraendert an ihren Task-Processor durch; dessen gewichtete Auswahl laesst hoeher
+        /// priorisierte Instanzen niedrigere <b>ueberholen</b>, ohne sie verhungern zu lassen.
+        /// </summary>
+        /// <remarks>
+        /// Der Kern selbst wertet den Wert nicht aus - er entscheidet nichts am Ablauf, nur an der
+        /// Reihenfolge. Fuer die reihum-freie, sequenzielle Ausfuehrung
+        /// (<c>WorkflowEngine.StartWorkflow</c>/<c>Advance</c>) ist er folgenlos.
+        /// </remarks>
+        public int Priority { get; set; } = WorkflowPriority.Normal;
+
+        /// <summary>
         /// Der Variablen-Scope der Instanz. Aktivitaeten schreiben hier ihre Ergebnisse hin;
         /// CScript-Bedingungen und -Ausdruecke werten gegen diese Werte aus.
         /// </summary>
@@ -167,18 +180,45 @@ namespace ITVComponents.Workflow.Instances
         [JsonIgnore]
         public IEnumerable<Token> WaitingTokens => Tokens.Where(t => t.Status == TokenStatus.Waiting);
 
-        /// <summary>Haengt einen Protokolleintrag an (Zeitstempel wird gesetzt).</summary>
+        /// <summary>
+        /// Entscheidet, welche Eintraege <see cref="Log"/> ueberhaupt anhaengt. Null = der prozessweite
+        /// <see cref="WorkflowHistoryFilter.Default"/>. Die Engine setzt hier ihren (ggf. von der
+        /// Definition ueberschriebenen) Filter, sobald sie eine Instanz in die Hand nimmt.
+        /// </summary>
+        [JsonIgnore]
+        public IWorkflowHistoryFilter HistoryFilter { get; set; }
+
+        /// <summary>
+        /// Haengt einen Protokolleintrag an (Zeitstempel wird gesetzt) - sofern der
+        /// <see cref="HistoryFilter"/> ihn durchlaesst. Ein herausgefilterter Eintrag entsteht gar nicht
+        /// erst und wird damit auch nicht persistiert.
+        /// </summary>
         public void Log(string @event, string nodeId = null, string detail = null,
             HistorySeverity severity = HistorySeverity.Info)
         {
-            History.Add(new HistoryEntry
+            IWorkflowHistoryFilter filter = HistoryFilter ?? WorkflowHistoryFilter.Default;
+            if (filter != null && !filter.ShouldLog(@event, nodeId, severity))
+            {
+                return;
+            }
+
+            var entry = new HistoryEntry
             {
                 TimestampUtc = DateTime.UtcNow,
                 Event = @event,
                 NodeId = nodeId,
                 Detail = detail,
                 Severity = severity
-            });
+            };
+
+            // Der Vortrieb eines Zweigs ist einthreadig - mit einer Ausnahme: eine Aktivitaet mit
+            // paralleler Iteration laeuft je Element auf einem eigenen Thread und kann von dort
+            // protokollieren (ueber den Kontext ist die Instanz erreichbar). Ein List.Add aus mehreren
+            // Threads verliert Eintraege oder wirft; das kostet hier ein unumstrittenes Lock.
+            lock (History)
+            {
+                History.Add(entry);
+            }
         }
     }
 }

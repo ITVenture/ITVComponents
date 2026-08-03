@@ -161,6 +161,13 @@ namespace ITVComponents.Workflow.Model
         public List<string> RetainVariables { get; set; } = new List<string>();
 
         /// <summary>
+        /// Optional: fuehrt die Aktivitaet <b>je Element einer Sammlung</b> aus statt einmal - wahlweise
+        /// mehrere Elemente gleichzeitig (siehe <see cref="ActivityIteration"/>). Null (Standard) = ein
+        /// einziger Lauf wie bisher.
+        /// </summary>
+        public ActivityIteration Iteration { get; set; }
+
+        /// <summary>
         /// Optionales Ausfuehrungs-Ziel fuer den verteilten Betrieb: der (freie) Name eines Host-Ziels,
         /// auf dem diese Aktivitaet laufen MUSS (z.B. "backend", "web"). Ist der Wert gesetzt und der
         /// aktuelle Runner bedient dieses Ziel nicht, parkt der Zweig hier

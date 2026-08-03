@@ -584,6 +584,17 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
 - **Protokoll mit Schweregrad.** Das Ausführungsprotokoll liegt als eigene Tabelle (`HistoryEntryRow`,
   append-only) mit `Severity` (Verbose/Info/Warning/Error) — filter-/abfragbar; das Monitoring-Detail
   zeigt eine farbige Severity-Spalte. Bei Subworkflows über die `RootInstanceId` baumweit aggregierbar.
+  Wie *viel* davon überhaupt geschrieben wird, steuert der Protokoll-Filter — siehe
+  [§15](#15-wie-gesprächig-das-ablauf-protokoll-ist).
+
+- **Parallele Iteration einer Aktivität (`AutomatedActivityNode.Iteration`).** Ein Aktivitäts-Knoten
+  kann seine Aktivität **je Element einer Sammlung** ausführen, wahlweise mehrere gleichzeitig — für den
+  einen langen Schritt in einem sonst seriellen Ablauf. Details: [§14](#14-eine-aktivität-über-eine-sammlung-parallelisieren).
+  **Keine Schema-Änderung** (steckt im Definitions-JSON).
+
+- **Dringlichkeit einer Instanz (`WorkflowInstance.Priority`).** Bestimmt, in welcher Reihenfolge die
+  Hintergrund-Verarbeitung Instanzen aufgreift. Details: [§13](#13-dringlichkeit-priorität-von-instanzen).
+  **Schema-Änderung:** eine Spalte `Priority` auf `WorkflowInstances`.
 
 ## 9. Benutzer-Aufgaben und Arbeitsliste
 
@@ -1040,3 +1051,321 @@ rückwärtsverträglich: null = kein Anspruch, und ein abgelaufener wird ohnehin
 Neustart findet, die Guid, damit ein Aufgriff exakt zurücklesen kann, welche Zeilen *er* bekommen hat.
 Nicht zu verwechseln mit `ClaimedBy`/`ClaimedUntil` auf derselben Zeile: das ist die weiche Sperre der
 **Oberfläche** auf einer Benutzer-Aufgabe.
+
+## 13. Dringlichkeit (Priorität) von Instanzen
+
+Nicht jeder Workflow ist gleich eilig. Eine nächtliche Aufräum-Kaskade darf warten; eine Freigabe, an
+deren Ende ein Kunde auf eine Antwort wartet, nicht. `WorkflowInstance.Priority` ist genau diese Angabe.
+
+**Kleinere Zahl = wichtiger** — dieselbe Konvention wie `ITVComponents.ParallelProcessing.ITask.Priority`,
+damit der Wert unverändert durchgereicht werden kann. Die benannten Stufen stehen in `WorkflowPriority`:
+
+| Stufe | Wert | gedacht für |
+| --- | --- | --- |
+| `Highest` | 0 | drängt sich vor allem anderen vor |
+| `High` | 1 | Abläufe mit wartendem Menschen |
+| `Normal` | 2 | **der Standard** |
+| `Low` | 3 | Fleißarbeit |
+| `Lowest` | 4 | Hintergrund-Massenläufe |
+
+### Woher die Stufe kommt
+
+1. Was der Starter angibt (`StartWorkflow`/`CreateInstance`-Parameter, Start-Dialog) — gewinnt.
+2. Sonst die Vorgabe der Definition (`WorkflowDefinition.DefaultPriority`, Designer → Zahnrad
+   „Workflow settings").
+3. Sonst `Normal`.
+
+Ein **Subworkflow erbt die Stufe seines Aufrufers**, nicht seine eigene Vorgabe: der Aufrufer wartet auf
+ihn, ein langsamerer Unterschritt würde also genau den dringenden Prozess ausbremsen.
+
+Nachträglich ändern: `WorkflowEngine.SetPriority(instanceId, priority)` bzw. im Monitoring-Detail
+(Recht `Workflow.Operate`). Die Änderung läuft über den versionsgeprüften Commit — verliert sie das
+Rennen gegen einen gerade laufenden Zweig, liefert sie `false` und will wiederholt werden. Der Vorgang
+landet als `PriorityChanged` im Ablauf-Protokoll.
+
+### Was die Stufe bewirkt — je nach Betriebsart
+
+**Immer** (beide Betriebsarten): der Store liefert lauffähige und fällige Instanzen **nach Dringlichkeit
+sortiert**, und der Poll reiht sie in dieser Reihenfolge ein. Beim gedeckelten Timer-Batch
+(`MaxTimerBatch`) bekommen die dringenden die Plätze — wer abgeschnitten wird, ist der unwichtigste.
+
+**Web-Worker (`ITVComponents.Workflow.WebWorker`):** vollständig. Der Antrieb arbeitet eine nach
+Dringlichkeit sortierte Arbeitsliste ab; Folge-Zweige erben die Stufe ihres Auslösers. Kein Kompromiss,
+keine Einstellung nötig.
+
+**Runner (`ITVComponents.Workflow.ParallelProcessing`):** hier ist das Überholen *in der Warteschlange*
+eine **bewusste Zuschaltung**. Der `ParallelTaskProcessor` führt je Stufe eine eigene Warteschlange und
+gewichtet sie stark (eine Stufe bekommt `((niedrigste − stufe) + 1)³` Plätze im Auswahl-Zyklus). Der Preis
+steht in `TaskProcessor.Work`: der Worker wartet **je Platz 50 ms**. Die Zahl der Plätze ist damit direkt
+die Aufgriffs-Verzögerung:
+
+| Band | Plätze | Verzögerung bis ein Auftrag drankommt |
+| --- | --- | --- |
+| 1 Stufe (**Standard**) | 1 | ~50 ms |
+| 2 Stufen, z.B. `Normal`..`Low` | 9 | ~0,5 s |
+| 3 Stufen, `High`..`Low` | 36 | ~1,8 s |
+| 5 Stufen, `Highest`..`Lowest` | 225 | **~11 s** |
+
+Deshalb ist der Standard `HighestPriority = LowestPriority = WorkflowPriority.Normal` — eine
+Warteschlange, unverändertes Zeitverhalten. Wer das Überholen will, nimmt **zwei bis drei benachbarte
+Stufen**:
+
+```csharp
+new WorkflowRunnerOptions
+{
+    HighestPriority = WorkflowPriority.High,   // 1
+    LowestPriority  = WorkflowPriority.Low,    // 3  -> 36 Plaetze, ~1,8 s
+    WorkerCount = 4
+}
+```
+
+Die Faustregel: die Verzögerung muss **klein gegen die Dauer eines Workflow-Schritts** sein. Für Läufe,
+die minutenlang rechnen, sind 1,8 s nichts; für Instanzen, die im Sekundentakt Schritte machen, ist es
+viel — dort lieber beim Ein-Stufen-Band bleiben und sich auf die Einreihungs-Reihenfolge verlassen.
+
+Eine Stufe **außerhalb** des konfigurierten Bandes wird darauf beschnitten (`WorkflowPriority.Clamp`) —
+eine Instanz aus einer Umgebung mit anderem Band soll laufen, nicht scheitern. Zu beachten außerdem: der
+Processor teilt seine Worker in Bänder auf, die unwichtigste Stufe wird von genau **einem** Worker
+bedient. Bei einem breiten Band und wenigen Workern ist das gewollt, aber es heißt auch: die
+niedrigste Stufe hat keine Nebenläufigkeit mehr.
+
+### Schema
+
+Eine Spalte auf `WorkflowInstances` — SQL siehe [§16](#16-migration-die-priority-spalte).
+
+## 14. Eine Aktivität über eine Sammlung parallelisieren
+
+Der typische Fall: ein Ablauf ist über weite Strecken seriell, aber **ein** Schritt verarbeitet 1000
+Dateien. Ein paralleles Gateway ist dafür das falsche Werkzeug — es modelliert eine feste Zahl fachlich
+*verschiedener* Stränge, und jedes der 1000 Elemente kostete eine Token-Zeile, eine Zweig-Sperre und
+einen Commit.
+
+`AutomatedActivityNode.Iteration` (`ActivityIteration`) macht stattdessen aus **einem** Knoten eine Serie:
+die Aktivität läuft einmal je Element, wahlweise mehrere Elemente gleichzeitig. Der Zweig bleibt **ein**
+Zweig; für die Persistenz ist der Knoten derselbe atomare Schritt wie eine gewöhnliche Aktivität (ein
+Absturz mittendrin wiederholt ihn ganz).
+
+| Feld | Bedeutung |
+| --- | --- |
+| `ItemsInput` | Name des **Eingabeparameters**, dessen aufgelöster Wert die Sammlung ist. Muss eine Eingabe-Bindung des Knotens sein. |
+| `ItemParameter` | Unter welchem Parameter das einzelne Element ankommt. Leer = unter `ItemsInput` (die Aktivität sieht statt der Sammlung ein Element). Anderer Name = die Sammlung bleibt zusätzlich sichtbar. |
+| `IndexParameter` | Optional: der 0-basierte Index. |
+| `MaxParallel` | 1 (Standard) = streng nacheinander. 0 oder kleiner = so viele wie Prozessorkerne. |
+| `ContinueOnError` | Aus: erster Fehler bricht ab. An: alle Elemente werden versucht, der Knoten scheitert am Ende. |
+| `FailedItemsOutput` | Die **Fehler**: je gescheitertem Element ein `IterationFailure` (Element + Ursache). Diagnose. |
+| `PendingItemsOutput` | Alles **noch Offene**: gescheiterte **plus** nie versuchte. Der richtige Retry-Eingang. |
+| `ItemResultOutput` | Welcher Ausgabeparameter des Einzeldurchlaufs das **fertige Element** ist. |
+| `SucceededItemsOutput` | Die **erfolgreich verarbeiteten** Elemente (die `ItemResultOutput`-Werte), lückenlos. |
+| `CarryOverInput` | Eingabeparameter, dessen Elemente den neu erfolgreichen **vorangestellt** werden. |
+| `SucceededCountOutput` | Anzahl der in **diesem** Durchlauf erfolgreichen Elemente (ohne Übernahme). |
+
+### Die Formen: Wiederanlauf ≠ Diagnose ≠ Ergebnis
+
+Die drei Listen sind bewusst **verschieden geformt**, und genau das lässt eine Wiederholungs-Schleife
+zusammenpassen:
+
+- `PendingItems` trägt die **Original-Eingabewerte** — sie müssen wieder in die Sammlung passen, aus der
+  iteriert wird. **Das ist der Retry-Eingang, immer.**
+- `SucceededItems` trägt die **Ergebnisse** (`ItemResultOutput`; ohne dessen Angabe die Eingabe-Elemente).
+- `FailedItems` trägt je Fehler ein `IterationFailure` — die **Diagnose**-Sicht. Weil der Wiederanlauf
+  über `PendingItems` läuft, darf diese Liste eine reichere Form haben:
+
+| Feld | Inhalt |
+| --- | --- |
+| `Item` | das unveränderte Element aus der Eingabe |
+| `Index` | seine Position in der Eingabe-Sammlung |
+| `Message` | die Meldung — aus `ctx.Fail(…)` oder `Exception.Message` |
+| `ExceptionType` | Typname der geworfenen Ausnahme, oder **`null` bei kontrolliertem `Fail`** |
+| `ExceptionDetail` | die ausgeschriebene Ausnahme inkl. Stacktrace, sonst `null` |
+| `WasThrown` | abgeleitet: `ExceptionType != null` |
+
+Der Unterschied „abgelehnt" (`ctx.Fail`) gegen „abgestürzt" (Exception) ist bei der Fehlersuche der
+wichtigste — deshalb ist er an `ExceptionType`/`WasThrown` ablesbar und nicht nur an der Meldung.
+
+Die Ausnahme steht bewusst als **Daten** drin und nicht als Objekt: die Fehlerliste landet über die
+Ausgabe-Bindung in einer Variable und damit im JSON des Commits. Ein `Exception`-Objekt ließe den
+scheitern (`System.Text.Json` stolpert über `Exception.TargetSite`) — ausgerechnet dann, wenn die Arbeit
+schon getan ist.
+
+### Wenn die Schleife zwischendurch parkt
+
+Ein Wiederholungs-Flow hat fast immer eine Wartestelle zwischen den Versuchen — eine Benutzer-Aufgabe
+(„diese 3 ansehen"), einen Timer, ein Signal. **Die Fehlerkante selbst ist keine solche Stelle**: sie wird
+immer erst genommen, wenn die *ganze* Iteration durch ist, und der Zweig läuft danach ohne Unterbrechung
+weiter, bis er auf einen Wartepunkt trifft. Bis dahin sind alle Listen echte Objekte.
+
+Beim **Parken** werden die Variablen committet und damit als JSON abgelegt. Damit dabei nicht aus jedem
+Datensatz ein namenloses Dictionary wird, legt der Store den Variablen-Stack **je Variable mit einer
+eigenen Typkennung** ab. Ein Datensatz-Typ übersteht den Park typtreu, sobald er **angemeldet** ist:
+
+```csharp
+// einmal beim Start der Anwendung:
+WorkflowJson.RegisterVariableType<SignItem>("sign-item");
+```
+
+Der Kurzname gehört zum abgelegten Format und darf sich nicht mehr ändern — die **Klasse dahinter darf
+umziehen, umbenannt werden, die Assembly wechseln**. Genau darum ist es ein Kurzname und kein
+`AssemblyQualifiedName`: eine laufende Instanz überlebt damit ein Refactoring. Sammlungen brauchen keine
+eigene Anmeldung; eine Liste oder ein Array angemeldeter Elemente wird über den Elementnamen abgelegt und
+kommt als **Array** zurück. Grundtypen (`string`, `int`, `DateTime`, `Guid`, …) sind ab Werk angemeldet,
+`IterationFailure` ebenfalls.
+
+Beim Lesen gilt eine **Positivliste**: aus der Instanz-Tabelle wird kein beliebiger .NET-Typ geladen,
+auch wenn im Datenstrom einer benannt ist. Was sich nicht auflösen lässt, geht trotzdem **nicht
+verloren** — es kommt untypisiert zurück (Liste, `Dictionary`, Primitive, wie bisher), und der Grund
+steht im Log. Ein Wert ist also entweder typisiert oder brauchbar, nie weg.
+
+Konsequenz für die Iteration: ihre Ausgabe-Listen sind **Arrays** — typisiert, wenn alle Elemente
+denselben Laufzeittyp haben, sonst `object[]`. Damit trägt eine Ergebnis-Sammlung ihren Elementtyp in die
+Ablage, statt ihn als `List<object>` zu verlieren.
+
+Was Sie trotzdem wissen sollten: **innerhalb** eines nicht angemeldeten Datensatzes bleiben
+`object`-Felder untypisiert. Wer so etwas braucht, macht es wie `IterationFailure` und implementiert
+`IManualSerializer` — dann trägt jedes Feld seine eigene Typkennung.
+
+Für den Rest steht `WorkflowJson.Materialize(value)` bereit, das aus einem rohen JSON-Knoten wieder
+Liste/`Dictionary`/Primitive macht.
+
+`PendingItems` statt `FailedItems` in den Retry zu geben ist kein Detail: bei `ContinueOnError = false`
+bricht der Lauf beim ersten Fehler ab, und von 1000 Elementen können 1 gescheitert, 4 fertig und **495
+nie versucht** sein. Wer nur die gescheiterten wiederholt, verliert die 495 lautlos. Mit
+`ContinueOnError = true` sind beide Listen identisch. Der Validator warnt, wenn der Abbruch-Modus mit
+`FailedItemsOutput`, aber ohne `PendingItemsOutput` konfiguriert ist.
+
+### Die Wiederholungs-Schleife
+
+`CarryOverInput` löst das Problem, dass jeder Durchlauf des Knotens seine Ausgabe-Variablen **setzt** und
+nicht merged — Durchlauf 2 mit 3 Elementen würde die 997 aus Durchlauf 1 sonst überschreiben. Die
+übernommene Liste wird ausschließlich `SucceededItems` vorangestellt; alle anderen Ergebnis-Listen bleiben
+streng „was DIESER Durchlauf erzeugt hat".
+
+```
+Knoten "sign", Fehlerkante zeigt auf sich selbst zurück:
+
+  Inputs:    todo        ← Variable Items        (Iterations-Sammlung)
+             alreadyDone ← Variable Signed       (Übernahme)
+             JobId       ← Variable ID           (geht unverändert an JEDEN Einzeldurchlauf)
+  Iteration: ItemsInput = todo, ItemParameter = ItemToProcess,
+             ItemResultOutput = ProcessedItem,
+             SucceededItemsOutput = Done, PendingItemsOutput = StillOpen,
+             FailedItemsOutput = Problems,
+             CarryOverInput = alreadyDone, ContinueOnError = true
+  Outputs:   Done      → Signed
+             StillOpen → Items
+             Problems  → LastErrors    (nur für Anzeige/Protokoll, nicht für den Wiederanlauf)
+
+Durchlauf 1: Items = 1000  → Signed = 997 Ergebnisse, Items = 3 Originale  → Fehlerkante
+Durchlauf 2: Items = 3     → Signed = 997 + 3 = 1000, Items = leer         → Erfolgskante
+```
+
+Zwei Punkte, die der Validator als Fehler meldet, weil sie sonst still das Falsche tun:
+`CarryOverInput` auf einen nicht gebundenen Parameter (verlöre bei jedem Versuch alles Vorige) und
+`CarryOverInput == ItemsInput` (würde fertige Elemente erneut verarbeiten).
+
+Ein **fehlender** Eingabeparameter ist immer ein Modellierungsfehler — auch bei der Übernahme. Eine
+gebundene, aber noch nicht gesetzte Variable steht als `null` in den Inputs und gilt als leere Liste;
+das ist der normale erste Durchlauf. „Gar nicht gebunden" faultet dagegen.
+
+Schreibt ein erfolgreicher Durchlauf den deklarierten `ItemResultOutput` nicht, entsteht ein `null` in
+der Erfolgsliste — das meldet die Engine gesammelt als `IterationResultMissing` (Warnung), statt es
+stehen zu lassen.
+
+### Ergebnisse
+
+Jeder Ausgabeparameter, den irgendein Element gesetzt hat, wird zu einer **Liste in Eingabe-Reihenfolge**
+(nicht Fertigstellungs-Reihenfolge — sonst wäre das Ergebnis eines parallelen Laufs von Mal zu Mal anders
+sortiert). Elemente ohne Wert stehen als `null` drin, damit die Positionen zur Eingabeliste passen.
+Abgebildet wird wie immer über die `Outputs`-Bindungen des Knotens.
+
+### Zwei Dinge, die man wissen muss
+
+**Die Aktivität muss thread-sicher sein**, sobald `MaxParallel > 1` ist. Die Engine löst sie **einmal**
+auf und ruft dieselbe Instanz aus mehreren Threads (ein Plugin wird unter seinem Namen geteilt — es je
+Element neu zu laden wäre bei 1000 Elementen keine Option). Zustand gehört in lokale Variablen, nicht in
+Felder. Genau deshalb ist `MaxParallel = 1` der Standard: Parallelität ist ein bewusster Griff.
+
+**Schreibzugriffe auf `ctx.Variables` werden verworfen.** Jeder Element-Lauf arbeitet auf einer *Kopie*
+des Variablen-Scopes — welcher von 1000 Läufen hätte sonst recht? Ergebnisse gehören in `ctx.Outputs`,
+die sammelt die Engine ein. Still passiert das nicht: die erkannten Namen landen als
+`IterationVariablesDiscarded` (Warnung) im Ablauf-Protokoll und im Log.
+
+### Fehler
+
+Ein fehlgeschlagenes Element (Exception **oder** `ctx.Fail`) macht den Knoten zu einem gescheiterten
+Aktivitäts-Knoten — mit **Fehler-Ausgang** (`ErrorFlowId`) nimmt der Token diese Kante, ohne faultet die
+Instanz. Die **Teilergebnisse werden in beiden Fällen übernommen**, auch beim Abbruch: sie sind das, was
+den Fehlerpfad brauchbar macht. Zusammen mit `ContinueOnError` + `FailedItemsOutput` ergibt das das
+naheliegende Muster — 997 Dateien signiert, 3 nicht, die drei gehen über die Fehlerkante in eine
+Wiederholung oder auf den Tisch eines Menschen.
+
+Der Validator meldet: unbekannter Sammlungs-Parameter (Fehler), Element- und Index-Parameter gleich
+benannt (Fehler), `ContinueOnError` ohne Fehler-Ausgang (Warnung), leerer Iterations-Block (Warnung).
+
+Editor: Reiter „Iteration" am Aktivitäts-Panel.
+
+## 15. Wie gesprächig das Ablauf-Protokoll ist
+
+Die Engine schreibt je Knoten zwei `Verbose`-Einträge (`Entered`/`Completed`), dazu `Mapped`,
+`Parameters` und mehr. Bei einem Workflow mit vielen Knoten und vielen Instanzen füllt das die
+`HistoryEntries`-Tabelle mit Zeilen, die niemand liest. `IWorkflowHistoryFilter` entscheidet, was
+überhaupt geschrieben wird — analog zu den Filtern eines `ITVComponents.Logging`-Log-Ziels.
+
+Der Filter greift auf der **Schreib**-Seite: ein herausgefilterter Eintrag entsteht gar nicht erst und
+wird damit auch nicht persistiert.
+
+```csharp
+// Einmal beim Start der Anwendung - der uebliche Griff:
+WorkflowHistoryFilter.Default = new WorkflowHistoryFilter
+{
+    MinSeverity = HistorySeverity.Info    // die Schritt-fuer-Schritt-Eintraege fallen weg
+};
+```
+
+| Einstellung | Wirkung |
+| --- | --- |
+| `MinSeverity` | Mindest-Stufe. Standard `Verbose` = alles (bisheriges Verhalten). |
+| `SuppressedEvents` | Sperrliste von Ereignis-Namen, `*` als Platzhalter (`"Boundary*"`). |
+| `AllowedEvents` | Nicht leer = Positivliste; nur diese Ereignisse werden geschrieben. |
+| `AlwaysLogFrom` | Ab dieser Stufe passiert ein Eintrag **immer**. Standard `Error`. |
+
+**Fehler kommen immer durch** — auch bei der schärfsten Konfiguration. Ein stillgelegtes Protokoll darf
+nicht dazu führen, dass eine gefaultete Instanz keine Spur hinterlässt.
+
+Drei Ebenen, die letzte gewinnt:
+
+1. `WorkflowHistoryFilter.Default` — prozessweit, der Ort für die Anwendungs-Einstellung.
+2. Der Filter der Engine (`new WorkflowEngine(store, activities, historyFilter: …)`). Der Web-Worker
+   nimmt dafür ein registriertes `IWorkflowHistoryFilter` aus der DI, wenn es eines gibt.
+3. `WorkflowDefinition.MinHistorySeverity` — übersteuert die Mindest-Stufe für **diese** Definition
+   (Designer → Zahnrad „Workflow settings" → „Execution log detail"). Damit lässt sich ein einzelner
+   Workflow ausführlich mitschreiben, während der Rest knapp bleibt.
+
+## 16. Migration: die `Priority`-Spalte
+
+Die einzige Schema-Änderung dieser drei Features. Sie gehört **manuell** gezogen (siehe die Hinweise zu
+EF-Snapshots im Repo) — die Spalte braucht zwingend einen `DEFAULT`, weil `0` die *höchste* Stufe ist:
+ohne Vorgabewert bekämen alle Alt-Instanzen versehentlich Vorfahrt.
+
+**SQL Server:**
+
+```sql
+ALTER TABLE [WorkflowInstances]
+    ADD [Priority] int NOT NULL CONSTRAINT [DF_WorkflowInstances_Priority] DEFAULT (2);
+GO
+CREATE INDEX [IX_WorkflowInstances_Status_Priority]
+    ON [WorkflowInstances] ([Status], [Priority]);
+GO
+```
+
+**PostgreSQL:**
+
+```sql
+ALTER TABLE "WorkflowInstances"
+    ADD COLUMN "Priority" integer NOT NULL DEFAULT 2;
+CREATE INDEX "IX_WorkflowInstances_Status_Priority"
+    ON "WorkflowInstances" ("Status", "Priority");
+```
+
+`2` ist `WorkflowPriority.Normal`. Bestehende Zeilen erhalten den Wert über den `DEFAULT`; ein
+zusätzliches `UPDATE` ist nicht nötig. Der Index bedient die Sortierung des Aufgriffs
+(„die dringendsten der laufenden zuerst").

@@ -1,0 +1,71 @@
+@*
+    Die Einstellungen der Definition als Ganzes - alles, was nicht an einem Knoten haengt. Ein eigener
+    Dialog statt weiterer Felder in der Werkzeugleiste: die ist eine Zeile, und diese Einstellungen sind
+    seltene, erklaerungsbeduerftige Griffe. Id/Name/Version bleiben in der Leiste - die aendert man
+    tatsaechlich staendig.
+
+    Der Dialog aendert das Definitions-Objekt direkt (wie die Knoten-Editoren auch); gespeichert wird
+    erst mit dem Speichern der Definition.
+*@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Tune" Class="mr-2" />
+            <span>Workflow settings</span>
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (Def is not null)
+        {
+            <WorkflowPrioritySelect Value="@Def.DefaultPriority" ValueChanged="OnPriorityChanged"
+                                    Label="Default priority for new instances"
+                                    InheritLabel="(Normal)"
+                                    HelperText="How urgently background workers pick up instances of this workflow. Whoever starts an instance can override it." />
+
+            <MudDivider Class="my-4" />
+
+            <MudSelect T="HistorySeverity?" Value="@Def.MinHistorySeverity" ValueChanged="OnSeverityChanged"
+                       Label="Execution log detail" Dense="true" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)null)">(as configured for the host)</MudSelectItem>
+                <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)HistorySeverity.Verbose)">Everything — every step entered and completed</MudSelectItem>
+                <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)HistorySeverity.Info)">Milestones — start, waits, signals, joins, end</MudSelectItem>
+                <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)HistorySeverity.Warning)">Only warnings and errors</MudSelectItem>
+                <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)HistorySeverity.Error)">Only errors</MudSelectItem>
+            </MudSelect>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Entries below this level are never written for instances of this workflow — they are not just
+                hidden, they never reach the database. Errors always get through, whatever is set here.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudSpacer />
+        <MudButton Color="Color.Primary" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die bearbeitete Definition. Wird direkt geändert (gespeichert wird sie vom Editor).</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    private void OnPriorityChanged(int? value)
+    {
+        if (Def is not null)
+        {
+            Def.DefaultPriority = value;
+        }
+    }
+
+    private void OnSeverityChanged(HistorySeverity? value)
+    {
+        if (Def is not null)
+        {
+            Def.MinHistorySeverity = value;
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

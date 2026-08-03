@@ -88,6 +88,91 @@
                                   OutputParameterOptions="OutputParameterNames()" />
         </MudTabPanel>
 
+        @* --- Iteration (je Element einer Sammlung, optional parallel) --- *@
+        <MudTabPanel Text="Iteration" Icon="@Icons.Material.Filled.Repeat">
+            <MudSwitch T="bool" Value="@IterationEnabled" ValueChanged="ToggleIteration" Color="Color.Primary"
+                       Label="Run this activity once per item of a collection" />
+            @if (Node.Iteration is not null)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                    The activity is invoked once per item instead of once. This stays a single branch — no extra
+                    tokens, no extra commits. Each output parameter is collected into a list in input order.
+                </MudText>
+
+                <MudAutocomplete T="string" Value="@Node.Iteration.ItemsInput"
+                                 ValueChanged="@(v => Node.Iteration.ItemsInput = v)"
+                                 SearchFunc="SearchBoundInputs" CoerceValue="true" CoerceText="false"
+                                 ResetValueOnEmptyText="false" Clearable="true"
+                                 Label="Collection comes from input parameter" Margin="Margin.Dense" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Must be one of this node's input bindings and must resolve to something enumerable. Null counts
+                    as an empty collection; a string is rejected rather than split into characters.
+                </MudText>
+
+                <MudTextField @bind-Value="Node.Iteration.ItemParameter" Label="Item → input parameter"
+                              Placeholder="(same as above)" Margin="Margin.Dense" Class="mt-3" />
+                <MudTextField @bind-Value="Node.Iteration.IndexParameter" Label="Index → input parameter (optional)"
+                              Margin="Margin.Dense" />
+
+                <MudNumericField @bind-Value="Node.Iteration.MaxParallel" Label="Items at a time" Min="0"
+                                 Margin="Margin.Dense" Class="mt-3" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    1 = strictly one after another. 0 = as many as there are processor cores. Anything above 1
+                    requires the activity to be <b>thread-safe</b>: it is resolved once and called from several
+                    threads at the same time. Writes to <code>context.Variables</code> are discarded per item
+                    (each item gets its own copy) — return values through the outputs.
+                </MudText>
+
+                <MudDivider Class="my-3" />
+                <MudSwitch T="bool" @bind-Value="Node.Iteration.ContinueOnError" Color="Color.Primary"
+                           Label="Keep going when an item fails" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Off: the first failure stops the run (items already started finish) and the node fails. On:
+                    every item is attempted, and the node fails at the end if any did — with the full result.
+                </MudText>
+                <MudTextField @bind-Value="Node.Iteration.PendingItemsOutput"
+                              Label="Still pending (failed + never attempted) → output parameter (optional)"
+                              Margin="Margin.Dense" Class="mt-3" />
+                <MudTextField @bind-Value="Node.Iteration.FailedItemsOutput"
+                              Label="Failures → output parameter (optional)" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.Iteration.SucceededCountOutput"
+                              Label="Number of successful items → output parameter (optional)" Margin="Margin.Dense" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Feed the <b>pending</b> list into a retry — it holds the plain originals, and it is the only
+                    one that also contains items that were never tried after an abort. The <b>failures</b> list is
+                    for diagnosis: one entry per failed item with <code>Item</code>, <code>Index</code>,
+                    <code>Message</code> and — if it crashed rather than declined — <code>ExceptionType</code> and
+                    <code>ExceptionDetail</code>.
+                </MudText>
+
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle2">Carrying results across attempts</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                    For a retry loop: each pass only works on what is left, but the result should end up complete.
+                </MudText>
+                <MudAutocomplete T="string" Value="@Node.Iteration.ItemResultOutput"
+                                 ValueChanged="@(v => Node.Iteration.ItemResultOutput = v)"
+                                 SearchFunc="SearchDeclaredOutputs" CoerceValue="true" CoerceText="false"
+                                 ResetValueOnEmptyText="false" Clearable="true"
+                                 Label="The finished item is the per-item output parameter" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.Iteration.SucceededItemsOutput"
+                              Label="Succeeded items → output parameter (optional)" Margin="Margin.Dense" />
+                <MudAutocomplete T="string" Value="@Node.Iteration.CarryOverInput"
+                                 ValueChanged="@(v => Node.Iteration.CarryOverInput = v)"
+                                 SearchFunc="SearchBoundInputs" CoerceValue="true" CoerceText="false"
+                                 ResetValueOnEmptyText="false" Clearable="true"
+                                 Label="Prepend already finished items from input parameter" Margin="Margin.Dense" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Succeeded items hold the <b>results</b> (the parameter above), the failed and pending lists hold
+                    the <b>originals</b> — that asymmetry is what makes the loop fit together. The carried-over list
+                    is prepended to the succeeded items only; the other result lists stay strictly "this pass".
+                </MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Map all of these on the "Variable mapping" tab like any other output.
+                </MudText>
+            }
+        </MudTabPanel>
+
         @* --- Scope consolidation --- *@
         <MudTabPanel Text="Scope" Icon="@Icons.Material.Filled.FilterAlt">
             <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
@@ -261,6 +346,59 @@
 
         return parameters.Where(p => p.Direction == ActivityParameterDirection.Output)
             .Select(p => p.Name).ToList();
+    }
+
+    // --- Iteration ----------------------------------------------------------------------------
+
+    private bool IterationEnabled => Node?.Iteration is not null;
+
+    /// <summary>
+    /// Schaltet die Iteration ein oder aus. Ausschalten setzt sie auf null zurück statt nur die Felder
+    /// zu leeren — ein leerer Block wäre ein stiller Nicht-Effekt (die Aktivität liefe einmal), und
+    /// genau davor warnt auch der Validator.
+    /// </summary>
+    private void ToggleIteration(bool enabled)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        // Beim Einschalten gleich das naheliegende vorschlagen: gibt es genau eine Eingabe-Bindung, ist
+        // sie mit hoher Wahrscheinlichkeit die Sammlung.
+        Node.Iteration = enabled
+            ? new ActivityIteration { ItemsInput = Node.Inputs?.Count == 1 ? Node.Inputs[0].Parameter : null }
+            : null;
+    }
+
+    /// <summary>
+    /// Vorschläge für die Sammlungs-Eingabe: die Parameter, die dieser Knoten tatsächlich bindet (nicht
+    /// der ganze Katalog) — die Iteration kann nur lesen, was gebunden ist.
+    /// </summary>
+    private Task<IEnumerable<string>> SearchBoundInputs(string value, CancellationToken ct)
+    {
+        IEnumerable<string> names = Node?.Inputs?
+            .Where(b => b is not null && !string.IsNullOrWhiteSpace(b.Parameter))
+            .Select(b => b.Parameter!)
+            .Distinct() ?? Enumerable.Empty<string>();
+        return Filter(names, value);
+    }
+
+    /// <summary>
+    /// Vorschläge für den Ergebnis-Parameter des Einzeldurchlaufs: die deklarierten Ausgaben aus dem
+    /// Katalog. Freitext bleibt erlaubt — eine generische Aktivität hat keine Deklaration.
+    /// </summary>
+    private Task<IEnumerable<string>> SearchDeclaredOutputs(string value, CancellationToken ct)
+        => Filter(OutputParameterNames() ?? Array.Empty<string>(), value);
+
+    private static Task<IEnumerable<string>> Filter(IEnumerable<string> names, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            names = names.Where(n => n.Contains(value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(names);
     }
 
     // --- Configuration ------------------------------------------------------------------------

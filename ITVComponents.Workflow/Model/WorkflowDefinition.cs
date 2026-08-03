@@ -38,6 +38,27 @@ namespace ITVComponents.Workflow.Model
         /// </summary>
         public bool DisabledForStart { get; set; }
 
+        /// <summary>
+        /// Die Vorgabe-Dringlichkeit fuer neue Instanzen dieser Definition (<b>kleinere Zahl =
+        /// wichtiger</b>, siehe <see cref="Instances.WorkflowPriority"/>). Null = der Standard
+        /// (<see cref="Instances.WorkflowPriority.Normal"/>). Wer eine Instanz startet, kann den Wert
+        /// einzeln uebersteuern.
+        /// </summary>
+        /// <remarks>
+        /// Gedacht fuer Definitionen, deren Rolle von vornherein feststeht: eine naechtliche
+        /// Aufraeum-Kaskade laeuft dauerhaft auf <see cref="Instances.WorkflowPriority.Lowest"/>, eine
+        /// Freigabe mit Kundenkontakt auf <see cref="Instances.WorkflowPriority.High"/>.
+        /// </remarks>
+        public int? DefaultPriority { get; set; }
+
+        /// <summary>
+        /// Uebersteuert fuer Instanzen dieser Definition die Mindest-Stufe des Ablauf-Protokolls. Null =
+        /// es gilt der Filter der Engine bzw. der prozessweite
+        /// <c>WorkflowHistoryFilter.Default</c>. Damit laesst sich EIN Workflow ausfuehrlich
+        /// mitschreiben, waehrend der Rest knapp bleibt (oder umgekehrt).
+        /// </summary>
+        public Instances.HistorySeverity? MinHistorySeverity { get; set; }
+
         /// <summary>Die Knoten des Graphen.</summary>
         public List<WorkflowNode> Nodes { get; set; } = new List<WorkflowNode>();
 

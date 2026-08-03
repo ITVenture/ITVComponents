@@ -30,6 +30,13 @@ namespace ITVComponents.Workflow.EntityFramework
         public int Status { get; set; }
 
         /// <summary>
+        /// Die Dringlichkeit der Instanz (<b>kleinere Zahl = wichtiger</b>, siehe
+        /// <c>WorkflowPriority</c>). Eigene Spalte statt Teil des JSON, weil der Aufgriff faelliger
+        /// Instanzen danach sortiert - aus einem JSON-Blob liesse sich das nicht ordnen.
+        /// </summary>
+        public int Priority { get; set; } = Instances.WorkflowPriority.Normal;
+
+        /// <summary>
         /// Name des Tenants, dem die Instanz gehoert, oder null fuer eine tenant-freie Instanz. Eine
         /// laufende Instanz ist strikt an ihren Tenant gebunden (anders als eine oeffentliche Definition).
         /// </summary>
@@ -385,6 +392,12 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.TenantId);
                 e.HasIndex(n => n.ParentInstanceId);   // Kinder einer Instanz (Abbruch-Kaskade, Baum-Treiber)
                 e.HasIndex(n => n.RootInstanceId);      // aggregierte Prozessbaum-Ansicht
+                // "die dringendsten der lauffaehigen zuerst" - die Sortierung des Aufgriffs.
+                e.HasIndex(n => new { n.Status, n.Priority });
+                // Der Standard gehoert in die SPALTE, nicht nur ins Modell: eine Zeile, die von aussen
+                // (Alt-Bestand, Migration, Reparatur-SQL) ohne Priority entsteht, waere sonst 0 - und 0
+                // ist die HOECHSTE Stufe. Ausgerechnet die Alt-Instanzen wuerden alles ueberholen.
+                e.Property(n => n.Priority).HasDefaultValue(Instances.WorkflowPriority.Normal);
                 // Optimistische Nebenlaeufigkeit: die UPDATE-Klausel enthaelt Version=@original;
                 // ein zwischenzeitlicher Commit laesst 0 Zeilen zu -> DbUpdateConcurrencyException.
                 e.Property(n => n.Version).IsConcurrencyToken();

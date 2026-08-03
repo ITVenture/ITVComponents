@@ -152,6 +152,34 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
+        public Task<bool> SetPriorityAsync(ClaimsPrincipal user, string instanceId, int priority,
+            string? environment = null)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                LogEnvironment.LogEvent(
+                    $"Prioritaets-Aenderung an Instanz '{instanceId}' ohne Berechtigung " +
+                    $"'{WorkflowSecurity.Operate}' abgelehnt.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
+            if (instance == null || !MayTouch(instance))
+            {
+                LogEnvironment.LogEvent(
+                    $"Prioritaets-Aenderung an Instanz '{instanceId}' abgelehnt: nicht vorhanden oder " +
+                    "fremder Tenant.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            // Wie der Abbruch eine reine Store-Operation - die Instanz laeuft weiter, nur die Reihenfolge
+            // ihres Aufgriffs aendert sich. Ein verlorenes Rennen gegen einen laufenden Zweig meldet die
+            // Engine mit false (und protokolliert den Grund); der Benutzer kann es dann wiederholen.
+            return Task.FromResult(op.Engine.SetPriority(instanceId, priority));
+        }
+
+        /// <inheritdoc/>
         public Task<WorkflowRetryInfo?> GetRetryInfoAsync(ClaimsPrincipal user, string instanceId,
             string? environment = null)
         {
@@ -449,7 +477,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
                 WorkflowInstance instance = StartInstanceCore(op, request.DefinitionId,
                     request.Variables ?? new Dictionary<string, object>(),
-                    string.IsNullOrWhiteSpace(request.CorrelationKey) ? null : request.CorrelationKey);
+                    string.IsNullOrWhiteSpace(request.CorrelationKey) ? null : request.CorrelationKey,
+                    request.Priority);
 
                 if (string.IsNullOrEmpty(instance.TenantId))
                 {
@@ -493,7 +522,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// Start-Tokens, die der Runner aufnimmt. Ausnahmen der Engine reicht die Basis nach oben durch.
         /// </summary>
         protected abstract WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
-            IDictionary<string, object> variables, string? correlationKey);
+            IDictionary<string, object> variables, string? correlationKey, int? priority);
 
         /// <summary>
         /// Treibt die eben wieder aufgenommene Instanz weiter. Dieselbe Weggabelung wie bei Signal und
@@ -593,6 +622,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 DefinitionId = row.DefinitionId,
                 DefinitionVersion = row.DefinitionVersion,
                 Status = ((WorkflowStatus)row.Status).ToString(),
+                Priority = row.Priority,
                 CorrelationKey = row.CorrelationKey,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc
@@ -610,6 +640,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                     return descending ? q.OrderByDescending(r => r.Status) : q.OrderBy(r => r.Status);
                 case "CorrelationKey":
                     return descending ? q.OrderByDescending(r => r.CorrelationKey) : q.OrderBy(r => r.CorrelationKey);
+                case "Priority":
+                    // Aufsteigend = die dringendsten zuerst (kleinere Zahl = wichtiger).
+                    return descending ? q.OrderByDescending(r => r.Priority) : q.OrderBy(r => r.Priority);
                 case "CreatedUtc":
                     return descending ? q.OrderByDescending(r => r.CreatedUtc) : q.OrderBy(r => r.CreatedUtc);
                 default:

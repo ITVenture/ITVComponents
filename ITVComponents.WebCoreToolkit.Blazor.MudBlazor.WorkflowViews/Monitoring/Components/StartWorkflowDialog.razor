@@ -55,6 +55,10 @@
                               Margin="Margin.Dense" Class="mt-3"
                               HelperText="Your own reference — later signals address the instance by it." />
 
+                <WorkflowPrioritySelect @bind-Value="priority" Label="Priority (optional)" Class="mt-3"
+                                        InheritLabel="(as defined by the workflow)"
+                                        HelperText="How urgently the background workers pick this instance up. Leave empty to use the workflow's own default." />
+
                 @if (form.Fields.Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Class="mt-3">
@@ -113,6 +117,7 @@
     private ClaimsPrincipal? currentUser;
     private string? definitionId;
     private string? correlationKey;
+    private int? priority;
     private string? error;
     private bool loading = true;
     private bool formLoading;
@@ -191,6 +196,7 @@
             {
                 DefinitionId = form.DefinitionId,
                 CorrelationKey = correlationKey,
+                Priority = priority,
                 Variables = variables
             };
 

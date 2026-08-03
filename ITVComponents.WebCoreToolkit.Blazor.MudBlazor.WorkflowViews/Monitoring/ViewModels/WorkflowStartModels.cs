@@ -73,6 +73,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public string? CorrelationKey { get; init; }
 
         /// <summary>
+        /// Die Dringlichkeit der neuen Instanz (kleinere Zahl = wichtiger, siehe
+        /// <c>WorkflowPriority</c>), oder null fuer die Vorgabe der Definition
+        /// (<see cref="WorkflowDefinition.DefaultPriority"/>).
+        /// </summary>
+        public int? Priority { get; init; }
+
+        /// <summary>
         /// Die uebergebenen Startvariablen (Feldname -> Wert). Sie sind der Stack, gegen den die Signatur
         /// der Definition (<see cref="StartNode.Inputs"/>) aufgeloest wird.
         /// </summary>

@@ -38,11 +38,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
         /// <inheritdoc/>
         protected override WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
-            IDictionary<string, object> variables, string? correlationKey)
+            IDictionary<string, object> variables, string? correlationKey, int? priority)
         {
             // Inline wie beim Signal: anlegen UND synchron bis zum ersten Wartepunkt treiben. Ohne Runner
-            // im Betrieb bliebe eine bloss angelegte Instanz sonst regungslos liegen.
-            return op.Engine.StartWorkflow(definitionId, variables, correlationKey);
+            // im Betrieb bliebe eine bloss angelegte Instanz sonst regungslos liegen. Die Prioritaet wird
+            // mitgeschrieben, wirkt aber erst, wenn spaeter doch ein Runner uebernimmt - dieser Weg hier
+            // laeuft ohne Warteschlange.
+            return op.Engine.StartWorkflow(definitionId, variables, correlationKey, priority);
         }
 
         /// <inheritdoc/>

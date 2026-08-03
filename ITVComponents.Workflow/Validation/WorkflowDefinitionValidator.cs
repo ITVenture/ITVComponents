@@ -228,6 +228,11 @@ namespace ITVComponents.Workflow.Validation
                         break;
                 }
 
+                if (n is AutomatedActivityNode iterating && iterating.Iteration != null)
+                {
+                    issues.AddRange(IterationIssues(iterating));
+                }
+
                 if (n is UserActivityNode task)
                 {
                     issues.AddRange(UserTaskIssues(task, outs));
@@ -301,6 +306,107 @@ namespace ITVComponents.Workflow.Validation
 
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Prueft die Iterations-Einstellung eines Aktivitaets-Knotens. Die Engine faultet zur Laufzeit,
+        /// wenn die Sammlung nicht gebunden ist - das gehoert in den Editor, nicht in eine Instanz, die
+        /// erst am Knoten stirbt.
+        /// </summary>
+        private static IEnumerable<ValidationIssue> IterationIssues(AutomatedActivityNode node)
+        {
+            var issues = new List<ValidationIssue>();
+            ActivityIteration it = node.Iteration;
+            if (!it.IsConfigured)
+            {
+                // Ein angelegter, aber leerer Iterations-Block ist ein Nicht-Effekt: die Aktivitaet laeuft
+                // genau einmal. Das ist harmlos, sieht im Editor aber nach "ist eingestellt" aus.
+                issues.Add(Warn(node.Id,
+                    $"Activity '{Label(node)}' has an iteration block without a collection parameter - it is " +
+                    "ignored and the activity runs once."));
+                return issues;
+            }
+
+            if (node.Inputs == null || node.Inputs.All(b => b == null
+                                                            || !string.Equals(b.Parameter, it.ItemsInput, StringComparison.Ordinal)))
+            {
+                issues.Add(Error(node.Id,
+                    $"Activity '{Label(node)}' iterates over input parameter '{it.ItemsInput}', but no input " +
+                    "binding of that name exists - the instance would fault here."));
+            }
+
+            if (!string.IsNullOrWhiteSpace(it.IndexParameter)
+                && string.Equals(it.IndexParameter, it.EffectiveItemParameter, StringComparison.Ordinal))
+            {
+                issues.Add(Error(node.Id,
+                    $"Activity '{Label(node)}' passes item and index under the same parameter name " +
+                    $"'{it.IndexParameter}' - the index would overwrite the item."));
+            }
+
+            if (!string.IsNullOrWhiteSpace(it.CarryOverInput))
+            {
+                if (node.Inputs == null || node.Inputs.All(b => b == null
+                                                                || !string.Equals(b.Parameter, it.CarryOverInput, StringComparison.Ordinal)))
+                {
+                    issues.Add(Error(node.Id,
+                        $"Activity '{Label(node)}' carries over input parameter '{it.CarryOverInput}', but no " +
+                        "input binding of that name exists - the instance would fault here."));
+                }
+
+                if (string.IsNullOrWhiteSpace(it.SucceededItemsOutput))
+                {
+                    // Die Uebernahme fliesst ausschliesslich in die Erfolgs-Liste. Ohne sie ist sie ein
+                    // stiller Nicht-Effekt - und genau daran scheitert eine Wiederholungs-Schleife lautlos.
+                    issues.Add(Warn(node.Id,
+                        $"Activity '{Label(node)}' carries over '{it.CarryOverInput}' but declares no output for " +
+                        "the succeeded items - the carried-over items would go nowhere."));
+                }
+
+                if (string.Equals(it.CarryOverInput, it.ItemsInput, StringComparison.Ordinal))
+                {
+                    issues.Add(Error(node.Id,
+                        $"Activity '{Label(node)}' carries over the very collection it iterates " +
+                        $"('{it.ItemsInput}') - already finished items would be processed again."));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(it.ItemResultOutput)
+                && string.IsNullOrWhiteSpace(it.SucceededItemsOutput))
+            {
+                issues.Add(Warn(node.Id,
+                    $"Activity '{Label(node)}' declares '{it.ItemResultOutput}' as the per-item result but has no " +
+                    "output for the succeeded items - the setting has no effect."));
+            }
+
+            if (it.ContinueOnError && string.IsNullOrWhiteSpace(node.ErrorFlowId))
+            {
+                // Ohne Fehler-Ausgang faultet die Instanz am Ende trotzdem - dann war das Durchlaufen
+                // umsonst, und die gesammelte Fehlerliste sieht niemand.
+                issues.Add(Warn(node.Id,
+                    $"Activity '{Label(node)}' continues on item errors but has no error flow - a failed item " +
+                    "still faults the instance at the end, and the collected failures are never routed."));
+            }
+
+            if (!it.ContinueOnError && !string.IsNullOrWhiteSpace(it.FailedItemsOutput)
+                && string.IsNullOrWhiteSpace(it.PendingItemsOutput))
+            {
+                // Der Abbruch laesst Elemente unversucht liegen. Wer nur die GESCHEITERTEN wiederholt,
+                // verliert die nie versuchten - lautlos, und erst im Ergebnis zu sehen.
+                issues.Add(Warn(node.Id,
+                    $"Activity '{Label(node)}' stops at the first failing item, so items may stay unattempted - " +
+                    "but only the failed ones are reported. Add an output for the pending items, otherwise a " +
+                    "retry silently drops everything that was never tried."));
+            }
+
+            if (it.MaxParallel > 1 && !string.IsNullOrWhiteSpace(node.ExecutionTarget))
+            {
+                // Kein Fehler - nur der Hinweis, dass die Parallelitaet auf DEM Zielhost entsteht.
+                issues.Add(Warn(node.Id,
+                    $"Activity '{Label(node)}' runs {it.MaxParallel} items in parallel on execution target " +
+                    $"'{node.ExecutionTarget}' - the load lands on that host, not on the one that started the branch."));
+            }
+
+            return issues;
         }
 
         /// <summary>

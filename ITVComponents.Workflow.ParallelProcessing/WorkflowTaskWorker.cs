@@ -51,17 +51,17 @@ namespace ITVComponents.Workflow.ParallelProcessing
                         ProcessBranch(task);
                         break;
                     case WorkflowTrigger.Signal:
-                        EnqueueBranches(task.InstanceId,
+                        EnqueueBranches(task,
                             engine.ReactivateSignal(task.InstanceId, task.SignalName, task.Payload));
                         break;
                     case WorkflowTrigger.Timer:
-                        EnqueueBranches(task.InstanceId,
+                        EnqueueBranches(task,
                             engine.ReactivateTimers(task.InstanceId, DateTime.UtcNow));
                         break;
                     case WorkflowTrigger.TargetResume:
                         // Verteilter Handoff: die auf ein Ziel DIESES Hosts wartenden Zweige aktivieren und
                         // als Zweig-Tasks einreihen (dann fuehrt RunBranch die Aktivitaet hier aus).
-                        EnqueueBranches(task.InstanceId,
+                        EnqueueBranches(task,
                             engine.ReactivateForTargets(task.InstanceId, engine.HostTargets));
                         break;
                     case WorkflowTrigger.DeliverChild:
@@ -100,10 +100,15 @@ namespace ITVComponents.Workflow.ParallelProcessing
                 return;
             }
 
-            EnqueueBranches(task.InstanceId, engine.RunBranch(task.InstanceId, task.TokenId));
+            EnqueueBranches(task, engine.RunBranch(task.InstanceId, task.TokenId));
         }
 
-        private void EnqueueBranches(string instanceId, IReadOnlyList<string> newTokenIds)
+        /// <summary>
+        /// Reiht die durch einen Auftrag neu entstandenen Zweige ein - mit der Stufe des ausloesenden
+        /// Auftrags. Sie gehoeren zur selben Instanz, also zur selben Stufe; sie erneut nachzuschlagen
+        /// waere eine Abfrage je Split-Kind ohne jeden Erkenntnisgewinn.
+        /// </summary>
+        private void EnqueueBranches(WorkflowTask source, IReadOnlyList<string> newTokenIds)
         {
             if (newTokenIds == null)
             {
@@ -112,7 +117,8 @@ namespace ITVComponents.Workflow.ParallelProcessing
 
             foreach (string tokenId in newTokenIds)
             {
-                enqueue(new WorkflowTask(instanceId, WorkflowTrigger.Advance, tokenId));
+                enqueue(new WorkflowTask(source.InstanceId, WorkflowTrigger.Advance, tokenId,
+                    priority: source.Priority));
             }
         }
     }

@@ -202,7 +202,10 @@ namespace ITVComponents.Workflow.WebWorker
                 // EfWorkflowStore leaset je Aufruf einen frischen Kontext (Unit of Work je Aufruf) und disposed
                 // ihn selbst; die Operation sammelt die Scopes und schliesst sie am Ende (Doppel-Dispose idempotent).
                 IWorkflowStore store = new EfWorkflowStore(LeaseCtx);
-                var engine = new WorkflowEngine(store, activityHost, null, spec.HostTargets);
+                // Ist ein Protokoll-Filter registriert, gilt er fuer die hier angetriebenen Instanzen;
+                // sonst der prozessweite Standard (WorkflowHistoryFilter.Default).
+                var engine = new WorkflowEngine(store, activityHost, null, spec.HostTargets,
+                    sp.GetService<IWorkflowHistoryFilter>());
 
                 // Deskriptor-spezifischer Lock-Owner: raeumt beim ersten Antrieb NUR die eigenen verwaisten
                 // Locks. Die Branch-Lock-Tabelle hat keinen TenantId (ReleaseLocksOfOwner ist global-by-Owner),
@@ -217,12 +220,18 @@ namespace ITVComponents.Workflow.WebWorker
                         "Workflow-Worker: verwaiste Branch-Locks fuer {Owner} beim ersten Antrieb freigegeben.", lockOwner);
                 }
 
-                var work = new Queue<DriveItem>();
+                // Nach Dringlichkeit geordnet statt streng der Reihe nach: ein Antrieb arbeitet die
+                // aufgenommene Arbeit einthreadig ab, also entscheidet allein diese Reihenfolge, was
+                // zuerst laeuft. Der Zaehler bricht Gleichstaende in Aufnahme-Reihenfolge auf - ohne ihn
+                // waere die Reihenfolge gleich priorisierter Elemente unbestimmt.
+                var work = new PriorityQueue<DriveItem, (int Priority, long Seq)>();
+                long seq = 0;
                 foreach (WorkflowInstance inst in store.FindRunnable().ToList())
                 {
                     foreach (Token token in inst.Tokens.Where(t => t.Status == TokenStatus.Active))
                     {
-                        work.Enqueue(new DriveItem(DriveTrigger.Advance, inst.Id, token.Id));
+                        work.Enqueue(new DriveItem(DriveTrigger.Advance, inst.Id, token.Id, inst.Priority),
+                            (inst.Priority, seq++));
                     }
                 }
 
@@ -233,20 +242,23 @@ namespace ITVComponents.Workflow.WebWorker
                          store.ClaimDueTimers(DateTime.UtcNow, lockOwner, opt.TimerLease, opt.MaxTimerBatch)
                              .ToList())
                 {
-                    work.Enqueue(new DriveItem(DriveTrigger.Timer, inst.Id, null));
+                    work.Enqueue(new DriveItem(DriveTrigger.Timer, inst.Id, null, inst.Priority),
+                        (inst.Priority, seq++));
                 }
 
                 if (spec.HostTargets.Count > 0)
                 {
                     foreach (WorkflowInstance inst in store.FindBranchesWaitingForTarget(spec.HostTargets).ToList())
                     {
-                        work.Enqueue(new DriveItem(DriveTrigger.TargetResume, inst.Id, null));
+                        work.Enqueue(new DriveItem(DriveTrigger.TargetResume, inst.Id, null, inst.Priority),
+                            (inst.Priority, seq++));
                     }
                 }
 
                 foreach (WorkflowInstance child in store.FindFinishedChildrenWithWaitingParent().ToList())
                 {
-                    work.Enqueue(new DriveItem(DriveTrigger.DeliverChild, child.Id, null));
+                    work.Enqueue(new DriveItem(DriveTrigger.DeliverChild, child.Id, null, child.Priority),
+                        (child.Priority, seq++));
                 }
 
                 bool any = work.Count > 0;
@@ -273,9 +285,13 @@ namespace ITVComponents.Workflow.WebWorker
                                     continue; // ein anderer Runner haelt den Zweig
                                 }
 
+                                // Folge-Zweige erben die Stufe ihres Ausloesers - sie gehoeren zur selben
+                                // Instanz.
                                 foreach (string tid in engine.RunBranch(item.InstanceId, item.TokenId!))
                                 {
-                                    work.Enqueue(new DriveItem(DriveTrigger.Advance, item.InstanceId, tid));
+                                    work.Enqueue(
+                                        new DriveItem(DriveTrigger.Advance, item.InstanceId, tid, item.Priority),
+                                        (item.Priority, seq++));
                                 }
                             }
 
@@ -283,14 +299,18 @@ namespace ITVComponents.Workflow.WebWorker
                         case DriveTrigger.Timer:
                             foreach (string tid in engine.ReactivateTimers(item.InstanceId, DateTime.UtcNow))
                             {
-                                work.Enqueue(new DriveItem(DriveTrigger.Advance, item.InstanceId, tid));
+                                work.Enqueue(
+                                    new DriveItem(DriveTrigger.Advance, item.InstanceId, tid, item.Priority),
+                                    (item.Priority, seq++));
                             }
 
                             break;
                         case DriveTrigger.TargetResume:
                             foreach (string tid in engine.ReactivateForTargets(item.InstanceId, spec.HostTargets))
                             {
-                                work.Enqueue(new DriveItem(DriveTrigger.Advance, item.InstanceId, tid));
+                                work.Enqueue(
+                                    new DriveItem(DriveTrigger.Advance, item.InstanceId, tid, item.Priority),
+                                    (item.Priority, seq++));
                             }
 
                             break;
@@ -337,6 +357,7 @@ namespace ITVComponents.Workflow.WebWorker
             DeliverChild
         }
 
-        private readonly record struct DriveItem(DriveTrigger Trigger, string InstanceId, string? TokenId);
+        private readonly record struct DriveItem(DriveTrigger Trigger, string InstanceId, string? TokenId,
+            int Priority);
     }
 }

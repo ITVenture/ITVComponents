@@ -43,6 +43,17 @@ namespace ITVComponents.Workflow.Stores
         WorkflowInstance GetInstance(string instanceId);
 
         /// <summary>
+        /// Liefert nur die Dringlichkeit einer Instanz (<see cref="WorkflowInstance.Priority"/>), oder
+        /// null, wenn es sie nicht gibt.
+        /// </summary>
+        /// <remarks>
+        /// Eigene Abfrage, weil die Ausfuehrungsschicht den Wert braucht, um einen Auftrag einzureihen -
+        /// und dafuer nicht Variablen, Tokens und das ganze Protokoll der Instanz laden soll. Genau dafuer
+        /// steht die Prioritaet als eigene Spalte neben dem JSON.
+        /// </remarks>
+        int? GetInstancePriority(string instanceId);
+
+        /// <summary>
         /// Findet Instanzen mit einem wartenden Token auf das angegebene Signal. Ist
         /// <paramref name="correlationKey"/> gesetzt, werden nur Instanzen mit passendem
         /// Korrelationsschluessel (oder passender Id) geliefert.

@@ -173,6 +173,7 @@ namespace ITVComponents.Workflow.EntityFramework
             row.DefinitionId = instance.DefinitionId;
             row.DefinitionVersion = instance.DefinitionVersion;
             row.Status = (int)instance.Status;
+            row.Priority = instance.Priority;
             row.CorrelationKey = instance.CorrelationKey;
             row.FaultMessage = instance.FaultMessage;
             row.ParentInstanceId = instance.ParentInstanceId;
@@ -181,7 +182,7 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CallDepth = instance.CallDepth;
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
-            row.VariablesJson = WorkflowJson.Serialize(instance.Variables);
+            row.VariablesJson = WorkflowJson.SerializeVariables(instance.Variables);
 
             // Protokoll append-only: nur die noch nicht persistierten Eintraege einfuegen - NICHT das ganze
             // (wachsende) Protokoll neu schreiben. Die Inserts laufen im selben (versions-gepruefen)
@@ -231,7 +232,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.WaitingForChildInstanceId = token.WaitingForChildInstanceId;
                 // Zweig-Scope: nur gesetzt, solange das Token in einer parallelen Region laeuft - sonst
                 // bleibt die Spalte null (und die Zeile so klein wie bisher).
-                tr.VariablesJson = token.Variables == null ? null : WorkflowJson.Serialize(token.Variables);
+                tr.VariablesJson = token.Variables == null ? null : WorkflowJson.SerializeVariables(token.Variables);
                 tr.SplitTokenId = token.SplitTokenId;
                 tr.BoundaryOwnerTokenId = token.BoundaryOwnerTokenId;
                 tr.BoundaryIteration = token.BoundaryIteration;
@@ -277,6 +278,18 @@ namespace ITVComponents.Workflow.EntityFramework
             List<HistoryEntryRow> history = ctx.HistoryEntries
                 .Where(h => h.InstanceId == instanceId).OrderBy(h => h.Seq).ToList();
             return ToInstance(row, tokens, history);
+        }
+
+        /// <inheritdoc/>
+        public int? GetInstancePriority(string instanceId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            // Eine Spalte, eine Zeile - der Punkt der Methode. Der Cast auf int? unterscheidet
+            // "gibt es nicht" von "steht auf 0" (0 waere die HOECHSTE Stufe).
+            return ctx.WorkflowInstances
+                .Where(r => r.Id == instanceId)
+                .Select(r => (int?)r.Priority)
+                .FirstOrDefault();
         }
 
         /// <inheritdoc/>
@@ -340,15 +353,20 @@ namespace ITVComponents.Workflow.EntityFramework
             DateTime until = nowUtc.Add(lease);
             string claim = owner + "#" + Guid.NewGuid().ToString("N");
 
-            // 1. Kandidaten: faellige Timer, die niemand (mehr) beansprucht. Nach der aeltesten
-            //    Faelligkeit je Instanz, damit bei einem Stau die am laengsten ueberfaelligen zuerst
-            //    drankommen und nicht eine Instanz dauerhaft hinten liegen bleibt.
+            // 1. Kandidaten: faellige Timer, die niemand (mehr) beansprucht. Erst nach Dringlichkeit der
+            //    Instanz, dann nach der aeltesten Faelligkeit je Instanz - damit bei einem Stau die
+            //    wichtigen zuerst drankommen und innerhalb einer Stufe die am laengsten ueberfaelligen,
+            //    statt dass eine Instanz dauerhaft hinten liegen bleibt. Die Reihenfolge zaehlt hier
+            //    wirklich: maxInstances schneidet ab, was dieser Poll NICHT mehr aufgreift.
             List<string> candidates = ctx.Tokens
                 .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
                             && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
                 .GroupBy(t => t.InstanceId)
                 .Select(g => new { InstanceId = g.Key, Due = g.Min(t => t.DueUtc) })
-                .OrderBy(x => x.Due)
+                .Join(ctx.WorkflowInstances, x => x.InstanceId, r => r.Id,
+                    (x, r) => new { x.InstanceId, x.Due, r.Priority })
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Due)
                 .Take(maxInstances)
                 .Select(x => x.InstanceId)
                 .ToList();
@@ -415,6 +433,7 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             using WorkflowContext ctx = contextFactory();
             int running = (int)WorkflowStatus.Running;
+            // Die Sortierung nach Dringlichkeit macht LoadInstances fuer alle Abfragen gemeinsam.
             List<string> ids = ctx.WorkflowInstances
                 .Where(r => r.Status == running)
                 .Select(r => r.Id)
@@ -557,7 +576,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 .GroupBy(h => h.InstanceId)
                 .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Seq).ToList());
 
+            // Die dringendsten zuerst (kleinere Zahl = wichtiger): jeder Aufrufer reiht in dieser
+            // Reihenfolge ein, und wer nur einen Teil verarbeitet, hat wenigstens den richtigen Teil.
+            // OrderBy ist stabil - innerhalb einer Stufe bleibt es bei der Reihenfolge der Datenbank.
             return rows
+                .OrderBy(r => r.Priority)
                 .Select(r => ToInstance(r,
                     tokensByInstance.TryGetValue(r.Id, out List<TokenRow> tl) ? tl : new List<TokenRow>(),
                     historyByInstance.TryGetValue(r.Id, out List<HistoryEntryRow> hl) ? hl : new List<HistoryEntryRow>()))
@@ -574,6 +597,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 DefinitionVersion = row.DefinitionVersion,
                 TenantId = row.TenantId,
                 Status = (WorkflowStatus)row.Status,
+                Priority = row.Priority,
                 CorrelationKey = row.CorrelationKey,
                 FaultMessage = row.FaultMessage,
                 ParentInstanceId = row.ParentInstanceId,
@@ -583,8 +607,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 Version = row.Version,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
-                Variables = WorkflowJson.Deserialize<Dictionary<string, object>>(row.VariablesJson)
-                            ?? new Dictionary<string, object>(),
+                Variables = WorkflowJson.DeserializeVariables(row.VariablesJson),
                 Tokens = tokenRows.Select(t => new Token
                 {
                     Id = t.TokenId,
@@ -596,7 +619,7 @@ namespace ITVComponents.Workflow.EntityFramework
                     WaitingForChildInstanceId = t.WaitingForChildInstanceId,
                     Variables = string.IsNullOrEmpty(t.VariablesJson)
                         ? null
-                        : WorkflowJson.Deserialize<Dictionary<string, object>>(t.VariablesJson),
+                        : WorkflowJson.DeserializeVariables(t.VariablesJson),
                     SplitTokenId = t.SplitTokenId,
                     BoundaryOwnerTokenId = t.BoundaryOwnerTokenId,
                     BoundaryIteration = t.BoundaryIteration,

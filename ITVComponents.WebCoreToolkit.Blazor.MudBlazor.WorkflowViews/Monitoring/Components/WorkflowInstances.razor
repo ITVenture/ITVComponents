@@ -70,6 +70,14 @@
                     <PropertyColumn Property="x => x.DefinitionId" Title="Definition" />
                     <PropertyColumn Property="x => x.DefinitionVersion" Title="Ver" />
                     <PropertyColumn Property="x => x.Status" Title="Status" />
+                    @* PropertyColumn (nicht TemplateColumn) mit eigener Zelle: nur so traegt die
+                       Sortier-Anforderung den Spaltennamen "Priority", den der Handler kennt. Angezeigt
+                       wird der Name statt der Zahl - "Low" liest sich richtig herum, "3" nicht. *@
+                    <PropertyColumn Property="x => x.Priority" Title="Priority">
+                        <CellTemplate>
+                            <MudText Typo="Typo.body2">@WorkflowPriority.Name(context.Item.Priority)</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
                     <PropertyColumn Property="x => x.CorrelationKey" Title="Correlation" />
                     <PropertyColumn Property="x => x.UpdatedUtc" Title="Updated (UTC)" />
                     <TemplateColumn T="WorkflowInstanceListItem" Title="" Sortable="false">

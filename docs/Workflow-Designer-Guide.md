@@ -62,6 +62,20 @@ meldet seinen Text erst beim Verlassen).
   *als neue Version speichern* (die alte Version und ihre laufenden Instanzen bleiben unangetastet). Fehler
   (nicht Warnungen) blockieren das Speichern.
 
+### Workflow-Einstellungen (Zahnrad in der Kopfleiste)
+
+Was für die **ganze Definition** gilt und an keinem Knoten hängt:
+
+- **Default priority for new instances** — die Dringlichkeit, mit der neue Instanzen dieses Workflows von
+  den Hintergrund-Workern aufgegriffen werden. **Kleinere Stufe = wichtiger** (Highest 0 … Lowest 4); leer =
+  Normal. Wer eine Instanz von Hand startet, kann den Wert für diesen einen Fall übersteuern. Ein
+  Subworkflow erbt die Stufe seines Aufrufers und ignoriert seine eigene Vorgabe.
+- **Execution log detail** — ab welcher Stufe Einträge ins Ablauf-Protokoll geschrieben werden. Unterhalb
+  liegende Einträge werden **nicht** bloß ausgeblendet, sie entstehen gar nicht erst. „Milestones" lässt
+  die Schritt-für-Schritt-Einträge (jeder betretene und beendete Knoten) weg — der übliche Griff gegen ein
+  zugewachsenes Protokoll. Fehler kommen unabhängig von dieser Einstellung immer durch. Leer = es gilt,
+  was der Host eingestellt hat.
+
 ---
 
 ## 2. Gemeinsame Konzepte
@@ -145,6 +159,31 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
   - **Parameters** — je Eingabe eine Bindung (Constant/Variable/Expression), je Ausgabe eine Ziel-Variable.
     Getypte Widgets je Parameter-Art (Bool, Zahl, Mehrzeilig, Passwort, Auswahl, Ausdruck).
   - **Scope** (Konsolidierung).
+  - **Iteration** (eigener Reiter, optional) — führt die Aktivität **je Element einer Sammlung** aus statt
+    einmal. Für den einen langen Schritt in einem sonst seriellen Ablauf (1000 Dateien signieren), ohne
+    dafür 1000 Stränge im Graphen zu erzeugen: es bleibt **ein** Strang, ein Commit, ein Wiederaufsatzpunkt.
+    - **Collection comes from input parameter** — welche der Eingabe-Bindungen die Sammlung liefert.
+    - **Item / Index → input parameter** — unter welchen Namen der Element-Lauf sein Element (und optional
+      seinen Index) bekommt. Leer = das Element ersetzt die Sammlung unter demselben Namen.
+    - **Items at a time** — 1 = nacheinander (Standard), 0 = so viele wie Prozessorkerne. Über 1 muss die
+      Aktivität **thread-sicher** sein: sie wird einmal aufgelöst und aus mehreren Threads gerufen.
+      Schreibzugriffe auf Variablen wirken dann nur je Element und werden verworfen (mit Warnung im
+      Protokoll) — Ergebnisse gehören in die **Outputs**, die sammelt die Engine je Ausgabeparameter zu
+      einer Liste in Eingabe-Reihenfolge.
+    - **Keep going when an item fails** + **Still pending / Failures / Number of successful items → output
+      parameter** — alle Elemente versuchen und am Ende über den **Fehler-Ausgang** die Listen mitgeben
+      (statt beim ersten Fehler abzubrechen). Die Teilergebnisse bleiben in beiden Fällen erhalten.
+      **Für einen Retry die „still pending"-Liste weitergeben**: sie führt die blanken Originale und ist
+      die einzige, die auch die nach einem Abbruch nie versuchten Elemente enthält. Die **„failures"**-Liste
+      ist die Diagnose-Sicht — je Fehler ein Eintrag mit `Item`, `Index`, `Message` und, falls die
+      Aktivität abgestürzt statt kontrolliert abgelehnt hat, `ExceptionType` + `ExceptionDetail`
+      (Stacktrace).
+    - **Carrying results across attempts** — für Wiederholungs-Schleifen: **The finished item is the
+      per-item output parameter** sagt, was das fertige Element ist; **Succeeded items** sammelt genau
+      diese Ergebnisse; **Prepend already finished items from input parameter** stellt das Ergebnis der
+      vorigen Durchläufe voran. Damit bearbeitet jeder Durchlauf nur den Rest, das Ergebnis ist am Ende
+      trotzdem vollständig. Merke: „fertig" trägt die **Ergebnis**-Form, „offen" die **Eingabe**-Form —
+      erst dadurch passt die Schleife zusammen.
   - **Execution target** — Name des Hosts, auf dem die Aktivität laufen muss (z. B. „backend"). Leer = jeder
     Runner. Bedient kein laufender Runner dieses Ziel, **parkt** der Strang, bis ein passender ihn übernimmt.
   - **Fehler-Ausgang** (im Popup sichtbar, gezogen am roten Port): bei Fehler (Exception oder `ctx.Fail`)

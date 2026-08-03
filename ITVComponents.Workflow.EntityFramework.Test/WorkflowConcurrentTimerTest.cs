@@ -318,6 +318,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 return forCaller;
             }
 
+            public int? GetInstancePriority(string id) => inner.GetInstancePriority(id);
             public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
             public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);

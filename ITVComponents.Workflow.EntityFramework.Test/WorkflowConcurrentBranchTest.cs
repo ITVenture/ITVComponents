@@ -378,6 +378,8 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public WorkflowInstance GetInstance(string instanceId) => inner.GetInstance(instanceId);
+
+            public int? GetInstancePriority(string instanceId) => inner.GetInstancePriority(instanceId);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindDueTimers(DateTime now) => inner.FindDueTimers(now);
             public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime now, string o, TimeSpan l, int m) => inner.ClaimDueTimers(now, o, l, m);
@@ -432,6 +434,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 return instance;
             }
 
+            public int? GetInstancePriority(string id) => inner.GetInstancePriority(id);
             public bool TryCommitInstance(WorkflowInstance instance, int baseVersion) => inner.TryCommitInstance(instance, baseVersion);
             public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
             public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);

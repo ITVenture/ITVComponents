@@ -58,6 +58,9 @@
                                  Icon="@Icons.Material.Filled.Block" Class="ml-2">Not startable</MudChip>
                     </MudTooltip>
                 }
+                <MudTooltip Text="Workflow settings (default priority, execution log detail)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Tune" Class="ml-2" OnClick="OpenSettings" />
+                </MudTooltip>
                 <MudSpacer />
                 <MudButton StartIcon="@Icons.Material.Filled.Download" Variant="Variant.Text"
                            Class="mr-1" OnClick="ExportToFile">Export</MudButton>
@@ -613,6 +616,34 @@
             DeleteSelected();
         }
 
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Öffnet die Einstellungen der Definition als Ganzes (Vorgabe-Priorität, Ausführlichkeit des
+    /// Ablauf-Protokolls). Wie der Knoten-Dialog ändert er das Modell per Referenz - gespeichert wird
+    /// erst beim Speichern der Definition.
+    /// </summary>
+    private async Task OpenSettings()
+    {
+        if (def is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(DefinitionSettingsDialog.Def), def }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+
+        IDialogReference dialog = await DialogService.ShowAsync<DefinitionSettingsDialog>(string.Empty, parameters, options);
+        await dialog.Result;
         StateHasChanged();
     }
 

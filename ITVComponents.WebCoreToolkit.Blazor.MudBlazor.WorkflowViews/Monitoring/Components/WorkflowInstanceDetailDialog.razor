@@ -18,6 +18,31 @@
                             <tr><td>Id</td><td>@instance.Id</td></tr>
                             <tr><td>Definition</td><td>@instance.DefinitionId (v@instance.DefinitionVersion)</td></tr>
                             <tr><td>Status</td><td>@instance.Status</td></tr>
+                            <tr>
+                                <td>Priority</td>
+                                <td>
+                                    @* Nur solange die Instanz noch etwas vor sich hat - an einer
+                                       beendeten Instanz aendert die Stufe nichts mehr. *@
+                                    @if (CanChangePriority)
+                                    {
+                                        <SecureView RequiredPermissions="Workflow.Operate">
+                                            <Permitted>
+                                                <WorkflowPrioritySelect Value="@instance.Priority"
+                                                                        ValueChanged="ChangePriority"
+                                                                        Label="" AllowInherit="false"
+                                                                        Class="mt-0" />
+                                            </Permitted>
+                                            <NotPermitted>
+                                                @WorkflowPriority.Name(instance.Priority)
+                                            </NotPermitted>
+                                        </SecureView>
+                                    }
+                                    else
+                                    {
+                                        @WorkflowPriority.Name(instance.Priority)
+                                    }
+                                </td>
+                            </tr>
                             <tr><td>Correlation</td><td>@instance.CorrelationKey</td></tr>
                             <tr><td>Created (UTC)</td><td>@instance.CreatedUtc</td></tr>
                             <tr><td>Updated (UTC)</td><td>@instance.UpdatedUtc</td></tr>
@@ -165,6 +190,40 @@
         => token.Variables is null
             ? string.Empty
             : string.Join(", ", token.Variables.Select(kv => $"{kv.Key}={kv.Value}"));
+
+    /// <summary>
+    /// Lässt sich die Stufe hier noch sinnvoll ändern? Sie steuert nur, wie schnell offene Arbeit
+    /// aufgegriffen wird — an einer beendeten oder abgebrochenen Instanz gibt es davon keine mehr.
+    /// </summary>
+    private bool CanChangePriority
+        => instance is not null
+           && (instance.Status == WorkflowStatus.Running || instance.Status == WorkflowStatus.Waiting);
+
+    /// <summary>
+    /// Setzt die Stufe der Instanz neu. Ein verlorenes Rennen gegen einen gerade laufenden Zweig ist
+    /// kein Fehler, sondern ein Wiederholungsfall — deshalb eine eigene, sprechende Meldung statt
+    /// eines allgemeinen „hat nicht geklappt".
+    /// </summary>
+    private async Task ChangePriority(int? priority)
+    {
+        if (instance is null || priority is null || currentUser is null)
+        {
+            return;
+        }
+
+        if (await Handler.SetPriorityAsync(currentUser, InstanceId, priority.Value, Environment))
+        {
+            Snackbar.Add($"Priority set to {WorkflowPriority.Name(priority.Value)}.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(
+                "The priority could not be changed — a branch of this instance was being processed at the " +
+                "same time. Please try again.", Severity.Warning);
+        }
+
+        await LoadAsync();
+    }
 
     private static Color SeverityColor(HistorySeverity severity) => severity switch
     {

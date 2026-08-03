@@ -1,0 +1,67 @@
+@*
+    Die Auswahl einer Workflow-Prioritaet. Eine Komponente statt dreier gleicher MudSelects, vor allem
+    aber EINE Stelle fuer die Erklaerung: die Zahlen laufen andersherum, als man erwartet (0 = am
+    wichtigsten). Wer nur die Liste sieht, muss das nicht wissen - die Beschriftungen tragen es.
+*@
+
+<MudSelect T="int?" Value="@Value" ValueChanged="OnChanged" Label="@Label" Dense="true"
+           Margin="Margin.Dense" Clearable="@AllowInherit" HelperText="@HelperText" Class="@Class">
+    @if (AllowInherit)
+    {
+        <MudSelectItem T="int?" Value="@((int?)null)">@InheritLabel</MudSelectItem>
+    }
+    @foreach (int level in Levels)
+    {
+        <MudSelectItem T="int?" Value="@((int?)level)">@LevelLabel(level)</MudSelectItem>
+    }
+</MudSelect>
+
+@code {
+    private static readonly int[] Levels =
+    {
+        WorkflowPriority.Highest, WorkflowPriority.High, WorkflowPriority.Normal,
+        WorkflowPriority.Low, WorkflowPriority.Lowest
+    };
+
+    /// <summary>Die gewählte Stufe, oder null für „nicht gesetzt" (siehe <see cref="AllowInherit"/>).</summary>
+    [Parameter] public int? Value { get; set; }
+
+    /// <summary>Wird bei einer Änderung mit der neuen Stufe gerufen.</summary>
+    [Parameter] public EventCallback<int?> ValueChanged { get; set; }
+
+    /// <summary>Die Beschriftung des Feldes.</summary>
+    [Parameter] public string Label { get; set; } = "Priority";
+
+    /// <summary>Der Hinweistext unter dem Feld, oder null.</summary>
+    [Parameter] public string? HelperText { get; set; }
+
+    /// <summary>Zusätzliche CSS-Klassen.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Darf „nicht gesetzt" gewählt werden? Für eine Vorgabe (Definition) oder eine Übersteuerung
+    /// (Start-Dialog) ja — dort bedeutet null „das erben, was ohnehin gilt". Für die Stufe einer
+    /// laufenden Instanz nein: die hat immer eine.
+    /// </summary>
+    [Parameter] public bool AllowInherit { get; set; } = true;
+
+    /// <summary>Die Beschriftung des „nicht gesetzt"-Eintrags.</summary>
+    [Parameter] public string InheritLabel { get; set; } = "(default)";
+
+    private Task OnChanged(int? value)
+    {
+        Value = value;
+        return ValueChanged.InvokeAsync(value);
+    }
+
+    /// <summary>
+    /// Beschriftung einer Stufe. Die Zahl steht mit dabei — sie taucht in der Instanzliste, im Protokoll
+    /// und in den Runner-Einstellungen auf, und dort ist sie eine Zahl.
+    /// </summary>
+    private static string LevelLabel(int level) => level switch
+    {
+        WorkflowPriority.Highest => $"{WorkflowPriority.Name(level)} ({level}) — overtakes everything",
+        WorkflowPriority.Lowest => $"{WorkflowPriority.Name(level)} ({level}) — background work",
+        _ => $"{WorkflowPriority.Name(level)} ({level})"
+    };
+}

@@ -43,6 +43,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null);
 
         /// <summary>
+        /// Setzt die Dringlichkeit einer Instanz neu (Operate) - kleinere Zahl = wichtiger. Der Griff fuer
+        /// den Fall "dieser eine Hintergrund-Lauf ist jetzt doch eilig" (oder umgekehrt: "der darf warten,
+        /// er blockiert gerade alles"). Liefert false ohne Berechtigung, bei unbekannter Instanz oder wenn
+        /// ein gleichzeitig laufender Zweig das Rennen um den Commit gewonnen hat (dann wiederholen).
+        /// </summary>
+        Task<bool> SetPriorityAsync(ClaimsPrincipal user, string instanceId, int priority,
+            string? environment = null);
+
+        /// <summary>
         /// Liefert alles, was die Retry-Maske einer fehlgeschlagenen Instanz braucht: Fehlermeldung,
         /// Wiederaufsatzpunkt und die Variablen im Scope des fehlgeschlagenen Schritts. Null ohne
         /// Berechtigung (<see cref="WorkflowSecurity.Operate"/>) oder wenn es die Instanz nicht gibt.

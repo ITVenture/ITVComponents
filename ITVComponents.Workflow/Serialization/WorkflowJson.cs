@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using ITVComponents.Json;
+using ITVComponents.Json.Contracts;
 using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.Workflow.Serialization
@@ -25,6 +29,21 @@ namespace ITVComponents.Workflow.Serialization
         private static readonly JsonSerializerOptions Compact = Build(false);
         private static readonly JsonSerializerOptions Indented = Build(true);
 
+        static WorkflowJson()
+        {
+            // Die Ablage-Form der Variablen beim Contract-Resolver anmelden - ohne das kennt der
+            // Deserialisierer den Diskriminator nicht und der Variablen-Stack liesse sich nicht lesen.
+            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(WorkflowVariableBag),
+                WorkflowVariableBag.Discriminator);
+
+            // Die Fehlerliste einer Iteration ist ein Kern-Typ der Bibliothek - sie soll ohne Zutun der
+            // Anwendung typtreu durch die Ablage kommen. Sie traegt ihre Felder einzeln (wegen des
+            // object-Feldes Item) und braucht deshalb BEIDES: den Contract und den Kurznamen.
+            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(IterationFailure),
+                "wf-iteration-failure");
+            ManualTypeRegistry.Register<IterationFailure>("wf-iteration-failure");
+        }
+
         /// <summary>Serialisiert einen Wert. <paramref name="indented"/> = eingerueckt (fuer Export/Dateien).</summary>
         public static string Serialize<T>(T value, bool indented = false)
         {
@@ -35,6 +54,68 @@ namespace ITVComponents.Workflow.Serialization
         public static T Deserialize<T>(string json)
         {
             return string.IsNullOrEmpty(json) ? default : JsonSerializer.Deserialize<T>(json, Compact);
+        }
+
+        /// <summary>
+        /// Meldet einen Typ an, der als Wert einer Workflow-Variablen <b>typtreu</b> abgelegt und wieder
+        /// gelesen werden soll - unter einem kurzen, stabilen Namen.
+        /// </summary>
+        /// <remarks>
+        /// Ohne Anmeldung kommt ein zusammengesetzter Wert nach einem Park als Liste/Dictionary zurueck
+        /// (nicht als der urspruengliche Datensatz-Typ) - brauchbar, aber untypisiert. Der Name gehoert
+        /// zum abgelegten Format: einmal vergeben, darf er sich nicht mehr aendern; die Klasse dahinter
+        /// darf dagegen umziehen und umbenannt werden. Genau darum geht es.
+        /// <para>
+        /// Sammlungen brauchen keine eigene Anmeldung: eine Liste oder ein Array angemeldeter Elemente
+        /// wird ueber den Elementnamen abgelegt und kommt als <b>Array</b> zurueck.
+        /// </para>
+        /// <example>
+        /// <code>
+        /// WorkflowJson.RegisterVariableType&lt;SignItem&gt;("sign-item");
+        /// </code>
+        /// </example>
+        /// </remarks>
+        public static void RegisterVariableType<T>(string alias) => ManualTypeRegistry.Register<T>(alias);
+
+        /// <summary>Meldet einen Typ fuer typtreue Variablen-Ablage an (siehe <see cref="RegisterVariableType{T}"/>).</summary>
+        public static void RegisterVariableType(Type type, string alias) => ManualTypeRegistry.Register(type, alias);
+
+        /// <summary>
+        /// Serialisiert einen Variablen-Stack - je Variable ein Eintrag mit eigener Typkennung, damit der
+        /// konkrete Typ eines Wertes den Weg in die Ablage und zurueck uebersteht.
+        /// </summary>
+        public static string SerializeVariables(IDictionary<string, object> variables)
+        {
+            var bag = new WorkflowVariableBag
+            {
+                Values = variables == null
+                    ? new Dictionary<string, object>(StringComparer.Ordinal)
+                    : new Dictionary<string, object>(variables, StringComparer.Ordinal)
+            };
+            return JsonHelper.ToJson<IManualSerializer>(bag, SerializationTypingMode.AssistedPolymorphism);
+        }
+
+        /// <summary>
+        /// Liest einen Variablen-Stack zurueck. Liefert nie null (leerer Text = leerer Stack).
+        /// </summary>
+        /// <remarks>
+        /// Laeuft unter der Beschraenkung auf <b>angemeldete</b> Typen: aus dieser Ablage wird kein
+        /// beliebiger .NET-Typ geladen, auch wenn im Datenstrom einer benannt ist. Was sich nicht
+        /// aufloesen laesst, kommt untypisiert zurueck (und steht im Log).
+        /// </remarks>
+        public static Dictionary<string, object> DeserializeVariables(string json)
+        {
+            if (string.IsNullOrEmpty(json))
+            {
+                return new Dictionary<string, object>(StringComparer.Ordinal);
+            }
+
+            using (JsonHelper.RestrictManualTypesToRegistered())
+            {
+                var bag = JsonHelper.FromJsonString<WorkflowVariableBag>(json,
+                    SerializationTypingMode.AssistedPolymorphism);
+                return bag?.Values ?? new Dictionary<string, object>(StringComparer.Ordinal);
+            }
         }
 
         /// <summary>
@@ -63,6 +144,85 @@ namespace ITVComponents.Workflow.Serialization
             }
 
             return Deserialize<WorkflowDefinition>(json);
+        }
+
+        /// <summary>
+        /// Macht aus einem zurueckgelesenen <see cref="JsonElement"/> wieder gewoehnliche CLR-Werte:
+        /// Objekte werden zu <c>Dictionary&lt;string,object&gt;</c>, Arrays zu <c>List&lt;object&gt;</c>,
+        /// Primitive zu ihrem Typ. Alles andere wird unveraendert durchgereicht.
+        /// </summary>
+        /// <remarks>
+        /// Der Gegenzug zur bekannten Grenze des <see cref="ObjectValueConverter"/>: zusammengesetzte
+        /// Variablenwerte kommen nach einem Park (Commit + Neuladen) als <see cref="JsonElement"/>
+        /// zurueck. Ein <see cref="JsonElement"/> ist <b>kein</b> <c>IEnumerable</c> und kein
+        /// Dictionary - wer damit weiterarbeiten will, laeuft ohne diese Umwandlung auf.
+        /// <para>
+        /// Was NICHT zurueckkommt, ist der urspruengliche .NET-Typ: aus einem Datensatz-Objekt wird ein
+        /// Dictionary, kein POCO. Dafuer braeuchte die Ablage einen Typ-Diskriminator - eine Entscheidung
+        /// mit Format- und Sicherheitsfolgen, die hier bewusst nicht getroffen wird.
+        /// </para></remarks>
+        public static object Materialize(object value)
+        {
+            switch (value)
+            {
+                case JsonElement element:
+                    return FromElement(element);
+                case JsonNode node:
+                    // Derselbe Fall, andere Bauform: der manuelle Serialisierungs-Pfad reicht nicht
+                    // aufgeloeste Nutzlasten als JsonNode heraus.
+                    return FromElement(node.Deserialize<JsonElement>());
+                default:
+                    return value;
+            }
+        }
+
+        private static object FromElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    var map = new Dictionary<string, object>(StringComparer.Ordinal);
+                    foreach (JsonProperty property in element.EnumerateObject())
+                    {
+                        map[property.Name] = FromElement(property.Value);
+                    }
+
+                    return map;
+                case JsonValueKind.Array:
+                    var list = new List<object>();
+                    foreach (JsonElement item in element.EnumerateArray())
+                    {
+                        list.Add(FromElement(item));
+                    }
+
+                    return list;
+                case JsonValueKind.String:
+                    return element.GetString();
+                case JsonValueKind.Number:
+                    // Dieselbe Staffel wie beim Lesen - sonst waere aus einem int nach dem Umweg ein double.
+                    if (element.TryGetInt32(out int i))
+                    {
+                        return i;
+                    }
+
+                    if (element.TryGetInt64(out long l))
+                    {
+                        return l;
+                    }
+
+                    if (element.TryGetDecimal(out decimal m))
+                    {
+                        return m;
+                    }
+
+                    return element.GetDouble();
+                case JsonValueKind.True:
+                    return true;
+                case JsonValueKind.False:
+                    return false;
+                default:
+                    return null;
+            }
         }
 
         private static JsonSerializerOptions Build(bool indented)

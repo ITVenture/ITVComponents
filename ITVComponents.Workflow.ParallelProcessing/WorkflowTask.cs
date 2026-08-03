@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Threading;
+using ITVComponents.Workflow.Instances;
 
 namespace ITVComponents.Workflow.ParallelProcessing
 {
@@ -40,14 +41,27 @@ namespace ITVComponents.Workflow.ParallelProcessing
     public sealed class WorkflowTask : TaskBase
     {
         /// <summary>Initialisiert einen Auftrag.</summary>
+        /// <param name="instanceId">die betroffene Instanz</param>
+        /// <param name="trigger">die Art des Auftrags</param>
+        /// <param name="tokenId">bei <see cref="WorkflowTrigger.Advance"/>: der vorzutreibende Zweig</param>
+        /// <param name="signalName">bei <see cref="WorkflowTrigger.Signal"/>: der Signalname</param>
+        /// <param name="payload">bei <see cref="WorkflowTrigger.Signal"/>: optionale Variablen</param>
+        /// <param name="priority">
+        /// die Dringlichkeit der Instanz (kleinere Zahl = wichtiger). Der Wert geht unveraendert an den
+        /// Task-Processor - dort entscheidet er, wie oft die Warteschlange dieser Stufe im Auswahl-Zyklus
+        /// vorkommt. Muss im Prioritaets-Band des Processors liegen; der Runner beschneidet ihn darauf.
+        /// </param>
         public WorkflowTask(string instanceId, WorkflowTrigger trigger, string tokenId = null,
-            string signalName = null, IDictionary<string, object> payload = null)
+            string signalName = null, IDictionary<string, object> payload = null,
+            int priority = WorkflowPriority.Normal)
         {
             InstanceId = instanceId ?? throw new ArgumentNullException(nameof(instanceId));
             Trigger = trigger;
             TokenId = tokenId;
             SignalName = signalName;
             Payload = payload;
+            // TaskBase.Priority ist bewusst nur von abgeleiteten Klassen setzbar - genau dafuer.
+            Priority = priority;
             // Wichtig: Schedules darf nicht null sein - ParallelTaskProcessor.EnqueueTask iteriert
             // darueber. Ohne Schedule laeuft der Task sofort (runWithoutSchedulers).
             Schedules = new List<SchedulerPolicy>();
@@ -97,7 +111,8 @@ namespace ITVComponents.Workflow.ParallelProcessing
                 { "InstanceId", InstanceId },
                 { "TokenId", TokenId },
                 { "Trigger", Trigger.ToString() },
-                { "SignalName", SignalName }
+                { "SignalName", SignalName },
+                { "Priority", Priority }
             };
         }
 
