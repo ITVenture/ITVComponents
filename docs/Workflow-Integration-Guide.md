@@ -594,7 +594,8 @@ hier nur der Überblick mit den deployment-relevanten Hinweisen:
 
 - **Dringlichkeit einer Instanz (`WorkflowInstance.Priority`).** Bestimmt, in welcher Reihenfolge die
   Hintergrund-Verarbeitung Instanzen aufgreift. Details: [§13](#13-dringlichkeit-priorität-von-instanzen).
-  **Schema-Änderung:** eine Spalte `Priority` auf `WorkflowInstances`.
+  **Schema-Änderung:** eine Spalte `Priority` auf `WorkflowInstances` (+ Index) → Migration
+  **`InstancePriority`** je Provider-Projekt. Laufende Instanzen bleiben gültig (Vorgabewert `Normal`).
 
 ## 9. Benutzer-Aufgaben und Arbeitsliste
 
@@ -1342,9 +1343,18 @@ Drei Ebenen, die letzte gewinnt:
 
 ## 16. Migration: die `Priority`-Spalte
 
-Die einzige Schema-Änderung dieser drei Features. Sie gehört **manuell** gezogen (siehe die Hinweise zu
-EF-Snapshots im Repo) — die Spalte braucht zwingend einen `DEFAULT`, weil `0` die *höchste* Stufe ist:
-ohne Vorgabewert bekämen alle Alt-Instanzen versehentlich Vorfahrt.
+Die einzige Schema-Änderung dieser drei Features: eine Spalte `Priority` auf `WorkflowInstances` plus der
+Index `(Status, Priority)` → Migration **`InstancePriority`** je Provider-Projekt (SqlServer und
+PostgreSql), wie bei `BranchScopes`, `UserTasks`, `BoundaryTimers` und `TimerLease`. Der Host zieht sie
+mit seinem üblichen `Migrate()`; nichts von Hand nötig.
+
+Der entscheidende Teil steckt im `DEFAULT (2)`: `0` ist die **höchste** Stufe, ohne Vorgabewert bekämen
+ausgerechnet alle Alt-Instanzen Vorfahrt. Bestehende Zeilen erhalten den Wert über den `DEFAULT`, ein
+zusätzliches `UPDATE` ist nicht nötig. Rückwärtsverträglich: laufende Instanzen bleiben gültig und laufen
+auf `Normal` weiter.
+
+Wer sein Schema **nicht** über die Provider-Migrationen zieht (eigenes Deployment, DBA-Skript), nimmt
+dies:
 
 **SQL Server:**
 
@@ -1366,6 +1376,5 @@ CREATE INDEX "IX_WorkflowInstances_Status_Priority"
     ON "WorkflowInstances" ("Status", "Priority");
 ```
 
-`2` ist `WorkflowPriority.Normal`. Bestehende Zeilen erhalten den Wert über den `DEFAULT`; ein
-zusätzliches `UPDATE` ist nicht nötig. Der Index bedient die Sortierung des Aufgriffs
-(„die dringendsten der laufenden zuerst").
+`2` ist `WorkflowPriority.Normal`. Der Index bedient die Sortierung des Aufgriffs („die dringendsten der
+laufenden zuerst").

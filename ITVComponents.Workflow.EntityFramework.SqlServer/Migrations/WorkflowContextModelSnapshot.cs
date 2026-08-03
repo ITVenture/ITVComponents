@@ -228,6 +228,11 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<string>("ParentTokenId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(2);
+
                     b.Property<string>("RootInstanceId")
                         .HasColumnType("nvarchar(450)");
 
@@ -258,6 +263,8 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("Status", "Priority");
 
                     b.ToTable("WorkflowInstances");
                 });
