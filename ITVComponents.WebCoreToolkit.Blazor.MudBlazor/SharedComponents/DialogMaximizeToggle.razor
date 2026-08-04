@@ -2,7 +2,14 @@
 
 @* Reusable maximize/restore toggle for Mud dialogs. Place inside a dialog (e.g. as the first item in
    <DialogActions>) — it toggles the hosting dialog between its normal size and full screen via the cascading
-   IMudDialogInstance. Opt-in: only dialogs that add it become maximizable. *@
+   IMudDialogInstance. Opt-in: only dialogs that add it become maximizable.
+
+   Auf schmalen Geraeten maximiert er von selbst (MaximizeOnMobile) - dort ist der nicht maximierte
+   Dialog schlicht nicht bedienbar. *@
+
+@* Reiner Messpunkt: MudHidden meldet ueber Hidden, ob wir unter dem Umschaltpunkt liegen. Rendert
+   nichts. *@
+<MudHidden Breakpoint="@MobileBreakpoint" @bind-Hidden="mobile" />
 
 <MudTooltip Text="@(maximized ? RestoreTooltip : MaximizeTooltip)">
     <MudIconButton Icon="@(maximized ? Icons.Material.Filled.FullscreenExit : Icons.Material.Filled.Fullscreen)"
@@ -17,14 +24,36 @@
     [Parameter] public MaxWidth NormalMaxWidth { get; set; } = MaxWidth.ExtraLarge;
 
     /// <summary>
-    /// Ob der Dialog bereits maximiert aufgehen soll. Fuer Ansichten, die auf schmalen Geraeten
-    /// benutzt werden: dort ist der Vollbild-Dialog die brauchbare Form, und ein erster Klick nur, um
-    /// ueberhaupt etwas lesen zu koennen, ist verschenkt.
+    /// Ob der Dialog auf schmalen Geraeten von selbst maximiert (Standard: ja).
     /// </summary>
     /// <remarks>
-    /// Setzt beim ersten Rendern dieselben Optionen, die <see cref="Toggle"/> setzt - nicht eine
-    /// zweite, aehnliche Liste. Zwei Stellen liefen beim naechsten neuen Feld auseinander, und der
-    /// Unterschied faellt erst dem auf, der von Hand maximiert und wieder herstellt.
+    /// Auf dem Telefon ist der maximierte Dialog nicht die Kuer, sondern die einzige bedienbare Form:
+    /// er nimmt die volle Flaeche, der Inhalt scrollt in sich (siehe <c>itv-mudblazor.css</c>), und
+    /// Titel und Aktionsleiste bleiben stehen. Nicht maximiert steht derselbe Dialog als schmaler
+    /// Kasten in einem gepolsterten Container, und was nicht hineinpasst, ist weg.
+    /// <para>
+    /// Der Zwang, dass der Inhalt in die Flaeche passen muss, ist dabei der bessere Handel: passt er
+    /// nicht, wird gescrollt - die Knoepfe am Fuss bleiben trotzdem erreichbar. <b>Voraussetzung ist,
+    /// dass der Inhalt in <c>DialogContent</c> steht</b>; eigene Aktionen, die eine Maske IM Inhalt
+    /// unterbringt, scrollen mit und sind nicht angeheftet.
+    /// </para>
+    /// <para>
+    /// Die Automatik <b>tritt zurueck</b>, sobald jemand den Knopf selbst benutzt oder
+    /// <see cref="InitiallyMaximized"/> gesetzt ist - ab dann entscheidet die getroffene Wahl, nicht
+    /// die Geraetebreite. Sonst spraenge der Dialog beim Drehen des Telefons ungefragt zurueck.
+    /// </para>
+    /// </remarks>
+    [Parameter] public bool MaximizeOnMobile { get; set; } = true;
+
+    /// <summary>Bis zu welcher Groesse als „schmal" gilt (Standard: sm und kleiner).</summary>
+    [Parameter] public Breakpoint MobileBreakpoint { get; set; } = Breakpoint.SmAndDown;
+
+    /// <summary>
+    /// Ob der Dialog bereits maximiert aufgehen soll - unabhaengig von der Geraetebreite.
+    /// </summary>
+    /// <remarks>
+    /// Schaltet <see cref="MaximizeOnMobile"/> ab: wer das setzt, hat die Frage bereits entschieden,
+    /// und ein automatisches Wiederherstellen auf dem Desktop waere das Gegenteil davon.
     /// </remarks>
     [Parameter] public bool InitiallyMaximized { get; set; }
 
@@ -34,24 +63,56 @@
     [Parameter] public string RestoreTooltip { get; set; } = "Restore";
 
     private bool maximized;
-    private bool applied;
+    private bool mobile;
+
+    /// <summary>Die Automatik ist ausser Kraft - jemand hat selbst entschieden.</summary>
+    private bool decided;
+
+    /// <summary>Der Zustand, auf den die Automatik zuletzt reagiert hat (null = noch nie).</summary>
+    private bool? appliedFor;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Erst nach dem ersten Rendern: SetOptionsAsync loest ein Neuzeichnen des Dialogs aus, und
-        // das waehrend seines Aufbaus zu tun ist die Sorte Rennen, die sich sporadisch als leerer
-        // Dialog zeigt.
-        if (!firstRender || !InitiallyMaximized || applied)
+        // Erst NACH dem Rendern: SetOptionsAsync loest ein Neuzeichnen des Dialogs aus, und das
+        // waehrend seines Aufbaus zu tun ist die Sorte Rennen, die sich sporadisch als leerer Dialog
+        // zeigt.
+        if (firstRender && InitiallyMaximized)
+        {
+            decided = true;
+            await Apply(true);
+            return;
+        }
+
+        if (decided || !MaximizeOnMobile || mobile == appliedFor)
         {
             return;
         }
 
-        applied = true;
-        await Apply(true);
+        bool first = appliedFor is null;
+        appliedFor = mobile;
+
+        // Beim ersten Mal auf einem breiten Schirm gibt es nichts zu tun - der Dialog ist ohnehin
+        // nicht maximiert. Ohne diese Ausnahme setzte jeder Dialog beim Aufgehen einmal ueberfluessig
+        // seine Optionen neu (der Messpunkt meldet zuerst false, bevor der Breakpoint-Dienst antwortet).
+        if (first && !mobile)
+        {
+            return;
+        }
+
+        await Apply(mobile);
     }
 
-    private Task Toggle() => Apply(!maximized);
+    private Task Toggle()
+    {
+        decided = true;
+        return Apply(!maximized);
+    }
 
+    /// <summary>
+    /// Die EINE Stelle, die die Dialog-Optionen setzt. Getrennte Listen fuer „von Hand" und
+    /// „automatisch" liefen beim naechsten neuen Feld auseinander, und der Unterschied faellt erst
+    /// dem auf, der von Hand maximiert und wieder herstellt.
+    /// </summary>
     private async Task Apply(bool maximize)
     {
         maximized = maximize;

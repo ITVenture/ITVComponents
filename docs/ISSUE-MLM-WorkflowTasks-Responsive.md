@@ -344,12 +344,31 @@ Benachrichtigungs-Mail steht er noch nicht zur Verfügung — dort bleibt es bei
 
 `Filters` in allen vier `WorkflowTaskMessages`-Dateien (en/de/fr/it).
 
-### Was NICHT umgesetzt ist
+### Vorschlag 1, Punkt 3 — auf schmalen Geräten von selbst maximiert
 
-- **Automatisch maximiert öffnen** auf schmalen Viewports (Vorschlag 1, Punkt 3). Der Parameter dafür
-  existiert jetzt (`DialogMaximizeToggle.InitiallyMaximized`), die Entscheidung *wann* gehört aber dem
-  Dialog-Autor, nicht der Komponente — und sie lässt sich ohne laufendes System nicht sinnvoll
-  einstellen. Sollte der Gegentest zeigen, dass es auf dem Telefon gebraucht wird, ist es eine Zeile.
+Nachgereicht und **als Standard** gesetzt (`DialogMaximizeToggle.MaximizeOnMobile = true`, Umschaltpunkt
+`MobileBreakpoint = SmAndDown`). Die Meldung hatte gewarnt, Maximieren mache es schlimmer — das galt
+*vor* dem CSS-Fix. Mit scrollendem Content ist die Rechnung umgekehrt: der Dialog nimmt die volle Fläche,
+der Inhalt scrollt in sich, Titel und Aktionsleiste bleiben stehen. Nicht maximiert steht derselbe Dialog
+als schmaler Kasten in einem gepolsterten Container, und was nicht hineinpasst, ist weg.
+
+Der Zwang, dass der Inhalt in die Fläche passen muss, ist der bessere Handel: passt er nicht, wird
+gescrollt — die Knöpfe am Fuss bleiben erreichbar.
+
+Zwei Dinge, die dazugehören:
+
+- **Die Automatik tritt zurück**, sobald jemand den Knopf selbst benutzt (oder `InitiallyMaximized`
+  gesetzt ist). Sonst spränge der Dialog beim Drehen des Telefons ungefragt zurück.
+- **Voraussetzung ist, dass der Inhalt in `DialogContent` steht.** Beim `UserTaskDialog` ist das der
+  Fall — auch die eigene Maske (`DynamicComponent`) rendert dort hinein. Aber: eine Maske, die ihre
+  **eigenen Aktionen mitbringt** (`UserTaskDialog.razor:41-43`), legt diese Knöpfe damit *in* den
+  scrollenden Bereich. Sie sind erreichbar, aber nicht angeheftet — anders als „Erledigen"/„Schliessen"
+  des Mantels. Wer eine Maske mit eigenen Aktionen baut, sollte sie oben halten oder kurz genug.
+
+Nur Dialoge mit `<DialogMaximizeToggle />` sind betroffen (das war schon vorher die Opt-in-Grenze) —
+also genau die, denen jemand die Maximieren-Schaltfläche gegeben hat, weil ihr Inhalt gross ist.
+
+### Was NICHT umgesetzt ist
 - Die **Tab-Leiste im Firmenprofil** (Befund D, Anmerkung 1) — andere Baustelle, andere Datei,
   bewusst nicht mit hineingezogen.
 - Die offene Frage aus der Meldung, ob **andere WorkflowViews-Seiten** dieselbe Toolbar-Bauweise haben.

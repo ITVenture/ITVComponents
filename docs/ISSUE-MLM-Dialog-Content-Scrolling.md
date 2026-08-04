@@ -165,11 +165,16 @@ heute schon `widget-actions.js` und die BlazorMonaco-Skripte ankommen.
   `config.UseViews` gebunden: die Regeln betreffen Mud-Dialoge überhaupt, also auch die, die ein
   Konsument selbst baut.
 
-- **`DialogMaximizeToggle`** hat einen Parameter `InitiallyMaximized` bekommen (Punkt „Optional" der
-  Meldung). Er wird im `OnAfterRenderAsync(firstRender)` angewandt — `SetOptionsAsync` während des
-  Dialog-Aufbaus zu rufen ist die Sorte Rennen, die sich sporadisch als leerer Dialog zeigt. Toggle und
-  Erstanwendung teilen sich eine Methode; zwei ähnliche Options-Listen wären beim nächsten neuen Feld
-  auseinandergelaufen.
+- **`DialogMaximizeToggle`** maximiert auf schmalen Geräten jetzt **von selbst**
+  (`MaximizeOnMobile`, Standard an, Umschaltpunkt `MobileBreakpoint = SmAndDown`); dazu gibt es
+  `InitiallyMaximized` für den grössenunabhängigen Fall. Das ist der Punkt „Optional" der Meldung —
+  und die dortige Warnung („Maximieren verschlimmert es") gilt nur *ohne* den CSS-Fix. Mit scrollendem
+  Content ist der maximierte Dialog auf dem Telefon die einzige bedienbare Form.
+
+  Angewandt wird erst im `OnAfterRenderAsync` — `SetOptionsAsync` während des Dialog-Aufbaus zu rufen
+  ist die Sorte Rennen, die sich sporadisch als leerer Dialog zeigt. Die Automatik tritt zurück, sobald
+  jemand den Knopf selbst benutzt. Von Hand und automatisch teilen sich eine Methode; zwei ähnliche
+  Options-Listen wären beim nächsten neuen Feld auseinandergelaufen.
 
 ### Was der Konsument tun muss
 
