@@ -393,6 +393,12 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);
             public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent() => inner.FindFinishedChildrenWithWaitingParent();
             public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
+            public IReadOnlyList<OutgoingMessage> ClaimOutgoingMessages(string owner, TimeSpan lease,
+                int maxMessages) => inner.ClaimOutgoingMessages(owner, lease, maxMessages);
+
+            public void CompleteOutgoingMessage(string instanceId, string messageId)
+                => inner.CompleteOutgoingMessage(instanceId, messageId);
+
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
         }
 
@@ -456,6 +462,12 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public IEnumerable<WorkflowInstance> FindChildInstances(string parentInstanceId) => inner.FindChildInstances(parentInstanceId);
             public IEnumerable<WorkflowInstance> FindFinishedChildrenWithWaitingParent() => inner.FindFinishedChildrenWithWaitingParent();
             public IWorkflowBranchLock TryAcquireBranchLock(string i, string t, string o) => inner.TryAcquireBranchLock(i, t, o);
+            public IReadOnlyList<OutgoingMessage> ClaimOutgoingMessages(string owner, TimeSpan lease,
+                int maxMessages) => inner.ClaimOutgoingMessages(owner, lease, maxMessages);
+
+            public void CompleteOutgoingMessage(string instanceId, string messageId)
+                => inner.CompleteOutgoingMessage(instanceId, messageId);
+
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
         }
     }

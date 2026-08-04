@@ -312,6 +312,59 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.ToTable("WorkflowInstances");
                 });
 
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowOutboxRow", b =>
+                {
+                    b.Property<string>("InstanceId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Broadcast")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ClaimedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClaimedUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CorrelationKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReachedVariable")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SignalName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TargetInstanceId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("WaitingTokenId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("InstanceId", "Id");
+
+                    b.HasIndex("ClaimedUntil");
+
+                    b.HasIndex("CreatedUtc");
+
+                    b.ToTable("Outbox");
+                });
+
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowInstanceRow", b =>
                 {
                     b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", null)

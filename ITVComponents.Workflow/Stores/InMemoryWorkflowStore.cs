@@ -206,6 +206,41 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Ohne verteilte Sicht gibt es nichts zu beanspruchen: was noch vorgemerkt ist, ist liegen
+        /// geblieben und wird geliefert.
+        /// </remarks>
+        public IReadOnlyList<OutgoingMessage> ClaimOutgoingMessages(string owner, TimeSpan lease,
+            int maxMessages)
+        {
+            var result = new List<OutgoingMessage>();
+            foreach (WorkflowInstance instance in instances.Values)
+            {
+                foreach (OutgoingMessage message in instance.OutgoingMessages.ToList())
+                {
+                    message.InstanceId = instance.Id;
+                    message.Attempts++;
+                    result.Add(message);
+                    if (result.Count >= maxMessages)
+                    {
+                        return result;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <inheritdoc/>
+        public void CompleteOutgoingMessage(string instanceId, string messageId)
+        {
+            if (instances.TryGetValue(instanceId, out WorkflowInstance instance))
+            {
+                instance.OutgoingMessages.RemoveAll(m => m.Id == messageId);
+            }
+        }
+
+        /// <inheritdoc/>
         public DateTime? PeekNextTimerDueUtc(DateTime nowUtc)
         {
             var future = instances.Values

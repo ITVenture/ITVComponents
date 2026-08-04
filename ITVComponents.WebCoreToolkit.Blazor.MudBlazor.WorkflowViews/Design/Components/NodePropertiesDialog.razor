@@ -220,12 +220,29 @@
                     <InputBindingList Bindings="send.Inputs" NamePlaceholder="receiver variable"
                                       AddPlaceholder="new value" />
 
+                    <MudSwitch T="bool" @bind-Value="send.WaitForDelivery" Color="Color.Primary"
+                               Label="Wait for delivery" Class="mt-3" />
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Off (default): send and carry on. On: the branch <b>parks</b> until the message is
+                        out and then continues with the <b>number of receivers</b> — that is how „nobody
+                        was waiting“ becomes something the process can branch on instead of a line in the
+                        log. It costs a stop: two commits instead of one. For a plain notification that is
+                        wasted.
+                    </MudText>
+                    @if (send.WaitForDelivery)
+                    {
+                        <MudTextField @bind-Value="send.ReachedVariable" Label="Receivers → variable"
+                                      Margin="Margin.Dense" Class="mt-2"
+                                      HelperText="How many instances the message reached. 0 means nobody was waiting." />
+                    }
+
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
                         Sent <b>after this branch is committed</b>, not in the middle of it — the receiver is
                         driven on this very thread, and it must not run on a state of the sender that is not
-                        in the database yet. Consequence: <b>how many receivers were reached is not known
-                        while this node runs</b>, so it cannot go into a variable. „Nobody was waiting“ ends
-                        up in the system log. Branching on that needs an activity that delivers itself.
+                        in the database yet. The message itself is <b>written in the same transaction</b> as
+                        the branch, so it survives a crash: a runner catches it up. The price is
+                        <b>at least once</b> — after a crash at the wrong moment the same message can arrive
+                        twice, so a receiver that must not act twice needs its own guard.
                     </MudAlert>
                     break;
                 case TimerNode timer:

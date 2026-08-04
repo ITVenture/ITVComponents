@@ -331,6 +331,11 @@ namespace ITVComponents.Workflow.ParallelProcessing
                     priority: Band(instance.Priority)));
             }
 
+            // Liegen gebliebene Nachrichten nachholen. Im Regelfall ist hier nichts - der Sender stellt
+            // selbst zu, sobald er festgeschrieben ist. Was hier auftaucht, hat einen Absturz zwischen
+            // Commit und Zustellung ueberlebt; ohne diesen Lauf bliebe es fuer immer liegen.
+            engine.DeliverPendingMessages(owner, timerLease);
+
             // Verteilter Handoff: Zweige aufnehmen, die auf ein von DIESEM Runner bedientes Ausfuehrungs-Ziel
             // warten (nur wenn dieser Host ueberhaupt Ziele bedient - sonst kein Handoff-Empfang).
             if (engine.HostTargets.Count > 0)

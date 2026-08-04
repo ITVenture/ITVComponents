@@ -270,6 +270,38 @@ namespace ITVComponents.Workflow.EntityFramework
             row.VariablesJson = WorkflowJson.SerializeVariables(instance.Variables);
             row.CompensationsJson = WorkflowJson.SerializeCompensations(instance.Compensations);
 
+            // Die vorgemerkten Nachrichten - im SELBEN SaveChanges wie die Instanz. Genau das ist die
+            // Zustell-Garantie: der Zweig und seine ausgehende Nachricht werden zusammen wirksam oder
+            // gar nicht. Append-only: zugestellte Vormerkungen streicht CompleteOutgoingMessage.
+            var persistedMessages = new HashSet<string>(
+                ctx.Outbox.Where(o => o.InstanceId == instance.Id).Select(o => o.Id),
+                StringComparer.Ordinal);
+            foreach (OutgoingMessage message in instance.OutgoingMessages)
+            {
+                if (persistedMessages.Contains(message.Id))
+                {
+                    continue;
+                }
+
+                ctx.Outbox.Add(new WorkflowOutboxRow
+                {
+                    InstanceId = instance.Id,
+                    Id = message.Id,
+                    SignalName = message.SignalName,
+                    CorrelationKey = message.CorrelationKey,
+                    Broadcast = message.Broadcast,
+                    TargetInstanceId = message.TargetInstanceId,
+                    PayloadJson = message.Payload == null
+                        ? null
+                        : WorkflowJson.SerializeVariables(message.Payload),
+                    WaitingTokenId = message.WaitingTokenId,
+                    ReachedVariable = message.ReachedVariable,
+                    TenantId = row.TenantId,
+                    CreatedUtc = message.CreatedUtc,
+                    Attempts = message.Attempts
+                });
+            }
+
             // Protokoll append-only: nur die noch nicht persistierten Eintraege einfuegen - NICHT das ganze
             // (wachsende) Protokoll neu schreiben. Die Inserts laufen im selben (versions-gepruefen)
             // SaveChanges wie das Instanz-Update; bei einem Konflikt rollt alles zusammen zurueck, ein Retry
@@ -370,7 +402,10 @@ namespace ITVComponents.Workflow.EntityFramework
             List<TokenRow> tokens = ctx.Tokens.Where(t => t.InstanceId == instanceId).ToList();
             List<HistoryEntryRow> history = ctx.HistoryEntries
                 .Where(h => h.InstanceId == instanceId).OrderBy(h => h.Seq).ToList();
-            return ToInstance(row, tokens, history);
+            List<WorkflowOutboxRow> outbox = ctx.Outbox
+                .IgnoreQueryFilters()
+                .Where(o => o.InstanceId == instanceId).ToList();
+            return ToInstance(row, tokens, history, outbox);
         }
 
         /// <inheritdoc/>
@@ -661,6 +696,70 @@ namespace ITVComponents.Workflow.EntityFramework
             }
         }
 
+        /// <summary>Baut aus einer Outbox-Zeile die Vormerkung.</summary>
+        private static OutgoingMessage ToMessage(WorkflowOutboxRow row) => new OutgoingMessage
+        {
+            Id = row.Id,
+            InstanceId = row.InstanceId,
+            SignalName = row.SignalName,
+            CorrelationKey = row.CorrelationKey,
+            Broadcast = row.Broadcast,
+            TargetInstanceId = row.TargetInstanceId,
+            Payload = string.IsNullOrEmpty(row.PayloadJson)
+                ? null
+                : WorkflowJson.DeserializeVariables(row.PayloadJson),
+            WaitingTokenId = row.WaitingTokenId,
+            ReachedVariable = row.ReachedVariable,
+            CreatedUtc = row.CreatedUtc,
+            Attempts = row.Attempts
+        };
+
+        /// <inheritdoc/>
+        public IReadOnlyList<OutgoingMessage> ClaimOutgoingMessages(string owner, TimeSpan lease,
+            int maxMessages)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            DateTime now = DateTime.UtcNow;
+
+            // Bewusst OHNE Tenant-Filter: der Nachhol-Lauf gehoert einem tenant-uebergreifenden Runner.
+            // Die eigentliche Zustellung laeuft danach im Store-Kontext des Aufrufers.
+            List<WorkflowOutboxRow> rows = ctx.Outbox
+                .IgnoreQueryFilters()
+                .Where(o => o.ClaimedUntil == null || o.ClaimedUntil < now)
+                .OrderBy(o => o.CreatedUtc)
+                .Take(maxMessages)
+                .ToList();
+            if (rows.Count == 0)
+            {
+                return Array.Empty<OutgoingMessage>();
+            }
+
+            foreach (WorkflowOutboxRow row in rows)
+            {
+                row.ClaimedBy = owner;
+                row.ClaimedUntil = now.Add(lease);
+                row.Attempts++;
+            }
+
+            ctx.SaveChanges();
+            return rows.Select(ToMessage).ToList();
+        }
+
+        /// <inheritdoc/>
+        public void CompleteOutgoingMessage(string instanceId, string messageId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            ctx.Outbox
+                .IgnoreQueryFilters()
+                .Where(o => o.InstanceId == instanceId && o.Id == messageId)
+                .ExecuteDelete();
+        }
+
         /// <inheritdoc/>
         public void ReleaseLocksOfOwner(string owner)
         {
@@ -714,6 +813,15 @@ namespace ITVComponents.Workflow.EntityFramework
                 .ToList()
                 .GroupBy(h => h.InstanceId)
                 .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Seq).ToList());
+            // Ohne Tenant-Filter: die Vormerkung gehoert derselben Instanz, die oben schon gefiltert
+            // wurde - ein zweiter Filter wuerde sie nur dann verstecken, wenn gerade ein anderer Tenant
+            // aktiv ist (Runner), und die Nachricht ginge still verloren.
+            Dictionary<string, List<WorkflowOutboxRow>> outboxByInstance = ctx.Outbox
+                .IgnoreQueryFilters()
+                .Where(o => foundIds.Contains(o.InstanceId))
+                .ToList()
+                .GroupBy(o => o.InstanceId)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
             // Die dringendsten zuerst (kleinere Zahl = wichtiger): jeder Aufrufer reiht in dieser
             // Reihenfolge ein, und wer nur einen Teil verarbeitet, hat wenigstens den richtigen Teil.
@@ -722,12 +830,13 @@ namespace ITVComponents.Workflow.EntityFramework
                 .OrderBy(r => r.Priority)
                 .Select(r => ToInstance(r,
                     tokensByInstance.TryGetValue(r.Id, out List<TokenRow> tl) ? tl : new List<TokenRow>(),
-                    historyByInstance.TryGetValue(r.Id, out List<HistoryEntryRow> hl) ? hl : new List<HistoryEntryRow>()))
+                    historyByInstance.TryGetValue(r.Id, out List<HistoryEntryRow> hl) ? hl : new List<HistoryEntryRow>(),
+                    outboxByInstance.TryGetValue(r.Id, out List<WorkflowOutboxRow> ol) ? ol : new List<WorkflowOutboxRow>()))
                 .ToList();
         }
 
         private static WorkflowInstance ToInstance(WorkflowInstanceRow row, List<TokenRow> tokenRows,
-            List<HistoryEntryRow> historyRows)
+            List<HistoryEntryRow> historyRows, List<WorkflowOutboxRow> outboxRows)
         {
             return new WorkflowInstance
             {
@@ -749,6 +858,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 DefinitionKey = row.DefinitionKey,
                 Variables = WorkflowJson.DeserializeVariables(row.VariablesJson),
                 Compensations = WorkflowJson.DeserializeCompensations(row.CompensationsJson),
+                OutgoingMessages = outboxRows.Select(ToMessage).ToList(),
                 Tokens = tokenRows.Select(t => new Token
                 {
                     Id = t.TokenId,

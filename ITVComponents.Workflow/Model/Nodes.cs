@@ -426,6 +426,28 @@ namespace ITVComponents.Workflow.Model
         /// entsteht, setzt der Empfaenger vor seinem Weiterlauf in seinen Variablen-Stand.
         /// </summary>
         public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+
+        /// <summary>
+        /// Ob der Zweig auf die Zustellung <b>wartet</b> - dann steht ihm danach die Zahl der erreichten
+        /// Empfaenger zur Verfuegung (<see cref="ReachedVariable"/>).
+        /// </summary>
+        /// <remarks>
+        /// Das ist der Weg, „niemand hat gewartet" im Prozess auswertbar zu machen. Der Preis ist ein
+        /// Halt: das Token parkt, der Zweig wird festgeschrieben, dann wird zugestellt, und erst danach
+        /// laeuft er mit dem Ergebnis weiter - also zwei Commits statt einem. Fuer eine blosse
+        /// Benachrichtigung ist das verschenkt, deshalb ist es aus.
+        /// <para>
+        /// Anders herum geht es nicht: waehrend der Sender noch laeuft, ist noch nichts zugestellt, und
+        /// es gaebe nichts zu zaehlen.
+        /// </para>
+        /// </remarks>
+        public bool WaitForDelivery { get; set; }
+
+        /// <summary>
+        /// Bei <see cref="WaitForDelivery"/>: die Variable, in die die Zahl der erreichten Empfaenger
+        /// geschrieben wird. Leer = die Zahl wird nicht uebernommen (der Zweig wartet dann nur).
+        /// </summary>
+        public string ReachedVariable { get; set; }
     }
 
     /// <summary>

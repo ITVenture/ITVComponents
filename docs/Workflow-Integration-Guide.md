@@ -1854,14 +1854,50 @@ Was ein Empfänger seinerseits sendet, landet in derselben Warteschlange und wir
 abgearbeitet — nicht rekursiv aufgestapelt. Eine gegenseitige Benachrichtigung (A weckt B, B weckt A)
 läuft deshalb in eine **Obergrenze** und wird als Modellfehler gemeldet, statt den Stack zu sprengen.
 
-### Die Grenze, die daraus folgt
+### Vorgemerkt im selben Commit — die Zustell-Garantie
 
-**Wie viele Empfänger erreicht wurden, steht beim Ausführen des Knotens noch nicht fest** — zu dem
-Zeitpunkt ist noch nichts zugestellt. Die Zahl kann deshalb nicht in eine Variable fliessen und im Prozess
-nicht verzweigt werden. „Niemand hat gewartet" wird ins System-Log gemeldet.
+Die ausgehende Nachricht wird als **Zeile** geschrieben, und zwar in derselben Transaktion wie der Zweig,
+der sie ausgelöst hat (Tabelle `Outbox`). Erst danach wird zugestellt, und erst nach erfolgreicher
+Zustellung wird die Vormerkung gestrichen.
 
-Wer darauf verzweigen **muss**, nimmt weiterhin eine Aktivität, die selbst zustellt und den Rückgabewert
-auswertet — dann allerdings mit der Verschränkung, die der Knoten gerade vermeidet.
+Ohne das lebt eine ausstehende Zustellung nur im Speicher: stirbt der Prozess zwischen dem Commit des
+Senders und dem Zustellen, ist die Nachricht ersatzlos weg, und niemand erfährt davon. Als Zeile überlebt
+sie den Absturz — ein Runner holt sie im nächsten Poll nach (`DeliverPendingMessages`, mit Anspruch wie
+bei den fälligen Timern, damit nicht mehrere Runner dieselbe Nachricht nachholen).
+
+> **Mindestens einmal, nicht genau einmal.** Stirbt der Prozess zwischen dem Zustellen und dem Streichen
+> der Vormerkung, wird beim Nachholen erneut zugestellt. Das ist die bewusste Wahl: eine verlorene
+> Nachricht ist der teurere Fehler als eine doppelte, und gegen die doppelte kann sich der Empfänger
+> wehren. Wer das braucht, macht seinen Empfänger idempotent — die Korrelation liefert den Schlüssel dafür.
+
+Der **Regelfall** bleibt die unmittelbare Zustellung durch den Sender selbst, gleich nach seinem Commit.
+Der Nachhol-Lauf ist der Absturzpfad, nicht der normale Weg — die Latenz ändert sich also nicht.
+
+### Auf die Zustellung warten
+
+Am Knoten lässt sich **„auf die Zustellung warten"** einschalten. Dann parkt der Zweig, wird
+festgeschrieben, die Nachricht geht raus — und erst danach läuft er weiter, mit der **Zahl der erreichten
+Empfänger** in einer Variablen. Damit wird „niemand hat gewartet" im Prozess auswertbar statt nur im Log
+sichtbar.
+
+```
+Send CustomerPaid [orderId]   (auf Zustellung warten -> reached)
+        |
+      XOR  reached == 0  ->  Zuweisung zurueck an den Sachbearbeiter
+        |  sonst
+      weiter
+```
+
+Der Preis ist ein Halt: **zwei Commits statt einem**, plus das Parken. Für eine blosse Benachrichtigung
+ist das verschenkt, deshalb ist es aus. Anders herum geht es nicht — während der Sender noch läuft, ist
+noch nichts zugestellt, und es gäbe nichts zu zählen.
+
+**Ohne Warten** landet „niemand hat gewartet" im System-Log. Das reicht für Diagnose, nicht für eine
+Verzweigung.
+
+Ein Sonderfall, den man kennen sollte: das wartende Token hängt an **keinem** Signal und an keinem Timer —
+geweckt wird es ausschliesslich von der Zustellung seiner eigenen Nachricht. Stürzt der Prozess dazwischen
+ab, weckt es der Nachhol-Lauf. Genau dafür ist die Vormerkung da.
 
 ### Regeln
 
@@ -1875,4 +1911,7 @@ auswertet — dann allerdings mit der Verschränkung, die der Knoten gerade verm
 Empfänger und Sender müssen im selben **Mandanten** und in derselben **Workflow-Umgebung** (Store)
 liegen; die Abfrage nach Wartepunkten läuft im Store des Senders.
 
-**Kein Schema-Eingriff** — es wird nichts persistiert.
+### Schema
+
+Eine neue Tabelle **`Outbox`** (Schlüssel `(InstanceId, Id)`, Indizes auf `ClaimedUntil` und `CreatedUtc`)
+→ Migration **`MessageOutbox`** je Provider-Projekt.

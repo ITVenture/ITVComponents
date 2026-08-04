@@ -355,6 +355,64 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
+    /// Eine <b>vorgemerkte, noch nicht zugestellte Nachricht</b> - geschrieben im selben Commit wie der
+    /// Zweig, der sie ausgeloest hat.
+    /// </summary>
+    /// <remarks>
+    /// Genau darin liegt die Zustell-Garantie: eine Zustellung, die nur im Speicher vorgemerkt ist,
+    /// verschwindet mit dem Prozess. Als Zeile in derselben Transaktion ueberlebt sie ihn, und ein
+    /// Runner holt sie nach. Der Regelfall bleibt trotzdem die unmittelbare Zustellung durch den Sender
+    /// selbst - was hier liegen bleibt, ist der Absturzfall.
+    /// </remarks>
+    public class WorkflowOutboxRow
+    {
+        /// <summary>Die sendende Instanz (Teil des Schluessels).</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>Kennung der Vormerkung (Teil des Schluessels).</summary>
+        public string Id { get; set; }
+
+        /// <summary>Der Signalname.</summary>
+        public string SignalName { get; set; }
+
+        /// <summary>Der Korrelationsschluessel, oder null.</summary>
+        public string CorrelationKey { get; set; }
+
+        /// <summary>Rundruf statt gerichteter Nachricht.</summary>
+        public bool Broadcast { get; set; }
+
+        /// <summary>Die ausdrueckliche Zielinstanz, oder null.</summary>
+        public string TargetInstanceId { get; set; }
+
+        /// <summary>Die Nutzdaten als JSON (typerhaltend), oder null.</summary>
+        public string PayloadJson { get; set; }
+
+        /// <summary>Das wartende Token des Senders, oder null.</summary>
+        public string WaitingTokenId { get; set; }
+
+        /// <summary>Die Variable fuer die Zahl der erreichten Empfaenger, oder null.</summary>
+        public string ReachedVariable { get; set; }
+
+        /// <summary>
+        /// Der Tenant der sendenden Instanz - <b>denormalisiert</b>, damit der Nachhol-Lauf eines
+        /// tenant-uebergreifenden Runners die Zeile ohne Join findet.
+        /// </summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Wann vorgemerkt (UTC).</summary>
+        public DateTime CreatedUtc { get; set; }
+
+        /// <summary>Wie oft bereits versucht.</summary>
+        public int Attempts { get; set; }
+
+        /// <summary>Wer die Zustellung gerade nachholt, oder null.</summary>
+        public string ClaimedBy { get; set; }
+
+        /// <summary>Bis wann der Anspruch gilt, oder null.</summary>
+        public DateTime? ClaimedUntil { get; set; }
+    }
+
+    /// <summary>
     /// Eine gehaltene Zweig-Sperre (prozessuebergreifender Ausschluss beim Vortrieb eines Zweigs).
     /// Reine Koordinations-Zeile ohne TTL: gilt, bis sie freigegeben oder ueber den Owner-Namen
     /// zurueckgesetzt wird. Bewusst OHNE Tenant-Filter - ein Runner sperrt tenant-uebergreifend.
@@ -460,6 +518,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die gehaltenen Zweig-Sperren (Koordination, ohne Tenant-Filter).</summary>
         public DbSet<WorkflowBranchLockRow> BranchLocks { get; set; }
 
+        /// <summary>Die vorgemerkten, noch nicht zugestellten Nachrichten.</summary>
+        public DbSet<WorkflowOutboxRow> Outbox { get; set; }
+
         /// <inheritdoc/>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -543,6 +604,15 @@ namespace ITVComponents.Workflow.EntityFramework
                 // den Fall, den es zu schuetzen gilt. Ohne Filter zaehlen NULLs bei SQL Server als
                 // gleich: hoechstens eine oeffentliche je Id/Version. Genau das ist gemeint.
                 e.HasIndex(n => new { n.TenantId, n.Id, n.Version }).IsUnique().HasFilter(null);
+            });
+
+            modelBuilder.Entity<WorkflowOutboxRow>(e =>
+            {
+                e.HasKey(n => new { n.InstanceId, n.Id });
+                // Der Nachhol-Lauf sucht nach freien bzw. abgelaufenen Anspruechen - danach ist zu
+                // indizieren, nicht nach der Instanz.
+                e.HasIndex(n => n.ClaimedUntil);
+                e.HasIndex(n => n.CreatedUtc);
             });
 
             modelBuilder.Entity<WorkflowBranchLockRow>(e =>

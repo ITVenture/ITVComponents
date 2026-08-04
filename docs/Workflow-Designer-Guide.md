@@ -284,9 +284,16 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Zugestellt wird nach dem Commit** dieses Zweigs, nicht mitten in seiner Ausführung: der Empfänger
   wird beim Zustellen selbst vorangetrieben, und er darf nicht auf einem Stand des Senders laufen, den
   es in der Datenbank noch nicht gibt.
-- **Folge daraus:** wie viele Empfänger erreicht wurden, steht beim Ausführen des Knotens noch nicht
-  fest — die Zahl kann nicht in eine Variable und im Prozess nicht verzweigt werden. „Niemand hat
-  gewartet“ landet im System-Log.
+- **Wait for delivery** (Schalter) — der Zweig **parkt**, bis die Nachricht draussen ist, und läuft dann
+  mit der **Zahl der erreichten Empfänger** in einer Variablen weiter (*Receivers → variable*). Damit
+  wird „niemand hat gewartet" im Prozess auswertbar, statt nur im Log zu stehen. Der Preis ist ein Halt:
+  zwei Commits statt einem. Für eine blosse Benachrichtigung ist das verschenkt — deshalb ist es aus.
+- **Ohne den Schalter** steht die Zahl beim Ausführen des Knotens noch nicht fest (es ist ja noch nichts
+  zugestellt); „niemand hat gewartet" landet dann im System-Log.
+- **Die Nachricht geht nicht verloren:** sie wird als Zeile in derselben Transaktion vorgemerkt wie der
+  Zweig. Stirbt der Prozess zwischen Commit und Zustellung, holt ein Runner sie nach. Der Preis dafür ist
+  **mindestens einmal** — nach einem Absturz im falschen Moment kann dieselbe Nachricht ein zweites Mal
+  ankommen.
 
 ### Timer ⏰ (`fa-clock`)
 

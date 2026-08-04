@@ -147,6 +147,31 @@ namespace ITVComponents.Workflow.Stores
             int maxInstances);
 
         /// <summary>
+        /// Nimmt vorgemerkte, noch nicht zugestellte Nachrichten fuer sich in Anspruch.
+        /// </summary>
+        /// <param name="owner">der beanspruchende Runner</param>
+        /// <param name="lease">wie lange der Anspruch gilt</param>
+        /// <param name="maxMessages">Obergrenze je Aufgriff</param>
+        /// <returns>die beanspruchten Nachrichten, jeweils mit ihrer Instanz</returns>
+        /// <remarks>
+        /// Der <b>Nachhol</b>-Weg, nicht der normale: im Regelfall stellt der sendende Prozess unmittelbar
+        /// nach seinem Commit selbst zu und raeumt die Vormerkung weg. Was hier auftaucht, ist liegen
+        /// geblieben - der Prozess ist zwischen Commit und Zustellung gestorben. Der Anspruch verhindert,
+        /// dass mehrere Runner dieselbe Nachricht gleichzeitig nachholen.
+        /// </remarks>
+        IReadOnlyList<OutgoingMessage> ClaimOutgoingMessages(string owner, TimeSpan lease, int maxMessages);
+
+        /// <summary>
+        /// Streicht eine Vormerkung - die Nachricht ist zugestellt.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst NACH dem Zustellen: stirbt der Prozess dazwischen, wird erneut zugestellt. Andersherum
+        /// (erst streichen, dann zustellen) waere die Nachricht bei einem Absturz weg - und das ist der
+        /// teurere Fehler.
+        /// </remarks>
+        void CompleteOutgoingMessage(string instanceId, string messageId);
+
+        /// <summary>
         /// Liefert die frueheste NOCH NICHT faellige Timer-Faelligkeit (DueUtc &gt; nowUtc) im Sichtbereich des
         /// Stores, oder null, wenn kein Timer aussteht. Erlaubt einem Background-Worker, den naechsten Poll
         /// exakt auf den naechsten Timer zu legen, statt blind zu pollen.

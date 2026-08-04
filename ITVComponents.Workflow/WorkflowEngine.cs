@@ -287,8 +287,13 @@ namespace ITVComponents.Workflow
             // Empfaenger wird beim Zustellen selbst vorangetrieben, und zwar hier auf demselben Thread.
             // Sofort zugestellt liefe er auf einem Stand des Senders, den es in der Datenbank noch nicht
             // gibt - und sein Fehler schluege mitten im Sender auf.
-            if (Defer(new PendingSignal(instanceId, signalName, payloadVariables, correlationKey,
-                    PendingSignalKind.Instance)))
+            if (Defer(new OutgoingMessage
+                {
+                    TargetInstanceId = instanceId,
+                    SignalName = signalName,
+                    CorrelationKey = correlationKey,
+                    Payload = Copy(payloadVariables)
+                }))
             {
                 return false;
             }
@@ -298,51 +303,17 @@ namespace ITVComponents.Workflow
 
         // --- Zustellung nach dem Commit ---------------------------------------------------------
 
-        /// <summary>Wie eine zurueckgestellte Zustellung gemeint war.</summary>
-        private enum PendingSignalKind
-        {
-            /// <summary>An eine bestimmte Instanz.</summary>
-            Instance,
-
-            /// <summary>Gerichtete Nachricht ueber den Korrelationsschluessel.</summary>
-            Message,
-
-            /// <summary>Rundruf.</summary>
-            Broadcast
-        }
-
-        /// <summary>Eine zurueckgestellte Zustellung.</summary>
-        private sealed class PendingSignal
-        {
-            public PendingSignal(string instanceId, string signalName,
-                IDictionary<string, object> payload, string correlationKey, PendingSignalKind kind)
-            {
-                InstanceId = instanceId;
-                SignalName = signalName;
-                // Eine eigene Kopie: die Nutzdaten kommen oft aus dem Variablen-Stack des Senders, und
-                // der laeuft zwischen Vormerken und Zustellen weiter.
-                Payload = payload == null
-                    ? null
-                    : new Dictionary<string, object>(payload, StringComparer.Ordinal);
-                CorrelationKey = correlationKey;
-                Kind = kind;
-            }
-
-            public string InstanceId { get; }
-
-            public string SignalName { get; }
-
-            public IDictionary<string, object> Payload { get; }
-
-            public string CorrelationKey { get; }
-
-            public PendingSignalKind Kind { get; }
-        }
-
         /// <summary>Der Puffer eines laufenden Vortriebs.</summary>
         private sealed class SignalOutbox
         {
-            public List<PendingSignal> Pending { get; } = new List<PendingSignal>();
+            /// <summary>Die in diesem Lauf vorgemerkten Nachrichten - zuzustellen, wenn er durch ist.</summary>
+            public List<OutgoingMessage> Pending { get; } = new List<OutgoingMessage>();
+
+            /// <summary>
+            /// Die Instanz, die gerade vorangetrieben wird. An IHR wird vorgemerkt - damit die Nachricht
+            /// im selben Commit landet wie der Zweig, der sie ausgeloest hat.
+            /// </summary>
+            public WorkflowInstance Instance { get; set; }
 
             public int Depth { get; set; }
         }
@@ -363,23 +334,31 @@ namespace ITVComponents.Workflow
         /// Oeffnet den Zustell-Puffer fuer die Dauer eines Vortriebs. Verschachtelte Aufrufe zaehlen nur
         /// mit - zugestellt wird, wenn der AEUSSERSTE fertig ist.
         /// </summary>
-        private IDisposable OpenOutbox()
+        private IDisposable OpenOutbox(WorkflowInstance instance)
         {
             outbox.Value ??= new SignalOutbox();
             outbox.Value.Depth++;
+            // Die AEUSSERSTE Instanz gewinnt: ein verschachtelter Vortrieb (etwa ein Subworkflow) merkt
+            // an seiner eigenen Instanz vor, sobald er selbst der aeusserste ist.
+            outbox.Value.Instance ??= instance;
             return new OutboxScope(this);
         }
 
-        /// <summary>Merkt eine Zustellung vor. Liefert false, wenn gerade kein Vortrieb laeuft.</summary>
-        private static bool Defer(PendingSignal signal)
+        /// <summary>
+        /// Merkt eine Zustellung vor - an der Instanz, die gerade laeuft, damit sie mit deren Commit
+        /// dauerhaft wird. Liefert false, wenn gerade kein Vortrieb laeuft.
+        /// </summary>
+        private static bool Defer(OutgoingMessage message)
         {
             SignalOutbox box = outbox.Value;
-            if (box == null || box.Depth == 0)
+            if (box == null || box.Depth == 0 || box.Instance == null)
             {
                 return false; // Aufruf von aussen (Controller, Handler) - sofort zustellen wie bisher.
             }
 
-            box.Pending.Add(signal);
+            message.InstanceId = box.Instance.Id;
+            box.Instance.OutgoingMessages.Add(message);
+            box.Pending.Add(message);
             return true;
         }
 
@@ -421,7 +400,7 @@ namespace ITVComponents.Workflow
                         break;
                     }
 
-                    PendingSignal next = box.Pending[0];
+                    OutgoingMessage next = box.Pending[0];
                     box.Pending.RemoveAt(0);
                     DeliverNow(next);
                 }
@@ -433,38 +412,141 @@ namespace ITVComponents.Workflow
             }
         }
 
-        /// <summary>Stellt eine vorgemerkte Nachricht jetzt zu (ausserhalb des Puffers).</summary>
-        private void DeliverNow(PendingSignal signal)
+        /// <summary>
+        /// Holt liegen gebliebene Zustellungen nach - der Weg fuer einen Runner.
+        /// </summary>
+        /// <param name="owner">der beanspruchende Runner</param>
+        /// <param name="lease">wie lange sein Anspruch gilt</param>
+        /// <param name="maxMessages">Obergrenze je Durchgang</param>
+        /// <returns>die Zahl der zugestellten Nachrichten</returns>
+        /// <remarks>
+        /// Im Regelfall gibt es hier nichts zu tun: der sendende Prozess stellt unmittelbar nach seinem
+        /// Commit selbst zu und raeumt die Vormerkung weg. Was hier auftaucht, ist der Absturzfall -
+        /// oder eine Zustellung, die beim ersten Versuch gescheitert ist.
+        /// </remarks>
+        public int DeliverPendingMessages(string owner, TimeSpan lease, int maxMessages = 50)
         {
+            IReadOnlyList<OutgoingMessage> claimed = store.ClaimOutgoingMessages(owner, lease, maxMessages);
+            if (claimed.Count == 0)
+            {
+                return 0;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Runner '{owner}' is catching up on {claimed.Count} queued message(s) - they were left " +
+                "behind by a process that did not get to deliver them.", LogSeverity.Report);
+
+            int delivered = 0;
+            foreach (OutgoingMessage message in claimed)
+            {
+                DeliverNow(message);
+                delivered++;
+            }
+
+            return delivered;
+        }
+
+        /// <summary>
+        /// Stellt eine vorgemerkte Nachricht zu, streicht danach die Vormerkung und weckt - falls der
+        /// Sender darauf wartet - dessen Zweig mit der Zahl der erreichten Empfaenger.
+        /// </summary>
+        /// <remarks>
+        /// Die Reihenfolge ist Absicht: erst zustellen, dann streichen. Stirbt der Prozess dazwischen,
+        /// wird beim Nachhol-Lauf erneut zugestellt - <b>mindestens einmal</b>. Andersherum waere die
+        /// Nachricht bei einem Absturz weg, und das ist der teurere Fehler.
+        /// </remarks>
+        public void DeliverNow(OutgoingMessage message)
+        {
+            int reached;
             try
             {
-                int reached = signal.Kind switch
-                {
-                    PendingSignalKind.Instance => SignalInstance(signal.InstanceId, signal.SignalName,
-                        signal.Payload, signal.CorrelationKey, broadcast: false) ? 1 : 0,
-                    PendingSignalKind.Message => DeliverSignalNow(signal.SignalName, signal.CorrelationKey,
-                        signal.Payload),
-                    _ => BroadcastSignalNow(signal.SignalName, signal.Payload)
-                };
-
-                if (reached == 0)
-                {
-                    // Der interessante Fall: die Nachricht ging raus, aber niemand hat gewartet. Weil die
-                    // Zahl erst NACH dem Commit feststeht, kann sie nicht mehr in den Prozess zurueck -
-                    // sichtbar sein muss sie trotzdem.
-                    LogEnvironment.LogEvent(
-                        $"Signal '{signal.SignalName}'"
-                        + (signal.CorrelationKey != null ? $" (key '{signal.CorrelationKey}')" : string.Empty)
-                        + " was sent, but nobody was waiting for it.", LogSeverity.Report);
-                }
+                reached = message.Broadcast
+                    ? BroadcastSignalNow(message.SignalName, message.Payload)
+                    : message.TargetInstanceId != null
+                        ? SignalInstance(message.TargetInstanceId, message.SignalName, message.Payload,
+                            message.CorrelationKey, broadcast: false) ? 1 : 0
+                        : DeliverSignalNow(message.SignalName, message.CorrelationKey, message.Payload);
             }
             catch (Exception ex)
             {
-                // Der Sender ist zu diesem Zeitpunkt bereits festgeschrieben - ihn nachtraeglich an einem
-                // Fehler des EMPFAENGERS scheitern zu lassen, waere falsch. Verschwiegen wird es nicht.
+                // Der Sender ist bereits festgeschrieben - ihn nachtraeglich an einem Fehler des
+                // EMPFAENGERS scheitern zu lassen, waere falsch. Die Vormerkung bleibt aber stehen: der
+                // Nachhol-Lauf versucht es erneut, und im Log steht, warum.
                 LogEnvironment.LogEvent(
-                    $"Deferred delivery of signal '{signal.SignalName}' failed: {ex.OutlineException()}",
+                    $"Delivery of signal '{message.SignalName}' from instance '{message.InstanceId}' " +
+                    $"failed (attempt {message.Attempts}); it stays queued: {ex.OutlineException()}",
                     LogSeverity.Error);
+                return;
+            }
+
+            store.CompleteOutgoingMessage(message.InstanceId, message.Id);
+
+            if (message.WaitingTokenId != null)
+            {
+                ResumeAfterDelivery(message, reached);
+            }
+            else if (reached == 0)
+            {
+                // Die Nachricht ging raus, aber niemand hat gewartet. Wer das im Prozess auswerten will,
+                // laesst den Sender warten - dann kommt die Zahl zurueck statt nur ins Log.
+                LogEnvironment.LogEvent(
+                    $"Signal '{message.SignalName}'"
+                    + (message.CorrelationKey != null ? $" (key '{message.CorrelationKey}')" : string.Empty)
+                    + " was sent, but nobody was waiting for it.", LogSeverity.Report);
+            }
+        }
+
+        /// <summary>
+        /// Weckt den Zweig, der auf die Zustellung gewartet hat, und uebergibt ihm die Zahl der
+        /// erreichten Empfaenger.
+        /// </summary>
+        private void ResumeAfterDelivery(OutgoingMessage message, int reached)
+        {
+            IReadOnlyList<string> activated = ReactivateAndCommit(message.InstanceId, "MessageDelivered",
+                (fresh, definition) =>
+                {
+                    Token token = fresh.Tokens.FirstOrDefault(t => t.Id == message.WaitingTokenId
+                                                                   && t.Status == TokenStatus.Waiting);
+                    if (token == null)
+                    {
+                        // Schon geweckt (Wiederholung nach einem Absturz) oder weggeraeumt - kein Fehler,
+                        // aber nachvollziehbar.
+                        LogEnvironment.LogEvent(
+                            $"Delivery of '{message.SignalName}' finished, but token " +
+                            $"'{message.WaitingTokenId}' of instance '{message.InstanceId}' is not waiting " +
+                            "for it (any more).", LogSeverity.Report);
+                        return new List<string>();
+                    }
+
+                    if (!string.IsNullOrEmpty(message.ReachedVariable))
+                    {
+                        Scope(fresh, token)[message.ReachedVariable] = reached;
+                    }
+
+                    token.Status = TokenStatus.Active;
+                    fresh.Status = WorkflowStatus.Running;
+                    fresh.Log("MessageDelivered", token.NodeId, $"{message.SignalName}: {reached} receiver(s)");
+
+                    // Weiter ueber die ausgehende Kante - NICHT bloss aktivieren: das Token steht noch
+                    // auf dem Sende-Knoten, und der wuerde beim naechsten Vortrieb erneut senden. Genau
+                    // wie beim Wecken eines Wartepunkts, aus demselben Grund.
+                    if (!MoveAlongSingleOutgoing(fresh, definition, token))
+                    {
+                        return new List<string>(); // gefaulted - der Commit haelt den Fault fest.
+                    }
+
+                    return new List<string> { token.Id };
+                });
+
+            if (activated.Count == 0)
+            {
+                return;
+            }
+
+            WorkflowInstance instance = store.GetInstance(message.InstanceId);
+            if (instance != null)
+            {
+                Advance(instance, LoadDefinition(instance));
             }
         }
 
@@ -660,8 +742,12 @@ namespace ITVComponents.Workflow
                 return BroadcastSignal(signalName, payloadVariables);
             }
 
-            if (Defer(new PendingSignal(null, signalName, payloadVariables, correlationKey,
-                    PendingSignalKind.Message)))
+            if (Defer(new OutgoingMessage
+                {
+                    SignalName = signalName,
+                    CorrelationKey = correlationKey,
+                    Payload = Copy(payloadVariables)
+                }))
             {
                 return 0;
             }
@@ -702,8 +788,12 @@ namespace ITVComponents.Workflow
         /// </remarks>
         public int BroadcastSignal(string signalName, IDictionary<string, object> payloadVariables = null)
         {
-            if (Defer(new PendingSignal(null, signalName, payloadVariables, null,
-                    PendingSignalKind.Broadcast)))
+            if (Defer(new OutgoingMessage
+                {
+                    SignalName = signalName,
+                    Broadcast = true,
+                    Payload = Copy(payloadVariables)
+                }))
             {
                 return 0;
             }
@@ -1027,7 +1117,7 @@ namespace ITVComponents.Workflow
             var snapshot = new BranchSnapshot(instance);
 
             // Wie beim sequenziellen Vortrieb: erst zustellen, wenn dieser Zweig festgeschrieben ist.
-            using IDisposable pendingSignals = OpenOutbox();
+            using IDisposable pendingSignals = OpenOutbox(instance);
 
             // Ausfuehrung EINMAL, rein in-memory (kein Save). AdvanceBranch parkt am Join als Joining und
             // feuert NICHT - der Fire faellt gleich im serialisierten Commit gegen frischen Stand. Die
@@ -1340,7 +1430,7 @@ namespace ITVComponents.Workflow
             // Der Zustell-Puffer dieses Vortriebs: was hier drin gesendet wird - vom Sende-Knoten wie
             // aus einer Aktivitaet heraus -, geht erst raus, wenn dieser Lauf durch ist. Verschachtelte
             // Vortriebe zaehlen nur mit; zugestellt wird beim Schliessen des aeussersten.
-            using IDisposable pendingSignals = OpenOutbox();
+            using IDisposable pendingSignals = OpenOutbox(instance);
 
             // Ein Aktivitaets-Scope je Vortrieb: Schritt-Plugins werden darin on demand geladen und
             // beim Schliessen wieder freigegeben. Der Scope ist bewusst nur fuer diesen Lauf offen -
@@ -1628,17 +1718,42 @@ namespace ITVComponents.Workflow
             }
 
             bool broadcast = node.WaitKind == WaitKind.Signal;
-            var pending = new PendingSignal(null, node.SignalName, payload, broadcast ? null : correlation,
-                broadcast ? PendingSignalKind.Broadcast : PendingSignalKind.Message);
+            var pending = new OutgoingMessage
+            {
+                SignalName = node.SignalName,
+                Broadcast = broadcast,
+                CorrelationKey = broadcast ? null : correlation,
+                Payload = Copy(payload),
+                // Wartet der Sender auf das Ergebnis, parkt sein Token hier - die Zahl der erreichten
+                // Empfaenger steht erst NACH der Zustellung fest, also nach seinem Commit.
+                WaitingTokenId = node.WaitForDelivery ? token.Id : null,
+                ReachedVariable = node.WaitForDelivery ? node.ReachedVariable : null
+            };
+
+            instance.Log("MessageSent", node.Id,
+                correlation == null ? node.SignalName : $"{node.SignalName} [{correlation}]");
+
             if (!Defer(pending))
             {
                 // Kein laufender Vortrieb (etwa ein Einzelschritt aus einem Test): dann sofort - das
                 // Zurueckstellen soll nichts verschlucken, wenn es niemanden gibt, der es spaeter tut.
+                pending.InstanceId = instance.Id;
                 DeliverNow(pending);
+                return node.WaitForDelivery || MoveAlongSingleOutgoing(instance, definition, token);
             }
 
-            instance.Log("MessageSent", node.Id,
-                correlation == null ? node.SignalName : $"{node.SignalName} [{correlation}]");
+            if (node.WaitForDelivery)
+            {
+                // Geparkt ohne Signal, Timer oder Ziel: geweckt wird dieses Token ausschliesslich von der
+                // Zustellung seiner eigenen Nachricht (ResumeAfterDelivery) - oder vom Nachhol-Lauf,
+                // falls der Prozess dazwischen stirbt.
+                token.Status = TokenStatus.Waiting;
+                token.WaitingSignal = null;
+                token.DueUtc = null;
+                instance.Log("AwaitingDelivery", node.Id, node.SignalName, HistorySeverity.Verbose);
+                return true;
+            }
+
             return MoveAlongSingleOutgoing(instance, definition, token);
         }
 
@@ -3416,6 +3531,13 @@ namespace ITVComponents.Workflow
         private static Dictionary<string, object> Scope(WorkflowInstance instance, Token token)
             => token?.Variables ?? instance.Variables;
 
+        /// <summary>
+        /// Eine eigene Kopie der Nutzdaten. Noetig, weil sie meist aus dem Variablen-Stack des Senders
+        /// kommen - und der laeuft zwischen Vormerken und Zustellen weiter.
+        /// </summary>
+        private static Dictionary<string, object> Copy(IDictionary<string, object> values)
+            => values == null ? null : new Dictionary<string, object>(values, StringComparer.Ordinal);
+
         /// <summary>Eine flache Kopie eines Scopes (der Zweig-Scope eines neuen Strangs), oder null.</summary>
         private static Dictionary<string, object> CopyScope(Dictionary<string, object> scope)
             => scope == null ? null : new Dictionary<string, object>(scope, StringComparer.Ordinal);
@@ -4884,6 +5006,7 @@ namespace ITVComponents.Workflow
             private readonly Dictionary<string, Token> tokens;
             private readonly int historyCount;
             private readonly int compensationCount;
+            private readonly int outgoingCount;
 
             public BranchSnapshot(WorkflowInstance instance)
             {
@@ -4891,6 +5014,7 @@ namespace ITVComponents.Workflow
                 tokens = instance.Tokens.ToDictionary(t => t.Id, t => t.CloneState());
                 historyCount = instance.History.Count;
                 compensationCount = instance.Compensations.Count;
+                outgoingCount = instance.OutgoingMessages.Count;
             }
 
             public bool HasToken(string id) => tokens.ContainsKey(id);
@@ -4949,6 +5073,14 @@ namespace ITVComponents.Workflow
                     delta.CompensationAppends.Add(instance.Compensations[i]);
                 }
 
+                // Vorgemerkte Nachrichten sind append-only: zugestellte streicht der Store, nicht der
+                // Zweig. Ohne diese Zeilen ginge eine aus einem nebenlaeufigen Zweig heraus gesendete
+                // Nachricht beim Merge verloren - und zwar still.
+                for (int i = outgoingCount; i < instance.OutgoingMessages.Count; i++)
+                {
+                    delta.OutgoingAppends.Add(instance.OutgoingMessages[i]);
+                }
+
                 for (int i = 0; i < compensationCount && i < instance.Compensations.Count; i++)
                 {
                     if (instance.Compensations[i].Compensated)
@@ -4989,6 +5121,8 @@ namespace ITVComponents.Workflow
             public List<CompensationEntry> CompensationAppends { get; } = new List<CompensationEntry>();
 
             public HashSet<string> CompensatedIds { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+            public List<OutgoingMessage> OutgoingAppends { get; } = new List<OutgoingMessage>();
 
             public bool Faulted { get; set; }
 
@@ -5031,6 +5165,7 @@ namespace ITVComponents.Workflow
 
                 fresh.History.AddRange(HistoryAppends);
                 fresh.Compensations.AddRange(CompensationAppends);
+                fresh.OutgoingMessages.AddRange(OutgoingAppends);
                 foreach (CompensationEntry entry in fresh.Compensations
                              .Where(c => CompensatedIds.Contains(c.Id)))
                 {

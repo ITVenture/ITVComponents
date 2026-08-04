@@ -184,6 +184,12 @@ namespace ITVComponents.Workflow.Instances
         /// <summary>Die aktiven, wartenden und verbrauchten Tokens dieser Instanz.</summary>
         public List<Token> Tokens { get; set; } = new List<Token>();
 
+        /// <summary>
+        /// Die noch nicht zugestellten Nachrichten dieser Instanz - vorgemerkt im selben Commit wie der
+        /// Zweig, der sie ausgeloest hat (siehe <see cref="OutgoingMessage"/>).
+        /// </summary>
+        public List<OutgoingMessage> OutgoingMessages { get; set; } = new List<OutgoingMessage>();
+
         /// <summary>Das Ausfuehrungsprotokoll (fuer Monitoring und den Modeler).</summary>
         public List<HistoryEntry> History { get; set; } = new List<HistoryEntry>();
 
