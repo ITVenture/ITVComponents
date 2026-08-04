@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using ITVComponents.Helpers;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models
 {
     [Index(nameof(TenantName),IsUnique=true,Name="IX_UniqueTenant")]
-    public class Tenant
+    public class Tenant : ITenantIdentity
     {
         [Key]
         public int TenantId { get; set; }

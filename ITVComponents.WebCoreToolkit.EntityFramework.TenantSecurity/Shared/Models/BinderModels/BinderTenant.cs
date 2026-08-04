@@ -1,15 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.EFRepo.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.BinderModels
 {
     [BinderEntity]
-    public class BinderTenant
+    public class BinderTenant : ITenantIdentity
     {
 
         [Key]

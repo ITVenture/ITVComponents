@@ -1,11 +1,12 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using ITVComponents.EFRepo.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.BinderModels
 {
     [BinderEntity]
-    public class BinderTenant
+    public class BinderTenant : ITenantIdentity
     {
 
         [Key]
