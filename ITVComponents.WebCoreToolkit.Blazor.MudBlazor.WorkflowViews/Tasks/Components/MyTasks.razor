@@ -27,6 +27,18 @@
         }
         else
         {
+            @* Reiner Messpunkt: MudHidden meldet ueber Hidden, ob wir auf einem schmalen Geraet
+               sind. Das ist die einzige Stelle, an der diese Frage beantwortet wird - Toolbar,
+               Klappbereich und die Spaltenauswahl haengen alle daran. *@
+            <MudHidden Breakpoint="Breakpoint.SmAndDown" @bind-Hidden="narrow" />
+
+            @if (narrow)
+            {
+                <MudCollapse Expanded="filtersOpen">
+                    <div class="pa-2">@FilterControls</div>
+                </MudCollapse>
+            }
+
             <MudDataGrid T="UserTaskListItem"
                          @ref="grid"
                          ServerData="LoadData"
@@ -35,45 +47,29 @@
                          Hover="true"
                          Dense="true">
                 <ToolBarContent>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="@L["Refresh"]" OnClick="ReloadGrid" />
-                    <MudText Typo="Typo.h6">@L["GridTitle"]</MudText>
-                    @if (Environment is null)
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small"
+                                   Title="@L["Refresh"]" OnClick="ReloadGrid" />
+                    @* Typo.subtitle1 statt h6: auf 400px brach die Ueberschrift zweizeilig um und
+                       schob die ganze Zeile auseinander. *@
+                    <MudText Typo="Typo.subtitle1">@L["GridTitle"]</MudText>
+                    <MudSpacer />
+                    @if (narrow)
                     {
-                        <div class="ml-3">
-                            <WorkflowEnvironmentPicker Value="@pickedEnvironment" ValueChanged="OnEnvChanged"
-                                                       Required="Forms" />
-                        </div>
+                        @* Schmal: die Filter liegen unter der Leiste. Die Anzahl der WIRKSAMEN Filter
+                           steht am Knopf - eingeklappt duerfte sonst unbemerkt etwas gesetzt bleiben
+                           (der Bereich steht per Default auf "Meine"). *@
+                        <MudBadge Content="@ActiveFilterCount" Visible="@(ActiveFilterCount > 0)"
+                                  Color="Color.Primary" Overlap="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.FilterList" Size="Size.Small"
+                                           Color="@(filtersOpen ? Color.Primary : Color.Default)"
+                                           Title="@L["Filters"]"
+                                           OnClick="@(() => filtersOpen = !filtersOpen)" />
+                        </MudBadge>
                     }
                     else
                     {
-                        <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small" Class="ml-3">@Environment</MudChip>
+                        @FilterControls
                     }
-                    <MudSpacer />
-                    <MudSelect T="UserTaskScope" Value="scope" Label="@L["ScopeLabel"]" Dense="true"
-                               Margin="Margin.Dense" Style="max-width:190px"
-                               ValueChanged="OnScopeChanged">
-                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Mine">@L["ScopeMine"]</MudSelectItem>
-                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Pool">@L["ScopePool"]</MudSelectItem>
-                        <MudSelectItem T="UserTaskScope" Value="UserTaskScope.All">@L["ScopeAll"]</MudSelectItem>
-                    </MudSelect>
-                    <MudSelect T="string" Value="taskKey" Label="@L["TypeLabel"]" Dense="true" Clearable="true"
-                               Margin="Margin.Dense" Class="ml-2" Style="max-width:190px"
-                               ValueChanged="OnTaskKeyChanged">
-                        <MudSelectItem T="string" Value="@((string?)null)">@L["TypeAll"]</MudSelectItem>
-                        @foreach (string key in taskKeys)
-                        {
-                            <MudSelectItem T="string" Value="@key">@key</MudSelectItem>
-                        }
-                    </MudSelect>
-                    <MudSwitch T="bool" Value="overdueOnly" ValueChanged="OnOverdueChanged" Color="Color.Warning"
-                               Label="@L["OverdueOnly"]" Class="ml-2" />
-                    <MudTextField @bind-Value="search"
-                                  Placeholder="@L["SearchPlaceholder"]"
-                                  Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.Search"
-                                  Class="mt-0 ml-2"
-                                  DebounceInterval="300"
-                                  OnDebounceIntervalElapsed="ReloadGrid" />
                 </ToolBarContent>
                 <Columns>
                     <TemplateColumn T="UserTaskListItem" Title="@L["ColumnTitle"]"
@@ -96,7 +92,11 @@
                             }
                         </CellTemplate>
                     </TemplateColumn>
-                    <PropertyColumn Property="x => x.CreatedUtc" Title="@L["ColumnCreated"]" />
+                    @* Mobil stapelt das Grid die Zellen - jedes Feld kostet also eine ganze Zeile.
+                       Erstellt und Bezug tragen fuer die taegliche Arbeit selten; ohne sie passen
+                       doppelt so viele Aufgaben ins Bild. *@
+                    <PropertyColumn Property="x => x.CreatedUtc" Title="@L["ColumnCreated"]"
+                                    Hidden="@narrow" />
                     <TemplateColumn T="UserTaskListItem" Title="@L["ColumnDue"]" SortBy="@(x => x.DueUtc)">
                         <CellTemplate>
                             @if (context.Item.DueUtc is null)
@@ -113,7 +113,8 @@
                             }
                         </CellTemplate>
                     </TemplateColumn>
-                    <PropertyColumn Property="x => x.CorrelationKey" Title="@L["ColumnReference"]" />
+                    <PropertyColumn Property="x => x.CorrelationKey" Title="@L["ColumnReference"]"
+                                    Hidden="@narrow" />
                     <TemplateColumn T="UserTaskListItem" Title="" Sortable="false">
                         <CellTemplate>
                             @if (IsClaimedByOther(context.Item))
@@ -155,6 +156,69 @@
     private bool overdueOnly;
     private bool deepLinkHandled;
     private string? pickedEnvironment;
+
+    /// <summary>Schmales Geraet (sm und kleiner) - gesetzt vom MudHidden-Messpunkt oben.</summary>
+    private bool narrow;
+
+    /// <summary>Ob der Klappbereich mit den Filtern offen ist (nur auf schmalen Geraeten).</summary>
+    private bool filtersOpen;
+
+    /// <summary>
+    /// Wie viele Filter gerade wirksam sind - fuer die Zahl am Filter-Knopf. Der Bereich zaehlt nur
+    /// mit, wenn er NICHT auf dem Standard steht; sonst zeigte der Knopf dauerhaft eine 1 und die
+    /// Zahl saegte an ihrer eigenen Aussage.
+    /// </summary>
+    private int ActiveFilterCount
+        => (scope != UserTaskScope.Mine ? 1 : 0)
+           + (string.IsNullOrEmpty(taskKey) ? 0 : 1)
+           + (overdueOnly ? 1 : 0)
+           + (string.IsNullOrWhiteSpace(search) ? 0 : 1);
+
+    /// <summary>
+    /// Die Filter-Bedienelemente. EINMAL beschrieben und an beiden Stellen benutzt (in der Leiste auf
+    /// breiten Geraeten, im Klappbereich auf schmalen) - zwei Abschriften liefen beim naechsten
+    /// Filter auseinander.
+    /// </summary>
+    private RenderFragment FilterControls => @<div class="d-flex flex-wrap align-center gap-2">
+        @if (Environment is null)
+        {
+            <WorkflowEnvironmentPicker Value="@pickedEnvironment" ValueChanged="OnEnvChanged"
+                                       Required="Forms" />
+        }
+        else
+        {
+            <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small">@Environment</MudChip>
+        }
+        @* min-width statt nur max-width: nach oben begrenzen allein hat nicht verhindert, dass die
+           Auswahl auf schmalem Schirm auf 0 px zusammenfiel. *@
+        <MudSelect T="UserTaskScope" Value="scope" Label="@L["ScopeLabel"]" Dense="true"
+                   Margin="Margin.Dense" Style="min-width:140px;max-width:190px"
+                   ValueChanged="OnScopeChanged">
+            <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Mine">@L["ScopeMine"]</MudSelectItem>
+            <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Pool">@L["ScopePool"]</MudSelectItem>
+            <MudSelectItem T="UserTaskScope" Value="UserTaskScope.All">@L["ScopeAll"]</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string" Value="taskKey" Label="@L["TypeLabel"]" Dense="true" Clearable="true"
+                   Margin="Margin.Dense" Style="min-width:140px;max-width:190px"
+                   ValueChanged="OnTaskKeyChanged">
+            <MudSelectItem T="string" Value="@((string?)null)">@L["TypeAll"]</MudSelectItem>
+            @foreach (string key in taskKeys)
+            {
+                <MudSelectItem T="string" Value="@key">@key</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch T="bool" Value="overdueOnly" ValueChanged="OnOverdueChanged" Color="Color.Warning"
+                   Size="Size.Small" Label="@L["OverdueOnly"]" />
+        <MudTextField @bind-Value="search"
+                      Placeholder="@L["SearchPlaceholder"]"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Class="mt-0"
+                      Style="min-width:160px"
+                      DebounceInterval="300"
+                      OnDebounceIntervalElapsed="ReloadGrid" />
+    </div>;
 
     /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
     private string? Env => Environment ?? pickedEnvironment;
@@ -249,9 +313,10 @@
            && item.ClaimedBy != currentUser?.Identity?.Name
            && item.ClaimedUntil is not null && item.ClaimedUntil > DateTime.UtcNow;
 
-    private Task OpenTask(UserTaskListItem item) => OpenTask(item.InstanceId, item.TokenId);
+    private Task OpenTask(UserTaskListItem item)
+        => OpenTask(item.InstanceId, item.TokenId, Translate(item.Title));
 
-    private async Task OpenTask(string instanceId, string tokenId)
+    private async Task OpenTask(string instanceId, string tokenId, string? title = null)
     {
         var parameters = new DialogParameters<UserTaskDialog>
         {
@@ -260,7 +325,11 @@
             { d => d.Environment, Env }
         };
 
-        IDialogReference dlg = await DialogService.ShowAsync<UserTaskDialog>(L["PageTitle"], parameters,
+        // Der Titel der AUFGABE, nicht der Seitentitel: auf dem knappen Schirm ist "Meine Aufgaben"
+        // ueber einer einzelnen Aufgabe eine verschenkte Zeile. Beim Deep-Link aus einer Mail steht
+        // er noch nicht zur Verfuegung - dort bleibt der Seitentitel.
+        IDialogReference dlg = await DialogService.ShowAsync<UserTaskDialog>(
+            string.IsNullOrWhiteSpace(title) ? L["PageTitle"] : title, parameters,
             EditDialogDefaults.Detail);
         DialogResult? result = await dlg.Result;
         if (result is { Canceled: false })

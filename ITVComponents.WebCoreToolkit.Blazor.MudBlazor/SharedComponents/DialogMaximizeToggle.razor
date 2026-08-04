@@ -16,16 +16,45 @@
     /// <summary>Size to restore to when un-maximizing — should match the size the dialog was opened with.</summary>
     [Parameter] public MaxWidth NormalMaxWidth { get; set; } = MaxWidth.ExtraLarge;
 
+    /// <summary>
+    /// Ob der Dialog bereits maximiert aufgehen soll. Fuer Ansichten, die auf schmalen Geraeten
+    /// benutzt werden: dort ist der Vollbild-Dialog die brauchbare Form, und ein erster Klick nur, um
+    /// ueberhaupt etwas lesen zu koennen, ist verschenkt.
+    /// </summary>
+    /// <remarks>
+    /// Setzt beim ersten Rendern dieselben Optionen, die <see cref="Toggle"/> setzt - nicht eine
+    /// zweite, aehnliche Liste. Zwei Stellen liefen beim naechsten neuen Feld auseinander, und der
+    /// Unterschied faellt erst dem auf, der von Hand maximiert und wieder herstellt.
+    /// </remarks>
+    [Parameter] public bool InitiallyMaximized { get; set; }
+
     [Parameter] public Size Size { get; set; } = Size.Small;
     [Parameter] public Color Color { get; set; } = Color.Default;
     [Parameter] public string MaximizeTooltip { get; set; } = "Maximize";
     [Parameter] public string RestoreTooltip { get; set; } = "Restore";
 
     private bool maximized;
+    private bool applied;
 
-    private async Task Toggle()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        maximized = !maximized;
+        // Erst nach dem ersten Rendern: SetOptionsAsync loest ein Neuzeichnen des Dialogs aus, und
+        // das waehrend seines Aufbaus zu tun ist die Sorte Rennen, die sich sporadisch als leerer
+        // Dialog zeigt.
+        if (!firstRender || !InitiallyMaximized || applied)
+        {
+            return;
+        }
+
+        applied = true;
+        await Apply(true);
+    }
+
+    private Task Toggle() => Apply(!maximized);
+
+    private async Task Apply(bool maximize)
+    {
+        maximized = maximize;
         await MudDialog.SetOptionsAsync(new DialogOptions
         {
             MaxWidth = maximized ? MaxWidth.False : NormalMaxWidth,

@@ -1,0 +1,48 @@
+/*
+    Globale Korrekturen am Mud-Layout, die das Toolkit fuer seine eigenen Komponenten braucht.
+
+    WARUM HIER UND NICHT ALS SCOPED CSS: Dialoge rendert der MudDialogProvider in einen EIGENEN
+    DOM-Teilbaum ausserhalb der aufrufenden Komponente. Die Scope-Attribute einer .razor.css passen
+    dort nicht - auch ::deep hilft nicht. Diese Datei wird deshalb ueber
+    AddToolkitClientStyleSheet(...) angemeldet und vom <ITVentureReferences /> des Hosts ausgeliefert.
+
+    Bewusst klein halten: hier gehoert nur hinein, was sich anders NICHT erreichen laesst. Alles
+    Komponenten-eigene gehoert weiterhin in die jeweilige .razor.css.
+*/
+
+/*
+    Dialog-Inhalt scrollt, Titel und Aktionsleiste bleiben stehen.
+
+    .mud-dialog ist display:flex/column, .mud-dialog-content ist ein Flex-Item mit overflow-y:auto -
+    das aber nie greift, weil ein Flex-Item auf min-height:auto steht: seine Mindesthoehe IST die
+    Inhaltshoehe. Statt zu scrollen waechst es und drueckt die Geschwister aus dem Container. Bei
+    einem langen Formular liegen "Speichern"/"Abbrechen" dann ausserhalb des Bildes, und der einzige
+    Weg aus dem Dialog ist Abbrechen.
+
+    min-height:0 ist die eine Zeile, die das vorhandene overflow-y:auto wirksam macht.
+*/
+.mud-dialog-content {
+    min-height: 0;
+    /* Wischen im Formular zieht nicht die Liste dahinter mit. */
+    overscroll-behavior: contain;
+}
+
+/*
+    Zweite Haelfte: der Dialog darf nicht hoeher werden als das, was der Benutzer SIEHT.
+
+    dvh statt vh, weil die ein-/ausfahrende Browserleiste auf iOS/Android vh sonst abschneidet. Die
+    vh-Zeile davor ist der Rueckfall fuer Engines ohne dvh - beide ueberleben das CSS-Bundling.
+
+    Der Unterschied zwischen den beiden Faellen ist der Rand: ein Vollbild-Dialog soll die ganze
+    Flaeche nutzen, ein normaler behaelt den Abstand, den MudBlazor sonst auch laesst (sonst stiesse
+    er an den Rand des gepolsterten Containers und wuerde dort abgeschnitten).
+*/
+.mud-dialog {
+    max-height: 100vh;
+    max-height: 100dvh;
+}
+
+.mud-dialog:not(.mud-dialog-fullscreen) {
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+}

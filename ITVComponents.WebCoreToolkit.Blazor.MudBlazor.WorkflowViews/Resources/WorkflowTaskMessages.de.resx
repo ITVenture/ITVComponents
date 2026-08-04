@@ -109,6 +109,9 @@
   <data name="Unassigned" xml:space="preserve">
     <value>Nicht zugewiesen</value>
   </data>
+  <data name="Filters" xml:space="preserve">
+    <value>Filter</value>
+  </data>
   <data name="Refresh" xml:space="preserve">
     <value>Aktualisieren</value>
   </data>
