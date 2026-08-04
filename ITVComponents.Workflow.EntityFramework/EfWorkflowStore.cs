@@ -30,6 +30,17 @@ namespace ITVComponents.Workflow.EntityFramework
     /// </remarks>
     public class EfWorkflowStore : IWorkflowStore
     {
+        /// <summary>
+        /// Wie oft der Erwerb einer Zweig-Sperre wiederholt wird, wenn der Schluessel beim Einfuegen
+        /// belegt war, beim Nachsehen aber schon wieder frei ist.
+        /// </summary>
+        /// <remarks>
+        /// Klein gehalten: das Fenster ist winzig, und ein DAUERHAFT fehlschlagendes Einfuegen ohne
+        /// vorhandene Zeile ist ein echter Fehler, der nach wenigen Versuchen gemeldet gehoert - nicht
+        /// in einer Schleife versteckt.
+        /// </remarks>
+        private const int BranchLockAcquireAttempts = 3;
+
         private readonly Func<WorkflowContext> contextFactory;
 
         /// <summary>
@@ -526,35 +537,53 @@ namespace ITVComponents.Workflow.EntityFramework
             if (tokenId == null) throw new ArgumentNullException(nameof(tokenId));
             if (string.IsNullOrEmpty(owner)) throw new ArgumentNullException(nameof(owner));
 
-            try
+            for (int attempt = 1; ; attempt++)
             {
-                using WorkflowContext ctx = contextFactory();
-                // Atomarer Erwerb: der INSERT des (InstanceId, TokenId)-Schluessels ist der CAS-Punkt -
-                // ist der Zweig bereits gesperrt, verletzt er den Primaerschluessel.
-                ctx.BranchLocks.Add(new WorkflowBranchLockRow
+                try
                 {
-                    InstanceId = instanceId,
-                    TokenId = tokenId,
-                    Owner = owner,
-                    AcquiredUtc = DateTime.UtcNow
-                });
-                ctx.SaveChanges();
-                return new BranchLock(this, instanceId, tokenId, owner);
-            }
-            catch (DbUpdateException ex)
-            {
-                // Entweder Contention (Schluessel existiert bereits) oder ein echter DB-Fehler - das
-                // muss unterschieden werden, damit ein realer Fehler nicht als "gesperrt" verschluckt wird.
-                using WorkflowContext check = contextFactory();
-                if (check.BranchLocks.Any(l => l.InstanceId == instanceId && l.TokenId == tokenId))
-                {
-                    return null; // bereits gesperrt - regulaeres Ergebnis
+                    using WorkflowContext ctx = contextFactory();
+                    // Atomarer Erwerb: der INSERT des (InstanceId, TokenId)-Schluessels ist der CAS-Punkt -
+                    // ist der Zweig bereits gesperrt, verletzt er den Primaerschluessel.
+                    ctx.BranchLocks.Add(new WorkflowBranchLockRow
+                    {
+                        InstanceId = instanceId,
+                        TokenId = tokenId,
+                        Owner = owner,
+                        AcquiredUtc = DateTime.UtcNow
+                    });
+                    ctx.SaveChanges();
+                    return new BranchLock(this, instanceId, tokenId, owner);
                 }
+                catch (DbUpdateException ex)
+                {
+                    // Entweder Contention (Schluessel existiert bereits) oder ein echter DB-Fehler - das
+                    // muss unterschieden werden, damit ein realer Fehler nicht als "gesperrt" verschluckt wird.
+                    using WorkflowContext check = contextFactory();
+                    if (check.BranchLocks.Any(l => l.InstanceId == instanceId && l.TokenId == tokenId))
+                    {
+                        return null; // bereits gesperrt - regulaeres Ergebnis
+                    }
 
-                LogEnvironment.LogEvent(
-                    $"Unexpected error acquiring branch lock for instance '{instanceId}' token '{tokenId}': " +
-                    $"{ex.OutlineException()}", LogSeverity.Error);
-                throw;
+                    // Der Schluessel war beim Einfuegen belegt, ist es beim Nachsehen aber nicht mehr:
+                    // der Besitzer hat GENAU DAZWISCHEN freigegeben. Das ist Nebenlaeufigkeit, kein
+                    // Fehler - und bei kurzen Zweig-Schritten ein Fenster, das im Betrieb regelmaessig
+                    // trifft. Ohne den erneuten Versuch faellt es als "unerwarteter Fehler" auf, der
+                    // Zweig-Auftrag scheitert, und im Log steht ein PK-Verstoss, der wie ein
+                    // Datenbank-Problem aussieht.
+                    if (attempt < BranchLockAcquireAttempts)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Branch lock for instance '{instanceId}' token '{tokenId}' was released " +
+                            $"between the failed insert and the check - retrying (attempt {attempt} of " +
+                            $"{BranchLockAcquireAttempts}).", LogSeverity.Report);
+                        continue;
+                    }
+
+                    LogEnvironment.LogEvent(
+                        $"Unexpected error acquiring branch lock for instance '{instanceId}' token " +
+                        $"'{tokenId}' after {attempt} attempts: {ex.OutlineException()}", LogSeverity.Error);
+                    throw;
+                }
             }
         }
 
