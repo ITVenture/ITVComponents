@@ -72,34 +72,22 @@ namespace ITVComponents.Workflow.Validation
             // Genau EIN Start und EIN Ende: nur so hat die Definition eine eindeutige Signatur (Start-
             // Parameter) und ein eindeutiges Ergebnis (End-Mapping). Mehrere Start-Knoten waren bisher ein
             // impliziter Parallelstart - das leistet ein AND-Split hinter dem einen Start, und zwar sichtbar.
-            List<WorkflowNode> starts = nodes.Where(n => n?.Kind == NodeKind.Start).ToList();
-            List<WorkflowNode> ends = nodes.Where(n => n?.Kind == NodeKind.End).ToList();
+            // Die Regel gilt JE EBENE: die Definition selbst und jeder eingebettete Abschnitt haben je
+            // genau einen Start und ein Ende. Ohne die Trennung nach Behaelter meldete der erste
+            // Subprozess sofort "zwei Start-Knoten".
+            List<WorkflowNode> starts = nodes.Where(n => n?.Kind == NodeKind.Start && n.ParentNodeId == null)
+                .ToList();
+            List<WorkflowNode> ends = nodes.Where(n => n?.Kind == NodeKind.End && n.ParentNodeId == null)
+                .ToList();
 
-            if (starts.Count == 0)
-            {
-                issues.Add(Error(null, "No start node."));
-            }
-            else if (starts.Count > 1)
-            {
-                issues.Add(Error(null,
-                    $"A workflow has exactly one start node, but this one has {starts.Count} " +
-                    $"({string.Join(", ", starts.Select(s => $"'{Label(s)}'"))}) - each of them would get a " +
-                    "token (implicit parallel start) and the workflow signature would be ambiguous. Keep one " +
-                    "start node and put an AND split behind it."));
-            }
+            issues.AddRange(ContainerIssues(starts, ends, null, byId));
 
-            if (ends.Count == 0)
+            foreach (WorkflowNode container in nodes.Where(n => n is SubProcessNode))
             {
-                // Bewusst nur eine Warnung: eine Definition ohne Ende ist im Bau der Normalfall und soll
-                // sich speichern lassen.
-                issues.Add(Warn(null, "No end node - the workflow can never complete."));
-            }
-            else if (ends.Count > 1)
-            {
-                issues.Add(Error(null,
-                    $"A workflow has exactly one end node, but this one has {ends.Count} " +
-                    $"({string.Join(", ", ends.Select(e => $"'{Label(e)}'"))}) - the result of the workflow " +
-                    "would depend on which end is reached. Merge them into one end node."));
+                issues.AddRange(ContainerIssues(
+                    nodes.Where(n => n?.Kind == NodeKind.Start && n.ParentNodeId == container.Id).ToList(),
+                    nodes.Where(n => n?.Kind == NodeKind.End && n.ParentNodeId == container.Id).ToList(),
+                    container, byId));
             }
 
             // Signatur und Ergebnis sind Eigenschaften der DEFINITION, nicht eines Knotens: sie duerfen
@@ -313,6 +301,56 @@ namespace ITVComponents.Workflow.Validation
 
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Prueft „genau ein Start und ein Ende" fuer EINE Ebene - die Definition selbst
+        /// (<paramref name="container"/> null) oder einen eingebetteten Abschnitt.
+        /// </summary>
+        /// <remarks>
+        /// Der Grund ist auf beiden Ebenen derselbe: nur so hat die Ebene eine eindeutige Signatur und ein
+        /// eindeutiges Ergebnis. Mehrere Start-Knoten waeren ein impliziter Parallelstart - das leistet ein
+        /// AND-Split dahinter, und zwar sichtbar.
+        /// </remarks>
+        private static IEnumerable<ValidationIssue> ContainerIssues(List<WorkflowNode> starts,
+            List<WorkflowNode> ends, WorkflowNode container, Dictionary<string, WorkflowNode> byId)
+        {
+            var issues = new List<ValidationIssue>();
+            string where = container == null ? "A workflow" : $"Sub-process '{Label(container)}'";
+            string scopeId = container?.Id;
+
+            if (starts.Count == 0)
+            {
+                issues.Add(Error(scopeId, container == null
+                    ? "No start node."
+                    : $"{where} has no start node inside it - nothing could begin there."));
+            }
+            else if (starts.Count > 1)
+            {
+                issues.Add(Error(scopeId,
+                    $"{where} has exactly one start node, but this one has {starts.Count} " +
+                    $"({string.Join(", ", starts.Select(s => $"'{Label(s)}'"))}) - each of them would get a " +
+                    "token (implicit parallel start) and the signature would be ambiguous. Keep one " +
+                    "start node and put an AND split behind it."));
+            }
+
+            if (ends.Count == 0)
+            {
+                // Bewusst nur eine Warnung: eine Definition ohne Ende ist im Bau der Normalfall und soll
+                // sich speichern lassen.
+                issues.Add(Warn(scopeId, container == null
+                    ? "No end node - the workflow can never complete."
+                    : $"{where} has no end node - the section could never finish."));
+            }
+            else if (ends.Count > 1)
+            {
+                issues.Add(Error(scopeId,
+                    $"{where} has exactly one end node, but this one has {ends.Count} " +
+                    $"({string.Join(", ", ends.Select(e => $"'{Label(e)}'"))}) - the result " +
+                    "would depend on which end is reached. Merge them into one end node."));
+            }
+
+            return issues;
         }
 
         /// <summary>

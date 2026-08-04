@@ -239,6 +239,8 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.RaceTokenId = token.RaceTokenId;
                 tr.WaitingCorrelation = token.WaitingCorrelation;
                 tr.WaitingKind = (int?)token.WaitingKind;
+                tr.ArrivedViaFlowId = token.ArrivedViaFlowId;
+                tr.SubProcessOwnerTokenId = token.SubProcessOwnerTokenId;
                 // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
                 // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
                 // ist der Aufgaben-Stempel, den die Engine beim Parken setzt und beim Abschluss leert.
@@ -657,6 +659,8 @@ namespace ITVComponents.Workflow.EntityFramework
                     RaceTokenId = t.RaceTokenId,
                     WaitingCorrelation = t.WaitingCorrelation,
                     WaitingKind = (Model.WaitKind?)t.WaitingKind,
+                    ArrivedViaFlowId = t.ArrivedViaFlowId,
+                    SubProcessOwnerTokenId = t.SubProcessOwnerTokenId,
                     TaskKey = t.TaskKey,
                     TaskPermission = t.TaskPermission,
                     AssignedTo = t.AssignedTo,

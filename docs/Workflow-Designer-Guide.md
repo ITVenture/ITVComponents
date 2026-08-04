@@ -359,6 +359,25 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Keine Zweig-Kopien:** anders als beim AND-Split bekommen die Zweige **keine** eigenen Variablen-Kopien.
   Es überlebt genau einer, es gibt also nichts zusammenzuführen.
 
+### Section ▣ (`fa-object-group`)
+
+- **Zweck:** ein **eingebetteter Abschnitt** — mehrere Schritte als eine Einheit, mit eigenem
+  Variablen-Scope, aber **ohne** eigene Instanz (anders als der Subworkflow).
+- **Symbol im Graphen:** ▣ vor dem Namen, abgerundetes Rechteck. Knoten **innerhalb** eines Abschnitts
+  tragen ein `▸` vor ihrer Beschriftung.
+- **Ports:** ein Eingang, ein Ausgang (plus optional roter Fehler-Ausgang).
+- **Wofür man ihn nimmt:** eine **Frist über mehrere Schritte**. Ein Deadline-Knoten kann am ganzen
+  Abschnitt hängen („die komplette Prüfung muss in 48 Stunden durch sein") — an einer bloßen Folge von
+  Schritten geht das nicht. Läuft die Frist ab, werden alle inneren Schritte verworfen.
+- **Knoten zuweisen:** in den Eigenschaften des jeweiligen Knotens über **Inside sub-process**. Jeder
+  Abschnitt braucht **innen** einen eigenen Start- und End-Knoten; der Validator prüft das je Ebene.
+- **Eigenschaften:**
+  - **Result of the section** — bildet innere Variablen auf äußere ab. **Leer = alles fließt nach außen.**
+  - **Scope** — `Replace` macht den Abschnitt zur Konsolidierung (danach nur noch das Deklarierte plus
+    keep-Liste).
+- **Noch nicht im Editor:** Container-Rahmen, Zuklappen und Hineinziehen per Maus. Die Zuordnung läuft
+  vorerst über das Eigenschaften-Feld; im Bild erkennt man sie am `▸`.
+
 ### Side end ⏹ (`fa-circle-stop`)
 
 - **Zweck:** Schliesst einen **Nebenpfad** ab. Verbraucht das Token — und **beendet den Workflow nicht**.

@@ -1462,3 +1462,69 @@ Drei nullable Spalten auf `Tokens` (`RaceTokenId`, `WaitingCorrelation`, `Waitin
 → Migration **`EventGatewayAndSignalKind`** je Provider-Projekt. Laufende Instanzen bleiben gültig: alle
 drei Spalten null bedeutet „kein Rennen, kein eigener Schlüssel, gerichtete Nachricht" — also das
 bisherige Verhalten.
+
+## 18. Eingebettete Abschnitte (Subprozess)
+
+Ein `SubProcessNode` gruppiert mehrere Schritte zu einem **Abschnitt**: eigene Knoten im *selben* Graphen,
+eigener Variablen-Scope — aber **keine eigene Instanz**.
+
+Der Unterschied zum `CallWorkflowNode` ist der Preis. Eine Kind-Instanz kostet eine eigene Zeile, eigenes
+Monitoring, eigene Versionsbindung und einen Rück-Link. Das ist richtig, wenn der Teilablauf für sich
+steht (eigene Definition, eigene Version, wiederverwendbar) — und zu viel, wenn er nur ein *Abschnitt*
+desselben Prozesses ist.
+
+### Der eigentliche Gewinn: eine Frist über mehrere Schritte
+
+Der Subprozess-Knoten **parkt**, während innen gearbeitet wird. Damit erfüllt er `CanHost`, und ein
+Fristen-Timer lässt sich an den **ganzen Abschnitt** hängen: „die komplette Prüfung muss in 48 Stunden
+durch sein". Vorher ließ sich das nicht modellieren — nur je Einzelschritt.
+
+Unterbricht die Frist, werden **alle inneren Tokens** verworfen (rekursiv, samt geschachtelter Abschnitte
+und deren eigener Fristen).
+
+### Flach im Modell
+
+Die Zugehörigkeit hängt am Kind (`WorkflowNode.ParentNodeId`), nicht als Knotenliste am Subprozess. Der
+Graph bleibt dadurch **flach** — Knotenindex, ausgehende Kanten, Validierung, Layout und Serialisierung
+arbeiten alle weiter über die eine flache Liste. Ein verschachteltes Modell hätte jede dieser Stellen
+angefasst, und der Gewinn wäre nur die Baumform im JSON gewesen.
+
+### Regeln
+
+- **Je Ebene ein Start und ein Ende.** Die Definition selbst und jeder Abschnitt haben je genau einen —
+  aus demselben Grund wie oben: nur so ist die Signatur bzw. das Ergebnis der Ebene eindeutig. Der
+  Validator prüft je Behälter.
+- **Ein Ende innen beendet den Abschnitt, nicht den Workflow.** Es zählt auch nicht als Ergebnis-Knoten
+  der Instanz — sonst bestimmte ein Abschnitt das Ergebnis des ganzen Prozesses.
+- **Ergebnis des Abschnitts:** ohne Deklaration fließt **alles** nach außen, was innen entstanden ist (wie
+  bei einem parallelen Zweig ohne Join-Mapping). Mit `Outputs` genau das Deklarierte; `ScopeMode =
+  Replace` macht den Abschnitt zur Konsolidierung.
+
+### Stand im Designer
+
+Der Editor legt Abschnitte an und weist Knoten zu (Eigenschaften → **Inside sub-process**), **zeichnet
+aber noch keine Container-Rahmen**. Innere Knoten sind im Bild an einem `▸` vor der Beschriftung
+erkennbar. Das Zuklappen/Aufklappen und das Hineinziehen per Maus kommen in einem zweiten Schritt; die
+Engine-Seite ist davon unabhängig vollständig.
+
+### Schema
+
+Zwei nullable Spalten auf `Tokens` (`ArrivedViaFlowId`, `SubProcessOwnerTokenId`) → Migration
+**`JoinArrivalAndSubProcess`** je Provider-Projekt.
+
+## 19. Join: Zählung je eingehender Kante
+
+Ein paralleler Join feuerte bisher, sobald die **Anzahl** wartender Tokens der Zahl seiner eingehenden
+Kanten entsprach. Das hält nur bei balancierten Graphen. Laufen über *eine* Kante zwei Tokens ein, während
+eine andere leer bleibt — möglich, sobald eine Schleife über denselben Join zurückführt —, dann stimmt die
+Summe, und der Join feuert **mit halber Mannschaft**. Sichtbar wird das erst im Ergebnis (ein Zweig fehlt
+im Merge), nicht in der Ursache.
+
+Jetzt merkt sich jedes Token, über welche **Kante** es angekommen ist (`Token.ArrivedViaFlowId`), und der
+Join feuert erst, wenn **jede** eingehende Kante geliefert hat. Je Kante wird das älteste wartende Token
+genommen; was übrig bleibt, gehört zur nächsten Runde und wartet weiter.
+
+**Rückfall für laufende Instanzen:** Tokens, die beim Deployment schon am Join warteten, kennen ihre Kante
+nicht. Für die gilt weiterhin die alte Zählung, mit einem Hinweis im Log — sonst würde ein Join, an dem
+gerade jemand wartet, nie mehr feuern und die Instanz hinge für immer. Sobald diese Tokens durch sind,
+greift die genaue Regel von allein.

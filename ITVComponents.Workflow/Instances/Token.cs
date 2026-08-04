@@ -179,6 +179,29 @@ namespace ITVComponents.Workflow.Instances
         public int? BoundaryIteration { get; set; }
 
         /// <summary>
+        /// Ueber welche Kante dieses Token an seinem aktuellen Knoten angekommen ist; null bei einem
+        /// Start-Token (und bei Tokens aus der Zeit vor diesem Feld).
+        /// </summary>
+        /// <remarks>
+        /// Gebraucht vom <b>Join</b>: er feuert, wenn JEDE eingehende Kante geliefert hat - nicht, wenn
+        /// die blosse Anzahl wartender Tokens stimmt. Ohne die Kante liesse sich ein unbalancierter Graph
+        /// (zwei Tokens ueber dieselbe Kante, eine andere leer) nicht von einem vollstaendigen Join
+        /// unterscheiden, und der Join feuerte mit halber Mannschaft.
+        /// </remarks>
+        public string ArrivedViaFlowId { get; set; }
+
+        /// <summary>
+        /// Bei einem Token INNERHALB eines <see cref="Model.SubProcessNode"/>: die Id des aeusseren
+        /// Tokens, das am Subprozess-Knoten wartet. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Traegt die Zugehoerigkeit ueber den ganzen Innenraum: daran erkennt die Engine, wann der
+        /// Subprozess fertig ist (kein lebendes Token mehr mit dieser Id) und welche Tokens beim
+        /// Abbruch - etwa durch einen Fristen-Timer am Subprozess - mit wegzuraeumen sind.
+        /// </remarks>
+        public string SubProcessOwnerTokenId { get; set; }
+
+        /// <summary>
         /// Bei einem Token, das an einem <see cref="Model.EventGatewayNode"/> um die Wette wartet: die Id
         /// des (verbrauchten) Gateway-Tokens. Alle Geschwister desselben Rennens tragen denselben Wert;
         /// sobald eines weiterlaeuft, werden die uebrigen verbraucht. Sonst null.
@@ -247,6 +270,8 @@ namespace ITVComponents.Workflow.Instances
             RaceTokenId = source.RaceTokenId;
             WaitingCorrelation = source.WaitingCorrelation;
             WaitingKind = source.WaitingKind;
+            ArrivedViaFlowId = source.ArrivedViaFlowId;
+            SubProcessOwnerTokenId = source.SubProcessOwnerTokenId;
             TaskKey = source.TaskKey;
             TaskPermission = source.TaskPermission;
             AssignedTo = source.AssignedTo;
@@ -290,6 +315,8 @@ namespace ITVComponents.Workflow.Instances
                    && a.RaceTokenId == b.RaceTokenId
                    && a.WaitingCorrelation == b.WaitingCorrelation
                    && Nullable.Equals(a.WaitingKind, b.WaitingKind)
+                   && a.ArrivedViaFlowId == b.ArrivedViaFlowId
+                   && a.SubProcessOwnerTokenId == b.SubProcessOwnerTokenId
                    && a.TaskKey == b.TaskKey && a.TaskPermission == b.TaskPermission
                    && a.AssignedTo == b.AssignedTo && a.TaskTitle == b.TaskTitle
                    && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)

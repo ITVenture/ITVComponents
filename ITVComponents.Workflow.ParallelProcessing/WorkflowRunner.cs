@@ -230,6 +230,10 @@ namespace ITVComponents.Workflow.ParallelProcessing
         /// eigener Wert ist der Griff fuer den Fall "diese eine Antwort ist dringend, der Workflow sonst
         /// nicht" - die Instanz selbst bleibt davon unberuehrt.
         /// </param>
+        /// <param name="correlationKey">
+        /// waehlt den gemeinten Wartepunkt aus, wenn die Instanz an mehreren Stellen auf denselben Namen
+        /// wartet; null = alle Wartepunkte dieses Namens in dieser Instanz
+        /// </param>
         public void Signal(string instanceId, string signalName, IDictionary<string, object> payload = null,
             int? priority = null, string correlationKey = null)
         {

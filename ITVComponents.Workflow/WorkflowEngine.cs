@@ -1221,6 +1221,10 @@ namespace ITVComponents.Workflow
                         "armed when its step parks and must not be a target of a connection.", node.Id);
                     return false;
 
+                case EndNode when node.ParentNodeId != null:
+                    // Das Ende eines eingebetteten Abschnitts beendet den ABSCHNITT, nicht den Workflow.
+                    return FinishSubProcess(instance, definition, token, node.ParentNodeId);
+
                 case EndNode:
                     token.Status = TokenStatus.Consumed;
                     instance.Log("Ended", node.Id, node.Name);
@@ -1262,6 +1266,9 @@ namespace ITVComponents.Workflow
 
                 case EventGatewayNode eventGateway:
                     return ProcessEventGateway(instance, definition, token, eventGateway);
+
+                case SubProcessNode subProcess:
+                    return EnterSubProcess(instance, definition, token, subProcess);
 
                 case UserActivityNode userTask:
                     return ParkUserTask(instance, token, userTask);
@@ -1397,6 +1404,140 @@ namespace ITVComponents.Workflow
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Betritt einen <b>eingebetteten Subprozess</b>: das aeussere Token parkt, und im Innenraum
+        /// startet ein eigenes Token mit einer Kopie des Scopes.
+        /// </summary>
+        /// <remarks>
+        /// Das aeussere Token bleibt auf dem Subprozess-Knoten stehen und geht auf
+        /// <see cref="TokenStatus.Waiting"/> - genau wie beim Subworkflow-Aufruf. Zwei Dinge haengen
+        /// daran: der Fristen-Timer am Abschnitt (er wird beim PARKEN scharf, also greift er hier), und
+        /// die Erkennung „der Abschnitt ist fertig" ueber
+        /// <see cref="Token.SubProcessOwnerTokenId"/>.
+        /// <para>
+        /// Bewusst KEINE Warte-Anker (Signal, Timer, Ziel): der Abschnitt wartet auf sich selbst, nicht
+        /// auf ein Ereignis von aussen. Ein Signal duerfte ihn nicht weiterschieben.
+        /// </para></remarks>
+        private bool EnterSubProcess(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            SubProcessNode node)
+        {
+            StartNode start = definition.StartNodeOf(node.Id);
+            if (start == null)
+            {
+                Fault(instance,
+                    $"Sub-process '{node.Id}' has no start node inside it - nothing could begin.", node.Id);
+                return false;
+            }
+
+            instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
+
+            var inner = new Token
+            {
+                NodeId = start.Id,
+                Status = TokenStatus.Active,
+                // Eigener Scope wie bei einem parallelen Zweig: der Abschnitt arbeitet isoliert, und was
+                // herauskommt, entscheidet die Ausgabe-Abbildung des Knotens.
+                Variables = CopyScope(Scope(instance, token)),
+                SplitTokenId = token.SplitTokenId,
+                SubProcessOwnerTokenId = token.Id
+            };
+            instance.Tokens.Add(inner);
+
+            token.Status = TokenStatus.Waiting;
+            return true;
+        }
+
+        /// <summary>
+        /// Schliesst einen eingebetteten Subprozess ab, sobald sein letztes inneres Token das Ende
+        /// erreicht: Ergebnis nach aussen abbilden und das aeussere Token weiterziehen.
+        /// </summary>
+        /// <remarks>
+        /// Der Abschnitt kann innen parallel gelaufen sein - deshalb wird erst geprueft, ob noch ein
+        /// lebendes Token dazugehoert. Solange ja, laeuft der Abschnitt weiter und das aeussere Token
+        /// bleibt geparkt.
+        /// </remarks>
+        private bool FinishSubProcess(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            string subProcessId)
+        {
+            token.Status = TokenStatus.Consumed;
+            instance.Log("SubProcessEnded", token.NodeId, null, HistorySeverity.Verbose);
+
+            string ownerId = token.SubProcessOwnerTokenId;
+            Token owner = instance.Tokens.FirstOrDefault(t => t.Id == ownerId);
+            if (owner == null)
+            {
+                // Der aeussere Zweig ist weg (Abbruch, Frist, Terminate) - dann ist auch dieser
+                // Innenraum gegenstandslos. Kein Fehler, aber sichtbar.
+                LogEnvironment.LogEvent(
+                    $"Sub-process '{subProcessId}' in instance '{instance.Id}' finished, but its outer token " +
+                    "is gone - the section was already abandoned.", LogSeverity.Report);
+                return true;
+            }
+
+            if (instance.Tokens.Any(t => t.SubProcessOwnerTokenId == ownerId
+                                         && t.Status != TokenStatus.Consumed))
+            {
+                return true; // Innen laeuft noch etwas - der Abschnitt ist noch nicht fertig.
+            }
+
+            if (definition.GetNode(subProcessId) is not SubProcessNode node)
+            {
+                Fault(instance, $"Sub-process node '{subProcessId}' does not exist.", subProcessId);
+                return false;
+            }
+
+            // Das Ergebnis des Abschnitts kommt aus dem Scope des Tokens, das ihn beendet hat.
+            Dictionary<string, object> innerScope = token.Variables ?? new Dictionary<string, object>();
+            Dictionary<string, object> outerScope = Scope(instance, owner);
+
+            if (node.Outputs is not { Count: > 0 } && node.ScopeMode == ActivityScopeMode.Extend)
+            {
+                // Ohne Deklaration fliesst ALLES nach aussen - wie bei einem parallelen Zweig ohne
+                // Join-Mapping. Ein Abschnitt ist derselbe Prozess, nur gruppiert; muesste man jede
+                // Variable einzeln herausdeklarieren, waere die Voreinstellung eine Falle.
+                foreach (KeyValuePair<string, object> pair in innerScope)
+                {
+                    outerScope[pair.Key] = pair.Value;
+                }
+            }
+            else
+            {
+                ApplyMappedOutputs(instance, outerScope, node.Id, node.Outputs, node.ScopeMode,
+                    node.RetainVariables, innerScope);
+            }
+
+            token.Variables = null;
+            owner.Status = TokenStatus.Active;
+            instance.Log("SubProcessCompleted", node.Id, node.Name);
+            return MoveAlongSuccessFlow(instance, definition, owner, node.Id, node.ErrorFlowId);
+        }
+
+        /// <summary>
+        /// Verwirft alle Tokens im Innenraum eines Subprozesses. Aufgerufen, wenn das aeussere Token
+        /// seinen Knoten verlaesst - also wenn ein Fristen-Timer den Abschnitt unterbricht oder er ueber
+        /// seinen Fehler-Ausgang verlassen wird.
+        /// </summary>
+        private static void KillSubProcessTokens(WorkflowInstance instance, string ownerTokenId)
+        {
+            if (string.IsNullOrEmpty(ownerTokenId))
+            {
+                return;
+            }
+
+            foreach (Token t in instance.Tokens.Where(t => t.SubProcessOwnerTokenId == ownerTokenId
+                                                           && t.Status != TokenStatus.Consumed)
+                         .ToList())
+            {
+                t.Status = TokenStatus.Consumed;
+                t.DueUtc = null;
+                t.Variables = null;
+                ClearUserTask(t);
+                // Der Innenraum kann selbst Fristen und geschachtelte Abschnitte enthalten.
+                KillBoundaryTokens(instance, t.Id);
+                KillSubProcessTokens(instance, t.Id);
+            }
         }
 
         /// <summary>
@@ -3012,7 +3153,11 @@ namespace ITVComponents.Workflow
             // warum.
             List<IResultNode> reached = instance.Tokens
                 .Where(t => t.Status == TokenStatus.Consumed)
-                .Select(t => definition.GetNode(t.NodeId) as IResultNode)
+                .Select(t => definition.GetNode(t.NodeId))
+                // Ein Ende INNERHALB eines Subprozesses beendet den Abschnitt, nicht den Workflow - sein
+                // Ergebnis gehoert dem Abschnitt und darf nicht das der Instanz bestimmen.
+                .Where(n => n != null && n.ParentNodeId == null)
+                .Select(n => n as IResultNode)
                 .Where(e => e?.Outputs is { Count: > 0 })
                 .GroupBy(e => e.Id, StringComparer.Ordinal)
                 .Select(g => g.First())
@@ -3532,6 +3677,60 @@ namespace ITVComponents.Workflow
         /// damit die Entscheidung an EINER Stelle gegen den aktuellen Token-Stand faellt - Voraussetzung
         /// fuer den atomaren Join unter Nebenlaeufigkeit (Auswertung im serialisierten Commit).
         /// </summary>
+        /// <summary>
+        /// Waehlt die Tokens aus, mit denen ein Join feuert - <b>genau eines je eingehender Kante</b> -
+        /// oder null, wenn noch nicht jede Kante geliefert hat.
+        /// </summary>
+        /// <remarks>
+        /// Die blosse ANZAHL wartender Tokens gegen die Zahl der Kanten zu pruefen (so lief es frueher)
+        /// haelt nur bei balancierten Graphen. Laufen ueber EINE Kante zwei Tokens ein, waehrend eine
+        /// andere leer bleibt - moeglich, sobald eine Schleife ueber denselben Join zurueckfuehrt -, dann
+        /// stimmt die Summe, und der Join feuert mit halber Mannschaft. Der Fehler ist im Ergebnis
+        /// sichtbar (ein Zweig fehlt im Merge), aber nicht in der Ursache.
+        /// <para>
+        /// Je Kante wird das <b>aelteste</b> wartende Token genommen (Reihenfolge der Token-Liste =
+        /// Entstehungsreihenfolge). Bleiben Tokens uebrig, gehoeren sie zur naechsten Runde und warten
+        /// weiter - der Fixpunkt-Durchlauf greift sie beim naechsten Mal.
+        /// </para>
+        /// <para>
+        /// <b>Rueckfall fuer laufende Instanzen:</b> Tokens, die vor der Einfuehrung von
+        /// <see cref="Token.ArrivedViaFlowId"/> geparkt wurden, kennen ihre Kante nicht. Fuer die gilt
+        /// weiterhin die alte Zaehlung - sonst wuerde ein Join, an dem beim Deployment gerade jemand
+        /// wartet, nie mehr feuern und die Instanz haenge fuer immer.
+        /// </para></remarks>
+        private static List<Token> SelectJoinSet(WorkflowInstance instance, WorkflowNode node,
+            IReadOnlyList<SequenceFlow> incoming, List<Token> parked)
+        {
+            if (parked.Count < incoming.Count)
+            {
+                return null;
+            }
+
+            if (parked.Any(t => t.ArrivedViaFlowId == null))
+            {
+                LogEnvironment.LogEvent(
+                    $"Join '{node.Id}' in instance '{instance.Id}' has tokens without a recorded arrival " +
+                    "flow (parked before that was tracked) - falling back to counting. Once these have " +
+                    "passed through, the per-edge rule applies again.", LogSeverity.Report);
+                return parked.Take(incoming.Count).ToList();
+            }
+
+            var joined = new List<Token>(incoming.Count);
+            foreach (SequenceFlow flow in incoming)
+            {
+                Token first = parked.FirstOrDefault(t => t.ArrivedViaFlowId == flow.Id
+                                                         && !joined.Contains(t));
+                if (first == null)
+                {
+                    return null; // Diese Kante hat noch nicht geliefert.
+                }
+
+                joined.Add(first);
+            }
+
+            return joined;
+        }
+
         private bool ResolveJoins(WorkflowInstance instance, WorkflowDefinition definition)
         {
             bool firedAny = false;
@@ -3555,12 +3754,13 @@ namespace ITVComponents.Workflow
                     var parked = instance.Tokens
                         .Where(t => t.NodeId == node.Id && t.Status == TokenStatus.Joining)
                         .ToList();
-                    if (parked.Count < incoming.Count)
+
+                    List<Token> joined = SelectJoinSet(instance, node, incoming, parked);
+                    if (joined == null)
                     {
                         continue;
                     }
 
-                    var joined = parked.Take(incoming.Count).ToList();
                     foreach (Token p in joined)
                     {
                         p.Status = TokenStatus.Consumed;
@@ -3804,7 +4004,9 @@ namespace ITVComponents.Workflow
                     Status = TokenStatus.Active,
                     Variables = split ? CopyScope(sourceScope) : CopyScope(source?.Variables),
                     SplitTokenId = split ? source?.Id : source?.SplitTokenId,
-                    RaceTokenId = raceTokenId
+                    RaceTokenId = raceTokenId,
+                    ArrivedViaFlowId = flow.Id,
+                    SubProcessOwnerTokenId = source?.SubProcessOwnerTokenId
                 };
 
                 if (!ApplyFlowInputs(instance, token, flow))
@@ -3858,8 +4060,13 @@ namespace ITVComponents.Workflow
             // die Wette gewartet hat, ist das Rennen entschieden.
             KillRaceSiblings(instance, token);
 
+            // Und ebenso: verlaesst das aeussere Token einen Subprozess-Knoten, ohne dass der Abschnitt
+            // fertig geworden waere (Frist abgelaufen, Fehler-Ausgang), ist sein Innenraum gegenstandslos.
+            KillSubProcessTokens(instance, token.Id);
+
             token.NodeId = flow.TargetId;
             token.Status = TokenStatus.Active;
+            token.ArrivedViaFlowId = flow.Id;
             return true;
         }
 

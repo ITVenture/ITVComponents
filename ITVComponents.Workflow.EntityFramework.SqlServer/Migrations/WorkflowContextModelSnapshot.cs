@@ -75,6 +75,9 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<string>("TokenId")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("ArrivedViaFlowId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AssignedTo")
                         .HasColumnType("nvarchar(450)");
 
@@ -104,6 +107,9 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<string>("SubProcessOwnerTokenId")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("TaskCreatedUtc")
                         .HasColumnType("datetime2");

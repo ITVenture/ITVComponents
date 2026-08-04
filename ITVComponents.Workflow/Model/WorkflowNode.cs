@@ -54,7 +54,13 @@ namespace ITVComponents.Workflow.Model
         /// Ereignisbasiertes Gateway: wartet auf <b>mehrere</b> Ereignisse gleichzeitig; das erste, das
         /// eintrifft, gewinnt, die uebrigen werden verworfen.
         /// </summary>
-        EventGateway
+        EventGateway,
+
+        /// <summary>
+        /// Ein <b>eingebetteter</b> Teilablauf: eigene Knoten im selben Graphen, eigener Variablen-Scope,
+        /// aber KEINE eigene Instanz.
+        /// </summary>
+        SubProcess
     }
 
     /// <summary>
@@ -83,10 +89,24 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(SidePathEndNode), "sidepathend")]
     [JsonDerivedType(typeof(TerminateEndNode), "terminateend")]
     [JsonDerivedType(typeof(EventGatewayNode), "eventgateway")]
+    [JsonDerivedType(typeof(SubProcessNode), "subprocess")]
     public abstract class WorkflowNode : INodeIdentity
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>
         public string Id { get; set; }
+
+        /// <summary>
+        /// Die Id des <see cref="SubProcessNode"/>, in dem dieser Knoten liegt; null auf der obersten
+        /// Ebene.
+        /// </summary>
+        /// <remarks>
+        /// Die Zugehoerigkeit haengt am Kind und nicht als Knotenliste am Subprozess - der Graph bleibt
+        /// dadurch <b>flach</b>. Das ist keine Schoenheitsfrage: Knotenindex, ausgehende Kanten,
+        /// Validierung, Layout und Serialisierung arbeiten alle ueber die eine flache Liste. Ein
+        /// verschachteltes Modell haette jede dieser Stellen angefasst, und der Gewinn waere nur die
+        /// Baumform im JSON gewesen.
+        /// </remarks>
+        public string ParentNodeId { get; set; }
 
         /// <summary>Anzeigename des Knotens (fuer Modeler und Protokoll).</summary>
         public string Name { get; set; }

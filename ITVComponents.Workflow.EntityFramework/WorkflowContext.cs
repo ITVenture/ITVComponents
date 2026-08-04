@@ -232,6 +232,18 @@ namespace ITVComponents.Workflow.EntityFramework
         /// um die Art des Wartepunkts zu erfahren.
         /// </remarks>
         public int? WaitingKind { get; set; }
+
+        /// <summary>
+        /// Ueber welche Kante das Token an seinem aktuellen Knoten angekommen ist; null bei einem
+        /// Start-Token. Der Join prueft damit je EINGEHENDER KANTE statt nur die Anzahl.
+        /// </summary>
+        public string ArrivedViaFlowId { get; set; }
+
+        /// <summary>
+        /// Bei einem Token im Innenraum eines eingebetteten Subprozesses: die Id des aeusseren, am
+        /// Subprozess-Knoten wartenden Tokens; sonst null.
+        /// </summary>
+        public string SubProcessOwnerTokenId { get; set; }
     }
 
     /// <summary>

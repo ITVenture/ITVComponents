@@ -639,6 +639,10 @@ namespace ITVComponents.Workflow.Model
             {
                 case UserActivityNode _:
                 case CallWorkflowNode _:
+                // Der eigentliche Gewinn des eingebetteten Abschnitts: eine Frist ueber MEHRERE Schritte
+                // ("die ganze Pruefung muss in 48 Stunden durch sein") - vorher nur je Einzelschritt
+                // modellierbar. Der Knoten parkt, waehrend innen gearbeitet wird, also greift die Frist.
+                case SubProcessNode _:
                     return true;
                 case AutomatedActivityNode a:
                     return !string.IsNullOrWhiteSpace(a.ExecutionTarget);
@@ -798,6 +802,60 @@ namespace ITVComponents.Workflow.Model
         {
             return node is WaitNode or TimerNode or UserActivityNode;
         }
+    }
+
+    /// <summary>
+    /// Ein <b>eingebetteter</b> Teilablauf: seine Knoten liegen im selben Graphen (erkennbar an
+    /// <see cref="WorkflowNode.ParentNodeId"/>), er hat einen eigenen Variablen-Scope, aber - anders als
+    /// der <see cref="CallWorkflowNode"/> - <b>keine eigene Instanz</b>.
+    /// </summary>
+    /// <remarks>
+    /// Der Unterschied zum Subworkflow-Aufruf ist der Preis: eine Kind-Instanz kostet eine eigene Zeile,
+    /// eigenes Monitoring, eigene Versionsbindung und einen Rueck-Link. Das ist richtig, wenn der
+    /// Teilablauf fuer sich steht (eigene Definition, eigene Version, wiederverwendbar) - und zu viel,
+    /// wenn er nur ein <b>Abschnitt</b> desselben Prozesses ist.
+    /// <para>
+    /// Der eigentliche Gewinn ist der <b>Fristen-Timer am Abschnitt</b>: der Subprozess-Knoten parkt,
+    /// waehrend innen gearbeitet wird, und erfuellt damit
+    /// <see cref="BoundaryTimerNode.CanHost"/>. „Die ganze Pruefung muss in 48 Stunden durch sein" liess
+    /// sich vorher nicht modellieren - nur je Einzelschritt.
+    /// </para>
+    /// <para>
+    /// Innen gelten dieselben Regeln wie aussen: genau ein Start- und ein End-Knoten <b>je Subprozess</b>
+    /// (der Validator zaehlt je Ebene), und ein Ende innen beendet den Abschnitt, nicht den Workflow.
+    /// </para></remarks>
+    public class SubProcessNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.SubProcess;
+
+        /// <summary>
+        /// Wie das Ergebnis des Abschnitts in den aeusseren Scope einfliesst - gleiche Bedeutung wie bei
+        /// <see cref="AutomatedActivityNode.Outputs"/>. Leer = alles, was innen entstanden ist, fliesst
+        /// nach aussen.
+        /// </summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>
+        /// Wie die Ausgaben einfliessen. Standard <see cref="ActivityScopeMode.Extend"/> (additiv);
+        /// <see cref="ActivityScopeMode.Replace"/> macht den Abschnitt zu einer Konsolidierung.
+        /// </summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>
+        /// Bei <see cref="ActivityScopeMode.Replace"/>: Namen aeusserer Variablen, die ueber die
+        /// Konsolidierung hinaus erhalten bleiben.
+        /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Optionaler <b>Fehler-Ausgang</b>: die Kante, die genommen wird, wenn der Abschnitt scheitert.
+        /// Null/leer = ein Fehler innen faultet die Instanz wie bisher.
+        /// </summary>
+        public string ErrorFlowId { get; set; }
+
+        /// <summary>Beim Fehler-Ausgang: Name der aeusseren Variable fuer die Fehlermeldung.</summary>
+        public string ErrorVariable { get; set; }
     }
 
     /// <summary>

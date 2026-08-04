@@ -45,6 +45,23 @@
             <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
             <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
 
+            @* Zugehoerigkeit zu einem eingebetteten Abschnitt. Solange der Editor keine Container
+               zeichnet, ist diese Auswahl der Weg, einen Knoten hineinzulegen. *@
+            @if (SubProcessIds.Any() && Node is not SubProcessNode)
+            {
+                <MudSelect T="string" Value="@Node.ParentNodeId" ValueChanged="SetParent"
+                           Label="Inside sub-process" Clearable="true" Dense="true" Margin="Margin.Dense"
+                           Class="mt-2">
+                    @foreach (var sp in SubProcessIds)
+                    {
+                        <MudSelectItem T="string" Value="@sp.Id">@sp.Label</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Empty = top level. A sub-process needs its own start and end node inside it.
+                </MudText>
+            }
+
             @switch (Node)
             {
                 case StartNode start:
@@ -69,6 +86,30 @@
                     </MudAlert>
                     <EndConfigEditor Node="terminate"
                                      HelperText="@("Why did it stop? Without a result the outcome says nothing about the reason. The source is the scope of the branch that terminated - it is published to the instance first.")" />
+                    break;
+                case SubProcessNode subProcess:
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        An embedded section: its nodes live in the same graph (assign them via
+                        <b>Inside sub-process</b>), it has its own variable scope, but it is
+                        <b>not</b> a separate instance. A <b>deadline can hang on the whole section</b> —
+                        that is what a plain sequence of steps cannot do.
+                    </MudAlert>
+                    <MudText Typo="Typo.caption" Class="mt-3">Result of the section</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Map inner variables to outer ones. Leave empty and everything the section produced
+                        flows out.
+                    </MudText>
+                    <OutputBindingList Bindings="subProcess.Outputs" SourcePlaceholder="inner variable"
+                                       TargetPlaceholder="outer variable" AddPlaceholder="new result" />
+                    <ScopeModeSection Mode="subProcess.ScopeMode"
+                                      ModeChanged="@(m => subProcess.ScopeMode = m)"
+                                      RetainVariables="subProcess.RetainVariables"
+                                      HelperText="@("After the section the outer scope contains only its declared result plus the variables kept here.")" />
+                    @if (!string.IsNullOrEmpty(subProcess.ErrorFlowId))
+                    {
+                        <MudTextField @bind-Value="subProcess.ErrorVariable"
+                                      Label="Error message → variable" Margin="Margin.Dense" />
+                    }
                     break;
                 case EventGatewayNode:
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
@@ -254,6 +295,26 @@
 
     private int IncomingCount(string? nodeId)
         => nodeId is null ? 0 : Def.Flows.Count(f => f.TargetId == nodeId);
+
+    /// <summary>Die eingebetteten Abschnitte der Definition, für die Zugehörigkeits-Auswahl.</summary>
+    private IEnumerable<(string Id, string Label)> SubProcessIds
+        => Def is null
+            ? Enumerable.Empty<(string, string)>()
+            : Def.Nodes.OfType<SubProcessNode>()
+                .Where(n => n.Id != Node?.Id)
+                .Select(n => (n.Id, string.IsNullOrEmpty(n.Name) ? n.Id : n.Name));
+
+    /// <summary>
+    /// Legt den Knoten in einen Abschnitt (oder auf die oberste Ebene). Ein Knoten kann sich nicht selbst
+    /// enthalten — die Auswahl blendet ihn deshalb schon aus.
+    /// </summary>
+    private void SetParent(string? parentId)
+    {
+        if (Node is not null)
+        {
+            Node.ParentNodeId = string.IsNullOrWhiteSpace(parentId) ? null : parentId;
+        }
+    }
 
     private string NodeName(string? id)
     {

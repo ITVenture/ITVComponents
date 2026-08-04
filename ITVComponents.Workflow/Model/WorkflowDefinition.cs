@@ -99,10 +99,29 @@ namespace ITVComponents.Workflow.Model
             return Flows.Where(f => f.TargetId == nodeId).ToList();
         }
 
-        /// <summary>Alle Start-Knoten der Definition.</summary>
+        /// <summary>
+        /// Die Start-Knoten der <b>obersten Ebene</b> - also die, an denen eine Instanz beginnt.
+        /// </summary>
+        /// <remarks>
+        /// Start-Knoten INNERHALB eines <see cref="SubProcessNode"/> gehoeren nicht dazu: sie starten
+        /// ihren Abschnitt, nicht den Workflow. Wuerden sie mitgezaehlt, bekaeme jede neue Instanz
+        /// zusaetzliche Tokens mitten in ihren Subprozessen.
+        /// </remarks>
         public IEnumerable<StartNode> StartNodes()
         {
-            return Nodes.OfType<StartNode>();
+            return Nodes.OfType<StartNode>().Where(n => n.ParentNodeId == null);
+        }
+
+        /// <summary>Die Knoten, die unmittelbar in dem angegebenen Behaelter liegen (null = oberste Ebene).</summary>
+        public IEnumerable<WorkflowNode> NodesIn(string parentNodeId)
+        {
+            return Nodes.Where(n => n != null && n.ParentNodeId == parentNodeId);
+        }
+
+        /// <summary>Der Start-Knoten eines Subprozesses, oder null.</summary>
+        public StartNode StartNodeOf(string subProcessId)
+        {
+            return Nodes.OfType<StartNode>().FirstOrDefault(n => n.ParentNodeId == subProcessId);
         }
 
         private Dictionary<string, WorkflowNode> BuildIndex()

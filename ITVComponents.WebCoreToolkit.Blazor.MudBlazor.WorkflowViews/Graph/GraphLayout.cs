@@ -761,7 +761,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// </summary>
         private static string NodeLabel(WorkflowNode node)
         {
-            string text = string.IsNullOrEmpty(node.Name) ? node.Id : node.Name;
+            // Solange der Editor die Abschnitte nicht als Rahmen zeichnet, ist dieser Marker die einzige
+            // Stelle, an der man sieht, dass ein Knoten INNEN liegt - sonst schwebt er frei im Bild und
+            // wirkt wie ein Fehler.
+            string inside = node.ParentNodeId != null ? "▸ " : string.Empty;
+            string text = inside + (string.IsNullOrEmpty(node.Name) ? node.Id : node.Name);
             if (node is UserActivityNode task)
             {
                 // Eine Benutzer-Aufgabe haelt den Prozess an, bis ein MENSCH handelt - der teuerste
@@ -788,6 +792,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 NodeKind.CallWorkflow => "🔗 " + text,
                 NodeKind.Timer => "🕐 " + text,
                 NodeKind.Wait => "⏳ " + text,
+                // Der Abschnitt teilt die abgerundete Form mit Aktivitaet und Aufruf - das Rahmen-Zeichen
+                // sagt, dass hier weitere Knoten drinstecken.
+                NodeKind.SubProcess => "▣ " + text,
                 // Der Fristen-Timer bekommt hier bewusst KEINEN Marker: seine Glocke steht in der Form
                 // (LaidOutNode.Symbol), sein Name darunter. Als Praefix vorangestellt waere sie Teil
                 // eines Textes, der neben einem 44px-Knoten stuende - deshalb dort und nicht hier.
