@@ -255,7 +255,13 @@
     /// </summary>
     private bool AlreadyPresent(NodeKind kind)
         => (kind == NodeKind.Start || kind == NodeKind.End)
-           && def is not null && def.Nodes.Any(n => n.Kind == kind);
+           && def is not null
+           // Die Regel gilt je EBENE, nicht je Definition: ein eingebetteter Abschnitt hat seinen
+           // eigenen Start und sein eigenes Ende. Sobald es Abschnitte gibt, kann der Toolbox-Knopf
+           // die Frage gar nicht mehr beantworten - wo der Knoten landet, entscheidet erst die
+           // Ablagestelle. Dann bleibt er offen, und AddNode weist den Fall ab, wo er feststeht.
+           && !def.Nodes.OfType<SubProcessNode>().Any()
+           && def.Nodes.Any(n => n.Kind == kind && n.ParentNodeId == null);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -543,7 +549,8 @@
         }
 
         WorkflowNode? node = AddNode(parsed, x, y);
-        if (!string.IsNullOrEmpty(targetNodeId) && CanAttach(node, def.GetNode(targetNodeId!)))
+        if (node is not null && !string.IsNullOrEmpty(targetNodeId)
+            && CanAttach(node, def.GetNode(targetNodeId!)))
         {
             AttachTo(node!, targetNodeId);
         }
@@ -909,6 +916,23 @@
                 X = Math.Round(viewX + (viewW / 2) - (w / 2) + (cascade * 24), 1),
                 Y = Math.Round(viewY + (viewH / 2) - (h / 2) + (cascade * 24), 1)
             };
+        }
+
+        // Wo der Knoten liegt, entscheidet, in welchem Abschnitt er ist - schon beim Anlegen und
+        // nicht erst beim ersten Verschieben. Sonst landet ein mitten in einen Rahmen gezogener Knoten
+        // sichtbar drin, gehoert aber zur aeusseren Ebene.
+        AssignSection(node, node.Diagram.X + (w / 2), node.Diagram.Y + (h / 2));
+
+        // Je Ebene genau ein Start und ein Ende. Erst hier steht die Ebene fest.
+        if ((kind == NodeKind.Start || kind == NodeKind.End)
+            && def.Nodes.Any(n => n.Kind == kind && n.ParentNodeId == node.ParentNodeId))
+        {
+            string where = node.ParentNodeId == null
+                ? "the workflow"
+                : $"section '{def.GetNode(node.ParentNodeId)?.Name ?? node.ParentNodeId}'";
+            Snackbar.Add($"{where} already has a {kind.ToString().ToLowerInvariant()} node - there is "
+                         + "exactly one per level.", Severity.Warning);
+            return null;
         }
 
         def.Nodes.Add(node);
