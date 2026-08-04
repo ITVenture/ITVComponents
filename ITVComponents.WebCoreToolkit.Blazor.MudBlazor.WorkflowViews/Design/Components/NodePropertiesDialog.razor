@@ -89,11 +89,18 @@
                     break;
                 case SubProcessNode subProcess:
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-                        An embedded section: its nodes live in the same graph (assign them via
-                        <b>Inside sub-process</b>), it has its own variable scope, but it is
-                        <b>not</b> a separate instance. A <b>deadline can hang on the whole section</b> —
-                        that is what a plain sequence of steps cannot do.
+                        An embedded section: drag nodes into its frame (or assign them via
+                        <b>Inside sub-process</b> in their properties). It has its own variable scope, but
+                        it is <b>not</b> a separate instance. A <b>deadline can hang on the whole
+                        section</b> — that is what a plain sequence of steps cannot do.
                     </MudAlert>
+                    <MudSwitch T="bool" @bind-Value="subProcess.Collapsed" Color="Color.Primary"
+                               Label="Collapsed in the diagram" Class="mt-2" />
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Collapsed the section is drawn as a single node and its content is hidden — for
+                        keeping a large process readable. Purely visual; the run is unaffected.
+                    </MudText>
+
                     <MudText Typo="Typo.caption" Class="mt-3">Result of the section</MudText>
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">
                         Map inner variables to outer ones. Leave empty and everything the section produced

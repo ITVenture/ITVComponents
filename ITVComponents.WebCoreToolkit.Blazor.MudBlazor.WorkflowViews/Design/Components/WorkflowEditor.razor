@@ -374,10 +374,134 @@
             return;
         }
 
+        // Ein aufgeklappter Abschnitt hat keine eigene Lage - seine Geometrie ist aus seinen Kindern
+        // abgeleitet. Ihn zu ziehen heisst deshalb: den ganzen INHALT verschieben. Alles andere waere
+        // ueberraschend (der Rahmen spraenge beim Loslassen zurueck an seinen Inhalt).
+        if (node is SubProcessNode { Collapsed: false } section)
+        {
+            MoveSectionContents(section, x, y);
+            StateHasChanged();
+            return;
+        }
+
         node.Diagram ??= new DiagramShape();
         node.Diagram.X = Math.Round(x, 1);
         node.Diagram.Y = Math.Round(y, 1);
+
+        // Wo der Knoten losgelassen wurde, entscheidet, in welchem Abschnitt er liegt - das ist die
+        // Zuweisung per Maus. Der Rahmen wird beim naechsten Zeichnen von selbst passend gross.
+        AssignSection(node, x, y);
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Verschiebt den Inhalt eines Abschnitts so, dass sein Rahmen an der Ablagestelle liegt. Der Rahmen
+    /// selbst bekommt keine Koordinaten — er wird beim Zeichnen aus den Kindern aufgezogen.
+    /// </summary>
+    private void MoveSectionContents(SubProcessNode section, double x, double y)
+    {
+        List<WorkflowNode> children = Descendants(section.Id).ToList();
+        if (children.Count == 0 || def is null)
+        {
+            return;
+        }
+
+        // Der aktuelle Rahmen-Ursprung, nach derselben Regel wie im Layout - sonst wanderte der
+        // Abschnitt bei jedem Ziehen um die Polsterung daneben.
+        GraphLayout current = GraphLayout.Compute(def);
+        LaidOutNode? frame = current.Nodes.FirstOrDefault(n => n.Id == section.Id);
+        if (frame is null)
+        {
+            return;
+        }
+
+        double dx = x - frame.X;
+        double dy = y - frame.Y;
+        foreach (WorkflowNode child in children)
+        {
+            child.Diagram ??= new DiagramShape();
+            child.Diagram.X = Math.Round(child.Diagram.X + dx, 1);
+            child.Diagram.Y = Math.Round(child.Diagram.Y + dy, 1);
+        }
+    }
+
+    /// <summary>
+    /// Bestimmt aus der Ablagestelle, in welchem Abschnitt ein Knoten liegt — der innerste, dessen Rahmen
+    /// den Punkt enthält, sonst die oberste Ebene.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst der INNERSTE: bei geschachtelten Abschnitten enthält der äußere den inneren mit, und
+    /// gemeint ist immer der, auf den man tatsächlich gezeigt hat.
+    /// </remarks>
+    private void AssignSection(WorkflowNode node, double x, double y)
+    {
+        if (def is null || node is SubProcessNode)
+        {
+            return; // Ein Abschnitt wird über die Eigenschaften zugeordnet, nicht per Ablage.
+        }
+
+        GraphLayout current = GraphLayout.Compute(def);
+        string? target = null;
+        int deepest = -1;
+        foreach (LaidOutNode frame in current.Nodes.Where(n => n.IsContainer))
+        {
+            if (x < frame.X || y < frame.Y || x > frame.X + frame.Width || y > frame.Y + frame.Height)
+            {
+                continue;
+            }
+
+            int depth = SectionDepth(frame.Id);
+            if (depth > deepest)
+            {
+                deepest = depth;
+                target = frame.Id;
+            }
+        }
+
+        // Sich selbst enthalten kann ein Knoten nicht - und ein Abschnitt nicht in seinem eigenen Inhalt
+        // landen (das ergäbe einen Zyklus, den das Layout nicht auflösen könnte).
+        if (target != node.Id && node.ParentNodeId != target)
+        {
+            node.ParentNodeId = target;
+        }
+    }
+
+    /// <summary>Alle Knoten innerhalb eines Abschnitts, auch mittelbar.</summary>
+    private IEnumerable<WorkflowNode> Descendants(string? sectionId)
+    {
+        if (def is null || sectionId is null)
+        {
+            yield break;
+        }
+
+        foreach (WorkflowNode candidate in def.Nodes)
+        {
+            string? parent = candidate.ParentNodeId;
+            for (int depth = 0; parent is not null && depth <= def.Nodes.Count; depth++)
+            {
+                if (parent == sectionId)
+                {
+                    yield return candidate;
+                    break;
+                }
+
+                parent = def.GetNode(parent)?.ParentNodeId;
+            }
+        }
+    }
+
+    /// <summary>Die Verschachtelungstiefe eines Knotens (0 = oberste Ebene).</summary>
+    private int SectionDepth(string? nodeId)
+    {
+        int depth = 0;
+        string? parent = nodeId is null ? null : def?.GetNode(nodeId)?.ParentNodeId;
+        while (parent is not null && depth <= (def?.Nodes.Count ?? 0))
+        {
+            depth++;
+            parent = def?.GetNode(parent)?.ParentNodeId;
+        }
+
+        return depth;
     }
 
     /// <summary>
@@ -1114,7 +1238,28 @@
 
         var laidById = layout.Nodes.Where(n => n.Id != null).ToDictionary(n => n.Id!, n => n, StringComparer.Ordinal);
 
-        // Kanten zuerst (liegen unter den Knoten).
+        // Abschnitts-Rahmen ganz zuerst: sie liegen HINTER allem, was sie umschliessen. SVG zeichnet in
+        // Dokumentreihenfolge - stuenden sie bei den uebrigen Knoten, verdeckten sie ihren eigenen Inhalt.
+        foreach (LaidOutNode frame in layout.Nodes.Where(n => n.IsContainer))
+        {
+            bool frameSel = selectedNode != null && frame.Id == selectedNode.Id;
+            string frameStroke = frameSel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
+            sb.Append($"<g data-wf-node data-node-id=\"{Enc(frame.Id)}\" data-wf-kind=\"{frame.Kind}\" ")
+              .Append($"data-w=\"{N(frame.Width)}\" data-h=\"{N(frame.Height)}\" data-wf-container=\"1\" ")
+              .Append($"data-wf-dock-target=\"1\" transform=\"translate({N(frame.X)},{N(frame.Y)})\">")
+              // Der Rahmen ist ABSICHTLICH nicht gefuellt: gefuellt verdeckte er die Kanten, die unter
+              // ihm durchlaufen. Die schwache Toenung kommt aus der Kopfzeile.
+              .Append($"<rect x=\"0\" y=\"0\" width=\"{N(frame.Width)}\" height=\"{N(frame.Height)}\" ")
+              .Append($"rx=\"10\" ry=\"10\" fill=\"none\" stroke=\"{frameStroke}\" ")
+              .Append($"stroke-width=\"{(frameSel ? "3" : "1.5")}\" stroke-dasharray=\"6 4\" />")
+              .Append($"<rect x=\"0\" y=\"0\" width=\"{N(frame.Width)}\" height=\"{N(GraphLayout.ContainerHeader)}\" ")
+              .Append($"rx=\"10\" ry=\"10\" fill=\"var(--mud-palette-background-grey)\" opacity=\"0.65\" />");
+            AppendText(sb, 10, GraphLayout.ContainerHeader - 8, "start",
+                "var(--mud-palette-text-secondary)", 11, frame.Label, null);
+            sb.Append("</g>");
+        }
+
+        // Kanten danach (liegen unter den Knoten, aber ueber den Rahmen).
         foreach (LaidOutEdge edge in layout.Edges)
         {
             bool sel = selectedFlow != null && edge.Id == selectedFlow.Id;
@@ -1147,6 +1292,11 @@
         // Knoten als verschiebbare Gruppen (lokale Koordinaten, Position via translate).
         foreach (LaidOutNode node in layout.Nodes)
         {
+            if (node.IsContainer)
+            {
+                continue; // Schon als Rahmen gezeichnet (ganz hinten).
+            }
+
             bool sel = selectedNode != null && node.Id == selectedNode.Id;
             // Die eigene Konturfarbe (Fristen-Timer: unterbrechend/nicht) schlaegt die Auswahlfarbe -
             // dieselbe Regel wie bei den Fehler-Kanten: die Eigenschaft ist dauerhaft, die Auswahl

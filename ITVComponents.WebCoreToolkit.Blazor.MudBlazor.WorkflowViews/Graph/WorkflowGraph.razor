@@ -129,6 +129,20 @@ else
 
         HashSet<string> errorFlowIds = ErrorFlowIds();
 
+        // Abschnitts-Rahmen ganz zuerst - sie liegen hinter allem, was sie umschliessen (SVG zeichnet in
+        // Dokumentreihenfolge).
+        foreach (var frame in layout.Nodes.Where(n => n.IsContainer))
+        {
+            sb.Append($"<rect x=\"{N(frame.X)}\" y=\"{N(frame.Y)}\" width=\"{N(frame.Width)}\" ")
+              .Append($"height=\"{N(frame.Height)}\" rx=\"10\" ry=\"10\" fill=\"none\" ")
+              .Append("stroke=\"var(--mud-palette-lines-default)\" stroke-width=\"1.5\" stroke-dasharray=\"6 4\" />")
+              .Append($"<rect x=\"{N(frame.X)}\" y=\"{N(frame.Y)}\" width=\"{N(frame.Width)}\" ")
+              .Append($"height=\"{N(GraphLayout.ContainerHeader)}\" rx=\"10\" ry=\"10\" ")
+              .Append("fill=\"var(--mud-palette-background-grey)\" opacity=\"0.65\" />");
+            Text(sb, frame.X + 10, frame.Y + GraphLayout.ContainerHeader - 8, "start",
+                "var(--mud-palette-text-secondary)", 11, frame.Label, null);
+        }
+
         foreach (var edge in layout.Edges)
         {
             bool err = errorFlowIds.Contains(edge.Id);
@@ -144,6 +158,11 @@ else
 
         foreach (var node in layout.Nodes)
         {
+            if (node.IsContainer)
+            {
+                continue; // Schon als Rahmen gezeichnet.
+            }
+
             // Eine Gruppe je Knoten: sie traegt die Id, ueber die das JS-Modul den Klick zuordnet (per
             // Delegation ueber closest - deshalb genuegt EIN Listener am Container).
             sb.Append($"<g data-wf-node=\"{WebUtility.HtmlEncode(node.Id)}\">");

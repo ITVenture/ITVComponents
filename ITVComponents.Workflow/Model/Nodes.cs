@@ -856,6 +856,18 @@ namespace ITVComponents.Workflow.Model
 
         /// <summary>Beim Fehler-Ausgang: Name der aeusseren Variable fuer die Fehlermeldung.</summary>
         public string ErrorVariable { get; set; }
+
+        /// <summary>
+        /// Ob der Abschnitt im Diagramm <b>zugeklappt</b> gezeichnet wird (als einzelner Knoten statt als
+        /// Rahmen um seine Knoten). Reine Darstellung - auf den Ablauf hat es keine Wirkung.
+        /// </summary>
+        /// <remarks>
+        /// Gehoert trotzdem in die Definition und nicht in einen Sitzungszustand: wer einen grossen
+        /// Prozess aufgeraeumt hat, will ihn beim naechsten Oeffnen so wiederfinden - und ein Leser des
+        /// Diagramms soll dasselbe Bild sehen wie der Autor. BPMN legt es aus demselben Grund im
+        /// Diagramm-Teil ab.
+        /// </remarks>
+        public bool Collapsed { get; set; }
     }
 
     /// <summary>

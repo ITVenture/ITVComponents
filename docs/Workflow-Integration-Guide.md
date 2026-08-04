@@ -1500,12 +1500,21 @@ angefasst, und der Gewinn wäre nur die Baumform im JSON gewesen.
   bei einem parallelen Zweig ohne Join-Mapping). Mit `Outputs` genau das Deklarierte; `ScopeMode =
   Replace` macht den Abschnitt zur Konsolidierung.
 
-### Stand im Designer
+### Im Designer
 
-Der Editor legt Abschnitte an und weist Knoten zu (Eigenschaften → **Inside sub-process**), **zeichnet
-aber noch keine Container-Rahmen**. Innere Knoten sind im Bild an einem `▸` vor der Beschriftung
-erkennbar. Das Zuklappen/Aufklappen und das Hineinziehen per Maus kommen in einem zweiten Schritt; die
-Engine-Seite ist davon unabhängig vollständig.
+Ein aufgeklappter Abschnitt wird als **Rahmen** um seine Knoten gezeichnet, mit seinem Namen im Kopfband.
+Die Geometrie ist **abgeleitet**: der Rahmen wird aus den Kindern aufgezogen (wie die Position eines
+angedockten Fristen-Timers). Daraus folgt zweierlei — einen Knoten *in* den Rahmen zu ziehen weist ihn dem
+Abschnitt zu (bei Schachtelung gewinnt der innerste), und den *Rahmen* zu ziehen verschiebt den ganzen
+Inhalt.
+
+**Zugeklappt** wird der Abschnitt als einzelner Knoten gezeichnet; sein Inhalt und die Kanten dazwischen
+werden nicht gezeichnet. Der Zustand steht in der Definition, nicht in der Sitzung — ein Leser des
+Diagramms sieht dasselbe Bild wie der Autor.
+
+Das automatische Layout **schachtelt**: erst die Knoten innerhalb der Abschnitte, dann die äußere Ebene,
+wobei ein Abschnitt mit der Größe zählt, die seine Kinder ergeben haben. Ohne das wären die inneren Knoten
+ein zusammenhangloser Teilgraph und lägen quer über allem.
 
 ### Schema
 

@@ -369,14 +369,20 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 - **Wofür man ihn nimmt:** eine **Frist über mehrere Schritte**. Ein Deadline-Knoten kann am ganzen
   Abschnitt hängen („die komplette Prüfung muss in 48 Stunden durch sein") — an einer bloßen Folge von
   Schritten geht das nicht. Läuft die Frist ab, werden alle inneren Schritte verworfen.
-- **Knoten zuweisen:** in den Eigenschaften des jeweiligen Knotens über **Inside sub-process**. Jeder
-  Abschnitt braucht **innen** einen eigenen Start- und End-Knoten; der Validator prüft das je Ebene.
+- **Knoten zuweisen:** einen Knoten **in den Rahmen ziehen** — wo er losgelassen wird, entscheidet, zu
+  welchem Abschnitt er gehört (bei geschachtelten Rahmen gewinnt der innerste). Alternativ über
+  **Inside sub-process** in seinen Eigenschaften. Jeder Abschnitt braucht **innen** einen eigenen Start-
+  und End-Knoten; der Validator prüft das je Ebene.
+- **Den Rahmen ziehen** verschiebt den **ganzen Inhalt** — seine Geometrie ist aus den Kindern
+  abgeleitet, er hat keine eigene Position.
 - **Eigenschaften:**
+  - **Collapsed in the diagram** — zugeklappt wird der Abschnitt als einzelner Knoten gezeichnet und sein
+    Inhalt ausgeblendet (samt der Kanten dazwischen). Hält große Prozesse lesbar; rein visuell, der
+    Ablauf ist unberührt. Der Zustand gehört zur Definition — wer aufgeräumt hat, findet es so wieder,
+    und ein Leser sieht dasselbe Bild wie der Autor.
   - **Result of the section** — bildet innere Variablen auf äußere ab. **Leer = alles fließt nach außen.**
   - **Scope** — `Replace` macht den Abschnitt zur Konsolidierung (danach nur noch das Deklarierte plus
     keep-Liste).
-- **Noch nicht im Editor:** Container-Rahmen, Zuklappen und Hineinziehen per Maus. Die Zuordnung läuft
-  vorerst über das Eigenschaften-Feld; im Bild erkennt man sie am `▸`.
 
 ### Side end ⏹ (`fa-circle-stop`)
 

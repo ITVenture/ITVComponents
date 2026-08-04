@@ -52,11 +52,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Obere Kante. Setzbar aus demselben Grund wie <see cref="X"/>.</summary>
         public double Y { get; internal set; }
 
-        /// <summary>Breite.</summary>
-        public double Width { get; init; }
+        /// <summary>
+        /// Breite. Setzbar, weil ein aufgeklappter Abschnitt seine Groesse aus seinen KINDERN bezieht -
+        /// sie steht erst fest, wenn die platziert sind.
+        /// </summary>
+        public double Width { get; internal set; }
 
-        /// <summary>Hoehe.</summary>
-        public double Height { get; init; }
+        /// <summary>Hoehe. Setzbar aus demselben Grund wie <see cref="Width"/>.</summary>
+        public double Height { get; internal set; }
+
+        /// <summary>
+        /// Ob dieser Knoten ein aufgeklappter <b>Abschnitt</b> ist, also als Rahmen um andere Knoten
+        /// gezeichnet wird statt als Form.
+        /// </summary>
+        /// <remarks>
+        /// Ein Rahmen wird ZUERST gezeichnet (hinter allem) und traegt seine Beschriftung oben links im
+        /// Kopfband - mittig staende sie quer ueber den Knoten, die er umschliesst.
+        /// </remarks>
+        public bool IsContainer { get; init; }
+
+        /// <summary>Bei einem Rahmen: die Hoehe des Kopfbands, in dem die Beschriftung steht.</summary>
+        public double HeaderHeight => IsContainer ? GraphLayout.ContainerHeader : 0;
 
         /// <summary>Hervorgehoben (z.B. aktuelle Token-Position einer Instanz).</summary>
         public bool Highlighted { get; init; }
@@ -206,6 +222,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// <summary>Abstand zweier Andockpunkte an derselben Knotenseite.</summary>
         private const double LaneGap = 16;
 
+        /// <summary>Luft zwischen dem Rahmen eines Abschnitts und den Knoten darin.</summary>
+        internal const double ContainerPadding = 26;
+
+        /// <summary>Hoehe des Kopfbands eines Abschnitts-Rahmens (dort steht sein Name).</summary>
+        internal const double ContainerHeader = 24;
+
+        /// <summary>Groesse eines aufgeklappten, aber noch LEEREN Abschnitts.</summary>
+        private const double EmptyContainerWidth = 220;
+
+        /// <summary>Siehe <see cref="EmptyContainerWidth"/>.</summary>
+        private const double EmptyContainerHeight = 90;
+
         private GraphLayout(IReadOnlyList<LaidOutNode> nodes, IReadOnlyList<LaidOutEdge> edges,
             double width, double height)
         {
@@ -244,14 +272,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 ? new HashSet<string>(highlightNodeIds, StringComparer.Ordinal)
                 : new HashSet<string>(StringComparer.Ordinal);
 
+            // Was ein zugeklappter Abschnitt umschliesst, wird nicht gezeichnet - weder die Knoten noch
+            // die Kanten dazwischen. Genau das ist der Sinn des Zuklappens.
+            HashSet<string> hidden = HiddenNodeIds(definition);
+
             IReadOnlyDictionary<string, (double X, double Y)> positions = HasExplicitLayout(definition)
-                ? definition.Nodes.ToDictionary(n => n.Id, n => (n.Diagram!.X, n.Diagram!.Y))
-                : AutoLayout(definition);
+                ? definition.Nodes.Where(n => n.Id != null && n.Diagram != null)
+                    .ToDictionary(n => n.Id, n => (n.Diagram!.X, n.Diagram!.Y), StringComparer.Ordinal)
+                : AutoLayout(definition, hidden);
 
             var nodes = new List<LaidOutNode>();
             var byId = new Dictionary<string, LaidOutNode>(StringComparer.Ordinal);
             foreach (WorkflowNode node in definition.Nodes)
             {
+                if (node.Id != null && hidden.Contains(node.Id))
+                {
+                    continue;
+                }
+
                 (double w, double h) = SizeFor(node.Kind);
                 // Die Id einmal greifen: sie kann fehlen (der Validator meldet das, gezeichnet wird
                 // trotzdem). Ohne sie gibt es keinen Eintrag in der Positionstabelle - TryGetValue
@@ -260,12 +298,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 (double x, double y) = id != null && positions.TryGetValue(id, out var p)
                     ? p
                     : (Margin, Margin);
+                bool container = node is SubProcessNode { Collapsed: false };
                 var laid = new LaidOutNode
                 {
                     Id = id ?? string.Empty,
                     Label = NodeLabel(node),
                     Kind = node.Kind,
-                    Shape = ShapeFor(node.Kind),
+                    Shape = container ? NodeShape.Rectangle : ShapeFor(node.Kind),
+                    IsContainer = container,
                     X = x,
                     Y = y,
                     Width = w,
@@ -286,6 +326,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     byId[laid.Id] = laid;
                 }
             }
+
+            // Die Rahmen der aufgeklappten Abschnitte aus ihren Kindern aufziehen - VOR dem Andocken und
+            // der Kantenfuehrung, damit beides die endgueltige Geometrie sieht.
+            SizeContainers(definition, byId, hidden);
 
             // Fristen-Timer an den Rand ihres Schritts setzen - VOR der Kantenfuehrung, damit ihr
             // Nebenpfad von der endgueltigen Position aus geroutet wird.
@@ -327,7 +371,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             var obstacles = new List<GraphRect>(nodes.Count);
             foreach (LaidOutNode n in nodes)
             {
-                obstacles.Add(RectOf(n));
+                // Ein Abschnitts-Rahmen ist kein Koerper, sondern eine Umrandung: seine Flaeche gehoert
+                // den Knoten darin. Als Hindernis gefuehrt, wuerden deren eigene Kanten um ihn
+                // herumlaufen wollen - und faenden keinen Weg, weil sie in ihm beginnen.
+                if (!n.IsContainer)
+                {
+                    obstacles.Add(RectOf(n));
+                }
             }
 
             HashSet<string> errorFlows = ErrorFlowIds(definition);
@@ -571,21 +621,204 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// Ein einfaches Schichtenlayout (links nach rechts): jeder Knoten kommt eine Schicht hinter
         /// seinen Vorgaenger. Zyklen sind durch die Iterationsgrenze abgefangen.
         /// </summary>
-        private static IReadOnlyDictionary<string, (double X, double Y)> AutoLayout(WorkflowDefinition definition)
+        /// <summary>
+        /// Die Ids aller Knoten, die in einem <b>zugeklappten</b> Abschnitt liegen (auch mittelbar).
+        /// </summary>
+        private static HashSet<string> HiddenNodeIds(WorkflowDefinition definition)
         {
-            var layer = definition.Nodes.Where(n => n.Id != null)
-                .ToDictionary(n => n.Id, _ => 0, StringComparer.Ordinal);
+            var hidden = new HashSet<string>(StringComparer.Ordinal);
+            var collapsed = new HashSet<string>(
+                definition.Nodes.OfType<SubProcessNode>().Where(n => n.Collapsed && n.Id != null)
+                    .Select(n => n.Id), StringComparer.Ordinal);
+            if (collapsed.Count == 0)
+            {
+                return hidden;
+            }
 
-            int maxIterations = definition.Nodes.Count + 1;
+            foreach (WorkflowNode node in definition.Nodes)
+            {
+                if (node?.Id == null)
+                {
+                    continue;
+                }
+
+                // Nach oben laufen: ein Knoten ist verborgen, sobald IRGENDEIN Vorfahre zugeklappt ist.
+                // Der Zaehler bricht eine (fehlerhaft) zyklische Verschachtelung ab, statt sich
+                // aufzuhaengen - der Validator meldet den Zyklus separat.
+                string? parent = node.ParentNodeId;
+                for (int depth = 0; parent != null && depth <= definition.Nodes.Count; depth++)
+                {
+                    if (collapsed.Contains(parent))
+                    {
+                        hidden.Add(node.Id);
+                        break;
+                    }
+
+                    parent = definition.GetNode(parent)?.ParentNodeId;
+                }
+            }
+
+            return hidden;
+        }
+
+        /// <summary>
+        /// Zieht die Rahmen der aufgeklappten Abschnitte um ihre Kinder auf - von INNEN nach aussen,
+        /// damit ein geschachtelter Abschnitt schon seine endgueltige Groesse hat, wenn der aeussere ihn
+        /// umschliesst.
+        /// </summary>
+        /// <remarks>
+        /// Die Geometrie eines Rahmens ist damit <b>abgeleitet</b>, wie die eines angedockten
+        /// Fristen-Timers: seine eigenen Diagramm-Koordinaten waeren eine zweite Wahrheit, die beim
+        /// Verschieben eines Kindes sofort falsch wuerde. Ein leerer Abschnitt bekommt eine Vorgabegroesse,
+        /// sonst waere er ein Strich und nicht zu treffen.
+        /// </remarks>
+        private static void SizeContainers(WorkflowDefinition definition,
+            Dictionary<string, LaidOutNode> byId, HashSet<string> hidden)
+        {
+            List<SubProcessNode> containers = definition.Nodes.OfType<SubProcessNode>()
+                .Where(n => !n.Collapsed && n.Id != null && !hidden.Contains(n.Id))
+                .OrderByDescending(n => Depth(definition, n))
+                .ToList();
+
+            foreach (SubProcessNode container in containers)
+            {
+                if (!byId.TryGetValue(container.Id, out LaidOutNode? frame))
+                {
+                    continue;
+                }
+
+                List<LaidOutNode> children = definition.Nodes
+                    .Where(n => n?.Id != null && n.ParentNodeId == container.Id && byId.ContainsKey(n.Id))
+                    .Select(n => byId[n.Id])
+                    .ToList();
+
+                if (children.Count == 0)
+                {
+                    frame.Width = EmptyContainerWidth;
+                    frame.Height = EmptyContainerHeight;
+                    continue;
+                }
+
+                double left = children.Min(c => c.X);
+                double top = children.Min(c => c.Y);
+                double right = children.Max(c => c.X + c.Width);
+                double bottom = children.Max(c => c.Y + c.Height);
+
+                frame.X = left - ContainerPadding;
+                frame.Y = top - ContainerPadding - ContainerHeader;
+                frame.Width = (right - left) + (2 * ContainerPadding);
+                frame.Height = (bottom - top) + (2 * ContainerPadding) + ContainerHeader;
+            }
+        }
+
+        /// <summary>Die Verschachtelungstiefe eines Knotens (0 = oberste Ebene).</summary>
+        private static int Depth(WorkflowDefinition definition, WorkflowNode? node)
+        {
+            int depth = 0;
+            string? parent = node?.ParentNodeId;
+            while (parent != null && depth <= definition.Nodes.Count)
+            {
+                depth++;
+                parent = definition.GetNode(parent)?.ParentNodeId;
+            }
+
+            return depth;
+        }
+
+        /// <summary>
+        /// Automatisches Layout, <b>ebenenweise</b>: erst die Knoten innerhalb der Abschnitte (von innen
+        /// nach aussen), dann die oberste Ebene - dabei zaehlt ein aufgeklappter Abschnitt mit der Groesse,
+        /// die seine Kinder ergeben haben.
+        /// </summary>
+        /// <remarks>
+        /// Ohne diese Schachtelung waeren die Knoten eines Abschnitts ein zusammenhangloser Teilgraph:
+        /// sie landeten in denselben Zeilen wie die aeusseren Knoten, und der Rahmen laege quer ueber
+        /// allem.
+        /// </remarks>
+        private static IReadOnlyDictionary<string, (double X, double Y)> AutoLayout(
+            WorkflowDefinition definition, HashSet<string> hidden)
+        {
+            var size = new Dictionary<string, (double W, double H)>(StringComparer.Ordinal);
+            foreach (WorkflowNode node in definition.Nodes.Where(n => n?.Id != null))
+            {
+                size[node.Id] = SizeFor(node.Kind);
+            }
+
+            // Von innen nach aussen: die Groesse eines Abschnitts steht erst fest, wenn seine Kinder
+            // platziert sind.
+            var innerLayouts = new Dictionary<string, Dictionary<string, (double X, double Y)>>(
+                StringComparer.Ordinal);
+            foreach (SubProcessNode container in definition.Nodes.OfType<SubProcessNode>()
+                         .Where(n => !n.Collapsed && n.Id != null && !hidden.Contains(n.Id))
+                         .OrderByDescending(n => Depth(definition, n)))
+            {
+                Dictionary<string, (double X, double Y)> inner = LayoutLevel(definition, container.Id, size);
+                innerLayouts[container.Id] = inner;
+
+                if (inner.Count == 0)
+                {
+                    size[container.Id] = (EmptyContainerWidth, EmptyContainerHeight);
+                    continue;
+                }
+
+                double right = inner.Max(p => p.Value.X + size[p.Key].W);
+                double bottom = inner.Max(p => p.Value.Y + size[p.Key].H);
+                size[container.Id] = (right + (2 * ContainerPadding),
+                    bottom + (2 * ContainerPadding) + ContainerHeader);
+            }
+
+            var result = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, (double X, double Y)> pair in LayoutLevel(definition, null, size))
+            {
+                result[pair.Key] = pair.Value;
+            }
+
+            // Die Kinder in ihren Rahmen schieben - ebenfalls von aussen nach innen, damit ein
+            // geschachtelter Abschnitt seine eigene Lage schon kennt.
+            foreach (SubProcessNode container in definition.Nodes.OfType<SubProcessNode>()
+                         .Where(n => n.Id != null && innerLayouts.ContainsKey(n.Id))
+                         .OrderBy(n => Depth(definition, n)))
+            {
+                if (!result.TryGetValue(container.Id, out (double X, double Y) origin))
+                {
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, (double X, double Y)> child in innerLayouts[container.Id])
+                {
+                    result[child.Key] = (origin.X + ContainerPadding + child.Value.X,
+                        origin.Y + ContainerHeader + ContainerPadding + child.Value.Y);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Platziert EINE Ebene (die Knoten mit demselben Behaelter) nach Laengster-Pfad-Schichtung -
+        /// relativ zum Ursprung dieser Ebene.
+        /// </summary>
+        private static Dictionary<string, (double X, double Y)> LayoutLevel(WorkflowDefinition definition,
+            string? parentNodeId, IReadOnlyDictionary<string, (double W, double H)> size)
+        {
+            List<WorkflowNode> level = definition.Nodes
+                .Where(n => n?.Id != null && n.ParentNodeId == parentNodeId)
+                .ToList();
+            var ids = new HashSet<string>(level.Select(n => n.Id), StringComparer.Ordinal);
+            var layer = level.ToDictionary(n => n.Id, _ => 0, StringComparer.Ordinal);
+
+            int maxIterations = level.Count + 1;
             for (int i = 0; i < maxIterations; i++)
             {
                 bool changed = false;
                 foreach (SequenceFlow flow in definition.Flows)
                 {
+                    // Nur Kanten INNERHALB dieser Ebene schichten - eine Kante nach draussen wuerde die
+                    // Ebene an der aeusseren Struktur ausrichten.
                     if (flow.SourceId != null && flow.TargetId != null
+                        && ids.Contains(flow.SourceId) && ids.Contains(flow.TargetId)
                         && layer.TryGetValue(flow.SourceId, out int sl)
-                        && layer.TryGetValue(flow.TargetId, out int tl)
-                        && tl < sl + 1)
+                        && layer.TryGetValue(flow.TargetId, out int tl) && tl < sl + 1)
                     {
                         layer[flow.TargetId] = sl + 1;
                         changed = true;
@@ -598,28 +831,67 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 }
             }
 
+            // Spalte und Zeile je Knoten festlegen (in Definitionsreihenfolge, damit dasselbe Modell
+            // stabil dasselbe Bild ergibt).
             var rowInLayer = new Dictionary<int, int>();
-            var result = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
-            // In Definitionsreihenfolge, damit dasselbe Modell stabil dasselbe Bild ergibt.
-            foreach (WorkflowNode node in definition.Nodes)
+            var cell = new Dictionary<string, (int Layer, int Row)>(StringComparer.Ordinal);
+            foreach (WorkflowNode node in level)
             {
-                if (node.Id == null)
-                {
-                    continue;
-                }
-
                 int l = layer.TryGetValue(node.Id, out int lv) ? lv : 0;
                 int row = rowInLayer.TryGetValue(l, out int r) ? r : 0;
                 rowInLayer[l] = row + 1;
+                cell[node.Id] = (l, row);
+            }
 
-                (double w, double h) = SizeFor(node.Kind);
-                double x = Margin + (l * LayerGap) + ((ColumnWidth - w) / 2);
-                double y = Margin + (row * RowGap) + ((RowHeight - h) / 2);
-                result[node.Id] = (x, y);
+            // Spaltenbreiten und Zeilenhoehen aus dem BREITESTEN bzw. HOECHSTEN Knoten darin - und
+            // daraus kumulative Offsets. Mit einem festen Schritt je Knoten (so lief es frueher) schoebe
+            // ein breiter Knoten die folgende Spalte nicht weit genug: ein aufgeklappter Abschnitt ist um
+            // ein Vielfaches breiter als ein Schritt, und der naechste Knoten landete mitten in seinem
+            // Rahmen.
+            var columnWidth = new Dictionary<int, double>();
+            var rowHeight = new Dictionary<int, double>();
+            foreach (WorkflowNode node in level)
+            {
+                (double w, double h) = SizeOfNode(node, size);
+                (int l, int row) = cell[node.Id];
+                columnWidth[l] = Math.Max(columnWidth.TryGetValue(l, out double cw) ? cw : ColumnWidth, w);
+                rowHeight[row] = Math.Max(rowHeight.TryGetValue(row, out double rh) ? rh : RowHeight, h);
+            }
+
+            var columnX = new Dictionary<int, double>();
+            double x0 = Margin;
+            foreach (int l in columnWidth.Keys.OrderBy(k => k))
+            {
+                columnX[l] = x0;
+                x0 += columnWidth[l] + (LayerGap - ColumnWidth);
+            }
+
+            var rowY = new Dictionary<int, double>();
+            double y0 = Margin;
+            foreach (int r in rowHeight.Keys.OrderBy(k => k))
+            {
+                rowY[r] = y0;
+                y0 += rowHeight[r] + (RowGap - RowHeight);
+            }
+
+            var result = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
+            foreach (WorkflowNode node in level)
+            {
+                (double w, double h) = SizeOfNode(node, size);
+                (int l, int row) = cell[node.Id];
+                // In der Zelle zentriert - so bleibt das Bild bei gleich grossen Knoten genau das von
+                // vorher.
+                result[node.Id] = (columnX[l] + ((columnWidth[l] - w) / 2),
+                    rowY[row] + ((rowHeight[row] - h) / 2));
             }
 
             return result;
         }
+
+        /// <summary>Die Groesse eines Knotens - fuer einen Abschnitt die vorab berechnete Rahmengroesse.</summary>
+        private static (double W, double H) SizeOfNode(WorkflowNode node,
+            IReadOnlyDictionary<string, (double W, double H)> size)
+            => node.Id != null && size.TryGetValue(node.Id, out var s) ? s : SizeFor(node.Kind);
 
         /// <summary>
         /// Setzt jeden Fristen-Timer auf den unteren Rand des Schritts, an dem er haengt - halb
