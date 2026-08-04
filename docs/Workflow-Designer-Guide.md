@@ -271,6 +271,23 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
     hat jeder Wartepunkt seinen eigenen Schlüssel. Leer = es gilt der Korrelationsschlüssel der Instanz
     (oder ihre Id).
 
+### Send 📨 (`fa-paper-plane`)
+
+- **Zweck:** schickt eine **Nachricht** (gerichtet) oder einen **Rundruf** — das Gegenstück zum
+  Wartepunkt. Der Zweig läuft unmittelbar weiter; gewartet wird hier nicht.
+- **Ports:** ein Eingang, ein Ausgang. Senden verzweigt den Fluss nicht.
+- **Eigenschaften:** Signalname, Art (Nachricht/Rundruf), **Correlation** (CScript) und **Payload**
+  (Eingabe-Bindungen). Der Korrelationsausdruck muss **denselben Wert** ergeben wie der des Wartepunkts
+  auf der Gegenseite — ausgewertet über die Variablen dieses Zweigs.
+- **Nachricht ohne Korrelation ist ein Fehler:** sie würde zum Rundruf und jeden gleichnamigen
+  Wartepunkt wecken. Wer alle meint, stellt auf Rundruf um — dann steht es im Modell.
+- **Zugestellt wird nach dem Commit** dieses Zweigs, nicht mitten in seiner Ausführung: der Empfänger
+  wird beim Zustellen selbst vorangetrieben, und er darf nicht auf einem Stand des Senders laufen, den
+  es in der Datenbank noch nicht gibt.
+- **Folge daraus:** wie viele Empfänger erreicht wurden, steht beim Ausführen des Knotens noch nicht
+  fest — die Zahl kann nicht in eine Variable und im Prozess nicht verzweigt werden. „Niemand hat
+  gewartet“ landet im System-Log.
+
 ### Timer ⏰ (`fa-clock`)
 
 - **Zweck:** parkt das Token bis zu einem Fälligkeitszeitpunkt.
@@ -427,6 +444,10 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
 
 ### Undo trigger ↺ (`fa-clock-rotate-left`)
 
+- **Form:** Sechseck wie die übrigen Wartepunkte — der Zweig **parkt** hier, bis die Rücknahme durch
+  ist, und läuft danach über seinen Ausgang weiter. Er beendet nichts; der Rückabwicklungs-Pfad wird
+  auch nicht zum neuen Hauptpfad, sondern ist ein Abstecher, aus dem die Steuerung hierher
+  zurückkommt.
 - **Zweck:** nimmt zurück, was bereits getan wurde — **rückwärts, einer nach dem anderen** (erst die
   Zahlung, dann die Buchung, dann die Reservierung; die Schritte bauen aufeinander auf).
 - **Ports:** ein Eingang, ein Ausgang. Der Zweig **wartet** hier, bis alle Rückabwicklungs-Pfade durch

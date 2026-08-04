@@ -283,7 +283,202 @@ namespace ITVComponents.Workflow
         public bool SignalWorkflow(string instanceId, string signalName,
             IDictionary<string, object> payloadVariables = null, string correlationKey = null)
         {
+            // Laeuft gerade ein Vortrieb (auch aus einer Aktivitaet heraus), wird gepuffert: der
+            // Empfaenger wird beim Zustellen selbst vorangetrieben, und zwar hier auf demselben Thread.
+            // Sofort zugestellt liefe er auf einem Stand des Senders, den es in der Datenbank noch nicht
+            // gibt - und sein Fehler schluege mitten im Sender auf.
+            if (Defer(new PendingSignal(instanceId, signalName, payloadVariables, correlationKey,
+                    PendingSignalKind.Instance)))
+            {
+                return false;
+            }
+
             return SignalInstance(instanceId, signalName, payloadVariables, correlationKey, broadcast: false);
+        }
+
+        // --- Zustellung nach dem Commit ---------------------------------------------------------
+
+        /// <summary>Wie eine zurueckgestellte Zustellung gemeint war.</summary>
+        private enum PendingSignalKind
+        {
+            /// <summary>An eine bestimmte Instanz.</summary>
+            Instance,
+
+            /// <summary>Gerichtete Nachricht ueber den Korrelationsschluessel.</summary>
+            Message,
+
+            /// <summary>Rundruf.</summary>
+            Broadcast
+        }
+
+        /// <summary>Eine zurueckgestellte Zustellung.</summary>
+        private sealed class PendingSignal
+        {
+            public PendingSignal(string instanceId, string signalName,
+                IDictionary<string, object> payload, string correlationKey, PendingSignalKind kind)
+            {
+                InstanceId = instanceId;
+                SignalName = signalName;
+                // Eine eigene Kopie: die Nutzdaten kommen oft aus dem Variablen-Stack des Senders, und
+                // der laeuft zwischen Vormerken und Zustellen weiter.
+                Payload = payload == null
+                    ? null
+                    : new Dictionary<string, object>(payload, StringComparer.Ordinal);
+                CorrelationKey = correlationKey;
+                Kind = kind;
+            }
+
+            public string InstanceId { get; }
+
+            public string SignalName { get; }
+
+            public IDictionary<string, object> Payload { get; }
+
+            public string CorrelationKey { get; }
+
+            public PendingSignalKind Kind { get; }
+        }
+
+        /// <summary>Der Puffer eines laufenden Vortriebs.</summary>
+        private sealed class SignalOutbox
+        {
+            public List<PendingSignal> Pending { get; } = new List<PendingSignal>();
+
+            public int Depth { get; set; }
+        }
+
+        /// <summary>
+        /// Obergrenze der Zustellungen je Vortrieb. Ein Zyklus (A sendet an B, B an A) waere sonst eine
+        /// Endlosschleife, die als haengender Prozess auffiele statt als Modellfehler.
+        /// </summary>
+        private const int MaxDeferredDeliveries = 1000;
+
+        /// <summary>
+        /// Der Puffer der aktuellen Ausfuehrung. <see cref="AsyncLocal{T}"/> und nicht ThreadStatic:
+        /// die Engine wird auch aus asynchronen Aufrufern benutzt, und dort wechselt der Thread.
+        /// </summary>
+        private static readonly AsyncLocal<SignalOutbox> outbox = new AsyncLocal<SignalOutbox>();
+
+        /// <summary>
+        /// Oeffnet den Zustell-Puffer fuer die Dauer eines Vortriebs. Verschachtelte Aufrufe zaehlen nur
+        /// mit - zugestellt wird, wenn der AEUSSERSTE fertig ist.
+        /// </summary>
+        private IDisposable OpenOutbox()
+        {
+            outbox.Value ??= new SignalOutbox();
+            outbox.Value.Depth++;
+            return new OutboxScope(this);
+        }
+
+        /// <summary>Merkt eine Zustellung vor. Liefert false, wenn gerade kein Vortrieb laeuft.</summary>
+        private static bool Defer(PendingSignal signal)
+        {
+            SignalOutbox box = outbox.Value;
+            if (box == null || box.Depth == 0)
+            {
+                return false; // Aufruf von aussen (Controller, Handler) - sofort zustellen wie bisher.
+            }
+
+            box.Pending.Add(signal);
+            return true;
+        }
+
+        /// <summary>
+        /// Schliesst den Puffer. Beim aeussersten Aufruf werden die vorgemerkten Zustellungen
+        /// abgearbeitet.
+        /// </summary>
+        private void CloseOutbox()
+        {
+            SignalOutbox box = outbox.Value;
+            if (box == null)
+            {
+                return;
+            }
+
+            box.Depth--;
+            if (box.Depth > 0)
+            {
+                return;
+            }
+
+            // Waehrend des Zustellens bleiben wir "drin": was ein Empfaenger seinerseits sendet, landet
+            // in DERSELBEN Liste und wird von dieser Schleife mit abgearbeitet. Sonst stapelte sich das
+            // rekursiv auf, und eine gegenseitige Benachrichtigung liefe in den Stack statt in die
+            // Obergrenze.
+            box.Depth = 1;
+            try
+            {
+                int delivered = 0;
+                while (box.Pending.Count > 0)
+                {
+                    if (++delivered > MaxDeferredDeliveries)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"More than {MaxDeferredDeliveries} deferred signal deliveries in one advance - " +
+                            $"{box.Pending.Count} were dropped. This is a cycle in the model (processes " +
+                            "signalling each other), not a load problem.", LogSeverity.Error);
+                        box.Pending.Clear();
+                        break;
+                    }
+
+                    PendingSignal next = box.Pending[0];
+                    box.Pending.RemoveAt(0);
+                    DeliverNow(next);
+                }
+            }
+            finally
+            {
+                box.Depth = 0;
+                outbox.Value = null;
+            }
+        }
+
+        /// <summary>Stellt eine vorgemerkte Nachricht jetzt zu (ausserhalb des Puffers).</summary>
+        private void DeliverNow(PendingSignal signal)
+        {
+            try
+            {
+                int reached = signal.Kind switch
+                {
+                    PendingSignalKind.Instance => SignalInstance(signal.InstanceId, signal.SignalName,
+                        signal.Payload, signal.CorrelationKey, broadcast: false) ? 1 : 0,
+                    PendingSignalKind.Message => DeliverSignalNow(signal.SignalName, signal.CorrelationKey,
+                        signal.Payload),
+                    _ => BroadcastSignalNow(signal.SignalName, signal.Payload)
+                };
+
+                if (reached == 0)
+                {
+                    // Der interessante Fall: die Nachricht ging raus, aber niemand hat gewartet. Weil die
+                    // Zahl erst NACH dem Commit feststeht, kann sie nicht mehr in den Prozess zurueck -
+                    // sichtbar sein muss sie trotzdem.
+                    LogEnvironment.LogEvent(
+                        $"Signal '{signal.SignalName}'"
+                        + (signal.CorrelationKey != null ? $" (key '{signal.CorrelationKey}')" : string.Empty)
+                        + " was sent, but nobody was waiting for it.", LogSeverity.Report);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Der Sender ist zu diesem Zeitpunkt bereits festgeschrieben - ihn nachtraeglich an einem
+                // Fehler des EMPFAENGERS scheitern zu lassen, waere falsch. Verschwiegen wird es nicht.
+                LogEnvironment.LogEvent(
+                    $"Deferred delivery of signal '{signal.SignalName}' failed: {ex.OutlineException()}",
+                    LogSeverity.Error);
+            }
+        }
+
+        /// <summary>Der Bereich, dessen Ende die vorgemerkten Zustellungen ausloest.</summary>
+        private sealed class OutboxScope : IDisposable
+        {
+            private readonly WorkflowEngine engine;
+
+            public OutboxScope(WorkflowEngine engine)
+            {
+                this.engine = engine;
+            }
+
+            public void Dispose() => engine.CloseOutbox();
         }
 
         /// <summary>
@@ -465,10 +660,27 @@ namespace ITVComponents.Workflow
                 return BroadcastSignal(signalName, payloadVariables);
             }
 
+            if (Defer(new PendingSignal(null, signalName, payloadVariables, correlationKey,
+                    PendingSignalKind.Message)))
+            {
+                return 0;
+            }
+
+            return DeliverSignalNow(signalName, correlationKey, payloadVariables);
+        }
+
+        /// <summary>
+        /// Die Zustellung selbst - ohne den Puffer. Getrennt, weil das Abarbeiten des Puffers sonst wieder
+        /// im Puffer laendete: eine Schleife, die sich als „niemand hat gewartet" tarnt.
+        /// </summary>
+        private int DeliverSignalNow(string signalName, string correlationKey,
+            IDictionary<string, object> payloadVariables)
+        {
             int count = 0;
             foreach (WorkflowInstance instance in store.FindWaitingForSignal(signalName, correlationKey).ToList())
             {
-                if (SignalWorkflow(instance.Id, signalName, payloadVariables, correlationKey))
+                if (SignalInstance(instance.Id, signalName, payloadVariables, correlationKey,
+                        broadcast: false))
                 {
                     count++;
                 }
@@ -489,6 +701,18 @@ namespace ITVComponents.Workflow
         /// anderweitig committet, darf nicht die restlichen mitreissen.
         /// </remarks>
         public int BroadcastSignal(string signalName, IDictionary<string, object> payloadVariables = null)
+        {
+            if (Defer(new PendingSignal(null, signalName, payloadVariables, null,
+                    PendingSignalKind.Broadcast)))
+            {
+                return 0;
+            }
+
+            return BroadcastSignalNow(signalName, payloadVariables);
+        }
+
+        /// <summary>Der Rundruf selbst - ohne den Puffer (siehe <see cref="DeliverSignalNow"/>).</summary>
+        private int BroadcastSignalNow(string signalName, IDictionary<string, object> payloadVariables)
         {
             int count = 0;
             foreach (WorkflowInstance instance in store.FindWaitingForBroadcast(signalName).ToList())
@@ -802,6 +1026,9 @@ namespace ITVComponents.Workflow
             WorkflowDefinition definition = LoadDefinition(instance);
             var snapshot = new BranchSnapshot(instance);
 
+            // Wie beim sequenziellen Vortrieb: erst zustellen, wenn dieser Zweig festgeschrieben ist.
+            using IDisposable pendingSignals = OpenOutbox();
+
             // Ausfuehrung EINMAL, rein in-memory (kein Save). AdvanceBranch parkt am Join als Joining und
             // feuert NICHT - der Fire faellt gleich im serialisierten Commit gegen frischen Stand. Die
             // Ausfuehrung laeuft unter dem Tenant der Instanz (tenant-uebergreifender Runner), damit die
@@ -1110,6 +1337,11 @@ namespace ITVComponents.Workflow
                 return;
             }
 
+            // Der Zustell-Puffer dieses Vortriebs: was hier drin gesendet wird - vom Sende-Knoten wie
+            // aus einer Aktivitaet heraus -, geht erst raus, wenn dieser Lauf durch ist. Verschachtelte
+            // Vortriebe zaehlen nur mit; zugestellt wird beim Schliessen des aeussersten.
+            using IDisposable pendingSignals = OpenOutbox();
+
             // Ein Aktivitaets-Scope je Vortrieb: Schritt-Plugins werden darin on demand geladen und
             // beim Schliessen wieder freigegeben. Der Scope ist bewusst nur fuer diesen Lauf offen -
             // eine wartende Instanz haelt keine Ressourcen. Die Umsetzung ist traege: kostet nichts,
@@ -1281,6 +1513,9 @@ namespace ITVComponents.Workflow
                 case WaitNode wait:
                     return ParkForSignal(instance, token, wait);
 
+                case SendMessageNode send:
+                    return SendMessage(instance, definition, token, send);
+
                 case TerminateEndNode terminate:
                     return Terminate(instance, definition, token, terminate);
 
@@ -1337,6 +1572,74 @@ namespace ITVComponents.Workflow
                 $"Branch of instance '{instance.Id}' parked at node '{node.Id}' for execution target " +
                 $"'{node.ExecutionTarget}' - waiting for a runner that serves this target.", LogSeverity.Report);
             return true;
+        }
+
+        /// <summary>
+        /// Sendet eine Nachricht bzw. einen Rundruf und laeuft weiter. Zugestellt wird <b>nach dem
+        /// Commit</b> dieses Zweigs.
+        /// </summary>
+        /// <remarks>
+        /// Der Korrelationsschluessel wird HIER ausgewertet, ueber den Variablen-Stand dieses Zweigs -
+        /// genauso wie am Wartepunkt der Gegenseite und aus demselben Grund: nur hier ist der Wert
+        /// eindeutig. Ein Fehler im Ausdruck faultet die Instanz; eine Nachricht, deren Schluessel nicht
+        /// berechenbar ist, kaeme nirgends an, und das faende man erst, wenn die Gegenseite ausbleibt.
+        /// </remarks>
+        private bool SendMessage(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            SendMessageNode node)
+        {
+            if (string.IsNullOrWhiteSpace(node.SignalName))
+            {
+                Fault(instance, $"Send node '{node.Id}' has no signal name.", node.Id);
+                return false;
+            }
+
+            Dictionary<string, object> scope = Scope(instance, token);
+            string correlation = null;
+            if (!string.IsNullOrWhiteSpace(node.CorrelationExpression))
+            {
+                try
+                {
+                    object value = evaluator.Evaluate(node.CorrelationExpression, scope,
+                        node.CorrelationExpressionMode);
+                    correlation = value?.ToString();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Correlation of send node '{node.Id}' in instance '{instance.Id}' could not be " +
+                        $"evaluated: {ex.OutlineException()}", LogSeverity.Error);
+                    Fault(instance, $"Correlation of send node '{node.Id}' failed: {ex.Message}", node.Id);
+                    return false;
+                }
+            }
+
+            IDictionary<string, object> payload;
+            try
+            {
+                payload = ResolveInputs(instance, scope, node.Inputs, node.Id);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Payload of send node '{node.Id}' in instance '{instance.Id}' could not be resolved: " +
+                    $"{ex.OutlineException()}", LogSeverity.Error);
+                Fault(instance, $"Payload of send node '{node.Id}' failed: {ex.Message}", node.Id);
+                return false;
+            }
+
+            bool broadcast = node.WaitKind == WaitKind.Signal;
+            var pending = new PendingSignal(null, node.SignalName, payload, broadcast ? null : correlation,
+                broadcast ? PendingSignalKind.Broadcast : PendingSignalKind.Message);
+            if (!Defer(pending))
+            {
+                // Kein laufender Vortrieb (etwa ein Einzelschritt aus einem Test): dann sofort - das
+                // Zurueckstellen soll nichts verschlucken, wenn es niemanden gibt, der es spaeter tut.
+                DeliverNow(pending);
+            }
+
+            instance.Log("MessageSent", node.Id,
+                correlation == null ? node.SignalName : $"{node.SignalName} [{correlation}]");
+            return MoveAlongSingleOutgoing(instance, definition, token);
         }
 
         /// <summary>

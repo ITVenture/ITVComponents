@@ -189,6 +189,45 @@
                         </MudText>
                     }
                     break;
+                case SendMessageNode send:
+                    <MudTextField @bind-Value="send.SignalName" Label="Signal name" Margin="Margin.Dense" />
+                    <MudSelect T="WaitKind" @bind-Value="send.WaitKind" Label="Kind" Dense="true"
+                               Margin="Margin.Dense" Class="mt-2">
+                        <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
+                        <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Broadcast — reaches every waiting instance</MudSelectItem>
+                    </MudSelect>
+                    @if (send.WaitKind == WaitKind.Message)
+                    {
+                        <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
+                        <CScriptField @key="@("sendcorr-" + Node.Id)" @ref="exprField" Height="240"
+                                      Value="@send.CorrelationExpression"
+                                      ValueChanged="@(v => send.CorrelationExpression = v)"
+                                      Mode="send.CorrelationExpressionMode"
+                                      ModeChanged="@(m => send.CorrelationExpressionMode = m)" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Evaluated here, over the variables of this branch — and it has to produce the
+                            <b>same value</b> as the correlation of the wait point on the other side. Without
+                            it the message would degrade to a broadcast and wake every wait point with that
+                            name; the validator says so.
+                        </MudText>
+                    }
+
+                    <MudText Typo="Typo.caption" Class="mt-3">Payload</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        What the receiver gets. The values are put into the receiving branch's variables
+                        before it carries on.
+                    </MudText>
+                    <InputBindingList Bindings="send.Inputs" NamePlaceholder="receiver variable"
+                                      AddPlaceholder="new value" />
+
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                        Sent <b>after this branch is committed</b>, not in the middle of it — the receiver is
+                        driven on this very thread, and it must not run on a state of the sender that is not
+                        in the database yet. Consequence: <b>how many receivers were reached is not known
+                        while this node runs</b>, so it cannot go into a variable. „Nobody was waiting“ ends
+                        up in the system log. Branching on that needs an activity that delivers itself.
+                    </MudAlert>
+                    break;
                 case TimerNode timer:
                     <MudText Typo="Typo.caption" Class="mt-2">Due (CScript: DateTime or TimeSpan)</MudText>
                     <CScriptField @key="@("due-" + Node.Id)" @ref="exprField" Height="240"

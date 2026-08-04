@@ -69,7 +69,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         }
 
         [TestMethod]
-        public void TheTriggerIsARoundNodeInTheFlow()
+        public void TheTriggerIsAWaitingNodeInTheFlow_NotAnEndpoint()
         {
             var definition = new WorkflowDefinition
             {
@@ -85,10 +85,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
 
             LaidOutNode trigger = GraphLayout.Compute(definition).Nodes.Single(n => n.Id == "undo");
 
-            Assert.AreEqual(NodeShape.Ellipse, trigger.Shape,
-                "the trigger does not do the work itself - it is an event in the flow, not a step.");
-            Assert.IsNotNull(trigger.Symbol, "it carries its meaning in the symbol, not in a label inside.");
-            Assert.IsTrue(trigger.LabelBelow, "a 46px circle has no room for text inside it.");
+            // Sechseck wie die uebrigen Wartepunkte: der Zweig parkt hier, bis die Ruecknahme durch ist.
+            Assert.AreEqual(NodeShape.Hexagon, trigger.Shape);
+            Assert.AreNotEqual(NodeShape.Ellipse, trigger.Shape,
+                "a round node reads as start or end - but the trigger ends nothing, the flow carries on "
+                + "through its outgoing connection.");
+            StringAssert.StartsWith(trigger.Label, "↺");
         }
     }
 }

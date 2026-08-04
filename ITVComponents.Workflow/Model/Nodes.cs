@@ -372,6 +372,63 @@ namespace ITVComponents.Workflow.Model
     }
 
     /// <summary>
+    /// <b>Sendet</b> eine gerichtete Nachricht oder einen Rundruf - das Gegenstueck zum
+    /// <see cref="WaitNode"/>. Der Zweig laeuft unmittelbar weiter.
+    /// </summary>
+    /// <remarks>
+    /// Zugestellt wird <b>nach dem Commit</b> des sendenden Zweigs, nicht mitten in seiner Ausfuehrung.
+    /// Der Unterschied ist nicht theoretisch: der Empfaenger wird beim Zustellen selbst vorangetrieben,
+    /// und zwar auf dem Thread des Senders. Geschaehe das sofort, liefe er auf einem Stand des Senders,
+    /// den es in der Datenbank noch gar nicht gibt - und ein Fehler des Empfaengers schluege mitten im
+    /// Sender auf. Gepuffert wird deshalb bis zum naechsten Halt des sendenden Zweigs.
+    /// <para>
+    /// Daraus folgt eine Grenze, die man kennen muss: <b>wie viele Empfaenger erreicht wurden, steht
+    /// beim Ausfuehren des Knotens noch nicht fest</b> - zu dem Zeitpunkt ist noch nichts zugestellt.
+    /// Die Zahl kann deshalb nicht in eine Variable fliessen; sie landet im System-Log, und „niemand hat
+    /// gewartet" wird dort eigens gemeldet. Wer den Ausgang im Prozess VERZWEIGEN muss, braucht statt
+    /// dessen eine Aktivitaet, die selbst zustellt und das Ergebnis auswertet.
+    /// </para>
+    /// </remarks>
+    public class SendMessageNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.SendMessage;
+
+        /// <summary>Der Name des Signals, das gesendet wird.</summary>
+        public string SignalName { get; set; }
+
+        /// <summary>
+        /// Ob eine <b>gerichtete Nachricht</b> (Standard) oder ein <b>Rundruf</b> gesendet wird -
+        /// dieselbe Unterscheidung wie am Wartepunkt, nur von der anderen Seite.
+        /// </summary>
+        public WaitKind WaitKind { get; set; } = WaitKind.Message;
+
+        /// <summary>
+        /// Bei einer Nachricht: der CScript-Ausdruck, der den <b>Korrelationsschluessel</b> liefert -
+        /// ausgewertet ueber den Variablen-Stand dieses Zweigs. Er muss denselben Wert ergeben wie der
+        /// Ausdruck am Wartepunkt der Gegenseite.
+        /// </summary>
+        /// <remarks>
+        /// Ohne Schluessel gibt es keine gerichtete Zustellung - die Nachricht wuerde zum Rundruf und
+        /// jeden gleichnamigen Wartepunkt wecken. Der Validator meldet das als Fehler, statt es
+        /// stillschweigend geschehen zu lassen.
+        /// </remarks>
+        public string CorrelationExpression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="CorrelationExpression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes
+        /// Skript mit <c>return</c>.
+        /// </summary>
+        public ScriptMode CorrelationExpressionMode { get; set; } = ScriptMode.Expression;
+
+        /// <summary>
+        /// Die <b>Nutzdaten</b> der Nachricht: dieselben Bindungen wie an einer Aktivitaet. Was hier
+        /// entsteht, setzt der Empfaenger vor seinem Weiterlauf in seinen Variablen-Stand.
+        /// </summary>
+        public List<ActivityInputBinding> Inputs { get; set; } = new List<ActivityInputBinding>();
+    }
+
+    /// <summary>
     /// Eine <b>Aufgabe fuer einen Menschen</b>: der Zweig parkt hier, bis die Aufgabe in der Oberflaeche
     /// erledigt wird. Danach laeuft er ueber die einzige ausgehende Kante weiter.
     /// </summary>

@@ -26,6 +26,12 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Wartepunkt, der bis zu einem Zeitpunkt wartet.</summary>
         Timer,
 
+        /// <summary>
+        /// <b>Sendet</b> eine Nachricht oder einen Rundruf - das Gegenstueck zum Wartepunkt. Haelt den
+        /// Zweig nicht an.
+        /// </summary>
+        SendMessage,
+
         /// <summary>Exklusives Gateway (XOR): genau ein Ausgang wird gewaehlt.</summary>
         ExclusiveGateway,
 
@@ -98,6 +104,7 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(EndNode), "end")]
     [JsonDerivedType(typeof(AutomatedActivityNode), "activity")]
     [JsonDerivedType(typeof(WaitNode), "wait")]
+    [JsonDerivedType(typeof(SendMessageNode), "send")]
     [JsonDerivedType(typeof(UserActivityNode), "usertask")]
     [JsonDerivedType(typeof(TimerNode), "timer")]
     [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]

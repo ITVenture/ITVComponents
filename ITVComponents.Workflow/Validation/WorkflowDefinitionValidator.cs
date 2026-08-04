@@ -186,6 +186,24 @@ namespace ITVComponents.Workflow.Validation
                     case WaitNode w when string.IsNullOrWhiteSpace(w.SignalName):
                         issues.Add(Error(n.Id, $"Wait node '{Label(n)}' has no signal name."));
                         break;
+                    case SendMessageNode sm when string.IsNullOrWhiteSpace(sm.SignalName):
+                        issues.Add(Error(n.Id, $"Send node '{Label(n)}' has no signal name."));
+                        break;
+                    case SendMessageNode sm2 when sm2.WaitKind == WaitKind.Message
+                                                  && string.IsNullOrWhiteSpace(sm2.CorrelationExpression):
+                        // Ohne Schluessel gibt es keine gerichtete Zustellung - die Nachricht wuerde zum
+                        // Rundruf und jeden gleichnamigen Wartepunkt wecken. Als Fehler und nicht als
+                        // Warnung: im Bild sieht man dem Knoten das nicht an.
+                        issues.Add(Error(n.Id,
+                            $"Send node '{Label(n)}' sends a message but has no correlation - it would " +
+                            "degrade to a broadcast and wake every wait point with that name. Give it a " +
+                            "correlation, or switch it to broadcast to say so."));
+                        break;
+                    case SendMessageNode when outs > 1:
+                        issues.Add(Error(n.Id,
+                            $"Send node '{Label(n)}' has {outs} outgoing connections - it needs exactly " +
+                            "one. Sending does not split the flow."));
+                        break;
                     case TimerNode t when string.IsNullOrWhiteSpace(t.DueExpression):
                         issues.Add(Error(n.Id, $"Timer node '{Label(n)}' has no due expression."));
                         break;

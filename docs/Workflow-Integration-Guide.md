@@ -1820,3 +1820,59 @@ Migration **`DefinitionKey`** je Provider-Projekt. **Sie verwirft den Instanz-Be
 (`WorkflowInstances`, `Tokens`, `HistoryEntries`, `BranchLocks`) — die Verweis-Spalte ist ein
 Fremdschlüssel und darf nicht null sein, und für bestehende Zeilen gäbe es keinen Wert, den man erfinden
 könnte. Die Definitionen selbst bleiben erhalten.
+
+## 23. Nachrichten senden — der `SendMessageNode`
+
+Das Gegenstück zum Wartepunkt. Der Wartepunkt empfängt, dieser Knoten sendet — mit derselben
+Unterscheidung: **Nachricht** (gerichtet, über einen Korrelationsschlüssel) oder **Rundruf** (alle
+gleichnamigen `Signal`-Wartepunkte).
+
+```
+Bestellprozess:   … → ⏳ CustomerPaid [orderId_customerId] → verbuchen → …
+Zahlungsprozess:  … → 👤 Zuweisung durch Sachbearbeiter → 📨 CustomerPaid [orderId_customerId] → Ende
+```
+
+Der Korrelationsausdruck wird **beim Senden** über den Variablen-Stand des sendenden Zweigs ausgewertet
+— genau wie der des Wartepunkts beim Parken, und aus demselben Grund: nur dort ist der Wert eindeutig.
+Beide Seiten müssen denselben Wert ergeben. Die **Nutzdaten** sind gewöhnliche Eingabe-Bindungen; sie
+landen im Variablen-Stack des empfangenden Zweigs, bevor er weiterläuft.
+
+### Zugestellt wird nach dem Commit
+
+Das ist die wichtigste Eigenschaft, und sie gilt **auch für Zustellungen aus einer Aktivität heraus**
+(`DeliverSignal`, `BroadcastSignal`, `SignalWorkflow`). Läuft gerade ein Vortrieb, wird gepuffert; die
+Nachrichten gehen raus, wenn der sendende Zweig seinen Halt erreicht hat.
+
+Der Grund: der Empfänger wird beim Zustellen **selbst vorangetrieben, auf dem Thread des Senders**. Sofort
+zugestellt liefe er auf einem Stand des Senders, den es in der Datenbank noch gar nicht gibt — und ein
+Fehler des Empfängers schlüge mitten in der Aktivität des Senders auf.
+
+Ein Aufruf von **aussen** (Controller, Handler, Job) läuft unverändert sofort — dort gibt es keinen
+laufenden Vortrieb, auf dessen Ende man warten könnte.
+
+Was ein Empfänger seinerseits sendet, landet in derselben Warteschlange und wird in derselben Runde
+abgearbeitet — nicht rekursiv aufgestapelt. Eine gegenseitige Benachrichtigung (A weckt B, B weckt A)
+läuft deshalb in eine **Obergrenze** und wird als Modellfehler gemeldet, statt den Stack zu sprengen.
+
+### Die Grenze, die daraus folgt
+
+**Wie viele Empfänger erreicht wurden, steht beim Ausführen des Knotens noch nicht fest** — zu dem
+Zeitpunkt ist noch nichts zugestellt. Die Zahl kann deshalb nicht in eine Variable fliessen und im Prozess
+nicht verzweigt werden. „Niemand hat gewartet" wird ins System-Log gemeldet.
+
+Wer darauf verzweigen **muss**, nimmt weiterhin eine Aktivität, die selbst zustellt und den Rückgabewert
+auswertet — dann allerdings mit der Verschränkung, die der Knoten gerade vermeidet.
+
+### Regeln
+
+- Signalname ist Pflicht.
+- Eine **Nachricht ohne Korrelation** ist ein Fehler: sie würde zum Rundruf und jeden gleichnamigen
+  Wartepunkt wecken. Wer alle meint, stellt den Knoten auf Rundruf — dann steht es im Modell.
+- Genau ein Ausgang. Senden verzweigt den Fluss nicht.
+- Ein Fehler im Korrelationsausdruck **faultet** die Instanz. Eine Nachricht, deren Schlüssel nicht
+  berechenbar ist, käme nirgends an — und das fiele erst auf, wenn die Gegenseite ausbleibt.
+
+Empfänger und Sender müssen im selben **Mandanten** und in derselben **Workflow-Umgebung** (Store)
+liegen; die Abfrage nach Wartepunkten läuft im Store des Senders.
+
+**Kein Schema-Eingriff** — es wird nichts persistiert.

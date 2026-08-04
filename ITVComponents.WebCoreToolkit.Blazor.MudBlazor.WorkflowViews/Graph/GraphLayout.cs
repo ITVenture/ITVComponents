@@ -123,7 +123,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             // Ausloeser, der ihn anstoesst. Dass der eine am Schritt klebt und der andere im Fluss
             // steht, sagt schon die Position - dasselbe Zeichen macht den Zusammenhang lesbar.
             NodeKind.Compensation => ("↺", 17),
-            NodeKind.Compensate => ("↺", 20),
             // Das Kreuz im Kreis: dieselbe Grundform wie das Ende, aber unuebersehbar anders - der
             // Unterschied zwischen "dieser Zweig ist fertig" und "ALLES ist vorbei".
             NodeKind.TerminateEnd => ("✕", 20),
@@ -988,9 +987,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.Compensation:
                     // Wie der Fristen-Timer: er klebt am Rand seines Schritts.
                     return (44, 32);
-                case NodeKind.Compensate:
-                    // Ein Ereignis im Fluss, kein Schritt: rund und klein wie das Ende.
-                    return (46, 46);
                 case NodeKind.BoundaryTimer:
                     // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll - aber
                     // breiter als hoch, damit die Grundform ein kurzes Sechseck bleibt (bei gleicher
@@ -1042,10 +1038,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.Timer:
                 case NodeKind.BoundaryTimer:
                 case NodeKind.Compensation:
-                    return NodeShape.Hexagon;
+                // Sechseck wie die uebrigen Wartepunkte, und aus demselben Grund: der Zweig PARKT hier,
+                // bis die Ruecknahme durch ist, und laeuft danach weiter. Bewusst KEIN Kreis - der
+                // gehoert Start und Ende, und ein runder Knoten mitten im Fluss laese sich als
+                // Endpunkt lesen. Der Ausloeser beendet aber nichts.
                 case NodeKind.Compensate:
-                    // Rund wie Start und Ende: der Ausloeser TUT nichts selbst, er stoesst an.
-                    return NodeShape.Ellipse;
+                    return NodeShape.Hexagon;
                 case NodeKind.SidePathEnd:
                     // Wie das Ende - aber der Nebenpfad-Endpunkt beendet nur seinen Pfad, nicht die
                     // Instanz. Die Beschriftung unter dem Kreis macht den Unterschied lesbar.
@@ -1105,6 +1103,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 NodeKind.CallWorkflow => "🔗 " + text,
                 NodeKind.Timer => "🕐 " + text,
                 NodeKind.Wait => "⏳ " + text,
+                NodeKind.Compensate => "↺ " + text,
+                // Briefumschlag gegen Sanduhr: senden und warten sind die beiden Seiten derselben
+                // Sache, und im Bild muss sofort klar sein, welche man vor sich hat.
+                NodeKind.SendMessage => "📨 " + text,
                 // Der Abschnitt teilt die abgerundete Form mit Aktivitaet und Aufruf - das Rahmen-Zeichen
                 // sagt, dass hier weitere Knoten drinstecken.
                 NodeKind.SubProcess => "▣ " + text,
