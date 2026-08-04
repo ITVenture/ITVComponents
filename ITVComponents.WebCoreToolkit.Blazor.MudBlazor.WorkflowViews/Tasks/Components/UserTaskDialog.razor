@@ -36,11 +36,12 @@
             }
 
             <CascadingValue Value="taskContext" IsFixed="true">
+                @* Eigene oder generische Maske - fuer den Mantel dasselbe: sie zeigt an und liefert auf
+                   Zuruf ihre Ausgabewerte (IUserTaskView). Die Knoepfe stehen in beiden Faellen unten in
+                   der Fusszeile, nicht im scrollenden Inhalt. *@
                 @if (customView is not null)
                 {
-                    @* Eigene Maske: sie bringt ihre eigenen Aktionen mit (freigeben/ablehnen/…) und ruft
-                       CompleteAsync des Kontexts - deshalb blendet der Mantel seinen Erledigen-Knopf aus. *@
-                    <DynamicComponent Type="customView" />
+                    <DynamicComponent Type="customView" @ref="dynamicView" />
                 }
                 else
                 {
@@ -52,10 +53,10 @@
     <DialogActions>
         <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
         <MudSpacer />
-        @if (taskContext is not null && customView is null)
+        @if (taskContext is not null)
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@busy"
-                       OnClick="CompleteGenericAsync">@L["Complete"]</MudButton>
+                       OnClick="CompleteFromViewAsync">@L["Complete"]</MudButton>
         }
         <MudButton OnClick="CloseAsync">@L["Close"]</MudButton>
     </DialogActions>
@@ -78,6 +79,7 @@
 
     private WorkflowTaskContext? taskContext;
     private GenericTaskForm? form;
+    private DynamicComponent? dynamicView;
     private Type? customView;
     private ClaimsPrincipal? currentUser;
     private string? claimWarning;
@@ -138,15 +140,40 @@
     private string? Translate(string value)
         => value.Translate(CultureInfo.CurrentUICulture?.Name);
 
-    private async Task CompleteGenericAsync()
+    /// <summary>
+    /// Der Erledigen-Knopf der Fusszeile: er fragt die Maske nach ihren Ausgabewerten und schliesst
+    /// damit ab. Fuer die generische und eine eigene Maske derselbe Weg - der Mantel weiss nicht, was
+    /// im Inhalt steht, und muss es auch nicht.
+    /// </summary>
+    private async Task CompleteFromViewAsync()
     {
-        if (form is null || !form.TryGetResult(out Dictionary<string, object> result))
+        IUserTaskView? view = customView is null ? form : dynamicView?.Instance as IUserTaskView;
+        if (view is null)
         {
-            // Die Maske hat die fehlenden Pflichtfelder selbst markiert.
+            // Kann ueber die Registrierung nicht passieren (RegisterTaskView verlangt den Vertrag
+            // schon beim Uebersetzen) - aber still danebengreifen darf es trotzdem nicht.
+            LogEnvironment.LogEvent(
+                $"UserTaskDialog: the view for task '{taskContext?.TaskKey}' (instance " +
+                $"'{InstanceId}', token '{TokenId}') does not implement IUserTaskView - the task cannot " +
+                "be completed from the dialog.", LogSeverity.Error);
+            Snackbar.Add(L["ViewCannotComplete"], Severity.Error);
             return;
         }
 
-        await CompleteAsync(result);
+        UserTaskViewResult result = await view.ResolveActivityAsync();
+        if (!result.CanComplete)
+        {
+            // Ohne Meldung hat die Maske die fehlenden Stellen selbst markiert - dann waere eine
+            // Einblendung nur Laerm.
+            if (!string.IsNullOrEmpty(result.Message))
+            {
+                Snackbar.Add(result.Message, Severity.Warning);
+            }
+
+            return;
+        }
+
+        await CompleteAsync(result.Outputs);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks;
 using Microsoft.AspNetCore.Components;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Configuration
@@ -27,10 +28,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Conf
         /// Registriert eine Komponente fuer einen Schluessel (den <c>ViewKey</c> oder den <c>TaskKey</c>
         /// des Knotens).
         /// </summary>
-        /// <typeparam name="T">die Blazor-Komponente; sie liest ihren Zustand ueber
-        /// <c>[CascadingParameter] WorkflowTaskContext</c></typeparam>
+        /// <typeparam name="T">
+        /// die Blazor-Komponente. Sie liest ihren Zustand ueber
+        /// <c>[CascadingParameter] WorkflowTaskContext</c> und erfuellt <see cref="IUserTaskView"/> -
+        /// letzteres wird schon beim UEBERSETZEN verlangt und nicht erst beim Oeffnen des Dialogs.
+        /// Ohne den Vertrag haette der Mantel niemanden, den er beim Druck auf „Erledigen" fragen
+        /// koennte, und der Knopf waere ein stiller Nicht-Effekt.
+        /// </typeparam>
         /// <param name="key">der Schluessel aus der Definition</param>
-        public void RegisterTaskView<T>(string key) where T : IComponent
+        public void RegisterTaskView<T>(string key) where T : IComponent, IUserTaskView
         {
             if (string.IsNullOrWhiteSpace(key))
             {

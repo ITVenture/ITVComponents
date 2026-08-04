@@ -145,6 +145,9 @@
   <data name="CompletionFaulted" xml:space="preserve">
     <value>Il workflow ha riscontrato un errore nel proseguire. L&apos;attività è completata, ma il processo richiede attenzione.</value>
   </data>
+  <data name="ViewCannotComplete" xml:space="preserve">
+    <value>Questa maschera non puo completare l'attivita - non implementa il contratto richiesto. Segnalalo alla tua amministrazione.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Questa attività non esiste più.</value>
   </data>

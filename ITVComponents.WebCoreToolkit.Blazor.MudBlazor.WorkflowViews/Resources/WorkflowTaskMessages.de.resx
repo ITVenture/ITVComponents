@@ -145,6 +145,9 @@
   <data name="CompletionFaulted" xml:space="preserve">
     <value>Der Workflow ist beim Weiterlaufen auf einen Fehler gelaufen. Die Aufgabe ist erledigt, der Prozess braucht aber Aufmerksamkeit.</value>
   </data>
+  <data name="ViewCannotComplete" xml:space="preserve">
+    <value>Diese Aufgabenmaske kann die Aufgabe nicht abschliessen - sie erfuellt den erforderlichen Vertrag nicht. Bitte melden Sie das Ihrer Administration.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Diese Aufgabe gibt es nicht mehr.</value>
   </data>

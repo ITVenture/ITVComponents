@@ -145,6 +145,9 @@
   <data name="CompletionFaulted" xml:space="preserve">
     <value>Le workflow a rencontré une erreur en continuant. La tâche est terminée, mais le processus nécessite une attention.</value>
   </data>
+  <data name="ViewCannotComplete" xml:space="preserve">
+    <value>Ce formulaire de tache ne peut pas terminer la tache - il n'implemente pas le contrat requis. Merci de le signaler a votre administration.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Cette tâche n&apos;existe plus.</value>
   </data>

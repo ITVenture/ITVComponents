@@ -1,3 +1,4 @@
+@implements IUserTaskView
 @inject IStringLocalizer<WorkflowTaskMessages> L
 
 @* Die Maske fuer den einfachen Fall: aus der Feld-Deklaration des Knotens gebaut, ohne eine Zeile
@@ -36,12 +37,25 @@ else
     private UserTaskFieldsForm? fields;
 
     /// <summary>
-    /// Sammelt das Ergebnis ein und prueft die Pflichtfelder. Liefert false samt Meldung, wenn etwas
-    /// fehlt - der Mantel schliesst dann nicht ab.
+    /// Sammelt das Ergebnis ein und prueft die Pflichtfelder. Fehlt etwas, hat die Feld-Maske es bereits
+    /// an Ort und Stelle markiert - dann braucht es keine zusaetzliche Meldung.
     /// </summary>
-    public bool TryGetResult(out Dictionary<string, object> result)
+    /// <remarks>
+    /// Die generische Maske erfuellt denselben Vertrag wie eine eigene (<see cref="IUserTaskView"/>).
+    /// Genau darum gibt es im Mantel nur EINEN Abschlussweg, und die Fusszeile sieht ueberall gleich aus.
+    /// </remarks>
+    public Task<UserTaskViewResult> ResolveActivityAsync()
     {
-        result = new Dictionary<string, object>(StringComparer.Ordinal);
-        return TaskContext is not null && fields is not null && fields.TryGetResult(out result);
+        if (TaskContext is null)
+        {
+            return Task.FromResult(UserTaskViewResult.Incomplete(L["TaskGone"]));
+        }
+
+        if (fields is null || !fields.TryGetResult(out Dictionary<string, object> result))
+        {
+            return Task.FromResult(UserTaskViewResult.Incomplete());
+        }
+
+        return Task.FromResult(UserTaskViewResult.Complete(result));
     }
 }

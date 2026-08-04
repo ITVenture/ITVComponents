@@ -647,15 +647,66 @@ services.ConfigureWorkflowTaskViews(cfg => cfg.RegisterTaskView<ApproveInvoice>(
 ```
 
 Die Komponente liest ihren Zustand über `[CascadingParameter] WorkflowTaskContext TaskContext`
-(Payload, Feld-Deklaration, übersetzte Texte) und schließt mit `TaskContext.CompleteAsync(result)` ab.
-Bewusst per Cascading und nicht über ein Parameter-Dictionary einer `DynamicComponent`: dessen
-Parameternamen werden erst zur Laufzeit geprüft, und dieselbe Komponente läuft so unverändert im
-Registry-Weg **und** direkt auf einer eigenen Seite.
+(Payload, Feld-Deklaration, übersetzte Texte). Bewusst per Cascading und nicht über ein
+Parameter-Dictionary einer `DynamicComponent`: dessen Parameternamen werden erst zur Laufzeit geprüft,
+und dieselbe Komponente läuft so unverändert im Registry-Weg **und** direkt auf einer eigenen Seite.
 
-Der Mantel (`UserTaskDialog`) gehört bewusst *einmal* der Bibliothek: der teure Teil ist nicht das
-Anzeigen, sondern der Abschluss — Ergebnis-Mapping, weiche Sperre, Doppel-Klick, Versionskonflikt und
-„war schon erledigt". Der Erledigen-Knopf des Mantels erscheint nur bei der generischen Maske; eine
-eigene Komponente bringt ihre eigenen Aktionen mit (freigeben/ablehnen/…).
+#### Der Vertrag: `IUserTaskView`
+
+Eine registrierte Maske **muss** `IUserTaskView` erfüllen — verlangt schon beim Übersetzen
+(`RegisterTaskView<T>() where T : IComponent, IUserTaskView`), nicht erst beim Öffnen des Dialogs:
+
+```csharp
+public interface IUserTaskView
+{
+    Task<UserTaskViewResult> ResolveActivityAsync();
+}
+```
+
+Mehr ist nicht zu tun. Die Maske **zeigt an und liefert auf Zuruf ihre Ausgabewerte**:
+
+```csharp
+public Task<UserTaskViewResult> ResolveActivityAsync()
+{
+    if (string.IsNullOrWhiteSpace(comment) && rejected)
+    {
+        return Task.FromResult(UserTaskViewResult.Incomplete("Bitte begründen."));
+    }
+
+    return Task.FromResult(UserTaskViewResult.Complete(new Dictionary<string, object>
+    {
+        { "approved", !rejected },
+        { "comment", comment }
+    }));
+}
+```
+
+Wohin diese Werte wandern, entscheidet das `Outputs`-Mapping des Knotens — die Maske muss die Variablen
+des Prozesses nicht kennen. `Incomplete()` **ohne** Meldung heisst „die Maske hat die fehlenden Stellen
+selbst markiert"; eine zusätzliche Einblendung wäre dann nur Lärm. Und `Complete(null)` ist ein völlig
+gültiges Ergebnis — eine Aufgabe, die nur bestätigt wird, hat keine Ausgabewerte. Genau deshalb ist die
+Antwort ein eigener Typ und kein `Dictionary?`, bei dem `null` beides bedeuten müsste.
+
+#### Der Rahmen gehört dem Mantel — für jede Maske gleich
+
+`UserTaskDialog` stellt Titelzeile und Fusszeile mit **„Erledigen"/„Schliessen"**, und zwar unabhängig
+davon, ob innen die generische oder eine eigene Maske steht. „Erledigen" ruft `ResolveActivityAsync()`
+und schliesst mit dem Ergebnis ab. Die generische Maske erfüllt denselben Vertrag — es gibt im Mantel
+also nur **einen** Abschlussweg.
+
+Das ist keine Kosmetik: die Fusszeile ist **angeheftet**, der Inhalt scrollt darunter (siehe
+`itv-mudblazor.css`). Eine Maske, die ihre eigenen Knöpfe mitbrächte, legte sie damit *in* den
+scrollenden Bereich — auf einem schmalen Gerät unter Umständen ausserhalb des Bildes, und der Benutzer
+könnte die Aufgabe nicht abschliessen. Genau dieser Fall war die MLM-Meldung zur Aufgabenliste.
+
+Der teure Teil war ohnehin nie das Anzeigen, sondern der Abschluss: Ergebnis-Mapping, weiche Sperre,
+Doppel-Klick, Versionskonflikt und „war schon erledigt". Der liegt einmal in der Bibliothek.
+
+> **BREAKING (ab PRE157).** Masken, die bisher ihre eigenen Aktionen mitbrachten und
+> `TaskContext.CompleteAsync(result)` selbst riefen, übersetzen nicht mehr: `RegisterTaskView<T>`
+> verlangt jetzt `IUserTaskView`. Die Umstellung ist mechanisch — die eigenen Knöpfe entfallen, ihr
+> Rumpf wird zu `ResolveActivityAsync`. `TaskContext.CompleteAsync` bleibt für den Sonderfall bestehen,
+> dass eine Maske von sich aus abschliessen will (z.B. nach einer eigenen Rückfrage).
 
 ### Arbeitsliste, Rechte und Sperre
 

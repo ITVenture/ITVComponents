@@ -145,6 +145,9 @@
   <data name="CompletionFaulted" xml:space="preserve">
     <value>The workflow ran into an error while continuing. The task is done, but the process needs attention.</value>
   </data>
+  <data name="ViewCannotComplete" xml:space="preserve">
+    <value>This task form cannot complete the task - it does not implement the required contract. Please report this to your administrator.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>This task no longer exists.</value>
   </data>
