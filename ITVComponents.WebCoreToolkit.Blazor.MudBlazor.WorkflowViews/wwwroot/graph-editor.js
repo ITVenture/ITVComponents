@@ -425,11 +425,21 @@ window.itvWfEditor = window.itvWfEditor || (function () {
     }
 
     // --- Andocken per Ziehen ------------------------------------------------------------------------
-    // Ein Fristen-Timer haengt an einem Schritt. Man kann ihn dorthin ZIEHEN - aus der Toolbox oder von
-    // seinem bisherigen Schritt weg. Welche Schritte in Frage kommen, entscheidet die .NET-Seite
-    // (BoundaryTimerNode.CanHost) und markiert sie mit data-wf-dock-target; hier steht nur die Geste.
+    // Ein Fristen-Timer und ein Rueckabwicklungs-Pfad haengen an einem Schritt. Man kann sie dorthin
+    // ZIEHEN - aus der Toolbox oder von ihrem bisherigen Schritt weg. WELCHE Schritte in Frage kommen,
+    // entscheidet die .NET-Seite (BoundaryTimerNode.CanHost bzw. CompensationNode.CanCompensate) und
+    // schreibt die zulaessigen Arten in data-wf-dock-target; hier steht nur die Geste.
+    //
+    // Die beiden Mengen sind NICHT dieselbe: an einer schlichten Aktivitaet kann kein Timer haengen
+    // (sie parkt nie), ein Rueckabwicklungs-Pfad sehr wohl. Deshalb traegt das Attribut die Arten und
+    // ist nicht bloss gesetzt.
 
-    const TIMER_KIND = 'BoundaryTimer';
+    const DOCK_KINDS = ['BoundaryTimer', 'Compensation'];
+
+    function acceptsDock(g, kind) {
+        const accepted = g.getAttribute('data-wf-dock-target') || '';
+        return accepted.split(' ').indexOf(kind) >= 0;
+    }
 
     // Angedockt wird, was die FORM des Timers beruehrt - nicht, worauf die Zeigerspitze zeigt. Sonst
     // haenge das Ergebnis daran, WO man den Timer gepackt hat: am linken Rand angefasst zieht man ihn
@@ -446,7 +456,7 @@ window.itvWfEditor = window.itvWfEditor || (function () {
     // Ueberdeckung. Das Rechteck wird um DOCK_TOUCH aufgeblasen, damit "beruehrt" auch dann gilt, wenn
     // die Kanten sich nur fast treffen. Ein Punkt (w/h = 0) wird so zu einem kleinen Suchfenster - damit
     // taugt dieselbe Funktion auch fuer den Zug aus der Toolbox, wo es noch keine Form gibt.
-    function dockTargetForBox(svg, box) {
+    function dockTargetForBox(svg, box, kind) {
         const probe = {
             x: box.x - DOCK_TOUCH,
             y: box.y - DOCK_TOUCH,
@@ -457,6 +467,10 @@ window.itvWfEditor = window.itvWfEditor || (function () {
         let best = null;
         let bestArea = 0;
         svg.querySelectorAll('[data-wf-node][data-wf-dock-target]').forEach(function (g) {
+            if (!acceptsDock(g, kind)) {
+                return;
+            }
+
             const area = overlapArea(probe, boxOfGroup(g));
             if (area > bestArea) {
                 bestArea = area;
@@ -599,7 +613,8 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                         // Ein Fristen-Timer wird nicht bloss verschoben: er wird auf einen Schritt
                         // GEZOGEN. Deshalb wird beim Ziehen der Schritt darunter hervorgehoben und
                         // beim Loslassen ein anderer Rueckweg genommen.
-                        isTimer: nodeEl.getAttribute('data-wf-kind') === TIMER_KIND,
+                        attachKind: DOCK_KINDS.indexOf(nodeEl.getAttribute('data-wf-kind')) >= 0
+                            ? nodeEl.getAttribute('data-wf-kind') : null,
                         offsetX: pt.x - p.x,
                         offsetY: pt.y - p.y,
                         startClientX: e.clientX,
@@ -648,8 +663,9 @@ window.itvWfEditor = window.itvWfEditor || (function () {
                     // beim Ziehen sichtbar von seinem Schritt.
                     moveDockedTimers(svgEl, drag.nodeId, drag.lastX, drag.lastY);
                     redrawEdges(svgEl, drag.nodeId);
-                    if (drag.isTimer) {
-                        showDockHint(svgEl, drag.moved ? dockTargetForBox(svgEl, draggedBox(drag)) : null);
+                    if (drag.attachKind) {
+                        showDockHint(svgEl, drag.moved
+                            ? dockTargetForBox(svgEl, draggedBox(drag), drag.attachKind) : null);
                     }
                 } else if (drag.mode === 'edge') {
                     drag.moved = true;
@@ -680,19 +696,19 @@ window.itvWfEditor = window.itvWfEditor || (function () {
 
                 if (mode === 'node') {
                     if (!d.moved) {
-                        if (d.isTimer) {
+                        if (d.attachKind) {
                             clearDockHint(svgEl);
                         }
 
                         clickOrDouble(d.nodeId, 'OnSelectNode', 'OnEditNode');
-                    } else if (d.isTimer) {
+                    } else if (d.attachKind) {
                         // Auf einem geeigneten Schritt losgelassen = andocken; sonst entscheidet die
-                        // .NET-Seite, ob der Timer frei liegen bleibt oder an seinen Schritt zurueckspringt.
+                        // .NET-Seite, ob der Knoten frei liegen bleibt oder an seinen Schritt zurueckspringt.
                         // Der Test steht VOR dem Loeschen des Hinweises: angedockt wird genau der Schritt,
                         // den der Rahmen die ganze Zeit angezeigt hat.
-                        const host = dockTargetForBox(svgEl, draggedBox(d));
+                        const host = dockTargetForBox(svgEl, draggedBox(d), d.attachKind);
                         clearDockHint(svgEl);
-                        dotNet.invokeMethodAsync('OnBoundaryTimerDropped', d.nodeId,
+                        dotNet.invokeMethodAsync('OnAttachedNodeDropped', d.nodeId,
                             host ? host.getAttribute('data-node-id') : null, d.lastX, d.lastY)
                             .catch(function () { });
                     } else {
@@ -766,12 +782,12 @@ window.itvWfEditor = window.itvWfEditor || (function () {
             // kuenftigen Knotens. Als Punkt-Rechteck durch dieselbe Pruefung geschickt, damit Vorschau
             // und Ablegen nach genau einer Regel entscheiden.
             function dockTargetForTool(kind, e) {
-                if (kind !== TIMER_KIND) {
+                if (DOCK_KINDS.indexOf(kind) < 0) {
                     return null;
                 }
 
                 const pt = toSvgPoint(svgEl, e.clientX, e.clientY);
-                return dockTargetForBox(svgEl, { x: pt.x, y: pt.y, w: 0, h: 0 });
+                return dockTargetForBox(svgEl, { x: pt.x, y: pt.y, w: 0, h: 0 }, kind);
             }
 
             function onDragOver(e) {

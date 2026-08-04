@@ -116,6 +116,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             // muss auf 50px vor allem SCHNELL lesbar sein.
             NodeKind.EventGateway => ("⚡", 18),
             NodeKind.BoundaryTimer => ("🔔", 15),
+            // Der Ruecklauf-Pfeil fuer beides: der Pfad, der einen Schritt zurueknimmt, und der
+            // Ausloeser, der ihn anstoesst. Dass der eine am Schritt klebt und der andere im Fluss
+            // steht, sagt schon die Position - dasselbe Zeichen macht den Zusammenhang lesbar.
+            NodeKind.Compensation => ("↺", 17),
+            NodeKind.Compensate => ("↺", 20),
             // Das Kreuz im Kreis: dieselbe Grundform wie das Ende, aber unuebersehbar anders - der
             // Unterschied zwischen "dieser Zweig ist fertig" und "ALLES ist vorbei".
             NodeKind.TerminateEnd => ("✕", 20),
@@ -128,7 +133,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// breiter als der Knoten selbst.
         /// </summary>
         public bool LabelBelow => Shape is NodeShape.Ellipse or NodeShape.Diamond
-                                  || Kind == NodeKind.BoundaryTimer;
+                                  || Kind is NodeKind.BoundaryTimer or NodeKind.Compensation;
     }
 
     /// <summary>
@@ -927,6 +932,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 laid.X = host.X + host.Width - laid.Width - 12 - (index * step);
                 laid.Y = host.Y + host.Height - (laid.Height / 2);
             }
+
+            // Der Rueckabwicklungs-Pfad haengt genauso an seinem Schritt - aber an der LINKEN unteren
+            // Ecke. Sonst saesse er auf demselben Platz wie ein Fristen-Timer, und die beiden Aussagen
+            // ("wenn die Frist reisst" gegen "wenn zurueckgenommen wird") waeren im Bild nicht mehr
+            // auseinanderzuhalten.
+            var perCompensated = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (CompensationNode handler in definition.Nodes.OfType<CompensationNode>())
+            {
+                if (handler.Id == null || handler.AttachedToNodeId == null
+                    || !byId.TryGetValue(handler.Id, out LaidOutNode? laid)
+                    || !byId.TryGetValue(handler.AttachedToNodeId, out LaidOutNode? host))
+                {
+                    continue;
+                }
+
+                int index = perCompensated.TryGetValue(handler.AttachedToNodeId, out int n) ? n : 0;
+                perCompensated[handler.AttachedToNodeId] = index + 1;
+
+                laid.X = host.X + 12 + (index * (laid.Width + 6));
+                laid.Y = host.Y + host.Height - (laid.Height / 2);
+            }
         }
 
         /// <summary>
@@ -955,6 +981,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.SidePathEnd:
                     // Etwas kleiner als das Ende: ein Nebenpfad-Abschluss ist die leisere Aussage.
                     return (38, 38);
+                case NodeKind.Compensation:
+                    // Wie der Fristen-Timer: er klebt am Rand seines Schritts.
+                    return (44, 32);
+                case NodeKind.Compensate:
+                    // Ein Ereignis im Fluss, kein Schritt: rund und klein wie das Ende.
+                    return (46, 46);
                 case NodeKind.BoundaryTimer:
                     // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll - aber
                     // breiter als hoch, damit die Grundform ein kurzes Sechseck bleibt (bei gleicher
@@ -1004,7 +1036,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.Wait:
                 case NodeKind.Timer:
                 case NodeKind.BoundaryTimer:
+                case NodeKind.Compensation:
                     return NodeShape.Hexagon;
+                case NodeKind.Compensate:
+                    // Rund wie Start und Ende: der Ausloeser TUT nichts selbst, er stoesst an.
+                    return NodeShape.Ellipse;
                 case NodeKind.SidePathEnd:
                     // Wie das Ende - aber der Nebenpfad-Endpunkt beendet nur seinen Pfad, nicht die
                     // Instanz. Die Beschriftung unter dem Kreis macht den Unterschied lesbar.

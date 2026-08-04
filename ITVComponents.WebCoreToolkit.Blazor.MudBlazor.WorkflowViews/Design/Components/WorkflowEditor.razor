@@ -240,6 +240,8 @@
         (NodeKind.ParallelGateway, "AND", "fa-solid fa-arrows-split-up-and-left", "Parallel gateway (AND) — splits into all branches, or joins them back together."),
         (NodeKind.EventGateway, "Event", "fa-solid fa-bolt", "Event gateway — waits for several events at once; the first one to arrive wins and the others are dropped. Every outgoing path must lead to a wait point, a timer or a user task."),
         (NodeKind.SubProcess, "Section", "fa-solid fa-object-group", "Sub-process — an embedded section: its own nodes (assign them in their properties), its own variable scope, but NOT a separate instance. A deadline can hang on the whole section."),
+        (NodeKind.Compensation, "Undo path", "fa-solid fa-rotate-left", "Undo path — hangs on a completed step and holds the steps that take it back (cancel the payment, release the reservation). It only runs when an undo trigger asks for it, with the values the step left behind. Ends in a side-path end."),
+        (NodeKind.Compensate, "Undo trigger", "fa-solid fa-clock-rotate-left", "Undo trigger — takes back everything already done, newest first, and waits until it is through. Without a target it undoes its own level; with one it undoes exactly that step."),
         (NodeKind.SidePathEnd, "Side end", "fa-solid fa-circle-stop", "Side-path end — closes an escalation path. Consumes the token WITHOUT completing the workflow."),
         (NodeKind.TerminateEnd, "Terminate", "fa-solid fa-circle-xmark", "Terminate — ends the WHOLE instance at once: every other branch is dropped and running subworkflows are cancelled. Carries its own result, so the outcome says why."),
         (NodeKind.End, "End", "fa-solid fa-flag-checkered", "End — completes the instance. Exactly one per definition; defines the result.")
@@ -345,7 +347,7 @@
     /// Ein angedockter Fristen-Timer wird hier bewusst NICHT uebernommen: seine Lage ist abgeleitet (er
     /// klebt am Rand seines Schritts, <c>GraphLayout.DockBoundaryTimers</c>) und wuerde beim naechsten
     /// Render ohnehin wieder ueberschrieben. Die JS-Seite meldet sein Ablegen ueber
-    /// <see cref="OnBoundaryTimerDropped"/> - dies ist der zweite Riegel gegen einen veralteten Client,
+    /// <see cref="OnAttachedNodeDropped"/> - dies ist der zweite Riegel gegen einen veralteten Client,
     /// der sonst still eine tote Koordinate ins Modell schriebe.
     /// </remarks>
     [JSInvokable]
@@ -357,16 +359,15 @@
             return;
         }
 
-        // Nur ein TATSAECHLICH angedockter Timer wird abgewiesen. Ein eben abgelegter Timer hat noch
-        // keinen Schritt - er muss frei platzierbar bleiben, bis einer zugewiesen ist (sonst klebte er
+        // Nur ein TATSAECHLICH angedockter Knoten wird abgewiesen. Ein eben abgelegter hat noch keinen
+        // Schritt - er muss frei platzierbar bleiben, bis einer zugewiesen ist (sonst klebte er
         // unverrueckbar dort, wo die Palette ihn hingelegt hat).
-        if (node is BoundaryTimerNode timerNode
-            && !string.IsNullOrEmpty(timerNode.AttachedToNodeId)
-            && def?.GetNode(timerNode.AttachedToNodeId!) is not null)
+        string? attachedTo = AttachedHostOf(node);
+        if (!string.IsNullOrEmpty(attachedTo) && def?.GetNode(attachedTo!) is not null)
         {
             LogEnvironment.LogEvent(
-                $"Workflow-Editor: Verschieben des Fristen-Timers '{nodeId}' ignoriert - seine Position "
-                + $"folgt dem Schritt '{timerNode.AttachedToNodeId}', an dem er haengt.", LogSeverity.Report);
+                $"Workflow-Editor: Verschieben von '{nodeId}' ignoriert - seine Position folgt dem "
+                + $"Schritt '{attachedTo}', an dem er haengt.", LogSeverity.Report);
             // Neu zeichnen, damit der Timer sichtbar an seinen Schritt zurueckspringt, statt dort liegen
             // zu bleiben, wo der Client ihn hingezogen hat - sonst zeigt das Bild eine Lage, die das
             // Modell nicht kennt.
@@ -541,67 +542,126 @@
         }
 
         WorkflowNode? node = AddNode(parsed, x, y);
-        if (node is BoundaryTimerNode timer && !string.IsNullOrEmpty(targetNodeId)
-            && BoundaryTimerNode.CanHost(def.GetNode(targetNodeId!)))
+        if (!string.IsNullOrEmpty(targetNodeId) && CanAttach(node, def.GetNode(targetNodeId!)))
         {
-            timer.AttachedToNodeId = targetNodeId;
+            AttachTo(node!, targetNodeId);
         }
 
         StateHasChanged();
     }
 
     /// <summary>
-    /// Ein Fristen-Timer wurde im Canvas losgelassen. Auf einem geeigneten Schritt heisst das
-    /// <b>andocken</b> (bzw. umhaengen), sonst ist es ein gewoehnliches Verschieben - solange der Timer
-    /// noch an keinem Schritt haengt.
+    /// Ein Knoten, der an einem Schritt haengt (Fristen-Timer oder Rueckabwicklungs-Pfad), wurde im
+    /// Canvas losgelassen. Auf einem geeigneten Schritt heisst das <b>andocken</b> (bzw. umhaengen),
+    /// sonst ist es ein gewoehnliches Verschieben - solange er noch an keinem Schritt haengt.
     /// </summary>
     /// <remarks>
-    /// Ein bereits angedockter Timer, der NEBEN einen gueltigen Schritt fallen gelassen wird, springt
+    /// Ein bereits angedockter Knoten, der NEBEN einen gueltigen Schritt fallen gelassen wird, springt
     /// zurueck: seine Lage ist abgeleitet (<c>GraphLayout.DockBoundaryTimers</c>), eine freie Position
     /// waere eine Angabe, die beim naechsten Zeichnen ohnehin verfaellt. Loesen tut man ihn ueber den
     /// Schritt im Eigenschaften-Popup, nicht durch Wegziehen - sonst waere jedes ungenaue Ablegen ein
     /// stilles Abhaengen.
     /// </remarks>
-    /// <param name="nodeId">Id des gezogenen Fristen-Timers</param>
+    /// <param name="nodeId">Id des gezogenen Knotens</param>
     /// <param name="hostNodeId">der Schritt unter dem Zeiger, oder null</param>
     /// <param name="x">Ablagestelle X (linke obere Ecke) in Zeichenkoordinaten</param>
     /// <param name="y">Ablagestelle Y</param>
     [JSInvokable]
-    public void OnBoundaryTimerDropped(string nodeId, string? hostNodeId, double x, double y)
+    public void OnAttachedNodeDropped(string nodeId, string? hostNodeId, double x, double y)
     {
-        if (def?.GetNode(nodeId) is not BoundaryTimerNode timer)
+        WorkflowNode? node = def?.GetNode(nodeId);
+        if (node is not (BoundaryTimerNode or CompensationNode))
         {
             LogEnvironment.LogEvent(
-                $"Workflow-Editor: Ablegen ignoriert - '{nodeId}' ist kein Fristen-Timer (mehr).",
+                $"Workflow-Editor: Ablegen ignoriert - '{nodeId}' haengt an keinem Schritt (mehr).",
                 LogSeverity.Warning);
             return;
         }
 
-        WorkflowNode? host = string.IsNullOrEmpty(hostNodeId) ? null : def.GetNode(hostNodeId!);
-        if (host is not null && BoundaryTimerNode.CanHost(host))
+        WorkflowNode? host = string.IsNullOrEmpty(hostNodeId) ? null : def!.GetNode(hostNodeId!);
+        if (CanAttach(node, host))
         {
-            timer.AttachedToNodeId = host.Id;
+            AttachTo(node!, host!.Id);
             selectedFlow = null;
-            selectedNode = timer;
+            selectedNode = node;
             StateHasChanged();
             return;
         }
 
-        if (!string.IsNullOrEmpty(timer.AttachedToNodeId) && def.GetNode(timer.AttachedToNodeId!) is not null)
+        string? attachedTo = AttachedHostOf(node);
+        if (!string.IsNullOrEmpty(attachedTo) && def!.GetNode(attachedTo!) is not null)
         {
             LogEnvironment.LogEvent(
-                $"Workflow-Editor: Fristen-Timer '{nodeId}' neben einem Schritt losgelassen - er bleibt "
-                + $"an '{timer.AttachedToNodeId}' haengen.", LogSeverity.Report);
+                $"Workflow-Editor: '{nodeId}' neben einem Schritt losgelassen - er bleibt an "
+                + $"'{attachedTo}' haengen.", LogSeverity.Report);
             StateHasChanged();
             return;
         }
 
         // Noch an keinem Schritt: frei platzierbar, sonst klebte er unverrueckbar dort, wo die Toolbox
         // ihn hingelegt hat.
-        timer.Diagram ??= new DiagramShape();
-        timer.Diagram.X = Math.Round(x, 1);
-        timer.Diagram.Y = Math.Round(y, 1);
+        node!.Diagram ??= new DiagramShape();
+        node.Diagram.X = Math.Round(x, 1);
+        node.Diagram.Y = Math.Round(y, 1);
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Der Schritt, an dem dieser Knoten haengt - oder null, wenn er an keinem haengt (oder gar nicht
+    /// haengen kann). Die EINE Stelle, an der die beiden Arten von Anhaengsel zusammenlaufen.
+    /// </summary>
+    private static string? AttachedHostOf(WorkflowNode? node) => node switch
+    {
+        BoundaryTimerNode timer => timer.AttachedToNodeId,
+        CompensationNode handler => handler.AttachedToNodeId,
+        _ => null
+    };
+
+    /// <summary>Haengt den Knoten an den Schritt (Art-abhaengiges Feld, eine Stelle).</summary>
+    private static void AttachTo(WorkflowNode node, string? hostId)
+    {
+        switch (node)
+        {
+            case BoundaryTimerNode timer:
+                timer.AttachedToNodeId = hostId;
+                break;
+            case CompensationNode handler:
+                handler.AttachedToNodeId = hostId;
+                break;
+        }
+    }
+
+    /// <summary>Ob dieser Knoten an diesem Schritt haengen darf - die Regel liegt beim Modell.</summary>
+    private static bool CanAttach(WorkflowNode? node, WorkflowNode? host) => node switch
+    {
+        BoundaryTimerNode => host is not null && BoundaryTimerNode.CanHost(host),
+        CompensationNode => host is not null && CompensationNode.CanCompensate(host),
+        _ => false
+    };
+
+    /// <summary>
+    /// Die Arten, die an diesem Schritt haengen duerfen, als Liste fuer das Markup (leer = keine). Die
+    /// JS-Seite bietet das Andocken nur fuer eine genannte Art an.
+    /// </summary>
+    private static string AcceptedAttachments(WorkflowNode? host)
+    {
+        if (host is null)
+        {
+            return string.Empty;
+        }
+
+        var kinds = new List<string>(2);
+        if (BoundaryTimerNode.CanHost(host))
+        {
+            kinds.Add(nameof(NodeKind.BoundaryTimer));
+        }
+
+        if (CompensationNode.CanCompensate(host))
+        {
+            kinds.Add(nameof(NodeKind.Compensation));
+        }
+
+        return string.Join(" ", kinds);
     }
 
     /// <summary>
@@ -809,6 +869,8 @@
             NodeKind.TerminateEnd => new TerminateEndNode(),
             NodeKind.EventGateway => new EventGatewayNode(),
             NodeKind.SubProcess => new SubProcessNode(),
+            NodeKind.Compensation => new CompensationNode(),
+            NodeKind.Compensate => new CompensateNode(),
             _ => new AutomatedActivityNode()
         };
 
@@ -1228,11 +1290,12 @@
         // Formel: sonst laege dieselbe Regel ein zweites Mal in graph-editor.js und beide koennten
         // auseinanderlaufen (wie beim Kanten-Routing, das genau deshalb doppelt gepflegt werden muss).
         var dockHostOf = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (BoundaryTimerNode timer in def.Nodes.OfType<BoundaryTimerNode>())
+        foreach (WorkflowNode attached in def.Nodes)
         {
-            if (!string.IsNullOrEmpty(timer.Id) && !string.IsNullOrEmpty(timer.AttachedToNodeId))
+            string? hostId = AttachedHostOf(attached);
+            if (!string.IsNullOrEmpty(attached.Id) && !string.IsNullOrEmpty(hostId))
             {
-                dockHostOf[timer.Id!] = timer.AttachedToNodeId!;
+                dockHostOf[attached.Id!] = hostId!;
             }
         }
 
@@ -1246,7 +1309,8 @@
             string frameStroke = frameSel ? "var(--mud-palette-primary)" : "var(--mud-palette-lines-default)";
             sb.Append($"<g data-wf-node data-node-id=\"{Enc(frame.Id)}\" data-wf-kind=\"{frame.Kind}\" ")
               .Append($"data-w=\"{N(frame.Width)}\" data-h=\"{N(frame.Height)}\" data-wf-container=\"1\" ")
-              .Append($"data-wf-dock-target=\"1\" transform=\"translate({N(frame.X)},{N(frame.Y)})\">")
+              .Append($"data-wf-dock-target=\"{AcceptedAttachments(def.GetNode(frame.Id))}\" ")
+              .Append($"transform=\"translate({N(frame.X)},{N(frame.Y)})\">")
               // Der Rahmen ist ABSICHTLICH nicht gefuellt: gefuellt verdeckte er die Kanten, die unter
               // ihm durchlaufen. Die schwache Toenung kommt aus der Kopfzeile.
               .Append($"<rect x=\"0\" y=\"0\" width=\"{N(frame.Width)}\" height=\"{N(frame.Height)}\" ")
@@ -1320,12 +1384,15 @@
                        + $" data-wf-dock-dy=\"{N(node.Y - dockHost.Y)}\"";
             }
 
-            // Ein Schritt, an dem ein Fristen-Timer haengen darf. Die Regel gehoert dem Modell
-            // (BoundaryTimerNode.CanHost) - hier steht nur ihr Ergebnis, damit die JS-Seite beim Ziehen
-            // sofort weiss, wo sie ein Andocken anbieten darf, ohne dafuer zurueckzufragen.
-            if (BoundaryTimerNode.CanHost(def.GetNode(node.Id)))
+            // Was an diesem Schritt haengen DARF. Die Regeln gehoeren dem Modell
+            // (BoundaryTimerNode.CanHost, CompensationNode.CanCompensate) - hier steht nur ihr Ergebnis,
+            // damit die JS-Seite beim Ziehen sofort weiss, wo sie ein Andocken anbieten darf, ohne dafuer
+            // zurueckzufragen. Die beiden Mengen sind nicht dieselbe: eine schlichte Aktivitaet kann
+            // zurueckgenommen werden, aber keine Frist tragen (sie parkt nie).
+            string accepted = AcceptedAttachments(def.GetNode(node.Id));
+            if (accepted.Length != 0)
             {
-                dock += " data-wf-dock-target=\"1\"";
+                dock += $" data-wf-dock-target=\"{accepted}\"";
             }
 
             sb.Append($"<g data-wf-node data-node-id=\"{Enc(node.Id)}\" data-wf-kind=\"{node.Kind}\" ")

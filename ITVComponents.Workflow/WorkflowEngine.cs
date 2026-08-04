@@ -1206,12 +1206,28 @@ namespace ITVComponents.Workflow
                     instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
                     return MoveAlongSingleOutgoing(instance, definition, token);
 
+                case SidePathEndNode when token.CompensationOwnerTokenId != null:
+                    // Ein Rueckabwicklungs-Pfad ist durch: der naechste vorgemerkte Schritt ist dran -
+                    // oder, wenn keiner mehr aussteht, laeuft der ausloesende Zweig weiter.
+                    return FinishCompensationStep(instance, definition, token);
+
                 case SidePathEndNode:
                     // Ein Nebenpfad laeuft aus: Token weg, sonst nichts. Kein Ergebnis-Re-Base und kein
                     // Beitrag zum Abschluss des Workflows - der Timer wartet auf sein naechstes Intervall.
                     token.Status = TokenStatus.Consumed;
                     instance.Log("SidePathEnded", node.Id, node.Name, HistorySeverity.Verbose);
                     return true;
+
+                case CompensationNode:
+                    // Ein Rueckabwicklungs-Pfad wird nie angeflossen - er haengt an seinem Schritt und
+                    // startet nur auf Zuruf. Landet hier ein Token, stimmt etwas am Modell nicht.
+                    Fault(instance,
+                        $"Token stands on compensation handler '{node.Id}' - a handler is triggered by a " +
+                        "compensate node, it must not be the target of a connection.", node.Id);
+                    return false;
+
+                case CompensateNode compensate:
+                    return StartCompensation(instance, definition, token, compensate);
 
                 case BoundaryTimerNode:
                     // Ein Fristen-Timer wird nie als aktives Token verarbeitet - er wartet, bis er faellig
@@ -1404,6 +1420,164 @@ namespace ITVComponents.Workflow
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Merkt einen erfolgreich vollendeten Schritt zur <b>Rueckabwicklung</b> vor, falls ein
+        /// <see cref="CompensationNode"/> an ihm haengt - mit dem Variablen-Stand von JETZT.
+        /// </summary>
+        /// <remarks>
+        /// Der Schnappschuss ist der Punkt: der Rueckabwicklungs-Pfad laeuft spaeter mit dem Stand, den
+        /// der Schritt hinterlassen hat. Die Buchungsnummer, die er zum Stornieren braucht, ist bis dahin
+        /// laengst ueberschrieben.
+        /// </remarks>
+        private static void RecordCompensation(WorkflowInstance instance, WorkflowDefinition definition,
+            Token token, string nodeId)
+        {
+            CompensationNode handler = definition.Nodes.OfType<CompensationNode>()
+                .FirstOrDefault(c => c.AttachedToNodeId == nodeId);
+            if (handler == null)
+            {
+                return;
+            }
+
+            Dictionary<string, object> scope = Scope(instance, token);
+            instance.Compensations.Add(new CompensationEntry
+            {
+                Sequence = instance.Compensations.Count == 0
+                    ? 0
+                    : instance.Compensations.Max(c => c.Sequence) + 1,
+                NodeId = nodeId,
+                HandlerNodeId = handler.Id,
+                ScopeNodeId = definition.GetNode(nodeId)?.ParentNodeId,
+                Variables = new Dictionary<string, object>(scope, StringComparer.Ordinal)
+            });
+            instance.Log("CompensationArmed", nodeId, handler.Id, HistorySeverity.Verbose);
+        }
+
+        /// <summary>
+        /// Loest die Rueckabwicklung aus: der Zweig parkt, und der zuletzt erledigte vorgemerkte Schritt
+        /// wird als erster zurueckgenommen.
+        /// </summary>
+        /// <remarks>
+        /// Steht nichts aus, laeuft der Zweig einfach weiter - das ist kein Fehler, sondern der Normalfall
+        /// eines Ablaufs, der noch nichts getan hat, was rueckzunehmen waere.
+        /// </remarks>
+        private bool StartCompensation(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            CompensateNode node)
+        {
+            instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
+            if (NextCompensation(instance, node) == null)
+            {
+                instance.Log("CompensateNothingPending", node.Id, node.Name, HistorySeverity.Verbose);
+                return MoveAlongSingleOutgoing(instance, definition, token);
+            }
+
+            token.Status = TokenStatus.Waiting;
+            return RunNextCompensation(instance, definition, token, node);
+        }
+
+        /// <summary>
+        /// Der naechste zurueckzunehmende Schritt fuer diesen Ausloeser - der <b>zuletzt</b> vollendete,
+        /// der noch aussteht, oder null.
+        /// </summary>
+        /// <remarks>
+        /// Umgekehrte Reihenfolge, weil die Schritte aufeinander aufbauen: erst die Zahlung stornieren,
+        /// dann die Buchung, dann die Reservierung. Ohne Ziel-Angabe zaehlt die EIGENE Ebene des
+        /// Ausloesers - ein Ausloeser in einem Abschnitt nimmt zurueck, was in diesem Abschnitt geschehen
+        /// ist, nicht den ganzen Prozess.
+        /// </remarks>
+        private static CompensationEntry NextCompensation(WorkflowInstance instance, CompensateNode node)
+        {
+            IEnumerable<CompensationEntry> pending = instance.Compensations.Where(c => !c.Compensated);
+            pending = !string.IsNullOrEmpty(node.TargetNodeId)
+                ? pending.Where(c => c.NodeId == node.TargetNodeId)
+                : pending.Where(c => c.ScopeNodeId == node.ParentNodeId);
+            return pending.OrderByDescending(c => c.Sequence).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Startet die Ruecknahme des naechsten vorgemerkten Schritts - oder weckt den wartenden Zweig,
+        /// wenn keiner mehr aussteht.
+        /// </summary>
+        private bool RunNextCompensation(WorkflowInstance instance, WorkflowDefinition definition, Token owner,
+            CompensateNode node)
+        {
+            CompensationEntry entry = NextCompensation(instance, node);
+            if (entry == null)
+            {
+                owner.Status = TokenStatus.Active;
+                instance.Log("Compensated", node.Id, node.Name);
+                return MoveAlongSingleOutgoing(instance, definition, owner);
+            }
+
+            if (definition.GetNode(entry.HandlerNodeId) is not CompensationNode handler)
+            {
+                Fault(instance,
+                    $"Compensation handler '{entry.HandlerNodeId}' of node '{entry.NodeId}' does not exist.",
+                    node.Id);
+                return false;
+            }
+
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(handler.Id);
+            if (outgoing.Count != 1)
+            {
+                Fault(instance,
+                    $"Compensation handler '{handler.Id}' must have exactly one outgoing flow, but has " +
+                    $"{outgoing.Count}.", handler.Id);
+                return false;
+            }
+
+            // JETZT als erledigt vormerken, nicht erst am Ende des Pfads: sonst faende der naechste
+            // Durchgang denselben Eintrag erneut und der Pfad liefe doppelt.
+            entry.Compensated = true;
+
+            var runner = new Token
+            {
+                NodeId = outgoing[0].TargetId,
+                Status = TokenStatus.Active,
+                // Mit dem Stand von DAMALS - siehe RecordCompensation.
+                Variables = new Dictionary<string, object>(entry.Variables, StringComparer.Ordinal),
+                SplitTokenId = owner.SplitTokenId,
+                SubProcessOwnerTokenId = owner.SubProcessOwnerTokenId,
+                CompensationOwnerTokenId = owner.Id,
+                ArrivedViaFlowId = outgoing[0].Id
+            };
+            instance.Tokens.Add(runner);
+            instance.Log("Compensating", entry.NodeId, handler.Name ?? handler.Id);
+            return true;
+        }
+
+        /// <summary>
+        /// Ein Rueckabwicklungs-Pfad ist an seinem Ende angekommen: weiter zum naechsten vorgemerkten
+        /// Schritt - oder den wartenden Ausloeser wecken.
+        /// </summary>
+        private bool FinishCompensationStep(WorkflowInstance instance, WorkflowDefinition definition, Token token)
+        {
+            token.Status = TokenStatus.Consumed;
+            string ownerId = token.CompensationOwnerTokenId;
+            token.Variables = null;
+
+            Token owner = instance.Tokens.FirstOrDefault(t => t.Id == ownerId);
+            if (owner == null)
+            {
+                // Der ausloesende Zweig ist weg (Abbruch, Frist, Terminate) - dann ist auch die restliche
+                // Rueckabwicklung gegenstandslos. Kein Fehler, aber sichtbar.
+                LogEnvironment.LogEvent(
+                    $"Compensation in instance '{instance.Id}' finished a step, but its triggering token is " +
+                    "gone - the rest is abandoned.", LogSeverity.Report);
+                return true;
+            }
+
+            if (definition.GetNode(owner.NodeId) is not CompensateNode node)
+            {
+                Fault(instance,
+                    $"Token '{owner.Id}' waits for a compensation but does not stand on a compensate node.",
+                    owner.NodeId);
+                return false;
+            }
+
+            return RunNextCompensation(instance, definition, owner, node);
         }
 
         /// <summary>
@@ -2223,6 +2397,9 @@ namespace ITVComponents.Workflow
                         completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
                     ClearUserTask(token);
                     token.Status = TokenStatus.Active;
+                    // Eine erledigte Aufgabe kann ebenfalls etwas bewirkt haben (Freigabe erteilt,
+                    // Bestellung ausgeloest) - sie laeuft nur nicht ueber MoveAlongSuccessFlow.
+                    RecordCompensation(fresh, definition, token, node.Id);
                     if (!MoveAlongSingleOutgoing(fresh, definition, token))
                     {
                         outcome = UserTaskCompletionStatus.Faulted;
@@ -2888,6 +3065,12 @@ namespace ITVComponents.Workflow
         private bool MoveAlongSuccessFlow(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             string nodeId, string errorFlowId)
         {
+            // Der gemeinsame Erfolgs-Punkt von Aktivitaet, Subworkflow, Abschnitt und Iteration - und
+            // damit die eine Stelle, an der ein Schritt zur Ruecknahme vorgemerkt wird. Ueber den
+            // FEHLER-Ausgang laeuft es bewusst nicht: was gescheitert ist, hat nichts hinterlassen, das
+            // zurueckzunehmen waere.
+            RecordCompensation(instance, definition, token, nodeId);
+
             if (string.IsNullOrEmpty(errorFlowId))
             {
                 return MoveAlongSingleOutgoing(instance, definition, token);
@@ -4224,12 +4407,14 @@ namespace ITVComponents.Workflow
             private readonly Dictionary<string, object> variables;
             private readonly Dictionary<string, Token> tokens;
             private readonly int historyCount;
+            private readonly int compensationCount;
 
             public BranchSnapshot(WorkflowInstance instance)
             {
                 variables = new Dictionary<string, object>(instance.Variables);
                 tokens = instance.Tokens.ToDictionary(t => t.Id, t => t.CloneState());
                 historyCount = instance.History.Count;
+                compensationCount = instance.Compensations.Count;
             }
 
             public bool HasToken(string id) => tokens.ContainsKey(id);
@@ -4280,6 +4465,22 @@ namespace ITVComponents.Workflow
                     delta.HistoryAppends.Add(instance.History[i]);
                 }
 
+                // Vormerkungen wie das Protokoll append-only. Ein bereits vorhandener Eintrag kann sich
+                // aber noch AENDERN (er wird als zurueckgenommen markiert) - deshalb zusaetzlich die Ids
+                // der inzwischen abgehakten.
+                for (int i = compensationCount; i < instance.Compensations.Count; i++)
+                {
+                    delta.CompensationAppends.Add(instance.Compensations[i]);
+                }
+
+                for (int i = 0; i < compensationCount && i < instance.Compensations.Count; i++)
+                {
+                    if (instance.Compensations[i].Compensated)
+                    {
+                        delta.CompensatedIds.Add(instance.Compensations[i].Id);
+                    }
+                }
+
                 if (instance.Status == WorkflowStatus.Faulted)
                 {
                     delta.Faulted = true;
@@ -4308,6 +4509,10 @@ namespace ITVComponents.Workflow
             public HashSet<string> RemovedTokenIds { get; } = new HashSet<string>(StringComparer.Ordinal);
 
             public List<HistoryEntry> HistoryAppends { get; } = new List<HistoryEntry>();
+
+            public List<CompensationEntry> CompensationAppends { get; } = new List<CompensationEntry>();
+
+            public HashSet<string> CompensatedIds { get; } = new HashSet<string>(StringComparer.Ordinal);
 
             public bool Faulted { get; set; }
 
@@ -4349,6 +4554,12 @@ namespace ITVComponents.Workflow
                 }
 
                 fresh.History.AddRange(HistoryAppends);
+                fresh.Compensations.AddRange(CompensationAppends);
+                foreach (CompensationEntry entry in fresh.Compensations
+                             .Where(c => CompensatedIds.Contains(c.Id)))
+                {
+                    entry.Compensated = true;
+                }
 
                 if (Faulted)
                 {

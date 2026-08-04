@@ -183,6 +183,7 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
             row.VariablesJson = WorkflowJson.SerializeVariables(instance.Variables);
+            row.CompensationsJson = WorkflowJson.SerializeCompensations(instance.Compensations);
 
             // Protokoll append-only: nur die noch nicht persistierten Eintraege einfuegen - NICHT das ganze
             // (wachsende) Protokoll neu schreiben. Die Inserts laufen im selben (versions-gepruefen)
@@ -241,6 +242,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.WaitingKind = (int?)token.WaitingKind;
                 tr.ArrivedViaFlowId = token.ArrivedViaFlowId;
                 tr.SubProcessOwnerTokenId = token.SubProcessOwnerTokenId;
+                tr.CompensationOwnerTokenId = token.CompensationOwnerTokenId;
                 // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
                 // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
                 // ist der Aufgaben-Stempel, den die Engine beim Parken setzt und beim Abschluss leert.
@@ -641,6 +643,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
                 Variables = WorkflowJson.DeserializeVariables(row.VariablesJson),
+                Compensations = WorkflowJson.DeserializeCompensations(row.CompensationsJson),
                 Tokens = tokenRows.Select(t => new Token
                 {
                     Id = t.TokenId,
@@ -661,6 +664,7 @@ namespace ITVComponents.Workflow.EntityFramework
                     WaitingKind = (Model.WaitKind?)t.WaitingKind,
                     ArrivedViaFlowId = t.ArrivedViaFlowId,
                     SubProcessOwnerTokenId = t.SubProcessOwnerTokenId,
+                    CompensationOwnerTokenId = t.CompensationOwnerTokenId,
                     TaskKey = t.TaskKey,
                     TaskPermission = t.TaskPermission,
                     AssignedTo = t.AssignedTo,

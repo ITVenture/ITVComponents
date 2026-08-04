@@ -48,6 +48,16 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Variablen als JSON (typerhaltend).</summary>
         public string VariablesJson { get; set; }
 
+        /// <summary>
+        /// Die zur Ruecknahme vorgemerkten Schritte als JSON - erledigte Schritte mit
+        /// Rueckabwicklungs-Pfad, samt dem Variablen-Stand ihrer Vollendung.
+        /// </summary>
+        /// <remarks>
+        /// Eine JSON-Spalte und keine eigene Tabelle: die Liste wird immer als GANZES gelesen (beim
+        /// Rueckabwickeln) und nie einzeln abgefragt - ein Index darauf haette keinen Abnehmer.
+        /// </remarks>
+        public string CompensationsJson { get; set; }
+
         /// <summary>Fehlermeldung bei Faulted, oder null.</summary>
         public string FaultMessage { get; set; }
 
@@ -244,6 +254,12 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Subprozess-Knoten wartenden Tokens; sonst null.
         /// </summary>
         public string SubProcessOwnerTokenId { get; set; }
+
+        /// <summary>
+        /// Bei einem Token, das gerade einen Rueckabwicklungs-Pfad laeuft: die Id des Tokens, das am
+        /// Ausloeser darauf wartet; sonst null.
+        /// </summary>
+        public string CompensationOwnerTokenId { get; set; }
     }
 
     /// <summary>

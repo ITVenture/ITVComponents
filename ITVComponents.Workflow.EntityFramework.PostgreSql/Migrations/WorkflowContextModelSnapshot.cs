@@ -93,6 +93,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<DateTime?>("ClaimedUntil")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CompensationOwnerTokenId")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("DueUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -225,6 +228,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.Property<int>("CallDepth")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CompensationsJson")
+                        .HasColumnType("text");
 
                     b.Property<string>("CorrelationKey")
                         .HasColumnType("text");

@@ -1537,3 +1537,86 @@ genommen; was übrig bleibt, gehört zur nächsten Runde und wartet weiter.
 nicht. Für die gilt weiterhin die alte Zählung, mit einem Hinweis im Log — sonst würde ein Join, an dem
 gerade jemand wartet, nie mehr feuern und die Instanz hinge für immer. Sobald diese Tokens durch sind,
 greift die genaue Regel von allein.
+
+## 20. Rückabwicklung (Kompensation / Saga)
+
+Ein langlaufender Prozess kann nicht in eine Datenbank-Transaktion. Wenn Schritt 4 scheitert, sind die
+Schritte 1–3 längst passiert: Ware reserviert, Zahlung ausgelöst, Freigabe erteilt. Ein `rollback` gibt es
+dafür nicht — jeder dieser Schritte braucht seine **eigene fachliche Gegenbuchung**. Genau das ist das
+Saga-Muster, und es ist der größte fachliche Unterschied zwischen „Ablaufsteuerung" und
+„Prozess-Engine".
+
+### Die beiden Knoten
+
+**`CompensationNode` — der Rückabwicklungs-Pfad.** Er hängt an einem Schritt (`AttachedToNodeId`), genau
+wie ein Fristen-Timer: keine eingehende Kante, genau eine ausgehende, die zu den Schritten führt, die die
+Arbeit zurücknehmen. Der Pfad endet in einem `SidePathEndNode`.
+
+**`CompensateNode` — der Auslöser.** Er steht *im* Fluss (eine Kante rein, eine raus). Wird er erreicht,
+wird zurückgenommen, was bereits getan wurde — und der Zweig **wartet**, bis das durch ist.
+
+### Wann ein Schritt vorgemerkt wird
+
+Beim **erfolgreichen Abschluss** — nicht beim Betreten und nicht über die Fehlerkante. Was gescheitert ist,
+hat nichts hinterlassen, das zurückzunehmen wäre. Eine Benutzer-Aufgabe wird vorgemerkt, wenn sie
+*abgeschlossen* wird, nicht wenn sie in der Arbeitsliste erscheint.
+
+Vorgemerkt werden können Aktivitäten, Benutzer-Aufgaben, Subworkflow-Aufrufe und Abschnitte
+(`CompensationNode.CanCompensate`). Ein Wartepunkt oder ein Gateway hinterlässt nichts — ein Pfad dort wäre
+ein stiller Nicht-Effekt, und der Validator lehnt ihn ab.
+
+### Der Schnappschuss — der Punkt der ganzen Sache
+
+Beim Vormerken wird der **Variablen-Stand von genau diesem Moment** mitgespeichert, und der
+Rückabwicklungs-Pfad läuft später damit. Ohne das wäre die Buchungsnummer, die er zum Stornieren braucht,
+bis dahin längst von einem späteren Schritt überschrieben.
+
+```
+reserve  → ticket = "R-1"      (vorgemerkt mit ticket = "R-1")
+pay      → ticket = "P-9"      (vorgemerkt mit ticket = "P-9")
+undo     → refund sieht "P-9", unreserve sieht "R-1"
+```
+
+Was ein Rückabwicklungs-Pfad selbst rechnet, fließt **nicht** in den Hauptzweig zurück — wie beim
+Eskalations-Nebenpfad.
+
+### Reihenfolge und Umfang
+
+**Rückwärts, einer nach dem anderen.** Erst die Zahlung stornieren, dann die Buchung, dann die
+Reservierung — die Schritte bauen aufeinander auf, parallel wäre das falsch.
+
+**Ohne Ziel** nimmt ein Auslöser zurück, was auf **seiner eigenen Ebene** geschehen ist: ein Auslöser in
+einem Abschnitt wickelt diesen Abschnitt ab, nicht den ganzen Prozess. **Mit `TargetNodeId`** genau den
+einen genannten Schritt.
+
+Ein Schritt wird **höchstens einmal** zurückgenommen; er gilt ab dem Start seines Pfads als erledigt (nicht
+erst an dessen Ende — sonst fände der nächste Durchgang denselben Eintrag noch einmal).
+
+**Nichts vorgemerkt ist kein Fehler:** der Zweig läuft einfach weiter. Das ist der Normalfall eines
+Ablaufs, der noch nichts getan hat, was zurückzunehmen wäre.
+
+### Wo es endet
+
+Bricht der auslösende Zweig weg (Abbruch, unterbrechende Frist, Terminate), während die Rückabwicklung
+läuft, wird der Rest **nicht** mehr abgearbeitet — mit einem Eintrag im Log, damit der Fall sichtbar
+bleibt und nicht als „alles zurückgenommen" durchgeht.
+
+### Im Designer
+
+Der Rückabwicklungs-Pfad klebt an der **linken** unteren Ecke seines Schritts, der Fristen-Timer an der
+rechten — die beiden Aussagen („wenn die Frist reißt" gegen „wenn zurückgenommen wird") wären an derselben
+Stelle nicht auseinanderzuhalten. Angedockt wird per Ziehen, wie beim Timer; welche Schritte in Frage
+kommen, entscheidet das Modell.
+
+Beide Knoten tragen dasselbe Zeichen (`↺`): der Auslöser als Kreis im Fluss, der Pfad als kleines Sechseck
+am Schritt.
+
+### Schema
+
+Eine nullable Spalte auf `Tokens` (`CompensationOwnerTokenId`) und eine auf `WorkflowInstances`
+(`CompensationsJson`) → Migration **`Compensation`** je Provider-Projekt.
+
+Die Vormerkungen liegen als JSON-Spalte und nicht als eigene Tabelle: sie werden immer als *Ganzes* gelesen
+(beim Rückabwickeln) und nie einzeln abgefragt — ein Index darauf hätte keinen Abnehmer. Der mitgeführte
+Variablen-Stand läuft durch dieselbe typerhaltende Ablage wie die Instanz-Variablen (siehe
+`WorkflowJson.RegisterVariableType`), sonst käme ein eigener Datensatz-Typ als untypisierte Struktur zurück.

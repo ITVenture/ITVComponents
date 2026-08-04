@@ -158,9 +158,10 @@ namespace ITVComponents.Workflow.Validation
                     issues.Add(Warn(n.Id, $"End node '{Label(n)}' has outgoing connections - they are ignored."));
                 }
 
-                // Ein Fristen-Timer haengt an seinem Schritt, statt angeflossen zu werden - er hat
-                // bewusst keine eingehende Kante.
-                if (n.Kind != NodeKind.Start && n.Kind != NodeKind.BoundaryTimer && ins == 0)
+                // Ein Fristen-Timer und ein Rueckabwicklungs-Pfad haengen an ihrem Schritt, statt
+                // angeflossen zu werden - sie haben bewusst keine eingehende Kante.
+                if (n.Kind != NodeKind.Start && n.Kind != NodeKind.BoundaryTimer
+                    && n.Kind != NodeKind.Compensation && ins == 0)
                 {
                     issues.Add(Warn(n.Id, $"Node '{Label(n)}' has no incoming connection - it is unreachable."));
                 }
@@ -226,6 +227,19 @@ namespace ITVComponents.Workflow.Validation
                 if (n is EventGatewayNode)
                 {
                     issues.AddRange(EventGatewayIssues(n, flows, byId, outs));
+                }
+
+                if (n is CompensationNode handler)
+                {
+                    issues.AddRange(CompensationIssues(handler, byId, outs, ins));
+                }
+
+                if (n is CompensateNode compensate && !string.IsNullOrWhiteSpace(compensate.TargetNodeId)
+                    && !byId.ContainsKey(compensate.TargetNodeId))
+                {
+                    issues.Add(Error(n.Id,
+                        $"Compensate node '{Label(n)}' targets '{compensate.TargetNodeId}', which does not " +
+                        "exist."));
                 }
 
                 if (n is UserActivityNode task)
@@ -348,6 +362,54 @@ namespace ITVComponents.Workflow.Validation
                     $"{where} has exactly one end node, but this one has {ends.Count} " +
                     $"({string.Join(", ", ends.Select(e => $"'{Label(e)}'"))}) - the result " +
                     "would depend on which end is reached. Merge them into one end node."));
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Prueft einen Rueckabwicklungs-Pfad: er muss an einem Schritt haengen, der ueberhaupt etwas
+        /// bewirkt, und genau einen Ausgang haben.
+        /// </summary>
+        private static IEnumerable<ValidationIssue> CompensationIssues(CompensationNode node,
+            Dictionary<string, WorkflowNode> byId, int outgoing, int incoming)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (string.IsNullOrWhiteSpace(node.AttachedToNodeId))
+            {
+                issues.Add(Error(node.Id,
+                    $"Compensation handler '{Label(node)}' is not attached to a step - it would never be " +
+                    "triggered."));
+            }
+            else if (!byId.TryGetValue(node.AttachedToNodeId, out WorkflowNode host))
+            {
+                issues.Add(Error(node.Id,
+                    $"Compensation handler '{Label(node)}' is attached to '{node.AttachedToNodeId}', which " +
+                    "does not exist."));
+            }
+            else if (!CompensationNode.CanCompensate(host))
+            {
+                // Ein Wartepunkt oder ein Gateway hinterlaesst nichts, was zurueckzunehmen waere - ein
+                // Pfad dort waere ein stiller Nicht-Effekt.
+                issues.Add(Error(node.Id,
+                    $"Compensation handler '{Label(node)}' hangs on '{Label(host)}', which does not do any " +
+                    "work that could be undone. Attach it to an activity, a user task, a sub-process or a " +
+                    "subworkflow call."));
+            }
+
+            if (incoming > 0)
+            {
+                issues.Add(Error(node.Id,
+                    $"Compensation handler '{Label(node)}' has an incoming connection - it is triggered by a " +
+                    "compensate node, not reached by a connection."));
+            }
+
+            if (outgoing != 1)
+            {
+                issues.Add(Error(node.Id,
+                    $"Compensation handler '{Label(node)}' has {outgoing} outgoing connections - it needs " +
+                    "exactly one, leading to the steps that undo the work."));
             }
 
             return issues;

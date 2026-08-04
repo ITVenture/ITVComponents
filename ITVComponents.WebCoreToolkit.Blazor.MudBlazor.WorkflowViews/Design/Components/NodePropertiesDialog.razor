@@ -118,6 +118,45 @@
                                       Label="Error message → variable" Margin="Margin.Dense" />
                     }
                     break;
+                case CompensationNode handler:
+                    <MudSelect T="string" Value="@handler.AttachedToNodeId" Label="Undoes this step"
+                               Margin="Margin.Dense" Dense="true"
+                               ValueChanged="@(v => handler.AttachedToNodeId = v)">
+                        @foreach (WorkflowNode host in Def.Nodes.Where(CompensationNode.CanCompensate))
+                        {
+                            <MudSelectItem T="string" Value="@host.Id">@NodeLabel(host)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Only steps that actually do something can be taken back: activities, user tasks,
+                        subworkflow calls and sections. A wait point or a gateway leaves nothing behind.
+                    </MudText>
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        Armed when its step <b>completes</b> — and it runs with the values the step left
+                        behind, not with today's. That is the whole point: the booking number it needs to
+                        cancel is long overwritten by the time the undo happens. Connect it to the steps
+                        that undo the work and close the path with a <b>side-path end</b>.
+                    </MudAlert>
+                    break;
+                case CompensateNode compensate:
+                    <MudSelect T="string" Value="@compensate.TargetNodeId" Label="Undo only this step"
+                               Clearable="true" Margin="Margin.Dense" Dense="true" Class="mt-2"
+                               ValueChanged="@(v => compensate.TargetNodeId = v)">
+                        @foreach (WorkflowNode host in CompensatableNodes)
+                        {
+                            <MudSelectItem T="string" Value="@host.Id">@NodeLabel(host)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Empty (the normal case) = undo everything done on <b>this level</b>, newest first.
+                        A trigger inside a section undoes that section, not the whole process.
+                    </MudText>
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        The branch <b>waits</b> here until every undo path is through, then carries on
+                        along its outgoing connection. Nothing pending is not an error — the flow simply
+                        moves on. A step is undone at most once.
+                    </MudAlert>
+                    break;
                 case EventGatewayNode:
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
                         Waits for several events at once — the first one to arrive wins, the others are
@@ -322,6 +361,21 @@
             Node.ParentNodeId = string.IsNullOrWhiteSpace(parentId) ? null : parentId;
         }
     }
+
+    /// <summary>
+    /// Die Schritte, die tatsaechlich einen Rueckabwicklungs-Pfad haben - nur die kann ein Ausloeser
+    /// gezielt zurueckrufen. Einen Schritt ohne Pfad anzubieten hiesse, eine Auswahl anzubieten, die
+    /// nachweislich nichts tut.
+    /// </summary>
+    private IEnumerable<WorkflowNode> CompensatableNodes
+        => Def is null
+            ? Enumerable.Empty<WorkflowNode>()
+            : Def.Nodes.Where(n => n.Id is not null
+                                   && Def.Nodes.OfType<CompensationNode>()
+                                       .Any(c => c.AttachedToNodeId == n.Id));
+
+    private static string NodeLabel(WorkflowNode node)
+        => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";
 
     private string NodeName(string? id)
     {

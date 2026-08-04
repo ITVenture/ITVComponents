@@ -384,6 +384,32 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
   - **Scope** — `Replace` macht den Abschnitt zur Konsolidierung (danach nur noch das Deklarierte plus
     keep-Liste).
 
+### Undo path ↺ (`fa-rotate-left`)
+
+- **Zweck:** hält die Schritte, die einen **erledigten** Schritt wieder zurücknehmen (Zahlung stornieren,
+  Reservierung freigeben). Er läuft nicht von selbst — nur wenn ein **Undo trigger** danach fragt.
+- **Ports:** kein Eingang (er hängt an seinem Schritt, er wird nicht angeflossen), genau ein Ausgang. Der
+  Pfad endet in einem **Side end**.
+- **Andocken:** wie die Frist per Ziehen auf den Schritt — aber an der **linken** unteren Ecke, damit
+  beide am selben Schritt nebeneinander sichtbar bleiben. Angeboten wird es nur an Schritten, die
+  überhaupt etwas bewirken: Aktivität, Benutzer-Aufgabe, Subworkflow, Abschnitt. An einem Wartepunkt oder
+  Gateway wäre nichts zurückzunehmen — der Validator lehnt das ab.
+- **Der Punkt:** Er wird scharf, wenn sein Schritt **fertig** wird, und läuft später mit dem
+  **Variablen-Stand von damals**. Die Buchungsnummer, die er zum Stornieren braucht, ist bis dahin längst
+  von einem späteren Schritt überschrieben. Was er selbst rechnet, fließt nicht in den Hauptzweig zurück.
+
+### Undo trigger ↺ (`fa-clock-rotate-left`)
+
+- **Zweck:** nimmt zurück, was bereits getan wurde — **rückwärts, einer nach dem anderen** (erst die
+  Zahlung, dann die Buchung, dann die Reservierung; die Schritte bauen aufeinander auf).
+- **Ports:** ein Eingang, ein Ausgang. Der Zweig **wartet** hier, bis alle Rückabwicklungs-Pfade durch
+  sind, und läuft dann weiter.
+- **Umfang:** ohne Ziel die **eigene Ebene** — ein Auslöser in einem Abschnitt wickelt diesen Abschnitt ab,
+  nicht den ganzen Prozess. Mit Ziel genau den einen genannten Schritt. Angeboten werden nur Schritte, an
+  denen tatsächlich ein Undo path hängt.
+- **Nichts vorgemerkt ist kein Fehler:** der Fluss läuft einfach weiter. Ein Schritt wird höchstens einmal
+  zurückgenommen.
+
 ### Side end ⏹ (`fa-circle-stop`)
 
 - **Zweck:** Schliesst einen **Nebenpfad** ab. Verbraucht das Token — und **beendet den Workflow nicht**.

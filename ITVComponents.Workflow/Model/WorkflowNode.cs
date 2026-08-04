@@ -60,7 +60,19 @@ namespace ITVComponents.Workflow.Model
         /// Ein <b>eingebetteter</b> Teilablauf: eigene Knoten im selben Graphen, eigener Variablen-Scope,
         /// aber KEINE eigene Instanz.
         /// </summary>
-        SubProcess
+        SubProcess,
+
+        /// <summary>
+        /// Ein <b>Rueckabwicklungs-Pfad</b>, der an einem Schritt haengt: er laeuft nicht im normalen
+        /// Fluss, sondern nur, wenn spaeter rueckabgewickelt wird.
+        /// </summary>
+        Compensation,
+
+        /// <summary>
+        /// Loest die <b>Rueckabwicklung</b> aus: die bereits erledigten Schritte werden in umgekehrter
+        /// Reihenfolge zurueckgenommen.
+        /// </summary>
+        Compensate
     }
 
     /// <summary>
@@ -90,6 +102,8 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(TerminateEndNode), "terminateend")]
     [JsonDerivedType(typeof(EventGatewayNode), "eventgateway")]
     [JsonDerivedType(typeof(SubProcessNode), "subprocess")]
+    [JsonDerivedType(typeof(CompensationNode), "compensation")]
+    [JsonDerivedType(typeof(CompensateNode), "compensate")]
     public abstract class WorkflowNode : INodeIdentity
     {
         /// <summary>Innerhalb der Definition eindeutige Kennung des Knotens.</summary>

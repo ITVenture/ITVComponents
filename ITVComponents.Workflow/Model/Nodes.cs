@@ -805,6 +805,71 @@ namespace ITVComponents.Workflow.Model
     }
 
     /// <summary>
+    /// Ein <b>Rueckabwicklungs-Pfad</b>: haengt an einem Schritt und beschreibt, wie dessen Wirkung
+    /// zurueckgenommen wird („Buchung stornieren" zu „Buchung anlegen"). Er laeuft NICHT im normalen
+    /// Fluss - nur, wenn spaeter ein <see cref="CompensateNode"/> die Rueckabwicklung ausloest.
+    /// </summary>
+    /// <remarks>
+    /// Baugleich zum <see cref="BoundaryTimerNode"/>: er haengt ueber
+    /// <see cref="AttachedToNodeId"/> an seinem Schritt, hat keine eingehende Kante und startet ueber
+    /// seine einzige ausgehende Kante einen Nebenpfad, der in einem
+    /// <see cref="SidePathEndNode"/> endet. Der Unterschied liegt darin, WANN er scharf wird und WAS ihn
+    /// ausloest: der Fristen-Timer wird beim PARKEN scharf und feuert nach Zeit - dieser hier wird bei der
+    /// erfolgreichen VOLLENDUNG des Schritts vorgemerkt und feuert nur auf Zuruf.
+    /// <para>
+    /// Der Pfad laeuft mit den Variablen, die der Schritt bei seiner Vollendung hinterlassen hat - nicht
+    /// mit dem aktuellen Stand. Anders waere er nicht brauchbar: eine Stornierung braucht die
+    /// Buchungsnummer von damals, und die kann laengst ueberschrieben sein.
+    /// </para></remarks>
+    public class CompensationNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.Compensation;
+
+        /// <summary>Die Id des Schritts, dessen Wirkung dieser Pfad zurueecknimmt.</summary>
+        public string AttachedToNodeId { get; set; }
+
+        /// <summary>
+        /// Kann an diesem Knoten ein Rueckabwicklungs-Pfad haengen? Nur an Schritten, die ueberhaupt
+        /// etwas <b>bewirken</b> - was nichts tut, ist auch nicht zurueckzunehmen.
+        /// </summary>
+        /// <remarks>
+        /// Die Regel liegt am Modell und nicht im Validator, weil sie an mehreren Stellen gebraucht wird
+        /// (Pruefung, Oberflaeche, Vormerkung zur Laufzeit) - dieselbe Ueberlegung wie bei
+        /// <see cref="BoundaryTimerNode.CanHost"/>. Ein Wartepunkt oder ein Gateway steht bewusst nicht
+        /// dabei: sie hinterlassen nichts, was rueckgaengig zu machen waere.
+        /// </remarks>
+        public static bool CanCompensate(WorkflowNode node)
+        {
+            return node is AutomatedActivityNode or CallWorkflowNode or SubProcessNode or UserActivityNode;
+        }
+    }
+
+    /// <summary>
+    /// Loest die <b>Rueckabwicklung</b> aus: die bereits erledigten Schritte mit einem
+    /// <see cref="CompensationNode"/> werden in <b>umgekehrter Reihenfolge</b> zurueckgenommen. Der
+    /// ausloesende Zweig wartet, bis alles durch ist, und laeuft dann ueber seine einzige ausgehende
+    /// Kante weiter.
+    /// </summary>
+    /// <remarks>
+    /// Umgekehrte Reihenfolge ist nicht Geschmackssache: die Schritte bauen aufeinander auf, also muss
+    /// der zuletzt gemachte zuerst zurueckgenommen werden (erst die Zahlung stornieren, dann die
+    /// Buchung, dann die Reservierung). Und <b>nacheinander</b>, nicht gleichzeitig - eine Stornierung,
+    /// die auf einer anderen aufbaut, faende ihre Grundlage sonst schon abgeraeumt vor.
+    /// </remarks>
+    public class CompensateNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.Compensate;
+
+        /// <summary>
+        /// Optional: die Id EINES Schritts, der zurueckgenommen wird. Leer = alle vorgemerkten Schritte
+        /// der eigenen Ebene (des eigenen Abschnitts bzw. der obersten Ebene).
+        /// </summary>
+        public string TargetNodeId { get; set; }
+    }
+
+    /// <summary>
     /// Ein <b>eingebetteter</b> Teilablauf: seine Knoten liegen im selben Graphen (erkennbar an
     /// <see cref="WorkflowNode.ParentNodeId"/>), er hat einen eigenen Variablen-Scope, aber - anders als
     /// der <see cref="CallWorkflowNode"/> - <b>keine eigene Instanz</b>.

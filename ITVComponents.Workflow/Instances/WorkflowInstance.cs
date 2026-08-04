@@ -66,6 +66,61 @@ namespace ITVComponents.Workflow.Instances
     }
 
     /// <summary>
+    /// Ein <b>vorgemerkter</b> Schritt: er ist erfolgreich durchgelaufen und traegt einen
+    /// Rueckabwicklungs-Pfad (<see cref="Model.CompensationNode"/>), kann also zurueckgenommen werden.
+    /// </summary>
+    /// <remarks>
+    /// Der Variablen-Schnappschuss ist der Kern: der Pfad laeuft mit dem Stand, den der Schritt bei
+    /// seiner Vollendung hinterlassen hat, nicht mit dem aktuellen. Eine Stornierung braucht die
+    /// Buchungsnummer von damals - der laufende Prozess hat sie laengst ueberschrieben.
+    /// <para>
+    /// Bewusst eine eigene Liste und nicht aus dem Protokoll abgeleitet: das Protokoll ist seit dem
+    /// Filter nicht mehr vollstaendig, und was rueckabgewickelt werden muss, darf nicht davon abhaengen,
+    /// wie gespraechig jemand sein Log eingestellt hat.
+    /// </para></remarks>
+    public class CompensationEntry
+    {
+        /// <summary>
+        /// Die Identitaet dieses Eintrags - stabil ueber den Merge nebenlaeufiger Zweige hinweg.
+        /// </summary>
+        /// <remarks>
+        /// Nicht die <see cref="Sequence"/>: zwei parallele Zweige merken jeder auf seiner eigenen Kopie
+        /// vor und vergeben dabei dieselbe Nummer. Beim Zusammenfuehren waeren das zwei verschiedene
+        /// Eintraege mit gleicher Nummer - und „dieser eine ist zurueckgenommen" traefe still beide.
+        /// </remarks>
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+        /// <summary>
+        /// Die Reihenfolge der Vollendung. Rueckabgewickelt wird absteigend; bei Gleichstand (parallele
+        /// Zweige) entscheidet die Reihenfolge in der Liste - beide Reihenfolgen sind vertretbar, weil
+        /// die Schritte tatsaechlich nebeneinander liefen.
+        /// </summary>
+        public int Sequence { get; set; }
+
+        /// <summary>Der Knoten, der erledigt wurde.</summary>
+        public string NodeId { get; set; }
+
+        /// <summary>Der <see cref="Model.CompensationNode"/>, der seine Ruecknahme beschreibt.</summary>
+        public string HandlerNodeId { get; set; }
+
+        /// <summary>
+        /// Der Abschnitt, in dem der Schritt liegt (<see cref="Model.WorkflowNode.ParentNodeId"/>), oder
+        /// null fuer die oberste Ebene. Bestimmt, welcher <see cref="Model.CompensateNode"/> ihn meint.
+        /// </summary>
+        public string ScopeNodeId { get; set; }
+
+        /// <summary>Der Variablen-Stand bei der Vollendung des Schritts.</summary>
+        public Dictionary<string, object> Variables { get; set; } = new Dictionary<string, object>();
+
+        /// <summary>Wurde dieser Schritt bereits zurueckgenommen (oder wird gerade)?</summary>
+        /// <remarks>
+        /// Wird gesetzt, sobald die Ruecknahme <b>beginnt</b> - nicht erst, wenn sie fertig ist. Sonst
+        /// griffe der naechste Durchgang denselben Eintrag erneut, und der Pfad liefe doppelt.
+        /// </remarks>
+        public bool Compensated { get; set; }
+    }
+
+    /// <summary>
     /// Eine laufende (oder ruhende/beendete) Ausfuehrung einer <see cref="Model.WorkflowDefinition"/>.
     /// </summary>
     /// <remarks>
@@ -118,6 +173,16 @@ namespace ITVComponents.Workflow.Instances
 
         /// <summary>Das Ausfuehrungsprotokoll (fuer Monitoring und den Modeler).</summary>
         public List<HistoryEntry> History { get; set; } = new List<HistoryEntry>();
+
+        /// <summary>
+        /// Die erledigten Schritte, die sich <b>zurueecknehmen</b> lassen - in der Reihenfolge ihrer
+        /// Vollendung. Wird beim Rueckabwickeln von hinten abgearbeitet.
+        /// </summary>
+        /// <remarks>
+        /// Wie das Protokoll append-only: der Zweig-Commit haengt nur an, was neu dazugekommen ist.
+        /// Nebenlaeufige Zweige tragen so unabhaengig voneinander ein, ohne einander zu ueberschreiben.
+        /// </remarks>
+        public List<CompensationEntry> Compensations { get; set; } = new List<CompensationEntry>();
 
         /// <summary>
         /// Optionaler fachlicher Korrelationsschluessel, ueber den ein Signal diese Instanz findet

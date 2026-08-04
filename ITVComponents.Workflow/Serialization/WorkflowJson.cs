@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using ITVComponents.Json;
 using ITVComponents.Json.Contracts;
+using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.Workflow.Serialization
@@ -116,6 +117,90 @@ namespace ITVComponents.Workflow.Serialization
                     SerializationTypingMode.AssistedPolymorphism);
                 return bag?.Values ?? new Dictionary<string, object>(StringComparer.Ordinal);
             }
+        }
+
+        /// <summary>
+        /// Serialisiert die zur Ruecknahme vorgemerkten Schritte. Der mitgefuehrte Variablen-Stand jedes
+        /// Eintrags laeuft durch dieselbe typerhaltende Ablage wie die Instanz-Variablen.
+        /// </summary>
+        public static string SerializeCompensations(IList<CompensationEntry> compensations)
+        {
+            if (compensations == null || compensations.Count == 0)
+            {
+                return null;
+            }
+
+            var rows = new List<CompensationRow>(compensations.Count);
+            foreach (CompensationEntry entry in compensations)
+            {
+                rows.Add(new CompensationRow
+                {
+                    Id = entry.Id,
+                    Sequence = entry.Sequence,
+                    NodeId = entry.NodeId,
+                    HandlerNodeId = entry.HandlerNodeId,
+                    ScopeNodeId = entry.ScopeNodeId,
+                    Compensated = entry.Compensated,
+                    // Als eingebetteter Text und nicht als eingebettetes Objekt: der Variablen-Stand
+                    // braucht die Typkennungen, die nur der Variablen-Weg vergibt.
+                    VariablesJson = SerializeVariables(entry.Variables)
+                });
+            }
+
+            return Serialize(rows);
+        }
+
+        /// <summary>
+        /// Liest die zur Ruecknahme vorgemerkten Schritte zurueck. Liefert nie null.
+        /// </summary>
+        public static List<CompensationEntry> DeserializeCompensations(string json)
+        {
+            if (string.IsNullOrEmpty(json))
+            {
+                return new List<CompensationEntry>();
+            }
+
+            List<CompensationRow> rows = Deserialize<List<CompensationRow>>(json);
+            var result = new List<CompensationEntry>(rows?.Count ?? 0);
+            if (rows != null)
+            {
+                foreach (CompensationRow row in rows)
+                {
+                    result.Add(new CompensationEntry
+                    {
+                        Id = row.Id,
+                        Sequence = row.Sequence,
+                        NodeId = row.NodeId,
+                        HandlerNodeId = row.HandlerNodeId,
+                        ScopeNodeId = row.ScopeNodeId,
+                        Compensated = row.Compensated,
+                        Variables = DeserializeVariables(row.VariablesJson)
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Die Ablage-Form eines vorgemerkten Schritts: wie <see cref="CompensationEntry"/>, aber mit dem
+        /// Variablen-Stand als eingebettetem Text.
+        /// </summary>
+        private class CompensationRow
+        {
+            public string Id { get; set; }
+
+            public int Sequence { get; set; }
+
+            public string NodeId { get; set; }
+
+            public string HandlerNodeId { get; set; }
+
+            public string ScopeNodeId { get; set; }
+
+            public bool Compensated { get; set; }
+
+            public string VariablesJson { get; set; }
         }
 
         /// <summary>

@@ -202,6 +202,17 @@ namespace ITVComponents.Workflow.Instances
         public string SubProcessOwnerTokenId { get; set; }
 
         /// <summary>
+        /// Bei einem Token, das gerade einen <b>Rueckabwicklungs-Pfad</b> laeuft: die Id des Tokens, das
+        /// am <see cref="Model.CompensateNode"/> darauf wartet. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Erreicht dieses Token sein Nebenpfad-Ende, weiss die Engine darueber, wen sie wecken muss -
+        /// und dass jetzt der naechste vorgemerkte Schritt an der Reihe ist. Genau das macht die
+        /// Rueckabwicklung SEQUENZIELL, ohne dafuer eine eigene Ablaufsteuerung zu brauchen.
+        /// </remarks>
+        public string CompensationOwnerTokenId { get; set; }
+
+        /// <summary>
         /// Bei einem Token, das an einem <see cref="Model.EventGatewayNode"/> um die Wette wartet: die Id
         /// des (verbrauchten) Gateway-Tokens. Alle Geschwister desselben Rennens tragen denselben Wert;
         /// sobald eines weiterlaeuft, werden die uebrigen verbraucht. Sonst null.
@@ -272,6 +283,7 @@ namespace ITVComponents.Workflow.Instances
             WaitingKind = source.WaitingKind;
             ArrivedViaFlowId = source.ArrivedViaFlowId;
             SubProcessOwnerTokenId = source.SubProcessOwnerTokenId;
+            CompensationOwnerTokenId = source.CompensationOwnerTokenId;
             TaskKey = source.TaskKey;
             TaskPermission = source.TaskPermission;
             AssignedTo = source.AssignedTo;
@@ -317,6 +329,7 @@ namespace ITVComponents.Workflow.Instances
                    && Nullable.Equals(a.WaitingKind, b.WaitingKind)
                    && a.ArrivedViaFlowId == b.ArrivedViaFlowId
                    && a.SubProcessOwnerTokenId == b.SubProcessOwnerTokenId
+                   && a.CompensationOwnerTokenId == b.CompensationOwnerTokenId
                    && a.TaskKey == b.TaskKey && a.TaskPermission == b.TaskPermission
                    && a.AssignedTo == b.AssignedTo && a.TaskTitle == b.TaskTitle
                    && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)
