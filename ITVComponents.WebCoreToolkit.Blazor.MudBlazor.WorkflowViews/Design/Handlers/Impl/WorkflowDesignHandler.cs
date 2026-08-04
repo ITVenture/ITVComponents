@@ -107,6 +107,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             try
             {
                 using WorkflowOperation op = BeginOperation(environment);
+
+                // Oeffentlich ist eine eigene Entscheidung mit eigener Berechtigung - und sie gilt in
+                // BEIDE Richtungen: eine bestehende oeffentliche Definition zu aendern wirkt auf alle
+                // Mandanten, auch wenn der Speichernde sie gerade auf "eigener Mandant" umstellt.
+                // Serverseitig geprueft und nicht nur im Editor: sonst genuegte ein gesetztes Flag im
+                // Modell.
+                WorkflowDefinition? stored = definition.Key != 0
+                    ? op.Store.GetDefinition(definition.Key)
+                    : null;
+                bool touchesPublic = definition.IsPublic || (stored?.IsPublic ?? false);
+                if (touchesPublic && !services.VerifyUserPermissions(new[] { WorkflowSecurity.DesignPublic }))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Speichern der oeffentlichen Workflow-Definition '{definition.Id}' ohne "
+                        + $"Berechtigung '{WorkflowSecurity.DesignPublic}' abgelehnt.", LogSeverity.Warning);
+                    return Task.FromResult(false);
+                }
+
                 op.Store.SaveDefinition(definition);
                 return Task.FromResult(true);
             }
@@ -211,7 +229,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                 Version = row.Version,
                 Name = name,
                 NodeCount = nodeCount,
-                FlowCount = flowCount
+                FlowCount = flowCount,
+                // Aus der SPALTE, nicht aus dem JSON: sie ist die Wahrheit ueber die Zugehoerigkeit.
+                TenantId = row.TenantId,
+                IsPublic = row.TenantId == null
             };
         }
 

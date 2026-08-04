@@ -53,7 +53,7 @@ namespace ITVComponents.Workflow.Test
 
             var instance = new WorkflowInstance
             {
-                DefinitionId = "wf",
+                DefinitionKey = store.GetDefinition("wf", 1).Key,                DefinitionId = "wf",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>
@@ -104,7 +104,7 @@ namespace ITVComponents.Workflow.Test
 
             var instance = new WorkflowInstance
             {
-                DefinitionId = "wf",
+                DefinitionKey = store.GetDefinition("wf", 1).Key,                DefinitionId = "wf",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>
@@ -156,7 +156,7 @@ namespace ITVComponents.Workflow.Test
 
             var instance = new WorkflowInstance
             {
-                DefinitionId = "wf",
+                DefinitionKey = store.GetDefinition("wf", 1).Key,                DefinitionId = "wf",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>

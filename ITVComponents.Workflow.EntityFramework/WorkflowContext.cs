@@ -20,10 +20,22 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Instanz-Id (Primaerschluessel).</summary>
         public string Id { get; set; }
 
-        /// <summary>Fachliche Id der Definition.</summary>
+        /// <summary>
+        /// Der Verweis auf die Definitionszeile, mit der diese Instanz gestartet wurde
+        /// (Fremdschluessel).
+        /// </summary>
+        /// <remarks>
+        /// Bewusst der technische Schluessel und nicht Name+Version: eine Instanz eines OEFFENTLICHEN
+        /// Workflows gehoert trotzdem ihrem Mandanten. Ueber den Namen waere ab dem Moment, in dem
+        /// dieser Mandant eine eigene Fassung desselben Namens anlegt, nicht mehr entscheidbar, welche
+        /// gemeint ist - und die laufende Instanz liefe still auf einem anderen Graphen weiter.
+        /// </remarks>
+        public int DefinitionKey { get; set; }
+
+        /// <summary>Fachliche Id der Definition (Anzeige und Filter).</summary>
         public string DefinitionId { get; set; }
 
-        /// <summary>Version der Definition.</summary>
+        /// <summary>Version der Definition (Anzeige und Filter).</summary>
         public int DefinitionVersion { get; set; }
 
         /// <summary>Status als Zahl (indizierbar).</summary>
@@ -313,6 +325,18 @@ namespace ITVComponents.Workflow.EntityFramework
     /// </summary>
     public class WorkflowDefinitionRow
     {
+        /// <summary>
+        /// Der technische Primaerschluessel dieser Zeile (von der Datenbank vergeben).
+        /// </summary>
+        /// <remarks>
+        /// Frueher war der Schluessel (Id, Version). Das ging nicht auf: die Eindeutigkeit gilt <b>je
+        /// Mandant</b>, und der Mandant kann null sein (= oeffentlich) - eine NULL-Spalte darf in
+        /// keinem Primaerschluessel stehen. Zwei Mandanten konnten deshalb nicht dieselbe fachliche Id
+        /// benutzen. Jetzt traegt ein eindeutiger INDEX (TenantId, Id, Version) die Regel, und der
+        /// Schluessel ist das, worauf eine Instanz verweisen kann.
+        /// </remarks>
+        public int DefinitionKey { get; set; }
+
         /// <summary>Fachliche Id der Definition.</summary>
         public string Id { get; set; }
 
@@ -451,6 +475,14 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.RootInstanceId);      // aggregierte Prozessbaum-Ansicht
                 // "die dringendsten der lauffaehigen zuerst" - die Sortierung des Aufgriffs.
                 e.HasIndex(n => new { n.Status, n.Priority });
+                e.HasIndex(n => n.DefinitionKey);
+                // Echter Fremdschluessel: eine Instanz ohne ihre Definition ist nicht ausfuehrbar. Kein
+                // Kaskaden-Loeschen - eine Definition, an der noch Instanzen haengen, soll sich NICHT
+                // nebenbei loeschen lassen.
+                e.HasOne<WorkflowDefinitionRow>()
+                    .WithMany()
+                    .HasForeignKey(n => n.DefinitionKey)
+                    .OnDelete(DeleteBehavior.Restrict);
                 // Der Standard gehoert in die SPALTE, nicht nur ins Modell: eine Zeile, die von aussen
                 // (Alt-Bestand, Migration, Reparatur-SQL) ohne Priority entsteht, waere sonst 0 - und 0
                 // ist die HOECHSTE Stufe. Ausgerechnet die Alt-Instanzen wuerden alles ueberholen.
@@ -491,8 +523,26 @@ namespace ITVComponents.Workflow.EntityFramework
 
             modelBuilder.Entity<WorkflowDefinitionRow>(e =>
             {
-                e.HasKey(n => new { n.Id, n.Version });
+                e.HasKey(n => n.DefinitionKey);
+                e.Property(n => n.DefinitionKey).ValueGeneratedOnAdd();
+                // Ohne den PK war die Spalte nur deshalb NOT NULL, weil sie Teil des Schluessels war.
+                e.Property(n => n.Id).IsRequired();
                 e.HasIndex(n => n.TenantId);
+                // Die eigentliche fachliche Regel: je Mandant (bzw. einmal oeffentlich) genau eine
+                // Definition mit dieser Id und Version. Als Primaerschluessel nicht formulierbar, weil
+                // TenantId nullable ist.
+                //
+                // ACHTUNG, provider-abhaengig: SQL Server behandelt NULLs im eindeutigen Index als
+                // GLEICH (genau richtig - hoechstens eine oeffentliche je Id/Version), PostgreSQL
+                // standardmaessig als VERSCHIEDEN. Fuer PostgreSQL setzt die Migration deshalb
+                // NULLS NOT DISTINCT; ohne das waere der Schutz dort stillschweigend wirkungslos.
+                //
+                // HasFilter(null) ist hier KEIN Detail: SQL Server haengt an einen eindeutigen Index
+                // ueber nullable Spalten von selbst ein "WHERE TenantId IS NOT NULL" - und schloesse
+                // damit ausgerechnet die OEFFENTLICHEN Definitionen von der Pruefung aus, also genau
+                // den Fall, den es zu schuetzen gilt. Ohne Filter zaehlen NULLs bei SQL Server als
+                // gleich: hoechstens eine oeffentliche je Id/Version. Genau das ist gemeint.
+                e.HasIndex(n => new { n.TenantId, n.Id, n.Version }).IsUnique().HasFilter(null);
             });
 
             modelBuilder.Entity<WorkflowBranchLockRow>(e =>

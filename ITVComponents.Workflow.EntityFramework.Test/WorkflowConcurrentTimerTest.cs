@@ -198,7 +198,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             var instance = new WorkflowInstance
             {
-                DefinitionId = "tmr",
+                DefinitionKey = store.GetDefinition("tmr", 1).Key,                DefinitionId = "tmr",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>
@@ -320,7 +320,10 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             public int? GetInstancePriority(string id) => inner.GetInstancePriority(id);
             public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
-            public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
+            public WorkflowDefinition GetDefinition(string id, int? version = null, string tenantId = null)
+                => inner.GetDefinition(id, version, tenantId);
+
+            public WorkflowDefinition GetDefinition(int definitionKey) => inner.GetDefinition(definitionKey);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public bool TryCommitInstance(WorkflowInstance instance, int baseVersion) => inner.TryCommitInstance(instance, baseVersion);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);

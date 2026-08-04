@@ -141,6 +141,10 @@ namespace ITVComponents.Workflow
             var now = DateTime.UtcNow;
             var instance = new WorkflowInstance
             {
+                // Der Verweis ist die technische Kennung - ueber Name und Version allein waere ab der
+                // ersten mandanteneigenen Fassung desselben Namens nicht mehr entscheidbar, welche
+                // Definition gemeint ist. Name und Version stehen als Anzeige daneben.
+                DefinitionKey = definition.Key,
                 DefinitionId = definition.Id,
                 DefinitionVersion = definition.Version,
                 Status = WorkflowStatus.Running,
@@ -3486,6 +3490,8 @@ namespace ITVComponents.Workflow
                 child = new WorkflowInstance
                 {
                     Id = childId,
+                    // Wie beim Start: der Verweis ist die technische Kennung der aufgeloesten Zeile.
+                    DefinitionKey = subDef.Key,
                     DefinitionId = subDef.Id,
                     DefinitionVersion = subDef.Version,
                     TenantId = instance.TenantId,
@@ -4533,9 +4539,14 @@ namespace ITVComponents.Workflow
 
         private WorkflowDefinition LoadDefinition(WorkflowInstance instance)
         {
-            WorkflowDefinition definition = store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion)
+            // Ueber die technische Kennung, nicht ueber den Namen: eine laufende Instanz bleibt damit an
+            // GENAU dem Graphen, mit dem sie gestartet wurde. Ueber den Namen wuerde sie in dem Moment
+            // still auf einen anderen wechseln, in dem jemand eine mandanteneigene Fassung derselben
+            // Id und Version anlegt.
+            WorkflowDefinition definition = store.GetDefinition(instance.DefinitionKey)
                 ?? throw new InvalidOperationException(
-                    $"No definition '{instance.DefinitionId}' v{instance.DefinitionVersion} for instance '{instance.Id}'.");
+                    $"No definition with key {instance.DefinitionKey} ('{instance.DefinitionId}' " +
+                    $"v{instance.DefinitionVersion}) for instance '{instance.Id}'.");
 
             // Die eine Stelle, an der die Engine jede Instanz in die Hand bekommt (jeder Vortrieb laedt
             // seine Definition) - damit auch die eine Stelle, an der der Protokoll-Filter haengt. Eine

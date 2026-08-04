@@ -1741,3 +1741,82 @@ jemandem auffiele.
 
 Eine nullable Spalte auf `Tokens` (`SplitBranchCount`) → Migration **`InclusiveGateway`** je
 Provider-Projekt.
+
+## 22. Definitionen: technischer Schlüssel, Mandant und Sichtbarkeit
+
+### Warum der Schlüssel nicht mehr `(Id, Version)` ist
+
+Die Eindeutigkeit einer Definition gilt **je Mandant**: „Onboarding v1" darf es einmal pro Mandant geben,
+und einmal öffentlich. Als Primärschlüssel ist das nicht formulierbar — `TenantId` ist nullable (das *ist*
+die Kennzeichnung „öffentlich"), und eine NULL-Spalte darf in keinem Primärschlüssel stehen. Solange der
+Schlüssel `(Id, Version)` war, konnten zwei Mandanten deshalb **nicht** denselben fachlichen Namen
+benutzen — der zweite lief in einen Primärschlüssel-Verstoss.
+
+Jetzt trägt jede Zeile einen technischen Schlüssel (`DefinitionKey`, Identity), und die fachliche Regel
+steht in einem **eindeutigen Index** `(TenantId, Id, Version)`.
+
+> Zwei Fallstricke, die beide *stillschweigend* gewesen wären:
+> - SQL Server hängt an einen eindeutigen Index über nullable Spalten von selbst ein
+>   `WHERE TenantId IS NOT NULL` — und schlösse damit ausgerechnet die öffentlichen Definitionen von der
+>   Prüfung aus. Das Modell setzt deshalb ausdrücklich `HasFilter(null)`. Ohne Filter zählen NULLs bei
+>   SQL Server als *gleich*: höchstens eine öffentliche je Id/Version. Genau das ist gemeint.
+> - PostgreSQL zählt NULLs im eindeutigen Index als *verschieden* — dort kämen zwei öffentliche
+>   Definitionen durch. Die Migration legt den Index deshalb als Ausdrucks-Index über
+>   `COALESCE("TenantId", '')` an. Bewusst nicht `NULLS NOT DISTINCT`: das gibt es erst ab PostgreSQL 15,
+>   und ein Skript, das je nach Serverversion scheitert, wäre der schlechtere Handel.
+
+### Die Instanz verweist über den Schlüssel
+
+`WorkflowInstance.DefinitionKey` ist ein **echter Fremdschlüssel** (`Restrict` — eine Definition, an der
+noch Instanzen hängen, lässt sich nicht nebenbei löschen). `DefinitionId` und `DefinitionVersion` stehen
+weiterhin daneben, aber als **Anzeige und Filter**.
+
+Das ist keine Formsache. Eine Instanz eines *öffentlichen* Workflows gehört trotzdem ihrem Mandanten.
+Löste die Engine bei jedem Vortrieb über Name und Version auf, dann geschähe Folgendes, sobald dieser
+Mandant eine eigene Fassung desselben Namens anlegt:
+
+```
+Instanz läuft auf der öffentlichen „Onboarding" v1
+Mandant legt eigene „Onboarding" v1 an
+nächster Vortrieb  →  lädt einen ANDEREN Graphen
+                   →  das Token steht auf einem Knoten, den es dort nicht gibt
+```
+
+Über den Schlüssel bleibt eine laufende Instanz an genau der Definition, mit der sie gestartet wurde.
+
+### Öffentlich ist eine ausdrückliche Entscheidung
+
+`WorkflowDefinition.IsPublic` sagt es; `TenantId` ist das Ergebnis. Beim Speichern gilt:
+
+| `IsPublic` | `TenantId` am Modell | gespeichert als |
+|---|---|---|
+| false | gesetzt | dieser Mandant |
+| false | leer | **der Mandant des laufenden Kontexts** |
+| true | leer | öffentlich |
+| true | gesetzt | **abgelehnt** — Widerspruch, keine Auslegungsfrage |
+
+„Nichts gesetzt" darf nicht stillschweigend zu „öffentlich" werden — sonst legt der Editor Definitionen
+an, die jeder andere Mandant sieht und starten kann.
+
+Anlegen **und Ändern** einer öffentlichen Definition verlangt die Berechtigung **`Workflow.DesignPublic`**
+zusätzlich zu `Workflow.Design`. Auch das Ändern: eine bestehende öffentliche Definition wirkt auf alle
+Mandanten. Geprüft wird im Handler, nicht nur im Editor — sonst genügte ein gesetztes Flag im Modell.
+
+### Auflösen über den Namen: eigener Mandant vor öffentlich
+
+`GetDefinition(id, version, tenantId)` liefert die **eigene** Definition des Mandanten, ersatzweise die
+öffentliche. Eine mandanteneigene Fassung ist die Verfeinerung und überdeckt die allgemeine. Ohne diese
+Regel entschiede die Reihenfolge der Datenbank, also der Zufall.
+
+Für einen Verweis, der stehen bleiben soll, gehört dagegen `GetDefinition(definitionKey)` — welcher Name
+gerade welche Zeile meint, kann sich ändern.
+
+Der technische Schlüssel ist **nicht Teil des Austauschformats** (`[JsonIgnore]`): er gilt in genau einer
+Ablage und wäre in einer exportierten Datei eine Zahl, die anderswo auf etwas anderes zeigt.
+
+### Schema
+
+Migration **`DefinitionKey`** je Provider-Projekt. **Sie verwirft den Instanz-Bestand**
+(`WorkflowInstances`, `Tokens`, `HistoryEntries`, `BranchLocks`) — die Verweis-Spalte ist ein
+Fremdschlüssel und darf nicht null sein, und für bestehende Zeilen gäbe es keinen Wert, den man erfinden
+könnte. Die Definitionen selbst bleiben erhalten.

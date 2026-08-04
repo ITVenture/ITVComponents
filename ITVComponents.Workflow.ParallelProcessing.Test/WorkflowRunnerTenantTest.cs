@@ -48,6 +48,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             var inst = new WorkflowInstance
             {
+                DefinitionKey = store.GetDefinition("rec", 1).Key,
                 DefinitionId = "rec",
                 DefinitionVersion = 1,
                 TenantId = tenant,

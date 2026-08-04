@@ -53,7 +53,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             store.SaveDefinition(ParallelDefinition());
             var instance = new WorkflowInstance
             {
-                DefinitionId = "par",
+                DefinitionKey = store.GetDefinition("par", 1).Key,                DefinitionId = "par",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>
@@ -299,7 +299,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             var instance = new WorkflowInstance
             {
-                DefinitionId = "wx",
+                DefinitionKey = store.GetDefinition("wx", 1).Key,                DefinitionId = "wx",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token> { new Token { Id = "t", NodeId = "w", Status = TokenStatus.Active } }
@@ -375,7 +375,10 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             }
 
             public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
-            public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
+            public WorkflowDefinition GetDefinition(string id, int? version = null, string tenantId = null)
+                => inner.GetDefinition(id, version, tenantId);
+
+            public WorkflowDefinition GetDefinition(int definitionKey) => inner.GetDefinition(definitionKey);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public WorkflowInstance GetInstance(string instanceId) => inner.GetInstance(instanceId);
 
@@ -438,7 +441,10 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public int? GetInstancePriority(string id) => inner.GetInstancePriority(id);
             public bool TryCommitInstance(WorkflowInstance instance, int baseVersion) => inner.TryCommitInstance(instance, baseVersion);
             public void SaveDefinition(WorkflowDefinition definition) => inner.SaveDefinition(definition);
-            public WorkflowDefinition GetDefinition(string id, int? version = null) => inner.GetDefinition(id, version);
+            public WorkflowDefinition GetDefinition(string id, int? version = null, string tenantId = null)
+                => inner.GetDefinition(id, version, tenantId);
+
+            public WorkflowDefinition GetDefinition(int definitionKey) => inner.GetDefinition(definitionKey);
             public void SaveInstance(WorkflowInstance instance) => inner.SaveInstance(instance);
             public IEnumerable<WorkflowInstance> FindWaitingForSignal(string s, string c = null) => inner.FindWaitingForSignal(s, c);
             public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string s) => inner.FindWaitingForBroadcast(s);

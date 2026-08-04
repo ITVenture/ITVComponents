@@ -46,6 +46,18 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             return new EfWorkflowStore(() => new WorkflowContext(options));
         }
 
+        /// <summary>
+        /// Legt die Definition "d" v1 ab und liefert ihre technische Kennung. Seit die Instanz einen
+        /// echten Fremdschluessel auf die Definitionszeile traegt, kann es eine Instanz ohne Definition
+        /// nicht mehr geben - auch nicht in einem Test, der nur den Instanz-Rundlauf prueft.
+        /// </summary>
+        private static int SaveDummyDefinition(EfWorkflowStore store)
+        {
+            var definition = new WorkflowDefinition { Id = "d", Version = 1, Name = "d" };
+            store.SaveDefinition(definition);
+            return definition.Key;
+        }
+
         [TestMethod]
         public void InstanceResumesAfterReloadFromDatabase()
         {
@@ -246,7 +258,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var store = NewStore();
             var inst = new WorkflowInstance
             {
-                DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running
+                DefinitionKey = SaveDummyDefinition(store), DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running
             };
             store.SaveInstance(inst);
 
@@ -273,6 +285,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var store = NewStore();
             var instance = new WorkflowInstance
             {
+                DefinitionKey = SaveDummyDefinition(store),
                 DefinitionId = "d",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Waiting,
@@ -377,7 +390,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         public void History_IsAppendOnly_ExistingRowsAreNotRewritten()
         {
             var store = NewStore();
-            var instance = new WorkflowInstance { DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running };
+            var instance = new WorkflowInstance { DefinitionKey = SaveDummyDefinition(store), DefinitionId = "d", DefinitionVersion = 1, Status = WorkflowStatus.Running };
             instance.Log("first");
             store.SaveInstance(instance);
 
@@ -409,6 +422,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var store = NewStore();
             var instance = new WorkflowInstance
             {
+                DefinitionKey = SaveDummyDefinition(store),
                 DefinitionId = "d",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Waiting,

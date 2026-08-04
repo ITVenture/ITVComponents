@@ -59,19 +59,42 @@ namespace ITVComponents.Workflow.EntityFramework
                 throw new ArgumentNullException(nameof(definition));
             }
 
+            if (definition.IsPublic && !string.IsNullOrEmpty(definition.TenantId))
+            {
+                // Widerspruch statt Auslegungsfrage: wer beides setzt, hat sich nicht entschieden.
+                throw new InvalidOperationException(
+                    $"Definition '{definition.Id}' v{definition.Version} is marked public but also names " +
+                    $"the tenant '{definition.TenantId}'. Decide one - public means no tenant.");
+            }
+
             using WorkflowContext ctx = contextFactory();
+
+            // Oeffentlich ist eine AUSDRUECKLICHE Entscheidung. Ohne sie gehoert die Definition dem
+            // Mandanten des laufenden Kontexts - sonst legte der Editor still oeffentliche Definitionen
+            // an, die jeder andere Mandant sieht und starten kann.
+            definition.TenantId = definition.IsPublic ? null : definition.TenantId ?? ctx.CurrentTenant;
+
             // Bewusst OHNE Query-Filter und explizit auf den Tenant der zu speichernden Definition
             // gematcht: das Schreiben soll deterministisch die richtige Zeile treffen, unabhaengig vom
             // gerade aktiven Tenant-Kontext (sonst koennte der Filter die zu aktualisierende Zeile
             // verstecken und ein Duplikat/Schluesselkonflikt entstehen).
-            WorkflowDefinitionRow row = ctx.WorkflowDefinitions
-                .IgnoreQueryFilters()
-                .FirstOrDefault(d => d.Id == definition.Id && d.Version == definition.Version
-                                     && d.TenantId == definition.TenantId);
+            WorkflowDefinitionRow row = definition.Key != 0
+                ? ctx.WorkflowDefinitions.IgnoreQueryFilters()
+                    .FirstOrDefault(d => d.DefinitionKey == definition.Key)
+                : ctx.WorkflowDefinitions.IgnoreQueryFilters()
+                    .FirstOrDefault(d => d.Id == definition.Id && d.Version == definition.Version
+                                         && d.TenantId == definition.TenantId);
             if (row == null)
             {
                 row = new WorkflowDefinitionRow { Id = definition.Id, Version = definition.Version };
                 ctx.WorkflowDefinitions.Add(row);
+            }
+            else
+            {
+                // Beim Aktualisieren duerfen Name und Version mitwandern - die technische Kennung nicht.
+                // An ihr haengen die laufenden Instanzen.
+                row.Id = definition.Id;
+                row.Version = definition.Version;
             }
 
             row.TenantId = definition.TenantId;
@@ -79,24 +102,74 @@ namespace ITVComponents.Workflow.EntityFramework
             // von .NET-Typnamen.
             row.DefinitionJson = WorkflowJson.Serialize(definition);
             ctx.SaveChanges();
+            definition.Key = row.DefinitionKey;
         }
 
         /// <inheritdoc/>
-        public WorkflowDefinition GetDefinition(string definitionId, int? version = null)
+        public WorkflowDefinition GetDefinition(string definitionId, int? version = null,
+            string tenantId = null)
         {
             using WorkflowContext ctx = contextFactory();
-            // Bewusst .Where statt .Find: Find umgeht in EF Core die globalen Query-Filter - der Tenant-
-            // Filter (eigener Tenant ODER oeffentlich) muss hier aber greifen.
-            WorkflowDefinitionRow row = version.HasValue
-                ? ctx.WorkflowDefinitions
-                    .Where(d => d.Id == definitionId && d.Version == version.Value)
-                    .FirstOrDefault()
-                : ctx.WorkflowDefinitions
-                    .Where(d => d.Id == definitionId)
-                    .OrderByDescending(d => d.Version)
-                    .FirstOrDefault();
 
-            return row == null ? null : WorkflowJson.Deserialize<WorkflowDefinition>(row.DefinitionJson);
+            // Ohne genannten Mandanten gilt der Query-Filter des Kontexts (eigener Tenant ODER
+            // oeffentlich); mit genanntem wird die Sicht dieses Mandanten ausdruecklich hergestellt -
+            // dafuer muss der Filter weg, sonst gaelte weiterhin der gerade aktive.
+            IQueryable<WorkflowDefinitionRow> q = tenantId == null
+                ? ctx.WorkflowDefinitions
+                : ctx.WorkflowDefinitions.IgnoreQueryFilters()
+                    .Where(d => d.TenantId == tenantId || d.TenantId == null);
+
+            q = q.Where(d => d.Id == definitionId);
+            if (version.HasValue)
+            {
+                q = q.Where(d => d.Version == version.Value);
+            }
+
+            // Die EIGENE Definition des Mandanten schlaegt die oeffentliche gleichen Namens - eine
+            // mandanteneigene Fassung ist die Verfeinerung und soll die allgemeine ueberdecken. Ohne
+            // diese Regel entschiede die Reihenfolge der Datenbank, also der Zufall.
+            WorkflowDefinitionRow row = q
+                .OrderByDescending(d => d.Version)
+                .ThenByDescending(d => d.TenantId == null ? 0 : 1)
+                .FirstOrDefault();
+
+            return Materialize(row);
+        }
+
+        /// <inheritdoc/>
+        public WorkflowDefinition GetDefinition(int definitionKey)
+        {
+            using WorkflowContext ctx = contextFactory();
+            // Bewusst OHNE Query-Filter: eine laufende Instanz eines OEFFENTLICHEN Workflows muss ihre
+            // Definition auch dann laden koennen, wenn gerade ein anderer Mandant aktiv ist (Runner,
+            // Hintergrund-Abarbeitung). Die Zugriffsentscheidung faellt am Verweis, nicht hier - die
+            // Instanz selbst ist mandanten-gefiltert.
+            WorkflowDefinitionRow row = ctx.WorkflowDefinitions
+                .IgnoreQueryFilters()
+                .FirstOrDefault(d => d.DefinitionKey == definitionKey);
+            return Materialize(row);
+        }
+
+        /// <summary>
+        /// Baut die Definition aus der Zeile und setzt die technische Kennung nach - sie steht in der
+        /// SPALTE, nicht im JSON (dort waere sie eine Zahl, die nur in dieser einen Ablage gilt).
+        /// </summary>
+        private static WorkflowDefinition Materialize(WorkflowDefinitionRow row)
+        {
+            if (row == null)
+            {
+                return null;
+            }
+
+            WorkflowDefinition definition = WorkflowJson.Deserialize<WorkflowDefinition>(row.DefinitionJson);
+            if (definition != null)
+            {
+                definition.Key = row.DefinitionKey;
+                definition.TenantId = row.TenantId;
+                definition.IsPublic = row.TenantId == null;
+            }
+
+            return definition;
         }
 
         /// <inheritdoc/>
@@ -193,6 +266,7 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CallDepth = instance.CallDepth;
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
+            row.DefinitionKey = instance.DefinitionKey;
             row.VariablesJson = WorkflowJson.SerializeVariables(instance.Variables);
             row.CompensationsJson = WorkflowJson.SerializeCompensations(instance.Compensations);
 
@@ -672,6 +746,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 Version = row.Version,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
+                DefinitionKey = row.DefinitionKey,
                 Variables = WorkflowJson.DeserializeVariables(row.VariablesJson),
                 Compensations = WorkflowJson.DeserializeCompensations(row.CompensationsJson),
                 Tokens = tokenRows.Select(t => new Token

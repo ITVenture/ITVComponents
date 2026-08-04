@@ -17,5 +17,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Vie
 
         /// <summary>Anzahl Kanten.</summary>
         public int FlowCount { get; init; }
+
+        /// <summary>
+        /// Ob die Definition <b>oeffentlich</b> ist (fuer alle Mandanten). In der Liste sichtbar, weil
+        /// derselbe Name je Mandant einmal vorkommen darf - ohne die Angabe waeren zwei Zeilen mit
+        /// gleichem Namen nicht auseinanderzuhalten.
+        /// </summary>
+        public bool IsPublic { get; init; }
+
+        /// <summary>Der Mandant, dem sie gehoert, oder null bei einer oeffentlichen.</summary>
+        public string? TenantId { get; init; }
     }
 }

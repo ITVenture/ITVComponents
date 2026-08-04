@@ -133,7 +133,20 @@ namespace ITVComponents.Workflow.Instances
         /// <summary>Eindeutige Kennung dieser Instanz.</summary>
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-        /// <summary>Fachliche Id der zugrunde liegenden Definition.</summary>
+        /// <summary>
+        /// Die <b>technische</b> Kennung der Definitionszeile, mit der diese Instanz gestartet wurde -
+        /// der eigentliche Verweis.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="DefinitionId"/> und <see cref="DefinitionVersion"/> stehen weiterhin daneben, aber
+        /// als <b>Anzeige und Filter</b>, nicht als Verweis: ueber Name und Version allein waere nicht
+        /// entscheidbar, ob die oeffentliche oder die mandanteneigene Definition desselben Namens gemeint
+        /// ist. Die Engine laedt ueber diese Kennung - eine laufende Instanz bleibt damit an genau dem
+        /// Graphen, mit dem sie angefangen hat.
+        /// </remarks>
+        public int DefinitionKey { get; set; }
+
+        /// <summary>Fachliche Id der Definition (Anzeige und Filter - der Verweis ist <see cref="DefinitionKey"/>).</summary>
         public string DefinitionId { get; set; }
 
         /// <summary>Version der Definition, an der diese Instanz laeuft.</summary>

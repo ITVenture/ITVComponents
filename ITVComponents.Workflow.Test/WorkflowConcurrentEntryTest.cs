@@ -53,7 +53,7 @@ namespace ITVComponents.Workflow.Test
         {
             var inst = new WorkflowInstance
             {
-                DefinitionId = "wd",
+                DefinitionKey = store.GetDefinition("wd", 1).Key,                DefinitionId = "wd",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Waiting,
                 Tokens = new List<Token>

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace ITVComponents.Workflow.Model
 {
@@ -11,6 +12,21 @@ namespace ITVComponents.Workflow.Model
     public class WorkflowDefinition
     {
         private Dictionary<string, WorkflowNode> nodeIndex;
+
+        /// <summary>
+        /// Die <b>technische</b> Kennung dieser Definitionszeile - vom Ablageort vergeben, dort der
+        /// Primaerschluessel. 0 = noch nicht abgelegt.
+        /// </summary>
+        /// <remarks>
+        /// Nicht Teil des Austauschformats (siehe <see cref="System.Text.Json.Serialization.JsonIgnoreAttribute"/>):
+        /// sie gilt nur in EINER Ablage und waere in einer exportierten Datei eine Zahl, die anderswo auf
+        /// etwas anderes zeigt. Wofuer sie da ist: eine laufende Instanz verweist ueber sie auf GENAU die
+        /// Definition, mit der sie gestartet wurde. Ueber Name und Version allein waere der Verweis
+        /// mehrdeutig, sobald es eine oeffentliche und eine mandanteneigene Definition desselben Namens
+        /// gibt - und die Instanz liefe beim naechsten Vortrieb still auf einem anderen Graphen weiter.
+        /// </remarks>
+        [JsonIgnore]
+        public int Key { get; set; }
 
         /// <summary>Fachliche Kennung des Workflows (ueber Versionen hinweg stabil).</summary>
         public string Id { get; set; }
@@ -27,6 +43,21 @@ namespace ITVComponents.Workflow.Model
         /// Tenants startbar; tenant-eigene nur im eigenen Tenant. Der Kern wertet den Wert nicht aus.
         /// </summary>
         public string TenantId { get; set; }
+
+        /// <summary>
+        /// Ob diese Definition <b>oeffentlich</b> ist (fuer alle Mandanten sichtbar und startbar).
+        /// </summary>
+        /// <remarks>
+        /// Die ausdrueckliche Entscheidung, und deshalb ein eigenes Feld: ohne sie waere „kein Mandant
+        /// gesetzt" nicht von „oeffentlich gemeint" zu unterscheiden, und die Ablage legte im Zweifel
+        /// still eine oeffentliche Definition an. Setzt jemand beides (oeffentlich UND ein Mandant),
+        /// ist das ein Widerspruch und keine Auslegungsfrage - die Ablage weist ihn ab.
+        /// <para>
+        /// Eine oeffentliche Definition anzulegen oder zu aendern verlangt eine eigene Berechtigung
+        /// (<c>Workflow.DesignPublic</c>); die Oberflaeche macht daraus zwei getrennte Wege.
+        /// </para>
+        /// </remarks>
+        public bool IsPublic { get; set; }
 
         /// <summary>
         /// Gesetzt, wenn die Definition Validierungsfehler hat und deshalb NICHT gestartet werden darf. So

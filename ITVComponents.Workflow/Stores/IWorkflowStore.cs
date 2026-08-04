@@ -17,14 +17,41 @@ namespace ITVComponents.Workflow.Stores
     /// </remarks>
     public interface IWorkflowStore
     {
-        /// <summary>Legt eine Definition ab (Upsert nach Id+Version).</summary>
+        /// <summary>
+        /// Legt eine Definition ab (Upsert nach fachlicher Id + Version + Mandant) und schreibt die
+        /// vergebene technische Kennung nach <see cref="WorkflowDefinition.Key"/> zurueck.
+        /// </summary>
+        /// <remarks>
+        /// Der Mandant wird dabei festgelegt: <see cref="WorkflowDefinition.IsPublic"/> heisst
+        /// oeffentlich (kein Mandant), sonst gilt der am Modell gesetzte - und wenn keiner gesetzt ist,
+        /// der Mandant des laufenden Kontexts. „Nichts gesetzt" darf nicht stillschweigend zu
+        /// „oeffentlich" werden; oeffentlich ist eine ausdrueckliche Entscheidung.
+        /// </remarks>
         void SaveDefinition(WorkflowDefinition definition);
 
         /// <summary>
-        /// Laedt eine Definition. Ist <paramref name="version"/> null, wird die hoechste Version
-        /// geliefert. Liefert null, wenn nichts gefunden wird.
+        /// Laedt eine Definition ueber ihren <b>sprechenden</b> Namen. Ist <paramref name="version"/>
+        /// null, wird die hoechste Version geliefert. Liefert null, wenn nichts gefunden wird.
         /// </summary>
-        WorkflowDefinition GetDefinition(string definitionId, int? version = null);
+        /// <param name="definitionId">die fachliche Id</param>
+        /// <param name="version">die Version, oder null fuer die hoechste</param>
+        /// <param name="tenantId">
+        /// der Mandant, aus dessen Sicht gesucht wird, oder null fuer den Mandanten des laufenden
+        /// Kontexts. Gesucht wird jeweils die <b>eigene</b> Definition dieses Mandanten und ersatzweise
+        /// die oeffentliche - die eigene hat Vorrang.
+        /// </param>
+        /// <remarks>
+        /// Der Weg zum <b>Suchen</b>. Ein Verweis, der stehen bleiben soll, gehoert dagegen ueber die
+        /// technische Kennung (<see cref="GetDefinition(int)"/>): welcher Name gerade welche Zeile
+        /// meint, kann sich aendern, sobald ein Mandant eine eigene Fassung anlegt.
+        /// </remarks>
+        WorkflowDefinition GetDefinition(string definitionId, int? version = null, string tenantId = null);
+
+        /// <summary>
+        /// Laedt eine Definition ueber ihre <b>technische</b> Kennung - eindeutig, ohne Namens- oder
+        /// Mandanten-Aufloesung. Liefert null, wenn es sie nicht (mehr) gibt.
+        /// </summary>
+        WorkflowDefinition GetDefinition(int definitionKey);
 
         /// <summary>Legt eine Instanz ab (Upsert nach Id). Setzt den Aenderungszeitpunkt.</summary>
         void SaveInstance(WorkflowInstance instance);

@@ -148,7 +148,7 @@ namespace ITVComponents.Workflow.Test
             // noch aktiv werden und liefern -> die Instanz ruht (Waiting), kein Deadlock-Fault.
             var inst = new WorkflowInstance
             {
-                DefinitionId = "ho",
+                DefinitionKey = store.GetDefinition("ho", 1).Key,                DefinitionId = "ho",
                 DefinitionVersion = 1,
                 Status = WorkflowStatus.Running,
                 Tokens = new List<Token>

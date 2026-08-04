@@ -6,7 +6,8 @@ Eigenschaften bedeuten. Sie ergänzt den [Workflow-Integration-Guide](Workflow-I
 Laufzeit und die Einbettung in den Host beschreibt.
 
 > Voraussetzung: Permission `Workflow.Design` und das Feature `ITVWorkflow`. Ohne beides ist der Editor
-> nicht sichtbar.
+> nicht sichtbar. Für **öffentliche** Workflows (für alle Mandanten) kommt `Workflow.DesignPublic`
+> dazu — sowohl zum Anlegen als auch zum Ändern.
 
 ---
 
@@ -70,6 +71,14 @@ Was für die **ganze Definition** gilt und an keinem Knoten hängt:
   den Hintergrund-Workern aufgegriffen werden. **Kleinere Stufe = wichtiger** (Highest 0 … Lowest 4); leer =
   Normal. Wer eine Instanz von Hand startet, kann den Wert für diesen einen Fall übersteuern. Ein
   Subworkflow erbt die Stufe seines Aufrufers und ignoriert seine eigene Vorgabe.
+- **Visibility** — wem der Workflow gehört. **This tenant only** (Vorgabe) oder **Public**. Ein
+  öffentlicher Workflow gehört niemandem im Besonderen: jeder Mandant sieht ihn, kann ihn starten, und
+  jede Änderung erreicht alle auf einmal. Deshalb verlangt er eine eigene Berechtigung
+  (`Workflow.DesignPublic`) — ohne sie ist die Auswahl gesperrt, und der Server weist ein Speichern
+  ohnehin ab.
+  Ein Mandant, der eine eigene Variante braucht, legt sie unter **derselben Id** an; für ihn hat sie
+  dann Vorrang vor der öffentlichen. **Laufende Instanzen sind davon nicht betroffen** — sie bleiben an
+  der Definition, mit der sie gestartet wurden.
 - **Execution log detail** — ab welcher Stufe Einträge ins Ablauf-Protokoll geschrieben werden. Unterhalb
   liegende Einträge werden **nicht** bloß ausgeblendet, sie entstehen gar nicht erst. „Milestones" lässt
   die Schritt-für-Schritt-Einträge (jeder betretene und beendete Knoten) weg — der übliche Griff gegen ein

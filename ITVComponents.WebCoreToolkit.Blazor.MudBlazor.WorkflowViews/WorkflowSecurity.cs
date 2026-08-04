@@ -31,6 +31,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews
         public const string Design = "Workflow.Design";
 
         /// <summary>
+        /// Aspekt: <b>oeffentliche</b> Definitionen anlegen und aendern - solche, die jedem Mandanten
+        /// gehoeren und von jedem gestartet werden koennen.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst getrennt von <see cref="Design"/> und bewusst „Design" und nicht „Create": auch das
+        /// AENDERN einer bestehenden oeffentlichen Definition wirkt auf alle Mandanten. Wer sie nur im
+        /// eigenen Mandanten modelliert, richtet dort Schaden an; wer eine oeffentliche aendert, bei
+        /// allen. Verlangt wird die Berechtigung zusaetzlich zu <see cref="Design"/>.
+        /// </remarks>
+        public const string DesignPublic = "Workflow.DesignPublic";
+
+        /// <summary>
         /// Aspekt: die eigenen Aufgaben sehen und erledigen. Bewusst getrennt von
         /// <see cref="Monitor"/>/<see cref="Operate"/>: die Arbeitsliste ist eine <b>Benutzer</b>-Ansicht -
         /// wer Rechnungen freigibt, braucht deswegen keinen Blick in fremde Instanzen. Die feine

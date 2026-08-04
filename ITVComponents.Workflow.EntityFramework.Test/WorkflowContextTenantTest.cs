@@ -20,30 +20,6 @@ namespace ITVComponents.Workflow.EntityFramework.Test
     {
         private SqliteConnection connection;
 
-        /// <summary>Eine Options-Quelle, die den geteilten In-Memory-SQLite-Kontext verdrahtet.</summary>
-        private sealed class SqliteTestOptionsLoader : ContextOptionsLoader<WorkflowContext>
-        {
-            private readonly SqliteConnection connection;
-
-            public SqliteTestOptionsLoader(SqliteConnection connection)
-            {
-                this.connection = connection;
-            }
-
-            protected override void ConfigureOptionsBuilder(DbContextOptionsBuilder<WorkflowContext> builder)
-            {
-                builder.UseSqlite(connection);
-            }
-        }
-
-        /// <summary>Ein fester Tenant/Benutzer als Ersatz fuer den injizierten Security-Context.</summary>
-        private sealed class FakeUserContext : IUserAwareContext
-        {
-            public string CurrentUserName => "tester";
-
-            public string CurrentTenant { get; init; }
-        }
-
         [TestInitialize]
         public void Setup()
         {
@@ -74,9 +50,18 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             return new EfWorkflowStore(() => MakeContext(tenant));
         }
 
+        /// <summary>
+        /// Eine Definition. <paramref name="tenant"/> null heisst hier <b>oeffentlich</b> - und das muss
+        /// seit der ausdruecklichen Entscheidung auch so gesagt werden: „kein Mandant gesetzt" allein
+        /// laesst der Store auf den aktiven Mandanten fallen, damit der Editor nicht still oeffentliche
+        /// Definitionen anlegt.
+        /// </summary>
         private static WorkflowDefinition Definition(string id, string tenant)
         {
-            return new WorkflowDefinition { Id = id, Version = 1, TenantId = tenant, Name = id };
+            return new WorkflowDefinition
+            {
+                Id = id, Version = 1, TenantId = tenant, IsPublic = tenant == null, Name = id
+            };
         }
 
         [TestMethod]
@@ -105,7 +90,13 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             acme.SaveDefinition(Definition("pub", null));
 
-            var instance = new WorkflowInstance { Id = "i1", DefinitionId = "pub", DefinitionVersion = 1 };
+            var instance = new WorkflowInstance
+            {
+                Id = "i1",
+                DefinitionKey = acme.GetDefinition("pub", 1).Key,
+                DefinitionId = "pub",
+                DefinitionVersion = 1
+            };
             acme.SaveInstance(instance);
 
             // Beim Anlegen mit dem aktiven Tenant gestempelt.

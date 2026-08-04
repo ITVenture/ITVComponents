@@ -25,6 +25,35 @@
 
             <MudDivider Class="my-4" />
 
+            @* Sichtbarkeit: die folgenreichste Einstellung dieses Dialogs, deshalb mit Ansage statt als
+               Schalter unter vielen. Ohne die Berechtigung gar nicht erst bedienbar - der Server weist
+               es ohnehin ab, aber ein Schalter, der beim Speichern still nichts tut, waere schlimmer. *@
+            <MudText Typo="Typo.subtitle2">Visibility</MudText>
+            <MudRadioGroup T="bool" Value="@(Def.IsPublic)" ValueChanged="OnVisibilityChanged">
+                <MudRadio T="bool" Value="false" Dense="true">This tenant only</MudRadio>
+                <MudRadio T="bool" Value="true" Dense="true" Disabled="@(!CanPublish)">
+                    Public — every tenant can see and start it
+                </MudRadio>
+            </MudRadioGroup>
+            @if (!CanPublish)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Creating or changing a public workflow needs the <b>Workflow.DesignPublic</b>
+                    permission.
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    A public workflow belongs to nobody in particular: every tenant sees it, can start it,
+                    and every change reaches all of them at once. A tenant that needs its own variant
+                    creates one under the same id — it then takes precedence over the public one for that
+                    tenant. Running instances are unaffected; they stay on the definition they started on.
+                </MudText>
+            }
+
+            <MudDivider Class="my-4" />
+
             <MudSelect T="HistorySeverity?" Value="@Def.MinHistorySeverity" ValueChanged="OnSeverityChanged"
                        Label="Execution log detail" Dense="true" Margin="Margin.Dense" Clearable="true">
                 <MudSelectItem T="HistorySeverity?" Value="@((HistorySeverity?)null)">(as configured for the host)</MudSelectItem>
@@ -50,6 +79,27 @@
 
     /// <summary>Die bearbeitete Definition. Wird direkt geändert (gespeichert wird sie vom Editor).</summary>
     [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    /// <summary>Ob der Benutzer öffentliche Definitionen anlegen/ändern darf (Workflow.DesignPublic).</summary>
+    [Parameter] public bool CanPublish { get; set; }
+
+    /// <summary>
+    /// Umschalten der Sichtbarkeit. „Öffentlich" heisst: kein Mandant — beides zugleich wäre ein
+    /// Widerspruch, und die Ablage weist ihn ab.
+    /// </summary>
+    private void OnVisibilityChanged(bool isPublic)
+    {
+        if (Def is null)
+        {
+            return;
+        }
+
+        Def.IsPublic = isPublic;
+        if (isPublic)
+        {
+            Def.TenantId = null;
+        }
+    }
 
     private void OnPriorityChanged(int? value)
     {

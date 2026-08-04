@@ -205,21 +205,31 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Version")
+                    b.Property<int>("DefinitionKey")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DefinitionKey"));
+
                     b.Property<string>("DefinitionJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Id")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("TenantId")
                         .HasColumnType("text");
 
-                    b.HasKey("Id", "Version");
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("DefinitionKey");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Id", "Version")
+                        .IsUnique();
 
                     b.ToTable("WorkflowDefinitions");
                 });
@@ -243,6 +253,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.Property<string>("DefinitionId")
                         .HasColumnType("text");
+
+                    b.Property<int>("DefinitionKey")
+                        .HasColumnType("integer");
 
                     b.Property<int>("DefinitionVersion")
                         .HasColumnType("integer");
@@ -284,6 +297,8 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.HasIndex("CorrelationKey");
 
+                    b.HasIndex("DefinitionKey");
+
                     b.HasIndex("ParentInstanceId");
 
                     b.HasIndex("RootInstanceId");
@@ -295,6 +310,15 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.HasIndex("Status", "Priority");
 
                     b.ToTable("WorkflowInstances");
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowInstanceRow", b =>
+                {
+                    b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", null)
+                        .WithMany()
+                        .HasForeignKey("DefinitionKey")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

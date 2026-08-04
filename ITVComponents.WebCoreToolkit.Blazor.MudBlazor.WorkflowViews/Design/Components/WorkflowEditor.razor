@@ -819,9 +819,14 @@
             return;
         }
 
+        var auth = await AuthState.GetAuthenticationStateAsync();
         var parameters = new DialogParameters
         {
-            { nameof(DefinitionSettingsDialog.Def), def }
+            { nameof(DefinitionSettingsDialog.Def), def },
+            {
+                nameof(DefinitionSettingsDialog.CanPublish),
+                Handler.HasPermission(auth.User, WorkflowSecurity.DesignPublic)
+            }
         };
         var options = new DialogOptions
         {

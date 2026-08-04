@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Instances;
@@ -29,6 +30,13 @@ namespace ITVComponents.Workflow.Stores
 
         private readonly ConcurrentDictionary<string, int> versions = new ConcurrentDictionary<string, int>();
 
+        /// <summary>
+        /// Der Zaehler fuer die technischen Kennungen. Auch die Ablage im Speicher vergibt sie - sonst
+        /// verhielte sie sich anders als eine echte Ablage, und ein Test wuerde beweisen, was im Betrieb
+        /// nicht gilt.
+        /// </summary>
+        private int nextDefinitionKey;
+
         /// <inheritdoc/>
         public void SaveDefinition(WorkflowDefinition definition)
         {
@@ -37,24 +45,55 @@ namespace ITVComponents.Workflow.Stores
                 throw new ArgumentNullException(nameof(definition));
             }
 
-            definitions[Key(definition.Id, definition.Version)] = definition;
+            if (definition.IsPublic && !string.IsNullOrEmpty(definition.TenantId))
+            {
+                throw new InvalidOperationException(
+                    $"Definition '{definition.Id}' v{definition.Version} is marked public but also names " +
+                    $"the tenant '{definition.TenantId}'. Decide one - public means no tenant.");
+            }
+
+            if (definition.IsPublic)
+            {
+                definition.TenantId = null;
+            }
+
+            string key = Key(definition.Id, definition.Version, definition.TenantId);
+            if (definitions.TryGetValue(key, out WorkflowDefinition existing))
+            {
+                // Aktualisieren: die technische Kennung bleibt, worauf verwiesen wird, aendert sich nicht.
+                definition.Key = existing.Key;
+            }
+            else if (definition.Key == 0)
+            {
+                definition.Key = Interlocked.Increment(ref nextDefinitionKey);
+            }
+
+            definitions[key] = definition;
         }
 
         /// <inheritdoc/>
-        public WorkflowDefinition GetDefinition(string definitionId, int? version = null)
+        public WorkflowDefinition GetDefinition(string definitionId, int? version = null,
+            string tenantId = null)
         {
+            // Die eigene Definition des Mandanten schlaegt die oeffentliche - eine mandanteneigene
+            // Fassung ist die Verfeinerung und soll die allgemeine ueberdecken.
+            IEnumerable<WorkflowDefinition> candidates = definitions.Values
+                .Where(d => d.Id == definitionId
+                            && (d.TenantId == tenantId || string.IsNullOrEmpty(d.TenantId)));
             if (version.HasValue)
             {
-                return definitions.TryGetValue(Key(definitionId, version.Value), out WorkflowDefinition def)
-                    ? def
-                    : null;
+                candidates = candidates.Where(d => d.Version == version.Value);
             }
 
-            return definitions.Values
-                .Where(d => d.Id == definitionId)
+            return candidates
                 .OrderByDescending(d => d.Version)
+                .ThenByDescending(d => string.IsNullOrEmpty(d.TenantId) ? 0 : 1)
                 .FirstOrDefault();
         }
+
+        /// <inheritdoc/>
+        public WorkflowDefinition GetDefinition(int definitionKey)
+            => definitions.Values.FirstOrDefault(d => d.Key == definitionKey);
 
         /// <inheritdoc/>
         public void SaveInstance(WorkflowInstance instance)
@@ -268,9 +307,13 @@ namespace ITVComponents.Workflow.Stores
                 new KeyValuePair<(string, string), string>((instanceId, tokenId), owner));
         }
 
-        private static string Key(string id, int version)
+        /// <summary>
+        /// Der Ablage-Schluessel einer Definition: fachliche Id, Version <b>und Mandant</b>. Der Mandant
+        /// gehoert dazu, sonst verdraengte die Definition eines Mandanten die gleichnamige eines anderen.
+        /// </summary>
+        private static string Key(string id, int version, string tenantId)
         {
-            return $"{id}#{version}";
+            return $"{id}#{version}#{tenantId ?? "<public>"}";
         }
 
         private sealed class BranchLock : IWorkflowBranchLock
