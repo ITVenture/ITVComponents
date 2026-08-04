@@ -1298,6 +1298,9 @@ namespace ITVComponents.Workflow
                 case ParallelGatewayNode parallel:
                     return ProcessParallelGateway(instance, definition, token, parallel);
 
+                case InclusiveGatewayNode inclusive:
+                    return ProcessInclusiveGateway(instance, definition, token, inclusive);
+
                 default:
                     Fault(instance, $"Unsupported node type '{node.GetType().Name}' (node '{node.Id}').");
                     return false;
@@ -3853,6 +3856,154 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Verarbeitet ein <b>inklusives Gateway</b> (OR): als Split werden alle zutreffenden Ausgaenge
+        /// genommen, als Join parkt das Token wie beim AND.
+        /// </summary>
+        /// <remarks>
+        /// Der Split stempelt die ANZAHL der aktivierten Zweige auf seine Tokens - das ist der ganze
+        /// Trick des strukturierten OR (siehe <see cref="InclusiveGatewayNode"/>). Bewusst auch dann als
+        /// Split behandelt, wenn nur EIN Zweig zutrifft: sonst behielte das Token die Zweig-Herkunft
+        /// seiner umgebenden Ebene, und der Join zaehlte es der falschen Region zu.
+        /// </remarks>
+        private bool ProcessInclusiveGateway(WorkflowInstance instance, WorkflowDefinition definition,
+            Token token, InclusiveGatewayNode node)
+        {
+            IReadOnlyList<SequenceFlow> incoming = definition.IncomingFlows(node.Id);
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(node.Id);
+
+            if (outgoing.Count == 0)
+            {
+                Fault(instance, $"Inclusive gateway '{node.Id}' has no outgoing flow.");
+                return false;
+            }
+
+            if (incoming.Count > 1)
+            {
+                // Join: die Entscheidung faellt zentral in ResolveJoins - wie beim AND, und aus demselben
+                // Grund (ein Stand, gegen den ausgewertet wird).
+                token.Status = TokenStatus.Joining;
+                instance.Log("Joining", node.Id, node.Name, HistorySeverity.Verbose);
+                return true;
+            }
+
+            var selected = new List<SequenceFlow>(outgoing.Count);
+            foreach (SequenceFlow flow in outgoing)
+            {
+                if (flow.Id == node.DefaultFlowId)
+                {
+                    // Die Standard-Kante ist ausdruecklich fuer den Fall gedacht, dass sonst nichts
+                    // zutrifft - sie nimmt an der Auswahl nicht teil (auch nicht mit einer Bedingung).
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(flow.Condition))
+                {
+                    // Ohne Bedingung heisst: immer. Genau darin unterscheidet sich das OR vom XOR, das
+                    // hier die erste passende Kante nimmt und aufhoert.
+                    selected.Add(flow);
+                    continue;
+                }
+
+                bool matched;
+                try
+                {
+                    matched = evaluator.EvaluateCondition(flow.Condition, Scope(instance, token),
+                        flow.ConditionMode);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Condition of flow '{flow.Id}' at inclusive gateway '{node.Id}' in instance " +
+                        $"'{instance.Id}' could not be evaluated: {ex.OutlineException()}", LogSeverity.Error);
+                    Fault(instance, $"Condition of flow '{flow.Id}' failed: {ex.Message}", node.Id);
+                    return false;
+                }
+
+                if (matched)
+                {
+                    selected.Add(flow);
+                }
+            }
+
+            if (selected.Count == 0)
+            {
+                if (node.DefaultFlowId == null)
+                {
+                    Fault(instance,
+                        $"No condition matched at inclusive gateway '{node.Id}' and no default flow is set.");
+                    return false;
+                }
+
+                SequenceFlow defaultFlow = outgoing.FirstOrDefault(f => f.Id == node.DefaultFlowId);
+                if (defaultFlow == null)
+                {
+                    Fault(instance,
+                        $"Default flow '{node.DefaultFlowId}' of gateway '{node.Id}' does not exist.");
+                    return false;
+                }
+
+                selected.Add(defaultFlow);
+            }
+
+            token.Status = TokenStatus.Consumed;
+            instance.Log("InclusiveSplit", node.Id,
+                $"{selected.Count} of {outgoing.Count} branch(es): "
+                + string.Join(", ", selected.Select(f => f.Id)));
+            return SpawnOutgoing(instance, selected, token, asSplit: true,
+                splitBranchCount: selected.Count);
+        }
+
+        /// <summary>
+        /// Waehlt die Tokens aus, mit denen ein <b>OR-Join</b> feuert: alle Zweige EINES Splits, sobald
+        /// ihre angemeldete Zahl beisammen ist - oder null, wenn noch welche unterwegs sind.
+        /// </summary>
+        /// <remarks>
+        /// Der Join beantwortet damit nicht die (ueber Bedingungen und Schleifen hinweg nicht
+        /// entscheidbare) Frage, ob ihn noch jemand erreichen kann, sondern zaehlt gegen die Zahl, die
+        /// sein Split angemeldet hat.
+        /// <para>
+        /// Ein Token OHNE diese Anmeldung kann hier nie mitgezaehlt werden - es kaeme aus einem anderen
+        /// Gateway oder aus einer Kante, die jemand direkt auf den Join gezogen hat. Das faultet
+        /// SOFORT statt still zu haengen: die Instanz wuerde sonst ewig warten, und die Ursache stuende
+        /// nirgends.
+        /// </para>
+        /// </remarks>
+        private List<Token> SelectInclusiveJoinSet(WorkflowInstance instance, IMergingGateway node,
+            List<Token> parked)
+        {
+            Token orphan = parked.FirstOrDefault(t => t.SplitBranchCount == null || t.SplitTokenId == null);
+            if (orphan != null)
+            {
+                Fault(instance,
+                    $"Token '{orphan.Id}' arrived at inclusive join '{node.Id}' without a branch count - it "
+                    + "did not come from the matching inclusive split, so it could never be counted. Check "
+                    + "the connections leading into this gateway.", node.Id);
+                return null;
+            }
+
+            foreach (IGrouping<string, Token> group in parked.GroupBy(t => t.SplitTokenId, StringComparer.Ordinal))
+            {
+                int expected = group.First().SplitBranchCount.Value;
+                if (group.Any(t => t.SplitBranchCount != expected))
+                {
+                    // Kann nur passieren, wenn zwei Aktivierungen dieselbe Split-Id traegen - dann ist die
+                    // Erwartung mehrdeutig. Laut, statt die groessere Zahl zu raten.
+                    Fault(instance,
+                        $"Tokens of split '{group.Key}' at inclusive join '{node.Id}' declare different "
+                        + "branch counts - the expectation is ambiguous.", node.Id);
+                    return null;
+                }
+
+                if (group.Count() >= expected)
+                {
+                    return group.Take(expected).ToList();
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Loest fertige AND-Joins auf: fuer jedes parallele Gateway mit mehreren Eingaengen, an dem
         /// genug Tokens geparkt sind (Zahl geparkter Joining-Tokens &gt;= Zahl eingehender Kanten), werden
         /// diese verbraucht und die Ausgaenge gespawnt (ein neuer aktiver Zweig je Ausgang). Liefert true,
@@ -3923,7 +4074,7 @@ namespace ITVComponents.Workflow
                 progress = false;
                 foreach (WorkflowNode node in definition.Nodes)
                 {
-                    if (node is not ParallelGatewayNode gateway)
+                    if (node is not IMergingGateway gateway)
                     {
                         continue;
                     }
@@ -3938,7 +4089,16 @@ namespace ITVComponents.Workflow
                         .Where(t => t.NodeId == node.Id && t.Status == TokenStatus.Joining)
                         .ToList();
 
-                    List<Token> joined = SelectJoinSet(instance, node, incoming, parked);
+                    // Zwei Regeln, eine Stelle: der AND-Join fragt je eingehender KANTE, der OR-Join
+                    // zaehlt die Zweige, die sein Split angemeldet hat.
+                    List<Token> joined = node is InclusiveGatewayNode
+                        ? SelectInclusiveJoinSet(instance, gateway, parked)
+                        : SelectJoinSet(instance, node, incoming, parked);
+                    if (instance.Status == WorkflowStatus.Faulted)
+                    {
+                        return firedAny; // Die Auswahl hat einen Modellfehler gemeldet.
+                    }
+
                     if (joined == null)
                     {
                         continue;
@@ -3954,7 +4114,8 @@ namespace ITVComponents.Workflow
                     // es weitergeht - so bleibt die Zweig-Herkunft auch bei verschachtelten Splits intakt.
                     Token carrier = MergeBranches(instance, gateway, joined);
 
-                    instance.Log("ParallelJoin", node.Id, node.Name);
+                    instance.Log(node is InclusiveGatewayNode ? "InclusiveJoin" : "ParallelJoin",
+                        node.Id, node.Name);
                     if (!SpawnOutgoing(instance, definition.OutgoingFlows(node.Id), carrier))
                     {
                         return firedAny; // SpawnOutgoing hat auf Faulted gesetzt.
@@ -3989,7 +4150,7 @@ namespace ITVComponents.Workflow
         /// das Abraeumen fuer die Region ist Sache des Joins.
         /// </para>
         /// </remarks>
-        private static Token MergeBranches(WorkflowInstance instance, ParallelGatewayNode node, List<Token> joined)
+        private static Token MergeBranches(WorkflowInstance instance, IMergingGateway node, List<Token> joined)
         {
             Token carrier = joined[0];
             Token parent = FindSplitParent(instance, node, joined);
@@ -4113,7 +4274,7 @@ namespace ITVComponents.Workflow
         /// kein Zweig-Scope im Spiel (Instanz-Scope ist die Basis) - das ist der Normalfall fuer Instanzen
         /// aus der Zeit vor den Zweig-Scopes und deshalb kein Fehler, sondern der vertraegliche Rueckfall.
         /// </summary>
-        private static Token FindSplitParent(WorkflowInstance instance, ParallelGatewayNode node,
+        private static Token FindSplitParent(WorkflowInstance instance, IMergingGateway node,
             List<Token> joined)
         {
             string splitId = joined[0].SplitTokenId;
@@ -4164,7 +4325,7 @@ namespace ITVComponents.Workflow
         /// als Geschwister desselben Rennens ausweist
         /// </param>
         private bool SpawnOutgoing(WorkflowInstance instance, IReadOnlyList<SequenceFlow> outgoing, Token source,
-            bool? asSplit = null, string raceTokenId = null)
+            bool? asSplit = null, string raceTokenId = null, int? splitBranchCount = null)
         {
             bool split = asSplit ?? outgoing.Count > 1;
             Dictionary<string, object> sourceScope = Scope(instance, source);
@@ -4187,6 +4348,7 @@ namespace ITVComponents.Workflow
                     Status = TokenStatus.Active,
                     Variables = split ? CopyScope(sourceScope) : CopyScope(source?.Variables),
                     SplitTokenId = split ? source?.Id : source?.SplitTokenId,
+                    SplitBranchCount = split ? splitBranchCount : source?.SplitBranchCount,
                     RaceTokenId = raceTokenId,
                     ArrivedViaFlowId = flow.Id,
                     SubProcessOwnerTokenId = source?.SubProcessOwnerTokenId

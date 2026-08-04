@@ -105,6 +105,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<string>("RaceTokenId")
                         .HasColumnType("text");
 
+                    b.Property<int?>("SplitBranchCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SplitTokenId")
                         .HasColumnType("text");
 

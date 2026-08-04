@@ -1620,3 +1620,73 @@ Die Vormerkungen liegen als JSON-Spalte und nicht als eigene Tabelle: sie werden
 (beim Rückabwickeln) und nie einzeln abgefragt — ein Index darauf hätte keinen Abnehmer. Der mitgeführte
 Variablen-Stand läuft durch dieselbe typerhaltende Ablage wie die Instanz-Variablen (siehe
 `WorkflowJson.RegisterVariableType`), sonst käme ein eigener Datensatz-Typ als untypisierte Struktur zurück.
+
+## 21. Inklusives Gateway (OR) — der strukturierte Weg
+
+Der `InclusiveGatewayNode` ist die dritte Gateway-Art:
+
+| | Split | Join |
+|---|---|---|
+| **XOR** | genau *ein* Ausgang | der erste Ankömmling läuft weiter |
+| **AND** | *alle* Ausgänge | wartet auf *alle* Eingänge |
+| **OR** | *alle zutreffenden* — 1 bis n | wartet auf **genau die aktivierten** |
+
+Beispiel: Bestellung prüfen → *Bonität*, *Exportkontrolle*, *Grossauftrag-Freigabe*. Bei dieser Bestellung
+greifen zwei Bedingungen. Auf drei zu warten wäre ein Deadlock; nach dem ersten weiterzulaufen führte
+alles hinter dem Join dreimal aus.
+
+### Warum „strukturiert"
+
+Der Join müsste allgemein beantworten: „kann mich noch irgendein Token erreichen?" Das ist über
+Bedingungen (CScript über Laufzeitwerte) und Schleifen hinweg nicht entscheidbar, und beide Fehlrichtungen
+sind teuer — ewiges Warten oder ein Merge, in dem still ein Zweig fehlt. Die BPMN-Spec definiert das über
+Erreichbarkeits-Analyse; alle bekannten Engines implementieren davon eine Näherung.
+
+Hier läuft es anders herum: **der Split weiss, wie viele Zweige er aktiviert hat** — er hat die
+Bedingungen gerade ausgewertet. Er stempelt die Zahl auf seine Tokens (`Token.SplitBranchCount`), der
+Join zählt. Aus der unentscheidbaren Frage wird dieselbe Zählung, mit der AND-Split und AND-Join schon
+immer arbeiten.
+
+### Die Regeln des Splits
+
+- Jede Kante, deren **Bedingung zutrifft**, wird genommen. Eine Kante **ohne** Bedingung wird immer
+  genommen — genau darin unterscheidet sich das OR vom XOR, das die erste passende nimmt und aufhört.
+- Die **Standard-Kante** (`DefaultFlowId`) nimmt an der Auswahl nicht teil; sie greift nur, wenn sonst
+  nichts zutrifft. Ohne sie faultet ein Lauf ohne Treffer — stillschweigend gar nicht weiterzulaufen hiesse,
+  den Zweig spurlos zu verlieren.
+- Auch bei **einem** zutreffenden Zweig wirkt es als Split (eigene Scope-Kopie, eigener Stempel). Sonst
+  behielte das Token die Zweig-Herkunft der umgebenden Ebene, und der Join zählte es der falschen Region zu.
+
+### Der Preis: Split und Join sind ein Paar
+
+Der Validator besteht darauf, und zwar als **Fehler**:
+
+- Jeder Zweig des Splits muss denselben inklusiven Join erreichen, und der muss so viele Eingänge haben,
+  wie der Split Ausgänge hat. Ein Zweig, der am Join vorbeiläuft, lässt dessen Zahl nie voll werden.
+- Ein inklusiver Join braucht einen passenden Split *oberhalb*. Ohne den wartet er auf eine Zahl, die
+  niemand anmeldet.
+- Ein Knoten darf nicht Split **und** Join sein (beim AND ist das erlaubt) — er müsste gleichzeitig zählen
+  und anmelden.
+- Ein Split, bei dem **keine** Kante eine Bedingung trägt, ist ein AND. Der Validator sagt das.
+
+Das schliesst keine sinnvollen Modelle aus. Ein Merge zweier Kanten in einen *gewöhnlichen* Knoten bleibt
+erlaubt und harmlos wie bisher — er ist kein Join.
+
+### Zur Laufzeit
+
+Trifft trotzdem ein Token am inklusiven Join ein, das **keinen** Stempel trägt (eine Kante, die jemand
+direkt auf den Join gezogen hat, oder ein Zweig aus einem AND-Split), **faultet die Instanz sofort** mit
+einer Meldung, die den Token nennt. Sie würde sonst für immer warten, und die Ursache stünde nirgends.
+
+Verschachtelung ist unproblematisch: der Join eines inneren Splits gibt einen Träger-Token zurück, der die
+Herkunft der äusseren Ebene weiterträgt. Auch eine **Schleife** über denselben Split funktioniert — jede
+Aktivierung erzeugt eine neue Split-Token-Id, die Runden vermischen sich also nicht.
+
+Das Zusammenführen der Zweig-Scopes (Merge, `Outputs`, `ScopeMode`) ist mit dem AND-Join **dieselbe**
+Ausführung (`IMergingGateway`) — sonst liefen die beiden beim nächsten Detail auseinander, ohne dass es
+jemandem auffiele.
+
+### Schema
+
+Eine nullable Spalte auf `Tokens` (`SplitBranchCount`) → Migration **`InclusiveGateway`** je
+Provider-Projekt.

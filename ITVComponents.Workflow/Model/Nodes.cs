@@ -990,7 +990,7 @@ namespace ITVComponents.Workflow.Model
     /// Region als Ergebnis liefert.
     /// </para>
     /// </remarks>
-    public class ParallelGatewayNode : WorkflowNode
+    public class ParallelGatewayNode : WorkflowNode, IMergingGateway
     {
         /// <inheritdoc/>
         public override NodeKind Kind => NodeKind.ParallelGateway;
@@ -1023,6 +1023,67 @@ namespace ITVComponents.Workflow.Model
         /// ueber die Konsolidierung hinaus erhalten bleiben. Bei <see cref="ActivityScopeMode.Extend"/>
         /// ohne Wirkung.
         /// </summary>
+        public List<string> RetainVariables { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// Der gemeinsame Vertrag der Gateways, die parallele Zweige wieder <b>zusammenfuehren</b> (AND und
+    /// OR). Die Zusammenfuehrung ist an genau einer Stelle ausgefuehrt; ohne diesen Vertrag muesste sie
+    /// je Gateway-Art kopiert werden - und die beiden liefen beim naechsten Detail auseinander, ohne dass
+    /// es jemandem auffiele.
+    /// </summary>
+    public interface IMergingGateway : INodeIdentity
+    {
+        /// <summary>Anzeigename (fuer Protokoll und Meldungen).</summary>
+        string Name { get; }
+
+        /// <summary>Das deklarierte <b>Ergebnis</b> der Region; leer = alles fliesst nach oben.</summary>
+        List<ActivityOutputBinding> Outputs { get; }
+
+        /// <summary>Wie das Ergebnis in den umgebenden Scope einfliesst.</summary>
+        ActivityScopeMode ScopeMode { get; }
+
+        /// <summary>Bei <see cref="ActivityScopeMode.Replace"/>: was darueber hinaus erhalten bleibt.</summary>
+        List<string> RetainVariables { get; }
+    }
+
+    /// <summary>
+    /// Inklusives Gateway (OR): als Split werden <b>alle zutreffenden</b> Ausgaenge genommen (1 bis n),
+    /// als Join wird auf genau die Zweige gewartet, die der zugehoerige Split aktiviert hat.
+    /// </summary>
+    /// <remarks>
+    /// Der Join ist der Grund, warum es diesen Knoten ueberhaupt gesondert gibt. Auf ALLE Eingaenge zu
+    /// warten (AND) waere ein Deadlock, sobald ein Zweig nicht genommen wurde; nach dem ERSTEN
+    /// weiterzulaufen (XOR-Merge) fuehrt alles Nachfolgende mehrfach aus. Die Frage „kann mich noch
+    /// jemand erreichen?" allgemein zu beantworten, ist ueber Bedingungen und Schleifen hinweg nicht
+    /// entscheidbar.
+    /// <para>
+    /// Deshalb der <b>strukturierte</b> Weg: der Split WEISS, wie viele Zweige er aktiviert hat (er hat
+    /// die Bedingungen gerade ausgewertet), und stempelt die Zahl auf seine Tokens
+    /// (<see cref="Instances.Token.SplitBranchCount"/>). Der Join zaehlt nur noch. Der Preis dafuer ist,
+    /// dass Split und Join ein <b>Paar</b> bilden muessen - der Validator prueft das, statt eine
+    /// unpaarige Zeichnung still haengen zu lassen.
+    /// </para>
+    /// </remarks>
+    public class InclusiveGatewayNode : WorkflowNode, IMergingGateway
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.InclusiveGateway;
+
+        /// <summary>
+        /// Als Split: die Kante, die genommen wird, wenn <b>keine</b> Bedingung zutrifft. Ohne sie ist
+        /// „nichts trifft zu" ein Fehler - stillschweigend gar nicht weiterzulaufen hiesse, den Zweig
+        /// spurlos zu verlieren.
+        /// </summary>
+        public string DefaultFlowId { get; set; }
+
+        /// <summary>Als Join: das <b>Ergebnis</b> der Region (siehe <see cref="IMergingGateway"/>).</summary>
+        public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
+
+        /// <summary>Als Join: wie das Ergebnis in den umgebenden Scope einfliesst.</summary>
+        public ActivityScopeMode ScopeMode { get; set; } = ActivityScopeMode.Extend;
+
+        /// <summary>Bei <see cref="ActivityScopeMode.Replace"/>: was darueber hinaus erhalten bleibt.</summary>
         public List<string> RetainVariables { get; set; } = new List<string>();
     }
 }

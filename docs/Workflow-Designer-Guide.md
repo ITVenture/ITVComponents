@@ -293,6 +293,24 @@ Jedes Element hat ein Symbol in der Toolbox, einen Zweck, Ports und eine Eigensc
     Schrieben **zwei Zweige denselben Namen**, entscheidet man hier, indem man jedem Zweig einen eigenen
     Ergebnisnamen gibt. Plus **Scope** (Konsolidierung).
 
+### Inclusive gateway (OR) ○ (`fa-arrows-split-up-and-left`)
+
+- **Zweck:** als **Split** werden *alle zutreffenden* Ausgänge genommen (1 bis n), als **Join** wird auf
+  genau die gewartet, die der zugehörige Split aktiviert hat. Das ist die Antwort auf „prüfe Bonität *und*
+  Exportkontrolle, aber nur wenn nötig".
+- **Split oder Join** entscheidet die Zahl der eingehenden Kanten (≤ 1 = Split, > 1 = Join). Anders als
+  beim AND darf ein Knoten **nicht beides** sein.
+- **Bedingungen:** jede Kante mit zutreffender Bedingung wird genommen; eine Kante **ohne** Bedingung
+  immer. Die **Standard-Kante** greift nur, wenn sonst nichts zutrifft — ohne sie faultet ein Lauf ohne
+  Treffer.
+- **Split und Join sind ein Paar.** Jeder Zweig muss denselben Join erreichen, und der braucht so viele
+  Eingänge, wie der Split Ausgänge hat. Der Validator meldet das als Fehler — ein Zweig, der am Join
+  vorbeiläuft, wäre sonst eine Instanz, die für immer wartet, ohne dass irgendwo etwas stünde.
+- **Warum diese Auflage:** der Join zählt gegen die Zahl, die sein Split angemeldet hat. Die allgemeine
+  Frage „kann mich noch jemand erreichen?" ist über Bedingungen und Schleifen hinweg nicht entscheidbar —
+  der Split dagegen weiss die Antwort, weil er die Bedingungen gerade ausgewertet hat.
+- **Ergebnis der Region:** wie beim AND-Join über ein Mapping deklarierbar (leer = alles fliesst weiter).
+
 ### Deadline 🔔 (`fa-bell`)
 
 - **Zweck:** Eine **Frist am Schritt** (BPMN: Boundary-Timer). Hängt an einem Schritt, an dem das Token

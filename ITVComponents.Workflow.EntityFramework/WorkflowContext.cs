@@ -142,6 +142,12 @@ namespace ITVComponents.Workflow.EntityFramework
         public string SplitTokenId { get; set; }
 
         /// <summary>
+        /// Bei einem Zweig aus einem inklusiven Gateway: wie viele Zweige dieser Split aktiviert hat;
+        /// sonst null. Der zugehoerige Join zaehlt dagegen.
+        /// </summary>
+        public int? SplitBranchCount { get; set; }
+
+        /// <summary>
         /// Bei einem Token, das zu einem Fristen-Timer am Schritt gehoert (wartender Timer ODER laufender
         /// Nebenpfad): die Id des Haupt-Tokens, an dessen Schritt der Timer haengt; sonst null. Verlaesst
         /// das Haupt-Token seinen Schritt, werden alle Tokens mit dieser Id verbraucht.

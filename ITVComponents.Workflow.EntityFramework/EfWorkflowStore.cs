@@ -242,6 +242,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 tr.WaitingKind = (int?)token.WaitingKind;
                 tr.ArrivedViaFlowId = token.ArrivedViaFlowId;
                 tr.SubProcessOwnerTokenId = token.SubProcessOwnerTokenId;
+                tr.SplitBranchCount = token.SplitBranchCount;
                 tr.CompensationOwnerTokenId = token.CompensationOwnerTokenId;
                 // Denormalisiert, damit die Arbeitsliste eine Abfrage ist und kein Auspacken von JSON:
                 // der Tenant kommt von der Instanz (die Token-Zeile hat keinen eigenen Filter), der Rest
@@ -664,6 +665,7 @@ namespace ITVComponents.Workflow.EntityFramework
                     WaitingKind = (Model.WaitKind?)t.WaitingKind,
                     ArrivedViaFlowId = t.ArrivedViaFlowId,
                     SubProcessOwnerTokenId = t.SubProcessOwnerTokenId,
+                    SplitBranchCount = t.SplitBranchCount,
                     CompensationOwnerTokenId = t.CompensationOwnerTokenId,
                     TaskKey = t.TaskKey,
                     TaskPermission = t.TaskPermission,

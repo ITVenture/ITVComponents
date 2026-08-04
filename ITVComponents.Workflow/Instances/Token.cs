@@ -161,6 +161,18 @@ namespace ITVComponents.Workflow.Instances
         public string SplitTokenId { get; set; }
 
         /// <summary>
+        /// Bei einem Zweig aus einem <b>inklusiven Gateway</b>: wie viele Zweige dieser Split aktiviert
+        /// hat. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Das ist die ganze Idee des strukturierten OR: WIE VIELE kommen, weiss allein der Split - er hat
+        /// die Bedingungen ausgewertet. Der Join zaehlt dann nur noch, statt die (nicht entscheidbare)
+        /// Frage zu beantworten, ob ihn noch irgendein Token erreichen kann. Der Wert reist mit dem Zweig
+        /// mit, weil er von den Laufzeitwerten abhaengt und aus dem Modell nicht ableitbar ist.
+        /// </remarks>
+        public int? SplitBranchCount { get; set; }
+
+        /// <summary>
         /// Bei einem Token, das zu einem <see cref="Model.BoundaryTimerNode"/> gehoert: die Id des
         /// HAUPT-Tokens, an dessen Schritt der Timer haengt. Sonst null.
         /// </summary>
@@ -276,6 +288,7 @@ namespace ITVComponents.Workflow.Instances
             // demselben Stack stehen (sonst waere ein Diff dagegen immer leer).
             Variables = CopyScope(source.Variables);
             SplitTokenId = source.SplitTokenId;
+            SplitBranchCount = source.SplitBranchCount;
             BoundaryOwnerTokenId = source.BoundaryOwnerTokenId;
             BoundaryIteration = source.BoundaryIteration;
             RaceTokenId = source.RaceTokenId;
@@ -322,6 +335,7 @@ namespace ITVComponents.Workflow.Instances
                    && a.WaitingForChildInstanceId == b.WaitingForChildInstanceId
                    && SameScope(a.Variables, b.Variables)
                    && a.SplitTokenId == b.SplitTokenId
+                   && Nullable.Equals(a.SplitBranchCount, b.SplitBranchCount)
                    && a.BoundaryOwnerTokenId == b.BoundaryOwnerTokenId
                    && Nullable.Equals(a.BoundaryIteration, b.BoundaryIteration)
                    && a.RaceTokenId == b.RaceTokenId

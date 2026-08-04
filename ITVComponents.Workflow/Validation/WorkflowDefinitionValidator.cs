@@ -229,6 +229,11 @@ namespace ITVComponents.Workflow.Validation
                     issues.AddRange(EventGatewayIssues(n, flows, byId, outs));
                 }
 
+                if (n is InclusiveGatewayNode inclusive)
+                {
+                    issues.AddRange(InclusiveGatewayIssues(inclusive, definition, flows, ins, outs));
+                }
+
                 if (n is CompensationNode handler)
                 {
                     issues.AddRange(CompensationIssues(handler, byId, outs, ins));
@@ -413,6 +418,120 @@ namespace ITVComponents.Workflow.Validation
             }
 
             return issues;
+        }
+
+        /// <summary>
+        /// Prueft ein inklusives Gateway (OR). Die Regel, die zaehlt: Split und Join muessen ein
+        /// <b>Paar</b> bilden - jeder Zweig des Splits muss seinen Join auch erreichen.
+        /// </summary>
+        /// <remarks>
+        /// Das ist der Preis des strukturierten OR, und er wird genau hier bezahlt. Der Join zaehlt gegen
+        /// die Zahl, die sein Split angemeldet hat; ein Zweig, der den Join nie erreicht (weil er
+        /// woanders endet oder aus der Region herausfuehrt), laesst diese Zahl nie voll werden - die
+        /// Instanz haenge fuer immer, ohne dass irgendwo ein Fehler stuende. Deshalb hier, beim
+        /// Zeichnen, und als Fehler.
+        /// </remarks>
+        private static IEnumerable<ValidationIssue> InclusiveGatewayIssues(InclusiveGatewayNode node,
+            WorkflowDefinition definition, List<SequenceFlow> flows, int incoming, int outgoing)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (incoming > 1 && outgoing > 1)
+            {
+                // Beim AND ist "zwei rein, zwei raus" zulaessig (Join und Split in einem). Beim OR nicht:
+                // der Knoten muesste gleichzeitig zaehlen und anmelden, und beides mit derselben Id.
+                issues.Add(Error(node.Id,
+                    $"Inclusive gateway '{Label(node)}' is a join and a split at the same time - split the " +
+                    "two into separate gateways, otherwise the branch count is ambiguous."));
+                return issues;
+            }
+
+            if (incoming > 1)
+            {
+                bool fedBySplit = definition.Nodes.OfType<InclusiveGatewayNode>().Any(split =>
+                    split.Id != node.Id
+                    && flows.Count(f => f.SourceId == split.Id) == incoming
+                    && Reaches(flows, split.Id, node.Id));
+                if (!fedBySplit)
+                {
+                    issues.Add(Error(node.Id,
+                        $"Inclusive join '{Label(node)}' has no matching inclusive split upstream (one with " +
+                        $"{incoming} outgoing connections). It waits for a branch count that nobody " +
+                        "announces, so it would wait forever."));
+                }
+
+                return issues;
+            }
+
+            if (outgoing <= 1)
+            {
+                return issues; // Durchreiche - nichts zu paaren.
+            }
+
+            var branches = flows.Where(f => f.SourceId == node.Id).ToList();
+            if (branches.All(f => string.IsNullOrWhiteSpace(f.Condition)))
+            {
+                issues.Add(Error(node.Id,
+                    $"No outgoing connection of inclusive gateway '{Label(node)}' has a condition - every " +
+                    "branch would always be taken. That is an AND gateway; use one."));
+            }
+
+            if (string.IsNullOrWhiteSpace(node.DefaultFlowId))
+            {
+                issues.Add(Warn(node.Id,
+                    $"Inclusive gateway '{Label(node)}' has no default flow - the instance faults if no " +
+                    "condition matches."));
+            }
+
+            // Der Join, auf den dieser Split zielt: der einzige inklusive Join mit passender Zahl von
+            // Eingaengen, den ALLE Zweige erreichen.
+            List<InclusiveGatewayNode> joins = definition.Nodes.OfType<InclusiveGatewayNode>()
+                .Where(j => j.Id != node.Id && flows.Count(f => f.TargetId == j.Id) == outgoing
+                            && branches.All(b => b.TargetId != null && Reaches(flows, b.TargetId, j.Id)))
+                .ToList();
+            if (joins.Count == 0)
+            {
+                issues.Add(Error(node.Id,
+                    $"Inclusive gateway '{Label(node)}' has no matching join: there is no inclusive gateway " +
+                    $"with {outgoing} incoming connections that EVERY branch reaches. A branch that misses " +
+                    "the join makes it wait forever."));
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Ist <paramref name="targetId"/> von <paramref name="fromId"/> aus ueber Kanten erreichbar
+        /// (der Knoten selbst zaehlt als erreicht)? Reine Struktur - Bedingungen spielen keine Rolle.
+        /// </summary>
+        private static bool Reaches(List<SequenceFlow> flows, string fromId, string targetId)
+        {
+            if (fromId == null || targetId == null)
+            {
+                return false;
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal) { fromId };
+            var queue = new Queue<string>();
+            queue.Enqueue(fromId);
+            while (queue.Count != 0)
+            {
+                string current = queue.Dequeue();
+                if (current == targetId)
+                {
+                    return true;
+                }
+
+                foreach (SequenceFlow flow in flows.Where(f => f.SourceId == current))
+                {
+                    if (flow.TargetId != null && seen.Add(flow.TargetId))
+                    {
+                        queue.Enqueue(flow.TargetId);
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -869,7 +988,8 @@ namespace ITVComponents.Workflow.Validation
         }
 
         /// <summary>
-        /// Findet Variablen, die aus zwei oder mehr Zweigen DESSELBEN AND-Splits geschrieben werden (ueber
+        /// Findet Variablen, die aus zwei oder mehr Zweigen DESSELBEN Splits (AND oder OR) geschrieben
+        /// werden (ueber
         /// die deklarierten Output-Bindungen der Knoten und die Mappings der Kanten) - beim Zusammenfuehren
         /// am Join muss sich dann einer der Werte durchsetzen. Je betroffener Variable ein Befund. Nur deklarierte
         /// Schreibzugriffe sind statisch sichtbar; generische Aktivitaeten, die frei in <c>Variables</c>
@@ -898,12 +1018,13 @@ namespace ITVComponents.Workflow.Validation
                 list.Add(f);
             }
 
-            bool IsJoin(string id) => byId.TryGetValue(id, out WorkflowNode nn)
-                                      && nn.Kind == NodeKind.ParallelGateway
-                                      && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
-            bool IsSplit(string id) => byId.TryGetValue(id, out WorkflowNode nn)
-                                       && nn.Kind == NodeKind.ParallelGateway
-                                       && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            // AND und OR gleichermassen: beide geben ihren Zweigen eigene Kopien und fuehren sie an
+            // einem Join wieder zusammen. Nur das AND zu betrachten hiesse, dieselbe Falle beim OR
+            // schweigend durchgehen zu lassen.
+            bool IsBranching(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                           && nn.Kind is NodeKind.ParallelGateway or NodeKind.InclusiveGateway;
+            bool IsJoin(string id) => IsBranching(id) && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            bool IsSplit(string id) => IsBranching(id) && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
 
             var result = new List<ValidationIssue>();
             var reported = new HashSet<string>(StringComparer.Ordinal); // je Variable nur ein Befund
@@ -994,9 +1115,9 @@ namespace ITVComponents.Workflow.Validation
 
         /// <summary>
         /// Ermittelt die Knoten, die innerhalb einer parallelen Region liegen: erreichbar von einem
-        /// AND-Split (paralleles Gateway mit &gt;1 Ausgang), ohne den zugehoerigen Join (paralleles
-        /// Gateway mit &gt;1 Eingang) zu ueberschreiten. Der Join ist die Grenze - er selbst und alles
-        /// dahinter zaehlen nicht als "in der Region".
+        /// Split (AND- oder OR-Gateway mit &gt;1 Ausgang), ohne den zugehoerigen Join (dieselben
+        /// Gateway-Arten mit &gt;1 Eingang) zu ueberschreiten. Der Join ist die Grenze - er selbst und
+        /// alles dahinter zaehlen nicht als "in der Region".
         /// </summary>
         private static HashSet<string> NodesInsideParallelRegion(List<WorkflowNode> nodes,
             List<SequenceFlow> flows, Dictionary<string, WorkflowNode> byId,
@@ -1018,12 +1139,13 @@ namespace ITVComponents.Workflow.Validation
                 list.Add(f.TargetId);
             }
 
-            bool IsJoin(string id) => byId.TryGetValue(id, out WorkflowNode nn)
-                                      && nn.Kind == NodeKind.ParallelGateway
-                                      && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
-            bool IsSplit(string id) => byId.TryGetValue(id, out WorkflowNode nn)
-                                       && nn.Kind == NodeKind.ParallelGateway
-                                       && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            // AND und OR gleichermassen: beide geben ihren Zweigen eigene Kopien und fuehren sie an
+            // einem Join wieder zusammen. Nur das AND zu betrachten hiesse, dieselbe Falle beim OR
+            // schweigend durchgehen zu lassen.
+            bool IsBranching(string id) => byId.TryGetValue(id, out WorkflowNode nn)
+                                           && nn.Kind is NodeKind.ParallelGateway or NodeKind.InclusiveGateway;
+            bool IsJoin(string id) => IsBranching(id) && (inCount.TryGetValue(id, out int c) ? c : 0) > 1;
+            bool IsSplit(string id) => IsBranching(id) && (outCount.TryGetValue(id, out int c) ? c : 0) > 1;
 
             var region = new HashSet<string>(StringComparer.Ordinal);
             foreach (WorkflowNode n in nodes)

@@ -209,6 +209,47 @@
                         }
                     </MudSelect>
                     break;
+                case InclusiveGatewayNode inclusive when IncomingCount(inclusive.Id) > 1:
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                        Waits for exactly the branches its split activated — not for all incoming
+                        connections (that would deadlock) and not for the first one (that would run
+                        everything after it several times). The split announces the number; this join
+                        counts.
+                    </MudAlert>
+                    <MudText Typo="Typo.caption" Class="mt-4">Result of the region</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Map variables from the merged branches to the names the flow continues with. Leave
+                        empty and everything the branches wrote flows on.
+                    </MudText>
+                    <OutputBindingList Bindings="inclusive.Outputs" SourcePlaceholder="branch variable"
+                                       TargetPlaceholder="result name" AddPlaceholder="new result" />
+                    <ScopeModeSection Mode="inclusive.ScopeMode"
+                                      ModeChanged="@(m => inclusive.ScopeMode = m)"
+                                      RetainVariables="inclusive.RetainVariables"
+                                      SwitchLabel="Consolidate scope (replace)"
+                                      HelperText="@("After the join the scope is exactly the result above; variables listed here are kept as well.")" />
+                    break;
+                case InclusiveGatewayNode inclusiveSplit:
+                    <MudSelect T="string" @bind-Value="inclusiveSplit.DefaultFlowId" Label="Default flow"
+                               Clearable="true" Margin="Margin.Dense">
+                        @foreach (var f in Def.Flows.Where(f => f.SourceId == inclusiveSplit.Id))
+                        {
+                            <MudSelectItem T="string" Value="@f.Id">@FlowLabel(f)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Every outgoing connection whose condition holds is taken — one, several or all
+                        of them. A connection <b>without</b> a condition is always taken. The default flow
+                        is the one that runs when nothing else matches; without it a run with no match
+                        faults.
+                    </MudText>
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                        Split and join are a <b>pair</b>: every branch must reach the same inclusive join,
+                        and that join needs as many incoming connections as this split has outgoing ones.
+                        A branch that misses it makes the join wait forever — the validator says so
+                        before you save.
+                    </MudAlert>
+                    break;
             }
         }
         else if (Flow is not null)

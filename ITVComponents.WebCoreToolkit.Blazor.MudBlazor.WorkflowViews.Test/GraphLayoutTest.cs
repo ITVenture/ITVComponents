@@ -62,6 +62,31 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         }
 
         [TestMethod]
+        public void Compute_EveryGatewayIsADiamond_WithItsOwnSymbol()
+        {
+            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Gateways" };
+            def.Nodes.Add(new ExclusiveGatewayNode { Id = "xor" });
+            def.Nodes.Add(new ParallelGatewayNode { Id = "and" });
+            def.Nodes.Add(new InclusiveGatewayNode { Id = "or" });
+            def.Nodes.Add(new EventGatewayNode { Id = "event" });
+
+            GraphLayout layout = GraphLayout.Compute(def);
+
+            // Ohne Eintrag in ShapeFor faellt eine Gateway-Art auf das abgerundete Rechteck zurueck und
+            // sieht im Bild aus wie ein Schritt - genau die Verwechslung, die ein Gateway nicht haben darf.
+            foreach (string id in new[] { "xor", "and", "or", "event" })
+            {
+                LaidOutNode node = layout.Nodes.Single(n => n.Id == id);
+                Assert.AreEqual(NodeShape.Diamond, node.Shape, $"'{id}' must be drawn as a gateway.");
+                Assert.IsNotNull(node.Symbol, $"'{id}' carries its meaning in the symbol - a 50px diamond "
+                                              + "has no room for text.");
+            }
+
+            Assert.AreEqual(4, layout.Nodes.Select(n => n.Symbol!.Value.Text).Distinct().Count(),
+                "each kind of gateway needs its OWN symbol - otherwise two different rules look alike.");
+        }
+
+        [TestMethod]
         public void Compute_WaitingKinds_AreHexagons_ExecutingKinds_AreRounded()
         {
             var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Kinds" };

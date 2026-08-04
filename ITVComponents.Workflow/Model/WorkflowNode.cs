@@ -32,6 +32,12 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Paralleles Gateway (AND): Split auf alle Ausgaenge / Join aller Eingaenge.</summary>
         ParallelGateway,
 
+        /// <summary>
+        /// Inklusives Gateway (OR): Split auf <b>alle zutreffenden</b> Ausgaenge; der zugehoerige Join
+        /// wartet auf genau die Zweige, die dieser Split aktiviert hat.
+        /// </summary>
+        InclusiveGateway,
+
         /// <summary>Ruft einen anderen Workflow als Subworkflow auf (mit Ein-/Ausgabewerten).</summary>
         CallWorkflow,
 
@@ -96,6 +102,7 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(TimerNode), "timer")]
     [JsonDerivedType(typeof(ExclusiveGatewayNode), "xor")]
     [JsonDerivedType(typeof(ParallelGatewayNode), "and")]
+    [JsonDerivedType(typeof(InclusiveGatewayNode), "or")]
     [JsonDerivedType(typeof(CallWorkflowNode), "call")]
     [JsonDerivedType(typeof(BoundaryTimerNode), "boundarytimer")]
     [JsonDerivedType(typeof(SidePathEndNode), "sidepathend")]

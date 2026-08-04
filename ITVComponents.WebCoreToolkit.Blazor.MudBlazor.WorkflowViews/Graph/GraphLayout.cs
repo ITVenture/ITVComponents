@@ -111,6 +111,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         {
             NodeKind.ExclusiveGateway => ("×", 20),
             NodeKind.ParallelGateway => ("+", 20),
+            // Der Kreis in der Raute - dieselbe Zeichnung wie in BPMN, und sie sagt genau das Richtige:
+            // weder das eine (×) noch alle (+), sondern eine Auswahl.
+            NodeKind.InclusiveGateway => ("○", 20),
             // Ein Blitz fuer das Rennen: hier entscheidet, was zuerst eintrifft. Bewusst nicht die
             // BPMN-Doppelkreis-Zeichnung - die braucht eine eigene Form, und der Unterschied zu AND/XOR
             // muss auf 50px vor allem SCHNELL lesbar sein.
@@ -974,6 +977,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.ExclusiveGateway:
                 case NodeKind.ParallelGateway:
                 case NodeKind.EventGateway:
+                case NodeKind.InclusiveGateway:
                     return (50, 50);
                 case NodeKind.TerminateEnd:
                     // Wie das Ende: es IST ein Ende - nur ein durchgreifendes.
@@ -1032,6 +1036,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.ExclusiveGateway:
                 case NodeKind.ParallelGateway:
                 case NodeKind.EventGateway:
+                case NodeKind.InclusiveGateway:
                     return NodeShape.Diamond;
                 case NodeKind.Wait:
                 case NodeKind.Timer:
