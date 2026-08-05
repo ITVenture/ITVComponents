@@ -1,4 +1,4 @@
-@page "/Account/Manage/Email"
+﻿@page "/Account/Manage/Email"
 @rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
@@ -28,13 +28,13 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Manage Email"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
-{
-    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
-}
-else if (loading)
+@if (loading)
 {
     <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
 else if (notFound)
 {
@@ -78,6 +78,7 @@ else
 
 @code {
     private bool loading = true;
+    private bool usePage;
     private bool notFound;
     private string? notFoundMessage;
     private bool busy;
@@ -85,7 +86,7 @@ else
     private bool isEmailConfirmed;
 
     /// <summary>
-    /// Angezeigte Rueckmeldung. Diese Seite schreibt kein Cookie, braucht also keinen Ruecksprung — die Meldung
+    /// Angezeigte Rueckmeldung. Diese Seite schreibt kein Cookie, braucht also keinen Ruecksprung â€” die Meldung
     /// erscheint ohne Seitenaufbau. Der Anfangswert kommt weiter aus der Adresse, damit ein Verweis von aussen
     /// (z.B. aus einer Bestaetigungsmail) seine Meldung mitbringen kann.
     /// </summary>
@@ -99,7 +100,9 @@ else
     protected override async Task OnInitializedAsync()
     {
         status = StatusMessage;
-        if (!HandlerProvider.Handler.UsePage)
+        await using var op = HandlerProvider.BeginOperation();
+        usePage = op.Handler.UsePage;
+        if (!usePage)
         {
             loading = false;
             return;
@@ -111,12 +114,13 @@ else
 
     private async Task LoadAsync()
     {
+        await using var op = HandlerProvider.BeginOperation();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
             return;
         }
 
@@ -131,19 +135,20 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
         }
     }
 
     private async Task OnChangeEmail()
     {
+        await using var op = HandlerProvider.BeginOperation();
         busy = true;
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
             busy = false;
             return;
         }
@@ -168,7 +173,7 @@ else
                 return;
             }
 
-            var tokenData = await HandlerProvider.Handler.GetMailToken(user, Input.NewEmail);
+            var tokenData = await op.Handler.GetMailToken(user, Input.NewEmail);
             var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(tokenData.Code));
             var callbackUrl = Nav.ToAbsoluteUri(
                 Nav.GetUriWithQueryParameters("Account/ConfirmEmailChange",
@@ -179,7 +184,7 @@ else
                         ["code"] = code
                     })).ToString();
 
-            var username = HandlerProvider.Handler.GetUserName(principal);
+            var username = op.Handler.GetUserName(principal);
             await EmailSender.SendEmailAsync(
                 Input.NewEmail,
                 L["Confirm your email"],
@@ -190,27 +195,28 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }
 
     private async Task OnSendVerification()
     {
+        await using var op = HandlerProvider.BeginOperation();
         busy = true;
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
             busy = false;
             return;
         }
 
         try
         {
-            var tokenData = await HandlerProvider.Handler.GetMailToken(user);
+            var tokenData = await op.Handler.GetMailToken(user);
             var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(tokenData.Code));
             var callbackUrl = Nav.ToAbsoluteUri(
                 Nav.GetUriWithQueryParameters("Account/ConfirmEmail",
@@ -220,7 +226,7 @@ else
                         ["code"] = code
                     })).ToString();
 
-            var username = HandlerProvider.Handler.GetUserName(principal);
+            var username = op.Handler.GetUserName(principal);
             await EmailSender.SendEmailAsync(
                 user.Email,
                 L["Confirm your email"],
@@ -231,7 +237,7 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }

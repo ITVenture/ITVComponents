@@ -1,4 +1,4 @@
-@page "/Account/Manage/DeletePersonalData"
+﻿@page "/Account/Manage/DeletePersonalData"
 @rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
@@ -23,13 +23,13 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Delete Personal Data"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
-{
-    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
-}
-else if (loading)
+@if (loading)
 {
     <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
 else if (notFound)
 {
@@ -65,6 +65,7 @@ else
 
 @code {
     private bool loading = true;
+    private bool usePage;
     private bool notFound;
     private string? notFoundMessage;
     private bool requirePassword;
@@ -75,60 +76,63 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage)
+        await using var op = HandlerProvider.BeginOperation();
+        usePage = op.Handler.UsePage;
+        if (!usePage)
         {
             loading = false;
             return;
         }
 
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
             requirePassword = user.HasPassword;
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
+        await using var op = HandlerProvider.BeginOperation();
         busy = true;
         errors.Clear();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
 
             requirePassword = user.HasPassword;
             if (requirePassword)
             {
-                if (!await HandlerProvider.Handler.CheckPassword(user, Input.Password))
+                if (!await op.Handler.CheckPassword(user, Input.Password))
                 {
                     errors = new() { L["Incorrect password."] };
                     return;
                 }
             }
 
-            // signOut: false — die Abmeldung schreibt ein Cookie und geht auf dem Circuit nicht. Sie folgt
+            // signOut: false â€” die Abmeldung schreibt ein Cookie und geht auf dem Circuit nicht. Sie folgt
             // unmittelbar ueber den Endpunkt; bis dahin zeigt der Cookie auf ein geloeschtes Konto, was nur
             // fuer die Dauer dieser einen Weiterleitung gilt.
-            var dropResult = await HandlerProvider.Handler.DeleteAccount(user, signOut: false);
+            var dropResult = await op.Handler.DeleteAccount(user, signOut: false);
             if (!dropResult.UserDeleted)
             {
                 errors = new() { L["Unexpected error occurred deleting user with ID '{0}'.", dropResult.UserId] };
@@ -140,7 +144,7 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }

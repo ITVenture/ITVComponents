@@ -1,4 +1,4 @@
-@page "/Account/ResendEmailConfirmation"
+﻿@page "/Account/ResendEmailConfirmation"
 @rendermode @(RenderMode.InteractiveServer)
 
 @using System.ComponentModel.DataAnnotations
@@ -21,7 +21,11 @@
     <MudPaper Elevation="2" Class="pa-6">
         <MudText Typo="Typo.h4" GutterBottom="true">@L["Resend email confirmation"]</MudText>
 
-        @if (!HandlerProvider.Handler.UsePage)
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (!usePage)
         {
             <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
         }
@@ -52,18 +56,32 @@
 @code {
     private string? statusMessage;
     private bool busy;
+    private bool loading = true;
+    private bool usePage;
 
     private InputModel Input { get; set; } = new();
 
+    protected override async Task OnInitializedAsync()
+    {
+        await using (var op = HandlerProvider.BeginOperation())
+        {
+            usePage = op.Handler.UsePage;
+        }
+
+        loading = false;
+    }
+
     private async Task OnSubmit()
     {
-        if (!HandlerProvider.Handler.UsePage)
+        if (!usePage)
         {
             return;
         }
 
+        await using var op = HandlerProvider.BeginOperation();
+
         busy = true;
-        var user = await HandlerProvider.Handler.FetchUser(Input.Email);
+        var user = await op.Handler.FetchUser(Input.Email);
         try
         {
             if (!user.UserExists)
@@ -72,7 +90,7 @@
                 return;
             }
 
-            var mailToken = await HandlerProvider.Handler.GetMailToken(user);
+            var mailToken = await op.Handler.GetMailToken(user);
             if (mailToken.Success)
             {
                 var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(mailToken.Code));
@@ -95,7 +113,7 @@
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }

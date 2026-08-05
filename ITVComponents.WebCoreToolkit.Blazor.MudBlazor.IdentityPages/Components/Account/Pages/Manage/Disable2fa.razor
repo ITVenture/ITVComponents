@@ -1,4 +1,4 @@
-@page "/Account/Manage/Disable2fa"
+﻿@page "/Account/Manage/Disable2fa"
 @rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
@@ -22,13 +22,13 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Disable two-factor authentication (2FA)"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
-{
-    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
-}
-else if (loading)
+@if (loading)
 {
     <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
 else if (notFound)
 {
@@ -57,6 +57,7 @@ else
 
 @code {
     private bool loading = true;
+    private bool usePage;
     private bool notFound;
     private string? notFoundMessage;
     private bool is2faEnabled;
@@ -65,15 +66,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage)
+        await using var op = HandlerProvider.BeginOperation();
+        usePage = op.Handler.UsePage;
+        if (!usePage)
         {
             loading = false;
             return;
         }
 
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        userId = HandlerProvider.Handler.GetUserId(principal) ?? string.Empty;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        userId = op.Handler.GetUserId(principal) ?? string.Empty;
+        var user = await op.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
@@ -88,16 +91,17 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
+        await using var op = HandlerProvider.BeginOperation();
         busy = true;
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
@@ -107,7 +111,7 @@ else
                 return;
             }
 
-            var result = await HandlerProvider.Handler.SetTwoFactorEnabled(user, false);
+            var result = await op.Handler.SetTwoFactorEnabled(user, false);
             if (!result.Succeeded)
             {
                 notFoundMessage = L["Unexpected error occurred disabling 2FA for user with ID '{0}'.", userId];
@@ -125,7 +129,7 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }

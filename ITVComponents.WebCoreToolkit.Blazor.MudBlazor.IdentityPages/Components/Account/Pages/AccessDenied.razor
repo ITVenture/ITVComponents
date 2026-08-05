@@ -12,7 +12,11 @@
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
     <MudPaper Elevation="2" Class="pa-6">
-        @if (HandlerProvider.Handler.UsePage)
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (usePage)
         {
             <MudText Typo="Typo.h4" Color="Color.Error" GutterBottom="true">@L["Access denied"]</MudText>
             <MudAlert Severity="Severity.Error">@L["You do not have access to this resource."]</MudAlert>
@@ -23,3 +27,18 @@
         }
     </MudPaper>
 </MudContainer>
+
+@code {
+    private bool loading = true;
+    private bool usePage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using (var op = HandlerProvider.BeginOperation())
+        {
+            usePage = op.Handler.UsePage;
+        }
+
+        loading = false;
+    }
+}

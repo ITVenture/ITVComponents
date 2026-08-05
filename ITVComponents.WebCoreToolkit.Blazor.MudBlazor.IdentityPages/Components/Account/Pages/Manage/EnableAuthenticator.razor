@@ -24,7 +24,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Configure authenticator app"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
@@ -123,64 +127,74 @@ else
     private string? errorMessage;
     private string[]? recoveryCodes;
     private bool busy;
+    private bool loading = true;
+    private bool usePage;
 
     private InputModel Input { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        try
+        {
+            await using (var op = HandlerProvider.BeginOperation())
+            {
+                usePage = op.Handler.UsePage;
+            }
 
-        await LoadSharedKeyAndQrCodeAsync();
+            if (!usePage) return;
+
+            await LoadSharedKeyAndQrCodeAsync();
+        }
+        finally
+        {
+            loading = false;
+        }
     }
 
     private async Task LoadSharedKeyAndQrCodeAsync()
     {
+        await using var op = HandlerProvider.BeginOperation();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
 
-            var initData = await HandlerProvider.Handler.LoadSharedKeyAndQrData(user);
-            if (initData.Success)
-            {
-                sharedKey = initData.SharedKey;
-                authenticatorUri = initData.AuthenticatorUri;
-                qrSvg = GenerateQrSvg(authenticatorUri);
-            }
+            await ReloadInitDataAsync(op.Handler, user);
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
         }
     }
 
     private async Task OnVerify()
     {
         busy = true;
+        await using var op = HandlerProvider.BeginOperation();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
 
             var verificationCode = Input.Code.Replace(" ", string.Empty).Replace("-", string.Empty);
-            var result = await HandlerProvider.Handler.VerifyAuthenticatorToken(user, verificationCode);
+            var result = await op.Handler.VerifyAuthenticatorToken(user, verificationCode);
 
             if (!result.Success)
             {
                 errorMessage = L["Verification code is invalid."];
-                await ReloadInitDataAsync(user);
+                await ReloadInitDataAsync(op.Handler, user);
                 return;
             }
 
@@ -188,7 +202,7 @@ else
 
             if (result.RecoveryCodeCount == 0)
             {
-                recoveryCodes = await HandlerProvider.Handler.GenerateNewRecoveryCodes(user, 10);
+                recoveryCodes = await op.Handler.GenerateNewRecoveryCodes(user, 10);
             }
             else
             {
@@ -200,14 +214,20 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }
 
-    private async Task ReloadInitDataAsync(ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Models.UserQueryTicket user)
+    /// <summary>
+    /// Bekommt den Handler des laufenden Vorgangs mitgegeben und oeffnet KEINEN eigenen. Das Ticket taugt nur
+    /// gegen den Handler, der es ausgestellt hat - jeder Vorgang haelt seinen eigenen Puffer. Ein eigener
+    /// Lease wuerde hier nichts finden und still die alten Daten stehen lassen.
+    /// </summary>
+    private async Task ReloadInitDataAsync(IEnableAuthenticatorHandler handler,
+        ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Models.UserQueryTicket user)
     {
-        var initData = await HandlerProvider.Handler.LoadSharedKeyAndQrData(user);
+        var initData = await handler.LoadSharedKeyAndQrData(user);
         if (initData.Success)
         {
             sharedKey = initData.SharedKey;

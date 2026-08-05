@@ -1,4 +1,4 @@
-@page "/Account/Manage/PersonalData"
+﻿@page "/Account/Manage/PersonalData"
 @rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
@@ -19,13 +19,13 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Personal Data"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
-{
-    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
-}
-else if (loading)
+@if (loading)
 {
     <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
 else if (notFound)
 {
@@ -57,23 +57,26 @@ else
 
 @code {
     private bool loading = true;
+    private bool usePage;
     private bool notFound;
     private string? notFoundMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage)
+        await using var op = HandlerProvider.BeginOperation();
+        usePage = op.Handler.UsePage;
+        if (!usePage)
         {
             loading = false;
             return;
         }
 
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var userExists = await HandlerProvider.Handler.UserExists(principal);
+        var userExists = await op.Handler.UserExists(principal);
         if (!userExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
         }
 
         loading = false;

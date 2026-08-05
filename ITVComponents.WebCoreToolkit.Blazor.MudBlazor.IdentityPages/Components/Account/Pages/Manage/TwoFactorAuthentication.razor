@@ -95,12 +95,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await using var op = HandlerProvider.BeginOperation();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
             loading = false;
             return;
         }
@@ -114,7 +115,7 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             loading = false;
         }
     }

@@ -32,8 +32,17 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Factories
 
         public THandlerInterface CreateHandler<TPageModel, THandlerInterface>()
             where THandlerInterface : IPageHandlerInstance<TPageModel>
+            => CreateHandler<TPageModel, THandlerInterface>(null);
+
+        public THandlerInterface CreateHandler<TPageModel, THandlerInterface>(IServiceProvider scopeServices)
+            where THandlerInterface : IPageHandlerInstance<TPageModel>
         {
-            var currentServices = currentContextAccessor.HttpContext?.RequestServices;
+            // Diese Fabrik ist ein Singleton - ihr eigenes "services" ist damit der Root-Provider, aus dem sich
+            // kein Scoped-Dienst aufloesen laesst. Der Aufrufer gibt darum seinen Scope mit; nur wenn er das
+            // nicht tut, bleibt der bisherige Weg ueber den HttpContext. Auf einem Blazor-Circuit gibt es keinen
+            // HttpContext, und dort endete der Rueckfall auf den Root-Provider in einer InvalidOperationException,
+            // sobald der Handler etwas Scoped braucht (UserManager, DbContext) - also praktisch immer.
+            var currentServices = scopeServices ?? currentContextAccessor.HttpContext?.RequestServices;
             if (currentServices == null)
             {
                 currentServices = services;
@@ -63,7 +72,22 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Factories
                     if (Attribute.GetCustomAttribute(impt, typeof(FallbackPageHandlerAttribute)) is
                         FallbackPageHandlerAttribute fat)
                     {
+                        // Erwarteter Normalfall: der Typ laesst sich fuer diese Konfiguration nicht schliessen,
+                        // dafuer gibt es den Ausweichtyp. Trotzdem protokolliert - sonst sieht niemand, dass
+                        // nicht der gemeinte Handler laeuft.
+                        LogEnvironment.LogEvent(
+                            $"Unable to finalize {impt.FullName}, falling back to {fat.FallbackType.FullName}: {ex.OutlineException()}",
+                            LogSeverity.Warning);
                         impt = fat.FallbackType;
+                    }
+                    else
+                    {
+                        // Ohne Ausweichtyp bleibt impt eine offene generische Definition. Das faellt erst
+                        // unten bei CreateInstance auf, mit einer Meldung, die die Ursache nicht mehr zeigt -
+                        // also hier melden, solange man sie noch hat.
+                        LogEnvironment.LogEvent(
+                            $"Unable to finalize {impt.FullName} and no {nameof(FallbackPageHandlerAttribute)} declared: {ex.OutlineException()}",
+                            LogSeverity.Error);
                     }
                 }
             }

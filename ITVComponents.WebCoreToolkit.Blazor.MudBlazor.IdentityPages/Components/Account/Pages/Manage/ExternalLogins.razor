@@ -1,4 +1,4 @@
-@page "/Account/Manage/ExternalLogins"
+﻿@page "/Account/Manage/ExternalLogins"
 @rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
@@ -25,13 +25,13 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Manage your external logins"]</MudText>
 
-@if (!HandlerProvider.Handler.UsePage)
-{
-    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
-}
-else if (loading)
+@if (loading)
 {
     <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
+{
+    <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
 else if (notFound)
 {
@@ -100,6 +100,7 @@ else
 
 @code {
     private bool loading = true;
+    private bool usePage;
     private bool notFound;
     private string? notFoundMessage;
     private bool busy;
@@ -112,7 +113,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage)
+        await using var op = HandlerProvider.BeginOperation();
+        usePage = op.Handler.UsePage;
+        if (!usePage)
         {
             loading = false;
             return;
@@ -124,45 +127,47 @@ else
 
     private async Task LoadConfigurationAsync()
     {
+        await using var op = HandlerProvider.BeginOperation();
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
 
-            var cfg = await HandlerProvider.Handler.GetUserExternalLoginConfiguration(user);
+            var cfg = await op.Handler.GetUserExternalLoginConfiguration(user);
             currentLogins = cfg.ExternalUserLogins;
             otherLogins = cfg.AvailableLogins;
             showRemoveButton = user.HasPassword || (currentLogins?.Count ?? 0) > 1;
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
         }
     }
 
     private async Task OnRemoveAsync(string loginProvider, string providerKey)
     {
+        await using var op = HandlerProvider.BeginOperation();
         busy = true;
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var user = await op.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", op.Handler.GetUserId(principal)];
                 return;
             }
 
-            // refreshSignIn: false — das Cookie stellt der Ruecksprung aus, der Handler koennte es auf dem
+            // refreshSignIn: false â€” das Cookie stellt der Ruecksprung aus, der Handler koennte es auf dem
             // Circuit nicht. Eine entfernte Anmeldung aendert den Security-Stamp.
-            var result = await HandlerProvider.Handler.RemoveExternalAuthentication(
+            var result = await op.Handler.RemoveExternalAuthentication(
                 user, loginProvider, providerKey, refreshSignIn: false);
             var message = result.Success
                 ? L["The external login was removed."].Value
@@ -171,7 +176,7 @@ else
         }
         finally
         {
-            HandlerProvider.Handler.ReleaseUser(user);
+            op.Handler.ReleaseUser(user);
             busy = false;
         }
     }

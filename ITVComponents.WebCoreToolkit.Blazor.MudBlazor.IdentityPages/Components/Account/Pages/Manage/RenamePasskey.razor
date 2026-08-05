@@ -19,7 +19,11 @@
 
 <PageTitle>@L["Rename passkey"]</PageTitle>
 
-@if (!PasskeyProvider.Handler.UsePage)
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!usePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
@@ -64,6 +68,8 @@ else if (passkey is not null)
     private string? loadError;
     private string? errorMessage;
     private bool busy;
+    private bool loading = true;
+    private bool usePage;
 
     [Parameter]
     public string? Id { get; set; }
@@ -72,43 +78,52 @@ else if (passkey is not null)
 
     protected override async Task OnInitializedAsync()
     {
-        if (!PasskeyProvider.Handler.UsePage)
-        {
-            return;
-        }
-
-        if (string.IsNullOrEmpty(Id))
-        {
-            loadError = L["Missing credential identifier."];
-            return;
-        }
-
-        byte[] credentialId;
         try
         {
-            credentialId = Base64Url.DecodeFromChars(Id);
-        }
-        catch (FormatException)
-        {
-            loadError = L["The passkey identifier is not in a valid format."];
-            return;
-        }
+            await using var op = PasskeyProvider.BeginOperation();
+            usePage = op.Handler.UsePage;
+            if (!usePage)
+            {
+                return;
+            }
 
-        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-        passkey = await PasskeyProvider.Handler.GetUserPasskeyAsync(principal, credentialId);
-        if (passkey is null)
-        {
-            loadError = L["The requested passkey could not be found."];
-            return;
-        }
+            if (string.IsNullOrEmpty(Id))
+            {
+                loadError = L["Missing credential identifier."];
+                return;
+            }
 
-        // Vorbelegen, damit ein bestehender Name im Feld steht - der Formular-Post brachte ihn frueher mit.
-        Input.Name = passkey.Name ?? string.Empty;
+            byte[] credentialId;
+            try
+            {
+                credentialId = Base64Url.DecodeFromChars(Id);
+            }
+            catch (FormatException)
+            {
+                loadError = L["The passkey identifier is not in a valid format."];
+                return;
+            }
+
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            passkey = await op.Handler.GetUserPasskeyAsync(principal, credentialId);
+            if (passkey is null)
+            {
+                loadError = L["The requested passkey could not be found."];
+                return;
+            }
+
+            // Vorbelegen, damit ein bestehender Name im Feld steht - der Formular-Post brachte ihn frueher mit.
+            Input.Name = passkey.Name ?? string.Empty;
+        }
+        finally
+        {
+            loading = false;
+        }
     }
 
     private async Task Rename()
     {
-        if (!PasskeyProvider.Handler.UsePage || passkey is null)
+        if (!usePage || passkey is null)
         {
             return;
         }
@@ -116,9 +131,10 @@ else if (passkey is not null)
         busy = true;
         try
         {
+            await using var op = PasskeyProvider.BeginOperation();
             passkey.Name = Input.Name;
             var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-            var result = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(principal, passkey);
+            var result = await op.Handler.AddOrUpdateUserPasskeyAsync(principal, passkey);
             if (!result.Succeeded)
             {
                 errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
