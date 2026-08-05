@@ -33,10 +33,20 @@ else
 {
     <MudText Typo="Typo.body2" Class="mb-2">@L["OnbAdm_TenantLabel"]: <b>@currentTenant.DisplayName</b></MudText>
 
-    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+    @* Reiner Messpunkt: MudHidden meldet ueber Hidden, ob wir auf einem schmalen Geraet sind. Die vier
+       Reiter-Titel brauchen zusammen 845px; bei 272px verfuegbarer Breite sind knapp anderthalb sichtbar,
+       den Rest erreicht man nur ueber die Scrollpfeile - ohne je zu sehen, welche Bereiche es gibt. Auf xs
+       tragen die Reiter deshalb nur ihr Icon (4 x ~48px passen nebeneinander); der Titel bleibt als Tooltip
+       und als aria-label erhalten. Das geht hier, weil die Seite interaktiv rendert - auf den static-SSR
+       Identity-Seiten waere MudHidden wirkungslos. *@
+    <MudHidden Breakpoint="Breakpoint.Xs" @bind-Hidden="narrow" />
+
+    @* mb-6: sonst endet die Reiter-Flaeche buendig am Seitenende und der Speichern-Knopf sitzt auf dem
+       unteren Displayrand - dort, wo bei vielen Geraeten die Systemgeste liegt. *@
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4" Class="mb-6">
 
         @* ---- Tab 1: billing profile / address -------------------------------------------------- *@
-        <MudTabPanel Text="@L["OnbAdm_Tab_Address"]">
+        <MudTabPanel Text="@TabText("OnbAdm_Tab_Address")" ToolTip="@L["OnbAdm_Tab_Address"]" Icon="@Icons.Material.Filled.ReceiptLong">
             <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.View,Onboarding.Admin.BillingProfile.Write">
                 <Permitted>
                     @if (model is null)
@@ -107,7 +117,7 @@ else
         </MudTabPanel>
 
         @* ---- Tab 2: users & invitations (filled in commit 2) ----------------------------------- *@
-        <MudTabPanel Text="@L["OnbAdm_Tab_Users"]">
+        <MudTabPanel Text="@TabText("OnbAdm_Tab_Users")" ToolTip="@L["OnbAdm_Tab_Users"]" Icon="@Icons.Material.Filled.People">
             <SecureView RequiredPermissions="Onboarding.Admin.Employees.View,Onboarding.Admin.Employees.Write">
                 <Permitted>
                     <EmployeesTab BillingProfileId="@(model?.BillingProfileId ?? 0)" TenantId="@currentTenant.TenantId" />
@@ -119,7 +129,7 @@ else
         </MudTabPanel>
 
         @* ---- Tab 3: role-mapping definitions (filled in commit 3) ------------------------------ *@
-        <MudTabPanel Text="@L["OnbAdm_Tab_RoleMappings"]">
+        <MudTabPanel Text="@TabText("OnbAdm_Tab_RoleMappings")" ToolTip="@L["OnbAdm_Tab_RoleMappings"]" Icon="@Icons.Material.Filled.AdminPanelSettings">
             <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.View,Onboarding.Admin.RoleMappings.Write,Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.PermissionSet">
                 <Permitted>
                     <RoleMappingsTab />
@@ -133,7 +143,7 @@ else
         @* ---- Tab 4: sub-tenant invitations (hierarchy only) ------------------------------------ *@
         @if (subTenantSupported)
         {
-            <MudTabPanel Text="@L["OnbAdm_Tab_SubTenants"]">
+            <MudTabPanel Text="@TabText("OnbAdm_Tab_SubTenants")" ToolTip="@L["OnbAdm_Tab_SubTenants"]" Icon="@Icons.Material.Filled.AccountTree">
                 <SecureView RequiredPermissions="Onboarding.Admin.SubTenants.View,Onboarding.Admin.SubTenants.Write">
                     <Permitted>
                         <SubTenantInvitationsTab TenantId="@currentTenant.TenantId" />
@@ -156,6 +166,12 @@ else
     private bool loading = true;
     private bool busy;
     private bool subTenantSupported;
+
+    /// <summary>Schmales Geraet (xs) - gesetzt vom MudHidden-Messpunkt oben.</summary>
+    private bool narrow;
+
+    /// <summary>Reiter-Beschriftung: auf xs entfaellt sie, dort traegt das Icon den Reiter.</summary>
+    private string? TabText(string key) => narrow ? null : L[key].Value;
 
     protected override async Task OnInitializedAsync()
     {

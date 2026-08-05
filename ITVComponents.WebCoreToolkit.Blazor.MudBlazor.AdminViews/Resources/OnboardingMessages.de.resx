@@ -145,4 +145,5 @@
   <data name="OnbAdm_Ps_Col" xml:space="preserve"><value>Berechtigungs-Set</value></data>
   <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Aktivierung aktualisiert.</value></data>
   <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Die Aktivierung konnte nicht aktualisiert werden.</value></data>
+  <data name="OnbAdm_Rm_New" xml:space="preserve"><value>Neu</value></data>
 </root>

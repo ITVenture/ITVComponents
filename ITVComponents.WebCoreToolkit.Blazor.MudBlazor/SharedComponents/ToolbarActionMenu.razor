@@ -1,0 +1,73 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@using ITVComponents.WebCoreToolkit.Caching
+@using ITVComponents.WebCoreToolkit.Extensions
+
+@inject IServiceProvider Services
+
+@* One "New" button that opens a menu, instead of a row of "Add <long thing>" buttons in a table toolbar.
+
+   WHY: <ToolBarContent> is a flex row that does not wrap. Three or more buttons whose captions are long
+   enough stop fitting on a phone, and the space is taken from the BUTTONS, not from the row: each falls
+   back to its 64px minimum while its caption keeps demanding its full width and spills out of the button
+   face. The itv-mudblazor.css rule keeps that from happening; this component removes the reason it would.
+   A menu also carries the long names where there IS room — in the list, not on the button face.
+
+   The entries stay permission-gated one by one, exactly like the SecureView-wrapped buttons they replace,
+   and the menu hides itself entirely when the user may do none of them (an empty "New" menu is worse than
+   no button). Gating is live: the EntityChangeRefresher re-evaluates on every security write, so a right
+   revoked mid-session removes the entry without a fresh circuit — same contract as SecureView. *@
+
+<EntityChangeRefresher Watch="@EntityChangeTopics.Security" RefreshPermissionScope="true">
+    @{
+        var visible = (Actions ?? System.Array.Empty<ToolbarAction>()).Where(IsPermitted).ToList();
+    }
+    @if (visible.Count != 0)
+    {
+        <MudMenu Label="@Label" Variant="@Variant" Color="@Color" Size="@Size"
+                 StartIcon="@Icon" EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                 Disabled="@Disabled" aria-label="@Label">
+            @foreach (var action in visible)
+            {
+                <MudMenuItem Icon="@action.Icon" Disabled="@action.Disabled"
+                             OnClick="@(() => action.OnClick.InvokeAsync())">@action.Label</MudMenuItem>
+            }
+        </MudMenu>
+    }
+</EntityChangeRefresher>
+
+@code {
+    /// <summary>The entries, in display order. Entries the user may not invoke are dropped, not disabled.</summary>
+    [Parameter] public IEnumerable<ToolbarAction>? Actions { get; set; }
+
+    /// <summary>Caption of the activating button. Keep it short — that is the whole point of the menu.</summary>
+    [Parameter] public string Label { get; set; } = "New";
+
+    /// <summary>Icon of the activating button.</summary>
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Add;
+
+    [Parameter] public Variant Variant { get; set; } = Variant.Filled;
+
+    [Parameter] public Color Color { get; set; } = Color.Primary;
+
+    [Parameter] public Size Size { get; set; } = Size.Small;
+
+    /// <summary>Disables the whole menu (e.g. while a reload is running).</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    // Same evaluation as SecureView.IsPermitted — kept identical on purpose: an entry must appear under exactly
+    // the conditions under which the button it replaced appeared.
+    private bool IsPermitted(ToolbarAction action)
+    {
+        var perms = (action.RequiredPermissions ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (perms.Length == 0)
+        {
+            return true;
+        }
+
+        return action.RequireAllPermissions
+            ? perms.All(p => Services.VerifyUserPermissions(new[] { p }))
+            : Services.VerifyUserPermissions(perms);
+    }
+}

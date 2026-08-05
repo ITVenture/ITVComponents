@@ -17,35 +17,18 @@
         <RefreshButton OnClick="Reload" />
         <MudText Typo="Typo.subtitle2">@L["OnbAdm_Tab_RoleMappings"]</MudText>
         <MudSpacer />
-        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write">
-            <Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="mr-2"
-                           OnClick="@(() => Create(EmployeeRoleMappingKind.DirectRole))">@L["OnbAdm_Rm_AddDirect"]</MudButton>
-            </Permitted>
-        </SecureView>
-        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.PermissionSet,Onboarding.Admin.RoleMappings.Write">
-            <Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-2"
-                           OnClick="@(() => Create(EmployeeRoleMappingKind.PermissionSet))">@L["OnbAdm_Rm_AddPermSet"]</MudButton>
-            </Permitted>
-        </SecureView>
-        <SecureView RequiredPermissions="Onboarding.Admin.RoleMappings.Delegation,Onboarding.Admin.RoleMappings.Write">
-            <Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
-                           OnClick="@(() => Create(EmployeeRoleMappingKind.Delegation))">@L["OnbAdm_Rm_AddDelegation"]</MudButton>
-            </Permitted>
-        </SecureView>
+        @* Ein "Neu"-Menue statt drei "… hinzufuegen"-Knoepfen: die drei Aktionen sind Varianten derselben
+           Handlung, und ihre Namen sind zu lang fuer eine Leiste - auf 400px Geraetebreite quollen die
+           Beschriftungen sichtbar aus den Knoepfen. Die Eintraege tragen die Art-Bezeichnungen aus der
+           Tabellenspalte, damit Menue und Spalte dasselbe Wort benutzen; die Permission-Gates sind
+           unveraendert aus den SecureViews uebernommen. *@
+        <ToolbarActionMenu Label="@L["OnbAdm_Rm_New"]" Actions="@CreateActions" />
     </ToolBarContent>
     <Columns>
         <HierarchyColumn T="EmployeeRoleMappingViewModel" ButtonDisabledFunc="@(x => x.Kind != EmployeeRoleMappingKind.DirectRole && x.Kind != EmployeeRoleMappingKind.Delegation)" />
         <TemplateColumn T="EmployeeRoleMappingViewModel" Title="@L["OnbAdm_Rm_Kind"]" Sortable="false">
             <CellTemplate>
-                @(context.Item.Kind switch
-                {
-                    EmployeeRoleMappingKind.DirectRole => L["OnbAdm_Rm_KindDirect"],
-                    EmployeeRoleMappingKind.PermissionSet => L["OnbAdm_Rm_KindPermSet"],
-                    _ => L["OnbAdm_Rm_KindDelegation"]
-                })
+                @KindLabel(context.Item.Kind)
             </CellTemplate>
         </TemplateColumn>
         <PropertyColumn Property="x => x.Label" Title="@L["OnbAdm_Roles_Col"]" />
@@ -116,6 +99,30 @@
         kind == EmployeeRoleMappingKind.Delegation
             ? "Onboarding.Admin.RoleMappings.Delegation,Onboarding.Admin.RoleMappings.Write,Onboarding.Admin.RoleMappings.DelegationAssign"
             : "Onboarding.Admin.RoleMappings.DirectRole,Onboarding.Admin.RoleMappings.Write";
+
+    /// <summary>Art-Bezeichnung — dieselbe Quelle fuer die Tabellenspalte und fuer das "Neu"-Menue.</summary>
+    private string KindLabel(EmployeeRoleMappingKind kind) => kind switch
+    {
+        EmployeeRoleMappingKind.DirectRole => L["OnbAdm_Rm_KindDirect"],
+        EmployeeRoleMappingKind.PermissionSet => L["OnbAdm_Rm_KindPermSet"],
+        _ => L["OnbAdm_Rm_KindDelegation"]
+    };
+
+    // Die drei Anlege-Aktionen als EINE Liste: kommt eine vierte Art dazu, waechst das Menue automatisch mit,
+    // statt dass eine zweite Fassung irgendwo nachgezogen werden muss. Die Permissions kommen aus WritePermFor
+    // - dieselbe Quelle wie die Bearbeiten-/Loeschen-Knoepfe der Zeilen, und wortgleich zu den SecureViews,
+    // die vorher die drei Leisten-Knoepfe getragen haben.
+    private IEnumerable<ToolbarAction> CreateActions => new[]
+    {
+        EmployeeRoleMappingKind.DirectRole,
+        EmployeeRoleMappingKind.PermissionSet,
+        EmployeeRoleMappingKind.Delegation
+    }.Select(kind => new ToolbarAction
+    {
+        Label = KindLabel(kind),
+        RequiredPermissions = WritePermFor(kind),
+        OnClick = EventCallback.Factory.Create(this, () => Create(kind))
+    });
 
     private Task Create(EmployeeRoleMappingKind kind) => OpenDialog(new EmployeeRoleMappingViewModel { Kind = kind });
 

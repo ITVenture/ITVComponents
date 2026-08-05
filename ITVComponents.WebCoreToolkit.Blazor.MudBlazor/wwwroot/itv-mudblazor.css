@@ -46,3 +46,165 @@
     max-height: calc(100vh - 32px);
     max-height: calc(100dvh - 32px);
 }
+
+/*
+    Tabellen-Bedienleisten brechen auf schmalen Geraeten um, statt ihre Knoepfe zu zerquetschen.
+
+    .mud-table-toolbar ist eine starre Reihe (flex-wrap:nowrap, feste Hoehe). Passen die Knoepfe nicht
+    mehr nebeneinander, wandert der Platz nicht an den Zeilenumbruch, sondern wird den Knoepfen
+    weggenommen: sie fallen auf ihre Mindestbreite von 64px zusammen, waehrend die Beschriftung
+    weiterhin ihre volle Breite beansprucht und aus der Knopfflaeche heraustritt. Gemessen bei 400px
+    Geraetebreite: drei Knoepfe zu je 64px, deren Labels 78/95/104px brauchen - drei ineinander-
+    laufende Farbbloecke, an denen nicht mehr abzulesen ist, welcher Knopf welcher ist. Die Seite
+    laeuft dabei NICHT ueber, der Defekt ist also rein optisch und darum ohne Scrollbalken unsichtbar,
+    bis man ihn auf dem Geraet sieht.
+
+    Warum global und nicht je Komponente: die Bauweise <ToolBarContent> mit drei und mehr Knoepfen
+    liegt im Toolkit an fuenf Stellen ueber drei Pakete verteilt (OnboardingViews/RoleMappingsTab,
+    HelpViews/HelpResources, HelpViews/HelpTopicTree, WorkflowViews/WorkflowDefinitions,
+    WorkflowViews/WorkflowInstances). Eine Regel hier deckt sie alle ab - und jede spaetere dazu.
+
+    min-width:max-content ist der eigentliche Schutz (kein Knopf faellt unter seine Beschriftung),
+    flex-wrap:wrap gibt dem Ueberzaehligen die naechste Zeile, height:auto laesst die Leiste
+    mitwachsen statt den Inhalt abzuschneiden.
+*/
+@media (max-width: 600px) {
+    .mud-toolbar.mud-table-toolbar {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: 0;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        row-gap: 8px;
+    }
+
+    .mud-toolbar.mud-table-toolbar .mud-button-root {
+        min-width: max-content;
+    }
+}
+
+/*
+    Konto-Navigation (ManageNavMenu): Seitenspalte ab md, Aufklapp-Element darunter.
+
+    Warum hier und nicht als scoped .razor.css: die Konto-Seiten sind die einzigen im Toolkit, die static
+    SSR rendern. Diese Datei liefert der Host ueber <ITVentureReferences /> im <head> aus - unabhaengig
+    davon, ob sein Projekt das scoped-CSS-Bundle einbindet. Auf genau den Seiten, um die es geht, ist das
+    der Unterschied zwischen "wirkt" und "wirkt still nicht".
+
+    960px = MudBlazors md-Grenze; das Layout legt die Navigation dort in MudItem md="3".
+*/
+@media (max-width: 959.98px) {
+    .itv-manage-nav-wide {
+        display: none;
+    }
+}
+
+@media (min-width: 960px) {
+    .itv-manage-nav-narrow {
+        display: none;
+    }
+}
+
+.itv-manage-nav-narrow > summary {
+    cursor: pointer;
+    padding: 12px 16px;
+    font-weight: 500;
+    list-style-position: inside;
+}
+
+/*
+    Native Eingabefelder der Konto-Seiten im Mud-Erscheinungsbild.
+
+    WARUM NICHT EINFACH MudTextField: die Konto-Seiten posten ihre Formulare als static SSR. Die Bindung
+    laeuft ueber [SupplyParameterFromForm] und braucht das name-Attribut, das InputText aus dem EditContext
+    ableitet. MudTextField ist kein InputBase - es setzt dieses Attribut nicht, und der Post kaeme still
+    ohne Werte an. Die Felder bleiben deshalb native <input>/<InputText>, sie bekommen hier nur das
+    passende Aussehen. Das ist zugleich der Grund, warum sie ueberhaupt auffielen: sie trugen Bootstrap-
+    Klassen (form-floating/form-control/text-danger) aus dem Identity-Template, und in einer Anwendung ohne
+    Bootstrap heisst das: gaenzlich ungestylt - inklusive Beschriftung UNTER dem Feld, weil form-floating
+    das Label bewusst nach dem Eingabefeld notiert und per CSS darueberlegt.
+
+    order:-1 auf dem Label stellt genau diese Reihenfolge im Flex-Container wieder her, ohne dass die
+    Seiten ihre DOM-Reihenfolge aendern muessen (und ohne dass eine Fehlermeldung ihren Platz verliert:
+    sie folgt dem Eingabefeld, wie sie im Markup steht).
+*/
+.itv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.itv-field > label {
+    order: -1;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--mud-palette-text-secondary);
+}
+
+.itv-field-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--mud-palette-text-primary);
+    background-color: transparent;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: var(--mud-default-borderradius);
+}
+
+.itv-field-input:focus {
+    outline: none;
+    border-color: var(--mud-palette-primary);
+    box-shadow: 0 0 0 1px var(--mud-palette-primary);
+}
+
+.itv-field-input:disabled {
+    color: var(--mud-palette-text-disabled);
+    border-color: var(--mud-palette-lines-default);
+}
+
+.itv-field-error {
+    font-size: 0.75rem;
+    color: var(--mud-palette-error);
+}
+
+.itv-field-hint-success {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--mud-palette-success);
+}
+
+/*
+    Knopf-Ersatz fuer die Stellen, an denen kein MudButton stehen kann: PasskeySubmit rendert seinen
+    eigenen <button> (er muss form-associated sein, damit das Credential per Post zurueckkommt), wir
+    koennen ihm nur Klassen mitgeben. Betrifft nur noch die Anmeldeseite - die Konto-Seiten rendern
+    interaktiv und holen sich das Credential ueber JS-Interop.
+*/
+.itv-button-link {
+    padding: 6px 8px;
+    font: inherit;
+    color: var(--mud-palette-primary);
+    background: none;
+    border: none;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Ankreuzfeld der Anmeldeseiten - dieselbe Lage wie bei den Eingabefeldern: static SSR, also natives
+   <InputCheckbox> statt MudCheckBox, weil nur ersteres das name-Attribut fuer den Post mitbringt. */
+.itv-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.itv-check-input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--mud-palette-primary);
+    margin: 0;
+}
+
+.itv-check-label {
+    color: var(--mud-palette-text-primary);
+}

@@ -105,4 +105,5 @@
   <data name="Onb_JoinReg_CheckMail" xml:space="preserve"><value>Presque terminé — nous vous avons envoyé un e-mail de confirmation. Ouvrez-le et confirmez votre adresse pour continuer. Vous pouvez laisser cet onglet ouvert.</value></data>
   <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>En attente de confirmation…</value></data>
   <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>Les mots de passe ne correspondent pas.</value></data>
+  <data name="OnbAdm_Rm_New" xml:space="preserve"><value>Nouveau</value></data>
 </root>

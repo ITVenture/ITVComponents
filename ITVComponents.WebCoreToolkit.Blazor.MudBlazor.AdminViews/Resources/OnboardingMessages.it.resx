@@ -105,4 +105,5 @@
   <data name="Onb_JoinReg_CheckMail" xml:space="preserve"><value>Quasi fatto — ti abbiamo inviato un'e-mail di conferma. Aprila e conferma il tuo indirizzo per continuare. Puoi lasciare questa scheda aperta.</value></data>
   <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>In attesa di conferma…</value></data>
   <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>Le password non corrispondono.</value></data>
+  <data name="OnbAdm_Rm_New" xml:space="preserve"><value>Nuovo</value></data>
 </root>
