@@ -1,0 +1,62 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Tab-basierter Editor fuer einen eingebetteten Abschnitt. Reiter: General (Identitaet, Darstellung),
+    Result (was aus dem Abschnitt herauskommt).
+
+    Bewusst KEINE Abschnitts-Auswahl im General-Reiter: ein Abschnitt wird ueber die Eigenschaften
+    seiner KINDER zugeordnet, nicht ueber seine eigenen - sonst muesste man sich fragen, ob er sich
+    selbst enthalten kann.
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+             KeepPanelsAlive="true" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
+
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                An embedded section: drag nodes into its frame (or assign them via <b>Inside sub-process</b>
+                in their properties). It has its own variable scope, but it is <b>not</b> a separate
+                instance. A <b>deadline can hang on the whole section</b> — that is what a plain sequence of
+                steps cannot do.
+            </MudAlert>
+
+            <MudSwitch T="bool" @bind-Value="Node.Collapsed" Color="Color.Primary"
+                       Label="Collapsed in the diagram" Class="mt-3" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Collapsed the section is drawn as a single node and its content is hidden — for keeping a
+                large process readable. Purely visual; the run is unaffected.
+            </MudText>
+        </MudTabPanel>
+
+        @* --- Result --- *@
+        <MudTabPanel Text="Result" Icon="@Icons.Material.Filled.SwapHoriz">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Map inner variables to outer ones. Leave empty and everything the section produced flows out.
+            </MudText>
+            <OutputBindingTable Bindings="Node.Outputs" Title="Result of the section" AddLabel="Add result"
+                                SourceLabel="Inner variable" TargetLabel="Outer variable" />
+
+            <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
+                              RetainVariables="Node.RetainVariables"
+                              SwitchLabel="Consolidate scope (replace)"
+                              HelperText="@("After the section the outer scope contains only its declared result plus the variables kept here.")" />
+
+            @if (!string.IsNullOrEmpty(Node.ErrorFlowId))
+            {
+                <MudTextField @bind-Value="Node.ErrorVariable" Label="Error message → variable"
+                              Margin="Margin.Dense" Class="mt-3" />
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Abschnitt.</summary>
+    [Parameter] public SubProcessNode? Node { get; set; }
+}

@@ -2,37 +2,51 @@
 @inject IDialogService DialogService
 
 @*
-    Konfiguriert den Start-Knoten: die SIGNATUR des Workflows und die START-MASKE.
+    Tab-basierter Editor fuer den Start-Knoten. Reiter: General (Identitaet), Signature (was aus den
+    uebergebenen Werten wird), Start form (was ein Mensch beim Start von Hand eingibt).
 
-    Zwei Ebenen, die man nicht verwechseln darf:
-    - Die MASKE (unten) beschreibt, was ein MENSCH eingibt, wenn er den Workflow von Hand startet. Sie ist
-      rein beschreibend - die Engine liest sie nicht.
-    - Die SIGNATUR (oben) beschreibt, was aus den uebergebenen Werten wird. Sie gilt fuer JEDEN Einstieg:
-      Start von Hand, programmatischer Start und Aufruf als Subworkflow.
+    Die Reiter bilden genau die Trennung ab, die man hier nicht verwechseln darf:
+    - Die SIGNATUR gilt fuer JEDEN Einstieg - Start von Hand, programmatischer Start, Aufruf als
+      Subworkflow.
+    - Die MASKE ist rein beschreibend und betrifft nur den Start von Hand; die Engine liest sie nicht.
     Der Feldname der Maske ist der Name der uebergebenen Variable - also genau das, wogegen die Signatur
-    anschliessend aufgeloest wird.
+    anschliessend aufgeloest wird. Deshalb steht der Hinweis auf verworfene Felder beim FORMULAR und
+    nicht bei der Signatur: dort faellt er auf, waehrend man die Felder anlegt.
+
+    KeepPanelsAlive, damit das Monaco-Feld (Beschreibung) auch dann fuer FlushAsync erreichbar ist, wenn
+    sein Reiter nicht aktiv ist.
 *@
 
 @if (Node is not null)
 {
-    <MudText Typo="Typo.caption" Class="mt-4">Start parameters (signature)</MudText>
+  <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+           KeepPanelsAlive="true" MinimumTabWidth="70px">
+    <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+        <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+        <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+        <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
+
+        <SectionSelect Node="Node" Def="Def" />
+    </MudTabPanel>
+
+    <MudTabPanel Text="Signature" Icon="@Icons.Material.Filled.Login">
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
         The declared signature of this workflow. Each row becomes an instance variable, resolved against the
         values the caller passed in — no matter whether a person, a program or a calling workflow started it.
     </MudText>
-    <InputBindingList Bindings="Node.Inputs" NamePlaceholder="variable" SourcePlaceholder="passed variable"
-                      AddPlaceholder="new parameter" NameWidth="120px" />
+    <InputBindingTable Bindings="Node.Inputs" Title="Start parameters" AddLabel="Add parameter"
+                       NameHeader="Variable" NameLabel="Variable" />
 
     <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
                       RetainVariables="Node.RetainVariables"
                       SwitchLabel="Strict signature (replace)"
                       HelperText="@("The instance starts with exactly the parameters above plus the variables kept here - anything else the caller passed is dropped.")" />
+    </MudTabPanel>
 
-    <MudDivider Class="my-3" />
-    <MudText Typo="Typo.caption">Start form</MudText>
+    <MudTabPanel Text="Start form" Icon="@Icons.Material.Filled.DynamicForm">
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
         What a person fills in when starting this workflow by hand (Instances → New instance). The field name
-        is the name of the passed variable — the signature above is resolved against it. No fields = the
+        is the name of the passed variable — the signature is resolved against it. No fields = the
         workflow is started without input.
     </MudText>
 
@@ -77,13 +91,13 @@
             {
                 <span>
                     The signature is strict, so these fields would be dropped right after the start:
-                    <b>@string.Join(", ", UndeclaredFields)</b>. Declare them above (or keep them via the
-                    retained variables) if the workflow needs them.
+                    <b>@string.Join(", ", UndeclaredFields)</b>. Declare them on the <b>Signature</b> tab
+                    (or keep them via the retained variables) if the workflow needs them.
                 </span>
             }
             else
             {
-                <span>The signature is strict — every form field is declared above and survives the start.</span>
+                <span>The signature is strict — every form field is declared on the Signature tab and survives the start.</span>
             }
         </MudAlert>
     }
@@ -96,11 +110,16 @@
     </MudText>
     <CScriptField @ref="descField" Language="json" Height="90" Value="@(Node.FormDescription ?? string.Empty)"
                   ValueChanged="@(v => Node.FormDescription = string.IsNullOrEmpty(v) ? null : v)" />
+    </MudTabPanel>
+  </MudTabs>
 }
 
 @code {
     /// <summary>Der zu konfigurierende Start-Knoten.</summary>
     [Parameter] public StartNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Abschnitts-Zuordnung.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
 
     private CScriptField? descField;
 

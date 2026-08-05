@@ -16,8 +16,8 @@
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
         @(HelperText ?? DefaultHelperText)
     </MudText>
-    <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="variable" TargetPlaceholder="result name"
-                       AddPlaceholder="new result" />
+    <OutputBindingTable Bindings="Node.Outputs" Title="Result" AddLabel="Add result"
+                        SourceLabel="Variable" TargetLabel="Result name" />
 
     @if (Node.Outputs.Count > 0)
     {

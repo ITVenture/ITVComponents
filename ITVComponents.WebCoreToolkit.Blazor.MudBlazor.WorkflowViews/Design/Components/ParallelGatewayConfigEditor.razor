@@ -24,8 +24,8 @@
             everything the branches wrote flows on. Declaring it here is also how you decide a name two
             branches both wrote — give each branch its own result name.
         </MudText>
-        <OutputBindingList Bindings="Node.Outputs" SourcePlaceholder="branch variable"
-                           TargetPlaceholder="result name" AddPlaceholder="new result" />
+        <OutputBindingTable Bindings="Node.Outputs" Title="Result of the region" AddLabel="Add result"
+                            SourceLabel="Branch variable" TargetLabel="Result name" />
         <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
                           RetainVariables="Node.RetainVariables"
                           SwitchLabel="Consolidate scope (replace)"

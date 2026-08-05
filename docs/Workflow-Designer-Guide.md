@@ -93,6 +93,12 @@ Diese Konzepte tauchen in mehreren Eigenschaftenseiten auf.
 
 ### Datenfluss-Bindungen (Inputs / Outputs)
 
+**Überall gleich bedient:** Bindungen stehen als **Tabelle**; über *Add* bzw. das Stift-Symbol öffnet
+sich ein **Popup**, in dem eine Bindung angelegt oder geändert wird — dort ist auch Platz für den
+Monaco-Editor, wenn der Wert ein Ausdruck ist. Das gilt für jeden Knoten, der Variablen entgegennimmt
+oder abgibt: Start, Aktivität, Benutzer-Aufgabe, Subworkflow, Abschnitt, Join, Ende, Sende-Knoten und
+das Mapping auf einer Verbindung.
+
 Der Variablen-Stack einer Instanz ist eine Menge benannter Werte. Knoten lesen und schreiben ihn über
 Bindungen:
 

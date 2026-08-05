@@ -47,6 +47,10 @@
         {
             <WaitEditor Node="wait" Def="Def" @ref="waitEditor" />
         }
+        else if (Node is SubProcessNode section)
+        {
+            <SubProcessEditor Node="section" />
+        }
         else if (Node is not null)
         {
             <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
@@ -58,7 +62,7 @@
             @switch (Node)
             {
                 case StartNode start:
-                    <StartConfigEditor Node="start" @ref="startEditor" />
+                    <StartConfigEditor Node="start" Def="Def" @ref="startEditor" />
                     break;
                 case EndNode end:
                     <EndConfigEditor Node="end" />
@@ -79,37 +83,6 @@
                     </MudAlert>
                     <EndConfigEditor Node="terminate"
                                      HelperText="@("Why did it stop? Without a result the outcome says nothing about the reason. The source is the scope of the branch that terminated - it is published to the instance first.")" />
-                    break;
-                case SubProcessNode subProcess:
-                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-                        An embedded section: drag nodes into its frame (or assign them via
-                        <b>Inside sub-process</b> in their properties). It has its own variable scope, but
-                        it is <b>not</b> a separate instance. A <b>deadline can hang on the whole
-                        section</b> — that is what a plain sequence of steps cannot do.
-                    </MudAlert>
-                    <MudSwitch T="bool" @bind-Value="subProcess.Collapsed" Color="Color.Primary"
-                               Label="Collapsed in the diagram" Class="mt-2" />
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        Collapsed the section is drawn as a single node and its content is hidden — for
-                        keeping a large process readable. Purely visual; the run is unaffected.
-                    </MudText>
-
-                    <MudText Typo="Typo.caption" Class="mt-3">Result of the section</MudText>
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        Map inner variables to outer ones. Leave empty and everything the section produced
-                        flows out.
-                    </MudText>
-                    <OutputBindingList Bindings="subProcess.Outputs" SourcePlaceholder="inner variable"
-                                       TargetPlaceholder="outer variable" AddPlaceholder="new result" />
-                    <ScopeModeSection Mode="subProcess.ScopeMode"
-                                      ModeChanged="@(m => subProcess.ScopeMode = m)"
-                                      RetainVariables="subProcess.RetainVariables"
-                                      HelperText="@("After the section the outer scope contains only its declared result plus the variables kept here.")" />
-                    @if (!string.IsNullOrEmpty(subProcess.ErrorFlowId))
-                    {
-                        <MudTextField @bind-Value="subProcess.ErrorVariable"
-                                      Label="Error message → variable" Margin="Margin.Dense" />
-                    }
                     break;
                 case CompensationNode handler:
                     <MudSelect T="string" Value="@handler.AttachedToNodeId" Label="Undoes this step"
@@ -189,8 +162,9 @@
                         Map variables from the merged branches to the names the flow continues with. Leave
                         empty and everything the branches wrote flows on.
                     </MudText>
-                    <OutputBindingList Bindings="inclusive.Outputs" SourcePlaceholder="branch variable"
-                                       TargetPlaceholder="result name" AddPlaceholder="new result" />
+                    <OutputBindingTable Bindings="inclusive.Outputs" Title="Result of the region"
+                                        AddLabel="Add result" SourceLabel="Branch variable"
+                                        TargetLabel="Result name" />
                     <ScopeModeSection Mode="inclusive.ScopeMode"
                                       ModeChanged="@(m => inclusive.ScopeMode = m)"
                                       RetainVariables="inclusive.RetainVariables"
@@ -239,8 +213,8 @@
                 Runs when a token takes this connection — after the condition decided it. Use it to
                 normalise the variables the target node sees.
             </MudText>
-            <InputBindingList Bindings="Flow.Inputs" NamePlaceholder="variable"
-                              AddPlaceholder="new variable" />
+            <InputBindingTable Bindings="Flow.Inputs" Title="Mapping" AddLabel="Add variable"
+                               NameHeader="Variable" NameLabel="Variable" />
             <ScopeModeSection Mode="Flow.ScopeMode"
                               ModeChanged="@(m => Flow.ScopeMode = m)"
                               RetainVariables="Flow.RetainVariables"

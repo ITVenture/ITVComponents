@@ -1,0 +1,111 @@
+@using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
+
+@*
+    Die seitenweise Tabelle fuer Ausgabe-Bindungen (Ergebnis -> Variable) - Zeile lesen, Add/Edit im
+    Popup. Gegenstueck zu InputBindingTable und aus demselben Grund herausgeloest: Ausgaben gibt es an
+    Knoten, die keine Eingaben haben (Ende, Join, Abschnitt), und eine zweite Abschrift der Tabelle
+    hiesse, jede Korrektur zweimal zu machen.
+
+    Die Liste wird in-place veraendert (per Referenz).
+*@
+
+<MudText Typo="Typo.subtitle2">@Title</MudText>
+<MudTable Items="@Bindings" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+          RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+    <ToolBarContent>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                   Color="Color.Primary" OnClick="Add">@AddLabel</MudButton>
+        <MudSpacer />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@SourceLabel</MudTh>
+        <MudTh>→ @TargetLabel</MudTh>
+        <MudTh Style="width:1%"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@SourceLabel">@context.Parameter</MudTd>
+        <MudTd DataLabel="@TargetLabel">@context.Variable</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => Edit(context))" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+@code {
+    /// <summary>Die Ausgabe-Bindungen (in-place veraendert).</summary>
+    [Parameter, EditorRequired] public List<ActivityOutputBinding> Bindings { get; set; } = default!;
+
+    /// <summary>Optionale Auswahlliste deklarierter Ergebnisnamen (Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? ParameterOptions { get; set; }
+
+    /// <summary>Ueberschrift ueber der Tabelle.</summary>
+    [Parameter] public string Title { get; set; } = "Outputs";
+
+    /// <summary>Beschriftung des Hinzufuegen-Knopfs.</summary>
+    [Parameter] public string AddLabel { get; set; } = "Add output";
+
+    /// <summary>Beschriftung der Quell-Spalte (das Ergebnis).</summary>
+    [Parameter] public string SourceLabel { get; set; } = "Result / parameter";
+
+    /// <summary>Beschriftung der Ziel-Spalte (die Variable).</summary>
+    [Parameter] public string TargetLabel { get; set; } = "Variable";
+
+    private async Task Add()
+    {
+        var fresh = new ActivityOutputBinding();
+        DialogResult? result = await ShowDialog(fresh, isNew: true);
+        if (result?.Data is OutputBindingEditDialog.Result r && !r.Delete
+            && !string.IsNullOrWhiteSpace(r.Binding.Parameter) && !string.IsNullOrWhiteSpace(r.Binding.Variable))
+        {
+            Bindings.Add(r.Binding);
+        }
+    }
+
+    private async Task Edit(ActivityOutputBinding binding)
+    {
+        int idx = Bindings.IndexOf(binding);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        DialogResult? result = await ShowDialog(Clone(binding), isNew: false);
+        if (result?.Data is not OutputBindingEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Bindings.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(r.Binding.Parameter) && !string.IsNullOrWhiteSpace(r.Binding.Variable))
+        {
+            Bindings[idx] = r.Binding;
+        }
+    }
+
+    private async Task<DialogResult?> ShowDialog(ActivityOutputBinding binding, bool isNew)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(OutputBindingEditDialog.Binding), binding },
+            { nameof(OutputBindingEditDialog.IsNew), isNew },
+            { nameof(OutputBindingEditDialog.SourceLabel), SourceLabel },
+            { nameof(OutputBindingEditDialog.TargetLabel), TargetLabel },
+            { nameof(OutputBindingEditDialog.ParameterOptions), ParameterOptions }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<OutputBindingEditDialog>(string.Empty,
+            parameters, options);
+        return await dialog.Result;
+    }
+
+    private static ActivityOutputBinding Clone(ActivityOutputBinding b)
+        => new() { Parameter = b.Parameter, Variable = b.Variable };
+}
