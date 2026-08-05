@@ -37,6 +37,8 @@
             <MudNumericField T="double?" @bind-Value="Node.DueInHours" Label="Due in hours" Margin="Margin.Dense"
                              Class="mt-3" Min="0"
                              HelperText="Display and sorting only — an overdue task does NOT continue by itself (use a timer in a parallel branch)." />
+
+            <SectionSelect Node="Node" Def="Def" />
         </MudTabPanel>
 
         @* --- Variable mapping --- *@
@@ -132,6 +134,9 @@
 @code {
     /// <summary>Der zu konfigurierende Aufgaben-Knoten.</summary>
     [Parameter] public UserActivityNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Abschnitts-Zuordnung.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
 
     private const string CultureHint =
         "Plain text, or a per-culture record like {\"de\":\"Freigabe\",\"fr\":\"Approbation\"} — the same convention as navigation entries.";

@@ -1,0 +1,55 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Die Zugehoerigkeit eines Knotens zu einem eingebetteten Abschnitt. Neben dem Ziehen in den Rahmen der
+    zweite Weg, einen Knoten hineinzulegen - und der einzige, wenn der Rahmen gerade nicht sichtbar ist
+    (zugeklappt, ausserhalb des Ausschnitts).
+
+    Eigene Komponente, weil sie in JEDEN Knoten-Editor gehoert: sie stand bisher nur im generischen Zweig
+    des Eigenschaften-Popups, und damit liess sich ausgerechnet eine Aktivitaet, eine Benutzer-Aufgabe
+    oder ein Subworkflow-Aufruf (die tab-basierten Editoren) nur per Maus zuordnen.
+
+    Zeigt sich nur, wenn es ueberhaupt Abschnitte gibt - sonst waere es eine leere Auswahl.
+*@
+
+@if (Node is not null && Sections.Any())
+{
+    <MudSelect T="string" Value="@Node.ParentNodeId" ValueChanged="SetParent"
+               Label="Inside sub-process" Clearable="true" Dense="true" Margin="Margin.Dense"
+               Class="mt-2">
+        @foreach (var s in Sections)
+        {
+            <MudSelectItem T="string" Value="@s.Id">@s.Label</MudSelectItem>
+        }
+    </MudSelect>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Empty = top level. A sub-process needs its own start and end node inside it.
+    </MudText>
+}
+
+@code {
+    /// <summary>Der Knoten, dessen Zugehoerigkeit bearbeitet wird.</summary>
+    [Parameter] public WorkflowNode? Node { get; set; }
+
+    /// <summary>Die Definition - aus ihr kommen die verfuegbaren Abschnitte.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    /// <summary>
+    /// Die Abschnitte, in die dieser Knoten gelegt werden kann. Ein Abschnitt kann sich nicht selbst
+    /// enthalten - er faellt deshalb aus der Liste.
+    /// </summary>
+    private IEnumerable<(string Id, string Label)> Sections
+        => Def is null
+            ? Enumerable.Empty<(string, string)>()
+            : Def.Nodes.OfType<SubProcessNode>()
+                .Where(n => n.Id != null && n.Id != Node?.Id)
+                .Select(n => (n.Id, string.IsNullOrEmpty(n.Name) ? n.Id : n.Name));
+
+    private void SetParent(string? parentId)
+    {
+        if (Node is not null)
+        {
+            Node.ParentNodeId = string.IsNullOrWhiteSpace(parentId) ? null : parentId;
+        }
+    }
+}

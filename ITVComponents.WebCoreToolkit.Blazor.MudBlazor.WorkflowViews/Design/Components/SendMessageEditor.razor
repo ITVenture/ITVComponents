@@ -1,0 +1,119 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Tab-basierter Editor fuer einen SendMessageNode. Reiter: General (Identitaet + Abschnitt), Signal
+    (Name, Art, Korrelation, Nutzdaten), Delivery (auf die Zustellung warten).
+
+    Art und Korrelation stehen bewusst auf DEMSELBEN Reiter: das Korrelationsfeld gibt es nur bei einer
+    gerichteten Nachricht. Stuende der Schalter woanders, blendete er ein Feld auf einem Reiter ein, den
+    man gerade nicht sieht.
+
+    KeepPanelsAlive, damit das Monaco-Feld (Korrelation) auch dann fuer FlushAsync erreichbar ist, wenn
+    sein Reiter nicht aktiv ist. Der Aufrufer (NodePropertiesDialog) ruft FlushAsync() vor dem Schliessen.
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+             KeepPanelsAlive="true" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
+
+            <SectionSelect Node="Node" Def="Def" />
+        </MudTabPanel>
+
+        @* --- Signal --- *@
+        <MudTabPanel Text="Signal" Icon="@Icons.Material.Filled.Send">
+            <MudTextField @bind-Value="Node.SignalName" Label="Signal name" Margin="Margin.Dense" />
+            <MudSelect T="WaitKind" @bind-Value="Node.WaitKind" Label="Kind" Dense="true"
+                       Margin="Margin.Dense" Class="mt-2">
+                <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
+                <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Broadcast — reaches every waiting instance</MudSelectItem>
+            </MudSelect>
+
+            @if (Node.WaitKind == WaitKind.Message)
+            {
+                <MudText Typo="Typo.caption" Class="mt-3">Correlation (CScript)</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Evaluated here, over the variables of this branch — and it has to produce the
+                    <b>same value</b> as the correlation of the wait point on the other side. Without it the
+                    message would degrade to a broadcast and wake every wait point with that name; the
+                    validator says so.
+                </MudText>
+                <CScriptField @ref="correlationField" Height="160"
+                              Value="@Node.CorrelationExpression"
+                              ValueChanged="@(v => Node.CorrelationExpression = v)"
+                              Mode="Node.CorrelationExpressionMode"
+                              ModeChanged="@(m => Node.CorrelationExpressionMode = m)" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                    A broadcast needs no correlation — it is meant to reach everyone waiting for this name.
+                </MudAlert>
+            }
+
+            <MudText Typo="Typo.caption" Class="mt-4 mud-text-secondary">
+                The payload. Each entry becomes a <b>variable of the receiving branch</b>, under the name in
+                the left column — the receiver does not declare anything for it.
+            </MudText>
+            <InputBindingTable Bindings="Node.Inputs" Title="Payload" AddLabel="Add value"
+                               NameHeader="Receiver variable" NameLabel="Receiver variable" />
+        </MudTabPanel>
+
+        @* --- Delivery --- *@
+        <MudTabPanel Text="Delivery" Icon="@Icons.Material.Filled.Schedule">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Sent <b>after this branch is committed</b>, not in the middle of it — the receiver is driven
+                on this very thread, and it must not run on a state of the sender that is not in the
+                database yet. The message is <b>written in the same transaction</b> as the branch, so it
+                survives a crash: a runner catches it up. The price is <b>at least once</b> — after a crash
+                at the wrong moment the same message can arrive twice, so a receiver that must not act twice
+                needs its own guard.
+            </MudAlert>
+
+            <MudSwitch T="bool" @bind-Value="Node.WaitForDelivery" Color="Color.Primary"
+                       Label="Wait for delivery" Class="mt-3" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Off (default): send and carry on. On: the branch <b>parks</b> until the message is out and
+                then continues with the <b>number of receivers</b> — that is how „nobody was waiting"
+                becomes something the process can branch on instead of a line in the log. It costs a stop:
+                two commits instead of one. For a plain notification that is wasted.
+            </MudText>
+
+            @if (Node.WaitForDelivery)
+            {
+                <MudTextField @bind-Value="Node.ReachedVariable" Label="Receivers → variable"
+                              Margin="Margin.Dense" Class="mt-3"
+                              HelperText="How many instances the message reached. 0 means nobody was waiting." />
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Sende-Knoten.</summary>
+    [Parameter] public SendMessageNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Abschnitts-Zuordnung.</summary>
+    [Parameter] public WorkflowDefinition Def { get; set; } = default!;
+
+    private CScriptField? correlationField;
+
+    /// <summary>
+    /// Holt den zuletzt getippten Text aus dem Monaco-Feld ins Modell. Monaco meldet seinen Wert erst
+    /// beim Verlassen - ohne diesen Aufruf ginge die letzte Aenderung beim Schliessen verloren.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null || correlationField is null)
+        {
+            return;
+        }
+
+        Node.CorrelationExpression = await correlationField.GetValueAsync();
+    }
+}

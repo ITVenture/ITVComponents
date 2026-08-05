@@ -1,0 +1,83 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Tab-basierter Editor fuer einen WaitNode - das Gegenstueck zum SendMessageEditor, und bewusst
+    genauso aufgebaut: Empfangen und Senden sind dieselbe Sache von zwei Seiten, und wer sie
+    nebeneinander modelliert, soll nicht zwei verschiedene Masken bedienen muessen.
+
+    Reiter: General (Identitaet + Abschnitt), Signal (Name, Art, Korrelation).
+
+    KeepPanelsAlive, damit das Monaco-Feld (Korrelation) auch dann fuer FlushAsync erreichbar ist, wenn
+    sein Reiter nicht aktiv ist. Der Aufrufer (NodePropertiesDialog) ruft FlushAsync() vor dem Schliessen.
+*@
+
+@if (Node is not null)
+{
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+             KeepPanelsAlive="true" MinimumTabWidth="70px">
+        @* --- General --- *@
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+            <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+            <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
+
+            <SectionSelect Node="Node" Def="Def" />
+        </MudTabPanel>
+
+        @* --- Signal --- *@
+        <MudTabPanel Text="Signal" Icon="@Icons.Material.Filled.HourglassEmpty">
+            <MudTextField @bind-Value="Node.SignalName" Label="Signal name" Margin="Margin.Dense" />
+            <MudSelect T="WaitKind" @bind-Value="Node.WaitKind" Label="Kind" Dense="true"
+                       Margin="Margin.Dense" Class="mt-2">
+                <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
+                <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Signal — a broadcast reaches every waiting instance</MudSelectItem>
+            </MudSelect>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                A <b>message</b> without a matching correlation key does not arrive at all. A <b>signal</b>
+                ignores correlation — use it for events that concern the whole system.
+            </MudText>
+
+            @if (Node.WaitKind == WaitKind.Message)
+            {
+                <MudText Typo="Typo.caption" Class="mt-3">Correlation (CScript)</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Evaluated when the branch parks, over its variables — so it can key on something the
+                    process itself just produced. Empty = the instance's own correlation key.
+                </MudText>
+                <CScriptField @ref="correlationField" Height="160"
+                              Value="@Node.CorrelationExpression"
+                              ValueChanged="@(v => Node.CorrelationExpression = v)"
+                              Mode="Node.CorrelationExpressionMode"
+                              ModeChanged="@(m => Node.CorrelationExpressionMode = m)" />
+            }
+
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                Whatever the sender attaches as payload lands in the variables of <b>this</b> branch before
+                it carries on — under the names the sender chose. Nothing has to be declared here for that.
+            </MudAlert>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Wartepunkt.</summary>
+    [Parameter] public WaitNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Abschnitts-Zuordnung.</summary>
+    [Parameter] public WorkflowDefinition? Def { get; set; }
+
+    private CScriptField? correlationField;
+
+    /// <summary>
+    /// Holt den zuletzt getippten Text aus dem Monaco-Feld ins Modell (siehe SendMessageEditor).
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null || correlationField is null)
+        {
+            return;
+        }
+
+        Node.CorrelationExpression = await correlationField.GetValueAsync();
+    }
+}

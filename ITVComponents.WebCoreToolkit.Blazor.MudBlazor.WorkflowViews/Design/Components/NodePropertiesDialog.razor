@@ -33,11 +33,19 @@
         }
         else if (Node is UserActivityNode userTask)
         {
-            <UserActivityEditor Node="userTask" @ref="userTaskEditor" />
+            <UserActivityEditor Node="userTask" Def="Def" @ref="userTaskEditor" />
         }
         else if (Node is CallWorkflowNode call)
         {
             <CallWorkflowEditor Node="call" SubDefinitionIds="SubDefinitionIds" Def="Def" />
+        }
+        else if (Node is SendMessageNode send)
+        {
+            <SendMessageEditor Node="send" Def="Def" @ref="sendEditor" />
+        }
+        else if (Node is WaitNode wait)
+        {
+            <WaitEditor Node="wait" Def="Def" @ref="waitEditor" />
         }
         else if (Node is not null)
         {
@@ -45,22 +53,7 @@
             <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
             <MudText Typo="Typo.caption" Class="mt-1">Kind: @Node.Kind</MudText>
 
-            @* Zugehoerigkeit zu einem eingebetteten Abschnitt. Solange der Editor keine Container
-               zeichnet, ist diese Auswahl der Weg, einen Knoten hineinzulegen. *@
-            @if (SubProcessIds.Any() && Node is not SubProcessNode)
-            {
-                <MudSelect T="string" Value="@Node.ParentNodeId" ValueChanged="SetParent"
-                           Label="Inside sub-process" Clearable="true" Dense="true" Margin="Margin.Dense"
-                           Class="mt-2">
-                    @foreach (var sp in SubProcessIds)
-                    {
-                        <MudSelectItem T="string" Value="@sp.Id">@sp.Label</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                    Empty = top level. A sub-process needs its own start and end node inside it.
-                </MudText>
-            }
+            <SectionSelect Node="Node" Def="Def" />
 
             @switch (Node)
             {
@@ -162,87 +155,6 @@
                         Waits for several events at once — the first one to arrive wins, the others are
                         dropped. Every outgoing connection must lead to a <b>wait point</b>, a <b>timer</b>
                         or a <b>user task</b>; anything else would run straight through and always win.
-                    </MudAlert>
-                    break;
-                case WaitNode wait:
-                    <MudTextField @bind-Value="wait.SignalName" Label="Signal name" Margin="Margin.Dense" />
-                    <MudSelect T="WaitKind" @bind-Value="wait.WaitKind" Label="Kind" Dense="true"
-                               Margin="Margin.Dense" Class="mt-2">
-                        <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
-                        <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Signal — a broadcast reaches every waiting instance</MudSelectItem>
-                    </MudSelect>
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        A <b>message</b> without a matching correlation key does not arrive at all. A
-                        <b>signal</b> ignores correlation — use it for events that concern the whole system.
-                    </MudText>
-                    @if (wait.WaitKind == WaitKind.Message)
-                    {
-                        <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
-                        <CScriptField @key="@("corr-" + Node.Id)" @ref="exprField" Height="240"
-                                      Value="@wait.CorrelationExpression"
-                                      ValueChanged="@(v => wait.CorrelationExpression = v)"
-                                      Mode="wait.CorrelationExpressionMode"
-                                      ModeChanged="@(m => wait.CorrelationExpressionMode = m)" />
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                            Evaluated when the branch parks, over its variables — so it can key on something
-                            the process itself just produced. Empty = the instance's own correlation key.
-                        </MudText>
-                    }
-                    break;
-                case SendMessageNode send:
-                    <MudTextField @bind-Value="send.SignalName" Label="Signal name" Margin="Margin.Dense" />
-                    <MudSelect T="WaitKind" @bind-Value="send.WaitKind" Label="Kind" Dense="true"
-                               Margin="Margin.Dense" Class="mt-2">
-                        <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching instance (correlated)</MudSelectItem>
-                        <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Broadcast — reaches every waiting instance</MudSelectItem>
-                    </MudSelect>
-                    @if (send.WaitKind == WaitKind.Message)
-                    {
-                        <MudText Typo="Typo.caption" Class="mt-2">Correlation (CScript)</MudText>
-                        <CScriptField @key="@("sendcorr-" + Node.Id)" @ref="exprField" Height="240"
-                                      Value="@send.CorrelationExpression"
-                                      ValueChanged="@(v => send.CorrelationExpression = v)"
-                                      Mode="send.CorrelationExpressionMode"
-                                      ModeChanged="@(m => send.CorrelationExpressionMode = m)" />
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                            Evaluated here, over the variables of this branch — and it has to produce the
-                            <b>same value</b> as the correlation of the wait point on the other side. Without
-                            it the message would degrade to a broadcast and wake every wait point with that
-                            name; the validator says so.
-                        </MudText>
-                    }
-
-                    <MudText Typo="Typo.caption" Class="mt-3">Payload</MudText>
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        What the receiver gets. The values are put into the receiving branch's variables
-                        before it carries on.
-                    </MudText>
-                    <InputBindingList Bindings="send.Inputs" NamePlaceholder="receiver variable"
-                                      AddPlaceholder="new value" />
-
-                    <MudSwitch T="bool" @bind-Value="send.WaitForDelivery" Color="Color.Primary"
-                               Label="Wait for delivery" Class="mt-3" />
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        Off (default): send and carry on. On: the branch <b>parks</b> until the message is
-                        out and then continues with the <b>number of receivers</b> — that is how „nobody
-                        was waiting“ becomes something the process can branch on instead of a line in the
-                        log. It costs a stop: two commits instead of one. For a plain notification that is
-                        wasted.
-                    </MudText>
-                    @if (send.WaitForDelivery)
-                    {
-                        <MudTextField @bind-Value="send.ReachedVariable" Label="Receivers → variable"
-                                      Margin="Margin.Dense" Class="mt-2"
-                                      HelperText="How many instances the message reached. 0 means nobody was waiting." />
-                    }
-
-                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
-                        Sent <b>after this branch is committed</b>, not in the middle of it — the receiver is
-                        driven on this very thread, and it must not run on a state of the sender that is not
-                        in the database yet. The message itself is <b>written in the same transaction</b> as
-                        the branch, so it survives a crash: a runner catches it up. The price is
-                        <b>at least once</b> — after a crash at the wrong moment the same message can arrive
-                        twice, so a receiver that must not act twice needs its own guard.
                     </MudAlert>
                     break;
                 case TimerNode timer:
@@ -376,6 +288,8 @@
     private CScriptField? exprField;
     private UserActivityEditor? userTaskEditor;
     private StartConfigEditor? startEditor;
+    private SendMessageEditor? sendEditor;
+    private WaitEditor? waitEditor;
 
     private string NodeTitle => Node is null
         ? "Node"
@@ -407,6 +321,20 @@
             return;
         }
 
+        if (Node is WaitNode && waitEditor is not null)
+        {
+            // Der Wartepunkt-Editor hat ein eigenes Monaco-Feld (Korrelation).
+            await waitEditor.FlushAsync();
+            return;
+        }
+
+        if (Node is SendMessageNode && sendEditor is not null)
+        {
+            // Der Sende-Editor hat ein eigenes Monaco-Feld (Korrelation).
+            await sendEditor.FlushAsync();
+            return;
+        }
+
         if (Node is StartNode && startEditor is not null)
         {
             // Der Start-Editor hat ein eigenes Monaco-Feld (Beschreibung der Start-Maske).
@@ -428,9 +356,6 @@
             case TimerNode t:
                 t.DueExpression = v;
                 break;
-            case WaitNode w:
-                w.CorrelationExpression = v;
-                break;
         }
     }
 
@@ -438,26 +363,6 @@
 
     private int IncomingCount(string? nodeId)
         => nodeId is null ? 0 : Def.Flows.Count(f => f.TargetId == nodeId);
-
-    /// <summary>Die eingebetteten Abschnitte der Definition, für die Zugehörigkeits-Auswahl.</summary>
-    private IEnumerable<(string Id, string Label)> SubProcessIds
-        => Def is null
-            ? Enumerable.Empty<(string, string)>()
-            : Def.Nodes.OfType<SubProcessNode>()
-                .Where(n => n.Id != Node?.Id)
-                .Select(n => (n.Id, string.IsNullOrEmpty(n.Name) ? n.Id : n.Name));
-
-    /// <summary>
-    /// Legt den Knoten in einen Abschnitt (oder auf die oberste Ebene). Ein Knoten kann sich nicht selbst
-    /// enthalten — die Auswahl blendet ihn deshalb schon aus.
-    /// </summary>
-    private void SetParent(string? parentId)
-    {
-        if (Node is not null)
-        {
-            Node.ParentNodeId = string.IsNullOrWhiteSpace(parentId) ? null : parentId;
-        }
-    }
 
     /// <summary>
     /// Die Schritte, die tatsaechlich einen Rueckabwicklungs-Pfad haben - nur die kann ein Ausloeser

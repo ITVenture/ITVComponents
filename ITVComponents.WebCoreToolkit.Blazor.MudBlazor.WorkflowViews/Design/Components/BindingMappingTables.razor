@@ -1,41 +1,16 @@
-@using System.Globalization
 @using ITVComponents.Workflow.Model
 @inject IDialogService DialogService
 
 @*
-    Die zwei seitenweisen Tabellen für den Datenfluss eines Knotens: Eingaben (Konstante/Variable/
-    Ausdruck) und Ausgaben (Ergebnis → Variable). Add/Edit laufen über eigene Popups (dort ist Platz für
-    Ausdrücke). EINE Komponente für Automated-/User-/CallWorkflow-Editor - die Zeilen sahen überall gleich
-    aus. Die Listen werden in-place verändert (per Referenz).
+    Der Datenfluss eines Knotens: Eingaben (Konstante/Variable/Ausdruck) und Ausgaben
+    (Ergebnis → Variable). Add/Edit laufen über eigene Popups (dort ist Platz für Ausdrücke). EINE
+    Komponente für Automated-/User-/CallWorkflow-Editor - die Zeilen sahen überall gleich aus.
+    Die obere Hälfte ist InputBindingTable, weil es auch Knoten gibt, die NUR Eingaben haben
+    (Sende-Knoten). Die Listen werden in-place verändert (per Referenz).
 *@
 
-<MudText Typo="Typo.subtitle2">@InputsTitle</MudText>
-<MudTable Items="@Inputs" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
-          RowsPerPageOptions="@(new[] { 5, 10, 25 })">
-    <ToolBarContent>
-        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
-                   Color="Color.Primary" OnClick="AddInput">@AddInputLabel</MudButton>
-        <MudSpacer />
-    </ToolBarContent>
-    <HeaderContent>
-        <MudTh>@InputNameHeader</MudTh>
-        <MudTh>Source</MudTh>
-        <MudTh>Value</MudTh>
-        <MudTh Style="width:1%"></MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="@InputNameHeader">@context.Parameter</MudTd>
-        <MudTd DataLabel="Source">@context.Kind</MudTd>
-        <MudTd DataLabel="Value">@Clip(InputValueSummary(context))</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                           OnClick="@(() => EditInput(context))" />
-        </MudTd>
-    </RowTemplate>
-    <PagerContent>
-        <MudTablePager />
-    </PagerContent>
-</MudTable>
+<InputBindingTable Bindings="Inputs" ParameterOptions="InputParameterOptions" Title="@InputsTitle"
+                   AddLabel="@AddInputLabel" NameHeader="@InputNameHeader" NameLabel="@InputNameLabel" />
 
 <MudText Typo="Typo.subtitle2" Class="mt-4">@OutputsTitle</MudText>
 <MudTable Items="@Outputs" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
@@ -84,57 +59,6 @@
     [Parameter] public string InputNameLabel { get; set; } = "Parameter / name";
     [Parameter] public string OutputSourceLabel { get; set; } = "Result / parameter";
     [Parameter] public string OutputTargetLabel { get; set; } = "Variable";
-
-    // --- Inputs -------------------------------------------------------------------------------
-
-    private async Task AddInput()
-    {
-        var fresh = new ActivityInputBinding { Kind = ParameterBindingKind.Literal };
-        var parameters = new DialogParameters
-        {
-            { nameof(BindingEditDialog.Binding), fresh },
-            { nameof(BindingEditDialog.IsNew), true },
-            { nameof(BindingEditDialog.NameLabel), InputNameLabel },
-            { nameof(BindingEditDialog.ParameterOptions), InputParameterOptions }
-        };
-        var result = await ShowDialog<BindingEditDialog>(parameters);
-        if (result?.Data is BindingEditDialog.Result r && !r.Delete
-            && !string.IsNullOrWhiteSpace(r.Binding.Parameter))
-        {
-            Inputs.Add(r.Binding);
-        }
-    }
-
-    private async Task EditInput(ActivityInputBinding binding)
-    {
-        int idx = Inputs.IndexOf(binding);
-        if (idx < 0)
-        {
-            return;
-        }
-
-        var parameters = new DialogParameters
-        {
-            { nameof(BindingEditDialog.Binding), Clone(binding) },
-            { nameof(BindingEditDialog.IsNew), false },
-            { nameof(BindingEditDialog.NameLabel), InputNameLabel },
-            { nameof(BindingEditDialog.ParameterOptions), InputParameterOptions }
-        };
-        var result = await ShowDialog<BindingEditDialog>(parameters);
-        if (result?.Data is not BindingEditDialog.Result r)
-        {
-            return;
-        }
-
-        if (r.Delete)
-        {
-            Inputs.RemoveAt(idx);
-        }
-        else if (!string.IsNullOrWhiteSpace(r.Binding.Parameter))
-        {
-            Inputs[idx] = r.Binding;
-        }
-    }
 
     // --- Outputs ------------------------------------------------------------------------------
 
@@ -199,25 +123,7 @@
         return await dialog.Result;
     }
 
-    private static ActivityInputBinding Clone(ActivityInputBinding b)
-        => new() { Parameter = b.Parameter, Kind = b.Kind, Literal = b.Literal, Source = b.Source };
-
     private static ActivityOutputBinding Clone(ActivityOutputBinding b)
         => new() { Parameter = b.Parameter, Variable = b.Variable };
 
-    private static string InputValueSummary(ActivityInputBinding b) => b.Kind switch
-    {
-        ParameterBindingKind.Variable => "$" + (b.Source ?? string.Empty),
-        ParameterBindingKind.Expression => "ƒ " + (b.Source ?? string.Empty),
-        _ => ToStr(b.Literal)
-    };
-
-    private static string ToStr(object? value) => value switch
-    {
-        null => string.Empty,
-        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-        _ => value.ToString() ?? string.Empty
-    };
-
-    private static string Clip(string s) => s.Length <= 60 ? s : s.Substring(0, 58) + "…";
 }

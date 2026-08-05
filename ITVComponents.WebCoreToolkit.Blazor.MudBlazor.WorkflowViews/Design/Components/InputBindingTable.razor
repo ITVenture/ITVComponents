@@ -1,0 +1,135 @@
+@using System.Globalization
+@using ITVComponents.Workflow.Model
+@inject IDialogService DialogService
+
+@*
+    Die seitenweise Tabelle fuer Eingabe-Bindungen (Konstante / Variable / Ausdruck) - Zeile lesen,
+    Add/Edit im Popup. Herausgeloest aus BindingMappingTables, weil es Knoten gibt, die NUR Eingaben
+    haben (der Sende-Knoten): die Tabelle ein zweites Mal zu tippen hiesse, jede Korrektur zweimal zu
+    machen. BindingMappingTables benutzt sie fuer seine obere Haelfte.
+
+    Die Liste wird in-place veraendert (per Referenz).
+*@
+
+<MudText Typo="Typo.subtitle2">@Title</MudText>
+<MudTable Items="@Bindings" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+          RowsPerPageOptions="@(new[] { 5, 10, 25 })">
+    <ToolBarContent>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                   Color="Color.Primary" OnClick="Add">@AddLabel</MudButton>
+        <MudSpacer />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@NameHeader</MudTh>
+        <MudTh>Source</MudTh>
+        <MudTh>Value</MudTh>
+        <MudTh Style="width:1%"></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@NameHeader">@context.Parameter</MudTd>
+        <MudTd DataLabel="Source">@context.Kind</MudTd>
+        <MudTd DataLabel="Value">@Clip(ValueSummary(context))</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => Edit(context))" />
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+@code {
+    /// <summary>Die Eingabe-Bindungen (in-place veraendert).</summary>
+    [Parameter, EditorRequired] public List<ActivityInputBinding> Bindings { get; set; } = default!;
+
+    /// <summary>Optionale Auswahlliste deklarierter Parameternamen (Katalog).</summary>
+    [Parameter] public IReadOnlyList<string>? ParameterOptions { get; set; }
+
+    /// <summary>Ueberschrift ueber der Tabelle.</summary>
+    [Parameter] public string Title { get; set; } = "Inputs";
+
+    /// <summary>Beschriftung des Hinzufuegen-Knopfs.</summary>
+    [Parameter] public string AddLabel { get; set; } = "Add input";
+
+    /// <summary>Kopfzeile der Namensspalte.</summary>
+    [Parameter] public string NameHeader { get; set; } = "Parameter";
+
+    /// <summary>Beschriftung des Namensfelds im Popup.</summary>
+    [Parameter] public string NameLabel { get; set; } = "Parameter / name";
+
+    private async Task Add()
+    {
+        var fresh = new ActivityInputBinding { Kind = ParameterBindingKind.Literal };
+        var parameters = new DialogParameters
+        {
+            { nameof(BindingEditDialog.Binding), fresh },
+            { nameof(BindingEditDialog.IsNew), true },
+            { nameof(BindingEditDialog.NameLabel), NameLabel },
+            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions }
+        };
+        DialogResult? result = await ShowDialog(parameters);
+        if (result?.Data is BindingEditDialog.Result r && !r.Delete
+            && !string.IsNullOrWhiteSpace(r.Binding.Parameter))
+        {
+            Bindings.Add(r.Binding);
+        }
+    }
+
+    private async Task Edit(ActivityInputBinding binding)
+    {
+        int idx = Bindings.IndexOf(binding);
+        if (idx < 0)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(BindingEditDialog.Binding), Clone(binding) },
+            { nameof(BindingEditDialog.IsNew), false },
+            { nameof(BindingEditDialog.NameLabel), NameLabel },
+            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions }
+        };
+        DialogResult? result = await ShowDialog(parameters);
+        if (result?.Data is not BindingEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Bindings.RemoveAt(idx);
+        }
+        else if (!string.IsNullOrWhiteSpace(r.Binding.Parameter))
+        {
+            Bindings[idx] = r.Binding;
+        }
+    }
+
+    private async Task<DialogResult?> ShowDialog(DialogParameters parameters)
+    {
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<BindingEditDialog>(string.Empty, parameters, options);
+        return await dialog.Result;
+    }
+
+    private static ActivityInputBinding Clone(ActivityInputBinding b)
+        => new() { Parameter = b.Parameter, Kind = b.Kind, Literal = b.Literal, Source = b.Source };
+
+    private static string ValueSummary(ActivityInputBinding b) => b.Kind switch
+    {
+        ParameterBindingKind.Variable => "$" + (b.Source ?? string.Empty),
+        ParameterBindingKind.Expression => "ƒ " + (b.Source ?? string.Empty),
+        _ => ToStr(b.Literal)
+    };
+
+    private static string ToStr(object? value) => value switch
+    {
+        null => string.Empty,
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => value.ToString() ?? string.Empty
+    };
+
+    private static string Clip(string s) => s.Length <= 60 ? s : s.Substring(0, 58) + "…";
+}
