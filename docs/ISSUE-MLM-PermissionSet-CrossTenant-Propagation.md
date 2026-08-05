@@ -1,5 +1,9 @@
 # ISSUE: PermissionSet-Aktivierung propagiert nicht über Tenant-Grenzen (Downline-Zugriff)
 
+**Status:** ERLEDIGT — Funktionsfix in PRE114, Skalierungs-Regression mit der parametrisierten TVF in
+PRE115 behoben, beides in MLM nachgemessen (siehe die beiden Perf-Abschnitte am Ende). Verbleibt der
+vorbestehende, plan-instabile Whole-Subtree-Root-Call — eigener Punkt, unabhaengig von diesem Fix.
+
 **Gemeldet von:** MLM-Session, 2026-07-07 · **Toolkit-Stand:** 5.0.0-PRE113
 **Betrifft:** `EntityFramework.TenantSecurity(.SqlServer)` — Tenant-Tree/Role-Vererbungs-Auflösung
 (`GetDownwardsRoleTreeProc`, `TenantAccessTreeUp`/`TenantAccessTreeDown`, `GetUpwardsRoleTree*`) **und** die

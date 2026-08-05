@@ -1,6 +1,10 @@
 # Issue: Lazy-Tree-Primitive für den Tenant-Switcher (Anstoß aus MLM)
 
-**Status:** OFFEN (Feature-Request an die Toolkit-Session)
+**Status:** TOOLKIT-SEITIG ERLEDIGT — AP1 (Lazy-Primitive), AP2 (Anker-Fix, ~60×) und AP3-#1 (~2×) sind
+umgesetzt, AP3-#2 bewusst verworfen (siehe „Abschluss-Bewertung" ganz unten). Offen ist nur noch, was in
+MLM passiert: AP1-Host-Test und der Umbau des Switchers auf `MudTreeView`+`ServerData`.
+*(Die Kopfzeile stand bis 2026-08-05 faelschlich auf OFFEN, obwohl der Rumpf die Umsetzung schon
+dokumentierte.)*
 **Datum:** 2026-07-06
 **Quelle:** MLMManager-Session (Konsument). MLM baut den Tenant-Switcher als eigene Blazor-Komponente
 (`MLMManager.Web/Components/Layout/TenantSwitcher.razor`) auf Basis der Tree-Security-API.
