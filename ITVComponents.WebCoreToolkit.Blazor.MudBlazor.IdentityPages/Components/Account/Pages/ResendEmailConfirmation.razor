@@ -1,5 +1,5 @@
 @page "/Account/ResendEmailConfirmation"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @using System.ComponentModel.DataAnnotations
 @using System.Text
@@ -35,16 +35,13 @@
                 <MudAlert Severity="Severity.Info" Class="mb-3">@statusMessage</MudAlert>
             }
 
-            <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="resend-email-confirmation">
+            <EditForm Model="Input" OnValidSubmit="OnSubmit">
                 <ToolkitDataAnnotationsValidator />
 
-                <div class="itv-field mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="itv-field-input" autocomplete="username" type="email" />
-                    <label for="Input.Email">@L["Email"]</label>
-                    <ValidationMessage For="() => Input.Email" class="itv-field-error" />
-                </div>
+                <MudTextField @bind-Value="Input.Email" Label="@L["Email"]" For="@(() => Input.Email)"
+                              InputType="InputType.Email" autocomplete="username" Class="mb-3" />
 
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy">
                     @L["Resend_Button"]
                 </MudButton>
             </EditForm>
@@ -54,8 +51,8 @@
 
 @code {
     private string? statusMessage;
+    private bool busy;
 
-    [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
 
     private async Task OnSubmit()
@@ -65,6 +62,7 @@
             return;
         }
 
+        busy = true;
         var user = await HandlerProvider.Handler.FetchUser(Input.Email);
         try
         {
@@ -98,6 +96,7 @@
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 
