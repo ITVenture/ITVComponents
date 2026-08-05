@@ -58,10 +58,14 @@ else
         }
 
         @* "Browser vergessen" loescht ein Cookie - das geht nur ueber den Endpunkt, nicht auf dem Circuit.
-           Der Knopf steht hier unbedingt, sobald 2FA aktiv ist: OB dieser Browser gemerkt ist, steht ebenfalls
-           in einem Cookie und laesst sich vom Circuit aus gar nicht lesen. Ihn nur bei "gemerkt" zu zeigen
-           hiesse, ihn nie zu zeigen. Ein Vergessen ohne Merkung ist folgenlos. *@
-        <MudButton Variant="Variant.Outlined" Class="mr-2" Disabled="@busy" OnClick="OnForgetBrowser">@L["Forget this browser"]</MudButton>
+           Angezeigt wird der Knopf bei "gemerkt" UND bei "unbekannt" (null): ob dieser Browser gemerkt ist,
+           steht ebenfalls in einem Cookie, und das ist nur waehrend einer Anfrage zu lesen. Kam die Seite
+           ohne Vorab-Rendering herein, bleibt die Frage offen - dann lieber einen folgenlosen Knopf zu viel
+           als einen fehlenden. *@
+        @if (MachineRemembered != false)
+        {
+            <MudButton Variant="Variant.Outlined" Class="mr-2" Disabled="@busy" OnClick="OnForgetBrowser">@L["Forget this browser"]</MudButton>
+        }
 
         <MudButton Href="Account/Manage/Disable2fa" Variant="Variant.Outlined" Class="mr-2">@L["Disable 2FA"]</MudButton>
         <MudButton Href="Account/Manage/GenerateRecoveryCodes" Variant="Variant.Outlined">@L["Reset recovery codes"]</MudButton>
@@ -89,6 +93,17 @@ else
     private bool loading = true;
     private bool busy;
 
+    /// <summary>
+    /// Ob dieser Browser fuer die Zwei-Faktor-Anmeldung gemerkt ist. Die Antwort steht in einem Cookie und
+    /// ist nur waehrend einer Anfrage zu lesen - auf dem Circuit nicht. Sie entsteht darum im
+    /// Vorab-Rendering und wird von dort herueber getragen ([PersistentState]).
+    ///
+    /// <c>null</c> heisst "unbekannt", nicht "nein": bei interner Navigation im Blazor-Router findet kein
+    /// Vorab-Rendering statt, dann kommt hier nichts an. Die Anzeige rechnet damit.
+    /// </summary>
+    [PersistentState]
+    public bool? MachineRemembered { get; set; }
+
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
@@ -110,6 +125,10 @@ else
             hasAuthenticator = user.IsAuthenticatorConfigured;
             is2faEnabled = user.TwoFactorEnabled;
             recoveryCodesLeft = user.RecoveryCodesLeft;
+
+            // Nur belegen, wenn nichts herueber getragen wurde - sonst ueberschriebe der interaktive
+            // Durchlauf den im Vorab-Rendering ermittelten Wert mit seinem eigenen "unbekannt".
+            MachineRemembered ??= user.MachineRememberForTwoFactor;
         }
         finally
         {

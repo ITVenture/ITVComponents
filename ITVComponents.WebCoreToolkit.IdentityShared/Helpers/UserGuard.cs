@@ -87,12 +87,12 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
             var ticketId = userExists ? Guid.NewGuid() : Guid.Empty;
             bool emailIsConfirmed = false;
             bool userHasPassword = false;
+            bool? machineRememberedForTwoFactor = null;
             bool twoFactorEnabled = false;
             string email = null;
             string userName = null;
             string phone = null;
             bool isAuthenticatorConfigured = false;
-            bool machineRememberForTwoFactor = false;
             int recoveryCodesLeft = 0;
             if (userExists)
             {
@@ -127,7 +127,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
                     // ein "nein" waere geraten, und der Aufrufer soll den Unterschied sehen koennen.
                     if (httpContextAccessor?.HttpContext != null)
                     {
-                        machineRememberForTwoFactor =
+                        machineRememberedForTwoFactor =
                             await signInManager.IsTwoFactorClientRememberedAsync(userInstance);
                     }
                     else
@@ -152,7 +152,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
                 UserName = userName,
                 PhoneNumber = phone,
                 IsAuthenticatorConfigured = isAuthenticatorConfigured,
-                MachineRememberForTwoFactor = machineRememberForTwoFactor,
+                MachineRememberForTwoFactor = machineRememberedForTwoFactor,
                 RecoveryCodesLeft =   recoveryCodesLeft
             };
         }

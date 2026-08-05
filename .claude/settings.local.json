@@ -318,7 +318,9 @@
       "PowerShell($log = \"C:\\\\Users\\\\mw\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--users-mw-source-cleanworkspace-itvcomponents-public\\\\f4382588-e40f-4e93-907a-55394b99feb2\\\\scratchpad\\\\build.log\"; $benign = 'CS1591','MUD0002','NU1510','CS1658','CS1573','CS1572','CS1570','CS1574','CS8632','CA1416','RZ10012','CS1712','CS0108','CS0067','CS1735'; $w = Get-Content $log | Where-Object { $_ -match ': warning ' } | Select-Object -Unique | Where-Object { $_ -match 'ITVComponents\\\\.WebCoreToolkit\\\\.csproj|ITVComponents\\\\.WebCoreToolkit\\\\.Blazor\\\\.MudBlazor\\\\.IdentityPages\\\\.csproj' }; $filtered = $w | Where-Object { $l = $_; -not \\($benign | Where-Object { $l -match \": warning $_\" }\\) }; \"FILTERED COUNT: $\\($filtered.Count\\) of $\\($w.Count\\) in-scope\"; $filtered)",
       "PowerShell($log = \"C:\\\\Users\\\\mw\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--users-mw-source-cleanworkspace-itvcomponents-public\\\\f4382588-e40f-4e93-907a-55394b99feb2\\\\scratchpad\\\\build.log\"; $l = Get-Content $log; \"-- IdentityPages warnings count: \" + \\($l | Where-Object { $_ -match 'IdentityPages\\\\.csproj\\\\]' } | Select-Object -Unique\\).Count; \"-- PageModelFactory mentions:\"; $l | Where-Object { $_ -match 'PageModelFactory' } | Select-Object -Unique)",
       "Bash(sed -i '113d' TwoFactorAuthentication.razor)",
-      "Bash(sed -i '89d' TwoFactorAuthentication.razor)"
+      "Bash(sed -i '89d' TwoFactorAuthentication.razor)",
+      "Bash(sed -i '96d' ITVComponents.WebCoreToolkit.IdentityShared/Helpers/UserGuard.cs)",
+      "Bash(sed -i 's/\\\\bmachineRememberForTwoFactor\\\\b/machineRememberedForTwoFactor/g' ITVComponents.WebCoreToolkit.IdentityShared/Helpers/UserGuard.cs)"
     ]
   }
 }

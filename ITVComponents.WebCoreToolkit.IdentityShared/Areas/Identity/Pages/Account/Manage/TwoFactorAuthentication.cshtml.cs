@@ -47,7 +47,8 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Accou
             {
                 HasAuthenticator = user.IsAuthenticatorConfigured;
                 Is2faEnabled = user.TwoFactorEnabled;
-                IsMachineRemembered = user.MachineRememberForTwoFactor;
+                // Hier immer belegt: eine Razor-Page laeuft per Definition in einer Anfrage.
+                IsMachineRemembered = user.MachineRememberForTwoFactor ?? false;
                 RecoveryCodesLeft = user.RecoveryCodesLeft;
 
                 return Page();

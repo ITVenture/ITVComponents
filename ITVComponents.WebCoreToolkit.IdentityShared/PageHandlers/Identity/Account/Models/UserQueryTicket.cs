@@ -17,7 +17,12 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
         public string UserName { get; set; }
         public string PhoneNumber { get; set; }
         public bool IsAuthenticatorConfigured { get; set; }
-        public bool MachineRememberForTwoFactor { get; set; }
+        /// <summary>
+        /// Ob dieser Browser fuer die Zwei-Faktor-Anmeldung gemerkt ist. <c>null</c> heisst NICHT "nein",
+        /// sondern "nicht feststellbar": die Antwort steht in einem Cookie und braucht eine laufende Anfrage.
+        /// Ausserhalb einer solchen - auf einem Blazor-Circuit - bleibt sie offen.
+        /// </summary>
+        public bool? MachineRememberForTwoFactor { get; set; }
         public int RecoveryCodesLeft { get; set; }
     }
 }
