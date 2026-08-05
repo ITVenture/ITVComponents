@@ -2,7 +2,9 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
@@ -11,12 +13,20 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
     {
         private readonly SignInManager<TUser> signInManager;
         private readonly UserManager<TUser> userManager;
+        private readonly IHttpContextAccessor httpContextAccessor;
         private ConcurrentDictionary<Guid, TUser> userBuffer = new ConcurrentDictionary<Guid, TUser>();
 
-        public UserGuard(SignInManager<TUser> signInManager, UserManager<TUser> userManager)
+        /// <param name="httpContextAccessor">
+        /// Optional. Wird gebraucht, um zu erkennen, ob gerade eine Anfrage laeuft:
+        /// <see cref="UserQueryTicket.MachineRememberForTwoFactor"/> liest ein Cookie und ist ohne HttpContext
+        /// nicht zu beantworten. Fehlt der Accessor, wird die Frage uebersprungen statt geraten.
+        /// </param>
+        public UserGuard(SignInManager<TUser> signInManager, UserManager<TUser> userManager,
+            IHttpContextAccessor httpContextAccessor = null)
         {
             this.userManager = userManager;
             this.signInManager = signInManager;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<UserQueryTicket> FetchUser(string userId, AdditionalUserInfoToLoad additionalInfo = AdditionalUserInfoToLoad.None)
@@ -109,8 +119,25 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
                     AdditionalUserInfoToLoad.TwoFactorConfiguration)
                 {
                     isAuthenticatorConfigured = await userManager.GetAuthenticatorKeyAsync(userInstance) != null;
-                    machineRememberForTwoFactor = await signInManager.IsTwoFactorClientRememberedAsync(userInstance);
                     recoveryCodesLeft = await userManager.CountRecoveryCodesAsync(userInstance);
+
+                    // "Diesen Browser gemerkt?" steht in einem Cookie, nicht in der Datenbank - die Frage laesst
+                    // sich nur waehrend einer Anfrage beantworten. Auf einem Blazor-Circuit gibt es keine, und
+                    // SignInManager.Context wirft dann "HttpContext must not be null". Darum vorher pruefen:
+                    // ein "nein" waere geraten, und der Aufrufer soll den Unterschied sehen koennen.
+                    if (httpContextAccessor?.HttpContext != null)
+                    {
+                        machineRememberForTwoFactor =
+                            await signInManager.IsTwoFactorClientRememberedAsync(userInstance);
+                    }
+                    else
+                    {
+                        LogEnvironment.LogEvent(
+                            $"{nameof(UserQueryTicket.MachineRememberForTwoFactor)} not determined for a {typeof(TUser).Name}: " +
+                            "no HttpContext in scope. Callers outside a request must not read 'false' as " +
+                            "'this browser is not remembered'.",
+                            LogSeverity.Report);
+                    }
                 }
             }
 

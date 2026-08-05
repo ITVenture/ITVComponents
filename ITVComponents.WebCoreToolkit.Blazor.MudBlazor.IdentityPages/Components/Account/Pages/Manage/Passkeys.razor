@@ -7,10 +7,13 @@
 
 @using System.Buffers.Text
 @using System.Linq
+@using Microsoft.AspNetCore.Antiforgery
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Options
 @using Microsoft.JSInterop
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
@@ -21,6 +24,8 @@
 @inject ILogger<Passkeys> Logger
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject AntiforgeryStateProvider AntiforgeryState
+@inject IOptions<AntiforgeryOptions> AntiforgeryOptions
 
 <PageTitle>@L["Passkeys"]</PageTitle>
 
@@ -96,7 +101,6 @@ else
     private bool busy;
     private bool canAdd;
     private int maxPasskeysPerUser;
-    private string? creationOptionsJson;
     private IJSObjectReference? module;
     private DotNetObjectReference<Passkeys>? selfRef;
 
@@ -129,20 +133,16 @@ else
         var principal = (await AuthState.GetAuthenticationStateAsync()).User;
         currentPasskeys = await op.Handler.GetUserPasskeysAsync(principal);
 
-        // Die Anmelde-Optionen entstehen serverseitig beim Aufbau der Seite und werden dem Klick-Handler
-        // mitgegeben - sie erst beim Klick zu holen, wuerde den Gesten-Kontext kosten.
+        // Die Anmelde-Optionen entstehen NICHT hier: MakePasskeyCreationOptionsAsync geht ueber den
+        // SignInManager an den HttpContext, den es auf dem Circuit nicht gibt. Sie kommen vom Endpunkt
+        // Account/Manage/PasskeyCreationOptions, den das JS-Modul beim Anhaengen ruft.
         maxPasskeysPerUser = op.Handler.MaxPasskeysPerUser;
         canAdd = currentPasskeys is not { Count: var n } || n < maxPasskeysPerUser;
-        if (canAdd)
-        {
-            creationOptionsJson = await op.Handler.MakePasskeyCreationOptionsAsync(principal);
-            canAdd = creationOptionsJson is not null;
-        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!usePage || creationOptionsJson is null || module is not null)
+        if (!usePage || !canAdd || module is not null)
         {
             return;
         }
@@ -150,40 +150,28 @@ else
         module ??= await JS.InvokeAsync<IJSObjectReference>("import",
             "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages/PasskeySubmit.js");
         selfRef ??= DotNetObjectReference.Create(this);
-        await module.InvokeVoidAsync("attachPasskeyCreate", AddButtonId, selfRef, creationOptionsJson);
+
+        // Der Endpunkt prueft den Antiforgery-Token ausdruecklich, weil der JS-Aufruf ihn als Kopfzeile
+        // schickt und nicht als Formularfeld. Auf einer interaktiven Seite gibt es keinen HttpContext, um
+        // ihn wie im static-SSR-Pendant ueber IAntiforgery zu ziehen - der AntiforgeryStateProvider fuehrt
+        // ihn aus dem Vorab-Rendering mit.
+        var token = AntiforgeryState.GetAntiforgeryToken();
+        await module.InvokeVoidAsync("attachPasskeyCreate", AddButtonId, selfRef,
+            AntiforgeryOptions.Value.HeaderName, token?.Value);
     }
 
+    /// <summary>
+    /// Gerufen, NACHDEM der Endpunkt das Credential geprueft und abgelegt hat. Pruefen und Ablegen gehen
+    /// nicht von hier aus: <c>PerformPasskeyAttestationAsync</c> liest die Herausforderung aus dem Cookie,
+    /// das <c>MakePasskeyCreationOptionsAsync</c> geschrieben hat - beides braucht einen HttpContext, den
+    /// der Circuit nicht hat. Hier bleibt nur der Weitersprung zum Benennen.
+    /// </summary>
     [JSInvokable]
-    public async Task OnPasskeyCreatedAsync(string credentialJson)
+    public Task OnPasskeyRegisteredAsync(string credentialIdBase64Url)
     {
-        busy = true;
-        try
-        {
-            await using var op = PasskeyProvider.BeginOperation();
-            var attestation = await op.Handler.PerformPasskeyAttestationAsync(credentialJson);
-            if (!attestation.Succeeded || attestation.Passkey is null)
-            {
-                status = attestation.Failure?.Message ?? L["Passkey attestation failed."].Value;
-                return;
-            }
-
-            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
-            var add = await op.Handler.AddOrUpdateUserPasskeyAsync(principal, attestation.Passkey);
-            if (!add.Succeeded)
-            {
-                status = string.Join(", ", add.Errors.Select(e => e.Description));
-                return;
-            }
-
-            // Direkt zum Benennen des neuen Schluessels - weiche Navigation, der Bereich ist interaktiv.
-            var credentialIdBase64Url = Base64Url.EncodeToString(attestation.Passkey.CredentialId);
-            Nav.NavigateTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
-        }
-        finally
-        {
-            busy = false;
-            StateHasChanged();
-        }
+        // Weiche Navigation - der Bereich ist interaktiv.
+        Nav.NavigateTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
+        return Task.CompletedTask;
     }
 
     [JSInvokable]

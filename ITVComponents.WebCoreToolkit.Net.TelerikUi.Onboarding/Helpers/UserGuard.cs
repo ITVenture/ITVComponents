@@ -5,13 +5,15 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.IdentityShared.Helpers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Helpers
 {
     internal class UserGuard:UserGuard<User>
     {
-        public UserGuard(SignInManager<User> signInManager, UserManager<User> userManager) : base(signInManager, userManager)
+        public UserGuard(SignInManager<User> signInManager, UserManager<User> userManager,
+            IHttpContextAccessor httpContextAccessor) : base(signInManager, userManager, httpContextAccessor)
         {
         }
 

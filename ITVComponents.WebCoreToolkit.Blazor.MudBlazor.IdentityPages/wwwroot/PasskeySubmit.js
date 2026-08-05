@@ -57,15 +57,33 @@ async function requestCredential(email, mediation, headers, signal) {
 // SignalR zum Server und von dort per JS-Interop zurueck, waere der Gesten-Kontext verlassen - Safari
 // ist da streng, und der Aufruf schluege mit NotAllowedError fehl.
 //
-// Die Optionen kommen darum schon beim Anhaengen mit: sie zur Klickzeit zu holen, waere derselbe
-// Umweg. Der Server erzeugt sie beim Aufbau der Seite.
+// BEIDE Server-Haelften laufen ueber Endpunkte, nicht ueber den Circuit:
+// MakePasskeyCreationOptionsAsync legt die Herausforderung in einem verschluesselten Cookie ab, und
+// PerformPasskeyAttestationAsync liest sie von dort wieder. Beide brauchen darum den HttpContext, den es
+// auf einem Circuit nicht gibt - frueher erzeugte die Seite die Optionen selbst und nahm auch das
+// Credential selbst entgegen; beides schlug mit "HttpContext must not be null" fehl.
+//
+// Die Optionen werden schon beim Anhaengen geholt, damit der Klick-Handler ohne vorheriges await bis zu
+// credentials.create() durchlaeuft und die Benutzer-Geste erhalten bleibt.
 // ---------------------------------------------------------------------------------------------------
-export function attachPasskeyCreate(buttonId, dotNetRef, optionsJson) {
+export function attachPasskeyCreate(buttonId, dotNetRef, tokenHeaderName, tokenValue) {
     const button = document.getElementById(buttonId);
     if (!button) {
         console.error(`attachPasskeyCreate: no element with id '${buttonId}'.`);
         return;
     }
+
+    const headers = tokenHeaderName ? { [tokenHeaderName]: tokenValue } : {};
+
+    let options = null;
+    let optionsError = null;
+    const optionsReady = fetchWithErrorHandling('/Account/Manage/PasskeyCreationOptions', {
+        method: 'POST',
+        headers,
+    })
+        .then(response => response.json())
+        .then(json => { options = PublicKeyCredential.parseCreationOptionsFromJSON(json); })
+        .catch(error => { optionsError = error; console.error(error); });
 
     button.addEventListener('click', async (event) => {
         event.preventDefault();
@@ -74,9 +92,37 @@ export function attachPasskeyCreate(buttonId, dotNetRef, optionsJson) {
                 throw new Error('Some passkey features are missing. Please update your browser.');
             }
 
-            const options = PublicKeyCredential.parseCreationOptionsFromJSON(JSON.parse(optionsJson));
+            // Normalfall: laengst da, kein await noetig. Nur wer sofort nach dem Seitenaufbau klickt,
+            // wartet hier - und zahlt dafuer das Risiko, dass Safari die Geste nicht mehr anerkennt.
+            if (!options && !optionsError) {
+                await optionsReady;
+            }
+
+            if (optionsError) {
+                throw optionsError;
+            }
+
             const credential = await navigator.credentials.create({ publicKey: options });
-            await dotNetRef.invokeMethodAsync('OnPasskeyCreatedAsync', JSON.stringify(credential));
+
+            // Pruefen und Ablegen erledigt der Endpunkt - er hat den HttpContext, aus dem
+            // PerformPasskeyAttestationAsync die Herausforderung zurueckliest.
+            //
+            // Bewusst NICHT ueber fetchWithErrorHandling: der Endpunkt begruendet eine Ablehnung im Rumpf
+            // ("Schluessel ist schon vergeben", "Attestierung fehlgeschlagen"), und diese Begruendung soll
+            // der Benutzer lesen - nicht "status 400".
+            const attestationResponse = await fetch('/Account/Manage/PasskeyAttestation', {
+                credentials: 'include',
+                method: 'POST',
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify(credential),
+            });
+            if (!attestationResponse.ok) {
+                const reason = (await attestationResponse.text())
+                    || `The server responded with status ${attestationResponse.status}.`;
+                throw new Error(reason);
+            }
+            const { credentialId } = await attestationResponse.json();
+            await dotNetRef.invokeMethodAsync('OnPasskeyRegisteredAsync', credentialId);
         } catch (error) {
             if (error.name === 'AbortError') {
                 // Vom Benutzer abgebrochen - kein Fehler, nur nichts zu tun.

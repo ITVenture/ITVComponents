@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.IdentityShared.Helpers;
 using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Models;
@@ -42,9 +43,14 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
         {
             if (userGuard.GetUser(userTicket, out var user))
             {
-                var retVal = await userManager.AddPasswordAsync(user, newPassword);
+                return await userManager.AddPasswordAsync(user, newPassword);
             }
 
+            // Das Ticket kennt den Benutzer nicht - ein anderer Fall als "Identity hat abgelehnt", aber von
+            // aussen ohne Meldung nicht zu unterscheiden, weil beides ein Failed ohne Fehlerliste ist.
+            LogEnvironment.LogEvent(
+                $"{nameof(AddPassword)} called with a ticket that resolves to no user - nothing was changed.",
+                LogSeverity.Error);
             return IdentityResult.Failed();
         }
 

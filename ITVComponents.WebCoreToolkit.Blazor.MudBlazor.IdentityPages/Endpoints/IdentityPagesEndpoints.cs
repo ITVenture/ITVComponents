@@ -1,4 +1,7 @@
 using System;
+using System.Buffers.Text;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers;
@@ -84,6 +87,62 @@ public static class IdentityPagesEndpoints
             }
 
             return Results.Content(optionsJson, contentType: "application/json");
+        });
+
+        // Gegenstueck zu PasskeyCreationOptions: nimmt das fertige Credential entgegen, prueft es und legt den
+        // Schluessel ab. Muss ein Endpunkt sein, nicht ein Aufruf vom Circuit.
+        //
+        // MakePasskeyCreationOptionsAsync legt die Herausforderung in einem verschluesselten Cookie ab, und
+        // PerformPasskeyAttestationAsync liest sie von dort wieder - beide Haelften brauchen also den
+        // HttpContext, die eine zum Schreiben, die andere zum Lesen. Auf einem Blazor-Circuit gibt es keinen;
+        // der Aufruf schlug dort mit "HttpContext must not be null" fehl.
+        manageGroup.MapPost("/PasskeyAttestation", async (HttpContext httpContext) =>
+        {
+            var services = httpContext.RequestServices;
+            var antiforgery = services.GetRequiredService<IAntiforgery>();
+            await antiforgery.ValidateRequestAsync(httpContext);
+
+            var handler = services
+                .GetRequiredService<IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler>>().Handler;
+            if (!handler.UsePage)
+            {
+                return Results.NotFound();
+            }
+
+            var logger = services.GetRequiredService<ILogger<IPasskeyHandler>>();
+            var localizer = services.GetRequiredService<IStringLocalizer<IdentityMessages>>();
+
+            string credentialJson;
+            using (var reader = new StreamReader(httpContext.Request.Body))
+            {
+                credentialJson = await reader.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(credentialJson))
+            {
+                logger.LogError("Passkey attestation called without a credential body.");
+                return Results.BadRequest(localizer["Passkey attestation failed."].Value);
+            }
+
+            var attestation = await handler.PerformPasskeyAttestationAsync(credentialJson);
+            if (!attestation.Succeeded || attestation.Passkey is null)
+            {
+                var reason = attestation.Failure?.Message ?? "no failure message";
+                logger.LogError("Passkey attestation failed: {Reason}", reason);
+                return Results.BadRequest(attestation.Failure?.Message
+                                          ?? localizer["Passkey attestation failed."].Value);
+            }
+
+            var add = await handler.AddOrUpdateUserPasskeyAsync(httpContext.User, attestation.Passkey);
+            if (!add.Succeeded)
+            {
+                var reason = string.Join(", ", add.Errors.Select(e => e.Description));
+                logger.LogError("Passkey verified but not stored: {Reason}", reason);
+                return Results.BadRequest(reason);
+            }
+
+            // Der Aufrufer braucht nur die Kennung, um auf die Benennungs-Seite weiterzugehen.
+            return Results.Json(new { credentialId = Base64Url.EncodeToString(attestation.Passkey.CredentialId) });
         });
 
         // ---------------------------------------------------------------------------------------------------

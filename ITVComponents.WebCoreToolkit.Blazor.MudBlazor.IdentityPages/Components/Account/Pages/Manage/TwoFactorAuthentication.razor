@@ -57,11 +57,11 @@ else
             </MudAlert>
         }
 
-        @if (isMachineRemembered)
-        {
-            @* "Browser vergessen" loescht ein Cookie - das geht nur ueber den Endpunkt, nicht auf dem Circuit. *@
-            <MudButton Variant="Variant.Outlined" Class="mr-2" Disabled="@busy" OnClick="OnForgetBrowser">@L["Forget this browser"]</MudButton>
-        }
+        @* "Browser vergessen" loescht ein Cookie - das geht nur ueber den Endpunkt, nicht auf dem Circuit.
+           Der Knopf steht hier unbedingt, sobald 2FA aktiv ist: OB dieser Browser gemerkt ist, steht ebenfalls
+           in einem Cookie und laesst sich vom Circuit aus gar nicht lesen. Ihn nur bei "gemerkt" zu zeigen
+           hiesse, ihn nie zu zeigen. Ein Vergessen ohne Merkung ist folgenlos. *@
+        <MudButton Variant="Variant.Outlined" Class="mr-2" Disabled="@busy" OnClick="OnForgetBrowser">@L["Forget this browser"]</MudButton>
 
         <MudButton Href="Account/Manage/Disable2fa" Variant="Variant.Outlined" Class="mr-2">@L["Disable 2FA"]</MudButton>
         <MudButton Href="Account/Manage/GenerateRecoveryCodes" Variant="Variant.Outlined">@L["Reset recovery codes"]</MudButton>
@@ -86,7 +86,6 @@ else
     private bool hasAuthenticator;
     private int recoveryCodesLeft;
     private bool is2faEnabled;
-    private bool isMachineRemembered;
     private bool loading = true;
     private bool busy;
 
@@ -110,7 +109,6 @@ else
         {
             hasAuthenticator = user.IsAuthenticatorConfigured;
             is2faEnabled = user.TwoFactorEnabled;
-            isMachineRemembered = user.MachineRememberForTwoFactor;
             recoveryCodesLeft = user.RecoveryCodesLeft;
         }
         finally
