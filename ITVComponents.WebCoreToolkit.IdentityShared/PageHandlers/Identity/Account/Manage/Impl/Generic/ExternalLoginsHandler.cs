@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -66,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
             return userGuard.ReleaseUser(user);
         }
 
-        public async Task<UserExternalLoginStatus> RemoveExternalAuthentication(UserQueryTicket userTicket, string loginProvider, string providerKey)
+        public async Task<UserExternalLoginStatus> RemoveExternalAuthentication(UserQueryTicket userTicket, string loginProvider, string providerKey, bool refreshSignIn = true)
         {
             var retVal = new UserExternalLoginStatus();
             if (userGuard.GetUser(userTicket, out var user))
@@ -76,7 +76,10 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
                 retVal.IdentityResult = result;
                 if (retVal.Success)
                 {
-                    await signInManager.RefreshSignInAsync(user);
+                    if (refreshSignIn)
+                    {
+                        await signInManager.RefreshSignInAsync(user);
+                    }
                 }
             }
 

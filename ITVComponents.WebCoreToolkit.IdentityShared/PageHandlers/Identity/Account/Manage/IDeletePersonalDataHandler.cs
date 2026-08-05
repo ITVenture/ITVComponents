@@ -17,6 +17,11 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
         string GetUserId(ClaimsPrincipal user);
         bool ReleaseUser(UserQueryTicket user);
         Task<bool> CheckPassword(UserQueryTicket userTicket, string password);
-        Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket);
+        /// <summary>
+        /// Loescht das Konto. <paramref name="signOut"/> beendet dabei auch die Sitzung — das schreibt ein Cookie
+        /// und braucht darum eine echte HTTP-Antwort. Aufrufer auf einem Blazor-Circuit uebergeben <c>false</c> und
+        /// erledigen die Abmeldung ueber den Endpunkt <c>/Account/Manage/SignOutSession</c>.
+        /// </summary>
+        Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket, bool signOut = true);
     }
 }

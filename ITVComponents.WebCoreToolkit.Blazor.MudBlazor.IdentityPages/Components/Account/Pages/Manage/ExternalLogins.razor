@@ -1,12 +1,12 @@
 @page "/Account/Manage/ExternalLogins"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Hosting
-@using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -16,6 +16,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<ExternalLoginsModel, IExternalLoginsHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject IWebHostEnvironment HostingEnvironment
 @inject NavigationManager Nav
@@ -27,6 +28,10 @@
 @if (!HandlerProvider.Handler.UsePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (notFound)
 {
@@ -48,15 +53,14 @@ else
                 <MudTd DataLabel="" Style="width: 1%; white-space: nowrap;">
                     @if (showRemoveButton)
                     {
-                        <EditForm Model="this" method="post" OnValidSubmit="@(() => OnRemoveAsync(login.LoginProvider, login.ProviderKey))" FormName="@($"remove-login-{login.LoginProvider}")">
-                            <MudButton ButtonType="ButtonType.Submit"
-                                       Variant="Variant.Outlined"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       title="@L["Remove this {0} login from your account", login.ProviderDisplayName]">
-                                @L["Remove"]
-                            </MudButton>
-                        </EditForm>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   Disabled="@busy"
+                                   title="@L["Remove this {0} login from your account", login.ProviderDisplayName ?? string.Empty]"
+                                   OnClick="@(() => OnRemoveAsync(login.LoginProvider, login.ProviderKey))">
+                            @L["Remove"]
+                        </MudButton>
                     }
                 </MudTd>
             </RowTemplate>
@@ -68,64 +72,66 @@ else
         <MudText Typo="Typo.h6" Class="mt-3" GutterBottom="true">@L["Add another service to log in."]</MudText>
         <MudDivider Class="mb-3" />
 
-        <EditForm Model="LinkInput" method="post" OnValidSubmit="OnLinkAsync" FormName="link-login">
-            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
-                @foreach (var provider in otherLogins)
-                {
-                    var logoExists = HostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile).Exists;
-                    var title = L["Log in using your {0} account", provider.DisplayName].Value;
-                    <MudButton ButtonType="ButtonType.Submit"
-                               Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               name="LinkInput.Provider"
-                               value="@provider.AuthenticationSchemeName"
-                               title="@title"
-                               Style="@(logoExists
-                                   ? $"background-image: url('{provider.LogoFile}'); width: {provider.ImageWidth + 5}px; height: {provider.ImageHeight + 5}px; background-position: center; background-repeat: no-repeat; background-size: {provider.ImageWidth}px auto;"
-                                   : null)">
-                        @if (!logoExists)
-                        {
-                            @provider.DisplayName
-                        }
-                    </MudButton>
-                }
-            </MudStack>
-        </EditForm>
+        @* Kein Formular mehr: das Verknuepfen ist eine echte Umleitung zum Anbieter und laeuft ueber den
+           Endpunkt /Account/Manage/LinkLogin. Ein Klick fuehrt darum bewusst aus dem Circuit heraus. *@
+        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+            @foreach (var provider in otherLogins)
+            {
+                var logoExists = HostingEnvironment.WebRootFileProvider.GetFileInfo(provider.LogoFile).Exists;
+                var title = L["Log in using your {0} account", provider.DisplayName].Value;
+                var scheme = provider.AuthenticationSchemeName;
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@busy"
+                           title="@title"
+                           OnClick="@(() => OnLinkAsync(scheme))"
+                           Style="@(logoExists
+                               ? $"background-image: url('{provider.LogoFile}'); width: {provider.ImageWidth + 5}px; height: {provider.ImageHeight + 5}px; background-position: center; background-repeat: no-repeat; background-size: {provider.ImageWidth}px auto;"
+                               : null)">
+                    @if (!logoExists)
+                    {
+                        @provider.DisplayName
+                    }
+                </MudButton>
+            }
+        </MudStack>
     }
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
+    private bool busy;
     private IList<UserLoginInfo>? currentLogins;
     private AuthenticationHandlerDefinition[]? otherLogins;
     private bool showRemoveButton;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
-    private LinkInputModel LinkInput { get; set; } = new();
 
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
         await LoadConfigurationAsync();
+        loading = false;
     }
 
     private async Task LoadConfigurationAsync()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
@@ -142,54 +148,42 @@ else
 
     private async Task OnRemoveAsync(string loginProvider, string providerKey)
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
-            var result = await HandlerProvider.Handler.RemoveExternalAuthentication(user, loginProvider, providerKey);
+            // refreshSignIn: false — das Cookie stellt der Ruecksprung aus, der Handler koennte es auf dem
+            // Circuit nicht. Eine entfernte Anmeldung aendert den Security-Stamp.
+            var result = await HandlerProvider.Handler.RemoveExternalAuthentication(
+                user, loginProvider, providerKey, refreshSignIn: false);
             var message = result.Success
                 ? L["The external login was removed."].Value
                 : L["The external login was not removed."].Value;
-            RedirectWithStatus(message);
+            ManageRedirects.RefreshSignIn(Nav, "Account/Manage/ExternalLogins", message);
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 
-    private async Task OnLinkAsync()
+    private void OnLinkAsync(string provider)
     {
-        if (string.IsNullOrEmpty(LinkInput.Provider))
+        if (string.IsNullOrEmpty(provider))
         {
             return;
         }
 
-        await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
-
-        var redirectUrl = Nav.ToAbsoluteUri("Account/Manage/ExternalLoginsCallback").ToString();
-        var properties = HandlerProvider.Handler.ConfigureExternalAuthenticationProperties(
-            LinkInput.Provider, redirectUrl, HttpContext.User);
-        if (properties != null)
-        {
-            await HttpContext.ChallengeAsync(LinkInput.Provider, properties);
-        }
-    }
-
-    private void RedirectWithStatus(string status) =>
-        Nav.NavigateTo(
-            Nav.GetUriWithQueryParameters("Account/Manage/ExternalLogins",
-                new Dictionary<string, object?> { ["status"] = status }),
-            forceLoad: true);
-
-    public sealed class LinkInputModel
-    {
-        public string? Provider { get; set; }
+        busy = true;
+        Nav.NavigateTo($"Account/Manage/LinkLogin?provider={Uri.EscapeDataString(provider)}", forceLoad: true);
     }
 }

@@ -1,11 +1,11 @@
 @page "/Account/Manage"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using System.ComponentModel.DataAnnotations
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
@@ -13,6 +13,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<IndexModel, IIndexHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
 
@@ -23,6 +24,10 @@
 @if (!HandlerProvider.Handler.UsePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (notFound)
 {
@@ -35,7 +40,7 @@ else
         <MudAlert Severity="Severity.Success" Class="mb-3">@StatusMessage</MudAlert>
     }
 
-    <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="manage-index">
+    <EditForm Model="Input" OnValidSubmit="OnSubmit">
         <ToolkitDataAnnotationsValidator />
 
         @if (errors.Count > 0)
@@ -45,18 +50,12 @@ else
             </MudAlert>
         }
 
-        <div class="form-floating mb-3">
-            <input id="Username" class="form-control" value="@username" disabled />
-            <label for="Username">@L["Username"]</label>
-        </div>
+        <MudTextField T="string" Value="@username" Label="@L["Username"]" Disabled="true" Class="mb-3" />
 
-        <div class="form-floating mb-3">
-            <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control" />
-            <label for="Input.PhoneNumber">@L["Phone number"]</label>
-            <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
-        </div>
+        <MudTextField @bind-Value="Input.PhoneNumber" Label="@L["Phone number"]"
+                      For="@(() => Input.PhoneNumber)" Class="mb-3" />
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy">
             @L["Save profile"]
         </MudButton>
     </EditForm>
@@ -64,54 +63,62 @@ else
 
 @code {
     private string username = "";
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
+    private bool busy;
     private List<string> errors = new();
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
 
+    /// <summary>
+    /// Ueberlebt den vollen Seitenaufbau des Cookie-Ruecksprungs, weil sie in der Adresse steht — ein Feld auf
+    /// dem Circuit waere danach weg.
+    /// </summary>
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
             username = user.UserName ?? "";
-            if (!HttpMethods.IsPost(HttpContext.Request.Method))
-            {
-                Input.PhoneNumber = user.PhoneNumber ?? "";
-            }
+            Input.PhoneNumber = user.PhoneNumber ?? "";
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        errors.Clear();
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
@@ -125,15 +132,15 @@ else
                 }
             }
 
-            await HandlerProvider.Handler.RefreshSignIn(user);
-            Nav.NavigateTo(
-                Nav.GetUriWithQueryParameters("Account/Manage",
-                    new Dictionary<string, object?> { ["status"] = L["Your profile has been updated"].Value }),
-                forceLoad: true);
+            // Die Telefonnummer aendert den Security-Stamp NICHT — der Ruecksprung ist hier also nur die
+            // Cookie-Auffrischung, die das Original an dieser Stelle auch gemacht hat, und ohne das Zeitfenster
+            // der Passwort-Seiten.
+            ManageRedirects.RefreshSignIn(Nav, "Account/Manage", L["Your profile has been updated"].Value);
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 

@@ -1,11 +1,11 @@
 @page "/Account/Manage/EnableAuthenticator"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using System.ComponentModel.DataAnnotations
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using QRCoder
@@ -15,6 +15,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<EnableAuthenticatorModel, IEnableAuthenticatorHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<EnableAuthenticator> Logger
 @inject NavigationManager Nav
@@ -94,7 +95,7 @@ else
                 @L["Once you have scanned the QR code or input the key above, your two factor authentication app will provide you with a unique code. Enter the code in the confirmation box below."]
             </MudText>
 
-            <EditForm Model="Input" method="post" OnValidSubmit="OnVerify" FormName="enable-authenticator">
+            <EditForm Model="Input" OnValidSubmit="OnVerify">
                 <ToolkitDataAnnotationsValidator />
 
                 @if (!string.IsNullOrEmpty(errorMessage))
@@ -102,13 +103,10 @@ else
                     <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
                 }
 
-                <div class="form-floating mb-3" style="max-width: 320px;">
-                    <InputText @bind-Value="Input.Code" id="Input.Code" class="form-control" autocomplete="off" />
-                    <label for="Input.Code">@L["Verification Code"]</label>
-                    <ValidationMessage For="() => Input.Code" class="text-danger" />
-                </div>
+                <MudTextField @bind-Value="Input.Code" Label="@L["Verification Code"]" For="@(() => Input.Code)"
+                              autocomplete="off" Class="mb-3" Style="max-width: 320px;" />
 
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy">
                     @L["Activate Authenticator app"]
                 </MudButton>
             </EditForm>
@@ -124,30 +122,27 @@ else
     private string? qrSvg;
     private string? errorMessage;
     private string[]? recoveryCodes;
+    private bool busy;
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
         if (!HandlerProvider.Handler.UsePage) return;
-        if (HttpMethods.IsPost(HttpContext.Request.Method)) return;
 
         await LoadSharedKeyAndQrCodeAsync();
     }
 
     private async Task LoadSharedKeyAndQrCodeAsync()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
@@ -167,13 +162,15 @@ else
 
     private async Task OnVerify()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
@@ -195,18 +192,16 @@ else
             }
             else
             {
-                Nav.NavigateTo(
-                    Nav.GetUriWithQueryParameters("Account/Manage/TwoFactorAuthentication",
-                        new Dictionary<string, object?>
-                        {
-                            ["status"] = L["Your authenticator app has been verified."].Value
-                        }),
-                    forceLoad: true);
+                // Das Aktivieren der Zwei-Faktor-Anmeldung stempelt den Security-Stamp neu - Cookie ueber
+                // den Ruecksprung frisch ausstellen, sonst meldet der Stamp-Validator spaeter ab.
+                ManageRedirects.RefreshSignIn(Nav, "Account/Manage/TwoFactorAuthentication",
+                    L["Your authenticator app has been verified."].Value);
             }
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 

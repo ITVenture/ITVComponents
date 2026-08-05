@@ -32,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
             return Task.FromResult(false);
         }
 
-        public Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket)
+        public Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket, bool signOut = true)
         {
             return Task.FromResult(new UserLogoutResult
                 { IdentityResult = IdentityResult.Failed(), LoggedOut = false, UserDeleted = false });

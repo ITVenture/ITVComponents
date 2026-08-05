@@ -1,10 +1,10 @@
 @page "/Account/Manage/TwoFactorAuthentication"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -13,6 +13,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<TwoFactorAuthenticationModel, ITwoFactorAuthenticationHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
 
@@ -20,7 +21,11 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Two-factor authentication (2FA)"]</MudText>
 
-@if (notFound)
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (notFound)
 {
     <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
 }
@@ -54,9 +59,8 @@ else
 
         @if (isMachineRemembered)
         {
-            <EditForm Model="this" method="post" OnValidSubmit="OnForgetBrowser" FormName="forget-browser" Class="d-inline-block mr-2">
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined">@L["Forget this browser"]</MudButton>
-            </EditForm>
+            @* "Browser vergessen" loescht ein Cookie - das geht nur ueber den Endpunkt, nicht auf dem Circuit. *@
+            <MudButton Variant="Variant.Outlined" Class="mr-2" Disabled="@busy" OnClick="OnForgetBrowser">@L["Forget this browser"]</MudButton>
         }
 
         <MudButton Href="Account/Manage/Disable2fa" Variant="Variant.Outlined" Class="mr-2">@L["Disable 2FA"]</MudButton>
@@ -83,20 +87,21 @@ else
     private int recoveryCodesLeft;
     private bool is2faEnabled;
     private bool isMachineRemembered;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private bool loading = true;
+    private bool busy;
 
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            loading = false;
             return;
         }
 
@@ -110,18 +115,14 @@ else
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
-    private async Task OnForgetBrowser()
+    private void OnForgetBrowser()
     {
-        await HandlerProvider.Handler.ForgetTwoFactorClient();
-        Nav.NavigateTo(
-            Nav.GetUriWithQueryParameters("Account/Manage/TwoFactorAuthentication",
-                new Dictionary<string, object?>
-                {
-                    ["status"] = L["The current browser has been forgotten. When you login again from this browser you will be prompted for your 2fa code."].Value
-                }),
-            forceLoad: true);
+        busy = true;
+        ManageRedirects.ForgetBrowser(Nav, "Account/Manage/TwoFactorAuthentication",
+            L["The current browser has been forgotten. When you login again from this browser you will be prompted for your 2fa code."].Value);
     }
 }

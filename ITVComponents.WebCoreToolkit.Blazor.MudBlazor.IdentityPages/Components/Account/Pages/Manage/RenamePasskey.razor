@@ -1,5 +1,5 @@
 @page "/Account/Manage/RenamePasskey/{Id}"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
@@ -7,12 +7,13 @@
 @using System.Buffers.Text
 @using System.ComponentModel.DataAnnotations
 @using System.Linq
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
 
 @inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
 
@@ -39,7 +40,7 @@ else if (passkey is not null)
         }
     </MudText>
 
-    <EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
+    <EditForm Model="Input" OnValidSubmit="Rename">
         <ToolkitDataAnnotationsValidator />
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -47,15 +48,12 @@ else if (passkey is not null)
             <MudAlert Severity="Severity.Error" Class="mb-3">@errorMessage</MudAlert>
         }
 
-        <ValidationSummary class="text-danger" role="alert" />
+        <ValidationSummary class="itv-field-error" role="alert" />
 
-        <div class="form-floating mb-3">
-            <InputText @bind-Value="Input.Name" id="Input.Name" class="form-control" placeholder="@L["My laptop"]" />
-            <label for="Input.Name">@L["Passkey name"]</label>
-            <ValidationMessage For="() => Input.Name" class="text-danger" />
-        </div>
+        <MudTextField @bind-Value="Input.Name" Label="@L["Passkey name"]" For="@(() => Input.Name)"
+                      Placeholder="@L["My laptop"]" Class="mb-3" />
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy">
             @L["Save"]
         </MudButton>
     </EditForm>
@@ -65,20 +63,15 @@ else if (passkey is not null)
     private UserPasskeyInfo? passkey;
     private string? loadError;
     private string? errorMessage;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private bool busy;
 
     [Parameter]
     public string? Id { get; set; }
 
-    [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    private InputModel Input { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
-
         if (!PasskeyProvider.Handler.UsePage)
         {
             return;
@@ -101,11 +94,16 @@ else if (passkey is not null)
             return;
         }
 
-        passkey = await PasskeyProvider.Handler.GetUserPasskeyAsync(HttpContext.User, credentialId);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        passkey = await PasskeyProvider.Handler.GetUserPasskeyAsync(principal, credentialId);
         if (passkey is null)
         {
             loadError = L["The requested passkey could not be found."];
+            return;
         }
+
+        // Vorbelegen, damit ein bestehender Name im Feld steht - der Formular-Post brachte ihn frueher mit.
+        Input.Name = passkey.Name ?? string.Empty;
     }
 
     private async Task Rename()
@@ -115,18 +113,26 @@ else if (passkey is not null)
             return;
         }
 
-        passkey.Name = Input.Name;
-        var result = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(HttpContext.User, passkey);
-        if (!result.Succeeded)
+        busy = true;
+        try
         {
-            errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
-            return;
-        }
+            passkey.Name = Input.Name;
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            var result = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(principal, passkey);
+            if (!result.Succeeded)
+            {
+                errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+                return;
+            }
 
-        Nav.NavigateTo(
-            Nav.GetUriWithQueryParameters("Account/Manage/Passkeys",
-                new Dictionary<string, object?> { ["status"] = L["Passkey renamed."].Value }),
-            forceLoad: true);
+            Nav.NavigateTo(
+                Nav.GetUriWithQueryParameters("Account/Manage/Passkeys",
+                    new Dictionary<string, object?> { ["status"] = L["Passkey renamed."].Value }));
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 
     public sealed class InputModel

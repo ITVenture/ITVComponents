@@ -1,10 +1,10 @@
 @page "/Account/Manage/ResetAuthenticator"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -13,6 +13,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<ResetAuthenticatorModel, IResetAuthenticatorHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<ResetAuthenticator> Logger
 @inject NavigationManager Nav
@@ -24,6 +25,10 @@
 @if (!HandlerProvider.Handler.UsePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (notFound)
 {
@@ -38,43 +43,48 @@ else
         </div>
     </MudAlert>
 
-    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="reset-authenticator">
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
-            @L["Reset authenticator key"]
-        </MudButton>
-    </EditForm>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="@busy" OnClick="OnSubmit">
+        @L["Reset authenticator key"]
+    </MudButton>
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private bool busy;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
             }
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
-        var userId = HandlerProvider.Handler.GetUserId(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var userId = HandlerProvider.Handler.GetUserId(principal);
         try
         {
             if (!user.UserExists)
@@ -84,13 +94,17 @@ else
                 return;
             }
 
-            await HandlerProvider.Handler.ResetAuthenticator(user);
+            // refreshSignIn: false — der Handler wuerde sonst selbst das Cookie neu ausstellen, was auf dem
+            // Circuit nicht geht. Das uebernimmt der Ruecksprung, der direkt danach auf die Einrichtungsseite
+            // weiterleitet.
+            await HandlerProvider.Handler.ResetAuthenticator(user, refreshSignIn: false);
             Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", userId);
-            Nav.NavigateTo("Account/Manage/EnableAuthenticator", forceLoad: true);
+            ManageRedirects.RefreshSignIn(Nav, "Account/Manage/EnableAuthenticator");
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 }

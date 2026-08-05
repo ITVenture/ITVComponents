@@ -1,11 +1,11 @@
 @page "/Account/Manage/DeletePersonalData"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using System.ComponentModel.DataAnnotations
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -14,6 +14,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<DeletePersonalDataModel, IDeletePersonalDataHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<DeletePersonalData> Logger
 @inject NavigationManager Nav
@@ -26,6 +27,10 @@
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
 else if (notFound)
 {
     <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
@@ -36,7 +41,7 @@ else
         <strong>@L["Deleting this data will permanently remove your account, and this cannot be recovered."]</strong>
     </MudAlert>
 
-    <EditForm Model="Input" method="post" OnValidSubmit="OnSubmit" FormName="delete-user">
+    <EditForm Model="Input" OnValidSubmit="OnSubmit">
         <ToolkitDataAnnotationsValidator />
 
         @if (errors.Count > 0)
@@ -48,42 +53,42 @@ else
 
         @if (requirePassword)
         {
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Password" id="Input.Password" class="form-control" type="password" autocomplete="current-password" />
-                <label for="Input.Password">@L["Password"]</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
-            </div>
+            <MudTextField @bind-Value="Input.Password" Label="@L["Password"]" For="@(() => Input.Password)"
+                          InputType="InputType.Password" autocomplete="current-password" Class="mb-3" />
         }
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error" Disabled="@busy">
             @L["Delete data and close my account"]
         </MudButton>
     </EditForm>
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
     private bool requirePassword;
+    private bool busy;
     private List<string> errors = new();
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
             requirePassword = user.HasPassword;
@@ -91,18 +96,22 @@ else
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        errors.Clear();
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
 
@@ -116,7 +125,10 @@ else
                 }
             }
 
-            var dropResult = await HandlerProvider.Handler.DeleteAccount(user);
+            // signOut: false — die Abmeldung schreibt ein Cookie und geht auf dem Circuit nicht. Sie folgt
+            // unmittelbar ueber den Endpunkt; bis dahin zeigt der Cookie auf ein geloeschtes Konto, was nur
+            // fuer die Dauer dieser einen Weiterleitung gilt.
+            var dropResult = await HandlerProvider.Handler.DeleteAccount(user, signOut: false);
             if (!dropResult.UserDeleted)
             {
                 errors = new() { L["Unexpected error occurred deleting user with ID '{0}'.", dropResult.UserId] };
@@ -124,11 +136,12 @@ else
             }
 
             Logger.LogInformation("User with ID '{UserId}' deleted themselves.", dropResult.UserId);
-            Nav.NavigateTo("/", forceLoad: true);
+            ManageRedirects.SignOut(Nav);
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 

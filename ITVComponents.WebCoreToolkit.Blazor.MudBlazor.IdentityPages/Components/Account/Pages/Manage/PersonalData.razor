@@ -1,10 +1,10 @@
 @page "/Account/Manage/PersonalData"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
@@ -12,6 +12,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<PersonalDataModel, IPersonalDataHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 
 <PageTitle>@L["Personal Data"]</PageTitle>
@@ -21,6 +22,10 @@
 @if (!HandlerProvider.Handler.UsePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (notFound)
 {
@@ -35,11 +40,15 @@ else
         <strong>@L["Deleting this data will permanently remove your account, and this cannot be recovered."]</strong>
     </MudAlert>
 
-    <EditForm Model="this" method="post" Action="Account/Manage/DownloadPersonalData" FormName="download-data" Class="mb-3">
+    @* Bleibt ein echter Browser-Post: die Antwort ist ein Dateidownload, den der Endpunkt als Datei
+       zurueckgibt. Ueber den Circuit liesse sich das nur mit einem Umweg ueber JS-Interop nachbauen.
+       Ein gewoehnliches <form> statt EditForm, weil EditForm den Submit interaktiv abfangen wuerde;
+       der Endpunkt ist mit DisableAntiforgery registriert. *@
+    <form method="post" action="Account/Manage/DownloadPersonalData" class="mb-3">
         <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
             @L["Download"]
         </MudButton>
-    </EditForm>
+    </form>
 
     <MudButton Href="Account/Manage/DeletePersonalData" Variant="Variant.Filled" Color="Color.Secondary">
         @L["Delete"]
@@ -47,21 +56,26 @@ else
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var userExists = await HandlerProvider.Handler.UserExists(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var userExists = await HandlerProvider.Handler.UserExists(principal);
         if (!userExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
         }
+
+        loading = false;
     }
 }

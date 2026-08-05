@@ -1,10 +1,10 @@
 @page "/Account/Manage/Disable2fa"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -13,6 +13,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<Disable2faModel, IDisable2faHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<Disable2fa> Logger
 @inject NavigationManager Nav
@@ -25,6 +26,10 @@
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
 else if (notFound)
 {
     <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
@@ -32,7 +37,7 @@ else if (notFound)
 else if (!is2faEnabled)
 {
     <MudAlert Severity="Severity.Warning">
-        @L["Cannot disable 2FA for user with ID '{0}' as it's not currently enabled.", HandlerProvider.Handler.GetUserId(HttpContext.User)]
+        @L["Cannot disable 2FA for user with ID '{0}' as it's not currently enabled.", userId]
     </MudAlert>
 }
 else
@@ -45,30 +50,35 @@ else
         </div>
     </MudAlert>
 
-    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="disable-2fa">
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
-            @L["Disable 2FA"]
-        </MudButton>
-    </EditForm>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="@busy" OnClick="OnSubmit">
+        @L["Disable 2FA"]
+    </MudButton>
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
     private bool is2faEnabled;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private bool busy;
+    private string userId = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        userId = HandlerProvider.Handler.GetUserId(principal) ?? string.Empty;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", userId];
+            loading = false;
             return;
         }
 
@@ -79,41 +89,44 @@ else
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", userId];
                 return;
             }
 
             var result = await HandlerProvider.Handler.SetTwoFactorEnabled(user, false);
             if (!result.Succeeded)
             {
-                notFoundMessage = L["Unexpected error occurred disabling 2FA for user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unexpected error occurred disabling 2FA for user with ID '{0}'.", userId];
                 notFound = true;
                 return;
             }
 
-            Logger.LogInformation("User with ID '{UserId}' has disabled 2fa.", HandlerProvider.Handler.GetUserId(HttpContext.User));
-            Nav.NavigateTo(
-                Nav.GetUriWithQueryParameters("Account/Manage/TwoFactorAuthentication",
-                    new Dictionary<string, object?>
-                    {
-                        ["status"] = L["2fa has been disabled. You can reenable 2fa when you setup an authenticator app"].Value
-                    }),
-                forceLoad: true);
+            Logger.LogInformation("User with ID '{UserId}' has disabled 2fa.", userId);
+
+            // SetTwoFactorEnabledAsync stempelt den Security-Stamp neu. Die statische Fassung navigierte hier
+            // nur weiter und liess das Cookie stehen - der Stamp-Validator haette den Benutzer beim naechsten
+            // Intervall abgemeldet. Der Ruecksprung stellt es frisch aus.
+            ManageRedirects.RefreshSignIn(Nav, "Account/Manage/TwoFactorAuthentication",
+                L["2fa has been disabled. You can reenable 2fa when you setup an authenticator app"].Value);
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 }

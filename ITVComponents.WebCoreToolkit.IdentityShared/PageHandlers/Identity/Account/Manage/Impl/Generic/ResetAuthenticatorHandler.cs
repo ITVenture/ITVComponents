@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.AspExtensions.Attributes;
 using ITVComponents.WebCoreToolkit.IdentityShared.Helpers;
@@ -37,14 +37,17 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
             return userGuard.ReleaseUser(userTicket);
         }
 
-        public async Task ResetAuthenticator(UserQueryTicket userTicket)
+        public async Task ResetAuthenticator(UserQueryTicket userTicket, bool refreshSignIn = true)
         {
             if (userGuard.GetUser(userTicket, out var user))
             {
                 await userManager.SetTwoFactorEnabledAsync(user, false);
                 await userManager.ResetAuthenticatorKeyAsync(user);
 
-                await signInManager.RefreshSignInAsync(user);
+                if (refreshSignIn)
+                {
+                    await signInManager.RefreshSignInAsync(user);
+                }
             }
         }
     }

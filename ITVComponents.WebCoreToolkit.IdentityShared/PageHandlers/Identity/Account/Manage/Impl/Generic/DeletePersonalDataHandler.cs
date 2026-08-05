@@ -43,7 +43,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
             return false;
         }
 
-        public async Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket)
+        public async Task<UserLogoutResult> DeleteAccount(UserQueryTicket userTicket, bool signOut = true)
         {
             var retVal = new UserLogoutResult();
             if (userGuard.GetUser(userTicket, out var user))
@@ -54,8 +54,13 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Acco
                 if (result.Succeeded)
                 {
                     retVal.UserDeleted = true;
-                    await signInManager.SignOutAsync();
-                    retVal.LoggedOut = true;
+                    if (signOut)
+                    {
+                        // Schreibt ein Cookie und geht darum nur mit echter HTTP-Antwort. Wer von einem Circuit
+                        // aus loescht, laesst das hier aus und meldet ueber den Endpunkt ab.
+                        await signInManager.SignOutAsync();
+                        retVal.LoggedOut = true;
+                    }
                 }
             }
 

@@ -1,18 +1,25 @@
 @page "/Account/Manage/Passkeys"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IAsyncDisposable
 
 @using System.Buffers.Text
 @using System.Linq
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
 
 @inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
+@inject ILogger<Passkeys> Logger
+@inject IJSRuntime JS
 @inject NavigationManager Nav
 
 <PageTitle>@L["Passkeys"]</PageTitle>
@@ -23,11 +30,15 @@
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
 else
 {
-    @if (!string.IsNullOrEmpty(StatusMessage))
+    @if (!string.IsNullOrEmpty(status))
     {
-        <MudAlert Severity="Severity.Info" Class="mb-3">@StatusMessage</MudAlert>
+        <MudAlert Severity="Severity.Info" Class="mb-3">@status</MudAlert>
     }
 
     @if (currentPasskeys is { Count: > 0 })
@@ -47,14 +58,11 @@ else
                                    Href="@($"Account/Manage/RenamePasskey/{credentialId}")"
                                    Color="Color.Primary"
                                    Title="@L["Rename"]" />
-                    <form @formname="@($"delete-passkey-{credentialId}")" @onsubmit="DeletePasskey" method="post" class="d-inline">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="CredentialId" value="@credentialId" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                       ButtonType="ButtonType.Submit"
-                                       Color="Color.Error"
-                                       Title="@L["Delete"]" />
-                    </form>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Disabled="@busy"
+                                   Title="@L["Delete"]"
+                                   OnClick="@(() => DeletePasskey(credentialId))" />
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -64,131 +72,167 @@ else
         <MudText Class="mb-3">@L["You have no passkeys registered."]</MudText>
     }
 
-    <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
-        <AntiforgeryToken />
-        @if (currentPasskeys is { Count: var c } && c >= PasskeyProvider.Handler.MaxPasskeysPerUser)
-        {
-            <MudAlert Severity="Severity.Warning">@L["You have reached the maximum number of passkeys."]</MudAlert>
-        }
-        else
-        {
-            <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary">
-                @L["Add a new passkey"]
-            </PasskeySubmit>
-        }
-    </form>
+    @if (currentPasskeys is { Count: var c } && c >= PasskeyProvider.Handler.MaxPasskeysPerUser)
+    {
+        <MudAlert Severity="Severity.Warning">@L["You have reached the maximum number of passkeys."]</MudAlert>
+    }
+    else
+    {
+        @* Der Klick wird in JS abgefangen (siehe PasskeySubmit.js/attachPasskeyCreate) - dort laeuft
+           navigator.credentials.create() noch in der Benutzer-Geste. Erst das fertige Credential reist
+           per .NET-Referenz hierher zurueck. Der Knopf traegt nur eine id, damit JS ihn findet. *@
+        <MudButton id="@AddButtonId" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(busy || !canAdd)">
+            @L["Add a new passkey"]
+        </MudButton>
+    }
 }
 
 @code {
-    private IList<UserPasskeyInfo>? currentPasskeys;
+    private const string AddButtonId = "itv-passkey-add";
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private IList<UserPasskeyInfo>? currentPasskeys;
+    private bool loading = true;
+    private bool busy;
+    private bool canAdd;
+    private string? creationOptionsJson;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<Passkeys>? selfRef;
+
+    private string? status;
 
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
-    [SupplyParameterFromForm]
-    private string? CredentialId { get; set; }
-
-    [SupplyParameterFromForm(FormName = "add-passkey")]
-    private PasskeyInputModel Input { get; set; } = default!;
-
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
-
+        status = StatusMessage;
         if (!PasskeyProvider.Handler.UsePage)
         {
+            loading = false;
             return;
         }
 
-        currentPasskeys = await PasskeyProvider.Handler.GetUserPasskeysAsync(HttpContext.User);
+        await LoadAsync();
+        loading = false;
     }
 
-    private async Task AddPasskey()
+    private async Task LoadAsync()
     {
-        if (!PasskeyProvider.Handler.UsePage)
-        {
-            return;
-        }
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        currentPasskeys = await PasskeyProvider.Handler.GetUserPasskeysAsync(principal);
 
-        if (!string.IsNullOrEmpty(Input.Error))
+        // Die Anmelde-Optionen entstehen serverseitig beim Aufbau der Seite und werden dem Klick-Handler
+        // mitgegeben - sie erst beim Klick zu holen, wuerde den Gesten-Kontext kosten.
+        canAdd = currentPasskeys is not { Count: var n } || n < PasskeyProvider.Handler.MaxPasskeysPerUser;
+        if (canAdd)
         {
-            RedirectToSelf(Input.Error);
-            return;
+            creationOptionsJson = await PasskeyProvider.Handler.MakePasskeyCreationOptionsAsync(principal);
+            canAdd = creationOptionsJson is not null;
         }
-
-        if (string.IsNullOrEmpty(Input.CredentialJson))
-        {
-            RedirectToSelf(L["No passkey was provided by the browser."].Value);
-            return;
-        }
-
-        if (currentPasskeys is { Count: var c } && c >= PasskeyProvider.Handler.MaxPasskeysPerUser)
-        {
-            RedirectToSelf(L["You have reached the maximum number of passkeys."].Value);
-            return;
-        }
-
-        var attestation = await PasskeyProvider.Handler.PerformPasskeyAttestationAsync(Input.CredentialJson);
-        if (!attestation.Succeeded || attestation.Passkey is null)
-        {
-            RedirectToSelf(attestation.Failure?.Message ?? L["Passkey attestation failed."].Value);
-            return;
-        }
-
-        var add = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(HttpContext.User, attestation.Passkey);
-        if (!add.Succeeded)
-        {
-            RedirectToSelf(string.Join(", ", add.Errors.Select(e => e.Description)));
-            return;
-        }
-
-        // Immediately prompt the user to name the new credential.
-        var credentialIdBase64Url = Base64Url.EncodeToString(attestation.Passkey.CredentialId);
-        Nav.NavigateTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}", forceLoad: true);
     }
 
-    private async Task DeletePasskey()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!PasskeyProvider.Handler.UsePage)
+        if (!PasskeyProvider.Handler.UsePage || creationOptionsJson is null || module is not null)
         {
             return;
         }
 
-        if (string.IsNullOrEmpty(CredentialId))
-        {
-            RedirectToSelf(L["Missing credential identifier."].Value);
-            return;
-        }
+        module ??= await JS.InvokeAsync<IJSObjectReference>("import",
+            "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages/PasskeySubmit.js");
+        selfRef ??= DotNetObjectReference.Create(this);
+        await module.InvokeVoidAsync("attachPasskeyCreate", AddButtonId, selfRef, creationOptionsJson);
+    }
 
-        byte[] credentialId;
+    [JSInvokable]
+    public async Task OnPasskeyCreatedAsync(string credentialJson)
+    {
+        busy = true;
         try
         {
-            credentialId = Base64Url.DecodeFromChars(CredentialId);
-        }
-        catch (FormatException)
-        {
-            RedirectToSelf(L["The passkey identifier is not in a valid format."].Value);
-            return;
-        }
+            var attestation = await PasskeyProvider.Handler.PerformPasskeyAttestationAsync(credentialJson);
+            if (!attestation.Succeeded || attestation.Passkey is null)
+            {
+                status = attestation.Failure?.Message ?? L["Passkey attestation failed."].Value;
+                return;
+            }
 
-        var result = await PasskeyProvider.Handler.RemoveUserPasskeyAsync(HttpContext.User, credentialId);
-        if (!result.Succeeded)
-        {
-            RedirectToSelf(string.Join(", ", result.Errors.Select(e => e.Description)));
-            return;
-        }
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            var add = await PasskeyProvider.Handler.AddOrUpdateUserPasskeyAsync(principal, attestation.Passkey);
+            if (!add.Succeeded)
+            {
+                status = string.Join(", ", add.Errors.Select(e => e.Description));
+                return;
+            }
 
-        RedirectToSelf(L["Passkey deleted."].Value);
+            // Direkt zum Benennen des neuen Schluessels - weiche Navigation, der Bereich ist interaktiv.
+            var credentialIdBase64Url = Base64Url.EncodeToString(attestation.Passkey.CredentialId);
+            Nav.NavigateTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
+        }
+        finally
+        {
+            busy = false;
+            StateHasChanged();
+        }
     }
 
-    private void RedirectToSelf(string status)
+    [JSInvokable]
+    public Task OnPasskeyFailedAsync(string message)
     {
-        Nav.NavigateTo(
-            Nav.GetUriWithQueryParameters("Account/Manage/Passkeys",
-                new Dictionary<string, object?> { ["status"] = status }),
-            forceLoad: true);
+        status = message;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task DeletePasskey(string credentialIdBase64Url)
+    {
+        busy = true;
+        try
+        {
+            byte[] credentialId;
+            try
+            {
+                credentialId = Base64Url.DecodeFromChars(credentialIdBase64Url);
+            }
+            catch (FormatException)
+            {
+                status = L["The passkey identifier is not in a valid format."].Value;
+                return;
+            }
+
+            var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+            var result = await PasskeyProvider.Handler.RemoveUserPasskeyAsync(principal, credentialId);
+            if (!result.Succeeded)
+            {
+                status = string.Join(", ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            status = L["Passkey deleted."].Value;
+            await LoadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        selfRef?.Dispose();
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException ex)
+            {
+                // Circuit ist schon weg (Tab geschlossen) - das Modul stirbt mit ihm, das ist der Normalfall.
+                // Trotzdem vermerken, damit ein ANDERER Grund fuer ein gescheitertes Dispose nicht unsichtbar
+                // bleibt: sonst sieht man hier gar nichts und sucht spaeter an der falschen Stelle.
+                Logger.LogDebug(ex, "Passkey-Modul konnte nicht freigegeben werden - Circuit bereits beendet.");
+            }
+        }
     }
 }

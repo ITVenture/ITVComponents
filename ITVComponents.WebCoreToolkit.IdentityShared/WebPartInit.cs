@@ -95,6 +95,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared
                     ha.ConfigureHandlerType<ResetAuthenticatorModel, IResetAuthenticatorHandler, ResetAuthenticatorHandler>(false);
                     ha.ConfigureHandlerType<SetPasswordModel, ISetPasswordHandler, SetPasswordHandler>(false);
                     ha.ConfigureHandlerType<TwoFactorAuthenticationModel, ITwoFactorAuthenticationHandler, TwoFactorAuthenticationHandler>(false);
+                    ha.ConfigureHandlerType<SignInSessionModel, ISignInSessionHandler, SignInSessionHandler>(false);
                 });
             }
             else
@@ -125,6 +126,7 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared
                     ha.ConfigureHandlerType(typeof(ResetAuthenticatorModel), typeof(IResetAuthenticatorHandler), typeof(ResetAuthenticatorHandler<>),false);
                     ha.ConfigureHandlerType(typeof(SetPasswordModel), typeof(ISetPasswordHandler), typeof(SetPasswordHandler<>),false);
                     ha.ConfigureHandlerType(typeof(TwoFactorAuthenticationModel), typeof(ITwoFactorAuthenticationHandler), typeof(TwoFactorAuthenticationHandler<>),false);
+                    ha.ConfigureHandlerType(typeof(SignInSessionModel), typeof(ISignInSessionHandler), typeof(SignInSessionHandler<>),false);
                     if (tuserType != null)
                     {
                         ha.ConfigureGenericArgument("TUser", tuserType);

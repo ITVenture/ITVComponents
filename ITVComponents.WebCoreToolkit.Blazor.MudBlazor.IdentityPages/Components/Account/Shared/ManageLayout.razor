@@ -10,32 +10,34 @@
 @inject IOptions<IdentityLayoutOptions> LayoutOpts
 
 @{
-    @* Identity-Pages rendern als static SSR (ExcludeFromInteractiveRouting) und haben keinen
-       eigenen Circuit. Das umgebende OuterLayout bringt aber ein interaktives Nav-Menue als
-       Root-Component mit. Enhanced-Navigation zwischen zwei Manage-Seiten wuerde versuchen,
-       diese interaktiven Roots per Circuit (updateRootComponents) zu reconcilen -> SignalR-send
-       schlaegt fehl (JS-Exception in blazor.web.js). data-enhance-nav="false" erzwingt fuer alle
-       Navigation innerhalb dieses Bereichs (inkl. ManageNavMenu) einen Full-Page-Load, womit der
-       Circuit sauber neu aufgebaut statt ueber die SSR-Grenze reconciled wird. *@
-    RenderFragment manageBody = @<text>
-        <div data-enhance-nav="false">
-            <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-                <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
-                <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
-                <MudDivider Class="my-3" />
+    @* Frueher stand hier ein data-enhance-nav="false" um den ganzen Bereich: die Konto-Seiten rendern
+       als static SSR (ExcludeFromInteractiveRouting), das umgebende OuterLayout bringt aber interaktive
+       Root-Komponenten mit, und Enhanced-Navigation haette versucht, die ueber die SSR-Grenze zu
+       reconcilen (updateRootComponents -> SignalR-Fehler in blazor.web.js). Der Preis war ein voller
+       Seitenaufbau bei JEDEM Klick im Bereich.
 
-                <MudGrid>
-                    <MudItem xs="12" md="3">
-                        <MudPaper Elevation="1" Class="pa-2">
-                            <ManageNavMenu />
-                        </MudPaper>
-                    </MudItem>
-                    <MudItem xs="12" md="9">
-                        @Body
-                    </MudItem>
-                </MudGrid>
-            </MudContainer>
-        </div>
+       Der Grund ist entfallen: alle Seiten unter Account/Manage rendern jetzt interaktiv. Was ein
+       Cookie schreiben muss - Passwort, Zwei-Faktor, externe Logins, Kontoloeschung - springt gezielt
+       ueber die Endpunkte in IdentityPagesEndpoints (siehe ManageRedirects), statt den ganzen Bereich
+       statisch zu halten. Navigation innerhalb des Bereichs ist damit weich, und das Chrome bleibt
+       stehen. *@
+    RenderFragment manageBody = @<text>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+            <MudText Typo="Typo.h4" GutterBottom="true">@L["Manage your account"]</MudText>
+            <MudText Typo="Typo.h5" GutterBottom="true">@L["Change your account settings"]</MudText>
+            <MudDivider Class="my-3" />
+
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="1" Class="pa-2">
+                        <ManageNavMenu />
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="9">
+                    @Body
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
     </text>;
 }
 

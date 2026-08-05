@@ -1,5 +1,5 @@
 @page "/Account/Manage/Email"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
@@ -7,7 +7,7 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Text
 @using System.Text.Encodings.Web
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity.UI.Services
 @using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Localization
@@ -19,6 +19,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<EmailModel, IEmailHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IEmailSender EmailSender
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
@@ -31,73 +32,91 @@
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
 }
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
 else if (notFound)
 {
     <MudAlert Severity="Severity.Error">@notFoundMessage</MudAlert>
 }
 else
 {
-    @if (!string.IsNullOrEmpty(StatusMessage))
+    @if (!string.IsNullOrEmpty(status))
     {
-        <MudAlert Severity="Severity.Info" Class="mb-3">@StatusMessage</MudAlert>
+        <MudAlert Severity="Severity.Info" Class="mb-3">@status</MudAlert>
     }
 
-    <div class="form-floating mb-3">
-        <input id="Email" class="form-control" value="@email" disabled />
-        <label for="Email">@L["Email"]</label>
-        @if (isEmailConfirmed)
-        {
-            <small class="text-success fw-bold">✓ @L["Email confirmed"]</small>
-        }
-        else
-        {
-            <EditForm Model="this" method="post" OnValidSubmit="OnSendVerification" FormName="send-verification" Class="mt-2">
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Text" Color="Color.Primary">
-                    @L["Send verification email"]
-                </MudButton>
-            </EditForm>
-        }
-    </div>
+    <MudTextField T="string" Value="@email" Label="@L["Email"]" Disabled="true"
+                  AdornmentIcon="@(isEmailConfirmed ? Icons.Material.Filled.CheckCircle : null)"
+                  Adornment="@(isEmailConfirmed ? Adornment.End : Adornment.None)"
+                  AdornmentColor="Color.Success" Class="mb-1" />
 
-    <EditForm Model="Input" method="post" OnValidSubmit="OnChangeEmail" FormName="change-email">
+    @if (isEmailConfirmed)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Success" Class="mb-3 d-block">@L["Email confirmed"]</MudText>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Class="mb-3"
+                   Disabled="@busy" OnClick="OnSendVerification">
+            @L["Send verification email"]
+        </MudButton>
+    }
+
+    <EditForm Model="Input" OnValidSubmit="OnChangeEmail">
         <ToolkitDataAnnotationsValidator />
 
-        <div class="form-floating mb-3">
-            <InputText @bind-Value="Input.NewEmail" id="Input.NewEmail" class="form-control" autocomplete="email" type="email" />
-            <label for="Input.NewEmail">@L["New email"]</label>
-            <ValidationMessage For="() => Input.NewEmail" class="text-danger" />
-        </div>
+        <MudTextField @bind-Value="Input.NewEmail" Label="@L["New email"]" For="@(() => Input.NewEmail)"
+                      InputType="InputType.Email" autocomplete="email" Class="mb-3" />
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy">
             @L["Change email"]
         </MudButton>
     </EditForm>
 }
 
 @code {
+    private bool loading = true;
     private bool notFound;
     private string? notFoundMessage;
+    private bool busy;
     private string email = "";
     private bool isEmailConfirmed;
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm(FormName = "change-email")]
-    private InputModel Input { get; set; } = new();
+    /// <summary>
+    /// Angezeigte Rueckmeldung. Diese Seite schreibt kein Cookie, braucht also keinen Ruecksprung — die Meldung
+    /// erscheint ohne Seitenaufbau. Der Anfangswert kommt weiter aus der Adresse, damit ein Verweis von aussen
+    /// (z.B. aus einer Bestaetigungsmail) seine Meldung mitbringen kann.
+    /// </summary>
+    private string? status;
 
     [SupplyParameterFromQuery(Name = "status")]
     private string? StatusMessage { get; set; }
 
+    private InputModel Input { get; set; } = new();
+
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
+        status = StatusMessage;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        await LoadAsync();
+        loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
             return;
         }
 
@@ -118,11 +137,14 @@ else
 
     private async Task OnChangeEmail()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            busy = false;
             return;
         }
 
@@ -130,19 +152,19 @@ else
         {
             if (Input.NewEmail == user.Email)
             {
-                RedirectWithStatus(L["Your email is unchanged."].Value);
+                status = L["Your email is unchanged."].Value;
                 return;
             }
 
             var mail = new EmailAddress(Input.NewEmail, new MailDomainValidator());
             if (!mail.FormatOk)
             {
-                RedirectWithStatus(L["InvalidMailFormat"].Value);
+                status = L["InvalidMailFormat"].Value;
                 return;
             }
             if (!mail.DomainOk)
             {
-                RedirectWithStatus(L["InvalidMailDomain"].Value);
+                status = L["InvalidMailDomain"].Value;
                 return;
             }
 
@@ -157,28 +179,32 @@ else
                         ["code"] = code
                     })).ToString();
 
-            var username = HandlerProvider.Handler.GetUserName(HttpContext.User);
+            var username = HandlerProvider.Handler.GetUserName(principal);
             await EmailSender.SendEmailAsync(
                 Input.NewEmail,
                 L["Confirm your email"],
                 L["Hello {0}\r\nPlease confirm your account by <a href='{1}'>clicking here</a>.",
                     username, HtmlEncoder.Default.Encode(callbackUrl)]);
 
-            RedirectWithStatus(L["Verification email sent. Please check your email."].Value);
+            status = L["Verification email sent. Please check your email."].Value;
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 
     private async Task OnSendVerification()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         if (!user.UserExists)
         {
             notFound = true;
-            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+            notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
+            busy = false;
             return;
         }
 
@@ -194,26 +220,21 @@ else
                         ["code"] = code
                     })).ToString();
 
-            var username = HandlerProvider.Handler.GetUserName(HttpContext.User);
+            var username = HandlerProvider.Handler.GetUserName(principal);
             await EmailSender.SendEmailAsync(
                 user.Email,
                 L["Confirm your email"],
                 L["Hello {0}\r\nPlease confirm your account by <a href='{1}'>clicking here</a>.",
                     username, HtmlEncoder.Default.Encode(callbackUrl)]);
 
-            RedirectWithStatus(L["Verification email sent. Please check your email."].Value);
+            status = L["Verification email sent. Please check your email."].Value;
         }
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
-
-    private void RedirectWithStatus(string status) =>
-        Nav.NavigateTo(
-            Nav.GetUriWithQueryParameters("Account/Manage/Email",
-                new Dictionary<string, object?> { ["status"] = status }),
-            forceLoad: true);
 
     public sealed class InputModel
     {

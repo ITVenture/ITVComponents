@@ -41,15 +41,15 @@
                 <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
                 <input type="hidden" name="RememberMe" value="@RememberMe" />
 
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.TwoFactorCode" id="Input.TwoFactorCode" class="form-control" autocomplete="off" />
+                <div class="itv-field mb-3">
+                    <InputText @bind-Value="Input.TwoFactorCode" id="Input.TwoFactorCode" class="itv-field-input" autocomplete="off" />
                     <label for="Input.TwoFactorCode">@L["Authenticator code"]</label>
-                    <ValidationMessage For="() => Input.TwoFactorCode" class="text-danger" />
+                    <ValidationMessage For="() => Input.TwoFactorCode" class="itv-field-error" />
                 </div>
 
-                <div class="form-check mb-3">
-                    <InputCheckbox @bind-Value="Input.RememberMachine" id="Input.RememberMachine" class="form-check-input" />
-                    <label for="Input.RememberMachine" class="form-check-label">@L["Remember this machine"]</label>
+                <div class="itv-check mb-3">
+                    <InputCheckbox @bind-Value="Input.RememberMachine" id="Input.RememberMachine" class="itv-check-input" />
+                    <label for="Input.RememberMachine" class="itv-check-label">@L["Remember this machine"]</label>
                 </div>
 
                 <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">

@@ -42,10 +42,10 @@
 
                 <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
 
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.RecoveryCode" id="Input.RecoveryCode" class="form-control" autocomplete="off" />
+                <div class="itv-field mb-3">
+                    <InputText @bind-Value="Input.RecoveryCode" id="Input.RecoveryCode" class="itv-field-input" autocomplete="off" />
                     <label for="Input.RecoveryCode">@L["Recovery Code"]</label>
-                    <ValidationMessage For="() => Input.RecoveryCode" class="text-danger" />
+                    <ValidationMessage For="() => Input.RecoveryCode" class="itv-field-error" />
                 </div>
 
                 <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">

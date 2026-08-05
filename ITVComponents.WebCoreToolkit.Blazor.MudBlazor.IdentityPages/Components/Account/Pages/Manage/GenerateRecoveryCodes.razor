@@ -1,10 +1,10 @@
 @page "/Account/Manage/GenerateRecoveryCodes"
-@attribute [Microsoft.AspNetCore.Components.ExcludeFromInteractiveRouting]
+@rendermode @(RenderMode.InteractiveServer)
 
 @layout ManageLayout
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Components.Account.Shared
@@ -13,6 +13,7 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.PageHandlers.Identity.Account.Manage
 
 @inject IPageHandlerProvider<GenerateRecoveryCodesModel, IGenerateRecoveryCodesHandler> HandlerProvider
+@inject AuthenticationStateProvider AuthState
 @inject IStringLocalizer<IdentityMessages> L
 @inject ILogger<GenerateRecoveryCodes> Logger
 
@@ -23,6 +24,10 @@
 @if (!HandlerProvider.Handler.UsePage)
 {
     <MudAlert Severity="Severity.Info">@L["This page is not available."]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
 }
 else if (notFound)
 {
@@ -73,11 +78,9 @@ else
         </div>
     </MudAlert>
 
-    <EditForm Model="this" method="post" OnValidSubmit="OnSubmit" FormName="generate-recovery-codes">
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Error">
-            @L["Generate Recovery Codes"]
-        </MudButton>
-    </EditForm>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="@busy" OnClick="OnSubmit">
+        @L["Generate Recovery Codes"]
+    </MudButton>
 }
 
 @code {
@@ -85,22 +88,25 @@ else
     private string? notFoundMessage;
     private bool is2faEnabled;
     private string[]? recoveryCodes;
-
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private bool loading = true;
+    private bool busy;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!HandlerProvider.Handler.UsePage) return;
-        if (HttpMethods.IsPost(HttpContext.Request.Method)) return;
+        if (!HandlerProvider.Handler.UsePage)
+        {
+            loading = false;
+            return;
+        }
 
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
         try
         {
             if (!user.UserExists)
             {
                 notFound = true;
-                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(HttpContext.User)];
+                notFoundMessage = L["Unable to load user with ID '{0}'.", HandlerProvider.Handler.GetUserId(principal)];
                 return;
             }
             is2faEnabled = user.TwoFactorEnabled;
@@ -108,13 +114,16 @@ else
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            loading = false;
         }
     }
 
     private async Task OnSubmit()
     {
-        var user = await HandlerProvider.Handler.FetchUser(HttpContext.User);
-        var userId = HandlerProvider.Handler.GetUserId(HttpContext.User);
+        busy = true;
+        var principal = (await AuthState.GetAuthenticationStateAsync()).User;
+        var user = await HandlerProvider.Handler.FetchUser(principal);
+        var userId = HandlerProvider.Handler.GetUserId(principal);
         try
         {
             if (!user.UserExists)
@@ -136,6 +145,7 @@ else
         finally
         {
             HandlerProvider.Handler.ReleaseUser(user);
+            busy = false;
         }
     }
 }

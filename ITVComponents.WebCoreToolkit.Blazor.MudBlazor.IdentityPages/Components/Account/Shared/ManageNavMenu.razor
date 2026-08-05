@@ -2,13 +2,78 @@
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
 
 @inject IStringLocalizer<IdentityMessages> L
+@inject NavigationManager Nav
 
-<MudNavMenu>
-    <MudNavLink Href="Account/Manage" Match="NavLinkMatch.All">@L["Profile"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/Email">@L["Email"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/ChangePassword">@L["Password"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/ExternalLogins">@L["External logins"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/Passkeys">@L["Passkeys"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/TwoFactorAuthentication">@L["Two-factor authentication"]</MudNavLink>
-    <MudNavLink Href="Account/Manage/PersonalData">@L["Personal data"]</MudNavLink>
-</MudNavMenu>
+@* Konto-Navigation: ab md eine Seitenspalte, darunter ein Aufklapp-Element.
+
+   WARUM UEBERHAUPT: die sieben Eintraege stehen mobil als voller Block UEBER dem Inhalt. Gemessen bei
+   400x978: 596px Navigation vor 978px Bildschirm - 61%. Auf jeder der 15 Konto-Seiten scrollt man erst
+   an derselben Liste vorbei, bevor das Formular beginnt.
+
+   WARUM <details> UND NICHT MudHidden: diese Seiten sind static SSR (ExcludeFromInteractiveRouting, siehe
+   ManageLayout). MudHidden misst per JS-Interop und braucht einen Circuit - hier bliebe sein Ergebnis
+   schlicht auf dem Startwert stehen. <details>/<summary> ist reines HTML, der Browser klappt selbst auf.
+
+   WARUM ZWEIMAL GERENDERT: die Eintraege kommen aus EINER Quelle (Links), die beiden Fassungen sind nur
+   zwei Huellen darum - sonst laufen sie beim naechsten Eintrag auseinander. Umgekehrt ein einzelnes
+   <details> per CSS auf breiten Schirmen "offen" zu erzwingen, ist quer durch die Browser nicht
+   verlaesslich; die Sichtbarkeit ueber Media Query zu schalten ist es. *@
+
+<div class="itv-manage-nav-wide">
+    @Links
+</div>
+
+<details class="itv-manage-nav-narrow">
+    <summary>@ActiveLabel</summary>
+    @Links
+</details>
+
+@code {
+    private sealed record ManageNavItem(string Href, string Label, bool Exact);
+
+    private IReadOnlyList<ManageNavItem> Items => new[]
+    {
+        new ManageNavItem("Account/Manage", L["Profile"], true),
+        new ManageNavItem("Account/Manage/Email", L["Email"], false),
+        new ManageNavItem("Account/Manage/ChangePassword", L["Password"], false),
+        new ManageNavItem("Account/Manage/ExternalLogins", L["External logins"], false),
+        new ManageNavItem("Account/Manage/Passkeys", L["Passkeys"], false),
+        new ManageNavItem("Account/Manage/TwoFactorAuthentication", L["Two-factor authentication"], false),
+        new ManageNavItem("Account/Manage/PersonalData", L["Personal data"], false)
+    };
+
+    private RenderFragment Links => @<MudNavMenu>
+        @foreach (var item in Items)
+        {
+            <MudNavLink Href="@item.Href" Match="@(item.Exact ? NavLinkMatch.All : NavLinkMatch.Prefix)">@item.Label</MudNavLink>
+        }
+    </MudNavMenu>;
+
+    /// <summary>
+    /// Beschriftung des zugeklappten Zustands: der Eintrag, auf dem man gerade steht. Ohne ihn traegt das
+    /// <c>summary</c> nur ein generisches Wort und der Benutzer verliert, wo er ist.
+    /// </summary>
+    private string ActiveLabel
+    {
+        get
+        {
+            var current = Nav.ToBaseRelativePath(Nav.Uri);
+            var query = current.IndexOf('?');
+            if (query >= 0)
+            {
+                current = current[..query];
+            }
+
+            current = current.Trim('/');
+
+            // Laengster Treffer zuerst: "Account/Manage" ist Praefix aller anderen und wuerde sonst immer gewinnen.
+            var match = Items
+                .Where(i => string.Equals(current, i.Href, StringComparison.OrdinalIgnoreCase)
+                            || (!i.Exact && current.StartsWith(i.Href + "/", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(i => i.Href.Length)
+                .FirstOrDefault();
+
+            return match?.Label ?? L["Manage your account"].Value;
+        }
+    }
+}

@@ -42,21 +42,21 @@
 
                 <MudText Typo="Typo.subtitle1" GutterBottom="true">@L["Use a local account to log in."]</MudText>
 
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" type="email" />
+                <div class="itv-field mb-3">
+                    <InputText @bind-Value="Input.Email" id="Input.Email" class="itv-field-input" autocomplete="username webauthn" type="email" />
                     <label for="Input.Email">@L["Email"]</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                    <ValidationMessage For="() => Input.Email" class="itv-field-error" />
                 </div>
 
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" type="password" />
+                <div class="itv-field mb-3">
+                    <InputText @bind-Value="Input.Password" id="Input.Password" class="itv-field-input" autocomplete="current-password" type="password" />
                     <label for="Input.Password">@L["Password"]</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+                    <ValidationMessage For="() => Input.Password" class="itv-field-error" />
                 </div>
 
-                <div class="form-check mb-3">
-                    <InputCheckbox @bind-Value="Input.RememberMe" id="Input.RememberMe" class="form-check-input" />
-                    <label for="Input.RememberMe" class="form-check-label">@L["Remember me?"]</label>
+                <div class="itv-check mb-3">
+                    <InputCheckbox @bind-Value="Input.RememberMe" id="Input.RememberMe" class="itv-check-input" />
+                    <label for="Input.RememberMe" class="itv-check-label">@L["Remember me?"]</label>
                 </div>
 
                 <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mb-3">
@@ -66,9 +66,9 @@
                 @if (PasskeyProvider.Handler.UsePage)
                 {
                     <MudDivider Class="my-3" />
-                    <div class="d-flex justify-content-center">
+                    <div class="d-flex justify-center">
                         <MudText Typo="Typo.caption" Class="me-2 align-self-center">@L["Or"]</MudText>
-                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link">
+                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="itv-button-link">
                             @L["Sign in with a passkey"]
                         </PasskeySubmit>
                     </div>

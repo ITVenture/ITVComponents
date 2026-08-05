@@ -48,6 +48,52 @@ async function requestCredential(email, mediation, headers, signal) {
     return await navigator.credentials.get({ publicKey: options, mediation, signal });
 }
 
+// ---------------------------------------------------------------------------------------------------
+// Interaktiver Weg (Account/Manage/Passkeys).
+//
+// Die Konto-Seiten rendern interaktiv; das Ergebnis reist ueber die .NET-Referenz zurueck statt ueber
+// einen Formular-Post. Der WebAuthn-Aufruf bleibt dabei bewusst HIER, im Klick-Handler:
+// navigator.credentials.create() verlangt eine frische Benutzer-Geste. Ginge der Klick erst ueber
+// SignalR zum Server und von dort per JS-Interop zurueck, waere der Gesten-Kontext verlassen - Safari
+// ist da streng, und der Aufruf schluege mit NotAllowedError fehl.
+//
+// Die Optionen kommen darum schon beim Anhaengen mit: sie zur Klickzeit zu holen, waere derselbe
+// Umweg. Der Server erzeugt sie beim Aufbau der Seite.
+// ---------------------------------------------------------------------------------------------------
+export function attachPasskeyCreate(buttonId, dotNetRef, optionsJson) {
+    const button = document.getElementById(buttonId);
+    if (!button) {
+        console.error(`attachPasskeyCreate: no element with id '${buttonId}'.`);
+        return;
+    }
+
+    button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        try {
+            if (!browserSupportsPasskeys) {
+                throw new Error('Some passkey features are missing. Please update your browser.');
+            }
+
+            const options = PublicKeyCredential.parseCreationOptionsFromJSON(JSON.parse(optionsJson));
+            const credential = await navigator.credentials.create({ publicKey: options });
+            await dotNetRef.invokeMethodAsync('OnPasskeyCreatedAsync', JSON.stringify(credential));
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                // Vom Benutzer abgebrochen - kein Fehler, nur nichts zu tun.
+                return;
+            }
+            console.error(error);
+            const message = error.name === 'NotAllowedError'
+                ? 'No passkey was provided by the authenticator.'
+                : error.message;
+            await dotNetRef.invokeMethodAsync('OnPasskeyFailedAsync', message);
+        }
+    });
+}
+
+// Doppelte Registrierung vermeiden: das Modul kann sowohl vom <script>-Tag des Hosts als auch ueber
+// import() aus einer interaktiven Komponente geladen werden.
+if (!customElements.get('passkey-submit')) {
 customElements.define('passkey-submit', class extends HTMLElement {
     static formAssociated = true;
 
@@ -130,3 +176,4 @@ customElements.define('passkey-submit', class extends HTMLElement {
         }
     }
 });
+}
