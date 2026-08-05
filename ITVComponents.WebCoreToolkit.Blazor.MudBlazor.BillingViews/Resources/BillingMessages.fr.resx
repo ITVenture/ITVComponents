@@ -48,4 +48,9 @@
   <data name="SaveFailed" xml:space="preserve"><value>Échec de l'enregistrement : {0}</value></data>
   <data name="PushedToStripe" xml:space="preserve"><value>Envoyé vers Stripe.</value></data>
   <data name="PushFailed" xml:space="preserve"><value>Échec de l'envoi : {0}</value></data>
+  <data name="Checkout_Canceled" xml:space="preserve"><value>Procédure annulée — vous pouvez choisir un plan à tout moment.</value></data>
+  <data name="Checkout_Processing" xml:space="preserve"><value>Votre commande est en cours de traitement. La confirmation du prestataire de paiement arrive généralement en quelques secondes.</value></data>
+  <data name="Checkout_Refresh" xml:space="preserve"><value>Actualiser</value></data>
+  <data name="Checkout_ShowPlans" xml:space="preserve"><value>Afficher les plans</value></data>
+  <data name="PreviousSubscriptionCanceled" xml:space="preserve"><value>Votre abonnement précédent a été résilié. Vous pouvez choisir un nouveau plan à tout moment.</value></data>
 </root>

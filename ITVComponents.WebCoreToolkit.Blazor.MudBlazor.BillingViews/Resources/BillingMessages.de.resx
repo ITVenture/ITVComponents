@@ -47,5 +47,10 @@
   <data name="PlanSaved" xml:space="preserve"><value>Plan gespeichert.</value></data>
   <data name="SaveFailed" xml:space="preserve"><value>Speichern fehlgeschlagen: {0}</value></data>
   <data name="PushedToStripe" xml:space="preserve"><value>Zu Stripe übertragen.</value></data>
+  <data name="Checkout_Canceled" xml:space="preserve"><value>Vorgang abgebrochen — Sie können jederzeit einen Plan wählen.</value></data>
+  <data name="Checkout_Processing" xml:space="preserve"><value>Ihre Bestellung wird verarbeitet. Die Bestätigung des Zahlungsanbieters trifft in der Regel innerhalb weniger Sekunden ein.</value></data>
+  <data name="Checkout_Refresh" xml:space="preserve"><value>Aktualisieren</value></data>
+  <data name="Checkout_ShowPlans" xml:space="preserve"><value>Pläne anzeigen</value></data>
+  <data name="PreviousSubscriptionCanceled" xml:space="preserve"><value>Ihr bisheriges Abonnement wurde gekündigt. Sie können jederzeit einen neuen Plan wählen.</value></data>
   <data name="PushFailed" xml:space="preserve"><value>Übertragung fehlgeschlagen: {0}</value></data>
 </root>

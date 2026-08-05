@@ -86,7 +86,16 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
     /// <summary>The current tenant's subscription summary for the manage page.</summary>
     public class SubscriptionOverviewViewModel
     {
+        /// <summary>
+        /// True only when a subscription actually binds the tenant (TenantSubscriptionExtensions.IsLive) — NOT merely
+        /// "a mirror row exists". A started-but-aborted checkout and a canceled subscription both leave a row behind.
+        /// </summary>
         public bool HasSubscription { get; set; }
+
+        /// <summary>
+        /// The mirrored status, also filled when <see cref="HasSubscription"/> is false — then it says why: None for
+        /// an aborted checkout, Canceled for a subscription that ended. The page uses it to explain the plan list.
+        /// </summary>
         public SubscriptionStatus Status { get; set; }
         public string? Currency { get; set; }
         public System.DateTime? CurrentPeriodEnd { get; set; }

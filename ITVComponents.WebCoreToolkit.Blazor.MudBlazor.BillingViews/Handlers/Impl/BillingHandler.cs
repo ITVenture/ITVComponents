@@ -63,7 +63,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 return vm;
             }
 
-            vm.HasSubscription = true;
+            // Not "a row exists" but "the row mirrors a binding subscription" — see TenantSubscriptionExtensions.IsLive.
+            // A started-but-aborted checkout and a canceled subscription both leave a row behind; both must fall back
+            // to the plan list, or the tenant can never (re-)subscribe from the UI.
+            vm.HasSubscription = sub.IsLive();
             vm.Status = sub.Status;
             vm.Currency = sub.Currency;
             vm.CurrentPeriodEnd = sub.CurrentPeriodEnd;

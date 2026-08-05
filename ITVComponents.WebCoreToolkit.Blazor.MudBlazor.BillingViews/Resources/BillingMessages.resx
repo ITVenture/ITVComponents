@@ -94,4 +94,9 @@
   <data name="SaveFailed" xml:space="preserve"><value>Save failed: {0}</value></data>
   <data name="PushedToStripe" xml:space="preserve"><value>Pushed to Stripe.</value></data>
   <data name="PushFailed" xml:space="preserve"><value>Push failed: {0}</value></data>
+  <data name="Checkout_Canceled" xml:space="preserve"><value>Checkout canceled — you can pick a plan any time.</value></data>
+  <data name="Checkout_Processing" xml:space="preserve"><value>Your order is being processed. Confirmation from the payment provider usually arrives within a few seconds.</value></data>
+  <data name="Checkout_Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Checkout_ShowPlans" xml:space="preserve"><value>Show plans</value></data>
+  <data name="PreviousSubscriptionCanceled" xml:space="preserve"><value>Your previous subscription was canceled. You can pick a new plan any time.</value></data>
 </root>

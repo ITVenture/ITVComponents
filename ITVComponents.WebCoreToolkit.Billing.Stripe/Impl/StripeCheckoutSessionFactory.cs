@@ -81,8 +81,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
             // Guard against double-subscribing: a second subscription-mode checkout would create a parallel
             // Stripe subscription and corrupt the single-subscription-per-tenant mirror. Plan/add-on changes
-            // for an active subscription go through the billing portal instead.
-            if (existing is { Status: SubscriptionStatus.Active or SubscriptionStatus.Trialing or SubscriptionStatus.PastDue })
+            // for an active subscription go through the billing portal instead. Shares IsLive() with the
+            // subscription page on purpose — a guard that is stricter or laxer than what the page shows either
+            // strands the tenant or lets the parallel subscription through anyway.
+            if (existing.IsLive())
             {
                 throw new InvalidOperationException($"Tenant {tenantId} already has an active subscription — use the billing portal to change it.");
             }

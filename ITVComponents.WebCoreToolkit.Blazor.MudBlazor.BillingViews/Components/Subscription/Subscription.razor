@@ -54,8 +54,38 @@ else if (overview.HasSubscription)
         </MudCardActions>
     </MudCard>
 }
+else if (awaitingConfirmation)
+{
+    @* Rueckkehr aus einem erfolgreichen Checkout: das Abo entsteht erst, wenn der Webhook eintrifft. Ohne
+       diesen Zwischenzustand zeigte die Seite direkt nach der Bestellung wieder die Planliste - fuer den
+       Benutzer nicht von einem Fehlschlag zu unterscheiden. *@
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                <MudText Typo="Typo.body1">@L["Checkout_Processing"]</MudText>
+            </MudStack>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
+                       Disabled="@busy" OnClick="RefreshOverview">@L["Checkout_Refresh"]</MudButton>
+            <MudButton Variant="Variant.Text" Disabled="@busy" OnClick="ShowPlans">@L["Checkout_ShowPlans"]</MudButton>
+        </MudCardActions>
+    </MudCard>
+}
 else
 {
+    @if (checkout == "cancel")
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">@L["Checkout_Canceled"]</MudAlert>
+    }
+    else if (overview.Status == SubscriptionStatus.Canceled)
+    {
+        @* Die Zeile ueberlebt die Kuendigung (Kundenbezug + Historie). Ohne diesen Hinweis wirkt die
+           zurueckkehrende Planliste wie Datenverlust. *@
+        <MudAlert Severity="Severity.Info" Class="mb-3">@L["PreviousSubscriptionCanceled"]</MudAlert>
+    }
+
     <MudText Typo="Typo.body1" Class="mb-3">@L["ChoosePlan"]</MudText>
 
     @if (availableCurrencies.Count > 1)
@@ -137,6 +167,13 @@ else
     private List<string> availableCurrencies = new();
     private string? selectedCurrency;
 
+    /// <summary>Rueckkehrmarke aus dem Checkout ("success" / "cancel"), von Subscribe in beide Provider-URLs gesetzt.</summary>
+    [SupplyParameterFromQuery(Name = "checkout")]
+    private string? checkout { get; set; }
+
+    /// <summary>Nach "success", solange der Webhook das Abo noch nicht eingetragen hat.</summary>
+    private bool awaitingConfirmation;
+
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
@@ -147,8 +184,14 @@ else
             return;
         }
 
-        overview = await Handler.GetOverviewAsync(currentUser);
-        if (!overview.HasSubscription)
+        await LoadOverviewAsync();
+    }
+
+    private async Task LoadOverviewAsync()
+    {
+        overview = await Handler.GetOverviewAsync(currentUser!);
+        awaitingConfirmation = checkout == "success" && !overview.HasSubscription;
+        if (!overview.HasSubscription && !awaitingConfirmation)
         {
             plans = await Handler.GetActivePlansAsync();
 
@@ -156,6 +199,35 @@ else
             availableCurrencies = plans.SelectMany(p => p.Prices).Select(pr => pr.Currency.ToUpperInvariant())
                 .Distinct().OrderBy(c => c).ToList();
             selectedCurrency = availableCurrencies.Contains("EUR") ? "EUR" : availableCurrencies.FirstOrDefault();
+        }
+    }
+
+    /// <summary>Nochmals nachsehen, ob der Webhook inzwischen eingetroffen ist.</summary>
+    private async Task RefreshOverview()
+    {
+        busy = true;
+        try
+        {
+            await LoadOverviewAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>Ausweg aus dem Wartezustand: der Benutzer will die Planliste sehen, statt weiter zu warten.</summary>
+    private async Task ShowPlans()
+    {
+        busy = true;
+        try
+        {
+            checkout = null;
+            await LoadOverviewAsync();
+        }
+        finally
+        {
+            busy = false;
         }
     }
 
