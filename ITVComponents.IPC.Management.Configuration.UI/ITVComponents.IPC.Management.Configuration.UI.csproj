@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE158</Version>
+    <Version>5.0.0-PRE159</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ExtrasEnableWpfProjectSetup>true</ExtrasEnableWpfProjectSetup>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
