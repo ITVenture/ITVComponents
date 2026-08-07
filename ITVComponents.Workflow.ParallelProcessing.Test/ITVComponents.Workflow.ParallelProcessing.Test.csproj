@@ -7,7 +7,12 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.3" />
     <PackageReference Include="MSTest.TestFramework" Version="3.6.3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <!-- Override the vulnerable SQLitePCLRaw.lib.e_sqlite3 2.1.11 that Microsoft.Data.Sqlite still
+         pins (GHSA-2m69-gcr7-jv3q: memory corruption in SQLite before 3.50.2). Mind the version
+         scheme: this package now follows the SQLite version, so 3.53.3 IS SQLite 3.53.3 - it is not
+         a major jump but the patched build. The advisory names no fixed version, hence the pin. -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Workflow.ParallelProcessing\ITVComponents.Workflow.ParallelProcessing.csproj" />

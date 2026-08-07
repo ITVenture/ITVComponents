@@ -43,12 +43,12 @@
     <Compile Update="ServiceStartup.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.9" />
-    <PackageReference Include="Microsoft.extensions.configuration" Version="10.0.9" />
-    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="10.0.9" />
-    <PackageReference Include="Microsoft.extensions.configuration.json" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.10" />
+    <PackageReference Include="Microsoft.extensions.configuration" Version="10.0.10" />
+    <PackageReference Include="Microsoft.extensions.configuration.binder" Version="10.0.10" />
+    <PackageReference Include="Microsoft.extensions.configuration.json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.10" />
     <PackageReference Include="PrettyPrompt" Version="6.0.4" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
