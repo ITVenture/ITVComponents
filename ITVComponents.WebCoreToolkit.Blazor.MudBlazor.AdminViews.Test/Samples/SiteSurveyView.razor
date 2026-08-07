@@ -1,0 +1,76 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.Samples
+@using System.Text.Json.Nodes
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensibility
+@implements ICustomCompanyInfoView
+
+@* Beispiel einer EIGENEN Zusatzangaben-Maske (Leitfaden §23.5).
+
+   Sie bringt bewusst keinen Absende-Knopf mit: der Rahmen gehoert der Erfassung. Beim Abschicken wird
+   ResolveValuesAsync gerufen - erst dann prueft die Maske und liefert ihren Datensatz. *@
+
+<MudGrid Spacing="2">
+    <MudItem xs="12" sm="4">
+        <MudNumericField T="int?" @bind-Value="sites" Label="Standorte" Min="0"
+                         Error="@(missing == nameof(sites))"
+                         ErrorText="Mindestens ein Standort ist noetig." />
+    </MudItem>
+    <MudItem xs="12" sm="8">
+        <MudTextField @bind-Value="mainSite" Label="Hauptstandort" />
+    </MudItem>
+    <MudItem xs="12">
+        <MudTextField @bind-Value="notes" Label="Bemerkungen" Lines="3" />
+    </MudItem>
+</MudGrid>
+
+@code {
+    /// <summary>
+    /// Der Platz dieser Maske im Vorgang. Kaskadiert herein und ist unveraenderlich - die Erfassung setzt
+    /// ihn einmal, wenn der Reiter entsteht.
+    /// </summary>
+    [CascadingParameter] public CustomCompanyInfoViewContext Ctx { get; set; } = default!;
+
+    private int? sites;
+    private string? mainSite;
+    private string? notes;
+    private string? missing;
+
+    protected override void OnInitialized()
+    {
+        // Vorbelegung aus dem, was am Mandanten liegt. Beim Anlegen ist Existing null - dann bleibt die
+        // Maske leer, und genau daran ist der Unterschied zwischen Anlage und Nachtrag zu erkennen.
+        if (Ctx.Existing is JsonObject obj)
+        {
+            sites = obj["Sites"]?.GetValue<int?>();
+            mainSite = obj["MainSite"]?.GetValue<string?>();
+            notes = obj["Notes"]?.GetValue<string?>();
+        }
+    }
+
+    /// <summary>
+    /// Wird beim Abschicken gerufen. Was hier zurueckgeht, landet unveraendert im Vorgang und spaeter im
+    /// <c>PersistAsync</c> des Moduls.
+    /// </summary>
+    public Task<CustomInfoViewResult> ResolveValuesAsync()
+    {
+        missing = null;
+        if (sites is null or < 1)
+        {
+            missing = nameof(sites);
+            StateHasChanged();
+            // Ohne Meldung: die Stelle ist oben bereits markiert, eine zusaetzliche Einblendung ueber dem
+            // Reiter waere nur Laerm.
+            return Task.FromResult(CustomInfoViewResult.Incomplete());
+        }
+
+        var values = new JsonObject
+        {
+            ["Sites"] = JsonValue.Create(sites.Value),
+            ["MainSite"] = mainSite is null ? null : JsonValue.Create(mainSite),
+            ["Notes"] = notes is null ? null : JsonValue.Create(notes)
+        };
+
+        return Task.FromResult(CustomInfoViewResult.Complete(values));
+    }
+}

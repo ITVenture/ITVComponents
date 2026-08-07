@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- Die Beispiel-Maske verwendet Nullable-Anmerkungen; ohne dies meldet der aus .razor erzeugte Code
+         CS8669. Ein Konsument, der die Vorlage uebernimmt, arbeitet ohnehin mit eingeschaltetem Kontext. -->
+    <Nullable>enable</Nullable>
+    <!-- Razor-SDK, weil dieses Projekt eine echte .razor-Maske enthaelt: der Weg ueber ViewKey soll nicht
+         nur beschrieben, sondern uebersetzt werden. Genau dabei faellt auf, wenn der Vertrag einer eigenen
+         Maske sich aendert - eine Beschreibung im Leitfaden merkt davon nichts. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.csproj" />
+  </ItemGroup>
+</Project>

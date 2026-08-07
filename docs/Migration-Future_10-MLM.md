@@ -1506,7 +1506,90 @@ gefilterte Maske allein hielte niemanden davon ab, den Datensatz eines fremden M
 
 Während der **Anlage** gilt `EditPermission` nicht: dort gibt es weder den Mandanten noch Rechte darauf.
 
-### 23.4 Zwei Verhaltensänderungen im geteilten Feld-Renderer
+### 23.4 Eine eigene Maske statt der generischen (`ViewKey`)
+
+Reicht die Feld-Deklaration nicht — abhängige Felder, eine Tabelle, eine Karte — bringt das Modul eine eigene
+Razor-Komponente mit. Es nennt dafür nur einen **Schlüssel**; welche Komponente dahinter steht, entscheidet der
+Host. Ein `Type` im Modul wäre entweder eine falsche Abhängigkeit (Blazor im Vertrag) oder ein Typname als
+Zeichenkette — und Letzteres machte Konfigurationspflege gleichbedeutend mit Code-Ausführung.
+
+**1. Modul:** `GetFields` bleibt leer, `ViewKey` nennt den Schlüssel.
+
+```csharp
+public string ViewKey => "sample.sitesurvey";
+
+public IReadOnlyList<CustomInfoField> GetFields(CustomInfoContext ctx)
+    => Array.Empty<CustomInfoField>();
+
+// values ist bei eigener Maske IMMER leer — die flache Sicht gibt es nur für die generische Maske.
+// Wer eine eigene mitbringt, bestimmt die Form seines Datensatzes selbst und liest payload.
+public Task<CustomInfoValidation> ValidateAsync(IReadOnlyDictionary<string, string> values,
+    JsonNode payload, CustomInfoContext ctx, CancellationToken ct)
+{
+    int? sites = (payload as JsonObject)?["Sites"]?.GetValue<int?>();
+    return Task.FromResult(sites is null or < 1
+        ? CustomInfoValidation.Failed("{\"de\":\"Mindestens ein Standort ist noetig.\"}", "Sites")
+        : CustomInfoValidation.Ok());
+}
+```
+
+**2. Maske:** erfüllt `ICustomCompanyInfoView`, liest ihren Zustand über den Kaskaden-Wert — und bringt
+**keinen Absende-Knopf** mit. Der Rahmen gehört der Erfassung: Reiter, Prüfung über alle Reiter hinweg und das
+Anspringen des Reiters, an dem etwas fehlt, sind für jede Maske gleich. Zwei Knöpfe, von denen nur einer den
+Vorgang abschliesst, wären eine Falle.
+
+```razor
+@implements ICustomCompanyInfoView
+
+<MudNumericField T="int?" @bind-Value="sites" Label="Standorte"
+                 Error="@(missing == nameof(sites))" ErrorText="Mindestens ein Standort ist noetig." />
+
+@code {
+    [CascadingParameter] public CustomCompanyInfoViewContext Ctx { get; set; } = default!;
+
+    private int? sites;
+    private string? missing;
+
+    protected override void OnInitialized()
+    {
+        // Vorbelegung aus dem, was am Mandanten liegt. Beim Anlegen ist Existing null.
+        if (Ctx.Existing is JsonObject obj) { sites = obj["Sites"]?.GetValue<int?>(); }
+    }
+
+    public Task<CustomInfoViewResult> ResolveValuesAsync()
+    {
+        missing = null;
+        if (sites is null or < 1)
+        {
+            missing = nameof(sites);
+            StateHasChanged();
+            // Ohne Meldung: die Stelle ist bereits markiert, eine Einblendung wäre nur Lärm.
+            return Task.FromResult(CustomInfoViewResult.Incomplete());
+        }
+
+        return Task.FromResult(CustomInfoViewResult.Complete(
+            new JsonObject { ["Sites"] = JsonValue.Create(sites.Value) }));
+    }
+}
+```
+
+**3. Host:** verbindet Schlüssel und Komponente beim Start.
+
+```csharp
+services.ConfigureCustomCompanyInfoViews(c => c.RegisterView<SiteSurveyView>("sample.sitesurvey"));
+```
+
+`RegisterView<T>` verlangt `IComponent` **und** `ICustomCompanyInfoView` schon beim Übersetzen — eine Maske,
+die den Vertrag verletzt, kommt gar nicht durch den Compiler und nicht erst dann, wenn ein Benutzer den Reiter
+öffnet. Ein Schlüssel, zu dem nichts registriert ist, fällt auf die generische Maske zurück, aber mit einer
+Log-Zeile, nicht still.
+
+**Lauffähige Vorlage:** `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test/Samples/` enthält Modul
+und Maske vollständig — bewusst in einem Testprojekt und nicht im ausgelieferten Paket, wo sie Code wären, den
+niemand benutzt, der aber bei jedem Kunden mitginge. Dort wird der Weg auch tatsächlich übersetzt und geprüft,
+statt nur beschrieben.
+
+### 23.5 Zwei Verhaltensänderungen im geteilten Feld-Renderer
 
 Der Renderer aus den Workflow-Aufgabenmasken ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor`
 gewandert; `UserTaskFieldsForm` ist jetzt ein Adapter mit unveränderter API. Dabei zwei Korrekturen, die auch die
