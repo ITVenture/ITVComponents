@@ -1446,6 +1446,78 @@ beim Neuladen nach der Bestätigung.
 
 ---
 
+## 23. Zusatzangaben-Module in der Firmendaten-Erfassung (opt-in, kein Schema-Change)
+
+Die Firmendaten-Erfassung lässt sich um eigene Angaben erweitern — pro aktiviertem Modul ein Reiter unter den
+Adressen, sowohl beim Onboarding als auch später im Firmenprofil.
+
+### 23.1 Ein Modul schreiben
+
+Der Vertrag `ICustomCompanyInformationHandler` liegt **Blazor-frei** in
+`EntityFramework.Onboarding/Shared/Extensibility` — ein Modul lässt sich schreiben, ohne die
+Oberflächen-Bibliothek zu referenzieren. Es ist ein Plugin (`IPlugin`) und liefert:
+
+- `Key` — der stabile Schlüssel, unter dem seine Angaben abgelegt werden. **Darf sich nie mehr ändern.**
+- `Title` / `Icon` — Beschriftung des Reiters; `Title` darf Kultur-JSON sein.
+- `GetFields(ctx)` — die Felder der generischen Maske (Text, Zahl, Ja/Nein, Datum, Auswahl …). Weil der Kontext
+  übergeben wird, darf dieselbe Angabe im einen Fall Pflicht und im anderen freiwillig sein.
+- `AppliesTo(ctx)` — ob das Modul in diesem Fall überhaupt zuständig ist.
+- `ValidateAsync` / `PersistAsync` / `LoadAsync` — prüfen, ablegen, wieder laden. **Das Toolkit legt von diesen
+  Angaben selbst nichts ab**: sie sind nicht sicherheitsrelevant und gehören nicht in die Security-Datenbank.
+- `EditPermission` — siehe §23.3.
+- `ViewKey` — leer = generische Maske. Sonst der Schlüssel einer eigenen Razor-Komponente, die der Host über
+  `services.ConfigureCustomCompanyInfoViews(c => c.RegisterView<MeineMaske>("mein.schluessel"))` anmeldet und
+  die `ICustomCompanyInfoView` erfüllt. Bewusst ein Schlüssel und kein Typ — sonst müsste der Modul-Autor doch
+  wieder die Oberflächen-Bibliothek kennen.
+
+Der Kontext (`CustomInfoContext`) nennt die Mandanten-Strategie **nirgends**: er trägt `Mode` (Create/Edit),
+`Origin` (SelfService/Invitation), `ProfileType`, `TenantId` und `ParentTenantId`. Letzteres ist im flachen
+Betrieb schlicht immer `null` — ein Modul, das nur die ersten drei auswertet, läuft in beiden Welten unverändert.
+
+### 23.2 Aktivieren (GlobalSettings `CustomCompanyInfo`)
+
+```json
+{ "Handlers": [ "MeinNetzwerktypModul", "MeinBranchenModul" ] }
+```
+
+Eine Namensliste statt einer Typsuche: der Plugin-Bestand hat keinen Typ-Index, und die Reihenfolge gibt zugleich
+die Reihenfolge der Reiter vor. **Die genannten Plugins müssen global sein (kein Tenant)** — während der Anlage
+gibt es den Mandanten, zu dem die Angaben gehören, noch gar nicht.
+
+Geladen wird über den **frischen** Plugin-Weg (`IFreshInjectablePlugin`), nicht den geteilten: ein Modul hält
+typischerweise einen eigenen DbContext, und ein pro Scope geteiltes solches Objekt ist unter Blazor genau die
+Bauart, aus der *„a second operation was started on this context"* entsteht. Der Provider hält zudem nie ein
+Modul über die Dauer eines Formulars — jede Operation öffnet und schliesst es.
+
+Ohne konfigurierte Module ist das alles **reiner Leerlauf**; der Plugin-Ladeweg wird erst aufgelöst, wenn wirklich
+Namen in den Einstellungen stehen. Ein Host ohne Module braucht also kein `UseInjectablePlugins`.
+
+### 23.3 Nachtragen im Firmenprofil
+
+Die Reiter erscheinen jetzt auch in `/Onboarding/BillingProfile` (Tab 1, unter den Adressen), vorbelegt mit dem,
+was `LoadAsync` liefert. Gespeichert wird **nach** dem Profil: die Angaben liegen in fremden Ablagen, mit denen es
+keine gemeinsame Transaktion gibt. Scheitert ein Modul, bleibt das gespeicherte Profil bestehen und der Benutzer
+bekommt einen Hinweis; welches Modul es war, steht im Protokoll.
+
+**`EditPermission`** greift genau hier: nennt ein Modul eine Berechtigung, bekommt nur ein Benutzer mit dieser
+Berechtigung den Reiter zu sehen — und geprüft wird **an derselben Stelle noch einmal beim Schreiben**. Eine
+gefilterte Maske allein hielte niemanden davon ab, den Datensatz eines fremden Moduls einfach mitzuschicken. Leer
+= es gilt die Berechtigung des Firmenprofils selbst (`Onboarding.Admin.BillingProfile.Write`).
+
+Während der **Anlage** gilt `EditPermission` nicht: dort gibt es weder den Mandanten noch Rechte darauf.
+
+### 23.4 Zwei Verhaltensänderungen im geteilten Feld-Renderer
+
+Der Renderer aus den Workflow-Aufgabenmasken ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor`
+gewandert; `UserTaskFieldsForm` ist jetzt ein Adapter mit unveränderter API. Dabei zwei Korrekturen, die auch die
+Workflow-Masken betreffen:
+
+1. Ein **Ja/Nein-Pflichtfeld** startet auf `false`. Vorher galt ein unberührter Schalter als „nicht ausgefüllt" —
+   man kam nur durch, indem man ihn ein- und wieder ausschaltete.
+2. Die **Vorbelegung** lief nie, wenn der Aufrufer keinen `ResetKey` setzte. Im Bestand betraf das niemanden.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1479,3 +1551,4 @@ beim Neuladen nach der Bestätigung.
 | 25 | **System-Log „Eintrag verfolgen" + Index** (§20) | Kein Breaking Change, keine Config, keine neue Permission — der Augen-Button in `/Util/SystemLog` zeigt je 20 Einträge vor/nach einer Nachricht (einstellbar). **Empfohlen:** Index `IX_SystemLogEventTime` auf `SystemLog (EventTime, SystemEventId)` **manuell** nachziehen (SQL in §20) — **nicht** via `dotnet ef migrations add`, der Snapshot driftet und würde fremde Änderungen mitschleppen. Ohne Index läuft alles, sortiert aber über die ganze Tabelle |
 | 26 | **Zustimmungen im Onboarding** (§21) | **Pflicht:** DbSet `ConsentRecords` im Onboarding-Context (beide Context-Interfaces erweitern neu `IOnboardingConsentContext`, sonst Compile-Break) + Tabelle `ConsentRecord` **manuell** anlegen (SQL in §21.1) + Spalte `HelpTopic.ShowInMenu bit NOT NULL DEFAULT 1` (§21.4). Beide Onboarding-Handler haben `IConsentProvider` als neuen Ctor-Parameter (über `AddMudBlazor*OnboardingViews` automatisch). `BillingProfileViewModel.AcceptTos` hat seine Pflicht-Annotation verloren, `BillingProfileForm` braucht neu den Parameter `ConsentPoints` — wer beides ohne die mitgelieferten Seiten verwendet, muss selbst prüfen bzw. setzen. **`Scope` je Punkt (`User`/`Tenant`/`Both`, Default `User`) entscheidet, ob eine Zustimmung einmalig der Person gilt oder mit jedem Mandanten neu fällt** (§21.2.1). Ohne GlobalSetting `Consent` bleibt es beim einen eingebauten Schalter (Verhalten wie bisher, weiterhin ohne Nachweis) |
 | 27 | **Selbstregistrierung + Standard-Mandant** (§22) | Kein Schema-Change. `/Account/Register` existiert neu (der Verweis auf der Anmeldeseite lief bisher ins Leere) und ist **standardmässig abgeschaltet**. Freigeben mit `TenantSetup.AllowSelfRegistration = true` **plus** `DefaultUserTenant` (+ `DefaultUserTenantRole`) — sonst landet der Registrierte in einer leeren Mandanten-Übersicht. Zuweisung nach der Mailbestätigung, nur wenn der Benutzer nirgends Mitglied ist und keine Einladung wartet. `IOnboardingHandler` hat ein neues Member (`AssignDefaultTenantAsync`) — **eigene Implementierungen des Interfaces brechen**. Der Verweis auf der Anmeldeseite hängt jetzt zusätzlich an `ISelfRegistrationPolicy` (neu in `WebCoreToolkit/Security`, optional aufgelöst — ohne Onboarding-Paket unverändert). `JoinRegister` ist unverändert erreichbar und braucht das Flag nicht |
+| 28 | **Zusatzangaben-Module** (§23) | Kein Schema-Change, opt-in. Ohne GlobalSetting `CustomCompanyInfo` passiert nichts. Module sind globale Plugins nach `ICustomCompanyInformationHandler` (Blazor-frei); Reiter erscheinen im Onboarding **und** neu im Firmenprofil (Tab 1), dort gated durch `EditPermission` des Moduls — geprüft beim Anzeigen **und** beim Schreiben. Der Feld-Renderer ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor` gewandert (`UserTaskFieldsForm` = Adapter, API unverändert); zwei Verhaltenskorrekturen betreffen auch die Workflow-Aufgabenmasken (Ja/Nein-Pflichtfeld startet auf `false`, Vorbelegung ohne `ResetKey`) |

@@ -40,6 +40,7 @@
   <data name="Onb_Register_Intro" xml:space="preserve"><value>Scegli un indirizzo e-mail e una password. Riceverai poi un link di conferma.</value></data>
   <data name="Onb_Register_Submit" xml:space="preserve"><value>Crea account</value></data>
   <data name="Onb_Register_Disabled" xml:space="preserve"><value>Qui non è possibile creare account. Per unirti serve un invito.</value></data>
+  <data name="OnbAdm_CustomPartlySaved" xml:space="preserve"><value>Il profilo è stato salvato, ma non è stato possibile memorizzare tutte le informazioni aggiuntive. Riprovare.</value></data>
   <data name="Onb_Custom_Yes" xml:space="preserve"><value>Sì</value></data>
   <data name="Onb_Custom_No" xml:space="preserve"><value>No</value></data>
   <data name="Onb_Custom_Rejected" xml:space="preserve"><value>Questi dati non sono stati accettati. Verificare le informazioni inserite.</value></data>

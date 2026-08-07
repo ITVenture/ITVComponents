@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Configuration;
+using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                         continue;
                     }
 
+                    // Die eigene Berechtigung eines Moduls gilt erst beim Nachtragen im Firmenprofil.
+                    // Waehrend der Anlage gibt es weder den Mandanten noch Rechte darauf - dort entscheidet
+                    // allein die Zustaendigkeit des Moduls.
+                    if (ctx.Mode == CustomInfoMode.Edit && !MayEdit(handler, name))
+                    {
+                        continue;
+                    }
+
                     try
                     {
                         var tab = new CustomInfoTab
@@ -102,6 +111,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                 {
                     ICustomCompanyInformationHandler handler = lease?.Value;
                     if (handler == null || !IsResponsible(handler, ctx, name))
+                    {
+                        continue;
+                    }
+
+                    // Was nicht gezeigt wurde, wird auch nicht geprueft - sonst beanstandete ein Modul
+                    // Angaben, die der Benutzer gar nicht machen konnte, und blockierte das Speichern.
+                    if (ctx.Mode == CustomInfoMode.Edit && !MayEdit(handler, name))
                     {
                         continue;
                     }
@@ -156,6 +172,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     }
 
                     if (!IsResponsible(handler, ctx, name))
+                    {
+                        continue;
+                    }
+
+                    // Dieselbe Pruefung wie beim Anzeigen - und hier ist sie die eigentliche: eine
+                    // gefilterte Maske allein haelte niemanden davon ab, den Datensatz eines fremden Moduls
+                    // mitzuschicken.
+                    if (ctx.Mode == CustomInfoMode.Edit && !MayEdit(handler, name))
                     {
                         continue;
                     }
@@ -227,6 +251,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
             {
                 logger.LogError(ex, "Das als Zusatzangaben-Modul konfigurierte Plugin '{Plugin}' konnte nicht geladen werden; seine Angaben werden weder erfasst noch abgelegt.", name);
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Darf der handelnde Benutzer die Angaben dieses Moduls bearbeiten? Ohne eigene Berechtigung am
+        /// Modul gilt die des Firmenprofils, die der Aufrufer bereits geprueft hat.
+        /// </summary>
+        /// <remarks>
+        /// Eine Ausnahme gilt als "nein": im Zweifel weniger zeigen. Ein Modul, dessen Berechtigung sich
+        /// nicht pruefen laesst, gehoert nicht in eine Maske, in der man es bearbeiten koennte.
+        /// </remarks>
+        private bool MayEdit(ICustomCompanyInformationHandler handler, string name)
+        {
+            string permission = handler.EditPermission;
+            if (string.IsNullOrWhiteSpace(permission))
+            {
+                return true;
+            }
+
+            try
+            {
+                if (services.VerifyUserPermissions(new[] { permission }))
+                {
+                    return true;
+                }
+
+                logger.LogDebug("Das Zusatzangaben-Modul '{Plugin}' verlangt die Berechtigung '{Permission}', die dem Benutzer fehlt; sein Reiter bleibt aus.", name, permission);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Die Berechtigung '{Permission}' des Zusatzangaben-Moduls '{Plugin}' liess sich nicht pruefen; sein Reiter bleibt aus.", permission, name);
+                return false;
             }
         }
 

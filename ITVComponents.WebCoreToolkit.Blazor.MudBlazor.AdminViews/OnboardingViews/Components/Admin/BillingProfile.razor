@@ -5,7 +5,10 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility
+
 @inject IOnboardingAdminHandler Handler
+@inject ICustomCompanyInfoProvider CustomInfo
 @inject ITenantInvitationHandler InvitationHandler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
@@ -102,6 +105,15 @@ else
                                 <AddressEditor Title="@L["Onb_InvoiceAddress"]" Address="model.InvoiceAddress" />
                             }
 
+                            @* Die Zusatzangaben zum Nachtragen. Der Provider hat die Reiter bereits um die
+                               Module gekuerzt, deren eigene Berechtigung dem Benutzer fehlt - was hier steht,
+                               darf er auch bearbeiten. *@
+                            @if (customTabs is { Count: > 0 } && customCtx is not null)
+                            {
+                                <CustomCompanyInfoTabs @ref="customInfoTabs" Tabs="customTabs" Info="customCtx"
+                                                       Values="model.CustomInfo" Narrow="narrow" />
+                            }
+
                             <SecureView RequiredPermissions="Onboarding.Admin.BillingProfile.Write">
                                 <Permitted>
                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2" Disabled="@busy" OnClick="Save">@L["OnbAdm_Save"]</MudButton>
@@ -167,6 +179,10 @@ else
     private bool busy;
     private bool subTenantSupported;
 
+    private CustomCompanyInfoTabs? customInfoTabs;
+    private IReadOnlyList<CustomInfoTab>? customTabs;
+    private CustomInfoContext? customCtx;
+
     /// <summary>Schmales Geraet (xs) - gesetzt vom MudHidden-Messpunkt oben.</summary>
     private bool narrow;
 
@@ -196,7 +212,42 @@ else
         model = first is not null
             ? await Handler.GetBillingProfileAsync(currentUser!, first.BillingProfileId) ?? new BillingProfileAdminViewModel()
             : new BillingProfileAdminViewModel();
+
+        await DescribeCustomAsync();
     }
+
+    /// <summary>
+    /// Fragt die Zusatzangaben-Module, was hier nachzutragen ist - mit <c>loadExisting</c>, damit die Masken
+    /// den abgelegten Stand zeigen und nicht leer beginnen.
+    /// </summary>
+    /// <remarks>
+    /// Der Erfassungsfall ist hier <see cref="CustomInfoMode.Edit"/>: erst dadurch greift die eigene
+    /// Berechtigung eines Moduls, und erst dadurch darf es entscheiden, dass es sich nachtraeglich gar
+    /// nicht mehr aendern laesst.
+    /// </remarks>
+    private async Task DescribeCustomAsync()
+    {
+        if (currentTenant is null || model is null)
+        {
+            return;
+        }
+
+        customCtx = new CustomInfoContext
+        {
+            Mode = CustomInfoMode.Edit,
+            Origin = CustomInfoOrigin.SelfService,
+            ProfileType = model.ProfileType,
+            TenantId = currentTenant.TenantId,
+            User = currentUser
+        };
+        customTabs = await CustomInfo.DescribeAsync(customCtx, loadExisting: true);
+    }
+
+    /// <summary>Die erfassten Datensaetze ohne die leeren Eintraege.</summary>
+    private IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonNode> Buckets()
+        => model!.CustomInfo
+            .Where(e => e.Value is not null)
+            .ToDictionary(e => e.Key, e => e.Value!, StringComparer.Ordinal);
 
     private async Task Save()
     {
@@ -212,9 +263,27 @@ else
             return;
         }
 
+        // Die Zusatzangaben einsammeln, bevor irgendetwas geschrieben wird: fehlt in einem Reiter ein
+        // Pflichtfeld, springt die Maske ihn an und das Profil bleibt unangetastet.
+        if (customInfoTabs is not null && !await customInfoTabs.TryCollectAsync())
+        {
+            return;
+        }
+
         busy = true;
         try
         {
+            if (customCtx is not null)
+            {
+                customCtx.ProfileType = model.ProfileType;
+                CustomInfoCheckResult check = await CustomInfo.ValidateAsync(customCtx, Buckets());
+                if (!check.Valid)
+                {
+                    customInfoTabs?.ShowError(check.HandlerKey, check.Message);
+                    return;
+                }
+            }
+
             var id = await Handler.SaveBillingProfileAsync(currentUser, model);
             if (id is null)
             {
@@ -223,6 +292,20 @@ else
             }
 
             model.BillingProfileId = id.Value;
+
+            // Die Angaben der Module liegen in fremden Ablagen - mit dem Speichern des Profils gibt es
+            // keine gemeinsame Transaktion. Deshalb danach, und ein Fehlschlag hier macht das gespeicherte
+            // Profil nicht rueckgaengig; der Provider protokolliert, welches Modul es war.
+            if (customCtx is not null)
+            {
+                CustomInfoPersistResult result = await CustomInfo.PersistAsync(customCtx, Buckets());
+                if (!result.Complete)
+                {
+                    Snackbar.Add(L["OnbAdm_CustomPartlySaved"], Severity.Warning);
+                    return;
+                }
+            }
+
             Snackbar.Add(L["OnbAdm_Saved"], Severity.Success);
         }
         finally

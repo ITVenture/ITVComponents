@@ -40,6 +40,7 @@
   <data name="Onb_Register_Intro" xml:space="preserve"><value>Wählen Sie eine E-Mail-Adresse und ein Kennwort. Sie erhalten anschliessend einen Bestätigungslink.</value></data>
   <data name="Onb_Register_Submit" xml:space="preserve"><value>Konto anlegen</value></data>
   <data name="Onb_Register_Disabled" xml:space="preserve"><value>Hier können keine Konten angelegt werden. Für den Beitritt brauchen Sie eine Einladung.</value></data>
+  <data name="OnbAdm_CustomPartlySaved" xml:space="preserve"><value>Das Profil wurde gespeichert, aber nicht alle Zusatzangaben konnten abgelegt werden. Bitte versuchen Sie es erneut.</value></data>
   <data name="Onb_Custom_Yes" xml:space="preserve"><value>Ja</value></data>
   <data name="Onb_Custom_No" xml:space="preserve"><value>Nein</value></data>
   <data name="Onb_Custom_Rejected" xml:space="preserve"><value>Diese Angaben wurden nicht akzeptiert. Bitte überprüfen Sie Ihre Eingaben.</value></data>

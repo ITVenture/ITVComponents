@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Text.Json.Nodes;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 
@@ -70,6 +71,12 @@ public class BillingProfileAdminViewModel
 
     /// <summary>Number of employee rows on the profile (list display only).</summary>
     public int EmployeeCount { get; set; }
+
+    /// <summary>
+    /// Die Angaben der Zusatzangaben-Module beim Nachtragen im Firmenprofil - je Modul-Schluessel ein
+    /// Datensatz, in derselben Form wie bei der Erfassung.
+    /// </summary>
+    public Dictionary<string, JsonNode?> CustomInfo { get; set; } = new();
 
     /// <summary>Display name for the profile (company name or person name), list display only.</summary>
     public string DisplayName =>
