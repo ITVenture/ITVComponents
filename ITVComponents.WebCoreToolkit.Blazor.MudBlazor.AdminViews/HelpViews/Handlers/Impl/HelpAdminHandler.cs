@@ -58,6 +58,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                     t.Slug,
                     t.Icon,
                     t.IsPublished,
+                    t.ShowInMenu,
                     t.SortOrder,
                     ChildCount = db.HelpTopics.Count(c => c.ParentId == t.HelpTopicId),
                     Contents = t.Contents.Select(c => new CultureTitle { Culture = c.Culture, Title = c.Title }).ToList()
@@ -72,6 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 Slug = t.Slug,
                 Icon = t.Icon,
                 IsPublished = t.IsPublished,
+                ShowInMenu = t.ShowInMenu,
                 SortOrder = t.SortOrder,
                 ChildCount = t.ChildCount,
                 Title = ResolveTitle(t.Contents, culture, t.Slug)
@@ -101,6 +103,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 Slug = topic.Slug,
                 Icon = topic.Icon,
                 IsPublished = topic.IsPublished,
+                ShowInMenu = topic.ShowInMenu,
                 SortOrder = topic.SortOrder,
                 Contents = topic.Contents
                     .OrderBy(c => c.Culture)
@@ -146,6 +149,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             topic.Slug = slug;
             topic.Icon = model.Icon;
             topic.IsPublished = model.IsPublished;
+            topic.ShowInMenu = model.ShowInMenu;
             topic.SortOrder = model.SortOrder;
 
             ReconcileContents(db, topic, model);

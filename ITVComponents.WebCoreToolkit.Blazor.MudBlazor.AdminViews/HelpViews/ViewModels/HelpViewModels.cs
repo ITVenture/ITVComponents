@@ -19,6 +19,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Vie
 
         public bool IsPublished { get; set; }
 
+        /// <summary>Whether the topic (and its subtree) is listed in the viewer's navigation.</summary>
+        public bool ShowInMenu { get; set; } = true;
+
         public int SortOrder { get; set; }
 
         /// <summary>Effective title in the caller's culture (falls back to the slug when no content exists).</summary>
@@ -56,6 +59,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Vie
         public string? Icon { get; set; }
 
         public bool IsPublished { get; set; }
+
+        /// <summary>
+        /// Whether the topic (and its subtree) is listed in the viewer's navigation. Clearing it does not make
+        /// the topic private — it stays reachable through its slug, which is how linked documents such as terms
+        /// of service are meant to work.
+        /// </summary>
+        public bool ShowInMenu { get; set; } = true;
 
         public int SortOrder { get; set; }
 

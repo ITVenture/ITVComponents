@@ -34,6 +34,12 @@
                     {
                         <MudChip T="string" Size="Size.Small" Color="Color.Default">draft</MudChip>
                     }
+                    @* Without this the topic would simply be missing from the viewer and look broken. *@
+                    @if (!context.Item.ShowInMenu)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default"
+                                 Icon="@Icons.Material.Filled.VisibilityOff">not in menu</MudChip>
+                    }
                 </MudStack>
             </CellTemplate>
         </TemplateColumn>

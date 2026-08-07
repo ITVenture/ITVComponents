@@ -36,6 +36,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Models
         /// <summary>Only published topics are shown in the public (anonymous) viewer; drafts stay admin-only.</summary>
         public bool IsPublished { get; set; }
 
+        /// <summary>
+        /// Whether this topic is listed in the viewer's navigation tree. Publishing and listing are two
+        /// different things: a published topic is always reachable through <c>/help/{slug}</c>, this flag only
+        /// decides whether the reader also finds it by browsing. Clearing it hides the topic together with its
+        /// whole subtree — that is the point, so a "Documents" container holding terms of service and privacy
+        /// policy can be linked from the consent checkboxes without those documents turning up in the middle of
+        /// the product help. Defaults to <c>true</c>, so existing topics keep showing up.
+        /// </summary>
+        public bool ShowInMenu { get; set; } = true;
+
         [ForeignKey(nameof(ParentId))]
         public virtual HelpTopic? Parent { get; set; }
 

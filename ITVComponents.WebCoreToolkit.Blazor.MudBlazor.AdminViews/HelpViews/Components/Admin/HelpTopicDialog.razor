@@ -34,14 +34,29 @@
                         <MudSelectItem T="HelpTopicKind" Value="HelpTopicKind.ContentPage">Content page (Markdown)</MudSelectItem>
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="6">
                     <MudTextField @bind-Value="Model.Icon" Label="Icon (optional MudBlazor name)" />
                 </MudItem>
-                <MudItem xs="12" sm="4">
+                <MudItem xs="12" sm="6">
                     <MudNumericField @bind-Value="Model.SortOrder" Label="Sort order" />
                 </MudItem>
-                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
                     <MudSwitch @bind-Value="Model.IsPublished" Label="Published" Color="Color.Primary" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    @* Listing is not visibility: a topic that is off the menu is still served under its slug.
+                       That is deliberate - linked documents (terms, privacy) must be readable without cluttering
+                       the product help. Use "Published" to take a topic off the air. *@
+                    <MudSwitch @bind-Value="Model.ShowInMenu" Label="Show in menu" Color="Color.Primary" />
+                </MudItem>
+                <MudItem xs="12">
+                    @if (!Model.ShowInMenu)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Hidden from the navigation tree, together with everything below it. Still reachable at
+                            /help/@Model.Slug — link it from wherever it belongs.
+                        </MudText>
+                    }
                 </MudItem>
 
                 <MudItem xs="12"><MudDivider Class="my-1" /></MudItem>

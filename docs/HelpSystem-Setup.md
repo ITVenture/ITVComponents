@@ -102,6 +102,24 @@ Der Markdown-Editor nutzt BlazorMonaco; die AdminViews-WebPart registriert die C
   (CSS-Klasse `itv-help-module-link` optional im Host stylen.)
 - Viewer: `/help` und `/help/{slug}` (anonym), nur **veröffentlichte** Themen.
 
+## Veröffentlichen vs. auflisten (`IsPublished` / `ShowInMenu`)
+
+Zwei verschiedene Dinge, und die Unterscheidung ist der Zweck des zweiten Flags:
+
+- **`IsPublished`** — ob es das Thema für die Öffentlichkeit überhaupt gibt. Aus = Entwurf, nur im Admin sichtbar.
+- **`ShowInMenu`** (Default `true`) — ob es im Navigationsbaum des Viewers **aufgelistet** wird. Aus = das Thema
+  bleibt unter `/help/{slug}` abrufbar, erscheint aber weder in der Navigation noch im Teilbaum des
+  Kontext-Popups — **zusammen mit allem, was unter ihm hängt**.
+
+Damit lassen sich verlinkte Dokumente (AGB, Datenschutzerklärung, Widerrufsbelehrung) im Hilfesystem pflegen,
+ohne dass sie mitten in der Produkthilfe stehen: einen Container *Dokumente* mit `ShowInMenu = false` anlegen und
+die Dokumente darunter hängen. Verlinkt werden sie dort, wo sie hingehören — etwa aus den Zustimmungs-Schaltern
+des Onboardings (GlobalSetting `Consent`, Feld `HelpSlug`; siehe `Migration-Future_10-MLM.md` §21).
+
+Dass die Themen **anonym** lesbar sind, ist dafür die Voraussetzung: die Zustimmung fällt beim Anlegen des
+Kontos, also bevor jemand angemeldet ist. Im Admin-Baum tragen nicht gelistete Themen den Chip *not in menu* —
+sonst sähe ein fehlendes Thema im Viewer nach einem Defekt aus.
+
 ## Sprach-Fallback
 
 `Culture` je Content/Datei ist ein BCP-47-Tag (`de`, `de-CH`, …) oder `DEFAULT`. Aufgelöst most-specific-first:

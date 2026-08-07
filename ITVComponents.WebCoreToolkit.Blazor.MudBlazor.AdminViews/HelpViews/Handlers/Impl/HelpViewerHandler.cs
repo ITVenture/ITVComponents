@@ -44,6 +44,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                     t.Kind,
                     t.Slug,
                     t.Icon,
+                    t.ShowInMenu,
                     Contents = t.Contents.Select(c => new CultureTitle { Culture = c.Culture, Title = c.Title }).ToList()
                 })
                 .ToListAsync(ct);
@@ -58,6 +59,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
 
             // A published child of an UNpublished parent has no reachable path, so treat its parent as absent and
             // hang it at the root rather than losing it entirely.
+            //
+            // ShowInMenu is filtered HERE and not in the query above: dropping those rows early would turn the
+            // children of a hidden container into orphans, and the rescue below would hang them at the root —
+            // exactly the documents the flag was meant to keep out of the menu. Filtering while building drops
+            // the branch as a whole, which is what "hidden" has to mean for a tree.
             List<HelpTreeNodeViewModel> Build(int parentKey)
             {
                 if (!byParent.TryGetValue(parentKey, out var children))
@@ -65,7 +71,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                     return new List<HelpTreeNodeViewModel>();
                 }
 
-                return children.Select(t => new HelpTreeNodeViewModel
+                return children.Where(t => t.ShowInMenu).Select(t => new HelpTreeNodeViewModel
                 {
                     HelpTopicId = t.HelpTopicId,
                     Slug = t.Slug,
@@ -81,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             {
                 if (kvp.Key != rootKey && !present.Contains(kvp.Key))
                 {
-                    roots.AddRange(kvp.Value.Select(t => new HelpTreeNodeViewModel
+                    roots.AddRange(kvp.Value.Where(t => t.ShowInMenu).Select(t => new HelpTreeNodeViewModel
                     {
                         HelpTopicId = t.HelpTopicId,
                         Slug = t.Slug,
@@ -116,6 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                     t.Kind,
                     t.Slug,
                     t.Icon,
+                    t.ShowInMenu,
                     Contents = t.Contents.Select(c => new CultureTitle { Culture = c.Culture, Title = c.Title }).ToList()
                 })
                 .ToListAsync(ct);
@@ -131,6 +138,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 .GroupBy(t => t.ParentId ?? rootKey)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Die Wurzel wurde ausdruecklich per Slug angefragt und wird darum immer geliefert, auch wenn sie
+            // nicht im Menue steht - genau so haengt die Kontexthilfe an einem ausgeblendeten Bereich. Innerhalb
+            // des Teilbaums gilt das Flag dagegen wie ueberall: was nicht gelistet werden soll, erscheint auch
+            // in dieser Navigation nicht.
             List<HelpTreeNodeViewModel> Build(int parentKey)
             {
                 if (!byParent.TryGetValue(parentKey, out var children))
@@ -138,7 +149,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                     return new List<HelpTreeNodeViewModel>();
                 }
 
-                return children.Select(t => new HelpTreeNodeViewModel
+                return children.Where(t => t.ShowInMenu).Select(t => new HelpTreeNodeViewModel
                 {
                     HelpTopicId = t.HelpTopicId,
                     Slug = t.Slug,
