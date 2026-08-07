@@ -1,0 +1,94 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Admin
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
+
+@inject IOnboardingAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Die erteilten Zustimmungen - reine Einsicht, ohne jede Bearbeitung. Ein Nachweis, den man aendern kann,
+   ist keiner; deshalb gibt es hier weder Speichern noch Loeschen und im Handler kein Schreib-Gegenstueck.
+
+   Gezeigt wird beides: was fuer den Mandanten erklaert wurde und was seine Mitglieder persoenlich erklaert
+   haben. Letzteres, weil bei einer Auskunftsanfrage der Mandanten-Verantwortliche Rede und Antwort stehen
+   muss - Nachweise von Personen ausserhalb des Mandanten sind nie dabei. *@
+
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (records.Length == 0)
+{
+    <MudAlert Severity="Severity.Info">@L["OnbAdm_Consents_None"]</MudAlert>
+}
+else
+{
+    <MudTable Items="records" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
+              Filter="Matches" AllowUnsorted="false">
+        <ToolBarContent>
+            <MudTextField @bind-Value="search" Placeholder="@L["OnbAdm_Consents_Search"]" Immediate="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium" Class="mt-0" />
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>@L["OnbAdm_Consents_When"]</MudTh>
+            <MudTh>@L["OnbAdm_Consents_Who"]</MudTh>
+            <MudTh>@L["OnbAdm_Consents_Point"]</MudTh>
+            <MudTh>@L["OnbAdm_Consents_Version"]</MudTh>
+            <MudTh>@L["OnbAdm_Consents_Answer"]</MudTh>
+            <MudTh>@L["OnbAdm_Consents_Scope"]</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="@L["OnbAdm_Consents_When"]">@context.AcceptedUtc.ToLocalTime().ToString("g")</MudTd>
+            <MudTd DataLabel="@L["OnbAdm_Consents_Who"]">@context.Email</MudTd>
+            <MudTd DataLabel="@L["OnbAdm_Consents_Point"]">@context.ConsentKey</MudTd>
+            <MudTd DataLabel="@L["OnbAdm_Consents_Version"]">@(string.IsNullOrEmpty(context.Version) ? "—" : context.Version)</MudTd>
+            <MudTd DataLabel="@L["OnbAdm_Consents_Answer"]">
+                @* Die Ablehnung ist genauso ein Nachweis wie die Zustimmung - sie wird deshalb angezeigt
+                   und nicht als "fehlt" behandelt. *@
+                <MudChip T="string" Size="Size.Small" Color="@(context.Accepted ? Color.Success : Color.Default)">
+                    @(context.Accepted ? L["OnbAdm_Consents_Yes"] : L["OnbAdm_Consents_No"])
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="@L["OnbAdm_Consents_Scope"]">
+                <MudText Typo="Typo.caption">@ScopeText(context.Scope)</MudText>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private ConsentRecordViewModel[] records = Array.Empty<ConsentRecordViewModel>();
+    private string search = string.Empty;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        records = await Handler.ListConsentsAsync(state.User);
+        loading = false;
+    }
+
+    private bool Matches(ConsentRecordViewModel row)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        return (row.Email?.Contains(search, StringComparison.OrdinalIgnoreCase) == true)
+               || row.ConsentKey.Contains(search, StringComparison.OrdinalIgnoreCase)
+               || (row.Version?.Contains(search, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private string ScopeText(ConsentScope scope)
+        => scope switch
+        {
+            ConsentScope.Tenant => L["OnbAdm_Consents_ScopeTenant"],
+            ConsentScope.Both => L["OnbAdm_Consents_ScopeBoth"],
+            _ => L["OnbAdm_Consents_ScopeUser"]
+        };
+}

@@ -1,9 +1,7 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 @using System.Globalization
 @using ITVComponents.WebCoreToolkit.Extensions
-@using ITVComponents.WebCoreToolkit.Routing
 @using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
-@inject IUrlFormat UrlFormat
 @inject IStringLocalizer<OnboardingMessages> L
 
 @* Die einzuholenden Zustimmungen. Sind keine konfiguriert, bleibt es beim einen eingebauten Schalter fuer
@@ -30,7 +28,7 @@
                         {
                             @if (part is ConsentLink link)
                             {
-                                <MudLink Href="@link.Href" Target="_blank" rel="noopener" Underline="Underline.Always">@link.Text</MudLink>
+                                <ConsentDocumentLink Slug="@link.Slug" Text="@link.Text" />
                             }
                             else
                             {
@@ -187,14 +185,12 @@
         }
 
         string text = Translate(point.LinkText) ?? point.HelpSlug!;
-        // Gleiches Praefix-Muster wie die Hilfe-Navigation: im Mandanten-Betrieb bleibt der Verweis auf
-        // /TENANT/help/..., anonym ist es /help/...
-        return new ConsentLink(UrlFormat.FormatUrl($"[SlashPermissionScope]/help/{point.HelpSlug}"), text);
+        return new ConsentLink(point.HelpSlug!, text);
     }
 
     /// <summary>Klartext oder Kultur-JSON in die Sprache des Lesers - dieselbe Konvention wie ueberall sonst.</summary>
     private string? Translate(string? value)
         => string.IsNullOrEmpty(value) ? null : value.Translate(CultureInfo.CurrentUICulture.Name);
 
-    private sealed record ConsentLink(string Href, string Text);
+    private sealed record ConsentLink(string Slug, string Text);
 }

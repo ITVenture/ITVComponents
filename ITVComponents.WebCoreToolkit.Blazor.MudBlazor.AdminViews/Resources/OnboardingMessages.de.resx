@@ -157,4 +157,28 @@
   <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Aktivierung aktualisiert.</value></data>
   <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Die Aktivierung konnte nicht aktualisiert werden.</value></data>
   <data name="OnbAdm_Rm_New" xml:space="preserve"><value>Neu</value></data>
+  <data name="OnbAdm_Tab_Consents" xml:space="preserve"><value>Zustimmungen</value></data>
+  <data name="OnbAdm_Consents_None" xml:space="preserve"><value>Zu diesem Mandanten sind noch keine Zustimmungen erfasst.</value></data>
+  <data name="OnbAdm_Consents_Search" xml:space="preserve"><value>E-Mail, Schlüssel oder Fassung suchen</value></data>
+  <data name="OnbAdm_Consents_When" xml:space="preserve"><value>Wann</value></data>
+  <data name="OnbAdm_Consents_Who" xml:space="preserve"><value>Wer</value></data>
+  <data name="OnbAdm_Consents_Point" xml:space="preserve"><value>Zustimmung</value></data>
+  <data name="OnbAdm_Consents_Version" xml:space="preserve"><value>Fassung</value></data>
+  <data name="OnbAdm_Consents_Answer" xml:space="preserve"><value>Antwort</value></data>
+  <data name="OnbAdm_Consents_Scope" xml:space="preserve"><value>Gilt für</value></data>
+  <data name="OnbAdm_Consents_Yes" xml:space="preserve"><value>Zugestimmt</value></data>
+  <data name="OnbAdm_Consents_No" xml:space="preserve"><value>Abgelehnt</value></data>
+  <data name="OnbAdm_Consents_ScopeUser" xml:space="preserve"><value>Person</value></data>
+  <data name="OnbAdm_Consents_ScopeTenant" xml:space="preserve"><value>Mandant</value></data>
+  <data name="OnbAdm_Consents_ScopeBoth" xml:space="preserve"><value>Person und Mandant</value></data>
+  <data name="Onb_MyConsents_Title" xml:space="preserve"><value>Meine Zustimmungen</value></data>
+  <data name="Onb_MyConsents_Intro" xml:space="preserve"><value>Was Sie persönlich erklärt haben. Freiwilliges können Sie jederzeit ändern; Pflichtangaben stehen hier zum Nachlesen.</value></data>
+  <data name="Onb_MyConsents_None" xml:space="preserve"><value>Hier gibt es nichts anzuzeigen.</value></data>
+  <data name="Onb_MyConsents_NeverAsked" xml:space="preserve"><value>Danach wurden Sie noch nicht gefragt.</value></data>
+  <data name="Onb_MyConsents_Accepted" xml:space="preserve"><value>Zugestimmt</value></data>
+  <data name="Onb_MyConsents_Declined" xml:space="preserve"><value>Abgelehnt</value></data>
+  <data name="Onb_MyConsents_Outdated" xml:space="preserve"><value>Der Wortlaut hat sich seither geändert. Sie werden bei nächster Gelegenheit erneut gefragt.</value></data>
+  <data name="Onb_MyConsents_ReadDocument" xml:space="preserve"><value>Dokument lesen</value></data>
+  <data name="Onb_MyConsents_Saved" xml:space="preserve"><value>Ihre Angabe wurde festgehalten.</value></data>
+  <data name="Onb_MyConsents_SaveFailed" xml:space="preserve"><value>Ihre Angabe konnte NICHT festgehalten werden. Bitte versuchen Sie es erneut.</value></data>
 </root>

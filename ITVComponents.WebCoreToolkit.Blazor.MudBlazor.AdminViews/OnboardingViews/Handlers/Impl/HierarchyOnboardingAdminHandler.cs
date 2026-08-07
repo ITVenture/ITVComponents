@@ -58,6 +58,46 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<ConsentRecordViewModel[]> ListConsentsAsync(ClaimsPrincipal admin, CancellationToken ct = default)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = Authorize(db, OnboardingAdminPermissions.ConsentsView);
+        if (!ok)
+        {
+            return Array.Empty<ConsentRecordViewModel>();
+        }
+
+        // Die Mitglieder des Mandanten - nur deren persoenliche Nachweise gehen ihn etwas an. Bewusst NUR
+        // dieser Mandant und nicht sein Unterbau: ein uebergeordneter Verantwortlicher soll nicht
+        // beilaeufig die persoenlichen Erklaerungen aller nachgeordneten Personen einsehen.
+        var members = await db.TenantUsers.IgnoreQueryFilters().AsNoTracking()
+            .Where(tu => tu.TenantId == current)
+            .Select(tu => tu.UserId)
+            .ToListAsync(ct);
+
+        // Zwei Arten von Nachweisen laufen hier zusammen: die des Mandanten (Tenant/Both, mit TenantId) und
+        // die persoenlichen seiner Mitglieder (ohne TenantId). Ein Nachweis einer Person, die dem Mandanten
+        // nicht angehoert, ist nie dabei.
+        return await db.ConsentRecords.AsNoTracking()
+            .Where(r => r.TenantId == current
+                        || (r.TenantId == null && r.UserId != null && members.Contains(r.UserId)))
+            .OrderByDescending(r => r.AcceptedUtc)
+            .Select(r => new ConsentRecordViewModel
+            {
+                ConsentRecordId = r.ConsentRecordId,
+                ConsentKey = r.ConsentKey,
+                Version = r.Version,
+                Accepted = r.Accepted,
+                AcceptedUtc = r.AcceptedUtc,
+                Email = r.Email,
+                Scope = r.Scope,
+                TenantId = r.TenantId,
+                Culture = r.Culture,
+                Origin = r.Origin
+            })
+            .ToArrayAsync(ct);
+    }
+
     public async Task<BillingProfileAdminViewModel[]> ListBillingProfilesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();

@@ -47,10 +47,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
 
             // Was der Benutzer persoenlich schon beantwortet hat - nur noetig, wenn es ihn gibt UND
             // ueberhaupt ein Punkt in Frage kommt, der sich dadurch erledigen koennte.
-            IReadOnlyDictionary<string, string> answered =
+            IReadOnlyDictionary<string, ConsentRecord> answered =
                 configured.Any(p => p.Scope == ConsentScope.User) && !string.IsNullOrEmpty(userId)
-                    ? await AnsweredAsync(userId, ct)
-                    : new Dictionary<string, string>(StringComparer.Ordinal);
+                    ? await LatestPersonalAsync(userId, ct)
+                    : new Dictionary<string, ConsentRecord>(StringComparer.Ordinal);
 
             var forUser = new List<ConsentPoint>();
             var forTenant = new List<ConsentPoint>();
@@ -196,6 +196,73 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
             }
         }
 
+        public async Task<IReadOnlyList<ConsentStanding>> GetStandingAsync(string userId,
+            CancellationToken ct = default)
+        {
+            ConsentPoint[] personal = Configured().Where(p => p.Scope == ConsentScope.User).ToArray();
+            if (personal.Length == 0 || string.IsNullOrEmpty(userId))
+            {
+                return Array.Empty<ConsentStanding>();
+            }
+
+            IReadOnlyDictionary<string, ConsentRecord> latest = await LatestPersonalAsync(userId, ct);
+
+            var result = new List<ConsentStanding>();
+            foreach (ConsentPoint point in personal)
+            {
+                var standing = new ConsentStanding { Point = point };
+                if (latest.TryGetValue(point.Key, out ConsentRecord record))
+                {
+                    standing.Answered = true;
+                    standing.Accepted = record.Accepted;
+                    standing.AnsweredUtc = record.AcceptedUtc;
+                    standing.AnsweredVersion = record.Version;
+                    standing.Current = string.Equals(record.Version ?? string.Empty,
+                        point.Version ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+                }
+
+                result.Add(standing);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Der juengste persoenliche Nachweis je Schluessel. Aeltere bleiben stehen - sie sind die
+        /// Geschichte, und eine Zustimmung nachtraeglich zu ueberschreiben hiesse, den Nachweis zu
+        /// faelschen.
+        /// </summary>
+        private async Task<IReadOnlyDictionary<string, ConsentRecord>> LatestPersonalAsync(string userId,
+            CancellationToken ct)
+        {
+            var result = new Dictionary<string, ConsentRecord>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                await using TContext db = await dbFactory.CreateDbContextAsync(ct);
+                List<ConsentRecord> rows = await db.ConsentRecords.AsNoTracking()
+                    .Where(r => r.UserId == userId && r.Scope == ConsentScope.User)
+                    .OrderByDescending(r => r.AcceptedUtc)
+                    .ToListAsync(ct);
+
+                foreach (ConsentRecord row in rows)
+                {
+                    // Absteigend sortiert - der erste Treffer je Schluessel ist der juengste.
+                    if (!result.ContainsKey(row.ConsentKey))
+                    {
+                        result[row.ConsentKey] = row;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Die Maske zeigt dann "nie gefragt". Das ist die harmlosere Auskunft als eine erfundene
+                // Zustimmung - aber ohne diese Zeile bliebe unklar, warum sie nichts weiss.
+                logger.LogError(ex, "Die Zustimmungen von Benutzer {UserId} konnten nicht gelesen werden; die Maske zeigt sie als unbeantwortet.", userId);
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Die konfigurierten Punkte, bereinigt: ohne abgeschaltete, ohne schluessellose, ohne Doppel.
         /// </summary>
@@ -271,64 +338,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
         }
 
         /// <summary>
-        /// Die persoenlich bereits beantworteten Punkte des Benutzers, je Schluessel die Fassung des
-        /// juengsten Nachweises.
+        /// Ist der Punkt in der GELTENDEN Fassung beantwortet? Eine neue Fassung macht den alten Nachweis
+        /// nicht ungueltig, aber sie verlangt bei der naechsten Gelegenheit eine neue Antwort.
         /// </summary>
         /// <remarks>
         /// Gefragt wird nach BEANTWORTET, nicht nach zugestimmt: wer den Newsletter einmal abgelehnt hat,
         /// soll nicht bei jeder Gelegenheit erneut gefragt werden. Bei einem Pflicht-Punkt macht das keinen
         /// Unterschied - ohne Zustimmung kommt niemand durch, es kann also gar kein abgelehnter Nachweis
         /// entstanden sein.
-        /// <para>
-        /// Beruecksichtigt werden nur Nachweise mit <see cref="ConsentScope.User"/>: eine Zustimmung, die
-        /// fuer einen Mandanten erteilt wurde, sagt nichts darueber aus, was die Person fuer sich selbst
-        /// erklaert hat.
-        /// </para>
         /// </remarks>
-        private async Task<IReadOnlyDictionary<string, string>> AnsweredAsync(string userId, CancellationToken ct)
+        private static bool IsAnswered(IReadOnlyDictionary<string, ConsentRecord> answered, ConsentPoint point)
         {
-            try
-            {
-                await using TContext db = await dbFactory.CreateDbContextAsync(ct);
-                var rows = await db.ConsentRecords.AsNoTracking()
-                    .Where(r => r.UserId == userId && r.Scope == ConsentScope.User)
-                    .OrderByDescending(r => r.AcceptedUtc)
-                    .Select(r => new { r.ConsentKey, r.Version })
-                    .ToListAsync(ct);
-
-                var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var row in rows)
-                {
-                    // Absteigend sortiert - der erste Treffer je Schluessel ist der juengste.
-                    if (!result.ContainsKey(row.ConsentKey))
-                    {
-                        result[row.ConsentKey] = row.Version;
-                    }
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                // Im Zweifel fragen: eine ueberfluessige Frage ist zumutbar, eine uebersprungene
-                // Zustimmung nicht.
-                logger.LogError(ex, "Die bereits erteilten Zustimmungen von Benutzer {UserId} konnten nicht gelesen werden; es wird erneut gefragt.", userId);
-                return new Dictionary<string, string>(StringComparer.Ordinal);
-            }
-        }
-
-        /// <summary>
-        /// Ist der Punkt in der GELTENDEN Fassung beantwortet? Eine neue Fassung macht den alten Nachweis
-        /// nicht ungueltig, aber sie verlangt bei der naechsten Gelegenheit eine neue Antwort.
-        /// </summary>
-        private static bool IsAnswered(IReadOnlyDictionary<string, string> answered, ConsentPoint point)
-        {
-            if (!answered.TryGetValue(point.Key, out string recorded))
+            if (!answered.TryGetValue(point.Key, out ConsentRecord recorded))
             {
                 return false;
             }
 
-            return string.Equals(recorded ?? string.Empty, point.Version ?? string.Empty,
+            return string.Equals(recorded.Version ?? string.Empty, point.Version ?? string.Empty,
                 StringComparison.OrdinalIgnoreCase);
         }
     }

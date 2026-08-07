@@ -187,6 +187,37 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             Assert.IsTrue(result.Valid);
         }
 
+        /// <summary>
+        /// Ohne Benutzer gibt es nichts nachzusehen - und die Datenbank bleibt unberuehrt. Wichtig, weil
+        /// diese Methode aus einer Seite gerufen wird, die auch im Vorab-Rendering laeuft.
+        /// </summary>
+        [TestMethod]
+        public async Task GetStanding_WithoutUser_TouchesNothing()
+        {
+            IReadOnlyList<ConsentStanding> standing =
+                await Provider(Standard()).GetStandingAsync(null!);
+
+            Assert.AreEqual(0, standing.Count);
+        }
+
+        /// <summary>
+        /// Sind nur Mandanten-Punkte konfiguriert, hat die persoenliche Uebersicht nichts zu zeigen - auch
+        /// dann wird nicht nachgesehen.
+        /// </summary>
+        [TestMethod]
+        public async Task GetStanding_WithoutPersonalPoints_TouchesNothing()
+        {
+            var options = new ConsentOptions
+            {
+                Points = new[] { new ConsentPointOptions { Key = "vertrag", Scope = "Tenant" } }
+            };
+
+            IReadOnlyList<ConsentStanding> standing =
+                await Provider(options).GetStandingAsync("irgendwer");
+
+            Assert.AreEqual(0, standing.Count);
+        }
+
         // ---- Hilfsmittel ----------------------------------------------------------------------------
 
         /// <summary>Nutzungsbedingungen als Both, Datenschutz als User, ein reiner Mandanten-Vertrag.</summary>

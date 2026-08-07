@@ -117,4 +117,28 @@
   <data name="Onb_JoinReg_Waiting" xml:space="preserve"><value>In attesa di conferma…</value></data>
   <data name="Onb_JoinReg_PwMismatch" xml:space="preserve"><value>Le password non corrispondono.</value></data>
   <data name="OnbAdm_Rm_New" xml:space="preserve"><value>Nuovo</value></data>
+  <data name="OnbAdm_Tab_Consents" xml:space="preserve"><value>Consensi</value></data>
+  <data name="OnbAdm_Consents_None" xml:space="preserve"><value>Per questo tenant non è ancora stato registrato alcun consenso.</value></data>
+  <data name="OnbAdm_Consents_Search" xml:space="preserve"><value>Cerca e-mail, chiave o versione</value></data>
+  <data name="OnbAdm_Consents_When" xml:space="preserve"><value>Quando</value></data>
+  <data name="OnbAdm_Consents_Who" xml:space="preserve"><value>Chi</value></data>
+  <data name="OnbAdm_Consents_Point" xml:space="preserve"><value>Consenso</value></data>
+  <data name="OnbAdm_Consents_Version" xml:space="preserve"><value>Versione</value></data>
+  <data name="OnbAdm_Consents_Answer" xml:space="preserve"><value>Risposta</value></data>
+  <data name="OnbAdm_Consents_Scope" xml:space="preserve"><value>Si applica a</value></data>
+  <data name="OnbAdm_Consents_Yes" xml:space="preserve"><value>Accettato</value></data>
+  <data name="OnbAdm_Consents_No" xml:space="preserve"><value>Rifiutato</value></data>
+  <data name="OnbAdm_Consents_ScopeUser" xml:space="preserve"><value>Persona</value></data>
+  <data name="OnbAdm_Consents_ScopeTenant" xml:space="preserve"><value>Tenant</value></data>
+  <data name="OnbAdm_Consents_ScopeBoth" xml:space="preserve"><value>Persona e tenant</value></data>
+  <data name="Onb_MyConsents_Title" xml:space="preserve"><value>I miei consensi</value></data>
+  <data name="Onb_MyConsents_Intro" xml:space="preserve"><value>Ciò che hai accettato personalmente. Le voci facoltative sono modificabili in qualsiasi momento; quelle obbligatorie sono riportate per consultazione.</value></data>
+  <data name="Onb_MyConsents_None" xml:space="preserve"><value>Non c'è nulla da mostrare qui.</value></data>
+  <data name="Onb_MyConsents_NeverAsked" xml:space="preserve"><value>Non ti è ancora stato chiesto.</value></data>
+  <data name="Onb_MyConsents_Accepted" xml:space="preserve"><value>Accettato</value></data>
+  <data name="Onb_MyConsents_Declined" xml:space="preserve"><value>Rifiutato</value></data>
+  <data name="Onb_MyConsents_Outdated" xml:space="preserve"><value>Il testo è cambiato nel frattempo. Ti verrà chiesto di nuovo alla prossima occasione.</value></data>
+  <data name="Onb_MyConsents_ReadDocument" xml:space="preserve"><value>Leggi il documento</value></data>
+  <data name="Onb_MyConsents_Saved" xml:space="preserve"><value>La tua scelta è stata registrata.</value></data>
+  <data name="Onb_MyConsents_SaveFailed" xml:space="preserve"><value>Non è stato possibile registrare la tua scelta. Riprova.</value></data>
 </root>

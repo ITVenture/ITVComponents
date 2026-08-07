@@ -153,6 +153,39 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
         public ConsentScope Scope { get; set; }
     }
 
+    /// <summary>
+    /// Wie ein Benutzer zu einem persoenlichen Zustimmungspunkt steht: der Punkt selbst und die letzte
+    /// Antwort, die von ihm dazu vorliegt.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst beides zusammen: die Punkte stehen in der Konfiguration, die Antworten in der Datenbank,
+    /// und keine der beiden Seiten allein ergibt eine anzeigbare Auskunft. Ein konfigurierter Punkt ohne
+    /// Nachweis heisst "wurde nie gefragt" - was sich von "hat abgelehnt" unterscheidet.
+    /// </remarks>
+    public class ConsentStanding
+    {
+        /// <summary>Der Punkt, so wie er heute konfiguriert ist.</summary>
+        public ConsentPoint Point { get; set; }
+
+        /// <summary>Liegt ueberhaupt eine Antwort vor?</summary>
+        public bool Answered { get; set; }
+
+        /// <summary>Die letzte Antwort - nur gueltig, wenn <see cref="Answered"/>.</summary>
+        public bool Accepted { get; set; }
+
+        /// <summary>Wann sie erteilt wurde.</summary>
+        public DateTime? AnsweredUtc { get; set; }
+
+        /// <summary>Der Stand des Dokuments, dem damals zugestimmt wurde.</summary>
+        public string AnsweredVersion { get; set; }
+
+        /// <summary>
+        /// Bezieht sich die Antwort auf die HEUTE geltende Fassung? Ist sie es nicht, wurde inzwischen eine
+        /// neue Fassung konfiguriert und der Punkt wird bei naechster Gelegenheit erneut gestellt.
+        /// </summary>
+        public bool Current { get; set; }
+    }
+
     /// <summary>Wem die Zustimmungen zugeschrieben werden.</summary>
     public class ConsentSubject
     {

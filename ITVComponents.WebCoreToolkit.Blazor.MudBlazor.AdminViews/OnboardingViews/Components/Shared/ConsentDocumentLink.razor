@@ -1,0 +1,30 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.Routing
+@inject IUrlFormat UrlFormat
+
+@* Der Verweis auf ein Zustimmungs-Dokument im Hilfesystem.
+
+   Immer in einem neuen Reiter: bei der Erfassung wuerde ein Wegnavigieren das halb ausgefuellte Formular
+   verlieren, und auch von der Konto-Uebersicht aus will niemand seinen Platz aufgeben, um kurz die
+   Nutzungsbedingungen nachzulesen. *@
+
+@if (!string.IsNullOrWhiteSpace(Slug))
+{
+    <MudLink Href="@Href" Target="_blank" rel="noopener" Underline="Underline.Always"
+             Typo="@Typo">@Text</MudLink>
+}
+
+@code {
+    /// <summary>Der Slug des Hilfe-Themas. Leer = es wird nichts gezeichnet.</summary>
+    [Parameter] public string? Slug { get; set; }
+
+    /// <summary>Die Beschriftung des Verweises.</summary>
+    [Parameter] public string? Text { get; set; }
+
+    /// <summary>Schriftgroesse; in Fliesstext eingebettet meist die des Textes.</summary>
+    [Parameter] public Typo Typo { get; set; } = Typo.inherit;
+
+    // Gleiches Praefix-Muster wie die Hilfe-Navigation: im Mandanten-Betrieb bleibt der Verweis auf
+    // /TENANT/help/..., anonym ist es /help/...
+    private string Href => UrlFormat.FormatUrl($"[SlashPermissionScope]/help/{Slug}");
+}

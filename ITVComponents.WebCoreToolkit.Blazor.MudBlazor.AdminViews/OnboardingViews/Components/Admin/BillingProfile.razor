@@ -152,7 +152,19 @@ else
             </SecureView>
         </MudTabPanel>
 
-        @* ---- Tab 4: sub-tenant invitations (hierarchy only) ------------------------------------ *@
+        @* ---- Tab 4: erteilte Zustimmungen (nur Einsicht) --------------------------------------- *@
+        <MudTabPanel Text="@TabText("OnbAdm_Tab_Consents")" ToolTip="@L["OnbAdm_Tab_Consents"]" Icon="@Icons.Material.Filled.FactCheck">
+            <SecureView RequiredPermissions="Onboarding.Admin.Consents.View">
+                <Permitted>
+                    <ConsentsTab />
+                </Permitted>
+                <NotPermitted>
+                    <MudAlert Severity="Severity.Warning">@L["OnbAdm_NoPermission"]</MudAlert>
+                </NotPermitted>
+            </SecureView>
+        </MudTabPanel>
+
+        @* ---- Tab 5: sub-tenant invitations (hierarchy only) ------------------------------------ *@
         @if (subTenantSupported)
         {
             <MudTabPanel Text="@TabText("OnbAdm_Tab_SubTenants")" ToolTip="@L["OnbAdm_Tab_SubTenants"]" Icon="@Icons.Material.Filled.AccountTree">

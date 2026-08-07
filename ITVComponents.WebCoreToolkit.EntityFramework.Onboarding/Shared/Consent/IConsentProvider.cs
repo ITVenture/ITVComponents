@@ -35,5 +35,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
         /// </summary>
         /// <returns>wie viele Nachweise geschrieben wurden</returns>
         Task<int> RecordAsync(IReadOnlyList<ConsentAnswer> answers, ConsentSubject subject, CancellationToken ct = default);
+
+        /// <summary>
+        /// Wie der Benutzer zu seinen PERSOENLICHEN Punkten steht - je konfiguriertem Punkt mit
+        /// <see cref="ConsentScope.User"/> die letzte Antwort, die von ihm vorliegt.
+        /// </summary>
+        /// <remarks>
+        /// Nur persoenliche Punkte: was fuer einen Mandanten erklaert wurde, gehoert in dessen Verwaltung
+        /// und nicht in das Konto einer Person - selbst wenn sie es war, die geklickt hat.
+        /// </remarks>
+        Task<IReadOnlyList<ConsentStanding>> GetStandingAsync(string userId, CancellationToken ct = default);
     }
 }

@@ -202,4 +202,28 @@
   <data name="OnbAdm_Ps_Updated" xml:space="preserve"><value>Activation updated.</value></data>
   <data name="OnbAdm_Ps_Failed" xml:space="preserve"><value>Could not update the activation.</value></data>
   <data name="OnbAdm_Rm_New" xml:space="preserve"><value>New</value></data>
+  <data name="OnbAdm_Tab_Consents" xml:space="preserve"><value>Consents</value></data>
+  <data name="OnbAdm_Consents_None" xml:space="preserve"><value>No consents have been recorded for this tenant yet.</value></data>
+  <data name="OnbAdm_Consents_Search" xml:space="preserve"><value>Search e-mail, key or version</value></data>
+  <data name="OnbAdm_Consents_When" xml:space="preserve"><value>When</value></data>
+  <data name="OnbAdm_Consents_Who" xml:space="preserve"><value>Who</value></data>
+  <data name="OnbAdm_Consents_Point" xml:space="preserve"><value>Consent</value></data>
+  <data name="OnbAdm_Consents_Version" xml:space="preserve"><value>Version</value></data>
+  <data name="OnbAdm_Consents_Answer" xml:space="preserve"><value>Answer</value></data>
+  <data name="OnbAdm_Consents_Scope" xml:space="preserve"><value>Applies to</value></data>
+  <data name="OnbAdm_Consents_Yes" xml:space="preserve"><value>Agreed</value></data>
+  <data name="OnbAdm_Consents_No" xml:space="preserve"><value>Declined</value></data>
+  <data name="OnbAdm_Consents_ScopeUser" xml:space="preserve"><value>Person</value></data>
+  <data name="OnbAdm_Consents_ScopeTenant" xml:space="preserve"><value>Tenant</value></data>
+  <data name="OnbAdm_Consents_ScopeBoth" xml:space="preserve"><value>Person and tenant</value></data>
+  <data name="Onb_MyConsents_Title" xml:space="preserve"><value>My consents</value></data>
+  <data name="Onb_MyConsents_Intro" xml:space="preserve"><value>What you have agreed to personally. Optional items can be changed at any time; required ones are shown for reference.</value></data>
+  <data name="Onb_MyConsents_None" xml:space="preserve"><value>There is nothing to show here.</value></data>
+  <data name="Onb_MyConsents_NeverAsked" xml:space="preserve"><value>You have not been asked about this yet.</value></data>
+  <data name="Onb_MyConsents_Accepted" xml:space="preserve"><value>Agreed</value></data>
+  <data name="Onb_MyConsents_Declined" xml:space="preserve"><value>Declined</value></data>
+  <data name="Onb_MyConsents_Outdated" xml:space="preserve"><value>The wording has changed since. You will be asked again the next time it applies.</value></data>
+  <data name="Onb_MyConsents_ReadDocument" xml:space="preserve"><value>Read the document</value></data>
+  <data name="Onb_MyConsents_Saved" xml:space="preserve"><value>Your choice has been recorded.</value></data>
+  <data name="Onb_MyConsents_SaveFailed" xml:space="preserve"><value>Your choice could NOT be recorded. Please try again.</value></data>
 </root>

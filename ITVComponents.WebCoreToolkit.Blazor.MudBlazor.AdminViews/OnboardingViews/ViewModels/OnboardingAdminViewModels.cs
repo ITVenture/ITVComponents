@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text.Json.Nodes;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
 
@@ -83,6 +84,42 @@ public class BillingProfileAdminViewModel
         ProfileType == ProfileType.Company
             ? (CompanyName ?? Email)
             : $"{FirstName} {LastName}".Trim();
+}
+
+/// <summary>
+/// Ein Zustimmungs-Nachweis, wie ihn die Mandanten-Verwaltung anzeigt. Reine Anzeige - es gibt keinen Weg,
+/// darueber etwas zu aendern.
+/// </summary>
+public class ConsentRecordViewModel
+{
+    public int ConsentRecordId { get; set; }
+
+    /// <summary>Der Schluessel des Zustimmungspunkts.</summary>
+    public string ConsentKey { get; set; } = string.Empty;
+
+    /// <summary>Der Stand des Dokuments, dem zugestimmt wurde.</summary>
+    public string? Version { get; set; }
+
+    /// <summary>Zugestimmt oder ausdruecklich abgelehnt.</summary>
+    public bool Accepted { get; set; }
+
+    /// <summary>Wann - der Zeitpunkt der Handlung, nicht der der Ablage.</summary>
+    public DateTime AcceptedUtc { get; set; }
+
+    /// <summary>Die E-Mail, unter der zugestimmt wurde.</summary>
+    public string? Email { get; set; }
+
+    /// <summary>Wen die Zustimmung betraf.</summary>
+    public ConsentScope Scope { get; set; }
+
+    /// <summary>Der Mandant, dem sie gilt - leer bei einer rein persoenlichen Zustimmung.</summary>
+    public int? TenantId { get; set; }
+
+    /// <summary>Die Sprache, in der der Text angezeigt wurde.</summary>
+    public string? Culture { get; set; }
+
+    /// <summary>Aus welchem Vorgang der Nachweis stammt.</summary>
+    public string? Origin { get; set; }
 }
 
 /// <summary>

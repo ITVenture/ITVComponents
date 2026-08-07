@@ -1355,7 +1355,37 @@ Themen mit dem Chip *not in menu* markiert.
   (`IConsentProvider.DescribeAsync`), weil erst sie den Anlass kennt. Wer das Formular selbst einbindet, muss den
   Parameter setzen — sonst erscheint dort nur der eingebaute Rückfall-Schalter.
 
-### 21.6 Wo welche Zustimmung erscheint
+### 21.6 Die Nachweise ansehen — und ändern
+
+Zwei Oberflächen, mit bewusst verschiedenem Zuschnitt:
+
+**Verwaltung: `/Onboarding/BillingProfile`, Reiter *Zustimmungen*** — gegated durch die neue Berechtigung
+**`Onboarding.Admin.Consents.View`**. Zeigt, was für den Mandanten erklärt wurde **und** was seine Mitglieder
+persönlich erklärt haben; Nachweise von Personen ausserhalb des Mandanten sind nie dabei. Im hierarchischen
+Betrieb bewusst nur die *direkten* Mitglieder: ein übergeordneter Verantwortlicher soll nicht beiläufig die
+persönlichen Erklärungen aller nachgeordneten Personen einsehen.
+
+Es gibt **kein Schreib-Gegenstück** — weder eine Berechtigung noch eine Handler-Methode. Ein Nachweis, den man
+bearbeiten kann, ist keiner.
+
+**Konto: `/Account/Onboarding/MyConsents`** — was der angemeldete Benutzer persönlich erklärt hat, mit Datum
+und Fassung. Nur die Punkte mit `Scope = User`: was für einen Mandanten erklärt wurde, gehört in dessen
+Verwaltung, auch wenn dieselbe Person geklickt hat.
+
+- **Freiwillige Punkte sind umstellbar** — das schliesst die Lücke, dass ein einmal abgelehnter Newsletter
+  nie wieder gefragt wurde und es keinen Weg zurück gab.
+- **Pflicht-Punkte stehen nur zum Nachlesen.** Ihr Widerruf wäre kein Schalter, sondern eine Kündigung — wer
+  die Nutzungsbedingungen nicht mehr trägt, kann den Dienst nicht weiter nutzen, und das lässt sich nicht
+  sinnvoll als Häkchen abbilden.
+- Eine Änderung schreibt einen **neuen** Nachweis; der alte bleibt stehen. Die Geschichte ist der Zweck der
+  Ablage — einen erteilten Nachweis nachträglich umzuschreiben hiesse, ihn zu fälschen.
+- Hat sich die Fassung seit der Antwort geändert, steht das dabei. Der alte Nachweis bleibt gültig, gefragt
+  wird bei nächster Gelegenheit erneut.
+
+Die Seite verlangt keine eigene Berechtigung (nur Anmeldung) und braucht keinen Navigationseintrag, wenn nichts
+konfiguriert ist — sie zeigt dann schlicht, dass es nichts anzuzeigen gibt.
+
+### 21.7 Wo welche Zustimmung erscheint
 
 | Seite | Was entsteht | `User`-Punkte | `Tenant`/`Both` |
 |---|---|---|---|
@@ -1632,6 +1662,6 @@ Workflow-Masken betreffen:
 | 23 | **Navigations-Metadata** (§19, `PRE130`) | **Pflicht-Migration** für neue Spalte `NavigationMenu.Metadata` (`dotnet ef migrations add NavigationMenuMetadata` → `database update`), sonst schlägt jede Navigations-Query mit *„Invalid column name 'Metadata'"* fehl. Nur additive nullable Spalte, keine Datenmigration. Bestehende Einträge = NULL |
 | 24 | **Help-Button + maximierbare Dialoge** (§19, `PRE130`, opt-in/automatisch) | Opt-in: `HelpSlug` als Metadata am Nav-Eintrag + `<HelpButton />` (`@using …AdminViews.HelpViews`) ins Host-Layout → Seiten-Hilfe als Popup (fail-silent). Automatisch: maximierbare Detail-/CodeEditor-Dialoge, Hilfe tenant-präfixiert + Medien-Skalierung, Config-Export-Härtung; Billing-Export-Sektion jetzt via WebPart-Flag `BillingConfigExportPartOptions.ActivateBillingConfigExport` (statt manuellem `AddBillingConfigExtension()`, §17) |
 | 25 | **System-Log „Eintrag verfolgen" + Index** (§20) | Kein Breaking Change, keine Config, keine neue Permission — der Augen-Button in `/Util/SystemLog` zeigt je 20 Einträge vor/nach einer Nachricht (einstellbar). **Empfohlen:** Index `IX_SystemLogEventTime` auf `SystemLog (EventTime, SystemEventId)` **manuell** nachziehen (SQL in §20) — **nicht** via `dotnet ef migrations add`, der Snapshot driftet und würde fremde Änderungen mitschleppen. Ohne Index läuft alles, sortiert aber über die ganze Tabelle |
-| 26 | **Zustimmungen im Onboarding** (§21) | **Pflicht:** DbSet `ConsentRecords` im Onboarding-Context (beide Context-Interfaces erweitern neu `IOnboardingConsentContext`, sonst Compile-Break) + Tabelle `ConsentRecord` **manuell** anlegen (SQL in §21.1) + Spalte `HelpTopic.ShowInMenu bit NOT NULL DEFAULT 1` (§21.4). Beide Onboarding-Handler haben `IConsentProvider` als neuen Ctor-Parameter (über `AddMudBlazor*OnboardingViews` automatisch). `BillingProfileViewModel.AcceptTos` hat seine Pflicht-Annotation verloren, `BillingProfileForm` braucht neu den Parameter `ConsentPoints` — wer beides ohne die mitgelieferten Seiten verwendet, muss selbst prüfen bzw. setzen. **`Scope` je Punkt (`User`/`Tenant`/`Both`, Default `User`) entscheidet, ob eine Zustimmung einmalig der Person gilt oder mit jedem Mandanten neu fällt** (§21.2.1). Ohne GlobalSetting `Consent` bleibt es beim einen eingebauten Schalter (Verhalten wie bisher, weiterhin ohne Nachweis) |
+| 26 | **Zustimmungen im Onboarding** (§21) | **Pflicht:** DbSet `ConsentRecords` im Onboarding-Context (beide Context-Interfaces erweitern neu `IOnboardingConsentContext`, sonst Compile-Break) + Tabelle `ConsentRecord` **manuell** anlegen (SQL in §21.1) + Spalte `HelpTopic.ShowInMenu bit NOT NULL DEFAULT 1` (§21.4). Beide Onboarding-Handler haben `IConsentProvider` als neuen Ctor-Parameter (über `AddMudBlazor*OnboardingViews` automatisch). `BillingProfileViewModel.AcceptTos` hat seine Pflicht-Annotation verloren, `BillingProfileForm` braucht neu den Parameter `ConsentPoints` — wer beides ohne die mitgelieferten Seiten verwendet, muss selbst prüfen bzw. setzen. **`Scope` je Punkt (`User`/`Tenant`/`Both`, Default `User`) entscheidet, ob eine Zustimmung einmalig der Person gilt oder mit jedem Mandanten neu fällt** (§21.2.1). Ohne GlobalSetting `Consent` bleibt es beim einen eingebauten Schalter (Verhalten wie bisher, weiterhin ohne Nachweis). **Neue Permission `Onboarding.Admin.Consents.View` seeden** (§21.6) für den Reiter *Zustimmungen*; ein Schreib-Gegenstück gibt es bewusst nicht. Neue Konto-Seite `/Account/Onboarding/MyConsents` (nur Anmeldung nötig) — dort lassen sich freiwillige Zustimmungen ändern, Pflicht-Punkte nur nachlesen |
 | 27 | **Selbstregistrierung + Standard-Mandant** (§22) | Kein Schema-Change. `/Account/Register` existiert neu (der Verweis auf der Anmeldeseite lief bisher ins Leere) und ist **standardmässig abgeschaltet**. Freigeben mit `TenantSetup.AllowSelfRegistration = true` **plus** `DefaultUserTenant` (+ `DefaultUserTenantRole`) — sonst landet der Registrierte in einer leeren Mandanten-Übersicht. Zuweisung nach der Mailbestätigung, nur wenn der Benutzer nirgends Mitglied ist und keine Einladung wartet. `IOnboardingHandler` hat ein neues Member (`AssignDefaultTenantAsync`) — **eigene Implementierungen des Interfaces brechen**. Der Verweis auf der Anmeldeseite hängt jetzt zusätzlich an `ISelfRegistrationPolicy` (neu in `WebCoreToolkit/Security`, optional aufgelöst — ohne Onboarding-Paket unverändert). `JoinRegister` ist unverändert erreichbar und braucht das Flag nicht |
 | 28 | **Zusatzangaben-Module** (§23) | Kein Schema-Change, opt-in. Ohne GlobalSetting `CustomCompanyInfo` passiert nichts. Module sind globale Plugins nach `ICustomCompanyInformationHandler` (Blazor-frei); Reiter erscheinen im Onboarding **und** neu im Firmenprofil (Tab 1), dort gated durch `EditPermission` des Moduls — geprüft beim Anzeigen **und** beim Schreiben. Der Feld-Renderer ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor` gewandert (`UserTaskFieldsForm` = Adapter, API unverändert); zwei Verhaltenskorrekturen betreffen auch die Workflow-Aufgabenmasken (Ja/Nein-Pflichtfeld startet auf `false`, Vorbelegung ohne `ResetKey`) |

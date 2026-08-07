@@ -43,6 +43,23 @@ public interface IOnboardingAdminHandler
     /// </summary>
     Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
+    // -- Consents -----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Die Zustimmungs-Nachweise, die den aktuellen Mandanten betreffen - was fuer ihn erklaert wurde und
+    /// was seine Mitglieder persoenlich erklaert haben. Neueste zuerst.
+    /// </summary>
+    /// <remarks>
+    /// Dass auch die persoenlichen Nachweise der Mitglieder erscheinen, ist eine bewusste Entscheidung:
+    /// wer hier Auskunft geben muss, ist der Mandanten-Verantwortliche, und die Liste seiner Mitglieder
+    /// kennt er ohnehin. Nachweise von Personen, die dem Mandanten nicht angehoeren, sind nie dabei.
+    /// <para>
+    /// Gegated durch <c>Onboarding.Admin.Consents.View</c>. Es gibt bewusst kein Gegenstueck zum
+    /// Schreiben: ein Nachweis, den man bearbeiten kann, ist keiner.
+    /// </para>
+    /// </remarks>
+    Task<ConsentRecordViewModel[]> ListConsentsAsync(ClaimsPrincipal admin, CancellationToken ct = default);
+
     // -- Billing profiles ---------------------------------------------------------------------------
 
     /// <summary>Lists the billing profiles of the current scope tenant (summary projection).</summary>
@@ -160,6 +177,12 @@ public static class OnboardingAdminPermissions
     public const string RoleMappingsAllFeatures = "Onboarding.Admin.RoleMappings.AllFeatures";
     public const string SubTenantsView = "Onboarding.Admin.SubTenants.View";
     public const string SubTenantsWrite = "Onboarding.Admin.SubTenants.Write";
+
+    /// <summary>
+    /// Einsicht in die Zustimmungs-Nachweise des Mandanten. Es gibt bewusst kein Schreib-Gegenstueck: ein
+    /// Nachweis, den man bearbeiten kann, ist keiner.
+    /// </summary>
+    public const string ConsentsView = "Onboarding.Admin.Consents.View";
 
     /// <summary>Read access to the billing-profile tab (View or Write).</summary>
     public static readonly string[] BillingProfileRead = { BillingProfileView, BillingProfileWrite };

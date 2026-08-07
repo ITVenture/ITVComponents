@@ -1,0 +1,205 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Onboarding/MyConsents"
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Globalization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
+@attribute [Authorize]
+
+@inject IConsentProvider Consent
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+@inject ILogger<MyConsents> Logger
+
+@* Was der angemeldete Benutzer persoenlich erklaert hat - und wo er es noch aendern kann.
+
+   Nur die persoenlichen Punkte: was fuer einen Mandanten erklaert wurde, gehoert in dessen Verwaltung und
+   nicht ins Konto einer Person, selbst wenn sie es war, die geklickt hat.
+
+   Pflicht-Punkte stehen hier nur zum Nachlesen. Ihr Widerruf waere kein Schalter, sondern eine Kuendigung -
+   wer die Nutzungsbedingungen nicht mehr trägt, kann den Dienst nicht weiter nutzen, und das laesst sich
+   nicht sinnvoll als Haekchen abbilden. Aenderbar ist, was freiwillig war. *@
+
+<PageTitle>@L["Onb_MyConsents_Title"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-4">
+    <MudText Typo="Typo.h5" GutterBottom="true">@L["Onb_MyConsents_Title"]</MudText>
+
+    @if (loading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (standing.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">@L["Onb_MyConsents_None"]</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.body2" Class="mb-4">@L["Onb_MyConsents_Intro"]</MudText>
+
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudStack Spacing="4">
+                @foreach (ConsentStanding item in standing)
+                {
+                    <div>
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            @if (item.Point.Required)
+                            {
+                                @* Nicht abwaehlbar - aber sichtbar, denn nachlesen darf man immer, wozu
+                                   man Ja gesagt hat. *@
+                                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Color="Color.Default" />
+                            }
+                            else
+                            {
+                                <MudSwitch T="bool" Value="@Value(item)" ValueChanged="@(v => ChangeAsync(item, v))"
+                                           Color="Color.Primary" Disabled="@busy" />
+                            }
+                            <MudText Typo="Typo.body1">@Label(item)</MudText>
+                        </MudStack>
+
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="margin-left:2.5rem">
+                            @Status(item)
+                        </MudText>
+
+                        @if (item.Answered && !item.Current)
+                        {
+                            @* Der Wortlaut hat sich seit der Zustimmung geaendert. Der alte Nachweis bleibt
+                               gueltig; gefragt wird bei naechster Gelegenheit erneut. *@
+                            <MudText Typo="Typo.caption" Color="Color.Warning" Style="margin-left:2.5rem">
+                                @L["Onb_MyConsents_Outdated"]
+                            </MudText>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(item.Point.HelpSlug))
+                        {
+                            <div style="margin-left:2.5rem">
+                                <ConsentDocumentLink Slug="@item.Point.HelpSlug" Text="@LinkText(item)" />
+                            </div>
+                        }
+                    </div>
+                }
+            </MudStack>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private IReadOnlyList<ConsentStanding> standing = Array.Empty<ConsentStanding>();
+    private string? userId;
+    private string? email;
+    private bool loading = true;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        userId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        email = state.User.Identity?.Name;
+
+        await ReloadAsync();
+        loading = false;
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (!string.IsNullOrEmpty(userId))
+        {
+            standing = await Consent.GetStandingAsync(userId);
+        }
+    }
+
+    /// <summary>
+    /// Stellt eine freiwillige Zustimmung um. Das schreibt einen NEUEN Nachweis und aendert den alten
+    /// nicht: die Geschichte ist der Zweck der Ablage, und einen erteilten Nachweis nachtraeglich
+    /// umzuschreiben hiesse, ihn zu faelschen.
+    /// </summary>
+    private async Task ChangeAsync(ConsentStanding item, bool accepted)
+    {
+        if (item.Point.Required || string.IsNullOrEmpty(userId))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var answer = new ConsentAnswer
+            {
+                Key = item.Point.Key,
+                Accepted = accepted,
+                AcceptedUtc = DateTime.UtcNow,
+                Culture = CultureInfo.CurrentUICulture.Name,
+                // Der heute geltende Stand - der Benutzer entscheidet gerade auf dessen Grundlage.
+                Version = item.Point.Version,
+                HelpSlug = item.Point.HelpSlug,
+                Scope = ConsentScope.User
+            };
+
+            int written = await Consent.RecordAsync(new[] { answer }, new ConsentSubject
+            {
+                UserId = userId,
+                Email = email,
+                TenantId = null,
+                Origin = ConsentOccasionKind.AccountRegistration
+            });
+
+            if (written == 0)
+            {
+                // Der Provider hat den Grund protokolliert. Fuer den Benutzer zaehlt, dass seine Aenderung
+                // NICHT gilt - ein stiller Rueckfall waere hier besonders unangenehm, weil er glaubte,
+                // etwas abbestellt zu haben.
+                Snackbar.Add(L["Onb_MyConsents_SaveFailed"], Severity.Error);
+                return;
+            }
+
+            await ReloadAsync();
+            Snackbar.Add(L["Onb_MyConsents_Saved"], Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Die Zustimmung '{Key}' von Benutzer {UserId} konnte nicht geaendert werden.",
+                item.Point.Key, userId);
+            Snackbar.Add(L["Onb_MyConsents_SaveFailed"], Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static bool Value(ConsentStanding item) => item.Answered && item.Accepted;
+
+    private string Label(ConsentStanding item)
+    {
+        // Der Text darf die Stelle {0} fuer den Verweis enthalten - hier steht der Verweis darunter, also
+        // faellt die Stelle ersatzlos weg.
+        string label = Translate(item.Point.Label) ?? item.Point.Key;
+        return label.Replace("{0}", string.Empty).Replace("  ", " ").Trim();
+    }
+
+    private string LinkText(ConsentStanding item)
+        => Translate(item.Point.LinkText) ?? L["Onb_MyConsents_ReadDocument"].Value;
+
+    /// <summary>Klartext oder Kultur-JSON in die Sprache des Lesers - dieselbe Konvention wie ueberall.</summary>
+    private static string? Translate(string? value)
+        => string.IsNullOrEmpty(value) ? null : value.Translate(CultureInfo.CurrentUICulture.Name);
+
+    private string Status(ConsentStanding item)
+    {
+        if (!item.Answered)
+        {
+            return L["Onb_MyConsents_NeverAsked"];
+        }
+
+        string when = item.AnsweredUtc?.ToLocalTime().ToString("g") ?? string.Empty;
+        string what = item.Accepted ? L["Onb_MyConsents_Accepted"] : L["Onb_MyConsents_Declined"];
+        return string.IsNullOrEmpty(item.AnsweredVersion)
+            ? $"{what} — {when}"
+            : $"{what} — {when} ({item.AnsweredVersion})";
+    }
+}
