@@ -1,0 +1,315 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using System.Globalization
+@using System.Text.Json.Nodes
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensibility
+@inject Microsoft.Extensions.Options.IOptions<CustomCompanyInfoViewConfiguration> ViewRegistry
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Die Zusatzangaben unterhalb der Adressen: ein Reiter je zustaendigem Modul. Was im Reiter steht,
+   bestimmt das Modul - entweder die generische Maske aus seiner Feld-Deklaration oder eine eigene
+   Komponente, die der Host unter dem genannten Schluessel registriert hat.
+
+   Die Beschriftungen kommen aus der Konfiguration und nicht aus den Sprachdateien: das hier ist die
+   Benutzer-Kante, nicht eine Verwaltungsansicht. Sie duerfen deshalb Kultur-JSON sein und werden erst
+   beim Anzeigen aufgeloest - in der Kultur des Lesers, nicht in der des Servers. *@
+
+@if (Tabs is { Count: > 0 })
+{
+    <MudPaper Class="pa-2 mb-3" Outlined="true">
+        @* KeepPanelsAlive: ohne das verwirft MudTabs den Inhalt des verlassenen Reiters - der Benutzer
+           fuellt Reiter eins aus, wechselt auf zwei und findet beim Zurueckkommen ein leeres Formular. *@
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-3"
+                 KeepPanelsAlive="true" @bind-ActivePanelIndex="activeIndex">
+            @foreach (CustomInfoTab tab in Tabs)
+            {
+                <MudTabPanel Text="@TabText(tab)" ToolTip="@Title(tab)" Icon="@TabIcon(tab)">
+                    @if (errorKey == tab.Key && !string.IsNullOrEmpty(errorMessage))
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mb-3">@errorMessage</MudAlert>
+                    }
+
+                    @if (ViewType(tab) is { } viewType)
+                    {
+                        <CascadingValue Value="@ViewContext(tab)" IsFixed="true">
+                            <DynamicComponent Type="viewType" @ref="hosts[tab.Key]" />
+                        </CascadingValue>
+                    }
+                    else
+                    {
+                        <DeclaredFieldsForm @ref="forms[tab.Key]"
+                                            Fields="@Declared(tab)"
+                                            Prefill="@Prefill(tab)"
+                                            PrefillIsInvariant="true"
+                                            TranslateText="Translate"
+                                            ResetKey="@($"{tab.Key}#{generation}")"
+                                            RequiredFieldMessage="@(L["Onb_Custom_RequiredField"])"
+                                            YesText="@(L["Onb_Custom_Yes"])"
+                                            NoText="@(L["Onb_Custom_No"])" />
+                    }
+                </MudTabPanel>
+            }
+        </MudTabs>
+    </MudPaper>
+}
+
+@code {
+    /// <summary>Die zu zeigenden Reiter, wie der Provider sie beschrieben hat.</summary>
+    [Parameter] public IReadOnlyList<CustomInfoTab>? Tabs { get; set; }
+
+    /// <summary>
+    /// Die Datensaetze je Modul-Schluessel - dasselbe Woerterbuch, das im Ansichtsmodell steht. Es wird
+    /// beim Einsammeln beschrieben.
+    /// </summary>
+    [Parameter, EditorRequired] public Dictionary<string, JsonNode?> Values { get; set; } = default!;
+
+    /// <summary>Der Erfassungsfall, den die eigenen Masken ueber den Kaskaden-Wert zu sehen bekommen.</summary>
+    [Parameter, EditorRequired] public CustomInfoContext Info { get; set; } = default!;
+
+    /// <summary>
+    /// Auf schmalen Geraeten tragen die Reiter nur ihr Symbol - vier ausgeschriebene Titel passen dort
+    /// nicht nebeneinander, und was man nur ueber Scrollpfeile erreicht, findet niemand.
+    /// </summary>
+    [Parameter] public bool Narrow { get; set; }
+
+    private readonly Dictionary<string, DeclaredFieldsForm?> forms = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DynamicComponent?> hosts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<DeclaredField>> declaredCache = new(StringComparer.Ordinal);
+    private object? describedFrom;
+    private int generation;
+    private int activeIndex;
+    private string? errorKey;
+    private string? errorMessage;
+
+    protected override void OnParametersSet()
+    {
+        // Eine neue Beschreibung heisst: die Felder koennen andere sein (etwa weil aus einer Person eine
+        // Firma wurde). Dann muessen die zwischengespeicherte Projektion UND der Merker des Renderers
+        // weg - sonst zeichnete er die alten Felder weiter und belegte neue nie vor.
+        if (ReferenceEquals(describedFrom, Tabs))
+        {
+            return;
+        }
+
+        describedFrom = Tabs;
+        generation++;
+        declaredCache.Clear();
+        forms.Clear();
+        hosts.Clear();
+        ClearError();
+    }
+
+    /// <summary>
+    /// Sammelt die Angaben aller Reiter ein und schreibt sie nach <see cref="Values"/>. Fehlt in einem
+    /// Reiter etwas, wird genau dieser aktiviert und false geliefert - sonst laese der Benutzer
+    /// "Pflichtfeld fehlt" und saehe ein vollstaendig ausgefuelltes Formular vor sich.
+    /// </summary>
+    public async Task<bool> TryCollectAsync()
+    {
+        ClearError();
+        if (Tabs is null)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < Tabs.Count; i++)
+        {
+            CustomInfoTab tab = Tabs[i];
+            if (ViewType(tab) is not null)
+            {
+                if (!await CollectCustomAsync(tab, i))
+                {
+                    return false;
+                }
+            }
+            else if (!CollectGeneric(tab, i))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Zeigt eine Beanstandung an, die nicht aus der Maske selbst kommt, sondern vom Modul auf dem Server
+    /// - und springt den betroffenen Reiter an.
+    /// </summary>
+    public void ShowError(string? handlerKey, string? message)
+    {
+        errorKey = handlerKey;
+        errorMessage = string.IsNullOrWhiteSpace(message) ? L["Onb_Custom_Rejected"] : Translate(message);
+        Activate(handlerKey);
+        StateHasChanged();
+    }
+
+    private async Task<bool> CollectCustomAsync(CustomInfoTab tab, int index)
+    {
+        hosts.TryGetValue(tab.Key, out DynamicComponent? host);
+        if (host?.Instance is not ICustomCompanyInfoView view)
+        {
+            // Registriert, aber der Vertrag fehlt (oder die Komponente wurde nie gezeichnet). Ohne diese
+            // Meldung wuerde der Reiter beim Abschicken einfach uebergangen und seine Angaben waeren weg.
+            errorKey = tab.Key;
+            errorMessage = L["Onb_Custom_ViewBroken"];
+            activeIndex = index;
+            return false;
+        }
+
+        CustomInfoViewResult result = await view.ResolveValuesAsync();
+        if (!result.CanComplete)
+        {
+            errorKey = tab.Key;
+            errorMessage = result.Message is null ? null : Translate(result.Message);
+            activeIndex = index;
+            return false;
+        }
+
+        Values[tab.Key] = result.Values;
+        return true;
+    }
+
+    private bool CollectGeneric(CustomInfoTab tab, int index)
+    {
+        forms.TryGetValue(tab.Key, out DeclaredFieldsForm? form);
+        if (form is null)
+        {
+            // Kein Formular gezeichnet, weil das Modul gar keine Felder deklariert hat: nichts
+            // einzusammeln, aber auch kein Fehler.
+            return true;
+        }
+
+        if (!form.TryGetInvariantResult(out Dictionary<string, string?> flat))
+        {
+            // Die Maske hat die fehlenden Stellen bereits an Ort und Stelle markiert - hier genuegt es,
+            // den Reiter anzuspringen.
+            errorKey = tab.Key;
+            errorMessage = null;
+            activeIndex = index;
+            return false;
+        }
+
+        var obj = new JsonObject();
+        foreach (KeyValuePair<string, string?> entry in flat)
+        {
+            obj[entry.Key] = entry.Value is null ? null : JsonValue.Create(entry.Value);
+        }
+
+        Values[tab.Key] = obj;
+        return true;
+    }
+
+    private void ClearError()
+    {
+        errorKey = null;
+        errorMessage = null;
+    }
+
+    private void Activate(string? handlerKey)
+    {
+        if (Tabs is null || string.IsNullOrEmpty(handlerKey))
+        {
+            return;
+        }
+
+        for (int i = 0; i < Tabs.Count; i++)
+        {
+            if (string.Equals(Tabs[i].Key, handlerKey, StringComparison.Ordinal))
+            {
+                activeIndex = i;
+                return;
+            }
+        }
+    }
+
+    private Type? ViewType(CustomInfoTab tab) => ViewRegistry.Value.GetViewType(tab.ViewKey);
+
+    private CustomCompanyInfoViewContext ViewContext(CustomInfoTab tab)
+        => new CustomCompanyInfoViewContext(tab.Key, Info, Values.TryGetValue(tab.Key, out JsonNode? v) ? v : tab.Existing, Translate);
+
+    private string? TabText(CustomInfoTab tab) => Narrow ? null : Title(tab);
+
+    private string Title(CustomInfoTab tab)
+        => string.IsNullOrWhiteSpace(tab.Title) ? tab.Key : Translate(tab.Title) ?? tab.Key;
+
+    private string? TabIcon(CustomInfoTab tab)
+        => errorKey == tab.Key
+            ? Icons.Material.Filled.ErrorOutline
+            : string.IsNullOrWhiteSpace(tab.Icon) ? null : tab.Icon;
+
+    /// <summary>
+    /// Loest Klartext oder Kultur-JSON in die Kultur des Lesers auf - dieselbe Konvention wie bei den
+    /// Navigations-Eintraegen und den Aufgaben-Masken.
+    /// </summary>
+    private string? Translate(string? value)
+        => string.IsNullOrEmpty(value) ? value : value.Translate(CultureInfo.CurrentUICulture.Name);
+
+    /// <summary>
+    /// Die Feld-Deklaration des Moduls auf das neutrale Modell des Renderers gebracht. Gepuffert, weil
+    /// die Projektion sonst bei jedem Zeichnen neu liefe.
+    /// </summary>
+    private IReadOnlyList<DeclaredField> Declared(CustomInfoTab tab)
+    {
+        if (declaredCache.TryGetValue(tab.Key, out IReadOnlyList<DeclaredField>? cached))
+        {
+            return cached;
+        }
+
+        IReadOnlyList<DeclaredField> projected = (tab.Fields ?? Array.Empty<CustomInfoField>())
+            .Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name))
+            .Select(Project).ToArray();
+        declaredCache[tab.Key] = projected;
+        return projected;
+    }
+
+    /// <summary>
+    /// Die Vorbelegung: was in diesem Vorgang schon erfasst wurde, sonst das, was am Tenant abgelegt ist.
+    /// Nur fuer die generische Maske - eine eigene Komponente bekommt den Datensatz als Ganzes.
+    /// </summary>
+    private IReadOnlyDictionary<string, object?>? Prefill(CustomInfoTab tab)
+    {
+        JsonNode? source = Values.TryGetValue(tab.Key, out JsonNode? current) && current is not null
+            ? current
+            : tab.Existing;
+        if (source is not JsonObject obj)
+        {
+            return null;
+        }
+
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var entry in obj)
+        {
+            result[entry.Key] = entry.Value?.ToString();
+        }
+
+        return result;
+    }
+
+    private static DeclaredField Project(CustomInfoField field)
+        => new DeclaredField
+        {
+            Name = field.Name,
+            Label = field.Label,
+            Kind = Project(field.Kind),
+            Required = field.Required,
+            ReadOnly = field.ReadOnly,
+            HelpText = field.HelpText,
+            Choices = field.Choices?.Where(c => c is not null)
+                .Select(c => new DeclaredChoice { Value = c.Value, Label = c.Label }).ToArray()
+        };
+
+    // Ausgeschrieben und nicht gecastet: die beiden Aufzaehlungen sind heute deckungsgleich, gehoeren
+    // aber verschiedenen Paketen - ein spaeterer Eintrag auf einer Seite wuerde sonst still den falschen
+    // Feldtyp rendern.
+    private static DeclaredFieldKind Project(CustomInfoFieldKind kind)
+        => kind switch
+        {
+            CustomInfoFieldKind.MultilineText => DeclaredFieldKind.MultilineText,
+            CustomInfoFieldKind.Number => DeclaredFieldKind.Number,
+            CustomInfoFieldKind.Boolean => DeclaredFieldKind.Boolean,
+            CustomInfoFieldKind.Date => DeclaredFieldKind.Date,
+            CustomInfoFieldKind.Choice => DeclaredFieldKind.Choice,
+            _ => DeclaredFieldKind.Text
+        };
+}

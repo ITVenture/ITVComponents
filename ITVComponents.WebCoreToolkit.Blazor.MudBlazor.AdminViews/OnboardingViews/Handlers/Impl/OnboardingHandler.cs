@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
@@ -36,6 +37,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting,
         FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState,
         FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer;
+    private readonly ICustomCompanyInfoProvider customInfo;
     private readonly ILogger<OnboardingHandler<TContext>> logger;
 
     public OnboardingHandler(
@@ -46,12 +48,14 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
             FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting,
             FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState,
             FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer,
+        ICustomCompanyInfoProvider customInfo,
         ILogger<OnboardingHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.setupOptions = setupOptions;
         this.tenantInitializer = tenantInitializer;
+        this.customInfo = customInfo;
         this.logger = logger;
     }
 
@@ -61,23 +65,41 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
     public async Task<int?> CreateTenantAsync(ClaimsPrincipal user, BillingProfileViewModel input, CancellationToken ct = default)
     {
+        // Die Zusatzangaben werden VOR der Anlage geprueft: entstuende der Tenant erst und wuerde dann
+        // beanstandet, muesste er wieder weg - und genau das laesst sich mit den Modulen, die in fremde
+        // Ablagen schreiben, nicht sauber zuruecknehmen.
+        var infoCtx = CustomCompanyInfoOnboardingHelper.ContextFor(input, CustomInfoMode.Create, null, user);
+        if (!await CustomCompanyInfoOnboardingHelper.AcceptsAsync(customInfo, input, infoCtx, logger, ct))
+        {
+            return null;
+        }
+
         // Standalone entry point (no pending record): create the tenant atomically on its own context + transaction,
         // so tenant/admin/profile creation and the template application commit or roll back together.
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var strategy = db.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var created = await strategy.ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(ct);
-            var created = await CreateOrResumeTenantAsync(user, input, db, null, ct);
-            if (created == null)
+            var result = await CreateOrResumeTenantAsync(user, input, db, null, ct);
+            if (result == null)
             {
-                return (int?)null;
+                return ((int tenantId, int billingProfileId)?)null;
             }
 
             await tx.CommitAsync(ct);
-            return created.Value.billingProfileId;
+            return result;
         });
+
+        if (created == null)
+        {
+            return null;
+        }
+
+        // Erst nach dem Commit: vorher gibt es die TenantId nicht, an der die Angaben haengen.
+        await CustomCompanyInfoOnboardingHelper.PersistAsync(customInfo, input, infoCtx, created.Value.tenantId, logger, ct);
+        return created.Value.billingProfileId;
     }
 
     /// <summary>
@@ -217,7 +239,20 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         // One context + one transaction for the whole flow: consuming the pending record, creating the tenant and
         // applying the template all commit or roll back together (see OnboardingPendingHelper.CompleteAsync). The
         // core runs on the shared context and does not commit; CompleteAsync owns the transaction.
-        return await OnboardingPendingHelper.CompleteAsync(dbFactory, userManager, user, CreateOrResumeTenantAsync, ct, logger);
+        PendingCompletion completion = await OnboardingPendingHelper.CompleteAsync(dbFactory, userManager, user, CreateOrResumeTenantAsync, ct, logger);
+        if (!completion.Completed)
+        {
+            return false;
+        }
+
+        // Hier wird bewusst NICHT mehr geprueft und nichts mehr abgelehnt: der Benutzer hat gerade seine
+        // Mailadresse bestaetigt und kann nichts mehr eingeben. Wuerde ein inzwischen hinzugekommenes
+        // Pflicht-Modul die Fertigstellung blockieren, saesse er dauerhaft fest. Was fehlt, meldet der
+        // Provider - nachtragen laesst es sich im Firmenprofil.
+        await CustomCompanyInfoOnboardingHelper.PersistAsync(customInfo, completion.Profile,
+            CustomCompanyInfoOnboardingHelper.ContextFor(completion.Profile, CustomInfoMode.Create, completion.TenantId, user),
+            completion.TenantId, logger, ct);
+        return true;
     }
 
     public async Task<ParticipatingTenantViewModel[]> ListMyTenantsAsync(ClaimsPrincipal user, CancellationToken ct = default)

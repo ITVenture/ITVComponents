@@ -75,7 +75,7 @@ internal static class OnboardingPendingHelper
     /// id so it can resume on the existing tenant instead of creating a new one; it returns the created/resumed
     /// tenant id plus the billing-profile id, or null to signal failure (rolls back).
     /// </summary>
-    public static async Task<bool> CompleteAsync<TCtx, TUser>(IDbContextFactory<TCtx> dbFactory, UserManager<TUser> userManager, ClaimsPrincipal principal,
+    public static async Task<PendingCompletion> CompleteAsync<TCtx, TUser>(IDbContextFactory<TCtx> dbFactory, UserManager<TUser> userManager, ClaimsPrincipal principal,
         Func<ClaimsPrincipal, BillingProfileViewModel, TCtx, int?, CancellationToken, Task<(int tenantId, int billingProfileId)?>> createTenant, CancellationToken ct,
         ILogger logger = null)
         where TCtx : DbContext, IOnboardingPendingContext
@@ -85,7 +85,7 @@ internal static class OnboardingPendingHelper
         if (string.IsNullOrEmpty(owner?.Email))
         {
             logger?.LogWarning("Onboarding completion skipped: no user/e-mail resolved for the current principal.");
-            return false;
+            return PendingCompletion.Nothing;
         }
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -103,7 +103,7 @@ internal static class OnboardingPendingHelper
             {
                 // Normal on every later visit (already committed) — only interesting while chasing a missing tenant.
                 logger?.LogDebug("No pending onboarding for {Email}; nothing to complete.", owner.Email);
-                return false;
+                return PendingCompletion.Nothing;
             }
 
             var profile = string.IsNullOrEmpty(pending.PayloadJson)
@@ -116,7 +116,7 @@ internal static class OnboardingPendingHelper
                 logger?.LogWarning(
                     "Onboarding for {Email} was rejected by the strategy handler (resume marker: {ResumeTenantId}); rolling back, no tenant created.",
                     owner.Email, pending.CreatedTenantId);
-                return false;
+                return PendingCompletion.Nothing;
             }
 
             // Record the tenant BEFORE committing (resume marker) and flip the pending in the same transaction.
@@ -124,7 +124,30 @@ internal static class OnboardingPendingHelper
             pending.Status = InvitationStatus.Committed;
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return true;
+            return new PendingCompletion { Completed = true, TenantId = created.Value.tenantId, Profile = profile };
         });
     }
+}
+
+/// <summary>
+/// Was beim Fertigstellen eines geparkten Onboardings herauskommt.
+/// </summary>
+/// <remarks>
+/// Bewusst mehr als ein bool: nach dem Commit muessen noch die Zusatzangaben der Module abgelegt werden,
+/// und dafuer braucht der Aufrufer beides - den neuen Tenant und die geparkten Angaben. Beides erst
+/// danach nochmals aus der Datenbank zu holen waere eine zweite Quelle fuer dieselbe Wahrheit.
+/// </remarks>
+internal sealed class PendingCompletion
+{
+    /// <summary>Es gab nichts fertigzustellen (oder es ist gescheitert).</summary>
+    public static readonly PendingCompletion Nothing = new PendingCompletion();
+
+    /// <summary>Wurde ein geparktes Onboarding fertiggestellt?</summary>
+    public bool Completed { get; init; }
+
+    /// <summary>Der angelegte (oder wieder aufgenommene) Tenant.</summary>
+    public int TenantId { get; init; }
+
+    /// <summary>Die geparkten Angaben, aus denen der Tenant entstanden ist.</summary>
+    public BillingProfileViewModel Profile { get; init; }
 }

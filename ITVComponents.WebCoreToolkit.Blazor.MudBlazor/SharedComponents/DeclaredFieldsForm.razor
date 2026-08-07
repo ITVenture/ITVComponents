@@ -1,0 +1,368 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using System.Globalization
+@using System.Collections.Generic
+@using System.Linq
+
+@*
+    Rendert eine Feld-Deklaration (DeclaredField) als Maske und sammelt das Ergebnis ein - OHNE zu wissen,
+    wozu die Maske gehoert. Heute teilen sich sie die Workflow-Aufgabenmasken (Payload aus der laufenden
+    Aufgabe bzw. Start-Dialog) und die Zusatzangaben im Onboarding. Die Feldbeschreibung ist an allen
+    Stellen dieselbe - dann darf es auch nur EINEN Renderer geben.
+
+    Texte kommen als Parameter herein und nicht aus einem IStringLocalizer: dieses Paket ist die
+    gemeinsame Basis und hat bewusst keine eigenen Sprachdateien. Jeder Konsument bringt seine mit.
+*@
+
+<MudGrid Spacing="2">
+    @foreach (DeclaredField field in VisibleFields)
+    {
+        <MudItem xs="12" sm="@(field.Kind == DeclaredFieldKind.MultilineText ? 12 : 6)">
+            @if (field.ReadOnly)
+            {
+                <MudField Label="@Label(field)" Variant="Variant.Text" Disabled="true">
+                    @DisplayValue(field)
+                </MudField>
+            }
+            else if (field.Kind == DeclaredFieldKind.MultilineText)
+            {
+                <MudTextField T="string" Label="@Label(field)" Lines="4"
+                              HelperText="@Help(field)"
+                              Required="@field.Required"
+                              Value="@AsString(field)"
+                              ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == DeclaredFieldKind.Number)
+            {
+                <MudNumericField T="decimal?" Label="@Label(field)"
+                                 HelperText="@Help(field)"
+                                 Required="@field.Required"
+                                 Value="@AsDecimal(field)"
+                                 ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == DeclaredFieldKind.Boolean)
+            {
+                <MudSwitch T="bool" Label="@Label(field)" Color="Color.Primary"
+                           Value="@AsBool(field)"
+                           ValueChanged="@(v => Set(field, v))" />
+            }
+            else if (field.Kind == DeclaredFieldKind.Date)
+            {
+                <MudDatePicker Label="@Label(field)"
+                               HelperText="@Help(field)"
+                               Required="@field.Required"
+                               Date="@AsDate(field)"
+                               DateChanged="@(d => Set(field, d))" />
+            }
+            else if (field.Kind == DeclaredFieldKind.Choice)
+            {
+                <MudSelect T="string" Label="@Label(field)"
+                           HelperText="@Help(field)"
+                           Required="@field.Required"
+                           Value="@AsString(field)"
+                           ValueChanged="@(v => Set(field, v))">
+                    @foreach (DeclaredChoice choice in field.Choices ?? new List<DeclaredChoice>())
+                    {
+                        <MudSelectItem T="string" Value="@choice.Value">@ChoiceLabel(choice)</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <MudTextField T="string" Label="@Label(field)"
+                              HelperText="@Help(field)"
+                              Required="@field.Required"
+                              Value="@AsString(field)"
+                              ValueChanged="@(v => Set(field, v))" />
+            }
+        </MudItem>
+    }
+</MudGrid>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-3">@error</MudAlert>
+}
+
+@code {
+    /// <summary>Die zu rendernde Feld-Deklaration.</summary>
+    [Parameter] public IReadOnlyList<DeclaredField>? Fields { get; set; }
+
+    /// <summary>
+    /// Die Werte, aus denen vorbelegt (und bei ReadOnly-Feldern angezeigt) wird. Null = keine
+    /// Vorbelegung - so laeuft etwa der Start-Dialog, bei dem es noch nichts gibt, woraus vorzubelegen
+    /// waere.
+    /// </summary>
+    [Parameter] public IReadOnlyDictionary<string, object?>? Prefill { get; set; }
+
+    /// <summary>
+    /// Stehen Zahlen und Daten der Vorbelegung in invarianter Schreibweise? Dann wird auch nur so
+    /// geparst.
+    /// </summary>
+    /// <remarks>
+    /// Nicht kosmetisch: kaeme "1.5" aus einem invarianten Speicher und wuerde gegen de-DE geparst, waere
+    /// der Punkt ein Tausendertrennzeichen und aus anderthalb wuerde fuenfzehn. Wer invariant speichert,
+    /// muss invariant lesen.
+    /// </remarks>
+    [Parameter] public bool PrefillIsInvariant { get; set; }
+
+    /// <summary>
+    /// Uebersetzt Beschriftung/Hilfetext (Klartext oder Kultur-JSON) in die Kultur des Lesers. Null = der
+    /// Wert wird unveraendert angezeigt.
+    /// </summary>
+    [Parameter] public Func<string?, string?>? TranslateText { get; set; }
+
+    /// <summary>
+    /// Duerfen Nur-Anzeige-Felder erscheinen? Wo es noch keine Vorbelegung gibt, nein - ein leeres Feld
+    /// waere dort nur verwirrend.
+    /// </summary>
+    [Parameter] public bool AllowReadOnly { get; set; } = true;
+
+    /// <summary>
+    /// Wechselt dieser Schluessel, wird neu vorbelegt. Ohne ihn wuerde jedes Rendern die Eingaben des
+    /// Benutzers wieder mit der Vorbelegung ueberschreiben.
+    /// </summary>
+    [Parameter] public string? ResetKey { get; set; }
+
+    /// <summary>
+    /// Die Meldung, wenn Pflichtfelder fehlen. Die Namen der fehlenden Felder werden angehaengt.
+    /// </summary>
+    [Parameter] public string? RequiredFieldMessage { get; set; }
+
+    /// <summary>Beschriftung fuer "wahr" in der Nur-Anzeige-Darstellung.</summary>
+    [Parameter] public string? YesText { get; set; }
+
+    /// <summary>Beschriftung fuer "falsch" in der Nur-Anzeige-Darstellung.</summary>
+    [Parameter] public string? NoText { get; set; }
+
+    private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
+    private string? error;
+    private bool initialized;
+    private string? initializedFor;
+
+    private IEnumerable<DeclaredField> VisibleFields
+        => (Fields ?? Array.Empty<DeclaredField>())
+            .Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Name) && (AllowReadOnly || !f.ReadOnly));
+
+    protected override void OnParametersSet()
+    {
+        // Vorbelegung genau EINMAL je ResetKey: sonst wuerde jedes Rendern die Eingaben des Benutzers
+        // wieder mit der Vorbelegung ueberschreiben. Das zusaetzliche Flag ist noetig, weil ein Aufrufer
+        // ohne ResetKey sonst NIE vorbelegt wuerde - der Anfangswert des Merkers waere von Beginn an
+        // gleich dem (leeren) Schluessel.
+        if (initialized && initializedFor == ResetKey)
+        {
+            return;
+        }
+
+        initialized = true;
+        initializedFor = ResetKey;
+        values.Clear();
+        error = null;
+
+        foreach (DeclaredField field in VisibleFields)
+        {
+            if (Prefill is not null && Prefill.TryGetValue(PrefillName(field), out object? prefill))
+            {
+                values[field.Name] = prefill;
+            }
+            else if (field.Kind == DeclaredFieldKind.Boolean && !field.ReadOnly)
+            {
+                // Ein Schalter ist immer beantwortet - auch dann, wenn der Benutzer ihn aus laesst.
+                // Ohne diese Vorbelegung haette ein unberuehrtes Pflicht-Ja/Nein gar keinen Wert und
+                // liesse sich nur abschliessen, indem man es ein- und wieder ausschaltet.
+                values[field.Name] = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sammelt das Ergebnis ein und prueft die Pflichtfelder. Liefert false samt angezeigter Meldung,
+    /// wenn etwas fehlt - der Aufrufer schliesst dann nicht ab.
+    /// </summary>
+    public bool TryGetResult(out Dictionary<string, object?> result)
+    {
+        result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (!Collect(out List<DeclaredField> complete))
+        {
+            return false;
+        }
+
+        foreach (DeclaredField field in complete)
+        {
+            values.TryGetValue(field.Name, out object? value);
+            result[field.Name] = value;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Wie <see cref="TryGetResult"/>, liefert die Werte aber in invarianter Schreibweise als Text -
+    /// fuer Aufrufer, die sie so ablegen (JSON, Konfiguration) und spaeter kulturunabhaengig zurueck
+    /// lesen wollen.
+    /// </summary>
+    public bool TryGetInvariantResult(out Dictionary<string, string?> result)
+    {
+        result = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (!Collect(out List<DeclaredField> complete))
+        {
+            return false;
+        }
+
+        foreach (DeclaredField field in complete)
+        {
+            result[field.Name] = InvariantValue(field);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Prueft die Pflichtfelder und liefert die Felder, die ins Ergebnis gehoeren. Nur-Anzeige-Felder
+    /// gehen bewusst NICHT ein: sie kommen aus der Vorbelegung und wuerden sonst als "Eingabe"
+    /// zurueckgeschrieben.
+    /// </summary>
+    private bool Collect(out List<DeclaredField> complete)
+    {
+        complete = new List<DeclaredField>();
+        error = null;
+
+        var missing = new List<string>();
+        foreach (DeclaredField field in VisibleFields)
+        {
+            if (field.ReadOnly)
+            {
+                continue;
+            }
+
+            values.TryGetValue(field.Name, out object? value);
+            if (field.Required && IsEmpty(value))
+            {
+                missing.Add(Label(field));
+                continue;
+            }
+
+            complete.Add(field);
+        }
+
+        if (missing.Count > 0)
+        {
+            error = $"{RequiredFieldMessage} ({string.Join(", ", missing)})".TrimStart();
+            complete.Clear();
+            return false;
+        }
+
+        return true;
+    }
+
+    private string? InvariantValue(DeclaredField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? value) || value is null)
+        {
+            return null;
+        }
+
+        return field.Kind switch
+        {
+            DeclaredFieldKind.Boolean => AsBool(field) ? "true" : "false",
+            DeclaredFieldKind.Number => AsDecimal(field)?.ToString(CultureInfo.InvariantCulture),
+            DeclaredFieldKind.Date => AsDate(field)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            _ => value.ToString()
+        };
+    }
+
+    private static bool IsEmpty(object? value)
+        => value is null || (value is string s && string.IsNullOrWhiteSpace(s));
+
+    private static string PrefillName(DeclaredField field)
+        => string.IsNullOrWhiteSpace(field.PrefillName) ? field.Name : field.PrefillName!;
+
+    private string Label(DeclaredField field)
+        => string.IsNullOrWhiteSpace(field.Label) ? field.Name : Translate(field.Label) ?? field.Label!;
+
+    private string? Help(DeclaredField field)
+        => string.IsNullOrWhiteSpace(field.HelpText) ? null : Translate(field.HelpText);
+
+    private string ChoiceLabel(DeclaredChoice choice)
+        => string.IsNullOrWhiteSpace(choice.Label)
+            ? choice.Value ?? string.Empty
+            : Translate(choice.Label) ?? choice.Label!;
+
+    private string? Translate(string? value)
+        => TranslateText is null ? value : TranslateText(value);
+
+    private string DisplayValue(DeclaredField field)
+    {
+        object? value = Prefill is not null && Prefill.TryGetValue(PrefillName(field), out object? v) ? v : null;
+        return value switch
+        {
+            null => string.Empty,
+            bool b => (b ? YesText : NoText) ?? b.ToString(),
+            DateTime d => d.ToString("g", CultureInfo.CurrentCulture),
+            IFormattable f => f.ToString(null, CultureInfo.CurrentCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
+    private void Set(DeclaredField field, object? value)
+    {
+        values[field.Name] = value;
+        error = null;
+    }
+
+    private string? AsString(DeclaredField field)
+        => values.TryGetValue(field.Name, out object? v) ? v?.ToString() : null;
+
+    private bool AsBool(DeclaredField field)
+        => values.TryGetValue(field.Name, out object? v)
+           && v is not null
+           && (v is bool b ? b : bool.TryParse(v.ToString(), out bool parsed) && parsed);
+
+    private decimal? AsDecimal(DeclaredField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        if (v is decimal d)
+        {
+            return d;
+        }
+
+        string? raw = v.ToString();
+        if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal invariant))
+        {
+            return invariant;
+        }
+
+        return !PrefillIsInvariant
+               && decimal.TryParse(raw, NumberStyles.Any, CultureInfo.CurrentCulture, out decimal current)
+            ? current
+            : null;
+    }
+
+    private DateTime? AsDate(DeclaredField field)
+    {
+        if (!values.TryGetValue(field.Name, out object? v) || v is null)
+        {
+            return null;
+        }
+
+        if (v is DateTime dt)
+        {
+            return dt;
+        }
+
+        string? raw = v.ToString();
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime invariant))
+        {
+            return invariant;
+        }
+
+        return !PrefillIsInvariant
+               && DateTime.TryParse(raw, CultureInfo.CurrentCulture, DateTimeStyles.None, out DateTime current)
+            ? current
+            : null;
+    }
+}

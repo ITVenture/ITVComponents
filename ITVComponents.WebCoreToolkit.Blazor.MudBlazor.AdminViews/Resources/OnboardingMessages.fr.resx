@@ -34,6 +34,11 @@
   <data name="Onb_UseInvoiceAddr" xml:space="preserve"><value>Utiliser une adresse de facturation distincte</value></data>
   <data name="Onb_InvoiceAddress" xml:space="preserve"><value>Adresse de facturation</value></data>
   <data name="Onb_AcceptTos" xml:space="preserve"><value>J'accepte les conditions d'utilisation.</value></data>
+  <data name="Onb_Custom_RequiredField" xml:space="preserve"><value>Veuillez remplir les champs obligatoires.</value></data>
+  <data name="Onb_Custom_Yes" xml:space="preserve"><value>Oui</value></data>
+  <data name="Onb_Custom_No" xml:space="preserve"><value>Non</value></data>
+  <data name="Onb_Custom_Rejected" xml:space="preserve"><value>Ces informations n'ont pas été acceptées. Veuillez vérifier vos saisies.</value></data>
+  <data name="Onb_Custom_ViewBroken" xml:space="preserve"><value>Cette section n'a pas pu être lue. Veuillez réessayer ou contacter le support.</value></data>
   <data name="Onb_RecipientName" xml:space="preserve"><value>Nom du destinataire</value></data>
   <data name="Onb_AddressLine2" xml:space="preserve"><value>Adresse ligne 2</value></data>
   <data name="Onb_AddressLine3" xml:space="preserve"><value>Adresse ligne 3</value></data>

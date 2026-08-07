@@ -2,11 +2,13 @@
 @page "/Account/Onboarding/Start"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
+@using System.Text.Json.Nodes
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 @using ITVComponents.WebCoreToolkit.Security
 @attribute [AllowAnonymous]
 
 @inject IOnboardingHandler Handler
+@inject ICustomCompanyInfoProvider CustomInfo
 @inject IAccountConfirmationMailer Mailer
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -28,7 +30,10 @@
         <EditForm Model="model" OnValidSubmit="OnSubmitAsync">
             <DataAnnotationsValidator />
 
-            <BillingProfileForm Model="model" ShowParentTenantPicker="false" />
+            <BillingProfileForm @ref="profileForm" Model="model" ShowParentTenantPicker="false"
+                                CustomTabs="customTabs"
+                                CustomInfo="customCtx"
+                                ProfileTypeChanged="DescribeCustomAsync" />
 
             <MudPaper Class="pa-4 mb-3" Outlined="true">
                 <MudText Typo="Typo.h6" GutterBottom="true">@L["Onb_Start_Account"]</MudText>
@@ -58,6 +63,9 @@
 
 @code {
     private DirectOnboardingViewModel model = new();
+    private BillingProfileForm? profileForm;
+    private IReadOnlyList<CustomInfoTab>? customTabs;
+    private CustomInfoContext? customCtx;
     private bool busy;
     private bool done;
 
@@ -65,9 +73,27 @@
     [SupplyParameterFromQuery(Name = "invitation")]
     private string? InvitationToken { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         model.InvitationToken = InvitationToken;
+        await DescribeCustomAsync();
+    }
+
+    /// <summary>
+    /// Fragt die Zusatzangaben-Module, welche Reiter dieser Fall braucht. Der Benutzer ist hier noch
+    /// nicht angemeldet - der Erfassungsfall traegt deshalb keinen Benutzer.
+    /// </summary>
+    private async Task DescribeCustomAsync()
+    {
+        customCtx = new CustomInfoContext
+        {
+            Mode = CustomInfoMode.Create,
+            Origin = string.IsNullOrEmpty(InvitationToken)
+                ? CustomInfoOrigin.SelfService
+                : CustomInfoOrigin.Invitation,
+            ProfileType = model.ProfileType
+        };
+        customTabs = await CustomInfo.DescribeAsync(customCtx);
     }
 
     private async Task OnSubmitAsync()
@@ -75,6 +101,24 @@
         busy = true;
         try
         {
+            // Erst die Zusatzangaben einsammeln - sie werden mit dem uebrigen Formular geparkt und erst
+            // nach der Mailbestaetigung abgelegt.
+            if (profileForm is not null && !await profileForm.TryCollectCustomAsync())
+            {
+                return;
+            }
+
+            if (customCtx is not null)
+            {
+                customCtx.ProfileType = model.ProfileType;
+                CustomInfoCheckResult check = await CustomInfo.ValidateAsync(customCtx, Buckets());
+                if (!check.Valid)
+                {
+                    profileForm?.ShowCustomError(check.HandlerKey, check.Message);
+                    return;
+                }
+            }
+
             // The billing-profile e-mail doubles as the login e-mail. The token (when present) is parked
             // with the pending onboarding and re-applied on completion to pin the parent tenant.
             var result = await Handler.StartOnboardingAsync(new OnboardingStartInput(model.Email, model.Password, model, InvitationToken));
@@ -95,4 +139,10 @@
             busy = false;
         }
     }
+
+    /// <summary>Die erfassten Datensaetze ohne die leeren Eintraege.</summary>
+    private IReadOnlyDictionary<string, JsonNode> Buckets()
+        => model.CustomInfo
+            .Where(e => e.Value is not null)
+            .ToDictionary(e => e.Key, e => e.Value!, StringComparer.Ordinal);
 }

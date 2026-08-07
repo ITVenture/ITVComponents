@@ -73,6 +73,15 @@
     <AddressEditor Title="@(L["Onb_InvoiceAddress"])" Address="Model.InvoiceAddress" />
 }
 
+@* Die Zusatzangaben der konfigurierten Module - je Modul ein Reiter, unterhalb der Adressen. Ohne
+   konfigurierte Module zeichnet die Komponente gar nichts, das Formular sieht dann aus wie bisher. *@
+@if (CustomTabs is { Count: > 0 } && CustomInfo is not null)
+{
+    <CustomCompanyInfoTabs @ref="customTabs" Tabs="CustomTabs" Info="CustomInfo"
+                           Values="Model.CustomInfo" Narrow="narrow" />
+    <MudHidden Breakpoint="Breakpoint.Xs" @bind-Hidden="narrow" />
+}
+
 <MudPaper Class="pa-4 mb-3" Outlined="true">
     <MudCheckBox T="bool" Value="Model.AcceptTos" ValueChanged="v => Model.AcceptTos = v"
                  Label="@(L["Onb_AcceptTos"])" Color="Color.Primary" />
@@ -80,6 +89,22 @@
 
 @code {
     [Parameter, EditorRequired] public BillingProfileViewModel Model { get; set; } = default!;
+
+    /// <summary>
+    /// Die Reiter der Zusatzangaben, wie der Provider sie fuer diesen Fall beschrieben hat. Leer/null =
+    /// keine Module konfiguriert oder keines zustaendig.
+    /// </summary>
+    [Parameter] public IReadOnlyList<CustomInfoTab>? CustomTabs { get; set; }
+
+    /// <summary>Der Erfassungsfall, in dem die Zusatzangaben erhoben werden.</summary>
+    [Parameter] public CustomInfoContext? CustomInfo { get; set; }
+
+    /// <summary>
+    /// Wird ausgeloest, wenn sich die Profilart aendert. Die Seite laesst die Reiter daraufhin neu
+    /// beschreiben - ein Modul darf fuer eine Firma andere (oder gar keine) Angaben verlangen als fuer
+    /// eine Einzelperson, und das entscheidet es an seinem Erfassungsfall.
+    /// </summary>
+    [Parameter] public EventCallback ProfileTypeChanged { get; set; }
 
     /// <summary>Set by the host page to render the parent-tenant picker when the hierarchy strategy is active.</summary>
     [Parameter] public bool ShowParentTenantPicker { get; set; }
@@ -90,7 +115,24 @@
     /// <summary>Tenants the user may pick as a parent. Empty for the flat strategy.</summary>
     [Parameter] public IReadOnlyList<TenantPickerItem> EligibleParents { get; set; } = Array.Empty<TenantPickerItem>();
 
-    private void OnProfileTypeChanged(ProfileType type)
+    private CustomCompanyInfoTabs? customTabs;
+    private bool narrow;
+
+    /// <summary>
+    /// Sammelt die Zusatzangaben ein und schreibt sie ins Ansichtsmodell. Fehlt in einem Reiter etwas,
+    /// wird er angesprungen und false geliefert - die aufrufende Seite schickt dann nicht ab.
+    /// </summary>
+    public Task<bool> TryCollectCustomAsync()
+        => customTabs is null ? Task.FromResult(true) : customTabs.TryCollectAsync();
+
+    /// <summary>
+    /// Zeigt eine Beanstandung an, die erst auf dem Server aufgefallen ist, und springt den betroffenen
+    /// Reiter an.
+    /// </summary>
+    public void ShowCustomError(string? handlerKey, string? message)
+        => customTabs?.ShowError(handlerKey, message);
+
+    private async Task OnProfileTypeChanged(ProfileType type)
     {
         Model.ProfileType = type;
         if (type == ProfileType.Personal)
@@ -102,6 +144,11 @@
         {
             Model.FirstName = null;
             Model.LastName = null;
+        }
+
+        if (ProfileTypeChanged.HasDelegate)
+        {
+            await ProfileTypeChanged.InvokeAsync();
         }
     }
 }

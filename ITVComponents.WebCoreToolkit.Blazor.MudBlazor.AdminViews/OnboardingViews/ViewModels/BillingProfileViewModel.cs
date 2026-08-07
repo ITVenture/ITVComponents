@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Nodes;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 
@@ -59,6 +60,18 @@ public class BillingProfileViewModel
 
     [Range(typeof(bool), "true", "true", ErrorMessage = "You must accept the terms of service.")]
     public bool AcceptTos { get; set; }
+
+    /// <summary>
+    /// Die Angaben der Zusatzangaben-Module: je Modul-Schluessel ein Datensatz, dessen Form das Modul
+    /// bestimmt. Bei der generischen Maske ist es ein flaches Objekt aus Zeichenketten in invarianter
+    /// Schreibweise, bei einer eigenen Maske genau das, was sie geliefert hat.
+    /// </summary>
+    /// <remarks>
+    /// Ein echter JSON-Knoten und keine Zeichenkette mit JSON darin: dieses Modell wird beim
+    /// verzoegerten Onboarding als Ganzes serialisiert geparkt, und ein eingebetteter Text ergaebe dort
+    /// doppelt maskiertes JSON - beim Nachsehen in der Datenbank praktisch unlesbar.
+    /// </remarks>
+    public Dictionary<string, JsonNode?> CustomInfo { get; set; } = new();
 }
 
 /// <summary>

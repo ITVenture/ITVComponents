@@ -1,8 +1,10 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensibility;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +33,9 @@ public static class DependencyInjectionExtensions
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
         // Client helper for the register-and-wait join flow (writes the same-browser join nonce cookie).
         services.AddToolkitClientScript("_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/onboarding.js", true);
+        // Zusatzangaben-Module: ohne konfigurierte Module ist das ein reiner Leerlauf - der Provider loest
+        // den Plugin-Ladeweg erst auf, wenn wirklich Namen in den GlobalSettings stehen.
+        services.TryAddScoped<ICustomCompanyInfoProvider, CustomCompanyInfoProvider>();
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(OnboardingHandler<>)))
         {
@@ -63,6 +68,9 @@ public static class DependencyInjectionExtensions
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
         // Client helper for the register-and-wait join flow (writes the same-browser join nonce cookie).
         services.AddToolkitClientScript("_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/onboarding.js", true);
+        // Zusatzangaben-Module: ohne konfigurierte Module ist das ein reiner Leerlauf - der Provider loest
+        // den Plugin-Ladeweg erst auf, wenn wirklich Namen in den GlobalSettings stehen.
+        services.TryAddScoped<ICustomCompanyInfoProvider, CustomCompanyInfoProvider>();
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyOnboardingHandler<>)))
         {
@@ -81,5 +89,22 @@ public static class DependencyInjectionExtensions
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// Registriert eigene Masken fuer Zusatzangaben-Module. Ein Modul nennt in seinem <c>ViewKey</c> nur
+    /// den Schluessel; welche Komponente dahinter steht, entscheidet der Host hier.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// services.ConfigureCustomCompanyInfoViews(c => c.RegisterView&lt;NetworkTypeView&gt;("mlm.networktype"));
+    /// </code>
+    /// Die Komponente liest ihren Zustand ueber
+    /// <c>[CascadingParameter] CustomCompanyInfoViewContext</c> und erfuellt <c>ICustomCompanyInfoView</c>.
+    /// </example>
+    public static IServiceCollection ConfigureCustomCompanyInfoViews(this IServiceCollection services,
+        Action<CustomCompanyInfoViewConfiguration> configure)
+    {
+        return services.Configure(configure);
     }
 }

@@ -2,10 +2,12 @@
 @page "/Account/Onboarding/CreateTenant"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
+@using System.Text.Json.Nodes
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 @attribute [Authorize]
 
 @inject IOnboardingHandler Handler
+@inject ICustomCompanyInfoProvider CustomInfo
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
@@ -22,10 +24,13 @@
     <EditForm Model="model" OnValidSubmit="OnSubmitAsync">
         <DataAnnotationsValidator />
 
-        <BillingProfileForm Model="model"
+        <BillingProfileForm @ref="profileForm" Model="model"
                             ShowParentTenantPicker="@(!HasInvitation && Handler.ParentPolicy.ShowPicker)"
                             ParentRequired="@(!HasInvitation && Handler.ParentPolicy.ParentRequired)"
-                            EligibleParents="parents" />
+                            EligibleParents="parents"
+                            CustomTabs="customTabs"
+                            CustomInfo="customCtx"
+                            ProfileTypeChanged="DescribeCustomAsync" />
 
         @if (HasInvitation)
         {
@@ -46,6 +51,10 @@
 @code {
     private BillingProfileViewModel model = new();
     private TenantPickerItem[] parents = Array.Empty<TenantPickerItem>();
+    private BillingProfileForm? profileForm;
+    private IReadOnlyList<CustomInfoTab>? customTabs;
+    private CustomInfoContext? customCtx;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
     private bool busy;
 
     /// <summary>When set (from an accept link), the parent tenant is pinned by the token; hide the picker.</summary>
@@ -58,10 +67,31 @@
     {
         model.InvitationToken = InvitationToken;
         var state = await AuthState.GetAuthenticationStateAsync();
+        currentUser = state.User;
         if (state.User.Identity?.IsAuthenticated == true && !HasInvitation)
         {
             parents = await Handler.ListEligibleParentsAsync(state.User);
         }
+
+        await DescribeCustomAsync();
+    }
+
+    /// <summary>
+    /// Fragt die Zusatzangaben-Module, welche Reiter dieser Fall braucht. Wird auch nach einem Wechsel
+    /// der Profilart erneut gerufen - ein Modul darf fuer eine Firma andere Angaben verlangen als fuer
+    /// eine Einzelperson.
+    /// </summary>
+    private async Task DescribeCustomAsync()
+    {
+        customCtx = new CustomInfoContext
+        {
+            Mode = CustomInfoMode.Create,
+            Origin = HasInvitation ? CustomInfoOrigin.Invitation : CustomInfoOrigin.SelfService,
+            ProfileType = model.ProfileType,
+            ParentTenantId = model.ParentTenantId,
+            User = currentUser
+        };
+        customTabs = await CustomInfo.DescribeAsync(customCtx);
     }
 
     private async Task OnSubmitAsync()
@@ -69,8 +99,28 @@
         busy = true;
         try
         {
-            var state = await AuthState.GetAuthenticationStateAsync();
-            var id = await Handler.CreateTenantAsync(state.User, model);
+            // Erst die Zusatzangaben einsammeln: fehlt in einem Reiter etwas, springt die Maske ihn an,
+            // und wir schicken gar nicht erst ab.
+            if (profileForm is not null && !await profileForm.TryCollectCustomAsync())
+            {
+                return;
+            }
+
+            // Der Erfassungsfall traegt jetzt den endgueltigen Stand des Formulars.
+            if (customCtx is not null)
+            {
+                customCtx.ProfileType = model.ProfileType;
+                customCtx.ParentTenantId = model.ParentTenantId;
+
+                CustomInfoCheckResult check = await CustomInfo.ValidateAsync(customCtx, Buckets());
+                if (!check.Valid)
+                {
+                    profileForm?.ShowCustomError(check.HandlerKey, check.Message);
+                    return;
+                }
+            }
+
+            var id = await Handler.CreateTenantAsync(currentUser!, model);
             if (id is null)
             {
                 Snackbar.Add(L["Onb_CreateFailed"], Severity.Error);
@@ -84,4 +134,10 @@
             busy = false;
         }
     }
+
+    /// <summary>Die erfassten Datensaetze ohne die leeren Eintraege.</summary>
+    private IReadOnlyDictionary<string, JsonNode> Buckets()
+        => model.CustomInfo
+            .Where(e => e.Value is not null)
+            .ToDictionary(e => e.Key, e => e.Value!, StringComparer.Ordinal);
 }
