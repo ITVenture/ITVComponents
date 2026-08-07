@@ -124,7 +124,14 @@ internal static class OnboardingPendingHelper
             pending.Status = InvitationStatus.Committed;
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return new PendingCompletion { Completed = true, TenantId = created.Value.tenantId, Profile = profile };
+            return new PendingCompletion
+            {
+                Completed = true,
+                TenantId = created.Value.tenantId,
+                Profile = profile,
+                UserId = owner.Id,
+                Email = owner.Email
+            };
         });
     }
 }
@@ -150,4 +157,14 @@ internal sealed class PendingCompletion
 
     /// <summary>Die geparkten Angaben, aus denen der Tenant entstanden ist.</summary>
     public BillingProfileViewModel Profile { get; init; }
+
+    /// <summary>
+    /// Der Benutzer, dessen geparktes Onboarding fertiggestellt wurde. Er steht hier, weil er beim
+    /// Fertigstellen ohnehin ermittelt werden musste - ihn danach nochmals zu holen, waere eine zweite
+    /// Quelle fuer dieselbe Wahrheit.
+    /// </summary>
+    public string? UserId { get; init; }
+
+    /// <summary>Seine E-Mail - zugleich der Schluessel, unter dem das Onboarding geparkt war.</summary>
+    public string? Email { get; init; }
 }

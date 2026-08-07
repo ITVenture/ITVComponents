@@ -47,5 +47,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat
         public DbSet<EmployeeRole> EmployeeRoles { get; set; }
         public DbSet<EmployeeRoleMapping> EmployeeRoleMappings { get; set; }
         public DbSet<PendingOnboarding> PendingOnboardings { get; set; }
+        public DbSet<ConsentRecord> ConsentRecords { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
 @inject IStringLocalizer<OnboardingMessages> L
 
 @* Reusable billing-profile editor. The ProfileType toggle drives which set of personal-vs-company
@@ -82,10 +83,10 @@
     <MudHidden Breakpoint="Breakpoint.Xs" @bind-Hidden="narrow" />
 }
 
-<MudPaper Class="pa-4 mb-3" Outlined="true">
-    <MudCheckBox T="bool" Value="Model.AcceptTos" ValueChanged="v => Model.AcceptTos = v"
-                 Label="@(L["Onb_AcceptTos"])" Color="Color.Primary" />
-</MudPaper>
+@* Die einzuholenden Zustimmungen. Ohne konfigurierte Punkte zeigt das Feld den einen Schalter fuer die
+   Nutzungsbedingungen, den es hier immer gab. *@
+<ConsentPanel @ref="consentPanel" Points="ConsentPoints" Values="Model.Consents"
+              Fallback="Model.AcceptTos" FallbackChanged="v => Model.AcceptTos = v" />
 
 @code {
     [Parameter, EditorRequired] public BillingProfileViewModel Model { get; set; } = default!;
@@ -98,6 +99,14 @@
 
     /// <summary>Der Erfassungsfall, in dem die Zusatzangaben erhoben werden.</summary>
     [Parameter] public CustomInfoContext? CustomInfo { get; set; }
+
+    /// <summary>
+    /// Die hier einzuholenden Zustimmungen - das, was den Mandanten betrifft, und auf Seiten ohne eigenen
+    /// Konto-Teil auch das, was den Benutzer betrifft. Leer = es ist nichts konfiguriert, dann steht hier
+    /// der eingebaute Schalter.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ConsentPoint>? ConsentPoints { get; set; }
+
 
     /// <summary>
     /// Wird ausgeloest, wenn sich die Profilart aendert. Die Seite laesst die Reiter daraufhin neu
@@ -116,7 +125,14 @@
     [Parameter] public IReadOnlyList<TenantPickerItem> EligibleParents { get; set; } = Array.Empty<TenantPickerItem>();
 
     private CustomCompanyInfoTabs? customTabs;
+    private ConsentPanel? consentPanel;
     private bool narrow;
+
+    /// <summary>
+    /// Hebt die Zustimmung hervor, die beim Abschicken gefehlt hat; ein Schluessel aus einem anderen Feld
+    /// der Seite wird verworfen. Fuer den eingebauten Schalter ist es <see cref="ConsentPanel.FallbackKey"/>.
+    /// </summary>
+    public void ShowConsentMissing(string? key) => consentPanel?.ShowMissing(key);
 
     /// <summary>
     /// Sammelt die Zusatzangaben ein und schreibt sie ins Ansichtsmodell. Fehlt in einem Reiter etwas,

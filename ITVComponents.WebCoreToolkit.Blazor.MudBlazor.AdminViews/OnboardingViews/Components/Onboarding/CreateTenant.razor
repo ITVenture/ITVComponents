@@ -2,12 +2,16 @@
 @page "/Account/Onboarding/CreateTenant"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
+@using System.Globalization
+@using System.Security.Claims
 @using System.Text.Json.Nodes
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
 @attribute [Authorize]
 
 @inject IOnboardingHandler Handler
 @inject ICustomCompanyInfoProvider CustomInfo
+@inject IConsentProvider Consent
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
@@ -30,6 +34,7 @@
                             EligibleParents="parents"
                             CustomTabs="customTabs"
                             CustomInfo="customCtx"
+                            ConsentPoints="consentPoints"
                             ProfileTypeChanged="DescribeCustomAsync" />
 
         @if (HasInvitation)
@@ -52,6 +57,8 @@
     private BillingProfileViewModel model = new();
     private TenantPickerItem[] parents = Array.Empty<TenantPickerItem>();
     private BillingProfileForm? profileForm;
+    private ConsentSet consent = new();
+    private IReadOnlyList<ConsentPoint> consentPoints = Array.Empty<ConsentPoint>();
     private IReadOnlyList<CustomInfoTab>? customTabs;
     private CustomInfoContext? customCtx;
     private System.Security.Claims.ClaimsPrincipal? currentUser;
@@ -72,6 +79,13 @@
         {
             parents = await Handler.ListEligibleParentsAsync(state.User);
         }
+
+        // Der Benutzer besteht schon: was er persoenlich in der geltenden Fassung bereits beantwortet hat,
+        // wird nicht erneut gefragt. Diese Seite hat keinen eigenen Konto-Teil - was doch noch offen ist,
+        // steht deshalb zusammen mit den Zustimmungen des Mandanten in einem Feld.
+        consent = await Consent.DescribeAsync(ConsentOccasionKind.TenantOnboarding,
+            currentUser?.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        consentPoints = consent.All;
 
         await DescribeCustomAsync();
     }
@@ -99,7 +113,14 @@
         busy = true;
         try
         {
-            // Erst die Zusatzangaben einsammeln: fehlt in einem Reiter etwas, springt die Maske ihn an,
+            // Die Zustimmungen zuerst: sie stehen ganz unten im Formular, und wer sie vergessen hat, soll
+            // das erfahren, bevor irgendetwas anderes passiert.
+            if (!CollectConsent())
+            {
+                return;
+            }
+
+            // Dann die Zusatzangaben einsammeln: fehlt in einem Reiter etwas, springt die Maske ihn an,
             // und wir schicken gar nicht erst ab.
             if (profileForm is not null && !await profileForm.TryCollectCustomAsync())
             {
@@ -126,6 +147,7 @@
                 Snackbar.Add(L["Onb_CreateFailed"], Severity.Error);
                 return;
             }
+
             Snackbar.Add(L["Onb_TenantCreated"], Severity.Success);
             Nav.NavigateTo("/Account/Onboarding/MyTenants");
         }
@@ -133,6 +155,38 @@
         {
             busy = false;
         }
+    }
+
+    /// <summary>
+    /// Prueft die Zustimmungen und haelt den Nachweis im Ansichtsmodell fest. Der Zeitpunkt wird HIER
+    /// gestempelt - das ist der Moment der Zustimmung.
+    /// </summary>
+    private bool CollectConsent()
+    {
+        profileForm?.ShowConsentMissing(null);
+
+        if (consentPoints.Count == 0)
+        {
+            // Ohne konfigurierte Punkte gilt der eingebaute Schalter.
+            if (!model.AcceptTos)
+            {
+                profileForm?.ShowConsentMissing(ConsentPanel.FallbackKey);
+                return false;
+            }
+
+            return true;
+        }
+
+        ConsentCheckResult check = Consent.Validate(consentPoints, model.Consents);
+        if (!check.Valid)
+        {
+            profileForm?.ShowConsentMissing(check.MissingKey);
+            return false;
+        }
+
+        model.ConsentAnswers = consentPoints.ToAnswers(model.Consents,
+            CultureInfo.CurrentUICulture.Name, DateTime.UtcNow);
+        return true;
     }
 
     /// <summary>Die erfassten Datensaetze ohne die leeren Eintraege.</summary>

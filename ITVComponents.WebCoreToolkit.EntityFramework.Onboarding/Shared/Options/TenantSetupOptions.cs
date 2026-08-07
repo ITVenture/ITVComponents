@@ -49,5 +49,40 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options
         /// <c>false</c> (existing roles may be wrapped into a mapping).
         /// </summary>
         public bool ForceDedicatedRoleForMappings { get; set; }
+
+        /// <summary>
+        /// Darf sich jemand ohne Einladung selbst ein Konto anlegen (<c>/Account/Register</c>)? Vorgabe
+        /// <c>false</c> - die Seite weist den Vorgang dann ab und der Verweis auf der Anmeldeseite
+        /// verschwindet.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst zurueckhaltend voreingestellt: ein offenes Registrierungsformular ist eine
+        /// Entscheidung, die ein Betrieb treffen soll, und nicht etwas, das mit einem Paket-Update
+        /// hereinkommt. Der Einladungs-Weg (<c>/Account/Onboarding/JoinRegister</c>) und das
+        /// Direkt-Onboarding mit eigenem Mandanten bleiben davon unberuehrt.
+        /// </remarks>
+        public bool AllowSelfRegistration { get; set; }
+
+        /// <summary>
+        /// Der <c>TenantName</c> (ersatzweise <c>DisplayName</c>) des Mandanten, dem ein selbst
+        /// registrierter Benutzer zugewiesen wird. Leer = er bekommt keinen.
+        /// </summary>
+        /// <remarks>
+        /// Zugewiesen wird NACH der Mailbestaetigung und nur, wenn der Benutzer noch keinem Mandanten
+        /// angehoert und auch keine Einladung auf ihn wartet - eine Einladung hat Vorrang, sie fuehrt ihn
+        /// dorthin, wo er hingehoert.
+        /// <para>
+        /// Ist <see cref="AllowSelfRegistration"/> gesetzt und dies nicht, kann sich zwar jemand
+        /// registrieren, landet danach aber ohne Mandanten in einer leeren Uebersicht. Das wird
+        /// protokolliert.
+        /// </para>
+        /// </remarks>
+        public string DefaultUserTenant { get; set; }
+
+        /// <summary>
+        /// Die Rolle, die ein selbst registrierter Benutzer im <see cref="DefaultUserTenant"/> erhaelt.
+        /// Leer = er wird nur Mitglied, ohne Rolle - was in aller Regel bedeutet, dass er nichts sieht.
+        /// </summary>
+        public string DefaultUserTenantRole { get; set; }
     }
 }

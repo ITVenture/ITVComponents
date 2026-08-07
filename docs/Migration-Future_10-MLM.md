@@ -1167,6 +1167,285 @@ ist der Index **rein additiv** — keine Daten-, keine Verhaltensänderung.
 
 ---
 
+## 21. Zustimmungen im Onboarding (AGB/Datenschutz/Newsletter) — **Pflicht-Migration (1 Tabelle)**
+
+Bisher gab es in der Firmendaten-Erfassung genau **einen** Schalter („Ich akzeptiere die Nutzungsbedingungen"),
+der als Pflichtfeld wirkte, aber **nirgends gespeichert** wurde — es gab also keinen Nachweis, wer wann wozu
+zugestimmt hat. Und im Beitritts-Flow (`/Account/Onboarding/JoinRegister`, jemand folgt einer Einladung und legt
+nur ein Konto an) wurde **gar nie** zugestimmt.
+
+Neu sind die Zustimmungspunkte **konfigurierbar** (mehrere Schalter, AGB und Datenschutz getrennt, Newsletter
+optional) und der Nachweis wird **abgelegt**.
+
+### 21.1 Neue Tabelle `ConsentRecord`
+
+Die beiden Kontext-Interfaces (`ISecurityContextWithOnboarding`, `IHierarchySecurityContextWithOnboarding`)
+erweitern jetzt zusätzlich `IOnboardingConsentContext`. **Euer Kontext braucht deshalb ein neues DbSet:**
+
+```csharp
+public DbSet<ConsentRecord> ConsentRecords { get; set; }
+```
+
+Die Entität hat bewusst **keine Fremdschlüssel** (gleiches Muster wie `PendingOnboarding`): die Zustimmung fällt
+beim anonymen Start, lange bevor es einen Mandanten gibt, und sie soll den Mandanten und das Konto überleben —
+ein Nachweis, der beim Löschen des Mandanten mitverschwindet, ist keiner.
+
+**⚠️ Nicht per `dotnet ef migrations add` erzeugen lassen** (Snapshot-Drift, siehe §20). Manuell:
+
+```sql
+CREATE TABLE dbo.ConsentRecord (
+    ConsentRecordId int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ConsentRecord PRIMARY KEY,
+    ConsentKey      nvarchar(200)  NOT NULL,
+    Version         nvarchar(100)  NULL,
+    Accepted        bit            NOT NULL,
+    AcceptedUtc     datetime2      NOT NULL,
+    UserId          nvarchar(450)  NULL,
+    Email           nvarchar(256)  NULL,
+    Scope           int            NOT NULL,
+    TenantId        int            NULL,
+    Culture         nvarchar(35)   NULL,
+    HelpSlug        nvarchar(200)  NULL,
+    Origin          nvarchar(100)  NULL
+);
+CREATE INDEX IX_ConsentRecordUser   ON dbo.ConsentRecord (UserId);
+CREATE INDEX IX_ConsentRecordTenant ON dbo.ConsentRecord (TenantId);
+CREATE INDEX IX_ConsentRecordKey    ON dbo.ConsentRecord (ConsentKey);
+```
+
+PostgreSQL:
+
+```sql
+CREATE TABLE "ConsentRecord" (
+    "ConsentRecordId" serial PRIMARY KEY,
+    "ConsentKey"  varchar(200) NOT NULL,
+    "Version"     varchar(100),
+    "Accepted"    boolean      NOT NULL,
+    "AcceptedUtc" timestamp    NOT NULL,
+    "UserId"      varchar(450),
+    "Email"       varchar(256),
+    "Scope"       integer      NOT NULL,
+    "TenantId"    integer,
+    "Culture"     varchar(35),
+    "HelpSlug"    varchar(200),
+    "Origin"      varchar(100)
+);
+CREATE INDEX "IX_ConsentRecordUser"   ON "ConsentRecord" ("UserId");
+CREATE INDEX "IX_ConsentRecordTenant" ON "ConsentRecord" ("TenantId");
+CREATE INDEX "IX_ConsentRecordKey"    ON "ConsentRecord" ("ConsentKey");
+```
+
+`Scope` ist `0 = User`, `1 = Tenant`, `2 = Both`.
+
+`Accepted` hält auch die **Ablehnung** fest, nicht nur die Zustimmung: dass jemand den Newsletter ausdrücklich
+nicht wollte, ist genau die Auskunft, die man später braucht — sie unterscheidet sich von „wurde nie gefragt".
+
+### 21.2 Konfiguration (GlobalSettings `Consent`)
+
+Ohne Konfiguration ändert sich **nichts**: es bleibt beim einen eingebauten Schalter, und es wird weiterhin
+nichts abgelegt. Sobald Punkte konfiguriert sind, ersetzen sie ihn.
+
+```json
+{
+  "Points": [
+    {
+      "Key": "tos",
+      "Label": "{\"de\":\"Ich akzeptiere die {0}.\",\"fr\":\"J'accepte les {0}.\"}",
+      "LinkText": "{\"de\":\"Nutzungsbedingungen\",\"fr\":\"conditions d'utilisation\"}",
+      "HelpSlug": "documents-agb",
+      "Version": "2026-08",
+      "Scope": "Both",
+      "Required": true
+    },
+    {
+      "Key": "privacy",
+      "Label": "{\"de\":\"Ich habe die {0} gelesen.\"}",
+      "LinkText": "{\"de\":\"Datenschutzerklärung\"}",
+      "HelpSlug": "documents-datenschutz",
+      "Version": "2026-08",
+      "Scope": "User",
+      "Required": true
+    },
+    {
+      "Key": "newsletter",
+      "Label": "{\"de\":\"Ich möchte den Newsletter erhalten.\"}",
+      "Scope": "User",
+      "Required": false
+    }
+  ]
+}
+```
+
+- `Label` darf die Stelle `{0}` enthalten — dort wird der Verweis eingesetzt; fehlt sie, steht er dahinter.
+  Damit lässt sich der Satzbau je Sprache anders legen.
+- `Version` ist der Stand des Dokuments und wandert **in den Nachweis**. Ändern sich die AGB, ist an den alten
+  Nachweisen ablesbar, welchem Wortlaut jemand zugestimmt hat. Leer ist erlaubt, aber eine vertane Gelegenheit.
+- `Key` darf sich **nie mehr ändern**, sobald damit Zustimmungen erfasst wurden.
+
+### 21.2.1 `Scope` — wen die Zustimmung betrifft
+
+Das ist die zentrale Einstellung, und sie ist keine Formalie: eine Datenschutzerklärung betrifft die **natürliche
+Person** hinter dem Konto, während Nutzungsbedingungen ein **Vertrag** sein können, den jeder Mandant für sich
+schliesst. Welches zutrifft, hängt am Geschäftsmodell — deshalb steht es in der Konfiguration.
+
+| `Scope` | Wo der Punkt erscheint | Wiederholung | `TenantId` im Nachweis |
+|---|---|---|---|
+| `User` (Default) | beim Konto-Teil der Maske | **einmalig** — wer in der geltenden Fassung geantwortet hat, wird nicht wieder gefragt | leer, auch wenn bei einer Mandanten-Anlage erteilt |
+| `Tenant` | beim Firmen-Teil | bei **jeder** Mandanten-Anlage; beim blossen Anlegen eines Kontos gar nicht | gesetzt |
+| `Both` | beim Konto-Anlegen im Konto-Teil, sonst im Firmen-Teil (dort **einmal**, nicht zusätzlich beim Konto) | bei **jeder** Mandanten-Anlage | gesetzt |
+
+Wichtig bei `Both`: eine früher erteilte persönliche Zustimmung unterdrückt den Punkt bei einer Mandanten-Anlage
+**nicht** — sie deckt den Vertrag für *diesen* Mandanten nicht ab. Wer will, dass die Nutzungsbedingungen nur ein
+einziges Mal quittiert werden, setzt sie auf `User`.
+
+Ein Klick bleibt **ein** Nachweis: bei `Both` entsteht eine Zeile mit UserId *und* TenantId, nicht zwei.
+
+**Neue Fassung (`Version` geändert):** der Punkt taucht bei der nächsten Gelegenheit wieder auf und wird neu
+quittiert; der alte Nachweis bleibt unangetastet stehen. Bestandsnutzer, die gerade nichts anlegen, werden
+**nicht** zur Bestätigung gedrängt — ein Zwangs-Dialog beim Login wäre eine eigene Ausbaustufe.
+
+**Unterdrückt wird nach „beantwortet", nicht nach „zugestimmt":** wer den Newsletter einmal abgelehnt hat, wird
+nicht bei jeder Gelegenheit erneut gefragt. Bei Pflicht-Punkten macht das keinen Unterschied — ohne Zustimmung
+kommt niemand durch, es kann also gar kein abgelehnter Nachweis entstanden sein. (Ein späteres „ich will den
+Newsletter doch" braucht folglich eine Profilseite; die gibt es noch nicht.)
+
+**Beim Beitritt zu einem bestehenden Mandanten wird nichts gefragt.** Wer eine Einladung mit bestehendem Konto
+annimmt, erhält Zutritt zu fremden Daten und schliesst keinen eigenen Vertrag. `JoinRegister` fragt nur deshalb,
+weil dort ein **neues Konto** entsteht.
+
+### 21.3 Die Dokumente liegen als Hilfe-Themen
+
+`HelpSlug` zeigt auf ein Thema des Hilfesystems (§ `HelpSystem-Setup.md`). Das ist bewusst so: Hilfe-Themen sind
+ohnehin pro Sprache gepflegt, in Markdown verfasst und **ohne Anmeldung** lesbar — Voraussetzung dafür, dass sie
+beim anonymen Start überhaupt aufgehen. Der Verweis öffnet in einem **neuen Tab**, damit das halb ausgefüllte
+Formular nicht verloren geht.
+
+Damit AGB und Datenschutz nicht mitten in der Produkthilfe stehen, hat `HelpTopic` neu das Flag **`ShowInMenu`**
+(siehe §21.4): legt einen Container „Dokumente" mit `ShowInMenu = false` an und hängt die Dokumente darunter.
+
+### 21.4 `HelpTopic.ShowInMenu` — **Migration (1 Spalte)**
+
+```sql
+ALTER TABLE dbo.HelpTopic ADD ShowInMenu bit NOT NULL CONSTRAINT DF_HelpTopic_ShowInMenu DEFAULT 1;
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "HelpTopic" ADD COLUMN "ShowInMenu" boolean NOT NULL DEFAULT true;
+```
+
+Default `true` — der Bestand verhält sich damit unverändert. Das Flag steuert **nur die Auflistung**, nicht die
+Erreichbarkeit: ein Thema mit `ShowInMenu = false` ist weiterhin unter `/help/{slug}` abrufbar, taucht aber
+weder im Navigationsbaum des Viewers noch im Teilbaum des Kontext-Popups auf — **zusammen mit allem, was unter
+ihm hängt**. Wer ein Thema wirklich vom Netz nehmen will, nimmt `IsPublished` zurück. Im Admin-Baum sind solche
+Themen mit dem Chip *not in menu* markiert.
+
+### 21.5 Was sich im Code ändert
+
+- Beide Onboarding-Handler haben `IConsentProvider` als **neuen Ctor-Parameter** — über
+  `AddMudBlazor*OnboardingViews` automatisch, bei manueller Registrierung nicht.
+- `BillingProfileViewModel.AcceptTos` hat seine Pflicht-**Datenannotation verloren**: sind Punkte konfiguriert,
+  wird dieser Schalter gar nicht gezeigt, und die Annotation würde das Formular dann gegen etwas sperren, das
+  niemand sehen kann. Geprüft wird jetzt beim Abschicken, wo bekannt ist, welcher Fall vorliegt. **Wer das
+  Ansichtsmodell selbst verwendet, ohne über `BillingProfileForm` zu gehen, muss die Prüfung selbst aufrufen.**
+- Neu am Ansichtsmodell: `Consents` (Schalterstellungen) und `ConsentAnswers` (der Nachweis). Beide reisen im
+  geparkten Payload mit — der Nachweis hält den Zeitpunkt der **Zustimmung** fest, nicht den seiner Ablage; beim
+  verzögerten Onboarding liegt die Mailbestätigung dazwischen.
+- `BillingProfileForm` bekommt die anzuzeigenden Punkte neu als Parameter `ConsentPoints`; die Seite lädt sie
+  (`IConsentProvider.DescribeAsync`), weil erst sie den Anlass kennt. Wer das Formular selbst einbindet, muss den
+  Parameter setzen — sonst erscheint dort nur der eingebaute Rückfall-Schalter.
+
+### 21.6 Wo welche Zustimmung erscheint
+
+| Seite | Was entsteht | `User`-Punkte | `Tenant`/`Both` |
+|---|---|---|---|
+| `/Account/Onboarding/Start` (anonym) | Konto **und** Mandant | im Konto-Abschnitt (Kennwort) | im Firmen-Abschnitt |
+| `/Account/Onboarding/CreateTenant` (angemeldet) | Mandant | nur was noch offen ist, im selben Feld | im selben Feld |
+| `/Account/Onboarding/JoinRegister` | nur Konto | ja | `Tenant` gar nicht, `Both` als persönliche Zustimmung |
+| Einladung annehmen (*Meine Mandanten*) | nichts | — | — |
+
+---
+
+## 22. Selbstregistrierung: `/Account/Register` + Standard-Mandant (opt-in, kein Schema-Change)
+
+Die Anmeldeseite verlinkt seit jeher auf `Account/Register` — **diese Seite gab es nicht**, der Verweis lief ins
+Leere. Sie existiert jetzt, ist aber standardmässig **abgeschaltet**.
+
+### 22.1 Warum abgeschaltet
+
+Ein Konto ohne Mandanten ist eine Sackgasse: der Benutzer registriert sich, bestätigt die Mail und landet in
+einer leeren Mandanten-Übersicht. `RegisterAccountAsync` legt ausschliesslich den Identity-Benutzer an; die
+Zuordnung geschah bisher nur über eine wartende **Employee-Einladung** (E-Mail-Abgleich in
+`AcceptInvitationAsync`). Wer ohne Einladung kam, bekam nichts.
+
+Deshalb neu in `TenantSetupOptions`:
+
+```json
+{
+  "AllowSelfRegistration": true,
+  "DefaultUserTenant": "PUBLIC",
+  "DefaultUserTenantRole": "Gast"
+}
+```
+
+- **`AllowSelfRegistration`** (Default `false`) — ohne dies zeigt `/Account/Register` nur den Hinweis, dass hier
+  keine Konten angelegt werden können, **und der Verweis auf der Anmeldeseite verschwindet**. Bewusst opt-in:
+  ein offenes Registrierungsformular ist eine Entscheidung des Betriebs und soll nicht mit einem Paket-Update
+  hereinkommen. Der Einladungs-Weg (`/Account/Onboarding/JoinRegister`) und das Direkt-Onboarding sind davon
+  **nicht** betroffen.
+
+  Der Verweis hängt an **zwei** Bedingungen, die verschiedene Fragen beantworten und beide zutreffen müssen:
+  `LoginOptions.RegistrationPage.AllowRegister` (gibt es überhaupt eine Registrierungsseite — das kann auch
+  eine hosteigene sein) **und** `AllowSelfRegistration` (nimmt sie gerade Vorgänge an). Gelesen wird Letzteres
+  über die neue, paket-neutrale Abstraktion **`ISelfRegistrationPolicy`** (`ITVComponents.WebCoreToolkit`,
+  Ordner `Security`, neben `IAccountConfirmationMailer`): die Anmeldeseite liegt in `IdentityPages`, die
+  Registrierungsseite in `AdminViews`, und keines der beiden Pakete darf das andere kennen. Die Anmeldeseite
+  löst die Richtlinie **optional** auf — ein Host ohne Onboarding-Paket verhält sich unverändert.
+
+  **Anzeige und Prüfung benutzen damit dasselbe Prädikat.** Zwei getrennte Einstellungen wären genau die
+  Bauart, aus der ein Verweis entsteht, der beim Anklicken abgewiesen wird — oder eine offene Seite, zu der
+  kein Weg führt.
+- **`DefaultUserTenant`** — `TenantName` (ersatzweise `DisplayName`) des Mandanten, dem der neue Benutzer
+  zugewiesen wird. Leer = er bekommt keinen, also wieder die Sackgasse (wird protokolliert).
+- **`DefaultUserTenantRole`** — die Rolle, die er dort erhält. Leer = Mitglied ohne Rolle, was praktisch heisst:
+  er sieht nichts (wird protokolliert).
+
+### 22.2 Wann die Zuweisung fällt
+
+`IOnboardingHandler.AssignDefaultTenantAsync` läuft auf der **Mandanten-Übersicht**, direkt neben der
+Fertigstellung eines geparkten Onboardings — also auf der ersten angemeldeten Landung **nach** der
+Mailbestätigung. Einen unbestätigten Benutzer einem Mandanten zuzuschlagen hiesse, jemandem Zutritt zu geben,
+von dem noch nicht feststeht, dass ihm die Mailadresse überhaupt gehört.
+
+Zugewiesen wird nur, wenn **beides** zutrifft:
+
+1. der Benutzer gehört noch **keinem** Mandanten an, und
+2. es wartet **keine** Employee-Einladung auf seine Adresse — eine Einladung hat Vorrang und führt ihn dorthin,
+   wo er hingehört; ihn zusätzlich in den Standard-Mandanten zu setzen wäre ungewollter Zutritt.
+
+Die Methode ist idempotent (jeder weitere Aufruf liefert `false`) und liest Mandant und Rolle mit
+`IgnoreQueryFilters` — der Benutzer hat auf diesen Mandanten ja gerade noch keinen Zugriff, mit aktiven
+Mandanten-Filtern fände die Abfrage nichts.
+
+### 22.3 Register- und Join-Seite teilen sich eine Komponente
+
+`RegisterAccountForm.razor` trägt Formular, Zustimmungen, die Same-Browser-Bindung (Nonce + Cookie), den
+Mailversand und das Warten auf die Bestätigung. Darüber liegen zwei dünne Seiten, die sich **nur im
+erklärenden Text** unterscheiden:
+
+| Seite | Text | `AllowSelfRegistration` nötig |
+|---|---|---|
+| `/Account/Register` | „Konto anlegen" | **ja** |
+| `/Account/Onboarding/JoinRegister` | „…weil Sie eine Einladung erhalten haben" | nein (unverändert) |
+
+`?email=` wird auf beiden vorbelegt; `/Account/Register` nimmt zusätzlich `?returnUrl=` entgegen (die
+Anmeldeseite reicht ihr eigenes Ziel durch). **Der Wert wird auf eigene Pfade eingeschränkt** — absolute
+Adressen, protokoll-relative `//host` und Backslash-Varianten fallen protokolliert auf die Mandanten-Übersicht
+zurück. Ungeprüft wäre das eine offene Weiterleitung, und zwar an zwei Stellen: im Bestätigungslink der Mail und
+beim Neuladen nach der Bestätigung.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1198,3 +1477,5 @@ ist der Index **rein additiv** — keine Daten-, keine Verhaltensänderung.
 | 23 | **Navigations-Metadata** (§19, `PRE130`) | **Pflicht-Migration** für neue Spalte `NavigationMenu.Metadata` (`dotnet ef migrations add NavigationMenuMetadata` → `database update`), sonst schlägt jede Navigations-Query mit *„Invalid column name 'Metadata'"* fehl. Nur additive nullable Spalte, keine Datenmigration. Bestehende Einträge = NULL |
 | 24 | **Help-Button + maximierbare Dialoge** (§19, `PRE130`, opt-in/automatisch) | Opt-in: `HelpSlug` als Metadata am Nav-Eintrag + `<HelpButton />` (`@using …AdminViews.HelpViews`) ins Host-Layout → Seiten-Hilfe als Popup (fail-silent). Automatisch: maximierbare Detail-/CodeEditor-Dialoge, Hilfe tenant-präfixiert + Medien-Skalierung, Config-Export-Härtung; Billing-Export-Sektion jetzt via WebPart-Flag `BillingConfigExportPartOptions.ActivateBillingConfigExport` (statt manuellem `AddBillingConfigExtension()`, §17) |
 | 25 | **System-Log „Eintrag verfolgen" + Index** (§20) | Kein Breaking Change, keine Config, keine neue Permission — der Augen-Button in `/Util/SystemLog` zeigt je 20 Einträge vor/nach einer Nachricht (einstellbar). **Empfohlen:** Index `IX_SystemLogEventTime` auf `SystemLog (EventTime, SystemEventId)` **manuell** nachziehen (SQL in §20) — **nicht** via `dotnet ef migrations add`, der Snapshot driftet und würde fremde Änderungen mitschleppen. Ohne Index läuft alles, sortiert aber über die ganze Tabelle |
+| 26 | **Zustimmungen im Onboarding** (§21) | **Pflicht:** DbSet `ConsentRecords` im Onboarding-Context (beide Context-Interfaces erweitern neu `IOnboardingConsentContext`, sonst Compile-Break) + Tabelle `ConsentRecord` **manuell** anlegen (SQL in §21.1) + Spalte `HelpTopic.ShowInMenu bit NOT NULL DEFAULT 1` (§21.4). Beide Onboarding-Handler haben `IConsentProvider` als neuen Ctor-Parameter (über `AddMudBlazor*OnboardingViews` automatisch). `BillingProfileViewModel.AcceptTos` hat seine Pflicht-Annotation verloren, `BillingProfileForm` braucht neu den Parameter `ConsentPoints` — wer beides ohne die mitgelieferten Seiten verwendet, muss selbst prüfen bzw. setzen. **`Scope` je Punkt (`User`/`Tenant`/`Both`, Default `User`) entscheidet, ob eine Zustimmung einmalig der Person gilt oder mit jedem Mandanten neu fällt** (§21.2.1). Ohne GlobalSetting `Consent` bleibt es beim einen eingebauten Schalter (Verhalten wie bisher, weiterhin ohne Nachweis) |
+| 27 | **Selbstregistrierung + Standard-Mandant** (§22) | Kein Schema-Change. `/Account/Register` existiert neu (der Verweis auf der Anmeldeseite lief bisher ins Leere) und ist **standardmässig abgeschaltet**. Freigeben mit `TenantSetup.AllowSelfRegistration = true` **plus** `DefaultUserTenant` (+ `DefaultUserTenantRole`) — sonst landet der Registrierte in einer leeren Mandanten-Übersicht. Zuweisung nach der Mailbestätigung, nur wenn der Benutzer nirgends Mitglied ist und keine Einladung wartet. `IOnboardingHandler` hat ein neues Member (`AssignDefaultTenantAsync`) — **eigene Implementierungen des Interfaces brechen**. Der Verweis auf der Anmeldeseite hängt jetzt zusätzlich an `ISelfRegistrationPolicy` (neu in `WebCoreToolkit/Security`, optional aufgelöst — ohne Onboarding-Paket unverändert). `JoinRegister` ist unverändert erreichbar und braucht das Flag nicht |

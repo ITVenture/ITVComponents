@@ -1,7 +1,10 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Tree;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensibility;
@@ -36,6 +39,12 @@ public static class DependencyInjectionExtensions
         // Zusatzangaben-Module: ohne konfigurierte Module ist das ein reiner Leerlauf - der Provider loest
         // den Plugin-Ladeweg erst auf, wenn wirklich Namen in den GlobalSettings stehen.
         services.TryAddScoped<ICustomCompanyInfoProvider, CustomCompanyInfoProvider>();
+        // Zustimmungen: ebenfalls Leerlauf, solange in den GlobalSettings keine Punkte stehen. Generisch
+        // ueber den Kontext, weil die Nachweise in der Security-Datenbank liegen.
+        services.TryAddScoped<IConsentProvider, ConsentProvider<TContext>>();
+        // Die eine Auskunft darueber, ob Selbstregistrierung offen ist - gelesen von der Anmeldeseite (zeigt
+        // sie den Verweis?) UND von der Registrierungsseite (nimmt sie den Vorgang an?).
+        services.TryAddScoped<ISelfRegistrationPolicy, SelfRegistrationPolicy>();
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(OnboardingHandler<>)))
         {
@@ -71,6 +80,12 @@ public static class DependencyInjectionExtensions
         // Zusatzangaben-Module: ohne konfigurierte Module ist das ein reiner Leerlauf - der Provider loest
         // den Plugin-Ladeweg erst auf, wenn wirklich Namen in den GlobalSettings stehen.
         services.TryAddScoped<ICustomCompanyInfoProvider, CustomCompanyInfoProvider>();
+        // Zustimmungen: ebenfalls Leerlauf, solange in den GlobalSettings keine Punkte stehen. Generisch
+        // ueber den Kontext, weil die Nachweise in der Security-Datenbank liegen.
+        services.TryAddScoped<IConsentProvider, ConsentProvider<TContext>>();
+        // Die eine Auskunft darueber, ob Selbstregistrierung offen ist - gelesen von der Anmeldeseite (zeigt
+        // sie den Verweis?) UND von der Registrierungsseite (nimmt sie den Vorgang an?).
+        services.TryAddScoped<ISelfRegistrationPolicy, SelfRegistrationPolicy>();
 
         if (partTypeLoadBehavior.ShouldLoadType(typeof(HierarchyOnboardingHandler<>)))
         {

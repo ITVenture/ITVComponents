@@ -1,0 +1,200 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using System.Globalization
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.Routing
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
+@inject IUrlFormat UrlFormat
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Die einzuholenden Zustimmungen. Sind keine konfiguriert, bleibt es beim einen eingebauten Schalter fuer
+   die Nutzungsbedingungen - der Bestand sieht damit aus wie bisher.
+
+   Der Text steht bewusst NEBEN der Box und nicht als ihre Beschriftung: er traegt einen Verweis auf das
+   Dokument, und waere der ganze Satz anklickbar, waere bei einem Klick auf den Verweis nicht mehr
+   auszumachen, ob jemand lesen oder zustimmen wollte. *@
+
+@if (Points is { Count: > 0 } || ShowFallback)
+{
+<MudPaper Class="pa-4 mb-3" Outlined="true">
+    @if (Points is { Count: > 0 })
+    {
+        <MudStack Spacing="2">
+            @foreach (ConsentPoint point in Points)
+            {
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudCheckBox T="bool" Value="@Value(point.Key)" ValueChanged="@(v => Set(point.Key, v))"
+                                 Color="Color.Primary" Dense="true"
+                                 Error="@(missingKey == point.Key)" />
+                    <MudText Typo="Typo.body2" Color="@(missingKey == point.Key ? Color.Error : Color.Default)">
+                        @foreach (object part in Parts(point))
+                        {
+                            @if (part is ConsentLink link)
+                            {
+                                <MudLink Href="@link.Href" Target="_blank" rel="noopener" Underline="Underline.Always">@link.Text</MudLink>
+                            }
+                            else
+                            {
+                                @part.ToString()
+                            }
+                        }
+                        @if (point.Required)
+                        {
+                            <span class="mud-error-text"> *</span>
+                        }
+                    </MudText>
+                </MudStack>
+            }
+        </MudStack>
+
+        @if (!string.IsNullOrEmpty(missingKey))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">@L["Onb_Consent_Required"]</MudText>
+        }
+    }
+    else
+    {
+        @* Rueckfall ohne Konfiguration: genau der Schalter, den es hier immer gab - abgelegt wird dabei
+           nichts, es gibt ja keinen Punkt, auf den sich ein Nachweis beziehen koennte. *@
+        <MudCheckBox T="bool" Value="Fallback" ValueChanged="OnFallbackChanged"
+                     Label="@(L["Onb_AcceptTos"])" Color="Color.Primary"
+                     Error="@(missingKey == FallbackKey)" />
+        @if (missingKey == FallbackKey)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">@L["Onb_Consent_Required"]</MudText>
+        }
+    }
+</MudPaper>
+}
+
+@code {
+    /// <summary>Die einzuholenden Zustimmungen. Leer = der eingebaute Schalter.</summary>
+    [Parameter] public IReadOnlyList<ConsentPoint>? Points { get; set; }
+
+    /// <summary>
+    /// Die Schalterstellungen je Schluessel - dasselbe Woerterbuch, das im Ansichtsmodell steht und mit ihm
+    /// geparkt wird.
+    /// </summary>
+    [Parameter, EditorRequired] public Dictionary<string, bool> Values { get; set; } = default!;
+
+    /// <summary>
+    /// Darf dieses Feld den eingebauten Schalter zeigen, wenn nichts konfiguriert ist? Stehen auf einer
+    /// Seite zwei Felder (Konto- und Firmen-Teil), sagt genau EINES davon ja - sonst stuende derselbe
+    /// Schalter zweimal da.
+    /// </summary>
+    [Parameter] public bool ShowFallback { get; set; } = true;
+
+    /// <summary>Der eingebaute Schalter, wenn nichts konfiguriert ist.</summary>
+    [Parameter] public bool Fallback { get; set; }
+
+    /// <summary>Meldet die Stellung des eingebauten Schalters zurueck ans Modell.</summary>
+    [Parameter] public EventCallback<bool> FallbackChanged { get; set; }
+
+    /// <summary>
+    /// Der Ersatz-Schluessel fuer den eingebauten Schalter. Er hat keinen konfigurierten Punkt hinter sich,
+    /// braucht aber trotzdem eine Kennung, damit dieselbe Beanstandung ihn treffen kann wie einen echten.
+    /// </summary>
+    public const string FallbackKey = "__tos";
+
+    private string? missingKey;
+
+    /// <summary>
+    /// Hebt den Punkt hervor, an dem es beim Abschicken gefehlt hat. Der Zustand liegt in der Komponente
+    /// und nicht in einem Parameter - sonst muesste sie ihren eigenen Parameter beschreiben, sobald der
+    /// Benutzer den Schalter setzt.
+    /// </summary>
+    /// <remarks>
+    /// Ein Schluessel, der zu keinem der hier gezeigten Punkte gehoert, wird stillschweigend verworfen.
+    /// Damit darf die aufrufende Seite bei zwei Feldern einfach beide rufen, ohne selbst zu wissen, in
+    /// welchem der beanstandete Punkt steht - es reagiert das zustaendige.
+    /// </remarks>
+    public void ShowMissing(string? key)
+    {
+        missingKey = Owns(key) ? key : null;
+        StateHasChanged();
+    }
+
+    private bool Owns(string? key)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+
+        if (key == FallbackKey)
+        {
+            return ShowFallback && Points is not { Count: > 0 };
+        }
+
+        return Points?.Any(p => p.Key == key) == true;
+    }
+
+    private async Task OnFallbackChanged(bool value)
+    {
+        if (missingKey == FallbackKey)
+        {
+            missingKey = null;
+        }
+
+        await FallbackChanged.InvokeAsync(value);
+    }
+
+    private bool Value(string key) => Values.TryGetValue(key, out bool v) && v;
+
+    private void Set(string key, bool value)
+    {
+        Values[key] = value;
+        if (missingKey == key)
+        {
+            // Die Beanstandung bezog sich auf genau diesen Punkt - sie stehen zu lassen, waehrend er nun
+            // gesetzt ist, waere schlicht falsch.
+            missingKey = null;
+        }
+    }
+
+    /// <summary>
+    /// Zerlegt den Text an der Stelle <c>{0}</c> in Text- und Verweis-Teile. Fehlt die Stelle (oder gibt es
+    /// gar kein Dokument), kommt der Verweis hinten dran - dann steht immer noch alles da, nur der Satzbau
+    /// ist weniger elegant.
+    /// </summary>
+    private IEnumerable<object> Parts(ConsentPoint point)
+    {
+        string label = Translate(point.Label) ?? point.Key;
+        ConsentLink? link = LinkOf(point);
+
+        int marker = label.IndexOf("{0}", StringComparison.Ordinal);
+        if (marker < 0 || link is null)
+        {
+            yield return label;
+            if (link is not null)
+            {
+                yield return " ";
+                yield return link;
+            }
+
+            yield break;
+        }
+
+        yield return label.Substring(0, marker);
+        yield return link;
+        yield return label.Substring(marker + 3);
+    }
+
+    private ConsentLink? LinkOf(ConsentPoint point)
+    {
+        if (string.IsNullOrWhiteSpace(point.HelpSlug))
+        {
+            return null;
+        }
+
+        string text = Translate(point.LinkText) ?? point.HelpSlug!;
+        // Gleiches Praefix-Muster wie die Hilfe-Navigation: im Mandanten-Betrieb bleibt der Verweis auf
+        // /TENANT/help/..., anonym ist es /help/...
+        return new ConsentLink(UrlFormat.FormatUrl($"[SlashPermissionScope]/help/{point.HelpSlug}"), text);
+    }
+
+    /// <summary>Klartext oder Kultur-JSON in die Sprache des Lesers - dieselbe Konvention wie ueberall sonst.</summary>
+    private string? Translate(string? value)
+        => string.IsNullOrEmpty(value) ? null : value.Translate(CultureInfo.CurrentUICulture.Name);
+
+    private sealed record ConsentLink(string Href, string Text);
+}

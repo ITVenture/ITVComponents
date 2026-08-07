@@ -1,161 +1,29 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
 @page "/Account/Onboarding/JoinRegister"
 @rendermode @(RenderMode.InteractiveServer)
-@using System.Security.Cryptography
-@using System.Threading
 @using Microsoft.AspNetCore.Authorization
-@using ITVComponents.WebCoreToolkit.Security
-@implements IDisposable
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
 @attribute [AllowAnonymous]
 
-@inject IOnboardingHandler Handler
-@inject IAccountConfirmationMailer Mailer
-@inject NavigationManager Nav
-@inject IJSRuntime JS
-@inject ISnackbar Snackbar
 @inject IStringLocalizer<OnboardingMessages> L
 
-@* Register-and-wait page for the employee-invitation join flow. Creates a bare account (no tenant), parks a
-   same-browser auto-login nonce (server token + cookie), sends the confirmation mail, then polls for the
-   e-mail confirmation. Once the invitee confirms in the other tab, ConfirmEmail signs them in (same browser),
-   this page detects it and reloads into My-Tenants — authenticated — to accept the invitation. *@
+@* Konto anlegen, um einer Einladung zu folgen. Die Seite unterscheidet sich von der freien Registrierung
+   (/Account/Register) allein durch den erklaerenden Text - alles Weitere steht in RegisterAccountForm,
+   damit beide Wege sich gleich verhalten und nicht mit der Zeit auseinanderlaufen. *@
 
 <PageTitle>@L["Onb_JoinReg_Title"]</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="my-4">
     <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_JoinReg_Title"]</MudText>
 
-    @if (!waiting)
-    {
-        <MudText Typo="Typo.body1" Class="mb-4">@L["Onb_JoinReg_Intro"]</MudText>
-        <MudPaper Class="pa-4" Outlined="true">
-            <MudGrid Spacing="2">
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="password" Label="@(L["Onb_Start_Password"])" InputType="InputType.Password" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="confirmPassword" Label="@(L["Onb_Start_ConfirmPassword"])" InputType="InputType.Password" />
-                </MudItem>
-            </MudGrid>
-            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
-                <MudButton Href="/Account/Login" Variant="Variant.Text" Color="Color.Default">@L["Onb_Cancel"]</MudButton>
-                <MudButton OnClick="OnSubmit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
-                           StartIcon="@Icons.Material.Filled.PersonAdd">
-                    @(busy ? L["Onb_Creating"].Value : L["Onb_JoinReg_Submit"].Value)
-                </MudButton>
-            </MudStack>
-        </MudPaper>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info" Class="my-3">@L["Onb_JoinReg_CheckMail"]</MudAlert>
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-            <MudText Typo="Typo.body2">@L["Onb_JoinReg_Waiting"]</MudText>
-        </MudStack>
-    }
+    <RegisterAccountForm Email="@EmailParam" SubmitText="@(L["Onb_JoinReg_Submit"].Value)">
+        <Intro>
+            <MudText Typo="Typo.body1" Class="mb-4">@L["Onb_JoinReg_Intro"]</MudText>
+        </Intro>
+    </RegisterAccountForm>
 </MudContainer>
 
 @code {
     [SupplyParameterFromQuery(Name = "email")]
     private string? EmailParam { get; set; }
-
-    private string email = "";
-    private string password = "";
-    private string confirmPassword = "";
-    private bool busy;
-    private bool waiting;
-    private Timer? pollTimer;
-    private bool polling;
-
-    protected override void OnInitialized()
-    {
-        if (!string.IsNullOrWhiteSpace(EmailParam))
-        {
-            email = EmailParam!.Trim();
-        }
-    }
-
-    private async Task OnSubmit()
-    {
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
-        {
-            return;
-        }
-
-        if (password != confirmPassword)
-        {
-            Snackbar.Add(L["Onb_JoinReg_PwMismatch"], Severity.Error);
-            return;
-        }
-
-        busy = true;
-        try
-        {
-            var result = await Handler.RegisterAccountAsync(email.Trim(), password);
-            if (!result.Succeeded)
-            {
-                Snackbar.Add(string.Join(" ", result.Errors), Severity.Error);
-                return;
-            }
-
-            // Same-browser binding: a server-side token plus a matching browser cookie. ConfirmEmail establishes
-            // the session only when both line up, so an intercepted confirm link in another browser only confirms.
-            var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
-            await Handler.StoreJoinNonceAsync(email.Trim(), nonce);
-            await JS.InvokeVoidAsync("itvOnboarding.setCookie", "Onb.JoinNonce", nonce, 1800);
-
-            var confirmUri = Nav.ToAbsoluteUri("/Account/ConfirmEmail").AbsoluteUri;
-            await Mailer.SendConfirmationAsync(result.UserId!, confirmUri, "/Account/Onboarding/MyTenants");
-
-            waiting = true;
-            StartPolling();
-        }
-        finally
-        {
-            busy = false;
-        }
-    }
-
-    private void StartPolling()
-    {
-        // Poll the confirmation flag; the confirm happens in another tab. Re-entrancy guarded so a slow check
-        // never overlaps the next tick.
-        pollTimer = new Timer(async _ =>
-        {
-            if (polling)
-            {
-                return;
-            }
-
-            polling = true;
-            try
-            {
-                if (await Handler.IsEmailConfirmedAsync(email.Trim()))
-                {
-                    pollTimer?.Dispose();
-                    pollTimer = null;
-                    // Full reload: the confirm in the other tab set the auth cookie (shared across browser tabs),
-                    // so the reloaded My-Tenants request arrives authenticated and shows the accept surface.
-                    await InvokeAsync(() => Nav.NavigateTo("/Account/Onboarding/MyTenants", forceLoad: true));
-                }
-            }
-            catch
-            {
-                // transient check failure — keep polling
-            }
-            finally
-            {
-                polling = false;
-            }
-        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
-    }
-
-    public void Dispose()
-    {
-        pollTimer?.Dispose();
-    }
 }

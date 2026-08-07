@@ -2,13 +2,16 @@
 @page "/Account/Onboarding/Start"
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
+@using System.Globalization
 @using System.Text.Json.Nodes
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
 @using ITVComponents.WebCoreToolkit.Security
 @attribute [AllowAnonymous]
 
 @inject IOnboardingHandler Handler
 @inject ICustomCompanyInfoProvider CustomInfo
+@inject IConsentProvider Consent
 @inject IAccountConfirmationMailer Mailer
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -33,6 +36,7 @@
             <BillingProfileForm @ref="profileForm" Model="model" ShowParentTenantPicker="false"
                                 CustomTabs="customTabs"
                                 CustomInfo="customCtx"
+                                ConsentPoints="consent.ForTenant"
                                 ProfileTypeChanged="DescribeCustomAsync" />
 
             <MudPaper Class="pa-4 mb-3" Outlined="true">
@@ -47,6 +51,13 @@
                                       For="@(() => model.ConfirmPassword)" InputType="InputType.Password" />
                     </MudItem>
                 </MudGrid>
+
+                @* Was die Person betrifft (Datenschutz, Newsletter), steht beim Konto - und nicht bei den
+                   Firmendaten. Hier entsteht beides in einem Zug, und nur an dieser Aufteilung ist zu
+                   erkennen, worauf sich welche Zustimmung bezieht. Den eingebauten Rueckfall-Schalter
+                   zeigt das Feld im Firmen-Teil; hier waere er ein zweites Mal derselbe. *@
+                <ConsentPanel @ref="userConsentPanel" Points="consent.ForUser" Values="model.Consents"
+                              ShowFallback="false" />
             </MudPaper>
 
             <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
@@ -64,6 +75,8 @@
 @code {
     private DirectOnboardingViewModel model = new();
     private BillingProfileForm? profileForm;
+    private ConsentPanel? userConsentPanel;
+    private ConsentSet consent = new();
     private IReadOnlyList<CustomInfoTab>? customTabs;
     private CustomInfoContext? customCtx;
     private bool busy;
@@ -76,6 +89,10 @@
     protected override async Task OnInitializedAsync()
     {
         model.InvitationToken = InvitationToken;
+
+        // Hier entstehen Konto UND Mandant. Es ist niemand angemeldet, also ist auch nichts vorab
+        // beantwortet - alles, was konfiguriert ist, wird gefragt.
+        consent = await Consent.DescribeAsync(ConsentOccasionKind.AccountAndTenant, null);
         await DescribeCustomAsync();
     }
 
@@ -101,7 +118,13 @@
         busy = true;
         try
         {
-            // Erst die Zusatzangaben einsammeln - sie werden mit dem uebrigen Formular geparkt und erst
+            // Die Zustimmungen zuerst - sie verteilen sich hier auf zwei Stellen der Seite.
+            if (!CollectConsent())
+            {
+                return;
+            }
+
+            // Dann die Zusatzangaben einsammeln - sie werden mit dem uebrigen Formular geparkt und erst
             // nach der Mailbestaetigung abgelegt.
             if (profileForm is not null && !await profileForm.TryCollectCustomAsync())
             {
@@ -138,6 +161,44 @@
         {
             busy = false;
         }
+    }
+
+    /// <summary>
+    /// Prueft die Zustimmungen beider Felder und haelt den Nachweis im Ansichtsmodell fest. Der Zeitpunkt
+    /// wird HIER gestempelt: das ist der Moment der Zustimmung. Abgelegt wird erst nach der
+    /// Mailbestaetigung, Tage spaeter.
+    /// </summary>
+    private bool CollectConsent()
+    {
+        // Beide Felder zuruecksetzen und spaeter beide beanstanden: welches den Punkt zeigt, weiss die
+        // Seite nicht - das entscheidet das Feld selbst an seiner eigenen Punkte-Liste.
+        profileForm?.ShowConsentMissing(null);
+        userConsentPanel?.ShowMissing(null);
+
+        if (!consent.Any)
+        {
+            // Ohne konfigurierte Punkte gilt der eingebaute Schalter im Firmen-Teil. Geprueft wird er hier
+            // und nicht ueber eine Datenannotation, weil es ihn im anderen Fall gar nicht gibt.
+            if (!model.AcceptTos)
+            {
+                profileForm?.ShowConsentMissing(ConsentPanel.FallbackKey);
+                return false;
+            }
+
+            return true;
+        }
+
+        IReadOnlyList<ConsentPoint> all = consent.All;
+        ConsentCheckResult check = Consent.Validate(all, model.Consents);
+        if (!check.Valid)
+        {
+            profileForm?.ShowConsentMissing(check.MissingKey);
+            userConsentPanel?.ShowMissing(check.MissingKey);
+            return false;
+        }
+
+        model.ConsentAnswers = all.ToAnswers(model.Consents, CultureInfo.CurrentUICulture.Name, DateTime.UtcNow);
+        return true;
     }
 
     /// <summary>Die erfassten Datensaetze ohne die leeren Eintraege.</summary>

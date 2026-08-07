@@ -78,7 +78,7 @@
 
                 <MudStack Spacing="1">
                     <MudLink Href="Account/ForgotPassword">@L["Forgot your password?"]</MudLink>
-                    @if (HandlerProvider.Handler.RegistrationInfo?.AllowRegister == true)
+                    @if (ShowRegisterLink)
                     {
                         <MudLink Href="@RegisterUrl">@L["Register as a new user"]</MudLink>
                     }
@@ -105,6 +105,40 @@
     private string RegisterUrl =>
         Nav.GetUriWithQueryParameters("Account/Register",
             new Dictionary<string, object?> { ["returnUrl"] = ReturnUrl });
+
+    /// <summary>
+    /// Zeigt die Anmeldeseite den Verweis auf die Registrierung? Die eigene Konfiguration sagt, OB und wo
+    /// es eine Registrierungsseite gibt; eine registrierte <see cref="ISelfRegistrationPolicy"/> sagt, ob
+    /// diese gerade Vorgaenge annimmt. Beides muss zutreffen - sonst stuende hier ein Verweis, der beim
+    /// Anklicken abgewiesen wird.
+    /// </summary>
+    /// <remarks>
+    /// Die Richtlinie wird optional aufgeloest: ein Host ohne Onboarding-Paket hat keine, und dann bleibt
+    /// es bei der bisherigen Entscheidung allein aus <c>RegistrationInfo</c>.
+    /// </remarks>
+    private bool ShowRegisterLink
+    {
+        get
+        {
+            if (HandlerProvider.Handler.RegistrationInfo?.AllowRegister != true)
+            {
+                return false;
+            }
+
+            try
+            {
+                return Services.GetService<ISelfRegistrationPolicy>()?.AllowsSelfRegistration != false;
+            }
+            catch (Exception ex)
+            {
+                // Der Verweis ist die Nebensache, die Anmeldung die Hauptsache - daran darf sie nicht
+                // scheitern. Aber verschwiegen wird es nicht: sonst sucht man den fehlenden Verweis in der
+                // Konfiguration statt in dieser Ausnahme.
+                Logger.LogError(ex, "Die Richtlinie zur Selbstregistrierung liess sich nicht ermitteln; der Verweis auf die Registrierung wird ausgeblendet.");
+                return false;
+            }
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

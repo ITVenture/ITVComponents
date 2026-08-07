@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
@@ -38,6 +39,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState,
         FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer;
     private readonly ICustomCompanyInfoProvider customInfo;
+    private readonly IConsentProvider consent;
     private readonly ILogger<OnboardingHandler<TContext>> logger;
 
     public OnboardingHandler(
@@ -49,6 +51,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
             FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState,
             FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> tenantInitializer,
         ICustomCompanyInfoProvider customInfo,
+        IConsentProvider consent,
         ILogger<OnboardingHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
@@ -56,6 +59,7 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         this.setupOptions = setupOptions;
         this.tenantInitializer = tenantInitializer;
         this.customInfo = customInfo;
+        this.consent = consent;
         this.logger = logger;
     }
 
@@ -99,6 +103,11 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
         // Erst nach dem Commit: vorher gibt es die TenantId nicht, an der die Angaben haengen.
         await CustomCompanyInfoOnboardingHelper.PersistAsync(customInfo, input, infoCtx, created.Value.tenantId, logger, ct);
+
+        // Ebenso der Zustimmungs-Nachweis. Er haengt an der TenantId und nicht an der zurueckgelieferten
+        // BillingProfileId - die beiden werden hier leicht verwechselt.
+        var owner = await userManager.GetUserAsync(user);
+        await ConsentOnboardingHelper.RecordAsync(consent, input, created.Value.tenantId, owner?.Id, owner?.Email, logger, ct);
         return created.Value.billingProfileId;
     }
 
@@ -252,6 +261,11 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         await CustomCompanyInfoOnboardingHelper.PersistAsync(customInfo, completion.Profile,
             CustomCompanyInfoOnboardingHelper.ContextFor(completion.Profile, CustomInfoMode.Create, completion.TenantId, user),
             completion.TenantId, logger, ct);
+
+        // Der Zustimmungs-Nachweis stammt aus dem geparkten Vorgang: der Benutzer hat vor der
+        // Mailbestaetigung zugestimmt, und genau dieser Zeitpunkt steht in den Antworten.
+        await ConsentOnboardingHelper.RecordAsync(consent, completion.Profile, completion.TenantId,
+            completion.UserId, completion.Email, logger, ct);
         return true;
     }
 
@@ -348,6 +362,85 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
 
         employee.InvitationStatus = InvitationStatus.Committed;
         await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> AssignDefaultTenantAsync(ClaimsPrincipal user, CancellationToken ct = default)
+    {
+        string? wanted = setupOptions.ValueOrDefault?.DefaultUserTenant;
+        if (string.IsNullOrWhiteSpace(wanted))
+        {
+            return false;
+        }
+
+        var owner = await userManager.GetUserAsync(user);
+        if (owner == null)
+        {
+            logger.LogWarning("Die Zuweisung zum Standard-Mandanten wurde uebersprungen: zum angemeldeten Benutzer liess sich kein Konto aufloesen.");
+            return false;
+        }
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        // Gehoert er schon irgendwo dazu, ist nichts zu tun - das ist der Normalfall bei jedem weiteren
+        // Aufruf und keine Meldung wert.
+        if (await db.TenantUsers.IgnoreQueryFilters().AnyAsync(n => n.UserId == owner.Id, ct))
+        {
+            return false;
+        }
+
+        // Eine wartende Einladung hat Vorrang: sie fuehrt ihn dorthin, wo er hingehoert.
+        if (await db.Employees.IgnoreQueryFilters()
+                .AnyAsync(e => e.EMail == owner.Email && e.InvitationStatus == InvitationStatus.Pending, ct))
+        {
+            logger.LogDebug("Benutzer {Email} wird nicht dem Standard-Mandanten zugewiesen: es wartet eine Einladung.", owner.Email);
+            return false;
+        }
+
+        // Ohne Filter gelesen: der Benutzer hat auf diesen Mandanten noch keinen Zugriff - genau deshalb
+        // ist er ja hier. Mit aktiven Mandanten-Filtern faende die Abfrage nichts.
+        var tenant = await db.Tenants.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.TenantName == wanted || t.DisplayName == wanted, ct);
+        if (tenant == null)
+        {
+            logger.LogError("Der als Standard konfigurierte Mandant '{Tenant}' existiert nicht; Benutzer {Email} bleibt ohne Mandanten.", wanted, owner.Email);
+            return false;
+        }
+
+        var tenantUser = new TenantUser
+        {
+            Enabled = true,
+            TenantId = tenant.TenantId,
+            // FK-Skalar und nicht die Navigation: 'owner' gehoert dem Kontext des UserManagers. Als
+            // Navigation angehaengt hielte EF ihn fuer einen neuen Datensatz und wuerde ihn einzufuegen
+            // versuchen - PK-Verletzung auf einem Benutzer, den es laengst gibt.
+            UserId = owner.Id
+        };
+        db.TenantUsers.Add(tenantUser);
+
+        string? roleName = setupOptions.ValueOrDefault?.DefaultUserTenantRole;
+        if (!string.IsNullOrWhiteSpace(roleName))
+        {
+            var role = await db.SecurityRoles.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(r => r.TenantId == tenant.TenantId && r.RoleName == roleName, ct);
+            if (role != null)
+            {
+                db.TenantUserRoles.Add(new UserRole { Role = role, User = tenantUser });
+            }
+            else
+            {
+                // Der Benutzer wird trotzdem Mitglied - aber ohne Rolle sieht er nichts, und ohne diese
+                // Zeile wuerde man die Ursache im Mandanten suchen statt in der Konfiguration.
+                logger.LogError("Die als Standard konfigurierte Rolle '{Role}' gibt es im Mandanten '{Tenant}' nicht; Benutzer {Email} wird ohne Rolle zugewiesen.", roleName, wanted, owner.Email);
+            }
+        }
+        else
+        {
+            logger.LogWarning("Zum Standard-Mandanten '{Tenant}' ist keine Rolle konfiguriert; Benutzer {Email} wird ohne Rolle zugewiesen und sieht voraussichtlich nichts.", wanted, owner.Email);
+        }
+
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Benutzer {Email} wurde dem Standard-Mandanten '{Tenant}' zugewiesen.", owner.Email, wanted);
         return true;
     }
 

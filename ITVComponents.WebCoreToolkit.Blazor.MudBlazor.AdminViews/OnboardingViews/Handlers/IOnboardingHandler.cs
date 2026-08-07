@@ -69,6 +69,23 @@ public interface IOnboardingHandler
     Task<bool> CompletePendingOnboardingAsync(ClaimsPrincipal user, CancellationToken ct = default);
 
     /// <summary>
+    /// Weist einen selbst registrierten Benutzer dem konfigurierten Standard-Mandanten zu
+    /// (<c>TenantSetupOptions.DefaultUserTenant</c>), sofern er noch keinem Mandanten angehoert und keine
+    /// Einladung auf ihn wartet. Idempotent; liefert <c>false</c>, wenn nichts zu tun war.
+    /// </summary>
+    /// <remarks>
+    /// Wird erst NACH der Mailbestaetigung gerufen, auf der ersten angemeldeten Landung: einen
+    /// unbestaetigten Benutzer einem Mandanten zuzuschlagen hiesse, jemandem Zutritt zu geben, von dem
+    /// noch nicht feststeht, dass ihm die Mailadresse ueberhaupt gehoert.
+    /// <para>
+    /// Eine wartende Einladung hat Vorrang und unterdrueckt die Zuweisung - sie fuehrt den Benutzer
+    /// dorthin, wo er tatsaechlich hingehoert, und ihn zusaetzlich in den Standard-Mandanten zu setzen,
+    /// waere ungewollter Zutritt.
+    /// </para>
+    /// </remarks>
+    Task<bool> AssignDefaultTenantAsync(ClaimsPrincipal user, CancellationToken ct = default);
+
+    /// <summary>
     /// Lists all tenants the calling user participates in — both owned tenants and ones where
     /// the user has an open or accepted invitation.
     /// </summary>

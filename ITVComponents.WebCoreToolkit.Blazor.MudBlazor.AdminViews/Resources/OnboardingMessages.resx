@@ -81,6 +81,11 @@
   <data name="Onb_InvoiceAddress" xml:space="preserve"><value>Invoice address</value></data>
   <data name="Onb_AcceptTos" xml:space="preserve"><value>I accept the terms of service.</value></data>
   <data name="Onb_Custom_RequiredField" xml:space="preserve"><value>Please fill in the required fields.</value></data>
+  <data name="Onb_Consent_Required" xml:space="preserve"><value>Please agree to continue.</value></data>
+  <data name="Onb_Register_Title" xml:space="preserve"><value>Create an account</value></data>
+  <data name="Onb_Register_Intro" xml:space="preserve"><value>Pick an e-mail address and a password. We will send you a confirmation link.</value></data>
+  <data name="Onb_Register_Submit" xml:space="preserve"><value>Create account</value></data>
+  <data name="Onb_Register_Disabled" xml:space="preserve"><value>Accounts cannot be created here. You need an invitation to join.</value></data>
   <data name="Onb_Custom_Yes" xml:space="preserve"><value>Yes</value></data>
   <data name="Onb_Custom_No" xml:space="preserve"><value>No</value></data>
   <data name="Onb_Custom_Rejected" xml:space="preserve"><value>These details were not accepted. Please check your entries.</value></data>

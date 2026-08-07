@@ -1,0 +1,290 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using System.Globalization
+@using System.Security.Cryptography
+@using System.Threading
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Security
+@using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
+@implements IDisposable
+
+@inject IOnboardingHandler Handler
+@inject IConsentProvider Consent
+@inject IAccountConfirmationMailer Mailer
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<OnboardingMessages> L
+@inject ILogger<RegisterAccountForm> Logger
+
+@* Konto anlegen und auf die Mailbestaetigung warten. Legt ein blosses Konto an (nie einen Mandanten),
+   hinterlegt eine Kennung fuer die Anmeldung im selben Browser (Server-Merker + Cookie), verschickt die
+   Bestaetigungsmail und wartet dann darauf, dass im anderen Reiter bestaetigt wird.
+
+   Die Komponente traegt das ganze Verhalten; die Seiten darueber unterscheiden sich nur im Text. Zwei
+   Wege fuehren hierher - eine Einladung annehmen und sich selbst anmelden -, und beide sollen sich gleich
+   verhalten. *@
+
+@if (!waiting)
+{
+    @* Der erklaerende Text der aufrufenden Seite - er gehoert zum Formular und verschwindet mit ihm,
+       sobald gewartet wird. Sonst stuende ueber der Warte-Anzeige weiter eine Aufforderung, etwas
+       auszufuellen, das gar nicht mehr da ist. *@
+    @Intro
+
+    <MudPaper Class="pa-4" Outlined="true">
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="email" Label="@(L["Onb_Inv_Email"])" InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="password" Label="@(L["Onb_Start_Password"])" InputType="InputType.Password" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="confirmPassword" Label="@(L["Onb_Start_ConfirmPassword"])" InputType="InputType.Password" />
+            </MudItem>
+        </MudGrid>
+
+        @* Hier entsteht ein Konto - also wird gefragt, was die Person betrifft. Ohne konfigurierte Punkte
+           bleibt es beim einen eingebauten Schalter. *@
+        <ConsentPanel @ref="consentPanel" Points="consentPoints" Values="consents"
+                      Fallback="acceptTos" FallbackChanged="v => acceptTos = v" />
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2" Class="mt-3">
+            <MudButton Href="/Account/Login" Variant="Variant.Text" Color="Color.Default">@L["Onb_Cancel"]</MudButton>
+            <MudButton OnClick="OnSubmit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy"
+                       StartIcon="@Icons.Material.Filled.PersonAdd">
+                @(busy ? L["Onb_Creating"].Value : SubmitText)
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Class="my-3">@L["Onb_JoinReg_CheckMail"]</MudAlert>
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        <MudText Typo="Typo.body2">@L["Onb_JoinReg_Waiting"]</MudText>
+    </MudStack>
+}
+
+@code {
+    /// <summary>Vorbelegung der Mailadresse (etwa aus dem Einladungslink).</summary>
+    [Parameter] public string? Email { get; set; }
+
+    /// <summary>Die Beschriftung der Schaltflaeche.</summary>
+    [Parameter] public string? SubmitText { get; set; }
+
+    /// <summary>
+    /// Der einleitende Text der aufrufenden Seite. Wird ueber dem Formular gezeigt und verschwindet mit
+    /// ihm, sobald auf die Mailbestaetigung gewartet wird.
+    /// </summary>
+    [Parameter] public RenderFragment? Intro { get; set; }
+
+    /// <summary>
+    /// Wohin es nach der Mailbestaetigung geht. Vorgabe ist die Mandanten-Uebersicht: dort wird ein
+    /// geparktes Onboarding fertiggestellt, eine wartende Einladung angeboten und - falls konfiguriert -
+    /// der Standard-Mandant zugewiesen. Wer hier etwas anderes einsetzt, umgeht all das.
+    /// </summary>
+    /// <remarks>
+    /// Der Wert stammt typischerweise aus der Adresszeile (die Anmeldeseite reicht ihr eigenes Ziel
+    /// durch) und wird deshalb auf eigene Pfade eingeschraenkt - siehe <see cref="SafeReturnUrl"/>.
+    /// </remarks>
+    [Parameter] public string ReturnUrl { get; set; } = DefaultReturnUrl;
+
+    private const string DefaultReturnUrl = "/Account/Onboarding/MyTenants";
+
+    private string email = "";
+    private string password = "";
+    private string confirmPassword = "";
+    private bool busy;
+    private bool waiting;
+    private Timer? pollTimer;
+    private bool polling;
+
+    private ConsentPanel? consentPanel;
+    private IReadOnlyList<ConsentPoint> consentPoints = Array.Empty<ConsentPoint>();
+    private readonly Dictionary<string, bool> consents = new();
+    private bool acceptTos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Email))
+        {
+            email = Email!.Trim();
+        }
+
+        SubmitText ??= L["Onb_JoinReg_Submit"].Value;
+
+        // Es entsteht ein Konto, kein Mandant: gefragt wird, was den Benutzer betrifft. Zustimmungen, die
+        // allein den Mandanten betreffen, bleiben aussen vor - wer einem bestehenden Mandanten beitritt,
+        // schliesst keinen Vertrag, er bekommt Zutritt zu dessen Daten.
+        //
+        // Der Benutzer existiert noch nicht, also ist auch nichts vorab beantwortet.
+        ConsentSet set = await Consent.DescribeAsync(ConsentOccasionKind.AccountRegistration, null);
+        consentPoints = set.ForUser;
+    }
+
+    private async Task OnSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
+        {
+            return;
+        }
+
+        if (password != confirmPassword)
+        {
+            Snackbar.Add(L["Onb_JoinReg_PwMismatch"], Severity.Error);
+            return;
+        }
+
+        // Der Zeitpunkt der Zustimmung ist DIESER hier, nicht der des Ablegens weiter unten.
+        List<ConsentAnswer>? answers = CollectConsent();
+        if (answers is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var result = await Handler.RegisterAccountAsync(email.Trim(), password);
+            if (!result.Succeeded)
+            {
+                Snackbar.Add(string.Join(" ", result.Errors), Severity.Error);
+                return;
+            }
+
+            // Erst jetzt gibt es einen Benutzer, dem der Nachweis gehoert. Einen Mandanten gibt es hier
+            // nie - er entsteht, wenn ueberhaupt, spaeter.
+            await Consent.RecordAsync(answers, new ConsentSubject
+            {
+                UserId = result.UserId,
+                Email = email.Trim(),
+                TenantId = null,
+                Origin = ConsentOccasionKind.AccountRegistration
+            });
+
+            // Bindung an denselben Browser: ein Merker auf dem Server und ein passendes Cookie. ConfirmEmail
+            // meldet nur an, wenn beides zusammenpasst - ein abgefangener Bestaetigungslink in einem anderen
+            // Browser bestaetigt dann zwar, meldet aber niemanden an.
+            var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+            await Handler.StoreJoinNonceAsync(email.Trim(), nonce);
+            await JS.InvokeVoidAsync("itvOnboarding.setCookie", "Onb.JoinNonce", nonce, 1800);
+
+            var confirmUri = Nav.ToAbsoluteUri("/Account/ConfirmEmail").AbsoluteUri;
+            await Mailer.SendConfirmationAsync(result.UserId!, confirmUri, SafeReturnUrl);
+
+            waiting = true;
+            StartPolling();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Das Ziel nach der Bestaetigung, eingeschraenkt auf eigene Pfade.
+    /// </summary>
+    /// <remarks>
+    /// Der Wert kommt aus der Adresszeile und wird zweimal zu einer Weiterleitung: einmal im
+    /// Bestaetigungslink der Mail und einmal beim Neuladen hier. Ungeprueft uebernommen waere das eine
+    /// offene Weiterleitung - ein Link auf die eigene, vertraute Anmeldestrecke, der am Ende auf einer
+    /// fremden Seite landet. Zugelassen sind deshalb nur Pfade, die mit einem einzelnen Schraegstrich
+    /// beginnen; alles andere (absolute Adressen, protokoll-relative <c>//host</c>, Backslash-Varianten)
+    /// faellt auf die Vorgabe zurueck.
+    /// </remarks>
+    private string SafeReturnUrl
+    {
+        get
+        {
+            string candidate = ReturnUrl;
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                return DefaultReturnUrl;
+            }
+
+            candidate = candidate.Trim();
+            if (candidate[0] != '/' || candidate.StartsWith("//", StringComparison.Ordinal)
+                                    || candidate.StartsWith("/\\", StringComparison.Ordinal))
+            {
+                Logger.LogWarning("Das angefragte Ziel '{ReturnUrl}' ist kein eigener Pfad und wird verworfen.", candidate);
+                return DefaultReturnUrl;
+            }
+
+            return candidate;
+        }
+    }
+
+    /// <summary>
+    /// Prueft die Zustimmungen und baut den Nachweis. Fehlt eine Pflicht-Zustimmung, wird sie
+    /// hervorgehoben und null geliefert.
+    /// </summary>
+    private List<ConsentAnswer>? CollectConsent()
+    {
+        consentPanel?.ShowMissing(null);
+
+        if (consentPoints.Count == 0)
+        {
+            if (!acceptTos)
+            {
+                consentPanel?.ShowMissing(ConsentPanel.FallbackKey);
+                return null;
+            }
+
+            // Ohne konfigurierte Punkte gibt es nichts, worauf sich ein Nachweis beziehen koennte.
+            return new List<ConsentAnswer>();
+        }
+
+        ConsentCheckResult check = Consent.Validate(consentPoints, consents);
+        if (!check.Valid)
+        {
+            consentPanel?.ShowMissing(check.MissingKey);
+            return null;
+        }
+
+        return consentPoints.ToAnswers(consents, CultureInfo.CurrentUICulture.Name, DateTime.UtcNow);
+    }
+
+    private void StartPolling()
+    {
+        // Auf die Bestaetigung warten - sie faellt in einem anderen Reiter. Gegen Ueberholen gesichert,
+        // damit eine langsame Abfrage nicht in die naechste laeuft.
+        pollTimer = new Timer(async _ =>
+        {
+            if (polling)
+            {
+                return;
+            }
+
+            polling = true;
+            try
+            {
+                if (await Handler.IsEmailConfirmedAsync(email.Trim()))
+                {
+                    pollTimer?.Dispose();
+                    pollTimer = null;
+                    // Vollstaendiges Neuladen: die Bestaetigung im anderen Reiter hat das Anmelde-Cookie
+                    // gesetzt (das gilt browserweit), die neu geladene Seite kommt also angemeldet an.
+                    await InvokeAsync(() => Nav.NavigateTo(SafeReturnUrl, forceLoad: true));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Weiterpollen ist richtig - ein einzelner misslungener Blick in die Datenbank darf das
+                // Warten auf die Mailbestaetigung nicht abbrechen. Aber es gehoert ins Protokoll: bleibt
+                // der Benutzer haengen, weil JEDE Abfrage scheitert, ist das hier die einzige Spur.
+                Logger.LogWarning(ex, "Die Bestaetigungs-Abfrage fuer {Email} ist fehlgeschlagen; es wird weiter gewartet.", email);
+            }
+            finally
+            {
+                polling = false;
+            }
+        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+    }
+
+    public void Dispose()
+    {
+        pollTimer?.Dispose();
+    }
+}

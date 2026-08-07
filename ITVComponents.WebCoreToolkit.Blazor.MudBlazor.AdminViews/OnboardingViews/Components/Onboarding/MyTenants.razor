@@ -95,6 +95,27 @@
                 Logger.LogError(ex, "Completing the pending onboarding for {User} failed; the tenant was not created.",
                     state.User.Identity?.Name);
             }
+
+            // Wer sich selbst registriert hat, bringt kein geparktes Onboarding mit und gehoert deshalb
+            // noch nirgends hin. Ist ein Standard-Mandant konfiguriert, bekommt er ihn hier - nach der
+            // Mailbestaetigung, auf derselben ersten angemeldeten Landung.
+            try
+            {
+                if (await Handler.AssignDefaultTenantAsync(state.User))
+                {
+                    // Wie oben: der Circuit hat die Mandanten-Aufloesung des Hosts nie durchlaufen, die
+                    // Shell bliebe halb gezeichnet. Schleifenfrei, weil die Zuweisung danach schon besteht.
+                    Nav.NavigateTo(Nav.Uri, forceLoad: true);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Auch hier: nicht blockieren, aber auch nicht verschweigen - sonst steht der Benutzer vor
+                // einer leeren Liste und niemand kann sagen, warum die Zuweisung ausblieb.
+                Logger.LogError(ex, "Die Zuweisung zum Standard-Mandanten fuer {User} ist fehlgeschlagen; der Benutzer bleibt ohne Mandanten.",
+                    state.User.Identity?.Name);
+            }
         }
         else if (state.User.Identity?.IsAuthenticated == true)
         {

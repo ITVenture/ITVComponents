@@ -1,0 +1,54 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Onboarding
+@page "/Account/Register"
+@rendermode @(RenderMode.InteractiveServer)
+@using Microsoft.AspNetCore.Authorization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.Security
+@attribute [AllowAnonymous]
+
+@inject ISelfRegistrationPolicy Policy
+@inject IStringLocalizer<OnboardingMessages> L
+
+@* Freie Registrierung ohne Einladung - das Ziel des Verweises auf der Anmeldeseite. Bis auf den
+   erklaerenden Text dasselbe wie der Einladungs-Weg, deshalb dieselbe Komponente.
+
+   Wem der so angelegte Benutzer zugeschlagen wird, entscheidet der Betrieb ueber
+   TenantSetupOptions.DefaultUserTenant; die Zuweisung faellt nach der Mailbestaetigung auf der
+   Mandanten-Uebersicht. Ohne konfigurierten Mandanten landet er in einer leeren Uebersicht - darum ist
+   die Seite abgeschaltet, solange der Betrieb sie nicht ausdruecklich freigibt. *@
+
+<PageTitle>@L["Onb_Register_Title"]</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">@L["Onb_Register_Title"]</MudText>
+
+    @* Dieselbe Auskunft, die auf der Anmeldeseite ueber den Verweis entscheidet - Anzeige und Pruefung
+       duerfen hier nicht auseinanderlaufen. *@
+    @if (Policy.AllowsSelfRegistration)
+    {
+        <RegisterAccountForm Email="@EmailParam" SubmitText="@(L["Onb_Register_Submit"].Value)"
+                             ReturnUrl="@(ReturnUrl ?? "/Account/Onboarding/MyTenants")">
+            <Intro>
+                <MudText Typo="Typo.body1" Class="mb-4">@L["Onb_Register_Intro"]</MudText>
+            </Intro>
+        </RegisterAccountForm>
+    }
+    else
+    {
+        @* Nicht nur die Schaltflaeche sperren, sondern gar kein Formular zeigen: die Auskunft "das gibt es
+           hier nicht" ist ehrlicher als ein Formular, das beim Abschicken ablehnt. *@
+        <MudAlert Severity="Severity.Info" Class="my-3">@L["Onb_Register_Disabled"]</MudAlert>
+        <MudButton Href="/Account/Login" Variant="Variant.Filled" Color="Color.Primary">@L["Onb_Start_ToLogin"]</MudButton>
+    }
+</MudContainer>
+
+@code {
+    [SupplyParameterFromQuery(Name = "email")]
+    private string? EmailParam { get; set; }
+
+    /// <summary>
+    /// Wohin der Benutzer nach der Bestaetigung wollte - die Anmeldeseite reicht ihr eigenes Ziel durch.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+}

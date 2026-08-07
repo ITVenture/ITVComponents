@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
+using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
@@ -58,8 +59,35 @@ public class BillingProfileViewModel
     /// </summary>
     public string? InvitationToken { get; set; }
 
-    [Range(typeof(bool), "true", "true", ErrorMessage = "You must accept the terms of service.")]
+    /// <summary>
+    /// Der eingebaute Schalter fuer die Nutzungsbedingungen - er gilt nur, solange keine Zustimmungspunkte
+    /// konfiguriert sind.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst OHNE Pflicht-Datenannotation: sind Punkte konfiguriert, wird dieser Schalter gar nicht
+    /// gezeigt, und eine Annotation wuerde das Formular dann gegen einen Schalter sperren, den niemand
+    /// sehen kann. Die Pflicht wird stattdessen dort geprueft, wo bekannt ist, welcher der beiden Faelle
+    /// vorliegt - beim Abschicken der Seite.
+    /// </remarks>
     public bool AcceptTos { get; set; }
+
+    /// <summary>
+    /// Die Stellungen der konfigurierten Zustimmungs-Schalter, je Schluessel. Reist mit dem geparkten
+    /// Onboarding mit.
+    /// </summary>
+    public Dictionary<string, bool> Consents { get; set; } = new();
+
+    /// <summary>
+    /// Der Nachweis zu den Zustimmungen: was zugestimmt wurde, wann, in welcher Sprache und zu welchem
+    /// Stand des Dokuments.
+    /// </summary>
+    /// <remarks>
+    /// Warum das mitreist, statt beim Ablegen aus der Konfiguration gelesen zu werden: zwischen der
+    /// Zustimmung und ihrer Ablage liegt beim verzoegerten Onboarding die Mailbestaetigung - Stunden bis
+    /// Tage. Wird in dieser Zeit eine neue Fassung der Nutzungsbedingungen konfiguriert, wuerde ein
+    /// nachtraeglich gelesener Stand dem Benutzer etwas unterstellen, das er nie gesehen hat.
+    /// </remarks>
+    public List<ConsentAnswer> ConsentAnswers { get; set; } = new();
 
     /// <summary>
     /// Die Angaben der Zusatzangaben-Module: je Modul-Schluessel ein Datensatz, dessen Form das Modul
