@@ -24,6 +24,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
         public void Reset()
         {
             CallingPluginProbe.LeafTypes.Clear();
+            CallingPluginProbe.OptionTypes.Clear();
         }
 
         [TestMethod]
@@ -139,12 +140,124 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
             return new WebPluginHelper(selector, services, Options.Create(new PluginsInitOptions()),
                 new TestPermissionScope(), NullLogger<WebPluginHelper>.Instance);
         }
+
+        /// <summary>
+        /// Die echte Form mit vier Stufen: handler -> ctx -> collector -> (PreInit-Sequenz) -> option.
+        /// Von der Option aus muss <c>CallingPlugin.PrevPlugin(n)</c> den Baum stufenweise rueckwaerts
+        /// laufen: 0 = collector, 1 = ctx, 2 = handler. Damit ist es fuer die Option egal, wie tief die
+        /// Kette darueber noch weitergeht - "den Kontext" erreicht sie immer mit derselben Zahl.
+        /// </summary>
+        [TestMethod]
+        public void PrevPlugin_WalksTheTreeBackwards_FourLevels()
+        {
+            using WebPluginHelper helper = BuildFourLevelHelper();
+            PluginFactory factory = helper.GetFactory("s");
+
+            var handler = factory["handler", true] as HandlerPlugin;
+
+            Assert.IsNotNull(handler, "handler konnte nicht aufgeloest werden.");
+            CollectionAssert.AreEqual(
+                new[] { typeof(CollectorPlugin), typeof(CtxPlugin), typeof(HandlerPlugin) },
+                CallingPluginProbe.OptionTypes,
+                "erwartet Collector/Ctx/Handler fuer PrevPlugin(0)/(1)/(2), gesehen: "
+                + string.Join(", ", CallingPluginProbe.OptionTypes));
+        }
+
+        private static WebPluginHelper BuildFourLevelHelper()
+        {
+            string asm = typeof(CtxPlugin).Assembly.Location;
+
+            var selector = new GenericFakeSelector(
+                new Dictionary<string, WebPlugin>
+                {
+                    ["handler"] = new WebPlugin
+                    {
+                        UniqueName = "handler",
+                        Constructor = $"[{asm}]<{typeof(HandlerPlugin).FullName}>$ctx"
+                    },
+                    ["ctx"] = new WebPlugin
+                    {
+                        UniqueName = "ctx",
+                        Constructor = $"[{asm}]<{typeof(CtxPlugin).FullName}>$collector"
+                    },
+                    ["collector"] = new WebPlugin
+                    {
+                        UniqueName = "collector",
+                        // Der Collector zieht die Option AUSSCHLIESSLICH ueber seine PreInit-Sequenz.
+                        Constructor = $"[{asm}]<{typeof(CollectorPlugin).FullName}>"
+                    },
+                    ["option"] = new WebPlugin
+                    {
+                        UniqueName = "option",
+                        Constructor = $"[{asm}]<{typeof(OptionPlugin<,,>).FullName}>"
+                    }
+                },
+                new Dictionary<string, WebPluginGenericParam[]>
+                {
+                    ["option"] = new[]
+                    {
+                        new WebPluginGenericParam
+                        {
+                            GenericTypeName = "T0",
+                            TypeExpression = "CallingPlugin.PrevPlugin(0).PluginType"
+                        },
+                        new WebPluginGenericParam
+                        {
+                            GenericTypeName = "T1",
+                            TypeExpression = "CallingPlugin.PrevPlugin(1).PluginType"
+                        },
+                        new WebPluginGenericParam
+                        {
+                            GenericTypeName = "T2",
+                            TypeExpression = "CallingPlugin.PrevPlugin(2).PluginType"
+                        }
+                    }
+                });
+
+            var sc = new ServiceCollection();
+            sc.AddSingleton<IGlobalSettingsProvider>(
+                new FixedSettingsProvider("PreInitSequenceForcollector", "[\"option\"]"));
+
+            IServiceProvider services = sc.BuildServiceProvider();
+            return new WebPluginHelper(selector, services, Options.Create(new PluginsInitOptions()),
+                new TestPermissionScope(), NullLogger<WebPluginHelper>.Instance);
+        }
     }
 
     /// <summary>Nicht-generischer Sammelpunkt (statische Felder generischer Klassen sind pro T).</summary>
     public static class CallingPluginProbe
     {
         public static readonly List<Type> LeafTypes = new();
+
+        /// <summary>Die drei Stufen, die eine Option ueber PrevPlugin(0..2) gesehen hat.</summary>
+        public static readonly List<Type> OptionTypes = new();
+    }
+
+    /// <summary>Der Options-Collector: zieht seine Optionen ueber die PreInit-Sequenz.</summary>
+    public class CollectorPlugin : IPlugin
+    {
+        public string UniqueName { get; set; }
+
+        public event EventHandler Disposed;
+
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Eine Option: haelt drei Stufen der Aufrufkette als Typ-Argumente fest.</summary>
+    public class OptionPlugin<T0, T1, T2> : IPlugin
+    {
+        public OptionPlugin()
+        {
+            CallingPluginProbe.OptionTypes.Add(typeof(T0));
+            CallingPluginProbe.OptionTypes.Add(typeof(T1));
+            CallingPluginProbe.OptionTypes.Add(typeof(T2));
+        }
+
+        public string UniqueName { get; set; }
+
+        public event EventHandler Disposed;
+
+        public void Dispose() => Disposed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Das Blatt: haelt fest, welchen Typ es via CallingPlugin zugewiesen bekommen hat.</summary>

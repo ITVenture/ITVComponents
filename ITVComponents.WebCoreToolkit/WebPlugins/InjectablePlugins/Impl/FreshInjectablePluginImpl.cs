@@ -34,9 +34,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
                 // Registrierter Injector zuerst (der Fresh-Guard in GetPlugIn stellt sicher, dass nur
                 // scope-besessene Injectoren hierher gelangen); ohne registrierten Injector faellt es auf die
                 // Standard-Namensaufloesung aus dem frischen Scope zurueck (inkl. Tenant-Prefix).
-                var plugin = opt.GetPlugIn<T>(services, scope, name)
-                             ??
-                             new DefaultPluginInjector<T>().GetPluginInstance(services, scope, false);
+                var plugin = opt.GetPlugIn<T>(services, scope, name) ?? DefaultLease(scope, name);
                 if (plugin == null)
                 {
                     throw new InvalidOperationException(
@@ -52,6 +50,21 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins.Impl
                 scope.Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Rueckfall ohne registrierten Injector. Ein ausdruecklich angeforderter Name hat auch hier Vorrang:
+        /// wer <c>Lease("TenantNetworkInfo")</c> ruft, meint dieses Plugin und nicht den Konventionsnamen des
+        /// Interface-Typs. Frueher fiel der Name hier weg, und die Konventions-Aufloesung lieferte fuer ein
+        /// nicht so benanntes Plugin <c>null</c> - was eine Stufe tiefer als ArgumentNullException aus einer
+        /// ConcurrentDictionary ankam statt als verstaendlicher Fehler.
+        /// </summary>
+        private T DefaultLease(IPluginFactory scope, string name)
+        {
+            var injector = new DefaultPluginInjector<T>();
+            return string.IsNullOrEmpty(name)
+                ? injector.GetPluginInstance(services, scope, false)
+                : injector.GetPluginInstance(services, scope, name);
         }
 
         /// <summary>Besitzt die frisch geladene Instanz und ihren Lade-Scope; Dispose schliesst den Scope.</summary>

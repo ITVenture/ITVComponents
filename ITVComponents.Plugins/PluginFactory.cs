@@ -1313,6 +1313,22 @@ namespace ITVComponents.Plugins
         private Type ResolvePluginType(UniqueNameHelper uniqueName, PluginConstructionElement parsed,
             Dictionary<string, object> customVariables, bool reflectOnly)
         {
+            var retVal = ResolveRawPluginType(parsed, reflectOnly);
+            if (retVal.IsGenericTypeDefinition)
+            {
+                retVal = CloseGenericType(uniqueName, retVal, customVariables);
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Resolves the assembly and the CLR-type of a parsed construction-element. A generic plugin comes
+        /// back as its OPEN definition - closing it is a separate step, because that evaluates configured
+        /// expressions and can fail on its own.
+        /// </summary>
+        private Type ResolveRawPluginType(PluginConstructionElement parsed, bool reflectOnly)
+        {
             Assembly a;
             // Lock-free: the ConcurrentDictionary handles the races the former lock guarded, and the
             // Lazy value makes sure a given assembly is resolved (loaded) exactly once even if two
@@ -1342,37 +1358,36 @@ namespace ITVComponents.Plugins
                 }
             }
 
-            var retVal = a.GetType(parsed.TypeName);
-            if (retVal.IsGenericTypeDefinition)
+            return a.GetType(parsed.TypeName);
+        }
+
+        /// <summary>
+        /// Closes a generic plugin-type by resolving its configured type-arguments.
+        /// </summary>
+        private Type CloseGenericType(UniqueNameHelper uniqueName, Type openType,
+            Dictionary<string, object> customVariables)
+        {
+            var t = new List<GenericTypeArgument>();
+            t.AddRange(from p in openType.GetGenericArguments()
+                select new GenericTypeArgument { GenericTypeName = p.Name });
+            var dynLoader = plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName.UniqueNameRaw));
+            if (dynLoader != null)
             {
-                var t = new List<GenericTypeArgument>();
-                t.AddRange(from p in retVal.GetGenericArguments()
-                    select new GenericTypeArgument { GenericTypeName = p.Name });
-                var dynLoader = plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName.UniqueNameRaw));
-                if (dynLoader != null)
-                {
-                    dynLoader.GetGenericParams(uniqueName.UniqueNameRaw, t, customVariables, ScopeFormatter/*, out bool knownTypeUsed*/);
-                    var c = (from p in t select p.TypeResult).ToArray();
-                    retVal = retVal.MakeGenericType(c);
-                }
-                else
-                {
-                    var arg = new ImplementGenericTypeEventArgs
-                        { GenericTypes = t, PluginUniqueName = uniqueName.UniqueNameRaw, Formatter = ScopeFormatter, KnownArguments = customVariables };
-                    OnImplementGenericType(arg);
-                    if (arg.Handled)
-                    {
-                        var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
-                        retVal = retVal.MakeGenericType(c);
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("Unable to construct generic Type");
-                    }
-                }
+                dynLoader.GetGenericParams(uniqueName.UniqueNameRaw, t, customVariables, ScopeFormatter/*, out bool knownTypeUsed*/);
+                var c = (from p in t select p.TypeResult).ToArray();
+                return openType.MakeGenericType(c);
             }
 
-            return retVal;
+            var arg = new ImplementGenericTypeEventArgs
+                { GenericTypes = t, PluginUniqueName = uniqueName.UniqueNameRaw, Formatter = ScopeFormatter, KnownArguments = customVariables };
+            OnImplementGenericType(arg);
+            if (arg.Handled)
+            {
+                var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
+                return openType.MakeGenericType(c);
+            }
+
+            throw new InvalidOperationException("Unable to construct generic Type");
         }
 
         /// <summary>
@@ -1422,9 +1437,33 @@ namespace ITVComponents.Plugins
             try
             {
                 var parsed = PluginConstructorParser.ParsePluginString(pluginConstructor, dc, ScopeFormatter);
+                var pluginType = ResolveRawPluginType(parsed, false);
+                if (pluginType.IsGenericTypeDefinition)
+                {
+                    try
+                    {
+                        pluginType = CloseGenericType(uq, pluginType, dc);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Henne und Ei: die Typ-Argumente eines generischen Plugins stehen als Ausdruecke in
+                        // der Konfiguration und zeigen ueblicherweise selbst auf CallingPlugin - also auf die
+                        // Kette, die hier gerade erst aufgebaut wird. Scheitert das, bleibt der GESCHLOSSENE
+                        // Typ unbekannt; Name und Kette sind aber vollstaendig. Ein Ref mit offener Definition
+                        // ist dann deutlich besser als gar keiner: sonst faellt der Aufrufer auf den Ref des
+                        // ANFORDERERS zurueck und die Kette ist wieder um eine Stufe verschoben - genau der
+                        // Fehler, den DescribePlugin beheben soll.
+                        LogEnvironment.LogEvent(
+                            $"Could not close the generic type of '{uniqueName}' while describing it, so the "
+                            + $"calling-chain carries this plugin without its closed type ({pluginType}). "
+                            + $"Cause: {ex.OutlineException()}",
+                            LogSeverity.Warning);
+                    }
+                }
+
                 return new PluginRef
                 {
-                    PluginType = ResolvePluginType(uq, parsed, dc, false),
+                    PluginType = pluginType,
                     UQ = uq,
                     CallingPlugin = callingPluginRef
                 };
@@ -1434,7 +1473,7 @@ namespace ITVComponents.Plugins
                 // Bewusst kein Wurf: der Aufrufer faellt auf den Ref des Anforderers zurueck. Aber die
                 // Ursache muss im Log stehen, sonst ist eine falsche CallingPlugin-Aufloesung unauffindbar.
                 LogEnvironment.LogEvent(
-                    $"Konnte das Plugin {uniqueName} nicht beschreiben ({pluginConstructor}): {ex.OutlineException()}",
+                    $"Could not describe the plugin '{uniqueName}' ({pluginConstructor}): {ex.OutlineException()}",
                     LogSeverity.Warning);
                 return null;
             }

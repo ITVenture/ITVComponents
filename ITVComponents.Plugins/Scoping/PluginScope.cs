@@ -67,7 +67,13 @@ namespace ITVComponents.Plugins.Scoping
             return GetEnumerator();
         }
 
-        public IPlugin this[string pluginName]=> plugins[pluginName];
+        /// <summary>
+        /// Wie bei der Factory ist ein leerer Name schlicht "kein Plugin" und liefert null. Ungefiltert
+        /// weitergereicht kaeme er als ArgumentNullException aus der ConcurrentDictionary zurueck - ein
+        /// Stacktrace, der nichts ueber die eigentliche Ursache sagt.
+        /// </summary>
+        public IPlugin this[string pluginName] =>
+            !string.IsNullOrEmpty(pluginName) ? plugins[pluginName] : null;
 
         public IPlugin this[string pluginName, bool triggerAsParameterRequest, PluginRef callingPluginRef]
         {
