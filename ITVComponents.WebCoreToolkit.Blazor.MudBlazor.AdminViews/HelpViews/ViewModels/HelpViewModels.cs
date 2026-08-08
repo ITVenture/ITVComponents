@@ -140,6 +140,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Vie
 
         public HelpTopicKind Kind { get; set; }
 
+        /// <summary>
+        /// Whether the topic is listed in the viewer's navigation. Ein Thema, das nicht ins Menue gehoert
+        /// (z.B. ein verlinktes Vertragsdokument), wird auch OHNE die Navigation angezeigt - die waere dort
+        /// nur Ballast.
+        /// </summary>
+        public bool ShowInMenu { get; set; } = true;
+
         /// <summary>Rendered HTML of the resolved localized Markdown body (empty for containers).</summary>
         public string Html { get; set; } = string.Empty;
     }

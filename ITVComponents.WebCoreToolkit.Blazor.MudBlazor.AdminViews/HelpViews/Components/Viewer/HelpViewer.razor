@@ -20,21 +20,24 @@
 </style>
 
 <MudGrid>
-    <MudItem xs="12" md="4" lg="3">
-        <MudPaper Outlined="true" Class="pa-1">
-            @if (tree.Count > 0)
-            {
-                <MudNavMenu>
-                    <HelpNavTree Nodes="tree" />
-                </MudNavMenu>
-            }
-            else
-            {
-                <MudText Typo="Typo.body2" Class="pa-2">@L["Help_NoTopics"]</MudText>
-            }
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="8" lg="9">
+    @if (ShowNav)
+    {
+        <MudItem xs="12" md="4" lg="3">
+            <MudPaper Outlined="true" Class="pa-1">
+                @if (tree.Count > 0)
+                {
+                    <MudNavMenu>
+                        <HelpNavTree Nodes="tree" />
+                    </MudNavMenu>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="pa-2">@L["Help_NoTopics"]</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+    }
+    <MudItem xs="12" md="@(ShowNav ? 8 : 12)" lg="@(ShowNav ? 9 : 12)">
         @if (current is not null)
         {
             <MudText Typo="Typo.h4" GutterBottom="true">@current.Title</MudText>
@@ -69,6 +72,13 @@
     private bool authenticated;
 
     private static string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
+
+    /// <summary>
+    /// Ein Thema, das bewusst KEINEN Menueeintrag bekommt (verlinkte Dokumente wie AGB oder
+    /// Datenschutzerklaerung), wird auch ohne die Navigation angezeigt: wer ueber einen Direktlink kommt,
+    /// will das Dokument lesen und nicht den Hilfebaum. Auf der Uebersicht (kein Slug) bleibt sie stehen.
+    /// </summary>
+    private bool ShowNav => current is null || current.ShowInMenu;
 
     protected override async Task OnInitializedAsync()
     {

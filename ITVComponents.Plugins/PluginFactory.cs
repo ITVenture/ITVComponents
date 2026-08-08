@@ -1281,73 +1281,15 @@ namespace ITVComponents.Plugins
         {
             try
             {
-                Assembly a;
                 PluginConstructionElement parsed =
                     PluginConstructorParser.ParsePluginString(loggerString, customVariables, ScopeFormatter);
-                // Lock-free: the ConcurrentDictionary handles the races the former lock guarded, and the
-                // Lazy value makes sure a given assembly is resolved (loaded) exactly once even if two
-                // threads request the same key simultaneously.
-                if (registeredAssemblies.TryGetValue(parsed.AssemblyName, out var known))
-                {
-                    a = known.Value;
-                }
-                else
-                {
-                    string pth = Path.GetDirectoryName(parsed.AssemblyName);
-                    if (!string.IsNullOrEmpty(pth))
-                    {
-                        registeredDirectories.TryAdd(pth, 0);
-                    }
-
-                    if (reflectOnly)
-                    {
-                        // Reflect-only: resolve transiently, do NOT cache (mirrors the former behaviour).
-                        a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
-                    }
-                    else
-                    {
-                        a = registeredAssemblies.GetOrAdd(parsed.AssemblyName,
-                            name => new Lazy<Assembly>(
-                                () => AssemblyResolver.FindAssemblyByFileName(name, reflectionContext))).Value;
-                    }
-                }
-
-                loggerType = a.GetType(parsed.TypeName);
-                if (loggerType.IsGenericTypeDefinition)
-                {
-                    var t = new List<GenericTypeArgument>();
-                    t.AddRange(from p in loggerType.GetGenericArguments()
-                        select new GenericTypeArgument { GenericTypeName = p.Name });
-                    var dynLoader = plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName.UniqueNameRaw));
-                    if (dynLoader != null)
-                    {
-                        dynLoader.GetGenericParams(uniqueName.UniqueNameRaw, t, customVariables, ScopeFormatter/*, out bool knownTypeUsed*/);
-                        var c = (from p in t select p.TypeResult).ToArray();
-                        loggerType = loggerType.MakeGenericType(c);
-                        //buffer &= !knownTypeUsed;
-                    }
-                    else
-                    {
-                        var arg = new ImplementGenericTypeEventArgs
-                            { GenericTypes = t, PluginUniqueName = uniqueName.UniqueNameRaw, Formatter = ScopeFormatter, KnownArguments = customVariables };
-                        OnImplementGenericType(arg);
-                        if (arg.Handled)
-                        {
-                            var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
-                            loggerType = loggerType.MakeGenericType(c);
-                            //buffer &= !arg.KnownArgumentsUsed;
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException("Unable to construct generic Type");
-                        }
-                    }
-                }
+                loggerType = ResolvePluginType(uniqueName, parsed, customVariables, reflectOnly);
 
                 constructor = this.ParseConstructor(parsed.Parameters, new PluginRef
                 {
                     PluginType=loggerType,
-                    UQ = uniqueName
+                    UQ = uniqueName,
+                    CallingPlugin = CallerOf(customVariables)
                 }, customVariables, reflectOnly);
                 LogEnvironment.LogDebugEvent(null, $"found {loggerType}...", (int)LogSeverity.Report, "PluginSystem");
             }
@@ -1356,6 +1298,145 @@ namespace ITVComponents.Plugins
                 LogEnvironment.LogEvent(ex.OutlineException(), LogSeverity.Error);
                 LogEnvironment.LogEvent(loggerString, LogSeverity.Error);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Resolves the CLR-type a parsed construction-element refers to - including the generic closure,
+        /// if the type is a generic definition.
+        /// </summary>
+        /// <param name="uniqueName">the unique name of the plugin that is being described</param>
+        /// <param name="parsed">the parsed construction-element</param>
+        /// <param name="customVariables">the variables that are known for this load (carries CallingPlugin)</param>
+        /// <param name="reflectOnly">indicates whether the type is resolved for verification only</param>
+        /// <returns>the resolved (closed) type</returns>
+        private Type ResolvePluginType(UniqueNameHelper uniqueName, PluginConstructionElement parsed,
+            Dictionary<string, object> customVariables, bool reflectOnly)
+        {
+            Assembly a;
+            // Lock-free: the ConcurrentDictionary handles the races the former lock guarded, and the
+            // Lazy value makes sure a given assembly is resolved (loaded) exactly once even if two
+            // threads request the same key simultaneously.
+            if (registeredAssemblies.TryGetValue(parsed.AssemblyName, out var known))
+            {
+                a = known.Value;
+            }
+            else
+            {
+                string pth = Path.GetDirectoryName(parsed.AssemblyName);
+                if (!string.IsNullOrEmpty(pth))
+                {
+                    registeredDirectories.TryAdd(pth, 0);
+                }
+
+                if (reflectOnly)
+                {
+                    // Reflect-only: resolve transiently, do NOT cache (mirrors the former behaviour).
+                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
+                }
+                else
+                {
+                    a = registeredAssemblies.GetOrAdd(parsed.AssemblyName,
+                        name => new Lazy<Assembly>(
+                            () => AssemblyResolver.FindAssemblyByFileName(name, reflectionContext))).Value;
+                }
+            }
+
+            var retVal = a.GetType(parsed.TypeName);
+            if (retVal.IsGenericTypeDefinition)
+            {
+                var t = new List<GenericTypeArgument>();
+                t.AddRange(from p in retVal.GetGenericArguments()
+                    select new GenericTypeArgument { GenericTypeName = p.Name });
+                var dynLoader = plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasParamsFor(uniqueName.UniqueNameRaw));
+                if (dynLoader != null)
+                {
+                    dynLoader.GetGenericParams(uniqueName.UniqueNameRaw, t, customVariables, ScopeFormatter/*, out bool knownTypeUsed*/);
+                    var c = (from p in t select p.TypeResult).ToArray();
+                    retVal = retVal.MakeGenericType(c);
+                }
+                else
+                {
+                    var arg = new ImplementGenericTypeEventArgs
+                        { GenericTypes = t, PluginUniqueName = uniqueName.UniqueNameRaw, Formatter = ScopeFormatter, KnownArguments = customVariables };
+                    OnImplementGenericType(arg);
+                    if (arg.Handled)
+                    {
+                        var c = (from p in arg.GenericTypes select p.TypeResult).ToArray();
+                        retVal = retVal.MakeGenericType(c);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Unable to construct generic Type");
+                    }
+                }
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Reads the caller out of a set of load-variables. Das ist die Stelle, an der die Aufrufkette
+        /// zusammengesetzt wird: der Aufrufer ist selbst schon verkettet, also haengt mit ihm der ganze
+        /// bisherige Weg am neuen <see cref="PluginRef"/>.
+        /// </summary>
+        private static PluginRef CallerOf(Dictionary<string, object> customVariables)
+        {
+            if (customVariables != null && customVariables.TryGetValue("CallingPlugin", out var caller))
+            {
+                return caller as PluginRef;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Beschreibt ein Plugin, OHNE es zu bauen: loest Assembly und Typ (inklusive generischer
+        /// Schliessung) auf und liefert einen bereits verketteten <see cref="PluginRef"/>.
+        /// </summary>
+        /// <param name="uniqueName">der eindeutige Name des Plugins</param>
+        /// <param name="pluginConstructor">der Konstruktor-String des Plugins</param>
+        /// <param name="callingPluginRef">der Anforderer dieses Plugins - wird zum Vorgaenger in der Kette</param>
+        /// <returns>der beschreibende PluginRef, oder <c>null</c> wenn der Typ nicht aufloesbar ist</returns>
+        /// <remarks>
+        /// Gedacht fuer Aufrufer, die einen PluginRef brauchen, BEVOR das Plugin existiert - etwa fuer eine
+        /// Init-Sequenz, die dem Plugin gehoert und darum seinen eigenen Ref als <c>CallingPlugin</c> sehen
+        /// muss, nicht den seines Anforderers. Achtung: die generische Aufloesung laeuft dabei ein zweites
+        /// Mal (das <c>ImplementGenericType</c>-Event feuert erneut) - nur aufrufen, wenn der Ref
+        /// tatsaechlich gebraucht wird.
+        /// </remarks>
+        public PluginRef DescribePlugin(string uniqueName, string pluginConstructor, PluginRef callingPluginRef)
+        {
+            if (string.IsNullOrEmpty(uniqueName) || string.IsNullOrEmpty(pluginConstructor))
+            {
+                return null;
+            }
+
+            Dictionary<string, object> dc = null;
+            if (callingPluginRef != null)
+            {
+                dc = new Dictionary<string, object> { { "CallingPlugin", callingPluginRef } };
+            }
+
+            var uq = new UniqueNameHelper(uniqueName, dc, ScopeFormatter);
+            try
+            {
+                var parsed = PluginConstructorParser.ParsePluginString(pluginConstructor, dc, ScopeFormatter);
+                return new PluginRef
+                {
+                    PluginType = ResolvePluginType(uq, parsed, dc, false),
+                    UQ = uq,
+                    CallingPlugin = callingPluginRef
+                };
+            }
+            catch (Exception ex)
+            {
+                // Bewusst kein Wurf: der Aufrufer faellt auf den Ref des Anforderers zurueck. Aber die
+                // Ursache muss im Log stehen, sonst ist eine falsche CallingPlugin-Aufloesung unauffindbar.
+                LogEnvironment.LogEvent(
+                    $"Konnte das Plugin {uniqueName} nicht beschreiben ({pluginConstructor}): {ex.OutlineException()}",
+                    LogSeverity.Warning);
+                return null;
             }
         }
 
@@ -1378,10 +1459,16 @@ namespace ITVComponents.Plugins
         private object GetConstructorVal(PluginParameterElement parameter, PluginRef pluginType, Dictionary<string, object> customVariables, bool reflectOnly)
         {
             object retVal = null;
-            Dictionary<string, object> dc = null;
+            // Die eingehenden Variablen bleiben erhalten - alles, was der Host sonst mitgibt, war eine Stufe
+            // tiefer bisher verschwunden. Ersetzt wird nur CallingPlugin: fuer die naechste Stufe ist DIESES
+            // Plugin der Aufrufer.
+            Dictionary<string, object> dc = customVariables != null
+                ? new Dictionary<string, object>(customVariables)
+                : null;
             if (pluginType != null)
             {
-                dc = new Dictionary<string, object> { { "CallingPlugin", pluginType } };
+                dc ??= new Dictionary<string, object>();
+                dc["CallingPlugin"] = pluginType;
             }
             switch (parameter.TypeOfParameter)
             {

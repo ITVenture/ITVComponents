@@ -193,6 +193,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 HelpTopicId = topic.HelpTopicId,
                 Slug = topic.Slug,
                 Kind = topic.Kind,
+                ShowInMenu = topic.ShowInMenu,
                 Title = string.IsNullOrWhiteSpace(content?.Title) ? topic.Slug : content!.Title,
                 Html = topic.Kind == HelpTopicKind.Container ? string.Empty : renderer.ToHtml(content?.Body, match, userAuthenticated)
             };

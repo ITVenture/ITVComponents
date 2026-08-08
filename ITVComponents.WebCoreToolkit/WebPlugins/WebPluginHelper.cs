@@ -11,6 +11,7 @@ using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Helpers;
+using ITVComponents.Plugins.PluginServices;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -235,11 +236,25 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                     {
                         if (!checkSecurity || serviceProvider.VerifyUserPermissions(new[] { args.RequestedName }, true))
                         {
+                            // Die Init-Sequenzen gehoeren DIESEM Plugin: was darin geladen wird, ist da, weil
+                            // dieses Plugin verlangt wurde - nicht, weil sein Anforderer verlangt wurde.
+                            // Frueher stand hier args.PluginType; bei zwei Stufen ist der Anforderer zufaellig
+                            // das gemeinte Plugin, ab drei Stufen rutschte der aeussere Aufrufer durch. Der
+                            // Anforderer bleibt ueber CallingPlugin.PrevPlugin(1) erreichbar.
+                            // DescribePlugin loest den Typ ein zweites Mal auf, darum nur wenn es eine
+                            // Sequenz gibt; scheitert es, faellt es auf das bisherige Verhalten zurueck.
+                            PluginRef sequenceOwner = args.PluginType;
+                            if (preInitSequence.Length != 0 || postInitSequence.Length != 0)
+                            {
+                                sequenceOwner = pi.DescribePlugin(plugin.UniqueName, plugin.Constructor,
+                                    args.PluginType) ?? args.PluginType;
+                            }
+
                             if (preInitSequence.Length != 0)
                             {
                                 foreach (var s in preInitSequence)
                                 {
-                                    var tmp = pi[s, true, args.PluginType];
+                                    var tmp = pi[s, true, sequenceOwner];
                                 }
                             }
 
@@ -264,7 +279,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                             {
                                 foreach (var s in postInitSequence)
                                 {
-                                    var tmp = pi[s, true, args.PluginType];
+                                    var tmp = pi[s, true, sequenceOwner];
                                 }
                             }
                         }

@@ -34,18 +34,19 @@ namespace ITVComponents.Extensions
             return retVal;
         }
 
+        /// <summary>
+        /// Liefert eine Kopie von <paramref name="extendee"/>, ergaenzt um alle Eintraege aus
+        /// <paramref name="source"/>, die darin noch fehlen. Beide Eingaben bleiben unveraendert.
+        /// </summary>
+        /// <remarks>
+        /// Wichtig ist das "unveraendert": frueher wurde bei leerem <paramref name="extendee"/> dessen
+        /// Instanz zurueckgegeben und anschliessend beschrieben - damit landeten z.B. die Konstanten eines
+        /// StringFormatProviders im Dictionary des Aufrufers, das dieser danach weiterreichte.
+        /// </remarks>
         public static Dictionary<string, object> ExtendDictionary(this Dictionary<string, object> source,
             Dictionary<string, object> extendee)
         {
-            var retVal = extendee.Count == 0 ? extendee : new Dictionary<string, object>();
-            if (retVal != extendee)
-            {
-                foreach (var kvp in extendee)
-                {
-                    retVal.Add(kvp.Key, kvp.Value);
-                }
-            }
-
+            var retVal = new Dictionary<string, object>(extendee);
             foreach (var key in source.Keys)
             {
                 if (!retVal.ContainsKey(key))
