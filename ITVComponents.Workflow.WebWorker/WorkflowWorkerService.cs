@@ -79,7 +79,7 @@ namespace ITVComponents.Workflow.WebWorker
                     catch (Exception ex)
                     {
                         // Kein stiller catch: der Refresh soll den Prozess nicht killen, aber sichtbar bleiben.
-                        log.LogError(ex, "Workflow-Worker: Umgebungs-Discovery fehlgeschlagen; behalte den letzten Stand.");
+                        log.LogError(ex, "Workflow worker: environment discovery failed; keeping the last known state.");
                     }
 
                     await Task.Delay(opt.RefreshInterval, stop).ConfigureAwait(false);
@@ -155,7 +155,7 @@ namespace ITVComponents.Workflow.WebWorker
                     }
                     catch (Exception ex)
                     {
-                        log.LogError(ex, "Workflow-Worker: Antrieb fuer {Key} fehlgeschlagen.", d.Key);
+                        log.LogError(ex, "Workflow worker: drive for {Key} failed.", d.Key);
                     }
                     finally
                     {
@@ -217,7 +217,7 @@ namespace ITVComponents.Workflow.WebWorker
                 {
                     store.ReleaseLocksOfOwner(lockOwner);
                     log.LogInformation(
-                        "Workflow-Worker: verwaiste Branch-Locks fuer {Owner} beim ersten Antrieb freigegeben.", lockOwner);
+                        "Workflow worker: released orphaned branch locks of {Owner} on the first drive.", lockOwner);
                 }
 
                 // Nach Dringlichkeit geordnet statt streng der Reihe nach: ein Antrieb arbeitet die
@@ -268,8 +268,8 @@ namespace ITVComponents.Workflow.WebWorker
                 {
                     if (++steps > maxSteps)
                     {
-                        log.LogError("Workflow-Worker: Antrieb fuer {Key} ueberschritt {Max} Schritte - abgebrochen " +
-                            "(moegliche Endlosschleife).", spec.Key, maxSteps);
+                        log.LogError("Workflow worker: drive for {Key} exceeded {Max} steps - aborted " +
+                            "(possible endless loop).", spec.Key, maxSteps);
                         break;
                     }
 
@@ -333,7 +333,7 @@ namespace ITVComponents.Workflow.WebWorker
                     }
                     catch (Exception ex)
                     {
-                        log.LogError(ex, "Workflow-Worker: konnte einen Operations-Scope ({Key}) nicht freigeben.", spec.Key);
+                        log.LogError(ex, "Workflow worker: could not release an operation scope ({Key}).", spec.Key);
                     }
                 }
             }

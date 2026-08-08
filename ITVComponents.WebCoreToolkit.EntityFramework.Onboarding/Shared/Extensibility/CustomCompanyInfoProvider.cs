@@ -94,7 +94,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     {
                         // Ohne diese Zeile fehlte einfach ein Reiter - und niemand koennte sagen, warum
                         // ausgerechnet die Zusatzangaben dieses Moduls nicht erscheinen.
-                        logger.LogError(ex, "Das Zusatzangaben-Modul '{Plugin}' konnte nicht beschrieben werden; sein Reiter fehlt.", name);
+                        logger.LogError(ex, "Could not describe the custom-company-info module '{Plugin}'; its tab is missing.", name);
                     }
                 }
             }
@@ -132,13 +132,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     {
                         // Ein Modul, das beim Pruefen zerbricht, darf nicht als "hat nichts einzuwenden"
                         // durchgehen - sonst entstuende ein Tenant mit Angaben, die nie geprueft wurden.
-                        logger.LogError(ex, "Das Zusatzangaben-Modul '{Plugin}' ist beim Pruefen fehlgeschlagen; die Erfassung wird abgelehnt.", name);
+                        logger.LogError(ex, "The custom-company-info module '{Plugin}' failed while validating; the entry is rejected.", name);
                         return CustomInfoCheckResult.Rejected(handler.Key, null, null);
                     }
 
                     if (verdict != null && !verdict.Valid)
                     {
-                        logger.LogDebug("Das Zusatzangaben-Modul '{Plugin}' hat die Angaben beanstandet: {Message}", name, verdict.Message);
+                        logger.LogDebug("The custom-company-info module '{Plugin}' rejected the entered data: {Message}", name, verdict.Message);
                         return CustomInfoCheckResult.Rejected(handler.Key, verdict.Message, verdict.FieldName);
                     }
                 }
@@ -154,7 +154,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
             {
                 // Programmierfehler, kein Betriebsfall: ohne Tenant gibt es nichts, woran die Angaben
                 // haengen koennten.
-                logger.LogError("Zusatzangaben sollten ohne TenantId abgelegt werden; es wurde nichts geschrieben.");
+                logger.LogError("Custom company info was to be persisted without a tenant id; nothing was written.");
                 return new CustomInfoPersistResult { Failed = ConfiguredNames().ToArray() };
             }
 
@@ -189,7 +189,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     {
                         // Zustaendig, aber es liegt nichts vor: typischerweise ein Modul, das erst nach dem
                         // Erfassen dazu kam. Kein Fehler des Benutzers - aber es fehlt etwas.
-                        logger.LogWarning("Zum Zusatzangaben-Modul '{Plugin}' liegen fuer Tenant {TenantId} keine Angaben vor; sie muessen im Firmenprofil nachgetragen werden.", name, ctx.TenantId);
+                        logger.LogWarning("No data was supplied for the custom-company-info module '{Plugin}' on tenant {TenantId}; it has to be added in the billing profile.", name, ctx.TenantId);
                         missing.Add(handler.Key);
                         continue;
                     }
@@ -208,7 +208,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     {
                         // Der Tenant besteht bereits - abbrechen wuerde die uebrigen Module nur ebenfalls
                         // um ihre Angaben bringen. Also weitermachen und den Ausfall melden.
-                        logger.LogError(ex, "Das Zusatzangaben-Modul '{Plugin}' konnte seine Angaben zu Tenant {TenantId} nicht ablegen.", name, ctx.TenantId);
+                        logger.LogError(ex, "The custom-company-info module '{Plugin}' could not persist its data for tenant {TenantId}.", name, ctx.TenantId);
                         failed.Add(handler.Key);
                     }
                 }
@@ -233,14 +233,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                 IFreshInjectablePlugin<ICustomCompanyInformationHandler> loader = Plugins;
                 if (loader == null)
                 {
-                    logger.LogError("Es sind Zusatzangaben-Module konfiguriert ('{Plugin}' und ggf. weitere), aber der Plugin-Ladeweg ist nicht eingerichtet - dem Host fehlt der Aufruf von UseInjectablePlugins. Es werden keine Zusatzangaben erfasst.", name);
+                    logger.LogError("Custom-company-info modules are configured ('{Plugin}' and possibly more), but the plugin loading path is not set up - the host is missing the UseInjectablePlugins call. No custom company info is collected.", name);
                     return null;
                 }
 
                 IPluginLease<ICustomCompanyInformationHandler> lease = loader.Lease(name);
                 if (lease?.Value == null)
                 {
-                    logger.LogError("Das als Zusatzangaben-Modul konfigurierte Plugin '{Plugin}' wurde nicht gefunden; seine Angaben werden weder erfasst noch abgelegt.", name);
+                    logger.LogError("The plugin '{Plugin}' configured as a custom-company-info module was not found; its data is neither collected nor persisted.", name);
                     lease?.Dispose();
                     return null;
                 }
@@ -249,7 +249,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Das als Zusatzangaben-Modul konfigurierte Plugin '{Plugin}' konnte nicht geladen werden; seine Angaben werden weder erfasst noch abgelegt.", name);
+                logger.LogError(ex, "The plugin '{Plugin}' configured as a custom-company-info module could not be loaded; its data is neither collected nor persisted.", name);
                 return null;
             }
         }
@@ -277,12 +277,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
                     return true;
                 }
 
-                logger.LogDebug("Das Zusatzangaben-Modul '{Plugin}' verlangt die Berechtigung '{Permission}', die dem Benutzer fehlt; sein Reiter bleibt aus.", name, permission);
+                logger.LogDebug("The custom-company-info module '{Plugin}' requires the permission '{Permission}', which the user does not have; its tab stays hidden.", name, permission);
                 return false;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Die Berechtigung '{Permission}' des Zusatzangaben-Moduls '{Plugin}' liess sich nicht pruefen; sein Reiter bleibt aus.", permission, name);
+                logger.LogError(ex, "Could not check the permission '{Permission}' of the custom-company-info module '{Plugin}'; its tab stays hidden.", permission, name);
                 return false;
             }
         }
@@ -299,7 +299,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensi
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Das Zusatzangaben-Modul '{Plugin}' konnte seine Zustaendigkeit nicht bestimmen; es bleibt in diesem Vorgang aussen vor.", name);
+                logger.LogError(ex, "The custom-company-info module '{Plugin}' could not determine whether it applies; it is left out of this operation.", name);
                 return false;
             }
         }

@@ -46,7 +46,7 @@ internal static class CustomCompanyInfoOnboardingHelper
             return true;
         }
 
-        logger?.LogWarning("Die Tenant-Anlage wurde vom Zusatzangaben-Modul '{Handler}' abgelehnt: {Message}",
+        logger?.LogWarning("Tenant creation was rejected by the custom-company-info module '{Handler}': {Message}",
             check.HandlerKey, check.Message);
         return false;
     }
@@ -75,7 +75,7 @@ internal static class CustomCompanyInfoOnboardingHelper
         // Der Provider hat jeden Einzelfall schon protokolliert; diese Zeile ist die Zusammenfassung, an
         // der sich ein Tenant mit unvollstaendigen Zusatzangaben wiederfinden laesst.
         logger?.LogError(
-            "Die Zusatzangaben zu Tenant {TenantId} sind unvollstaendig - fehlgeschlagen: [{Failed}], nicht mitgeliefert: [{Missing}]. Sie muessen im Firmenprofil nachgetragen werden.",
+            "The custom company info of tenant {TenantId} is incomplete - failed: [{Failed}], not supplied: [{Missing}]. It has to be added in the billing profile.",
             tenantId, string.Join(", ", result.Failed), string.Join(", ", result.Missing));
         return false;
     }

@@ -44,7 +44,7 @@ internal static class ConsentOnboardingHelper
         {
             // Der Provider hat den Grund bereits protokolliert; diese Zeile stellt den Bezug zum Mandanten
             // her, damit sich ein Tenant ohne dokumentierte Zustimmung wiederfinden laesst.
-            logger?.LogError("Zu Tenant {TenantId} wurde zugestimmt, aber es konnte kein Nachweis abgelegt werden.", tenantId);
+            logger?.LogError("Consent was given for tenant {TenantId}, but no consent record could be persisted.", tenantId);
         }
     }
 }

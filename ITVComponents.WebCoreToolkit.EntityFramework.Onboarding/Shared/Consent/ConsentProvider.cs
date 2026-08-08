@@ -133,14 +133,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
 
             if (subject == null)
             {
-                logger.LogError("Es sollten {Count} Zustimmungs-Nachweise abgelegt werden, aber es ist nicht bekannt, wem sie gehoeren; es wurde nichts geschrieben.", answers.Count);
+                logger.LogError("{Count} consent records were to be persisted, but their owner is unknown; nothing was written.", answers.Count);
                 return 0;
             }
 
             if (string.IsNullOrWhiteSpace(subject.UserId) && string.IsNullOrWhiteSpace(subject.Email))
             {
                 // Ein Nachweis ohne jede Kennung ist keiner - er liesse sich niemandem zuordnen.
-                logger.LogError("Es sollten {Count} Zustimmungs-Nachweise abgelegt werden, aber weder Benutzer noch E-Mail sind bekannt; es wurde nichts geschrieben.", answers.Count);
+                logger.LogError("{Count} consent records were to be persisted, but neither user nor e-mail is known; nothing was written.", answers.Count);
                 return 0;
             }
 
@@ -180,7 +180,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
                 }
 
                 await db.SaveChangesAsync(ct);
-                logger.LogDebug("{Count} Zustimmungs-Nachweise fuer {Subject} abgelegt.", written,
+                logger.LogDebug("Persisted {Count} consent records for {Subject}.", written,
                     subject.UserId ?? subject.Email);
                 return written;
             }
@@ -190,7 +190,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
                 // nachtraeglich scheitern zu lassen, waere schlimmer als der fehlende Nachweis. Aber still
                 // darf es nicht bleiben: ohne diese Zeile faellt erst bei einer Auskunftsanfrage auf, dass
                 // die Zustimmung nirgends steht.
-                logger.LogError(ex, "Die Zustimmungs-Nachweise fuer {Subject} (Mandant {TenantId}) konnten nicht abgelegt werden; die Zustimmung wurde erteilt, ist aber nicht dokumentiert.",
+                logger.LogError(ex, "Could not persist the consent records for {Subject} (tenant {TenantId}); consent was given but is not documented.",
                     subject.UserId ?? subject.Email, subject.TenantId);
                 return 0;
             }
@@ -257,7 +257,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
             {
                 // Die Maske zeigt dann "nie gefragt". Das ist die harmlosere Auskunft als eine erfundene
                 // Zustimmung - aber ohne diese Zeile bliebe unklar, warum sie nichts weiss.
-                logger.LogError(ex, "Die Zustimmungen von Benutzer {UserId} konnten nicht gelesen werden; die Maske zeigt sie als unbeantwortet.", userId);
+                logger.LogError(ex, "Could not read the consents of user {UserId}; the form shows them as unanswered.", userId);
             }
 
             return result;
@@ -287,7 +287,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
                 {
                     // Ohne Schluessel liesse sich der Nachweis spaeter nicht zuordnen - der Punkt wuerde
                     // angezeigt und seine Zustimmung waere wertlos.
-                    logger.LogError("Ein konfigurierter Zustimmungspunkt hat keinen Schluessel und wird uebergangen.");
+                    logger.LogError("A configured consent point has no key and is skipped.");
                     continue;
                 }
 
@@ -295,7 +295,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
                 {
                     // Zwei Punkte mit demselben Schluessel wuerden zwei Nachweise schreiben, die sich nicht
                     // auseinanderhalten lassen.
-                    logger.LogError("Der Zustimmungspunkt '{Key}' ist mehrfach konfiguriert; nur der erste gilt.", point.Key);
+                    logger.LogError("The consent point '{Key}' is configured more than once; only the first one applies.", point.Key);
                     continue;
                 }
 
@@ -332,7 +332,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Consent
                 return parsed;
             }
 
-            logger.LogError("Der Zustimmungspunkt '{Key}' nennt den unbekannten Geltungsbereich '{Scope}'; es gilt '{Fallback}'. Erlaubt sind User, Tenant und Both.",
+            logger.LogError("The consent point '{Key}' names the unknown scope '{Scope}'; '{Fallback}' applies. Allowed are User, Tenant and Both.",
                 key, value, ConsentScope.User);
             return ConsentScope.User;
         }

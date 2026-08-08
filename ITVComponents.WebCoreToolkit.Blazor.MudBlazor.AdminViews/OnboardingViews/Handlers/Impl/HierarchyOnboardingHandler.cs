@@ -450,7 +450,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         var owner = await userManager.GetUserAsync(user);
         if (owner == null)
         {
-            logger.LogWarning("Die Zuweisung zum Standard-Mandanten wurde uebersprungen: zum angemeldeten Benutzer liess sich kein Konto aufloesen.");
+            logger.LogWarning("Skipped the assignment to the default tenant: no account could be resolved for the signed-in user.");
             return false;
         }
 
@@ -467,7 +467,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         if (await db.Employees.IgnoreQueryFilters()
                 .AnyAsync(e => e.EMail == owner.Email && e.InvitationStatus == InvitationStatus.Pending, ct))
         {
-            logger.LogDebug("Benutzer {Email} wird nicht dem Standard-Mandanten zugewiesen: es wartet eine Einladung.", owner.Email);
+            logger.LogDebug("User {Email} is not assigned to the default tenant: an invitation is pending.", owner.Email);
             return false;
         }
 
@@ -477,7 +477,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             .FirstOrDefaultAsync(t => t.TenantName == wanted || t.DisplayName == wanted, ct);
         if (tenant == null)
         {
-            logger.LogError("Der als Standard konfigurierte Mandant '{Tenant}' existiert nicht; Benutzer {Email} bleibt ohne Mandanten.", wanted, owner.Email);
+            logger.LogError("The tenant '{Tenant}' configured as default does not exist; user {Email} is left without a tenant.", wanted, owner.Email);
             return false;
         }
 
@@ -505,16 +505,16 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
             {
                 // Der Benutzer wird trotzdem Mitglied - aber ohne Rolle sieht er nichts, und ohne diese
                 // Zeile wuerde man die Ursache im Mandanten suchen statt in der Konfiguration.
-                logger.LogError("Die als Standard konfigurierte Rolle '{Role}' gibt es im Mandanten '{Tenant}' nicht; Benutzer {Email} wird ohne Rolle zugewiesen.", roleName, wanted, owner.Email);
+                logger.LogError("The role '{Role}' configured as default does not exist in tenant '{Tenant}'; user {Email} is assigned without a role.", roleName, wanted, owner.Email);
             }
         }
         else
         {
-            logger.LogWarning("Zum Standard-Mandanten '{Tenant}' ist keine Rolle konfiguriert; Benutzer {Email} wird ohne Rolle zugewiesen und sieht voraussichtlich nichts.", wanted, owner.Email);
+            logger.LogWarning("No role is configured for the default tenant '{Tenant}'; user {Email} is assigned without a role and will probably see nothing.", wanted, owner.Email);
         }
 
         await db.SaveChangesAsync(ct);
-        logger.LogInformation("Benutzer {Email} wurde dem Standard-Mandanten '{Tenant}' zugewiesen.", owner.Email, wanted);
+        logger.LogInformation("User {Email} was assigned to the default tenant '{Tenant}'.", owner.Email, wanted);
         return true;
     }
 
