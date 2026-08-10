@@ -234,7 +234,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                             _ => availablePlugins.GetPlugin(args.RequestedName), null);
                     if (plugin != null)
                     {
-                        if (!checkSecurity || serviceProvider.VerifyUserPermissions(new[] { args.RequestedName }, true))
+                        if (!checkSecurity || PluginLoadPermitted(serviceProvider, plugin))
                         {
                             // Die Init-Sequenzen gehoeren DIESEM Plugin: was darin geladen wird, ist da, weil
                             // dieses Plugin verlangt wurde - nicht, weil sein Anforderer verlangt wurde.
@@ -385,6 +385,36 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             return retVal;
         }
 
+        /// <summary>
+        /// Entscheidet, ob ein Plugin geladen werden darf. Regulaer ist das die Berechtigungspruefung -
+        /// die stellt zugleich sicher, dass ueberhaupt jemand angemeldet ist. Ein Plugin, das ausdruecklich
+        /// als <see cref="WebPlugin.AllowAnonymous"/> gekennzeichnet ist, darf auch ohne angemeldeten
+        /// Benutzer geladen werden; das gilt nur fuer globale Plugins (die Kennzeichnung traegt die Regel
+        /// selbst, siehe die Entitaet).
+        /// </summary>
+        /// <remarks>
+        /// Die Kennzeichnung greift NUR im Anonym-Fall. Ist jemand angemeldet, bleibt es bei der
+        /// Berechtigungspruefung: ein anonym erlaubtes Plugin soll fuer angemeldete Benutzer nicht
+        /// grosszuegiger sein als fuer alle anderen.
+        /// </remarks>
+        private static bool PluginLoadPermitted(IServiceProvider services, WebPlugin plugin)
+        {
+            if (services.VerifyUserPermissions([plugin.UniqueName], true, out _, out var isUserAuthenticated))
+            {
+                return true;
+            }
+
+            if (!isUserAuthenticated && plugin.AllowAnonymous)
+            {
+                LogEnvironment.LogDebugEvent(
+                    $"Loading '{plugin.UniqueName}' without an authenticated user: it is marked as anonymously loadable.",
+                    LogSeverity.Report);
+                return true;
+            }
+
+            return false;
+        }
+
         private string[] DeserializeInitArray(string jsonSerializedArray)
         {
             string[] retVal = Array.Empty<string>();
@@ -414,7 +444,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 try
                 {
-                    if (!testPermissions || serviceProvider.VerifyUserPermissions([pi.UniqueName], true))
+                    if (!testPermissions || PluginLoadPermitted(serviceProvider, pi))
                     {
                         factory.LoadPlugin<IPlugin>(pi.UniqueName, pi.Constructor);
                     }

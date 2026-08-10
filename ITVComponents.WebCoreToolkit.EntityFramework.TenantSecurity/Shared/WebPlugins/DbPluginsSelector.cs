@@ -201,20 +201,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
             var securityContext = lease.Context;
             if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
+                // AllowAnonymous nur aus den globalen Zeilen: eine Projektion liest die SPALTE, nicht den
+                // Getter der Entitaet - die Mandanten-Regel muss hier also von Hand stehen.
                 return (from p in securityContext.WebPlugins
                     where p.TenantId != null
                     select new WebPlugin
                     {
                         AutoLoad = p.AutoLoad, Constructor = p.Constructor,
                         StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName,
-                        Transient = p.Transient
+                        Transient = p.Transient, AllowAnonymous = false
                     }).AsEnumerable().Union((from p in securityContext.WebPlugins
                     where p.TenantId == null
                     select new WebPlugin
                     {
                         AutoLoad = p.AutoLoad, Constructor = p.Constructor,
                         StartupRegistrationConstructor = p.StartupRegistrationConstructor, UniqueName = p.UniqueName,
-                        Transient = p.Transient
+                        Transient = p.Transient, AllowAnonymous = p.AllowAnonymous
                     }).AsEnumerable(),
                     new WebPluginComparer()).Where(n => !string.IsNullOrEmpty(n.Constructor) && n.AutoLoad).ToList();
             }
@@ -235,7 +237,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                     Constructor = p.Constructor,
                     StartupRegistrationConstructor = p.StartupRegistrationConstructor,
                     UniqueName = p.UniqueName,
-                    Transient = p.Transient
+                    Transient = p.Transient,
+                    AllowAnonymous = false
                 }).AsEnumerable().Union((from p in securityContext.WebPlugins
                 where p.TenantId == null
                 select new WebPlugin
@@ -244,7 +247,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                     Constructor = p.Constructor,
                     StartupRegistrationConstructor = p.StartupRegistrationConstructor,
                     UniqueName = p.UniqueName,
-                    Transient = p.Transient
+                    Transient = p.Transient,
+                    AllowAnonymous = p.AllowAnonymous
                 }).AsEnumerable(),
                 new WebPluginComparer()).Where(p => !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad).ToList();
 

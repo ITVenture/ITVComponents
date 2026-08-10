@@ -19,6 +19,19 @@ namespace ITVComponents.WebCoreToolkit.Models
 
         public bool Transient { get; set; } = false;
 
+        /// <summary>
+        /// Whether this plugin may be loaded WITHOUT an authenticated user. Off by default: the permission
+        /// check that gates plugin loading also asserts that somebody is signed in, and this flag is the
+        /// explicit, per-plugin exception to that (needed e.g. for anonymous onboarding).
+        /// </summary>
+        /// <remarks>
+        /// Only meaningful on GLOBAL plugins. A tenant-scoped plugin can never be reached anonymously -
+        /// without a signed-in user there is no tenant membership to select it by - so the derived entity
+        /// forces this to <c>false</c> whenever a tenant owns the row, and the editor only offers it for
+        /// global plugins.
+        /// </remarks>
+        public virtual bool AllowAnonymous { get; set; } = false;
+
         [MaxLength(8192)]
         public string StartupRegistrationConstructor { get; set; }
 

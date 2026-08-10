@@ -23,6 +23,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [ForeignKey(nameof(TenantId))]
         public virtual TTenant Tenant { get; set; }
 
+        /// <summary>
+        /// Wie <see cref="ITVComponents.WebCoreToolkit.Models.WebPlugin.AllowAnonymous"/>, aber an den
+        /// Besitzer gebunden: gehoert die Zeile einem Mandanten, ist die Antwort immer <c>false</c>.
+        /// </summary>
+        /// <remarks>
+        /// Die Regel steht hier und nicht beim Aufrufer, weil sie eine Eigenschaft des Modells ist: ein
+        /// Mandanten-Plugin ist anonym gar nicht sichtbar, also kann es auch nie anonym geladen werden.
+        /// Am Aufrufer waere sie eine Regel, die man an der naechsten Aufrufstelle wieder vergessen kann;
+        /// hier greift sie auch dann, wenn die Spalte von Hand gesetzt wurde.
+        /// </remarks>
+        public override bool AllowAnonymous
+        {
+            get => base.AllowAnonymous && TenantId == null;
+            set => base.AllowAnonymous = value;
+        }
+
         public virtual ICollection<TWebPluginGenericParameter> Parameters { get; set; } = new List<TWebPluginGenericParameter>();
     }
 }

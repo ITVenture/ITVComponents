@@ -9,7 +9,20 @@
             <MudStack Row="true" Spacing="3" Class="mt-2">
                 <MudCheckBox @bind-Value="Model.AutoLoad" Label="Auto-load" />
                 <MudCheckBox @bind-Value="Model.Transient" Label="Transient" />
+                @* Nur bei globalen Plugins: ein Mandanten-Plugin ist anonym gar nicht sichtbar, die
+                   Kennzeichnung waere dort ohne Wirkung und nur irrefuehrend. *@
+                @if (IsGlobal)
+                {
+                    <MudCheckBox @bind-Value="Model.AllowAnonymous" Label="Allow anonymous" />
+                }
             </MudStack>
+            @if (IsGlobal && Model.AllowAnonymous)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                    This plug-in can be loaded without a signed-in user. Use it only for plug-ins that are
+                    meant to run in anonymous flows, such as onboarding.
+                </MudAlert>
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -22,6 +35,12 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public WebPluginViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
+
+    /// <summary>
+    /// Ob die bearbeitete Zeile ein GLOBALES Plugin ist. Beim Anlegen kann das nicht aus
+    /// <c>Model.TenantId</c> kommen - das ist dort noch leer -, darum wird es von aussen gesetzt.
+    /// </summary>
+    [Parameter] public bool IsGlobal { get; set; }
 
     private MudForm? form;
 

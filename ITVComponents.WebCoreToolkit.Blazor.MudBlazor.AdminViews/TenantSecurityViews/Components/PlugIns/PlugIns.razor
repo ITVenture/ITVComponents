@@ -52,6 +52,7 @@ else
             <PropertyColumn Property="x => x.UniqueName" Title="Name" />
             <PropertyColumn Property="x => x.AutoLoad" Title="Auto-load" />
             <PropertyColumn Property="x => x.Transient" Title="Transient" />
+            <PropertyColumn Property="x => x.AllowAnonymous" Title="Anonymous" />
             <TemplateColumn T="WebPluginViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     <SecureView RequiredPermissions="PlugIns.Write">
@@ -122,7 +123,12 @@ else
 
     private async Task OpenCreate()
     {
-        var parameters = new DialogParameters<WebPluginDialog> { { d => d.Model, new WebPluginViewModel() }, { d => d.IsCreate, true } };
+        var parameters = new DialogParameters<WebPluginDialog>
+        {
+            { d => d.Model, new WebPluginViewModel() },
+            { d => d.IsCreate, true },
+            { d => d.IsGlobal, EffectiveTenantId == null }
+        };
         var dlg = await DialogService.ShowAsync<WebPluginDialog>("Create plug-in", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: WebPluginViewModel input })
@@ -143,9 +149,15 @@ else
             Constructor = item.Constructor,
             AutoLoad = item.AutoLoad,
             Transient = item.Transient,
+            AllowAnonymous = item.AllowAnonymous,
             StartupRegistrationConstructor = item.StartupRegistrationConstructor
         };
-        var parameters = new DialogParameters<WebPluginDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var parameters = new DialogParameters<WebPluginDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false },
+            { d => d.IsGlobal, item.TenantId == null }
+        };
         var dlg = await DialogService.ShowAsync<WebPluginDialog>("Edit plug-in", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: WebPluginViewModel input })

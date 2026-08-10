@@ -32,10 +32,63 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>a value indicating whether the current request is legit</returns>
         public static bool VerifyUserPermissions(this IServiceProvider provider, string[] requiredPermissions, bool checkOnlyForKnownPermissions, out ISecurityRepository securityRepository)
         {
+            return provider.VerifyUserPermissions(requiredPermissions, checkOnlyForKnownPermissions,
+                out securityRepository, out _);
+        }
+
+        /// <summary>
+        /// Verifies the User-Permissions for the current user and reports whether a negative answer is due to
+        /// a missing permission or simply to there being no authenticated user.
+        /// </summary>
+        /// <param name="provider">the service-provider for the current scope</param>
+        /// <param name="requiredPermissions">a list of permissions that are requested for a specific action</param>
+        /// <param name="checkOnlyForKnownPermissions">indicates whether to check, if the requested permission is explicitly known. unknown permission requests are ignored</param>
+        /// <param name="securityRepository">provides the selected permission-estimator back outside</param>
+        /// <param name="isUserAuthenticated">
+        /// indicates whether there is an authenticated user at all. A <c>false</c> RESULT together with a
+        /// <c>false</c> value here means "nobody is signed in", not "this user lacks the permission" - the
+        /// two are different answers, and a caller that knowingly serves anonymous requests (e.g. the plugin
+        /// loader for a plugin marked as anonymous) needs to tell them apart before overriding the verdict.
+        /// </param>
+        /// <returns>a value indicating whether the current request is legit</returns>
+        public static bool VerifyUserPermissions(this IServiceProvider provider, string[] requiredPermissions,
+            bool checkOnlyForKnownPermissions, out ISecurityRepository securityRepository, out bool isUserAuthenticated)
+        {
             var permissionScope = provider.GetService<IPermissionScope>();
             var logger = provider.GetService<ILogger<GenericLogTarget>>();//("ITVComponents.WebCoreToolkit.Extensions.ServiceProviderExtensions");
             var userPerms = provider.GetUserPermissions(out securityRepository, out var isAuthenticated);
-            if (isAuthenticated)
+            isUserAuthenticated = isAuthenticated;
+            // Lokale Kopie: out-Parameter lassen sich in einer lokalen Funktion nicht einfangen.
+            var permitter = securityRepository;
+
+            // Die zu pruefenden Namen: der angefragte Name und - wenn ein Mandanten-Prefix gilt - zusaetzlich
+            // seine prefix-Fassung. Bei einer known-only-Probe bleiben nur die uebrig, die als Berechtigung
+            // ueberhaupt DEFINIERT sind; bleibt danach nichts uebrig, verlangt das Angefragte keine.
+            string[] Candidates()
+            {
+                return (from t in requiredPermissions
+                        where permissionScope?.PermissionPrefix != null &&
+                              !t.StartsWith(permissionScope.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
+                        select $"{permissionScope.PermissionPrefix}{t}").Union(requiredPermissions)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Where(n =>
+                        !checkOnlyForKnownPermissions || permitter.Permissions.Any(p =>
+                            p.PermissionName.Equals(n, StringComparison.OrdinalIgnoreCase) ||
+                            $"{permissionScope?.PermissionPrefix}{p.PermissionName}".Equals(n,
+                                StringComparison.OrdinalIgnoreCase))).ToArray();
+            }
+
+            if (!isAuthenticated)
+            {
+                // Ohne angemeldeten Benutzer ist die Antwort nein - auch fuer eine known-only-Probe. Das ist
+                // Absicht: Aufrufer verlassen sich darauf, dass diese Pruefung zugleich die Anmeldung
+                // sicherstellt. Wer anonym etwas zulassen will, muss das AUSDRUECKLICH tun und erkennt den
+                // Fall am mitgelieferten isUserAuthenticated (siehe die Ueberladung oben).
+                logger?.LogDebug(
+                    $"No authenticated user for [{string.Join(", ", requiredPermissions)}] - denied.");
+                return false;
+            }
+
+            // Ab hier ist der Benutzer angemeldet.
             {
                 // Bootstrap: when enabled, hand the requested names OFF the hot-path to the background registrar
                 // (no inline DB write). It coalesces them across requests and writes one batch, avoiding the
@@ -48,17 +101,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                     provider.GetService<Security.IAutoPermissionRegistrar>()?.Enqueue(requiredPermissions);
                 }
 
-                var permitter = securityRepository;
-                var extendedPerms =
-                    (from t in requiredPermissions
-                        where permissionScope?.PermissionPrefix != null &&
-                              !t.StartsWith(permissionScope.PermissionPrefix, StringComparison.OrdinalIgnoreCase)
-                        select $"{permissionScope.PermissionPrefix}{t}").Union(requiredPermissions)
-                    .Distinct(StringComparer.OrdinalIgnoreCase).Where(n =>
-                        !checkOnlyForKnownPermissions || permitter.Permissions.Any(p =>
-                            p.PermissionName.Equals(n, StringComparison.OrdinalIgnoreCase) ||
-                            $"{permissionScope?.PermissionPrefix}{p.PermissionName}".Equals(n,
-                                StringComparison.OrdinalIgnoreCase))).ToArray();
+                var extendedPerms = Candidates();
                 logger.LogDebug($"Found {extendedPerms.Length} permissions to check.");
                 Array.ForEach(extendedPerms, s => logger.LogDebug(s));
                 if (extendedPerms.Length == 0 ||
@@ -80,8 +123,6 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 
                 return false;
             }
-
-            return false;
         }
 
         /// <summary>

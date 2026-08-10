@@ -122,6 +122,9 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
                 Constructor = n.Constructor,
                 AutoLoad = n.AutoLoad,
                 Transient = n.Transient,
+                // Die Projektion liest die SPALTE, nicht den Getter der Entitaet - die Mandanten-Regel
+                // muss hier also von Hand stehen.
+                AllowAnonymous = n.TenantId == null && n.AllowAnonymous,
                 StartupRegistrationConstructor = n.StartupRegistrationConstructor
             })
             .ToListAsync();
@@ -142,6 +145,9 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             Constructor = input.Constructor ?? string.Empty,
             AutoLoad = input.AutoLoad,
             Transient = input.Transient,
+            // Nur globale Plugins duerfen anonym geladen werden - hier durchgesetzt und nicht bloss in der
+            // Maske ausgeblendet, damit auch ein direkter Aufruf des Handlers die Regel nicht umgeht.
+            AllowAnonymous = effective == null && input.AllowAnonymous,
             StartupRegistrationConstructor = input.StartupRegistrationConstructor ?? string.Empty
         };
         db.WebPlugins.Add(entity);
@@ -162,6 +168,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         entity.Constructor = input.Constructor ?? string.Empty;
         entity.AutoLoad = input.AutoLoad;
         entity.Transient = input.Transient;
+        entity.AllowAnonymous = entity.TenantId == null && input.AllowAnonymous;
         entity.StartupRegistrationConstructor = input.StartupRegistrationConstructor ?? string.Empty;
         await db.SaveChangesAsync();
         return input;

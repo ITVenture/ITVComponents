@@ -109,7 +109,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .Select(p => p.All.First(n => n.ParentLevel == p.Level))
                     join rp in securityContext.WebPlugins on rprot.WebPluginId equals rp.WebPluginId
                      select new WebPlugin{AutoLoad = rp.AutoLoad, Constructor = rp.Constructor, StartupRegistrationConstructor = rp.StartupRegistrationConstructor, UniqueName=rp.UniqueName})
-                    .Union(from t in securityContext.WebPlugins where t.TenantId == null select new WebPlugin { AutoLoad = t.AutoLoad, Constructor = t.Constructor, StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName },
+                    // AllowAnonymous nur aus den GLOBALEN Zeilen: die Projektion liest die Spalte, nicht den
+                    // Getter der Entitaet. Die Mandanten-Zweige darueber lassen es bewusst auf false.
+                    .Union(from t in securityContext.WebPlugins where t.TenantId == null select new WebPlugin { AutoLoad = t.AutoLoad, Constructor = t.Constructor, StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName, AllowAnonymous = t.AllowAnonymous },
                         new WebPluginComparer())
                     .Where(n => !string.IsNullOrEmpty(n.StartupRegistrationConstructor));
             }
@@ -298,7 +300,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     {
                         AutoLoad = t.AutoLoad, Constructor = t.Constructor,
                         StartupRegistrationConstructor = t.StartupRegistrationConstructor, UniqueName = t.UniqueName,
-                        Transient = t.Transient
+                        Transient = t.Transient, AllowAnonymous = t.AllowAnonymous
                     };
                 return phase3.AsEnumerable().Union(phase4.AsEnumerable(), new WebPluginComparer()).ToArray();
 
@@ -359,7 +361,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     Constructor = t.Constructor,
                     StartupRegistrationConstructor = t.StartupRegistrationConstructor,
                     UniqueName = t.UniqueName,
-                    Transient = t.Transient
+                    Transient = t.Transient,
+                    AllowAnonymous = t.AllowAnonymous
                 };
             return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer()).ToArray();
             /*return

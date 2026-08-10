@@ -1631,6 +1631,65 @@ Workflow-Masken betreffen:
 
 ---
 
+## 24. Anonym ladbare Plugins: `WebPlugin.AllowAnonymous` — **Pflicht: Spalte manuell nachziehen**
+
+Der Berechtigungs-Torwächter im Plugin-Ladeweg stellt zugleich sicher, dass überhaupt jemand angemeldet
+ist. Das ist gewollt und bleibt so. Für Abläufe, die es **vor** der Anmeldung gibt — allen voran das
+Onboarding mit seinen Zusatzangaben-Modulen (§23) — braucht es aber Plugins, die auch anonym geladen
+werden dürfen. Dafür gibt es neu eine ausdrückliche Kennzeichnung an der Zeile statt einer allgemeinen
+Lockerung der Prüfung.
+
+### 24.1 Spalte anlegen
+
+Additive, nicht-nullable Spalte mit Default `0`. **Nicht** über `dotnet ef migrations add` — der Snapshot
+driftet und würde fremde Änderungen mitschleppen (gleiche Begründung wie in §20):
+
+```sql
+ALTER TABLE [WebPlugins] ADD [AllowAnonymous] bit NOT NULL CONSTRAINT [DF_WebPlugins_AllowAnonymous] DEFAULT 0;
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "WebPlugins" ADD COLUMN "AllowAnonymous" boolean NOT NULL DEFAULT false;
+```
+
+Ohne die Spalte schlägt jede Plugin-Query mit *„Invalid column name 'AllowAnonymous'"* fehl.
+
+### 24.2 Was zu setzen ist
+
+Die Kennzeichnung greift **nur**, wenn niemand angemeldet ist. Ist jemand angemeldet, entscheidet wie
+bisher allein die Berechtigung — ein anonym erlaubtes Plugin ist für angemeldete Benutzer also nicht
+grosszügiger als für alle anderen.
+
+Sie gilt ausserdem **nur für globale Plugins** (`TenantId IS NULL`). Ein Mandanten-Plugin ist ohne
+angemeldeten Benutzer gar nicht sichtbar — es gibt dann keine Mandanten-Zugehörigkeit, über die es
+ausgewählt würde. Die Regel steht in der Entität selbst: der Getter liefert für eine Mandanten-Zeile
+immer `false`, auch wenn die Spalte gesetzt wurde. Die Maske bietet den Schalter entsprechend nur bei
+globalen Plugins an, und der Admin-Handler setzt ihn beim Speichern auf `false`, wenn ein Mandant die
+Zeile besitzt.
+
+Setzen im Plugin-Editor (*Verwaltung → Plug-Ins*, Spalte **Anonymous**, Schalter **Allow anonymous** im
+Dialog) oder direkt:
+
+```sql
+UPDATE [WebPlugins] SET [AllowAnonymous] = 1
+WHERE [TenantId] IS NULL AND [UniqueName] = 'TenantNetworkInfo';
+```
+
+Für §23 gilt: **jedes Zusatzangaben-Modul, das im anonymen Onboarding greifen soll, braucht das Flag.**
+Ohne es lädt das Modul erst nach der Anmeldung, und der Reiter fehlt im anonymen Ablauf — im Log
+erkennbar an *„The plugin '…' configured as a custom-company-info module could not be loaded"*.
+
+### 24.3 Für eigenen Code
+
+`VerifyUserPermissions` hat eine neue Überladung mit zusätzlichem `out bool isUserAuthenticated`. Sie
+beantwortet die Frage, die ein negatives Ergebnis bisher offen liess: *fehlt die Berechtigung, oder ist
+schlicht niemand angemeldet?* Die bestehenden Überladungen sind unverändert — wer sie benutzt, merkt
+nichts.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1665,3 +1724,4 @@ Workflow-Masken betreffen:
 | 26 | **Zustimmungen im Onboarding** (§21) | **Pflicht:** DbSet `ConsentRecords` im Onboarding-Context (beide Context-Interfaces erweitern neu `IOnboardingConsentContext`, sonst Compile-Break) + Tabelle `ConsentRecord` **manuell** anlegen (SQL in §21.1) + Spalte `HelpTopic.ShowInMenu bit NOT NULL DEFAULT 1` (§21.4). Beide Onboarding-Handler haben `IConsentProvider` als neuen Ctor-Parameter (über `AddMudBlazor*OnboardingViews` automatisch). `BillingProfileViewModel.AcceptTos` hat seine Pflicht-Annotation verloren, `BillingProfileForm` braucht neu den Parameter `ConsentPoints` — wer beides ohne die mitgelieferten Seiten verwendet, muss selbst prüfen bzw. setzen. **`Scope` je Punkt (`User`/`Tenant`/`Both`, Default `User`) entscheidet, ob eine Zustimmung einmalig der Person gilt oder mit jedem Mandanten neu fällt** (§21.2.1). Ohne GlobalSetting `Consent` bleibt es beim einen eingebauten Schalter (Verhalten wie bisher, weiterhin ohne Nachweis). **Neue Permission `Onboarding.Admin.Consents.View` seeden** (§21.6) für den Reiter *Zustimmungen*; ein Schreib-Gegenstück gibt es bewusst nicht. Neue Konto-Seite `/Account/Onboarding/MyConsents` (nur Anmeldung nötig) — dort lassen sich freiwillige Zustimmungen ändern, Pflicht-Punkte nur nachlesen |
 | 27 | **Selbstregistrierung + Standard-Mandant** (§22) | Kein Schema-Change. `/Account/Register` existiert neu (der Verweis auf der Anmeldeseite lief bisher ins Leere) und ist **standardmässig abgeschaltet**. Freigeben mit `TenantSetup.AllowSelfRegistration = true` **plus** `DefaultUserTenant` (+ `DefaultUserTenantRole`) — sonst landet der Registrierte in einer leeren Mandanten-Übersicht. Zuweisung nach der Mailbestätigung, nur wenn der Benutzer nirgends Mitglied ist und keine Einladung wartet. `IOnboardingHandler` hat ein neues Member (`AssignDefaultTenantAsync`) — **eigene Implementierungen des Interfaces brechen**. Der Verweis auf der Anmeldeseite hängt jetzt zusätzlich an `ISelfRegistrationPolicy` (neu in `WebCoreToolkit/Security`, optional aufgelöst — ohne Onboarding-Paket unverändert). `JoinRegister` ist unverändert erreichbar und braucht das Flag nicht |
 | 28 | **Zusatzangaben-Module** (§23) | Kein Schema-Change, opt-in. Ohne GlobalSetting `CustomCompanyInfo` passiert nichts. Module sind globale Plugins nach `ICustomCompanyInformationHandler` (Blazor-frei); Reiter erscheinen im Onboarding **und** neu im Firmenprofil (Tab 1), dort gated durch `EditPermission` des Moduls — geprüft beim Anzeigen **und** beim Schreiben. Der Feld-Renderer ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor` gewandert (`UserTaskFieldsForm` = Adapter, API unverändert); zwei Verhaltenskorrekturen betreffen auch die Workflow-Aufgabenmasken (Ja/Nein-Pflichtfeld startet auf `false`, Vorbelegung ohne `ResetKey`) |
+| 29 | **Anonym ladbare Plugins** (§24) | **Pflicht:** Spalte ``WebPlugins.AllowAnonymous bit NOT NULL DEFAULT 0`` **manuell** anlegen (SQL in §24.1) — **nicht** via ``dotnet ef migrations add`` (Snapshot-Drift, s. §20). Sonst schlägt jede Plugin-Query mit *„Invalid column name 'AllowAnonymous'"* fehl. Danach je Plugin setzen, das **vor** der Anmeldung greifen soll — allen voran die Zusatzangaben-Module aus §23, sonst fehlt ihr Reiter im anonymen Onboarding. Nur für **globale** Plugins wirksam (Mandanten-Zeilen liefern immer ``false``). Greift nur im Anonym-Fall; für angemeldete Benutzer entscheidet weiter die Berechtigung. Neue ``VerifyUserPermissions``-Überladung mit ``out bool isUserAuthenticated`` (additiv) |

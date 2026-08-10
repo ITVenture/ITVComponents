@@ -16,6 +16,12 @@ public sealed class WebPluginViewModel
     public bool AutoLoad { get; set; }
     public bool Transient { get; set; }
 
+    /// <summary>
+    /// Whether the plugin may be loaded without an authenticated user. Only offered for GLOBAL plugins -
+    /// a tenant-scoped plugin is not even visible anonymously, so the flag would be meaningless there.
+    /// </summary>
+    public bool AllowAnonymous { get; set; }
+
     [MaxLength(8192)]
     public string? StartupRegistrationConstructor { get; set; }
 }
