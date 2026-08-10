@@ -27,10 +27,17 @@
                  Label="@Label"
                  Required="@Required"
                  Clearable="@Clearable"
-                 Disabled="@Disabled"
+                 Disabled="@(Disabled || _loading)"
+                 HelperText="@StateHelperText"
                  ResetValueOnEmptyText="false"
                  CoerceText="false"
                  DebounceInterval="@DebounceMilliseconds" />
+@if (_loading)
+{
+    @* Waehrend die Liste laedt gibt es sonst kein Signal: das Feld waere einfach leer und der Benutzer
+       koennte nicht unterscheiden, ob geladen wird oder ob es nichts zu waehlen gibt. *@
+    <MudProgressLinear Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+}
 
 @code {
     [Parameter] public T Value { get; set; } = default!;
@@ -44,6 +51,24 @@
     [Parameter] public int DebounceMilliseconds { get; set; } = 300;
 
     /// <summary>
+    /// Hint shown below the field. It is replaced by the loading / no-entries message while either
+    /// applies — those states say more about the field than a static hint does.
+    /// </summary>
+    [Parameter] public string? HelperText { get; set; }
+
+    /// <summary>
+    /// Shown while the option-list is being fetched. This package deliberately ships no language files
+    /// (see <c>DeclaredFieldsForm</c>) — a consumer that wants it translated passes its own text.
+    /// </summary>
+    [Parameter] public string LoadingText { get; set; } = "Loading entries…";
+
+    /// <summary>
+    /// Shown once the option-list is loaded and turns out to be empty — so an empty field is
+    /// distinguishable from one that is still filling.
+    /// </summary>
+    [Parameter] public string NoDataText { get; set; } = "No entries available";
+
+    /// <summary>
     /// false (default): full list fetched once, filtered client-side on Label substring.
     /// true: SearchFunc queries the FK source per keystroke with a Contains-on-Label filter.
     /// </summary>
@@ -53,9 +78,23 @@
     private readonly List<Item> _all = new();
     private readonly Dictionary<object, string> _captions = new();
     private IEntityWriteTracker? _tracker;
+    private bool _loading;
+    private bool _loaded;
+
+    /// <summary>
+    /// The state of the option-list wins over <see cref="HelperText"/>: while it loads, and when it
+    /// turned out to be empty, that is what the user needs to know.
+    /// </summary>
+    private string? StateHelperText
+        => _loading ? LoadingText
+            : !ServerFilter && _loaded && _all.Count == 0 ? NoDataText
+            : HelperText;
 
     protected override async Task OnInitializedAsync()
     {
+        // Ohne das Flag VOR dem Yield waere der erste Frame ein Feld ohne jeden Hinweis - genau die
+        // Luecke, in der es aussah, als gaebe es nichts zu waehlen.
+        _loading = !ServerFilter;
         await Task.Yield();
         try
         {
@@ -86,6 +125,13 @@
         catch(Exception ex)
         {
             Logger.LogError(ex, "Error occurred while initializing ForeignKeyAutocomplete.");
+        }
+        finally
+        {
+            // Auch im Fehlerfall: der Ladezustand ist beendet. Bliebe er stehen, waere das Feld
+            // dauerhaft gesperrt und der Hinweis eine Luege.
+            _loading = false;
+            _loaded = true;
         }
     }
 
@@ -143,8 +189,11 @@
             }
             return Task.FromResult<IEnumerable<T>>(result);
         }
-        catch
+        catch (Exception ex)
         {
+            // Die Suche soll die Maske nicht abschiessen - aber ohne Log waere eine gescheiterte
+            // Server-Suche von "es gibt keine Treffer" nicht zu unterscheiden.
+            Logger.LogError(ex, "Server-side search for foreign key options in table {Table} failed (filter: {Filter}).", Table, text);
             return Task.FromResult<IEnumerable<T>>(Array.Empty<T>());
         }
     }
@@ -159,6 +208,8 @@
         // The tracker raises on the writer's thread (possibly another circuit) → marshal to ours.
         _ = InvokeAsync(async () =>
         {
+            _loading = true;
+            StateHasChanged();
             try
             {
                 await LoadAllAsync();
@@ -167,15 +218,32 @@
             {
                 Logger.LogError(ex, "Error reloading ForeignKeyAutocomplete options for table {Table}", Table);
             }
+            finally
+            {
+                _loading = false;
+            }
 
             StateHasChanged();
         });
     }
 
+    /// <summary>
+    /// Turns a key into what the user reads. Falling back to the raw key was the reason an unset
+    /// int-FK showed up as "0": <c>default(T)</c> is a perfectly ordinary zero, it just never has a
+    /// caption. An unset key is nothing — and nothing is what it should look like.
+    /// </summary>
     private string CaptionFor(T v)
     {
         if (v is null) return string.Empty;
-        return _captions.TryGetValue(v, out var lbl) ? lbl : v.ToString() ?? string.Empty;
+        if (_captions.TryGetValue(v, out var lbl)) return lbl;
+
+        // Kein Schluessel gesetzt: bei T=int ist das die 0, bei anderen Werttypen ihr Nullwert.
+        if (EqualityComparer<T>.Default.Equals(v, default!)) return string.Empty;
+
+        // Ein gesetzter Schluessel ohne Beschriftung: solange geladen wird, ist sie nur noch nicht da -
+        // die rohe Zahl zu zeigen behauptete einen Namen, wo keiner steht. Danach ist der Schluessel die
+        // ehrlichere Auskunft: er verweist auf einen Eintrag, den es nicht (mehr) gibt.
+        return _loading ? string.Empty : v.ToString() ?? string.Empty;
     }
 
     public void Dispose()

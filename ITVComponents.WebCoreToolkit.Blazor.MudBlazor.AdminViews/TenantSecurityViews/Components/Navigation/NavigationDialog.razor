@@ -1,3 +1,5 @@
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+
 <MudDialog>
     <DialogContent>
         <MudForm @ref="form" Model="Model">
@@ -19,16 +21,13 @@
                           Placeholder="@("{ \"HelpSlug\": \"...\" }")"
                           HelperText="Optional JSON object (key/value), e.g. a HelpSlug for the context-help button."
                           Validation="@((Func<string?, string?>)ValidateMetadata)" />
-            <MudSelect T="int" MultiSelection="true"
-                       SelectedValues="@selectedTenants"
-                       SelectedValuesChanged="@OnTenantsChanged"
-                       Label="Tenants"
-                       AnchorOrigin="Origin.BottomCenter">
-                @foreach (var t in AllTenants)
-                {
-                    <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
-                }
-            </MudSelect>
+            @* Die Liste kommt aus dem berechtigungsgefilterten Handler, nicht aus der FK-Quelle - darum
+               ueber Items statt Table. *@
+            <ForeignKeyMultiSelect T="int"
+                                   Items="@tenantOptions"
+                                   Values="@selectedTenants"
+                                   ValuesChanged="@OnTenantsChanged"
+                                   Label="Tenants" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -48,12 +47,25 @@
     private MudForm? form;
     private IReadOnlyCollection<int> selectedTenants = Array.Empty<int>();
 
+    /// <summary>
+    /// Die Mandantenliste in der Form, die <c>ForeignKeyMultiSelect</c> erwartet. Die Projektion laeuft
+    /// bei jedem Parameter-Satz neu, weil der Aufrufer die Liste asynchron nachliefert.
+    /// </summary>
+    private IReadOnlyList<ForeignKeyData<int>> tenantOptions = Array.Empty<ForeignKeyData<int>>();
+
     protected override void OnInitialized()
     {
         selectedTenants = Model.Tenants.ToList();
     }
 
-    private void OnTenantsChanged(IEnumerable<int> values)
+    protected override void OnParametersSet()
+    {
+        tenantOptions = AllTenants
+            .Select(t => new ForeignKeyData<int> { Key = t.TenantId, Label = t.DisplayName })
+            .ToArray();
+    }
+
+    private void OnTenantsChanged(IReadOnlyCollection<int> values)
     {
         var arr = values.ToArray();
         selectedTenants = arr;

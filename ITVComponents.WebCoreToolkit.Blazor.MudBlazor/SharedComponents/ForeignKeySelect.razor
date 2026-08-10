@@ -22,12 +22,18 @@
            Label="@Label"
            Required="@Required"
            Clearable="@Clearable"
-           Disabled="@(Disabled || _items.Count == 0)">
+           HelperText="@StateHelperText"
+           Disabled="@(Disabled || _loading || _items.Count == 0)">
     @foreach (var item in _items)
     {
         <MudSelectItem T="T" Value="@item.Id">@item.Caption</MudSelectItem>
     }
 </MudSelect>
+@if (_loading)
+{
+    @* Ohne dieses Signal ist ein deaktiviertes Feld zweideutig: es koennte laden oder leer sein. *@
+    <MudProgressLinear Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+}
 
 @code {
     [Parameter] public T Value { get; set; } = default!;
@@ -39,9 +45,33 @@
     [Parameter] public bool Clearable { get; set; } = true;
     [Parameter] public bool Disabled { get; set; }
 
+    /// <summary>
+    /// Hint shown below the field. Replaced by the loading / no-entries message while either applies.
+    /// </summary>
+    [Parameter] public string? HelperText { get; set; }
+
+    /// <summary>
+    /// Shown while the option-list is being fetched. This package ships no language files of its own —
+    /// a consumer that wants it translated passes its own text.
+    /// </summary>
+    [Parameter] public string LoadingText { get; set; } = "Loading entries…";
+
+    /// <summary>Shown once the option-list is loaded and turns out to be empty.</summary>
+    [Parameter] public string NoDataText { get; set; } = "No entries available";
+
     private record Item(T Id, string Caption);
     private readonly List<Item> _items = new();
     private IEntityWriteTracker? _tracker;
+    private bool _loading = true;
+    private bool _loaded;
+
+    /// <summary>
+    /// A disabled dropdown alone does not say WHY it is disabled - this does.
+    /// </summary>
+    private string? StateHelperText
+        => _loading ? LoadingText
+            : _loaded && _items.Count == 0 ? NoDataText
+            : HelperText;
 
     protected override async Task OnInitializedAsync()
     {
@@ -57,6 +87,7 @@
 
     private async Task LoadItemsAsync()
     {
+        _loading = true;
         await Task.Yield();
         _items.Clear();
         try
@@ -77,6 +108,13 @@
             // can still pick "no value" via Clearable; selecting an unknown value would
             // need the full list, but at least the form does not crash.
         }
+        finally
+        {
+            // Auch bei fruehem return (keine FK-Quelle) und im Fehlerfall: der Ladezustand ist vorbei.
+            // Bliebe er stehen, waere das Feld dauerhaft gesperrt.
+            _loading = false;
+            _loaded = true;
+        }
     }
 
     private void OnTablesWritten(string[] tables)
@@ -89,6 +127,10 @@
         // The tracker raises on the writer's thread (possibly another circuit) → marshal to ours.
         _ = InvokeAsync(async () =>
         {
+            // Erst rendern, dann laden: sonst zeigt das Feld waehrend des Nachladens den alten Stand
+            // ohne jeden Hinweis darauf, dass gerade neu geholt wird.
+            _loading = true;
+            StateHasChanged();
             await LoadItemsAsync();
             StateHasChanged();
         });

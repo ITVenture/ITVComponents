@@ -1,3 +1,5 @@
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+
 <MudDialog Class="itv-fill-editor">
     <DialogContent>
         <DialogFillStyles />
@@ -14,16 +16,13 @@
                 </MudToggleGroup>
             </div>
             <CodeEditor @ref="queryEditor" Value="@Model.QueryText" Language="@editorLanguage" Height="280" Fill="true" />
-            <MudSelect T="int" MultiSelection="true"
-                       SelectedValues="@selectedTenants"
-                       SelectedValuesChanged="@OnTenantsChanged"
-                       Label="Tenants"
-                       AnchorOrigin="Origin.BottomCenter">
-                @foreach (var t in AllTenants)
-                {
-                    <MudSelectItem T="int" Value="@t.TenantId">@t.DisplayName</MudSelectItem>
-                }
-            </MudSelect>
+            @* Die Liste kommt aus dem berechtigungsgefilterten Handler, nicht aus der FK-Quelle - darum
+               ueber Items statt Table. *@
+            <ForeignKeyMultiSelect T="int"
+                                   Items="@tenantOptions"
+                                   Values="@selectedTenants"
+                                   ValuesChanged="@OnTenantsChanged"
+                                   Label="Tenants" />
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -46,6 +45,19 @@
     private string editorLanguage = "sql";
     private IReadOnlyCollection<int> selectedTenants = Array.Empty<int>();
 
+    /// <summary>
+    /// Die Mandantenliste in der Form, die <c>ForeignKeyMultiSelect</c> erwartet. Die Projektion laeuft
+    /// bei jedem Parameter-Satz neu, weil der Aufrufer die Liste asynchron nachliefert.
+    /// </summary>
+    private IReadOnlyList<ForeignKeyData<int>> tenantOptions = Array.Empty<ForeignKeyData<int>>();
+
+    protected override void OnParametersSet()
+    {
+        tenantOptions = AllTenants
+            .Select(t => new ForeignKeyData<int> { Key = t.TenantId, Label = t.DisplayName })
+            .ToArray();
+    }
+
     private async Task OnLanguageChanged(string language)
     {
         editorLanguage = language;
@@ -57,7 +69,7 @@
         selectedTenants = Model.Tenants.ToList();
     }
 
-    private void OnTenantsChanged(IEnumerable<int> values)
+    private void OnTenantsChanged(IReadOnlyCollection<int> values)
     {
         var arr = values.ToArray();
         selectedTenants = arr;

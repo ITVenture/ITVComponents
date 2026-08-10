@@ -1,0 +1,247 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@typeparam T
+@implements IDisposable
+
+@using ITVComponents.EFRepo.Helpers
+@using ITVComponents.WebCoreToolkit.EntityFramework.Extensions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using Microsoft.Extensions.Logging
+
+@inject IServiceProvider Services
+@inject ILogger<ForeignKeyMultiSelect<T>> Logger
+
+@*
+    Mehrfachauswahl über eine FK-Werteliste. Zwei Gründe für eine eigene Komponente statt eines rohen
+    MudSelect mit MultiSelection:
+
+    1. Ein MudSelect zeigt im geschlossenen Feld die zusammengesetzten ToString()-Werte der Auswahl - bei
+       int-Schlüsseln also "1, 2, 7, 8". Das ist die Auswahl, aber es ist nicht lesbar. MultiSelectionTextFunc
+       bildet sie auf die Beschriftungen ab.
+    2. Ein Eintrag liess sich nur über das Aufklappen wieder abwählen. Die Chips unter dem Feld zeigen die
+       Auswahl einzeln und nehmen sie per ✕ auch einzeln zurück.
+
+    Die Werteliste kommt aus einer von zwei Quellen: entweder liefert der Aufrufer sie über
+    <see cref="Items"/> (dann lädt die Komponente NICHT selbst - für Listen, die schon einer
+    berechtigungsgefilterten Abfrage entstammen), oder es wird <see cref="Table"/> gesetzt und die
+    Komponente liest über ContextForFkQuery, wie ForeignKeySelect/-Autocomplete.
+*@
+
+<MudSelect T="T" MultiSelection="true"
+           SelectedValues="@Selected"
+           SelectedValuesChanged="OnSelectionChanged"
+           MultiSelectionTextFunc="@CaptionsFor"
+           Label="@Label"
+           Required="@Required"
+           HelperText="@StateHelperText"
+           Disabled="@(Disabled || _loading || _options.Count == 0)"
+           AnchorOrigin="Origin.BottomCenter">
+    @foreach (var option in _options)
+    {
+        <MudSelectItem T="T" Value="@option.Key">@option.Label</MudSelectItem>
+    }
+</MudSelect>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+}
+
+@if (Selected.Count != 0)
+{
+    <div class="d-flex flex-wrap gap-1 mt-2">
+        @foreach (T value in Selected)
+        {
+            <MudChip T="T" Value="@value" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text"
+                     OnClose="@(_ => Remove(value))">
+                @CaptionFor(value)
+            </MudChip>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The selected keys.</summary>
+    [Parameter] public IReadOnlyCollection<T> Values { get; set; } = Array.Empty<T>();
+
+    [Parameter] public EventCallback<IReadOnlyCollection<T>> ValuesChanged { get; set; }
+
+    [Parameter] public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The option-list, when the caller already has it. Given this, the component does not query at all -
+    /// which is what callers want whose list comes from a permission-filtered handler rather than from the
+    /// plain FK source.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ForeignKeyData<T>>? Items { get; set; }
+
+    /// <summary>The FK table to read the options from - only used when <see cref="Items"/> is null.</summary>
+    [Parameter] public string Table { get; set; } = string.Empty;
+
+    [Parameter] public string Connection { get; set; } = "sys";
+
+    [Parameter] public bool Required { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Hint below the field. Replaced by the loading / no-entries message while either applies.</summary>
+    [Parameter] public string? HelperText { get; set; }
+
+    /// <summary>
+    /// Shown while the option-list is being fetched. This package ships no language files of its own -
+    /// a consumer that wants it translated passes its own text.
+    /// </summary>
+    [Parameter] public string LoadingText { get; set; } = "Loading entries…";
+
+    /// <summary>Shown once the option-list is loaded and turns out to be empty.</summary>
+    [Parameter] public string NoDataText { get; set; } = "No entries available";
+
+    private readonly List<ForeignKeyData<T>> _options = new();
+    // object als Schluessel wie in ForeignKeyAutocomplete: T hat keine notnull-Einschraenkung, ein
+    // Dictionary<T, ...> waere fuer T=int? nicht zulaessig (CS8714).
+    private readonly Dictionary<object, string> _captions = new();
+    private IEntityWriteTracker? _tracker;
+    private bool _loading;
+    private bool _loaded;
+    private IReadOnlyList<ForeignKeyData<T>>? _appliedItems;
+
+    private IReadOnlyCollection<T> Selected => Values ?? Array.Empty<T>();
+
+    private string? StateHelperText
+        => _loading ? LoadingText
+            : _loaded && _options.Count == 0 ? NoDataText
+            : HelperText;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Items is not null)
+        {
+            ApplyItems(Items);
+            return;
+        }
+
+        _loading = true;
+        await LoadAsync();
+
+        // Optional active refresh - only present when ActivationSettings.UseEntityTracker is on.
+        _tracker = Services.TrackerForContext(Connection, null);
+        if (_tracker != null)
+        {
+            _tracker.TablesWritten += OnTablesWritten;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Eine von aussen gelieferte Liste kommt haeufig erst NACH dem ersten Rendern an (der Aufrufer
+        // laedt sie asynchron). Ohne diesen Abgleich blieben die Beschriftungen leer und die Chips
+        // zeigten wieder die rohen Schluessel - genau der Zustand, der behoben werden soll.
+        if (Items is not null && !ReferenceEquals(Items, _appliedItems))
+        {
+            ApplyItems(Items);
+        }
+    }
+
+    private void ApplyItems(IReadOnlyList<ForeignKeyData<T>> items)
+    {
+        _appliedItems = items;
+        _options.Clear();
+        _captions.Clear();
+        foreach (ForeignKeyData<T> item in items)
+        {
+            if (item.Key is null) continue;
+            _options.Add(item);
+            _captions[item.Key] = item.Label;
+        }
+
+        _loading = false;
+        _loaded = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        await Task.Yield();
+        _options.Clear();
+        _captions.Clear();
+        try
+        {
+            var src = Services.ContextForFkQuery(Connection, null);
+            if (src is null) return;
+            var raw = src.ReadForeignKey<T>(Table);
+            if (raw is null) return;
+            foreach (ForeignKeyData<T> item in raw)
+            {
+                if (item.Key is null) continue;
+                _options.Add(item);
+                _captions[item.Key] = item.Label;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Best-effort wie in ForeignKeySelect: die Maske soll rendern. Aber protokolliert wird es,
+            // sonst ist "Liste leer" von "Laden gescheitert" nicht zu unterscheiden.
+            Logger.LogError(ex, "Error loading foreign key options for table {Table}", Table);
+        }
+        finally
+        {
+            _loading = false;
+            _loaded = true;
+        }
+    }
+
+    private void OnTablesWritten(string[] tables)
+    {
+        if (tables.All(table => !string.Equals(table, Table, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        // The tracker raises on the writer's thread (possibly another circuit) → marshal to ours.
+        _ = InvokeAsync(async () =>
+        {
+            _loading = true;
+            StateHasChanged();
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private Task OnSelectionChanged(IEnumerable<T> values)
+    {
+        var arr = values?.ToArray() ?? Array.Empty<T>();
+        Values = arr;
+        return ValuesChanged.InvokeAsync(arr);
+    }
+
+    private Task Remove(T value)
+    {
+        var arr = Selected.Where(v => !EqualityComparer<T>.Default.Equals(v, value)).ToArray();
+        Values = arr;
+        return ValuesChanged.InvokeAsync(arr);
+    }
+
+    /// <summary>
+    /// What the closed field shows. MudBlazor hands over the already-stringified values, which for an
+    /// int-key would be "1", "2", … - useless. The selection is therefore read from
+    /// <see cref="Values"/> and mapped through the captions.
+    /// </summary>
+    private string CaptionsFor(IReadOnlyList<string> _)
+        => string.Join(", ", Selected.Select(CaptionFor).Where(s => !string.IsNullOrEmpty(s)));
+
+    private string CaptionFor(T value)
+    {
+        if (value is null) return string.Empty;
+        if (_captions.TryGetValue(value, out string? label)) return label;
+
+        // Waehrend geladen wird ist die Beschriftung nur noch nicht da; danach verweist der Schluessel
+        // auf einen Eintrag, den es nicht (mehr) gibt - dann ist er die ehrlichere Auskunft.
+        return _loading ? string.Empty : value.ToString() ?? string.Empty;
+    }
+
+    public void Dispose()
+    {
+        if (_tracker != null)
+        {
+            _tracker.TablesWritten -= OnTablesWritten;
+        }
+    }
+}
