@@ -23,6 +23,13 @@ namespace ITVComponents.Plugins.Scoping
             this.plugins = plugins;
         }
 
+        /// <summary>
+        /// True when this scope is a transient loading-scope (as opposed to an explicit operation-scope). Passed
+        /// through from the collector - the factory uses it in HasActiveScope to tell an explicit scope (always
+        /// binding) from a transient loading-scope (binding only while a transient load is running).
+        /// </summary>
+        internal bool IsTransientLoadScope => plugins.IsTransientLoadScope;
+
         public void Dispose()
         {
             if (!closed)
@@ -60,7 +67,13 @@ namespace ITVComponents.Plugins.Scoping
             return GetEnumerator();
         }
 
-        public IPlugin this[string pluginName]=> plugins[pluginName];
+        /// <summary>
+        /// As with the factory, an empty name is simply "no plugin" and yields null. Passed through unfiltered it
+        /// would come back as an ArgumentNullException out of the ConcurrentDictionary - a stacktrace that says
+        /// nothing about the actual cause.
+        /// </summary>
+        public IPlugin this[string pluginName] =>
+            !string.IsNullOrEmpty(pluginName) ? plugins[pluginName] : null;
 
         public IPlugin this[string pluginName, bool triggerAsParameterRequest, PluginRef callingPluginRef]
         {
@@ -99,24 +112,39 @@ namespace ITVComponents.Plugins.Scoping
             return parent.WithScope(this, s => parent.LoadPlugin<T>(uniqueName, pluginConstructor));
         }
 
+        /// <summary>
+        /// Like the 2-arg overload: run the load in THIS scope (WithScope sets the factory's CurrentScope), so a
+        /// plugin marked as transient really ends up in this (transient) loading-scope - instead of slipping past
+        /// it into the factory-wide collection, which is why the transient mode used to be a no-op.
+        /// </summary>
         public T LoadPlugin<T>(string uniqueName, string pluginConstructor, Dictionary<string, object> customVariables, bool? doBuffer = null) where T : class, IPlugin
         {
-            throw new NotImplementedException();
+            return parent.WithScope(this, s => parent.LoadPlugin<T>(uniqueName, pluginConstructor, customVariables, doBuffer));
         }
 
         public T LoadPlugin<T>(string uniqueName, string pluginConstructor, bool buffer) where T : class, IPlugin
         {
-            throw new NotImplementedException();
+            return parent.WithScope(this, s => parent.LoadPlugin<T>(uniqueName, pluginConstructor, buffer));
         }
 
+        /// <summary>
+        /// All plugins of the requested type that are reachable from this scope - the ones owned by the scope plus
+        /// the ones of the factory it was opened on (the collector chains to its parent).
+        /// </summary>
         public IEnumerable<T> GetPlugins<T>() where T : class, IPlugin
         {
-            throw new NotImplementedException();
+            foreach (var plugin in plugins.Plugins)
+            {
+                if (plugin is T typed)
+                {
+                    yield return typed;
+                }
+            }
         }
 
         public T GetPlugin<T>() where T : class, IPlugin
         {
-            throw new NotImplementedException();
+            return GetPlugins<T>().FirstOrDefault();
         }
 
         internal void SetFormatter(StringFormatProvider prov)

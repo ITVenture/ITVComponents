@@ -54,11 +54,19 @@ namespace ITVComponents.Plugins
         private ConcurrentDictionary<PluginScope, PluginCollector> scopedPlugins;
 
         /// <summary>
-        /// holds the current scope when a plugin-chain is initialized using a scope
+        /// holds the current scope when a plugin-chain is initialized using a scope. Never access this field
+        /// directly - always go through the <see cref="CurrentScope"/> property.
         /// </summary>
         private ThreadLocal<PluginScope> currentScope = new ThreadLocal<PluginScope>();
 
-        private bool useCurrentScope = true;
+        /// <summary>
+        /// Indicates whether the plugin that is currently being loaded is supposed to go into the active TRANSIENT
+        /// loading-scope. Bound to the loading thread and stacked by <see cref="TransientLoad"/>: a plugin resolves
+        /// its constructor-parameters BEFORE it is registered itself, and every one of those parameters runs through
+        /// the same flag. A single shared value would therefore see the flag of the last-resolved DEPENDENCY at the
+        /// moment the outer plugin is registered - and a concurrent load on another thread would overwrite it.
+        /// </summary>
+        private readonly ThreadLocal<bool> useTransientScope = new ThreadLocal<bool>(() => true);
 
         /// <summary>
         /// A Reflection-only typelist that is used for test-only factories
@@ -250,10 +258,46 @@ namespace ITVComponents.Plugins
             }
         }
 
-        public bool UseCurrentScope
+        /// <summary>
+        /// Gets or sets a value indicating whether a plugin that is being loaded right now goes into the active
+        /// TRANSIENT loading-scope (true = load it transiently). This affects the transient loading-scope ONLY: an
+        /// EXPLICIT scope (<see cref="NewScope"/> with transientLoadingScope = false) is always honored and can not
+        /// be bypassed - see <see cref="HasActiveScope"/>.
+        /// </summary>
+        /// <remarks>
+        /// The value is bound to the current thread. Prefer <see cref="TransientLoad"/> over assigning this
+        /// property: a load resolves its constructor-parameters (each of which sets this flag for itself) before
+        /// the loaded plugin is registered, so a plain assignment is stale by the time it is read.
+        /// </remarks>
+        public bool UseTransientScope
         {
-            get { return useCurrentScope; }
-            set { useCurrentScope = value; }
+            get { return useTransientScope.Value; }
+            set { useTransientScope.Value = value; }
+        }
+
+        /// <summary>
+        /// Applies the given transient-load mode for the duration of the returned token and restores the previous
+        /// value when it is disposed. This is the safe way to announce "the plugin I am about to load is
+        /// (not) transient": because a nested dependency-load restores the outer value on its way out, every plugin
+        /// is registered with ITS OWN transient-flag instead of the one of its last-resolved dependency.
+        /// </summary>
+        /// <param name="transient">a value indicating whether the plugin that is loaded next is transient</param>
+        /// <returns>a token that restores the previous value when disposed</returns>
+        public IDisposable TransientLoad(bool transient)
+        {
+            var retVal = new TransientLoadToken(this, useTransientScope.Value);
+            useTransientScope.Value = transient;
+            return retVal;
+        }
+
+        /// <summary>
+        /// The single access-point for the currently active scope. A transient loading-scope is only ever the
+        /// CurrentScope while a load is actually running inside it (see <see cref="WithScope{T}"/>).
+        /// </summary>
+        private PluginScope CurrentScope
+        {
+            get => currentScope.IsValueCreated ? currentScope.Value : null;
+            set => currentScope.Value = value;
         }
 
         /// <summary>
@@ -275,22 +319,45 @@ namespace ITVComponents.Plugins
             get
             {
                 var retVal = stringLiteralFormatter;
-                if (HasActiveScope && currentScope.Value is { Formatter: not null })
+                if (HasActiveScope && CurrentScope is { Formatter: not null })
                 {
-                    retVal = currentScope.Value.Formatter;
+                    retVal = CurrentScope.Formatter;
                 }
 
                 return retVal;
             }
         }
 
+        /// <summary>
+        /// Indicates whether the plugins that are loaded right now belong to a scope rather than to this factory.
+        /// </summary>
+        /// <remarks>
+        /// An EXPLICIT (non-transient) scope is ALWAYS active - that way the factory can never bypass an
+        /// operation-scope. The earlier form (useCurrentScope &amp;&amp; CurrentScope != null) let a non-transient
+        /// plugin slip past an active explicit scope into the factory-wide collection, which broke the promise that
+        /// everything resolved in a scope dies with it. A TRANSIENT loading-scope on the other hand only counts
+        /// while a transient plugin is actually being loaded.
+        /// </remarks>
         private bool HasActiveScope
         {
             get
             {
-                return useCurrentScope && currentScope.IsValueCreated && currentScope.Value != null;
+                return (useTransientScope.Value && CurrentScope is { IsTransientLoadScope: true })
+                       || CurrentScope is { IsTransientLoadScope: false };
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether a scope is currently active on this thread - that is, whether plugin
+        /// resolution is running inside a <see cref="NewScope"/> (an operation-scope or a transient loading-scope).
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="HasActiveScope"/> this does not consider <see cref="UseTransientScope"/> and is
+        /// therefore the reliable answer to "am I inside a scope right now?". Callers that would otherwise open
+        /// their own transient loading-scope (the WebPluginHelper does) must check this first: opening one while a
+        /// scope is already active makes the nested load fail with "There already is a plugin-load in progress".
+        /// </remarks>
+        public bool IsInLoadScope => CurrentScope != null;
 
         /// <summary>
         /// Gets a PluginInstance with the given name
@@ -317,7 +384,7 @@ namespace ITVComponents.Plugins
                     {
                         if (HasActiveScope)
                         {
-                            retVal = RequestScopePlugin(currentScope.Value, uq, callingPluginRef);
+                            retVal = RequestScopePlugin(CurrentScope, uq, callingPluginRef);
                         }
 
                         if (retVal == null)
@@ -442,7 +509,7 @@ namespace ITVComponents.Plugins
                         }
                         else
                         {
-                            currentScope.Value.SetFormatter(prov);
+                            CurrentScope.SetFormatter(prov);
                         }
                     }
 
@@ -1139,13 +1206,11 @@ namespace ITVComponents.Plugins
                         crit.CriticalError -= CriticalOccurred;
                     }
 
-                    IPlugin tmp;
-                    plugins(null).TryRemove(src.UniqueName, out tmp);
-                    if (tmp != src)
-                    {
-                        plugins(null).TryAdd(tmp.UniqueName, tmp);
-                    }
-
+                    // Removing the plugin from its collection is done by the collection ITSELF (the PluginCollector
+                    // subscribes when it takes the plugin in). Doing it here was wrong: plugins(null) resolves the
+                    // scope that is active at DISPOSE-time - a plugin that lives in a scope was looked for in the
+                    // factory-wide collection, not found (tmp == null) and then re-added via tmp.UniqueName, which
+                    // is a NullReferenceException.
                     if (src is IConfigurableComponent cfgComponent)
                     {
                         JsonSettings.UnRegisterSettingsConsumer(cfgComponent);
@@ -1341,7 +1406,7 @@ namespace ITVComponents.Plugins
             }
             else if (name.UniqueName == "ifactory" && allowFactoryParameter && HasActiveScope)
             {
-                retVal = currentScope.Value;
+                retVal = CurrentScope;
                 if (reflectOnly)
                 {
                     retVal = AssemblyResolver.FindReflectionOnlyTypeFor(typeof(IPluginFactory));
@@ -1355,7 +1420,7 @@ namespace ITVComponents.Plugins
             {
                 if (HasActiveScope)
                 {
-                    retVal = RequestScopePlugin(currentScope.Value, name, callingType);
+                    retVal = RequestScopePlugin(CurrentScope, name, callingType);
                 }
 
                 if (retVal == null)
@@ -1419,7 +1484,7 @@ namespace ITVComponents.Plugins
         {
             if (HasActiveScope)
             {
-                return currentScope.Value.ScopeClose();
+                return CurrentScope.ScopeClose();
             }
 
             return Array.Empty<IPlugin>();
@@ -1438,7 +1503,7 @@ namespace ITVComponents.Plugins
 
         internal T WithScope<T>(PluginScope scope, Func<PluginScope, T> action)
         {
-            if (HasActiveScope && currentScope.Value != scope)
+            if (HasActiveScope && CurrentScope != scope)
             {
                 throw new InvalidOperationException("There already is a plugin-load in progress in this thread!");
             }
@@ -1446,7 +1511,7 @@ namespace ITVComponents.Plugins
             bool currentScopeSet = false;
             if (!HasActiveScope)
             {
-                currentScope.Value = scope;
+                CurrentScope = scope;
                 currentScopeSet = true;
             }
 
@@ -1458,7 +1523,7 @@ namespace ITVComponents.Plugins
             {
                 if (currentScopeSet)
                 {
-                    currentScope.Value = null;
+                    CurrentScope = null;
                 }
             }
         }
@@ -1538,7 +1603,7 @@ namespace ITVComponents.Plugins
         {
             if (HasActiveScope)
             {
-                scope ??= currentScope.Value;
+                scope ??= CurrentScope;
             }
 
             if (scope != null)
@@ -1582,6 +1647,31 @@ namespace ITVComponents.Plugins
             }
 
             return retVal;
+        }
+
+        /// <summary>
+        /// Restores the previous transient-load mode of the owning factory. See <see cref="TransientLoad"/>.
+        /// </summary>
+        private sealed class TransientLoadToken : IDisposable
+        {
+            private readonly PluginFactory owner;
+            private readonly bool previousValue;
+            private bool released;
+
+            public TransientLoadToken(PluginFactory owner, bool previousValue)
+            {
+                this.owner = owner;
+                this.previousValue = previousValue;
+            }
+
+            public void Dispose()
+            {
+                if (!released)
+                {
+                    released = true;
+                    owner.useTransientScope.Value = previousValue;
+                }
+            }
         }
     }
 

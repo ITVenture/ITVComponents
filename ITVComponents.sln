@@ -199,6 +199,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolki
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.StateMachine.Parallel", "ITVComponents.StateMachine.Parallel\ITVComponents.StateMachine.Parallel.csproj", "{887283FD-2BF3-47B0-97DF-3742DAA20725}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.Plugins.Test", "ITVComponents.Plugins.Test\ITVComponents.Plugins.Test.csproj", "{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITVComponents.WebCoreToolkit.Tests", "ITVComponents.WebCoreToolkit.Tests\ITVComponents.WebCoreToolkit.Tests.csproj", "{4A6D30F0-DB36-4861-A016-7A1A280D64D1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -983,6 +987,22 @@ Global
 		{CC777896-82E2-FA61-4721-3B130896A248}.Release|Any CPU.Build.0 = Release|Any CPU
 		{CC777896-82E2-FA61-4721-3B130896A248}.Release|x86.ActiveCfg = Release|Any CPU
 		{CC777896-82E2-FA61-4721-3B130896A248}.Release|x86.Build.0 = Release|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Debug|x86.Build.0 = Debug|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Release|x86.ActiveCfg = Release|Any CPU
+		{5B47A964-DBDE-44B9-A0E5-5024ABA5A948}.Release|x86.Build.0 = Release|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Debug|x86.Build.0 = Debug|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Release|x86.ActiveCfg = Release|Any CPU
+		{4A6D30F0-DB36-4861-A016-7A1A280D64D1}.Release|x86.Build.0 = Release|Any CPU
 		{887283FD-2BF3-47B0-97DF-3742DAA20725}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{887283FD-2BF3-47B0-97DF-3742DAA20725}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{887283FD-2BF3-47B0-97DF-3742DAA20725}.Debug|x86.ActiveCfg = Debug|Any CPU

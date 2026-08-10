@@ -155,12 +155,29 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
             {
                 PluginFactory pi = (PluginFactory)sender;
                 bool cleanup = false;
-                if (!pluginIsLoading.Value)
+                // The transient loading-scope this handler opens for the current resolution chain. Kept so we can
+                // close exactly THIS scope at the end - NOT pi.ScopeClose(), which closes the factory's CurrentScope
+                // and would tear down an OUTER scope that happens to be active while a constructor parameter is
+                // being resolved.
+                IPluginFactory loadingScope = null;
+                // If an EXPLICIT scope is already active (NewScope with transientLoadingScope = false, e.g. the IPC
+                // FactoryWrapper.OpenScope), do NOT open a transient loading-scope of our own and do NOT collect the
+                // transients in transientPlugins: the transiently created dependencies then belong to the active
+                // scope and are disposed when it is released - otherwise they would survive until the next
+                // ResetFactory, a leak beyond the lifetime of that scope. Only the outermost, scope-free resolution
+                // on this thread opens the transient loading-scope.
+                if (!pluginIsLoading.Value && !pi.IsInLoadScope)
                 {
                     pluginIsLoading.Value = true;
                     cleanup = true;
-                    pi.NewScope(null, null, true);
+                    loadingScope = pi.NewScope(null, null, true);
                 }
+
+                // The load runs INSIDE the transient loading-scope when this call opened it (outermost, scope-free
+                // resolution) - only that way WithScope sets the CurrentScope and plugins marked as transient really
+                // end up in the loading-scope. For nested calls (no own loading-scope) the load goes through the
+                // main factory; the CurrentScope is already set by the outer call.
+                IPluginFactory loadTarget = loadingScope ?? (IPluginFactory)pi;
 
                 try
                 {
@@ -195,16 +212,22 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
 
                             if (!string.IsNullOrEmpty(plugin.Constructor))
                             {
-                                if (args.PluginType != null)
+                                // TransientLoad instead of assigning UseTransientScope: the load below resolves the
+                                // constructor-parameters of this plugin first, and every one of them passes through
+                                // this same handler and announces ITS OWN transient-flag. A plain assignment would
+                                // therefore be overwritten by the last-resolved dependency by the time this plugin
+                                // is registered. The token restores our value when the nested call returns.
+                                using (pi.TransientLoad(plugin.Transient))
                                 {
-                                    pi.UseCurrentScope = plugin.Transient;
-                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                        new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
-                                }
-                                else
-                                {
-                                    pi.UseCurrentScope = plugin.Transient;
-                                    args.Value = pi.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                    if (args.PluginType != null)
+                                    {
+                                        args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
+                                            new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
+                                    }
+                                    else
+                                    {
+                                        args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                    }
                                 }
 
                                 args.Handled = true;
@@ -233,7 +256,10 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                         pluginIsLoading.Value = false;
                         lock (transientPlugins)
                         {
-                            transientPlugins.AddRange(pi.ScopeClose());
+                            // Close exactly the scope this call opened. pi.ScopeClose() would close the factory's
+                            // CurrentScope, which at this point is either nothing (no-op, and the transient scope
+                            // would leak in scopedPlugins) or somebody else's scope.
+                            transientPlugins.AddRange(loadingScope.ScopeClose());
                         }
 
                     }

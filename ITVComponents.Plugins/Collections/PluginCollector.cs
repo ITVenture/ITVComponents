@@ -151,6 +151,13 @@ namespace ITVComponents.Plugins.Collections
             if (retVal)
             {
                 retVal = plugins.TryAdd(uniqueName, pi);
+                if (retVal)
+                {
+                    // Whoever HOLDS the plugin cleans it up. This deliberately hangs here and not on the factory:
+                    // the factory resolves its collection through the scope that is active at dispose-time - a
+                    // plugin living in a scope would be looked for where it never was.
+                    pi.Disposed += PluginDisposed;
+                }
             }
 
             return retVal;
@@ -158,7 +165,48 @@ namespace ITVComponents.Plugins.Collections
 
         public bool TryRemove(string srcUniqueName, out IPlugin tmp)
         {
-            return plugins.TryRemove(srcUniqueName, out tmp);
+            bool removed = plugins.TryRemove(srcUniqueName, out tmp);
+            if (removed && tmp != null)
+            {
+                tmp.Disposed -= PluginDisposed;
+            }
+
+            return removed;
+        }
+
+        /// <summary>
+        /// Takes a disposed plugin out of EXACTLY THIS collection. Matching by instance is necessary because a
+        /// different plugin may meanwhile sit under the same name (re-load); that new entry has to stay.
+        /// </summary>
+        private void PluginDisposed(object sender, EventArgs e)
+        {
+            if (sender is not IPlugin src)
+            {
+                return;
+            }
+
+            src.Disposed -= PluginDisposed;
+            string name = src.UniqueName;
+            if (string.IsNullOrEmpty(name))
+            {
+                // Without a name the entry is only findable by instance - rare (a plugin dying before it was
+                // named), but it must not be left behind either.
+                foreach (KeyValuePair<string, IPlugin> entry in plugins)
+                {
+                    if (ReferenceEquals(entry.Value, src))
+                    {
+                        plugins.TryRemove(entry.Key, out _);
+                        break;
+                    }
+                }
+
+                return;
+            }
+
+            if (plugins.TryGetValue(name, out IPlugin current) && ReferenceEquals(current, src))
+            {
+                plugins.TryRemove(name, out _);
+            }
         }
 
         public bool TryInitPluginLoad(string uniqueName, out ManualResetEventSlim trigger)
