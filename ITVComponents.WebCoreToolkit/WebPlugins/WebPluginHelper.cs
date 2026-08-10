@@ -260,16 +260,26 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
 
                             if (!string.IsNullOrEmpty(plugin.Constructor))
                             {
-                                if (args.PluginType != null)
+                                // TransientLoad statt Zuweisung: ParseConstructor loest ALLE Ctor-Parameter auf,
+                                // BEVOR dieses Plugin registriert wird. Jede Abhaengigkeit laeuft durch diesen
+                                // Handler; eine Zuweisung wuerde bedeuten, dass die Registrierung hier das Flag
+                                // der zuletzt aufgeloesten Abhaengigkeit sieht statt sein eigenes. Das Token
+                                // stellt den Wert dieses Ladevorgangs wieder her, wenn eine Abhaengigkeit
+                                // zurueckkehrt.
+                                using (pi.TransientLoad(plugin.Transient))
                                 {
-                                    pi.UseTransientScope = plugin.Transient;
-                                    args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor,
-                                        new Dictionary<string, object> { { "CallingPlugin", args.PluginType } });
-                                }
-                                else
-                                {
-                                    pi.UseTransientScope = plugin.Transient;
-                                    args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName, plugin.Constructor);
+                                    if (args.PluginType != null)
+                                    {
+                                        args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName,
+                                            plugin.Constructor,
+                                            new Dictionary<string, object>
+                                                { { "CallingPlugin", args.PluginType } });
+                                    }
+                                    else
+                                    {
+                                        args.Value = loadTarget.LoadPlugin<IPlugin>(plugin.UniqueName,
+                                            plugin.Constructor);
+                                    }
                                 }
 
                                 args.Handled = true;

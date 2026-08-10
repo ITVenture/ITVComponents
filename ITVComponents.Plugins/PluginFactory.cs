@@ -67,7 +67,15 @@ namespace ITVComponents.Plugins
         /// </summary>
         private ScopeMode scopeMode = ScopeMode.PerThread;
 
-        private bool useTransientScope = true;
+        /// <summary>
+        /// Der Transient-Lade-Modus des aktuell laufenden Ladevorgangs. Wie <see cref="CurrentScope"/> je nach
+        /// <see cref="scopeMode"/> thread- oder async-kontext-gebunden; immer ueber <see cref="TransientLoadFlag"/>
+        /// zugreifen, nie direkt auf diese Felder. <c>null</c> bedeutet "kein Ladevorgang setzt das Flag" und
+        /// wird als der Vorgabewert <c>true</c> gelesen.
+        /// </summary>
+        private readonly ThreadLocal<bool?> threadTransientLoad = new ThreadLocal<bool?>();
+
+        private readonly AsyncLocal<bool?> asyncTransientLoad = new AsyncLocal<bool?>();
 
         /// <summary>
         /// A Reflection-only typelist that is used for test-only factories
@@ -290,10 +298,59 @@ namespace ITVComponents.Plugins
         /// Operations-/Fresh-Scope wird immer honoriert (siehe <see cref="HasActiveScope"/>) und kann nicht
         /// umgangen werden.
         /// </summary>
+        /// <remarks>
+        /// Der Wert gehoert dem gerade laufenden Ladevorgang, nicht der Factory: setzen ueber
+        /// <see cref="TransientLoad"/>, damit ein genesteter Load (Abhaengigkeit) den Wert des aeusseren
+        /// Ladevorgangs beim Verlassen wiederherstellt. Ein reines Zuweisen ist nur noch fuer Aufrufer da, die
+        /// den Modus fuer den ganzen Kontext festlegen wollen.
+        /// </remarks>
         public bool UseTransientScope
         {
-            get { return useTransientScope; }
-            set { useTransientScope = value; }
+            get { return TransientLoadFlag ?? true; }
+            set { TransientLoadFlag = value; }
+        }
+
+        /// <summary>
+        /// Setzt den Transient-Lade-Modus fuer die Dauer des zurueckgegebenen Tokens und stellt beim Freigeben
+        /// den Wert wieder her, der vorher gegolten hat.
+        /// </summary>
+        /// <param name="transient">der Modus, der waehrend des Ladevorgangs gelten soll</param>
+        /// <returns>ein Token, das den Vorwert beim Dispose wiederherstellt</returns>
+        /// <remarks>
+        /// Notwendig, weil die Ctor-Parameter eines Plugins ALLE aufgeloest werden, BEVOR das Plugin selbst
+        /// registriert wird. Mit einer einfachen Zuweisung liest die Registrierung des aeusseren Plugins das Flag
+        /// der zuletzt aufgeloesten Abhaengigkeit - ein transientes Plugin mit nicht-transienter letzter
+        /// Abhaengigkeit wuerde dauerhaft, ein Singleton mit transienter letzter Abhaengigkeit fiele mit dem
+        /// Ladescope. Der Handler einer Abhaengigkeit kehrt zurueck, bevor das aeussere Plugin registriert wird -
+        /// das Token stellt dabei dessen eigenen Wert wieder her.
+        /// </remarks>
+        public IDisposable TransientLoad(bool transient)
+        {
+            var previous = TransientLoadFlag;
+            TransientLoadFlag = transient;
+            return new TransientLoadToken(this, previous);
+        }
+
+        /// <summary>
+        /// The single access-point for the transient-load mode of the running load-operation. Routes to the
+        /// thread- or async-local storage depending on <see cref="scopeMode"/>, exactly like
+        /// <see cref="CurrentScope"/> - both must live in the SAME context, otherwise the mode tears off across
+        /// <c>await</c>-boundaries while the scope survives (or vice versa).
+        /// </summary>
+        private bool? TransientLoadFlag
+        {
+            get => scopeMode == ScopeMode.PerAsyncContext ? asyncTransientLoad.Value : threadTransientLoad.Value;
+            set
+            {
+                if (scopeMode == ScopeMode.PerAsyncContext)
+                {
+                    asyncTransientLoad.Value = value;
+                }
+                else
+                {
+                    threadTransientLoad.Value = value;
+                }
+            }
         }
 
         /// <summary>
@@ -353,7 +410,7 @@ namespace ITVComponents.Plugins
                 // Operations-/Fresh-Scope nie umgehen (fruehere Gefahr: useTransientScope=false liess ein
                 // Plugin an einem aktiven expliziten Scope vorbei in pluginInstances laufen und untergrub die
                 // Fresh-Garantie). Ein TRANSIENTER Ladescope zaehlt nur, wenn gerade transient geladen wird.
-                return (useTransientScope && CurrentScope is { IsTransientLoadScope: true })
+                return (UseTransientScope && CurrentScope is { IsTransientLoadScope: true })
                        || CurrentScope is { IsTransientLoadScope: false };
             }
         }
@@ -1804,6 +1861,36 @@ namespace ITVComponents.Plugins
             }
 
             return retVal;
+        }
+
+        /// <summary>
+        /// Restores the transient-load mode that was in effect before the <see cref="TransientLoad"/> call that
+        /// created this token.
+        /// </summary>
+        private sealed class TransientLoadToken : IDisposable
+        {
+            private readonly PluginFactory owner;
+
+            private readonly bool? previous;
+
+            private bool disposed;
+
+            public TransientLoadToken(PluginFactory owner, bool? previous)
+            {
+                this.owner = owner;
+                this.previous = previous;
+            }
+
+            public void Dispose()
+            {
+                if (disposed)
+                {
+                    return;
+                }
+
+                disposed = true;
+                owner.TransientLoadFlag = previous;
+            }
         }
     }
 

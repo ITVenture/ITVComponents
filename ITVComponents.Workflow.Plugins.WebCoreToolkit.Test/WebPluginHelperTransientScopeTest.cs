@@ -88,6 +88,36 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
                 "Ein im expliziten Scope aufgeloestes Plugin muss mit dem Scope disponiert werden - auch wenn es nicht transient ist.");
         }
 
+        /// <summary>
+        /// Der SCOPE-FREIE Weg: Ein Plugin muss mit SEINEM EIGENEN Transient-Flag eingeordnet werden, nicht mit
+        /// dem seiner zuletzt aufgeloesten Abhaengigkeit. <c>ParseConstructor</c> loest alle Ctor-Parameter auf,
+        /// BEVOR das aeussere Plugin registriert wird - eine Zuweisung an <c>UseTransientScope</c> statt des
+        /// <c>TransientLoad</c>-Tokens laesst die Registrierung des Hosts (Transient=false) das <c>true</c> der
+        /// Sub-Abhaengigkeit sehen, der Host landet im transienten Ladescope und faellt mit ihm.
+        /// </summary>
+        [TestMethod]
+        public void PluginIsRegisteredWithItsOwnTransientFlag_NotWithTheOneOfItsLastDependency()
+        {
+            using WebPluginHelper helper = BuildHelper(transientSub: true);
+            // Ueber den expliziten Plugin-Scope, wie die anderen Tests: nur dieser Weg laedt ohne
+            // Security-Pruefung. Es wird KEIN Operations-Scope geoeffnet - der Load laeuft scope-frei, also
+            // ueber den transienten Ladescope, den der Handler selbst aufmacht.
+            PluginFactory factory = helper.GetFactory("s");
+
+            var host = factory["host", true] as HostPlugin;
+            Assert.IsNotNull(host, "Host-Plugin konnte nicht aufgeloest werden.");
+            Assert.IsNotNull(host.Sub, "Transiente Sub-Abhaengigkeit wurde nicht injiziert.");
+
+            // Host ist NICHT transient -> er gehoert der Factory und ist nach dem Ladevorgang weiter gebuffert.
+            // Mit der Zuweisung statt des Tokens wird diese Assertion rot.
+            Assert.IsNotNull(factory["host"],
+                "Das nicht-transiente Host-Plugin muss den transienten Ladescope ueberleben (es wurde mit dem Transient-Flag seiner Abhaengigkeit registriert).");
+
+            // Die Sub-Abhaengigkeit IST transient -> sie gehoert dem Ladescope und ist nicht mehr gebuffert.
+            Assert.IsNull(factory["sub"],
+                "Die transiente Sub-Abhaengigkeit darf nach dem Schliessen des Ladescopes nicht mehr in der Factory liegen.");
+        }
+
         private static WebPluginHelper BuildHelper(bool transientSub)
         {
             // Vollen DLL-Pfad verwenden: WebPluginHelper baut seine Factory selbst (kein RegisterAssembly-Zugriff),
