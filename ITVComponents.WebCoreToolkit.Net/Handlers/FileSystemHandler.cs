@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Net.Handlers
 {
@@ -90,6 +92,11 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     case "search":
                         if (Directory.Exists(pth) && !string.IsNullOrEmpty(pattern))
                         {
+                            // Ueber die Factory und nicht als ILogger<FileSystemHandler>: die Klasse ist
+                            // static und darf darum nicht als Typargument dienen. Der Kategoriename ist
+                            // derselbe, den der generische Logger vergeben haette.
+                            var logger = context.RequestServices.GetService<ILoggerFactory>()
+                                ?.CreateLogger("ITVComponents.WebCoreToolkit.Net.Handlers.FileSystemHandler");
                             var directories = new List<string>();
                             var dir = new string[] { pth };
                             var files = new List<string>();
@@ -102,8 +109,25 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                                         files.AddRange(Directory.GetFiles(item, pattern));
                                         directories.AddRange(Directory.GetDirectories(item));
                                     }
+                                    catch (UnauthorizedAccessException ex)
+                                    {
+                                        // Ein Verzeichnis, das der Prozess nicht lesen darf, ist beim
+                                        // rekursiven Absteigen ein erwarteter Normalfall - die Suche laeuft
+                                        // ueber den Rest weiter. Nur nachvollziehbar muss es bleiben:
+                                        // ansonsten sieht ein unvollstaendiges Suchergebnis genauso aus wie
+                                        // ein vollstaendiges.
+                                        logger?.LogDebug(ex,
+                                            "Directory {Directory} was skipped during the search for {Pattern}: access denied.",
+                                            item, pattern);
+                                    }
                                     catch (Exception ex)
                                     {
+                                        // Alles andere (E/A-Fehler, zu langer Pfad, Verzeichnis waehrend der
+                                        // Suche entfernt) ist KEIN Normalfall. Die Suche soll deswegen nicht
+                                        // abbrechen, aber im Log muss der Grund stehen.
+                                        logger?.LogWarning(ex,
+                                            "Directory {Directory} could not be read during the search for {Pattern} - the result is incomplete.",
+                                            item, pattern);
                                     }
                                 }
 
