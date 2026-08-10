@@ -97,6 +97,11 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                             Template = t.Template,
                             DashboardWidgetId = t.DashboardWidgetId,
                             UserWidgetId = t.UserWidgetId,
+                            // Mitschleifen, nicht weglassen: der Store liest einen fehlenden Wert als
+                            // "geleert" und wuerde eine im Blazor-Dashboard gesetzte Breite bzw. die
+                            // Parameter-Eingaben beim Speichern von hier aus verwerfen.
+                            ColSpan = t.ColSpan,
+                            ParamValues = t.ParamValues,
                         }).ToArray(), context.User.Identity.Name);
 
                 var ret = tmp
@@ -105,6 +110,8 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                         UserWidgetId = n.UserWidgetId,
                         CustomQueryString = n.CustomQueryString,
                         SortOrder = n.SortOrder,
+                        ColSpan = n.ColSpan,
+                        ParamValues = n.ParamValues,
                         DashboardWidgetId = n.DashboardWidgetId,
                         DisplayName = n.DisplayName,
                         TitleTemplate = n.TitleTemplate,

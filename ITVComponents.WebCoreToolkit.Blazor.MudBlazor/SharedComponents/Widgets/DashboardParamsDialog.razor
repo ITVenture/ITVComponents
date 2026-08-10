@@ -1,0 +1,74 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@*
+    Die Parameter-Maske eines Widgets. Sie rendert NICHT selbst, sondern laesst DeclaredFieldsForm
+    rendern - dieselbe Maske, die die Workflow-Aufgaben und die Onboarding-Zusatzangaben benutzen. Das
+    Ergebnis kommt in invarianter Schreibweise zurueck, weil es als Abfrage-Argument und als JSON
+    gespeichert wird und spaeter kulturunabhaengig zurueckgelesen werden muss.
+*@
+
+<MudDialog>
+    <DialogContent>
+        <DeclaredFieldsForm @ref="fieldsForm"
+                            Fields="@Fields"
+                            Prefill="@prefill"
+                            PrefillIsInvariant="true"
+                            AllowReadOnly="false"
+                            ResetKey="@ResetKey"
+                            RequiredFieldMessage="@RequiredFieldMessage" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@CancelText</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Confirm">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>The parameter fields to ask for.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DeclaredField> Fields { get; set; }
+        = Array.Empty<DeclaredField>();
+
+    /// <summary>
+    /// The values to start from - set when an existing widget's parameters are being changed, empty when a
+    /// widget is being added.
+    /// </summary>
+    [Parameter] public IReadOnlyDictionary<string, string?>? Values { get; set; }
+
+    /// <summary>Identifies the widget being configured, so the prefill is applied once per widget.</summary>
+    [Parameter] public string? ResetKey { get; set; }
+
+    [Parameter] public string ConfirmText { get; set; } = "OK";
+
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+
+    [Parameter] public string RequiredFieldMessage { get; set; } = "Please fill in all required fields.";
+
+    private DeclaredFieldsForm? fieldsForm;
+    private Dictionary<string, object?>? prefill;
+
+    protected override void OnParametersSet()
+    {
+        // DeclaredFieldsForm nimmt object-Werte; gespeichert sind sie als Text. Die Umwandlung in Zahl
+        // bzw. Datum macht die Maske selbst, weil PrefillIsInvariant gesetzt ist.
+        prefill = Values?.ToDictionary(v => v.Key, v => (object?)v.Value, StringComparer.Ordinal);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Confirm()
+    {
+        if (fieldsForm is null)
+        {
+            return;
+        }
+
+        // Bei fehlenden Pflichtfeldern zeigt die Maske die Meldung selbst - der Dialog bleibt dann offen.
+        if (fieldsForm.TryGetInvariantResult(out Dictionary<string, string?> result))
+        {
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+    }
+}

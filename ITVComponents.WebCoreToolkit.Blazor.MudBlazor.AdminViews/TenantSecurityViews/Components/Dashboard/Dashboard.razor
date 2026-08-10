@@ -1,0 +1,49 @@
+@page "/Dashboard"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+
+@inject NavigationManager Navigation
+
+@*
+    Die fertige Dashboard-Seite - gleichzeitig das Beispiel dafür, wie eine Anwendung ihre eigene baut:
+    eine Zeile DashboardHost, und das Behandeln der Aktionen aus den Templates.
+
+    Es gibt hier bewusst KEINE eigene Berechtigung: was ein Benutzer sieht, entscheiden die Berechtigungen
+    der Diagnostics-Queries hinter den Widgets. Ein Benutzer ohne passende Query sieht eine leere Fläche,
+    keine Fehlermeldung - das Dashboard ist nichts, was man "nicht darf".
+*@
+
+<PageTitle>Dashboard</PageTitle>
+
+<DashboardHost Title="Dashboard"
+               Columns="3"
+               OnWidgetAction="OnWidgetAction" />
+
+@code {
+    /// <summary>
+    /// Behandelt die Klick-Aktionen aus den Widget-Templates. Ein Template schreibt dazu
+    /// <c>data-widget-action="navigate" data-widget-arg="/Some/Page"</c> an ein beliebiges Element.
+    /// </summary>
+    /// <remarks>
+    /// Absichtlich eine kleine Positivliste und kein "Argument als Ziel nehmen": ein Template ist zwar
+    /// vertrauenswürdig (Sysadmin/Mandanten-Admin), aber eine unbesehen übernommene Adresse wäre eine
+    /// offene Weiterleitung, sobald ein Template doch einmal aus fremder Hand kommt.
+    /// </remarks>
+    private void OnWidgetAction(DashboardWidgetActionArgs args)
+    {
+        switch (args.Action.Action?.ToLowerInvariant())
+        {
+            case "navigate":
+                if (!string.IsNullOrWhiteSpace(args.Action.Arg)
+                    && args.Action.Arg.StartsWith('/')
+                    && !args.Action.Arg.StartsWith("//"))
+                {
+                    Navigation.NavigateTo(args.Action.Arg);
+                }
+
+                break;
+        }
+    }
+}

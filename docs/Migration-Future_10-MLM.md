@@ -1690,6 +1690,199 @@ nichts.
 
 ---
 
+## 25. Dashboard in Blazor: Standard-Sammlung + eigene Anordnung — **Pflicht: 4 Spalten manuell nachziehen**
+
+Bisher gab es zu den Dashboard-Widgets nur den Editor und den `WidgetRenderer` für eine einzelne Kachel;
+die Fläche selbst existierte nur in der Telerik-Welt (`ViewComponents/Dashboard.cs` +
+`lib/js/Tools/DashboardWidgets.js`). Neu gibt es sie als Blazor-Komponente, die die Daten **ohne
+HTTP-Umweg** über `IDiagnosticsQueryService` holt.
+
+### 25.1 Spalten anlegen
+
+Alle vier additiv. **Nicht** über `dotnet ef migrations add` (Snapshot-Drift, gleiche Begründung wie §20/§24):
+
+```sql
+ALTER TABLE [Widgets] ADD [InitiallyActive] bit NOT NULL CONSTRAINT [DF_Widgets_InitiallyActive] DEFAULT 0;
+ALTER TABLE [Widgets] ADD [SortOrder] int NOT NULL CONSTRAINT [DF_Widgets_SortOrder] DEFAULT 0;
+ALTER TABLE [UserWidgets] ADD [ColSpan] int NOT NULL CONSTRAINT [DF_UserWidgets_ColSpan] DEFAULT 0;
+ALTER TABLE [UserWidgets] ADD [ParamValues] nvarchar(max) NULL;
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "Widgets" ADD COLUMN "InitiallyActive" boolean NOT NULL DEFAULT false;
+ALTER TABLE "Widgets" ADD COLUMN "SortOrder" integer NOT NULL DEFAULT 0;
+ALTER TABLE "UserWidgets" ADD COLUMN "ColSpan" integer NOT NULL DEFAULT 0;
+ALTER TABLE "UserWidgets" ADD COLUMN "ParamValues" text NULL;
+```
+
+`ColSpan = 0` heisst „nicht gesetzt" und wird als **eine** Spalte gelesen — bestehende Zeilen bleiben also
+unverändert gültig. Ohne die Spalten schlägt jede Widget-Query mit *„Invalid column name 'InitiallyActive'"*
+fehl.
+
+### 25.2 Die Standard-Sammlung festlegen
+
+Im Editor (*Verwaltung → Dashboard widgets*) gibt es neu den Schalter **Initially active** und das Feld
+**Sort order**. Beides zusammen ist die Standard-Sammlung:
+
+- Wer **noch keine eigenen** Widgets hat, sieht genau diese — **ohne dass dafür etwas gespeichert wird**.
+- Sobald er den Stift drückt, wird die Sammlung **für ihn kopiert**. Ab dann hat er eigene Widgets, und
+  späteres Ändern der Vorgabe geht ihn nichts mehr an.
+
+Die Sammlung ist trotzdem mandantenabhängig: die Widget-Liste ist global auf Widgets gefiltert, deren
+DiagnosticsQuery dem aktuellen Mandanten zugeordnet ist, und zusätzlich wird je Widget die Berechtigung
+seiner Query geprüft. Ein Widget, das der Benutzer nicht sehen darf, kommt in der Kopie nicht vor.
+
+**Widgets mit Pflichtparametern nicht als `InitiallyActive` markieren.** Für eine Kopie fragt niemand die
+Parameter ab — die Kachel läuft dann mit den Platzhaltern ihres `CustomQueryString`, die zu leeren
+Argumenten werden.
+
+### 25.3 Die Seite einbinden
+
+Fertig dabei ist `/Dashboard` (in den AdminViews). Eine eigene Seite ist eine Zeile:
+
+```razor
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+
+<DashboardHost Title="Dashboard" Columns="3" OnWidgetAction="OnWidgetAction" />
+```
+
+`OnWidgetAction` bekommt, was ein Template über `data-widget-action` / `data-widget-arg` auslöst — was
+eine Aktion bedeutet, entscheidet die Anwendung. Das JS für die Klick-Weiterleitung registriert der
+WebPart der AdminViews bereits (`AddToolkitClientScript(".../widget-actions.js")`); wer die AdminViews
+nicht referenziert, muss es selbst registrieren.
+
+### 25.4 Template-Syntax — **das ist der eine echte Bruch**
+
+Die Blazor-Kachel rendert mit **Scriban**, nicht mit `ITVenture.Text.processMessage`. Die Klammerung ist
+dieselbe (`{{ … }}`), einfache Platzhalter laufen also unverändert. **Nicht** übernommen werden:
+
+| bisher | Bedeutung | in Scriban |
+|---|---|---|
+| `{{ ->Key }}` | Übersetzung nachschlagen | ersetzt durch `Translate(…)`, s. §25.4.1 |
+| `{{ $expr }}`, `{{ !$expr }}` | JavaScript-Ausdruck | **nicht unterstützt** |
+
+Dafür kann Scriban, was vorher fehlte: echte Schleifen und Bedingungen. Gerendert wird gegen:
+
+| Ausdruck | Inhalt |
+|---|---|
+| `{{ Rows }}` | alle Zeilen der Query |
+| `{{ Row.Spalte }}` | die erste Zeile — für die häufige Ein-Zahl-Kachel |
+| `{{ Count }}` | Anzahl Zeilen |
+| `{{ Params.Name }}` | die Parameter-Eingaben |
+| `{{ Title }}` | der aufgelöste Titel |
+
+Die Eigenschaftsnamen bleiben, wie sie in der Query heissen (kein snake_case). Beispiel:
+
+```html
+<div class="pa-2">
+  <h3>{{ Title }}</h3>
+  {{ for row in Rows }}
+    <button data-widget-action="navigate" data-widget-arg="/Orders/{{ row.OrderId }}">
+      {{ row.Customer }}: {{ row.Total }}
+    </button>
+  {{ end }}
+</div>
+```
+
+Templates gelten als **vertrauenswürdig** (Sysadmin/Mandanten-Admin) und werden als rohes HTML gerendert.
+Für Werte, die aus Benutzereingaben stammen, `{{ value | html.escape }}` benutzen.
+
+#### 25.4.1 Mehrsprachigkeit im Template: `Translate(…)`
+
+Statt `{{ ->Key }}` gibt es eine Funktion, die **dieselbe** Auswahl trifft wie der Rest des Toolkits
+(Navigations-Beschriftungen, Aufgabenmasken) — `StringExtensions.Translate` bzw. `DictionaryExtensions.Translate`.
+Sie nimmt zwei Formen:
+
+```html
+{{ Translate({"de":"Offene Aufträge","fr":"Commandes ouvertes","Default":"Open orders"}) }}
+
+{{ Translate(Row.Caption) }}
+```
+
+Die erste ist das Objekt-Literal aus der Frage. Die zweite ist der häufigere Fall: eine Datenbankspalte, die
+**entweder** Klartext **oder** ein Kultur-JSON-Datensatz enthält — genau wie überall sonst im Toolkit. Beides
+geht durch dieselbe Funktion.
+
+Auswahlreihenfolge: exakte Kultur → neutrale (`de-CH` → `de`) → Schlüssel `Default`. **Die Schlüssel sind
+gross-/kleinschreibungsempfindlich und `Default` schreibt sich mit grossem D** — bewusst dieselben Regeln wie
+sonst, damit ein Datensatz zwischen Navigations-Beschriftung und Widget wandern kann, ohne die Bedeutung zu
+ändern. Zwei Zusätze:
+
+- Findet sich beim **Objekt-Literal** überhaupt nichts, wird die **erste** Angabe genommen statt nichts. Wer
+  zwei Sprachen ohne `Default` schreibt, meint den Text, nicht die Leere.
+- Bei der **invarianten** Kultur (Kulturname leer) wird auf `Default` aufgelöst. Ohne das würde die
+  String-Variante den Übersetzungspfad gar nicht betreten und der Leser sähe rohes JSON.
+
+Alias-Schreibweisen: `translate` (Scriban-Konvention, klein) und `Translate` sind derselbe Aufruf. Wer eine
+andere Kultur als die des Lesers braucht: `TranslateFor(wert, "fr-CH")` bzw. `translate_for`.
+
+Die Funktion steht **auch im `TitleTemplate`** zur Verfügung — ein Kacheltitel lässt sich also genauso
+übersetzen wie der Kachelinhalt.
+
+Eigene Funktionen dazuhängen geht an einer Stelle: `WidgetTemplateFunctions.ImportFunctions`.
+
+### 25.5 Parameter-Masken: `InputConfig` bekommt eine neue Form
+
+Die Parameter-Eingabe benutzt jetzt `DeclaredFieldsForm` — dieselbe Maske wie die Workflow-Aufgaben und
+die Onboarding-Zusatzangaben. Das alte `InputConfig` war eine rohe Kendo-Widget-Konfiguration und ist für
+Blazor nicht deutbar; **unbekannte Schlüssel werden ignoriert**, ein alter Eintrag fällt also auf ein
+einfaches Eingabefeld zurück statt die Maske zu verhindern. Die neue, optionale Form:
+
+```json
+{ "label": "Von", "helpText": "Startdatum", "required": true, "multiline": false }
+```
+
+Für `Combo` kommt die Auswahlliste entweder fest mit oder aus einer FK-Tabelle:
+
+```json
+{ "choices": [ { "value": "A", "label": "Aktiv" }, { "value": "I", "label": "Inaktiv" } ] }
+{ "fkTable": "Tenants" }
+{ "fkTable": "Permissions", "connection": "sys" }
+```
+
+Zwei Einschränkungen: `MaskedText` wird zum normalen Textfeld (die Maskierung war eine Kendo-Eigenschaft),
+und ein `Combo`, für das keine Auswahl zu ermitteln ist, fällt auf ein Textfeld zurück — mit einer Warnung
+im Log, statt den Benutzer vor einem leeren Pflicht-Auswahlfeld sitzen zu lassen.
+
+Die Eingaben werden neu **mitgespeichert** (`UserWidgets.ParamValues`), damit sie später änderbar sind.
+Der `CustomQueryString` bleibt die Vorlage mit den Platzhaltern; eingesetzt wird erst beim Ausführen. Alte
+Zeilen aus dem Telerik-Dashboard tragen dort einen bereits eingesetzten String und kein `ParamValues` —
+die laufen unverändert weiter.
+
+### 25.6 Wenn ihr das alte Telerik-Dashboard weiter benutzt
+
+`/DBW` (Get/Set) reicht `ColSpan` und `ParamValues` jetzt mit durch. Das ist kein Selbstzweck: der Store
+liest einen fehlenden Wert als *geleert*, ein Speichern von dort hätte sonst die in Blazor gesetzte Breite
+und die Parameter-Werte verworfen. Wer eine eigene Kopie dieser Endpunkte hat, muss die beiden Felder
+selbst mitschleifen.
+
+### 25.7 Schmale Viewports
+
+`Columns` ist die Spaltenzahl für **breite** Fenster. Die tatsächliche ergibt sich aus dem gemeldeten
+Viewport: **Xs = 1 Spalte, Sm = die Hälfte (aufgerundet), darüber die konfigurierte Zahl.** Gemeldet wird
+über einen `MudBreakpointProvider` um die Fläche, also nach C# und nicht über CSS-Umbrüche — reines CSS
+könnte die konfigurierte Spaltenzahl nicht kennen, und der Breiten-Umschalter muss mit derselben Zahl
+rechnen.
+
+Der gespeicherte `ColSpan` bleibt davon **unberührt**: er ist die Absicht des Benutzers, nicht die
+Darstellung eines bestimmten Fensters. Geklemmt wird nur beim Rendern. Ohne diese Trennung hätte ein
+einziger Besuch vom Telefon alle Breiten dauerhaft auf 1 gesetzt.
+
+**Umsortieren per Ziehen funktioniert auf Touch-Geräten nicht** — MudBlazors Drag&Drop hängt an den
+HTML5-Drag-Ereignissen, die es dort nicht gibt. Das ist keine Einstellung, sondern die Technik darunter.
+Deshalb hat das Kachel-Menü zusätzlich **nach vorn / nach hinten**; auf dem Desktop bleibt das Ziehen.
+
+Der Template-Inhalt liegt in einem `overflow-x: auto`-Container: eine breite Tabelle im Template scrollt
+**innerhalb** der Kachel, statt die Seite in die Breite zu ziehen. Damit ist das Layout geschützt — was ein
+Template darüber hinaus tut, bleibt aber Sache seines Autors. Ein Template mit festen Pixelbreiten oder acht
+Spalten sprengt die Seite nicht mehr, wird auf dem Telefon aber auch nicht lesbar. Wer Widgets für mobile
+Nutzung schreibt: wenige Spalten, keine festen Breiten, `{{ Row.… }}` für die Ein-Zahl-Kachel statt einer
+Tabelle.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -1725,3 +1918,4 @@ nichts.
 | 27 | **Selbstregistrierung + Standard-Mandant** (§22) | Kein Schema-Change. `/Account/Register` existiert neu (der Verweis auf der Anmeldeseite lief bisher ins Leere) und ist **standardmässig abgeschaltet**. Freigeben mit `TenantSetup.AllowSelfRegistration = true` **plus** `DefaultUserTenant` (+ `DefaultUserTenantRole`) — sonst landet der Registrierte in einer leeren Mandanten-Übersicht. Zuweisung nach der Mailbestätigung, nur wenn der Benutzer nirgends Mitglied ist und keine Einladung wartet. `IOnboardingHandler` hat ein neues Member (`AssignDefaultTenantAsync`) — **eigene Implementierungen des Interfaces brechen**. Der Verweis auf der Anmeldeseite hängt jetzt zusätzlich an `ISelfRegistrationPolicy` (neu in `WebCoreToolkit/Security`, optional aufgelöst — ohne Onboarding-Paket unverändert). `JoinRegister` ist unverändert erreichbar und braucht das Flag nicht |
 | 28 | **Zusatzangaben-Module** (§23) | Kein Schema-Change, opt-in. Ohne GlobalSetting `CustomCompanyInfo` passiert nichts. Module sind globale Plugins nach `ICustomCompanyInformationHandler` (Blazor-frei); Reiter erscheinen im Onboarding **und** neu im Firmenprofil (Tab 1), dort gated durch `EditPermission` des Moduls — geprüft beim Anzeigen **und** beim Schreiben. Der Feld-Renderer ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor` gewandert (`UserTaskFieldsForm` = Adapter, API unverändert); zwei Verhaltenskorrekturen betreffen auch die Workflow-Aufgabenmasken (Ja/Nein-Pflichtfeld startet auf `false`, Vorbelegung ohne `ResetKey`) |
 | 29 | **Anonym ladbare Plugins** (§24) | **Pflicht:** Spalte ``WebPlugins.AllowAnonymous bit NOT NULL DEFAULT 0`` **manuell** anlegen (SQL in §24.1) — **nicht** via ``dotnet ef migrations add`` (Snapshot-Drift, s. §20). Sonst schlägt jede Plugin-Query mit *„Invalid column name 'AllowAnonymous'"* fehl. Danach je Plugin setzen, das **vor** der Anmeldung greifen soll — allen voran die Zusatzangaben-Module aus §23, sonst fehlt ihr Reiter im anonymen Onboarding. Nur für **globale** Plugins wirksam (Mandanten-Zeilen liefern immer ``false``). Greift nur im Anonym-Fall; für angemeldete Benutzer entscheidet weiter die Berechtigung. Neue ``VerifyUserPermissions``-Überladung mit ``out bool isUserAuthenticated`` (additiv) |
+| 30 | **Blazor-Dashboard** (§25) | **Pflicht:** vier Spalten **manuell** anlegen (SQL in §25.1) — `Widgets.InitiallyActive bit NOT NULL DEFAULT 0`, `Widgets.SortOrder int NOT NULL DEFAULT 0`, `UserWidgets.ColSpan int NOT NULL DEFAULT 0`, `UserWidgets.ParamValues nvarchar(max) NULL`; **nicht** via `dotnet ef migrations add` (Snapshot-Drift, s. §20). Sonst schlägt jede Widget-Query mit *„Invalid column name 'InitiallyActive'"* fehl. Neu: Fläche `<DashboardHost>` + fertige Seite `/Dashboard`, Daten über `IDiagnosticsQueryService` **ohne** HTTP-Umweg. Standard-Sammlung über **Initially active** + **Sort order** im Widget-Editor; wer noch keine eigenen Widgets hat sieht sie ungespeichert, beim ersten Bearbeiten wird sie kopiert. **Template-Bruch:** gerendert wird mit **Scriban**, `{{ ->Key }}` und `{{ $expr }}`/`{{ !$expr }}` aus `processMessage` funktionieren **nicht** mehr (Tabelle in §25.4); Modell ist `Rows`/`Row`/`Count`/`Params`/`Title`. `InputConfig` hat eine neue, neutrale Form (§25.5) — alte Kendo-Configs werden ignoriert statt zu brechen, `MaskedText` wird Textfeld. Parameter-Eingaben werden neu mitgespeichert und sind später änderbar. `/DBW` schleift `ColSpan`/`ParamValues` mit; eigene Kopien dieser Endpunkte müssen das auch (§25.6). **Mobil** (§25.7): Spaltenzahl folgt dem Viewport (Xs = 1, Sm = Hälfte), gespeicherter `ColSpan` bleibt die Absicht des Benutzers; **Umsortieren per Ziehen geht auf Touch nicht** (HTML5-Drag-Ereignisse) → dafür „nach vorn/nach hinten" im Kachel-Menü |

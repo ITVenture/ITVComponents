@@ -25,6 +25,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Models
 
         public int SortOrder { get; set; }
 
+        /// <summary>
+        /// True when this widget belongs to the default collection that a user without own widgets sees.
+        /// Only meaningful on a template (<see cref="UserWidgetId"/> == 0).
+        /// </summary>
+        public bool InitiallyActive { get; set; }
+
+        /// <summary>
+        /// Width of the tile in grid columns. 0 means "not set" and reads as 1.
+        /// </summary>
+        public int ColSpan { get; set; }
+
+        /// <summary>
+        /// The user's parameter input as a JSON object (field name -&gt; invariant value), null when the
+        /// widget has no parameters. Kept alongside the already-substituted
+        /// <see cref="CustomQueryString"/> because the individual values cannot be recovered from it.
+        /// </summary>
+        public string ParamValues { get; set; }
+
         public int UserWidgetId { get; set; }
 
         public ICollection<DashboardParamDefinition> Params { get; set; } = new List<DashboardParamDefinition>();

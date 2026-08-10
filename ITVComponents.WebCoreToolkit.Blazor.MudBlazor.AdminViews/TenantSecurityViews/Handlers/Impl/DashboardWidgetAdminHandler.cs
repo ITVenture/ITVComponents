@@ -105,7 +105,11 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             q = q.Where(w => w.SystemName.Contains(s) || (w.DisplayName != null && w.DisplayName.Contains(s)));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(w => w.SystemName) : q.OrderBy(w => w.SystemName);
+        // SortOrder zuerst: das ist die Reihenfolge, in der die Standard-Sammlung fuer einen neuen
+        // Benutzer angelegt wird - im Editor soll sie genauso zu sehen sein.
+        q = query.SortDescending
+            ? q.OrderByDescending(w => w.SortOrder).ThenByDescending(w => w.SystemName)
+            : q.OrderBy(w => w.SortOrder).ThenBy(w => w.SystemName);
         var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
             .Select(w => new DashboardWidgetViewModel
             {
@@ -116,7 +120,9 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                 DiagnosticsQueryId = w.DiagnosticsQueryId,
                 Area = w.Area,
                 CustomQueryString = w.CustomQueryString,
-                Template = w.Template
+                Template = w.Template,
+                InitiallyActive = w.InitiallyActive,
+                SortOrder = w.SortOrder
             }).ToListAsync();
         return new PagedResult<DashboardWidgetViewModel> { Items = items, TotalCount = total };
     }
@@ -133,7 +139,9 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             DiagnosticsQueryId = input.DiagnosticsQueryId,
             Area = input.Area ?? string.Empty,
             CustomQueryString = input.CustomQueryString ?? string.Empty,
-            Template = input.Template ?? string.Empty
+            Template = input.Template ?? string.Empty,
+            InitiallyActive = input.InitiallyActive,
+            SortOrder = input.SortOrder
         };
         db.Widgets.Add(entity);
         await db.SaveChangesAsync();
@@ -154,6 +162,8 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.Area = input.Area ?? string.Empty;
         entity.CustomQueryString = input.CustomQueryString ?? string.Empty;
         entity.Template = input.Template ?? string.Empty;
+        entity.InitiallyActive = input.InitiallyActive;
+        entity.SortOrder = input.SortOrder;
         await db.SaveChangesAsync();
         return input;
     }

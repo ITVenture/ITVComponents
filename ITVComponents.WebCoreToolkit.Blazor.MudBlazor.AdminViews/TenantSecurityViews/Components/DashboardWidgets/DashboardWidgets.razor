@@ -53,6 +53,17 @@ else
             <PropertyColumn Property="x => x.SystemName" Title="System name" />
             <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
             <PropertyColumn Property="x => x.Area" Title="Area" />
+            <PropertyColumn Property="x => x.SortOrder" Title="Sort order" />
+            <TemplateColumn T="DashboardWidgetViewModel" Title="Initially active" Sortable="false">
+                <CellTemplate>
+                    @* Nur anzeigen, nicht hier umschalten: das Umschalten gehoert in den Dialog, damit es
+                       mit dem uebrigen Speichern eine Operation bleibt. *@
+                    @if (context.Item.InitiallyActive)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
             <TemplateColumn T="DashboardWidgetViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     <SecureView RequiredPermissions="DashboardWidgets.Write">
@@ -149,7 +160,9 @@ else
             DiagnosticsQueryId = item.DiagnosticsQueryId,
             Area = item.Area,
             CustomQueryString = item.CustomQueryString,
-            Template = item.Template
+            Template = item.Template,
+            InitiallyActive = item.InitiallyActive,
+            SortOrder = item.SortOrder
         };
         var parameters = new DialogParameters<DashboardWidgetDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<DashboardWidgetDialog>("Edit widget", parameters, EditDialogDefaults.Edit);

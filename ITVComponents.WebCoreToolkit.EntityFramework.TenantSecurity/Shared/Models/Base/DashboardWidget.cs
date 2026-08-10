@@ -46,6 +46,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         public string Template { get; set; }
 
+        /// <summary>
+        /// Gehoert dieses Widget zur Standard-Sammlung? Wer noch keine eigenen Widgets hat, bekommt genau
+        /// diese zu sehen - und beim ersten Bearbeiten werden sie fuer ihn kopiert.
+        /// </summary>
+        /// <remarks>
+        /// Die Standard-Sammlung ist damit trotzdem mandantenabhaengig: die Widget-Liste ist global
+        /// gefiltert auf Widgets, deren DiagnosticsQuery dem aktuellen Mandanten zugeordnet ist.
+        /// </remarks>
+        public bool InitiallyActive { get; set; }
+
+        /// <summary>
+        /// Die Position innerhalb der Standard-Sammlung. Fuer eigene Widgets gilt stattdessen die
+        /// Sortierung am <c>UserWidget</c> - der Benutzer ordnet ja selbst.
+        /// </summary>
+        public int SortOrder { get; set; }
+
 
         [ForeignKey(nameof(DiagnosticsQueryId))]
         public virtual TQuery DiagnosticsQuery { get; set; }

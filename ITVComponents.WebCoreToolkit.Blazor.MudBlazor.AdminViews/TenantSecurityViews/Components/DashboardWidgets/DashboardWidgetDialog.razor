@@ -8,6 +8,10 @@
             <ForeignKeyAutocomplete T="int" Table="DiagnosticsQueries" @bind-Value="Model.DiagnosticsQueryId" Label="Diagnostics query" />
             <MudTextField @bind-Value="Model.Area" Label="Area" />
             <MudTextField @bind-Value="Model.CustomQueryString" Label="Custom query string" Lines="3" />
+            <MudSwitch @bind-Value="Model.InitiallyActive" Color="Color.Primary"
+                       Label="Initially active (part of the default collection)" />
+            <MudNumericField T="int" @bind-Value="Model.SortOrder" Label="Sort order"
+                             HelperText="Position within the default collection. Users who arrange their own dashboard keep their own order." />
             <MudText Typo="Typo.caption" Class="mt-3">Template (Scriban)</MudText>
             <CodeEditor @ref="templateEditor" Value="@Model.Template" Language="html" Height="280" Fill="true" />
         </MudForm>

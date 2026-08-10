@@ -13,9 +13,13 @@
             {% endfor %}
         </div>
 *@
+@* Der Namensraum MUSS explizit gesetzt werden und muss zu WidgetAction.cs im selben Ordner passen:
+   ohne die Angabe leitet Razor ihn aus dem RootNamespace ab (…MudBlazorLib.SharedComponents.Widgets),
+   und dann findet eine Nachbar-Komponente dieses Element nicht - sie meldet nur ein RZ10012 und behandelt
+   die Parameter als HTML-Attribute. *@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
 @using Microsoft.AspNetCore.Components
 @using Scriban
-@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
@@ -33,10 +37,13 @@
     [Parameter, EditorRequired] public string TemplateSource { get; set; } = "";
 
     /// <summary>
-    /// Data object exposed to the template as the model root. Properties are addressed as
-    /// <c>{{ property_name }}</c> (Scriban converts PascalCase to snake_case by default;
-    /// use the <c>MemberRenamer</c> on <see cref="ScribanContextFactory"/> to override).
+    /// Data object exposed to the template as the model root. Properties keep the name they have on the
+    /// object and are addressed as <c>{{ PropertyName }}</c>.
     /// </summary>
+    /// <remarks>
+    /// Scriban's own default would rename members to snake_case; the renderer passes an identity
+    /// member-renamer instead, so a template written against the data's actual property names works.
+    /// </remarks>
     [Parameter] public object? Data { get; set; }
 
     /// <summary>
@@ -82,7 +89,12 @@
                 renderedHtml = $"<div class=\"mud-alert mud-alert-text-warning\">Template parse error: {string.Join("; ", template.Messages)}</div>";
                 return;
             }
-            renderedHtml = template.Render(Data ?? new { }, member => member.Name);
+
+            // Ueber einen eigenen Kontext statt Render(model, renamer): nur so kommen neben dem Modell auch
+            // die Template-Funktionen (translate) in den Geltungsbereich. Den Identitaets-Renamer setzt
+            // CreateContext/CreateGlobals gleich mit.
+            var globals = WidgetTemplateFunctions.CreateGlobals(Data);
+            renderedHtml = template.Render(WidgetTemplateFunctions.CreateContext(globals));
         }
         catch (Exception ex)
         {

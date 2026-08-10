@@ -1,0 +1,663 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+
+@using System.Globalization
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.ServiceShared.Diagnostics
+
+@inject IServiceProvider Services
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ILogger<DashboardHost> Logger
+
+@*
+    Die Dashboard-Fläche: lädt die Widgets des Benutzers, führt je Widget seine Diagnostics-Query aus und
+    rendert sie über WidgetRenderer.
+
+    Wer noch keine eigenen Widgets hat, sieht die Standard-Sammlung (die Widgets mit InitiallyActive) -
+    ohne dass dafür etwas gespeichert wird. Erst wenn er die Bearbeitung einschaltet, wird die Sammlung
+    für ihn kopiert; ab dann hat er eigene Widgets und die Standard-Sammlung geht ihn nichts mehr an.
+
+    Der Stift sitzt hier und nicht im WidgetRenderer: Bearbeiten ist ein Zustand der ganzen Fläche, nicht
+    einer einzelnen Kachel.
+*@
+
+<div class="d-flex align-center mb-2">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <MudText Typo="Typo.h5">@Title</MudText>
+    }
+    <MudSpacer />
+    @if (editMode)
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Text" OnClick="AddWidget">
+            @AddText
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Done" Variant="Variant.Filled" Color="Color.Primary"
+                   Class="ml-2" OnClick="LeaveEditMode" Disabled="@saving">
+            @DoneText
+        </MudButton>
+    }
+    else if (CanEdit && loaded && store is not null)
+    {
+        <MudTooltip Text="@EditText">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="EnterEditMode" Disabled="@saving" />
+        </MudTooltip>
+    }
+</div>
+
+@if (saving)
+{
+    <MudProgressLinear Indeterminate="true" Size="Size.Small" Color="Color.Primary" Class="mb-2" />
+}
+
+@* Der Breakpoint-Provider meldet die Fensterklasse nach C# - nur so kann die Spaltenzahl eine Zahl
+   bleiben, mit der auch der Breiten-Umschalter rechnet. Reine CSS-Umbrueche koennten die konfigurierte
+   Spaltenzahl nicht kennen. *@
+<MudBreakpointProvider OnBreakpointChanged="OnBreakpointChanged">
+    @if (!loaded)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (store is null)
+    {
+        <MudAlert Severity="Severity.Warning">@NoStoreText</MudAlert>
+    }
+    else if (tiles.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">@EmptyText</MudAlert>
+    }
+    else if (editMode)
+    {
+        <MudDropContainer T="WidgetTile" @ref="dropContainer"
+                          Items="@tiles"
+                          ItemsSelector="@((tile, zone) => true)"
+                          ItemDropped="OnTileDropped"
+                          ItemRenderer="@TileTemplate">
+            <ChildContent>
+                <MudDropZone T="WidgetTile" Identifier="dashboard" AllowReorder="true" OnlyZone="true"
+                             Class="d-flex flex-wrap align-stretch" Style="min-height: 120px;" />
+            </ChildContent>
+        </MudDropContainer>
+    }
+    else
+    {
+        <div class="d-flex flex-wrap align-stretch">
+            @foreach (WidgetTile tile in tiles)
+            {
+                @TileTemplate(tile)
+            }
+        </div>
+    }
+</MudBreakpointProvider>
+
+@code {
+    /// <summary>Heading above the dashboard. Empty hides it.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>How many tiles fit next to each other at full width.</summary>
+    [Parameter] public int Columns { get; set; } = 3;
+
+    /// <summary>
+    /// May the user arrange their dashboard? False renders read-only - and never writes anything, so the
+    /// default collection stays a default collection.
+    /// </summary>
+    [Parameter] public bool CanEdit { get; set; } = true;
+
+    /// <summary>
+    /// Raised when a template element with <c>data-widget-action</c> is clicked. What the action means is
+    /// up to the consuming application.
+    /// </summary>
+    [Parameter] public EventCallback<DashboardWidgetActionArgs> OnWidgetAction { get; set; }
+
+    [Parameter] public string EditText { get; set; } = "Arrange dashboard";
+    [Parameter] public string DoneText { get; set; } = "Done";
+    [Parameter] public string AddText { get; set; } = "Add widget";
+    [Parameter] public string RemoveText { get; set; } = "Remove";
+    [Parameter] public string ParametersText { get; set; } = "Parameters…";
+    [Parameter] public string WidthText { get; set; } = "Width";
+    [Parameter] public string MoveBackText { get; set; } = "Move back";
+    [Parameter] public string MoveForwardText { get; set; } = "Move forward";
+    [Parameter] public string EmptyText { get; set; } = "No widgets on this dashboard yet.";
+    [Parameter] public string NoStoreText { get; set; } = "No dashboard store is configured.";
+    [Parameter] public string QueryFailedText { get; set; } = "This widget's data could not be loaded.";
+    [Parameter] public string PickerTitle { get; set; } = "Add widget";
+    [Parameter] public string ParamsTitle { get; set; } = "Widget parameters";
+
+    /// <summary>One tile of the dashboard: its definition, its data and its current arrangement.</summary>
+    private sealed class WidgetTile
+    {
+        public DashboardWidgetDefinition Definition { get; init; } = default!;
+
+        public Dictionary<string, string?> ParamValues { get; set; } = new(StringComparer.Ordinal);
+
+        public WidgetTemplateModel? Data { get; set; }
+
+        public bool Failed { get; set; }
+
+        public int ColSpan { get; set; } = 1;
+    }
+
+    private readonly List<WidgetTile> tiles = new();
+
+    /// <summary>
+    /// User-Widgets, die der Benutzer aktuell NICHT sehen darf (Berechtigung der Query fehlt inzwischen).
+    /// Sie werden nicht gerendert, muessen aber beim Speichern mitgeschickt werden: der Store betrachtet
+    /// alles, was nicht mitkommt, als geloescht - sonst raeumt ein Umsortieren sie still weg.
+    /// </summary>
+    private readonly List<DashboardWidgetDefinition> hiddenUserWidgets = new();
+
+    private IDiagnosticsStore? store;
+    private IDiagnosticsQueryService? queryService;
+    private MudDropContainer<WidgetTile>? dropContainer;
+
+    /// <summary>Der zuletzt gemeldete Viewport. <c>None</c> = noch keine Meldung.</summary>
+    private Breakpoint breakpoint = Breakpoint.None;
+
+    private string? userName;
+    private System.Security.Claims.ClaimsPrincipal? user;
+    private bool loaded;
+    private bool editMode;
+    private bool saving;
+
+    /// <summary>
+    /// True solange die Standard-Sammlung nur ANGEZEIGT wird - es gibt dazu noch keine eigenen Widgets.
+    /// Beim Einschalten der Bearbeitung wird sie kopiert und dieser Zustand endet.
+    /// </summary>
+    private bool showingDefaults;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // Erst NACH dem ersten Rendern lesen: waehrend des Pre-Renderings gibt es den Kreis noch nicht,
+        // an dem die Datenbank-Zugriffe haengen - und ein hier geoeffneter Kontext wuerde beim zweiten
+        // Durchlauf ein zweites Mal benutzt.
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+            user = auth.User;
+            userName = auth.User?.Identity?.Name;
+            store = Services.GetService<IDiagnosticsStore>();
+            queryService = Services.GetService<IDiagnosticsQueryService>() ?? new DiagnosticsQueryService();
+            if (store is null)
+            {
+                Logger.LogWarning("No IDiagnosticsStore is registered - the dashboard cannot show widgets.");
+                return;
+            }
+
+            string culture = CultureInfo.CurrentUICulture.Name;
+            BuildTiles(store, culture);
+            LoadTileData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The dashboard could not be loaded.");
+        }
+        finally
+        {
+            loaded = true;
+        }
+    }
+
+    private void BuildTiles(IDiagnosticsStore dashboardStore, string culture)
+    {
+        tiles.Clear();
+        hiddenUserWidgets.Clear();
+
+        // GetUserWidgets ist ueber den globalen Filter bereits auf (aktueller Mandant, aktueller Benutzer)
+        // eingeschraenkt - der uebergebene Name dient dem Store nur zum Schreiben.
+        DashboardWidgetDefinition[] own = dashboardStore.GetUserWidgets(userName, culture)
+                                          ?? Array.Empty<DashboardWidgetDefinition>();
+        foreach (DashboardWidgetDefinition widget in own)
+        {
+            if (Permitted(widget))
+            {
+                tiles.Add(ToTile(widget));
+            }
+            else
+            {
+                hiddenUserWidgets.Add(widget);
+            }
+        }
+
+        showingDefaults = tiles.Count == 0 && hiddenUserWidgets.Count == 0;
+        if (!showingDefaults)
+        {
+            return;
+        }
+
+        foreach (DashboardWidgetDefinition widget in DefaultCollection(dashboardStore, culture))
+        {
+            tiles.Add(ToTile(widget));
+        }
+    }
+
+    /// <summary>
+    /// Die Standard-Sammlung: die als <c>InitiallyActive</c> markierten Widgets, die der Benutzer im
+    /// aktuellen Mandanten auch sehen darf.
+    /// </summary>
+    private IEnumerable<DashboardWidgetDefinition> DefaultCollection(IDiagnosticsStore dashboardStore, string culture)
+        => (dashboardStore.GetWidgetTemplates(culture) ?? Array.Empty<DashboardWidgetDefinition>())
+            .Where(w => w.InitiallyActive && Permitted(w));
+
+    private WidgetTile ToTile(DashboardWidgetDefinition widget)
+        => new()
+        {
+            Definition = widget,
+            ParamValues = ReadParamValues(widget),
+            // 0 heisst "nicht gesetzt" und wird als eine Spalte gelesen - so bleiben Zeilen aus der Zeit
+            // vor der Spalte gueltig.
+            ColSpan = widget.ColSpan <= 0 ? 1 : Math.Min(widget.ColSpan, Math.Max(1, Columns))
+        };
+
+    private Dictionary<string, string?> ReadParamValues(DashboardWidgetDefinition widget)
+    {
+        if (string.IsNullOrWhiteSpace(widget.ParamValues))
+        {
+            return new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string?>>(widget.ParamValues)
+                   ?? new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+        catch (JsonException ex)
+        {
+            // Nicht durchwerfen: die Kachel laeuft dann mit ihren Vorgabe-Argumenten weiter. Aber ohne Log
+            // waere unklar, warum die Zahlen ploetzlich andere sind.
+            Logger.LogWarning(ex, "Stored parameter values of widget {Widget} are not readable - the widget runs without them.",
+                widget.SystemName);
+            return new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+    }
+
+    private bool Permitted(DashboardWidgetDefinition widget)
+    {
+        string? permission = widget?.DiagnosticsQuery?.Permission;
+        if (string.IsNullOrEmpty(permission))
+        {
+            // Eine Query ohne Berechtigungsanforderung ist fuer jeden angemeldeten Benutzer da.
+            return true;
+        }
+
+        return Services.VerifyUserPermissions(new[] { permission });
+    }
+
+    private void LoadTileData()
+    {
+        foreach (WidgetTile tile in tiles)
+        {
+            LoadTileData(tile);
+        }
+    }
+
+    private void LoadTileData(WidgetTile tile)
+    {
+        if (queryService is null)
+        {
+            return;
+        }
+
+        var context = new DiagnosticsQueryContext(user, Services);
+        tile.Data = DashboardWidgetRunner.Load(tile.Definition, tile.ParamValues, queryService, context, Logger);
+        tile.Failed = tile.Data is null;
+    }
+
+    private async Task EnterEditMode()
+    {
+        // Die Standard-Sammlung wird genau hier zu eigenen Widgets: ab dem ersten Bearbeiten gehoert dem
+        // Benutzer seine Auswahl, und spaetere Aenderungen an der Vorgabe gehen ihn nichts mehr an.
+        if (showingDefaults && tiles.Count != 0)
+        {
+            if (!await SaveAsync())
+            {
+                return;
+            }
+        }
+
+        editMode = true;
+    }
+
+    private async Task LeaveEditMode()
+    {
+        editMode = false;
+        await SaveAsync();
+    }
+
+    /// <summary>
+    /// Schreibt die aktuelle Anordnung und liest den Stand danach neu ein - der Store liefert dabei die
+    /// UserWidgetIds der neu angelegten Kacheln zurueck, ohne die ein zweites Speichern sie doppelt
+    /// anlegen wuerde.
+    /// </summary>
+    private async Task<bool> SaveAsync()
+    {
+        if (store is null || !CanEdit)
+        {
+            return false;
+        }
+
+        saving = true;
+        StateHasChanged();
+        try
+        {
+            var payload = new List<DashboardWidgetDefinition>();
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                WidgetTile tile = tiles[i];
+                DashboardWidgetDefinition definition = tile.Definition;
+                definition.SortOrder = i;
+                definition.ColSpan = tile.ColSpan;
+                // Leere Eingaben als null ablegen, nicht als "{}": sonst bliebe ein geleerter Parametersatz
+                // als Rest stehen. Der CustomQueryString bleibt die VORLAGE mit den Platzhaltern - eingesetzt
+                // wird erst beim Ausfuehren, aus den Parameter-Werten.
+                definition.ParamValues = tile.ParamValues.Count != 0
+                    ? JsonSerializer.Serialize(tile.ParamValues)
+                    : null;
+
+                payload.Add(definition);
+            }
+
+            // Die verborgenen (nicht mehr erlaubten) eigenen Widgets hinten anhaengen, damit der Store sie
+            // nicht als entfernt behandelt.
+            payload.AddRange(hiddenUserWidgets);
+
+            DashboardWidgetDefinition[]? saved = await store.SetUserWidgets(payload.ToArray(), userName);
+            if (saved is null)
+            {
+                Logger.LogError("The dashboard arrangement could not be saved - the store returned no result (no current tenant?).");
+                return false;
+            }
+
+            showingDefaults = false;
+            string culture = CultureInfo.CurrentUICulture.Name;
+            BuildTiles(store, culture);
+            LoadTileData();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The dashboard arrangement could not be saved.");
+            return false;
+        }
+        finally
+        {
+            saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnTileDropped(MudItemDropInfo<WidgetTile> info)
+    {
+        WidgetTile? tile = info?.Item;
+        if (tile is null || !tiles.Remove(tile))
+        {
+            return;
+        }
+
+        // Nach dem Entnehmen einsetzen und dabei begrenzen: IndexInZone ist die Zielposition, kann beim
+        // Ablegen am Ende aber ueber die neue Laenge hinausgehen.
+        int index = Math.Clamp(info!.IndexInZone, 0, tiles.Count);
+        tiles.Insert(index, tile);
+        dropContainer?.Refresh();
+    }
+
+    private void SetColSpan(WidgetTile tile, int span)
+    {
+        tile.ColSpan = Math.Clamp(span, 1, Math.Max(1, Columns));
+        dropContainer?.Refresh();
+    }
+
+    private async Task RemoveTile(WidgetTile tile)
+    {
+        tiles.Remove(tile);
+        dropContainer?.Refresh();
+        await SaveAsync();
+    }
+
+    private async Task AddWidget()
+    {
+        if (store is null)
+        {
+            return;
+        }
+
+        string culture = CultureInfo.CurrentUICulture.Name;
+        DashboardWidgetDefinition[] available;
+        try
+        {
+            var used = tiles.Select(t => t.Definition.DashboardWidgetId).ToHashSet();
+            available = (store.GetWidgetTemplates(culture) ?? Array.Empty<DashboardWidgetDefinition>())
+                .Where(w => Permitted(w) && !used.Contains(w.DashboardWidgetId))
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The list of available widgets could not be read.");
+            return;
+        }
+
+        var pickerParameters = new DialogParameters<DashboardWidgetPicker>
+        {
+            { d => d.Widgets, available }
+        };
+        IDialogReference picker = await DialogService.ShowAsync<DashboardWidgetPicker>(PickerTitle, pickerParameters);
+        DialogResult? pickerResult = await picker.Result;
+        if (pickerResult is not { Canceled: false, Data: DashboardWidgetDefinition chosen })
+        {
+            return;
+        }
+
+        var tile = new WidgetTile { Definition = chosen, ColSpan = 1 };
+        if (chosen.Params.Count != 0 && !await AskForParameters(tile))
+        {
+            return;
+        }
+
+        tiles.Add(tile);
+        LoadTileData(tile);
+        dropContainer?.Refresh();
+        await SaveAsync();
+    }
+
+    private async Task EditParameters(WidgetTile tile)
+    {
+        if (await AskForParameters(tile))
+        {
+            LoadTileData(tile);
+            await SaveAsync();
+        }
+    }
+
+    /// <summary>
+    /// Fragt die Parameter des Widgets ab und uebernimmt sie in die Kachel - samt dem daraus gebildeten
+    /// Titel, wenn das Widget ein TitleTemplate hat.
+    /// </summary>
+    /// <returns>false, wenn der Benutzer abgebrochen hat</returns>
+    private async Task<bool> AskForParameters(WidgetTile tile)
+    {
+        IReadOnlyList<DeclaredField> fields =
+            DashboardParamMapping.ToFields(tile.Definition.Params, Services, Logger);
+        if (fields.Count == 0)
+        {
+            return true;
+        }
+
+        var parameters = new DialogParameters<DashboardParamsDialog>
+        {
+            { d => d.Fields, fields },
+            { d => d.Values, tile.ParamValues },
+            { d => d.ResetKey, $"{tile.Definition.DashboardWidgetId}#{tile.Definition.UserWidgetId}" }
+        };
+        IDialogReference dialog = await DialogService.ShowAsync<DashboardParamsDialog>(ParamsTitle, parameters);
+        DialogResult? result = await dialog.Result;
+        if (result is not { Canceled: false, Data: Dictionary<string, string?> values })
+        {
+            return false;
+        }
+
+        tile.ParamValues = new Dictionary<string, string?>(values, StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(tile.Definition.TitleTemplate))
+        {
+            tile.Definition.DisplayName =
+                DashboardWidgetRunner.RenderText(tile.Definition.TitleTemplate, tile.ParamValues, Logger)
+                ?? tile.Definition.DisplayName;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Wie viele Spalten auf dem aktuellen Viewport tatsaechlich nebeneinander stehen.
+    /// </summary>
+    /// <remarks>
+    /// Die konfigurierte Spaltenzahl ist die fuer breite Fenster. Auf einem Telefon nebeneinander zu
+    /// stellen macht eine Kachel unlesbar, ohne Platz zu gewinnen - darum dort eine Spalte, auf mittlerer
+    /// Breite die Haelfte. Der GESPEICHERTE <c>ColSpan</c> bleibt davon unberuehrt: er ist die Absicht des
+    /// Benutzers, nicht die Darstellung eines bestimmten Fensters.
+    /// </remarks>
+    private int EffectiveColumns
+    {
+        get
+        {
+            int columns = Math.Max(1, Columns);
+            return breakpoint switch
+            {
+                Breakpoint.Xs => 1,
+                Breakpoint.Sm => Math.Max(1, (int)Math.Ceiling(columns / 2m)),
+                // None = noch nicht gemeldet. Dann die konfigurierte Zahl nehmen: auf dem Schreibtisch ist
+                // das richtig, und auf schmalen Geraeten korrigiert die Meldung es gleich danach.
+                _ => columns
+            };
+        }
+    }
+
+    private string TileStyle(WidgetTile tile)
+    {
+        int columns = EffectiveColumns;
+        int span = Math.Clamp(tile.ColSpan, 1, columns);
+        // Prozent statt fester Breiten, damit die Kacheln mit dem Fenster mitgehen.
+        decimal width = 100m * span / columns;
+        string percent = width.ToString("0.####", CultureInfo.InvariantCulture);
+        return $"flex: 0 0 {percent}%; max-width: {percent}%;";
+    }
+
+    private void OnBreakpointChanged(Breakpoint changed)
+    {
+        if (breakpoint == changed)
+        {
+            return;
+        }
+
+        breakpoint = changed;
+        StateHasChanged();
+    }
+
+    private async Task MoveTile(WidgetTile tile, int offset)
+    {
+        int from = tiles.IndexOf(tile);
+        int to = from + offset;
+        if (from < 0 || to < 0 || to >= tiles.Count)
+        {
+            return;
+        }
+
+        tiles.RemoveAt(from);
+        tiles.Insert(to, tile);
+        dropContainer?.Refresh();
+        await SaveAsync();
+    }
+
+    private RenderFragment<WidgetTile> TileTemplate => tile =>
+        @<div class="pa-1 itv-dashboard-tile" style="@TileStyle(tile)">
+            <MudPaper Elevation="1" Class="pa-3 h-100 d-flex flex-column">
+                <div class="d-flex align-center">
+                    @if (editMode)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small"
+                                 Class="mud-text-secondary mr-1" />
+                    }
+                    <MudText Typo="Typo.subtitle2">@TileTitle(tile)</MudText>
+                    <MudSpacer />
+                    @if (editMode)
+                    {
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true">
+                            @if (tile.Definition.Params.Count != 0)
+                            {
+                                <MudMenuItem OnClick="@(() => EditParameters(tile))">@ParametersText</MudMenuItem>
+                            }
+                            @* Verschieben MUSS es auch ohne Ziehen geben: MudBlazors Drag&Drop haengt an den
+                               HTML5-Drag-Ereignissen, und die gibt es auf Touch-Geraeten nicht. Ohne diese
+                               beiden Eintraege waere das Umsortieren auf dem Telefon gar nicht moeglich. *@
+                            <MudMenuItem Icon="@Icons.Material.Filled.ArrowBack"
+                                         OnClick="@(() => MoveTile(tile, -1))">@MoveBackText</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Filled.ArrowForward"
+                                         OnClick="@(() => MoveTile(tile, 1))">@MoveForwardText</MudMenuItem>
+                            <MudDivider />
+                            <MudMenuItem Disabled="true">@WidthText</MudMenuItem>
+                            @for (int span = 1; span <= Math.Max(1, Columns); span++)
+                            {
+                                int chosen = span;
+                                <MudMenuItem OnClick="@(() => SetColSpan(tile, chosen))">
+                                    @(tile.ColSpan == chosen ? "● " : "○ ")@chosen
+                                </MudMenuItem>
+                            }
+                        </MudMenu>
+                        <MudTooltip Text="@RemoveText">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => RemoveTile(tile))" />
+                        </MudTooltip>
+                    }
+                </div>
+                <MudDivider Class="my-2" />
+                @if (tile.Failed)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true">@QueryFailedText</MudAlert>
+                }
+                else if (tile.Data is null)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                }
+                else
+                {
+                    @* Ein Template ist beliebiges HTML - eine breite Tabelle darin wuerde auf einem Telefon
+                       sonst die ganze Seite in die Breite ziehen. Sie scrollt jetzt INNERHALB der Kachel. *@
+                    <div style="overflow-x: auto;">
+                        <WidgetRenderer TemplateSource="@tile.Definition.Template"
+                                        Data="@tile.Data"
+                                        OnAction="@(action => RaiseAction(tile, action))"
+                                        OnRenderError="@(ex => OnTemplateError(tile, ex))" />
+                    </div>
+                }
+            </MudPaper>
+        </div>;
+
+    private string TileTitle(WidgetTile tile)
+        => !string.IsNullOrWhiteSpace(tile.Data?.Title) ? tile.Data!.Title
+            : !string.IsNullOrWhiteSpace(tile.Definition.DisplayName) ? tile.Definition.DisplayName
+            : tile.Definition.SystemName;
+
+    private Task RaiseAction(WidgetTile tile, WidgetAction action)
+        => OnWidgetAction.HasDelegate
+            ? OnWidgetAction.InvokeAsync(new DashboardWidgetActionArgs(tile.Definition, action))
+            : Task.CompletedTask;
+
+    private void OnTemplateError(WidgetTile tile, Exception ex)
+        => Logger.LogError(ex, "The template of widget {Widget} could not be rendered.", tile.Definition.SystemName);
+}

@@ -23,6 +23,15 @@ public class DashboardWidgetViewModel
     public string? CustomQueryString { get; set; }
 
     public string? Template { get; set; }
+
+    /// <summary>
+    /// Part of the default collection? A user without own widgets sees exactly these, and gets a copy of
+    /// them the moment they start editing their dashboard.
+    /// </summary>
+    public bool InitiallyActive { get; set; }
+
+    /// <summary>Position within the default collection.</summary>
+    public int SortOrder { get; set; }
 }
 
 public class DashboardParamViewModel

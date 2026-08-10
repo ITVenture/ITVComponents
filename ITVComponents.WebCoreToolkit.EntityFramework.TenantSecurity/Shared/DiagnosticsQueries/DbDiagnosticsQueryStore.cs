@@ -209,10 +209,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                             dbContext.UserWidgets.Add(new TUserWidget()
                             {
                                 DashboardWidgetId = item.Posted.DashboardWidgetId,
-                                SortOrder = dbContext.UserWidgets.Count(),
+                                // Die gepostete Sortierung uebernehmen, nicht die aktuelle Anzahl: die
+                                // aendert sich vor dem SaveChanges nicht, also bekamen mehrere neue
+                                // Kacheln aus einem Aufruf alle DIESELBE Position - und genau so wird die
+                                // Standard-Sammlung angelegt.
+                                SortOrder = item.Posted.SortOrder,
+                                ColSpan = item.Posted.ColSpan,
                                 TenantId = tenantId,
                                 UserName = userName,
                                 CustomQueryString = w.Params.Any() ? item.Posted.CustomQueryString : null,
+                                ParamValues = w.Params.Any() ? item.Posted.ParamValues : null,
                                 DisplayName = !string.IsNullOrEmpty(w.TitleTemplate) ? item.Posted.DisplayName : null
                             });
                         }
@@ -223,10 +229,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                         else
                         {
                             item.Db.SortOrder = item.Posted.SortOrder;
+                            item.Db.ColSpan = item.Posted.ColSpan;
                             if (item.Db.Widget.Params.Any())
                             {
                                 item.Db.CustomQueryString
                                     = item.Posted.CustomQueryString;
+                                item.Db.ParamValues = item.Posted.ParamValues;
+                            }
+
+                            if (!string.IsNullOrEmpty(item.Db.Widget.TitleTemplate))
+                            {
+                                // Der Titel wird aus dem TitleTemplate mit den Parametern gebildet -
+                                // aendern sich die Parameter, muss er mitgehen.
+                                item.Db.DisplayName = item.Posted.DisplayName;
                             }
                         }
                     }
@@ -240,13 +255,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                                 ? n.CustomQueryString
                                 : n.Widget.CustomQueryString,
                             SortOrder = n.SortOrder,
+                            ColSpan = n.ColSpan,
+                            ParamValues = n.ParamValues,
                             DashboardWidgetId = n.DashboardWidgetId,
                             DisplayName = n.DisplayName ?? n.Widget.DisplayName,
                             TitleTemplate = n.Widget.TitleTemplate,
                             DiagnosticsQuery = GetQuery(n.Widget.DiagnosticsQuery.DiagnosticsQueryName, dbContext),
                             SystemName = n.Widget.SystemName,
                             Template = n.Widget.Template,
-                            Area = n.Widget.Area
+                            Area = n.Widget.Area,
+                            InitiallyActive = n.Widget.InitiallyActive
 
                         }).ToArray();
                     return ret;
@@ -269,8 +287,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
             using var lease = LeaseDb();
             var dbContext = lease.Context;
             using var scope = AcquireScope(dbContext);
+            // Nach SortOrder VOR dem Namen: die Reihenfolge der Standard-Sammlung wird am Widget gepflegt,
+            // und in genau dieser Reihenfolge werden die Kacheln fuer einen neuen Benutzer angelegt.
             return (from t in dbContext.Widgets.ToArray()
-                orderby t.DisplayName
+                orderby t.SortOrder, t.DisplayName
                 select GetDashboardItem(t,null, targetCulture, dbContext)).ToArray();
         }
 
@@ -323,7 +343,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                 Template = lng.Template,
                 TitleTemplate = lng.TitleTemplate,
                 UserWidgetId = userWidget?.UserWidgetId??0,
-                DashboardWidgetId = tmp.DashboardWidgetId
+                DashboardWidgetId = tmp.DashboardWidgetId,
+                // Die Sortierung wurde hier bisher NICHT uebernommen - die Reihenfolge steckte allein in
+                // der Reihenfolge des zurueckgegebenen Arrays und ging bei jedem Rueckweg verloren. Zum
+                // Umordnen und Speichern muss der Wert mitkommen.
+                SortOrder = userWidget?.SortOrder ?? tmp.SortOrder,
+                ColSpan = userWidget?.ColSpan ?? 0,
+                ParamValues = userWidget?.ParamValues,
+                InitiallyActive = tmp.InitiallyActive
             };
 
             if (userWidget == null)

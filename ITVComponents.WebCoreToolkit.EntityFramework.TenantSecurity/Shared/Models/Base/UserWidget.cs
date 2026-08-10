@@ -32,7 +32,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         public int SortOrder { get; set; }
 
+        /// <summary>
+        /// Die Breite der Kachel in Rasterspalten. 0 bedeutet "nicht gesetzt" und wird als 1 gelesen -
+        /// so bleiben Zeilen aus der Zeit vor dieser Spalte unveraendert gueltig.
+        /// </summary>
+        public int ColSpan { get; set; }
+
         public string CustomQueryString { get; set; }
+
+        /// <summary>
+        /// Die Parameter-Eingaben des Benutzers als JSON-Objekt (Feldname -&gt; Wert in invarianter
+        /// Schreibweise), null wenn das Widget keine Parameter hat.
+        /// </summary>
+        /// <remarks>
+        /// Redundant zum <see cref="CustomQueryString"/>, in dem sie schon eingesetzt sind - aber nur
+        /// scheinbar: aus dem fertigen Abfrage-String sind die Einzelwerte nicht zurueckzugewinnen. Ohne
+        /// sie waere "Parameter aendern" nur als "Kachel entfernen und neu anlegen" moeglich.
+        /// </remarks>
+        public string ParamValues { get; set; }
 
         [MaxLength(100)]
         public string DisplayName { get; set; }

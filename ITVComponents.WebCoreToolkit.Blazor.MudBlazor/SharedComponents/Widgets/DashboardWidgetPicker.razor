@@ -1,0 +1,60 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+
+@*
+    Auswahl eines Widgets, das dem Dashboard hinzugefuegt werden soll. Die Liste ist bereits auf die
+    Widgets eingeschraenkt, deren Diagnostics-Query der Benutzer im aktuellen Mandanten sehen darf - das
+    entscheidet der Host, nicht dieser Dialog.
+*@
+
+<MudDialog>
+    <DialogContent>
+        @if (Widgets.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">@NoWidgetsText</MudAlert>
+        }
+        else
+        {
+            <MudList T="DashboardWidgetDefinition" Dense="true">
+                @foreach (DashboardWidgetDefinition widget in Widgets)
+                {
+                    <MudListItem T="DashboardWidgetDefinition"
+                                 Icon="@Icons.Material.Filled.Dashboard"
+                                 OnClick="@(() => Choose(widget))">
+                        <MudText Typo="Typo.body1">@Caption(widget)</MudText>
+                        @if (widget.Params.Count != 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @ParametersText (@string.Join(", ", widget.Params.Select(p => p.ParameterName)))
+                            </MudText>
+                        }
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@CancelText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>The widgets the user may add.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DashboardWidgetDefinition> Widgets { get; set; }
+        = Array.Empty<DashboardWidgetDefinition>();
+
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+
+    [Parameter] public string NoWidgetsText { get; set; } = "There is no further widget available.";
+
+    [Parameter] public string ParametersText { get; set; } = "Parameters";
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Choose(DashboardWidgetDefinition widget) => MudDialog.Close(DialogResult.Ok(widget));
+
+    private static string Caption(DashboardWidgetDefinition widget)
+        => string.IsNullOrWhiteSpace(widget.DisplayName) ? widget.SystemName : widget.DisplayName;
+}
