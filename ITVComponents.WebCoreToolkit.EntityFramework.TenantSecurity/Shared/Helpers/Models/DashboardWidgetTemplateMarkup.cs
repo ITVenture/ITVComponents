@@ -24,6 +24,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         public string Template { get; set; }
 
+        /// <summary>
+        /// Womit die Kachel gezeichnet wird; leer = der eingebaute Scriban-Renderer.
+        /// </summary>
+        /// <remarks>
+        /// Muss mit exportiert werden: ohne diese beiden Felder kaeme ein Diagramm-Widget als
+        /// Scriban-Widget zurueck, und seine Konfiguration landete als roher Text in der Kachel.
+        /// </remarks>
+        public string RendererKey { get; set; }
+
+        /// <summary>Die Einstellungen des Renderers (JSON, invariant).</summary>
+        public string RendererOptions { get; set; }
+
         public DashboardParamTemplateMarkup[] Parameters { get; set; }
     }
 }

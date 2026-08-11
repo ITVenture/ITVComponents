@@ -1945,6 +1945,11 @@ ALTER TABLE "Widgets" ADD COLUMN "RendererOptions" text NULL;
 `RendererKey` leer oder NULL heisst **Scriban** — bestehende Widgets verhalten sich unverändert. Ohne die
 Spalten schlägt jede Widget-Query mit *„Invalid column name 'RendererKey'"* fehl.
 
+Der **System-Config-Export** (§17) führt beide Felder mit — ohne das käme ein Diagramm-Widget aus einem
+Import als Scriban-Widget zurück und schriebe seine Deklaration als Rohtext in die Kachel. Der alte
+Telerik-Editor ist nicht betroffen: sein Formular kennt die Felder nicht und rührt sie beim Speichern
+darum auch nicht an.
+
 #### 25.9.1 Einen eigenen Renderer schreiben
 
 Ein Renderer ist eine gewöhnliche Blazor-Komponente, die `IWidgetRenderer` erfüllt und ihren Schlüssel als

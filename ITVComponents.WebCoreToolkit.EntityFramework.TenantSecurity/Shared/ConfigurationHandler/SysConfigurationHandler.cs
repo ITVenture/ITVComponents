@@ -393,6 +393,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             return new DashboardWidgetTemplateMarkup
             {
                 SystemName = dashboardWidgetInst.SystemName, TitleTemplate = dashboardWidgetInst.TitleTemplate, Template = dashboardWidgetInst.Template,
+                RendererKey = dashboardWidgetInst.RendererKey, RendererOptions = dashboardWidgetInst.RendererOptions,
                 Area = dashboardWidgetInst.Area, CustomQueryString = dashboardWidgetInst.CustomQueryString, DisplayName = dashboardWidgetInst.DisplayName,
                 DiagnosticsQueryName = dashboardWidgetInst.DiagnosticsQuery.DiagnosticsQueryName,
                 Parameters = dashboardWidgetInst.Params.Select(p => SelectDashboardParamTemplateMarkup(p))
@@ -841,6 +842,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     change.Details.Add(MakeDetail("CustomQueryString", c.New.CustomQueryString));
                     change.Details.Add(MakeDetail("TitleTemplate", c.New.TitleTemplate, multiline: true));
                     change.Details.Add(MakeDetail("Template", c.New.Template, multiline: true));
+                    change.Details.Add(MakeDetail("RendererKey", c.New.RendererKey));
+                    change.Details.Add(MakeDetail("RendererOptions", c.New.RendererOptions, multiline: true));
                     change.Details.Add(MakeDetail("DiagnosticsQuery", c.New.DiagnosticsQueryName, MakeLinqAssign<TContext>("DiagnosticsQuery", "DiagnosticsQueries", "DiagnosticsQueryName")));
                     RegisterChange(change);
                     RegisterWidgetParameters(c.New.SystemName, c.New.Parameters);
@@ -881,6 +884,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     if ((c.New.Template != c.Original.Template && !string.IsNullOrWhiteSpace(c.New.Template) && !string.IsNullOrWhiteSpace(c.Original.Template)) || (string.IsNullOrWhiteSpace(c.New.Template) != string.IsNullOrWhiteSpace(c.Original.Template)))
                     {
                         change.Details.Add(MakeDetail("Template", c.New.Template, currentValue: c.Original.Template, multiline: true));
+                    }
+
+                    // Der Renderer und seine Einstellungen gehoeren zusammen mit dem Template abgeglichen:
+                    // ein Diagramm-Widget, das ohne sie zurueckkaeme, wuerde seine Deklaration als Scriban
+                    // lesen und den Rohtext in die Kachel schreiben.
+                    if ((c.New.RendererKey != c.Original.RendererKey && !string.IsNullOrWhiteSpace(c.New.RendererKey) && !string.IsNullOrWhiteSpace(c.Original.RendererKey)) || (string.IsNullOrWhiteSpace(c.New.RendererKey) != string.IsNullOrWhiteSpace(c.Original.RendererKey)))
+                    {
+                        change.Details.Add(MakeDetail("RendererKey", c.New.RendererKey, currentValue: c.Original.RendererKey));
+                    }
+
+                    if ((c.New.RendererOptions != c.Original.RendererOptions && !string.IsNullOrWhiteSpace(c.New.RendererOptions) && !string.IsNullOrWhiteSpace(c.Original.RendererOptions)) || (string.IsNullOrWhiteSpace(c.New.RendererOptions) != string.IsNullOrWhiteSpace(c.Original.RendererOptions)))
+                    {
+                        change.Details.Add(MakeDetail("RendererOptions", c.New.RendererOptions, currentValue: c.Original.RendererOptions, multiline: true));
                     }
 
                     if ((c.New.DiagnosticsQueryName != c.Original.DiagnosticsQueryName && !string.IsNullOrWhiteSpace(c.New.DiagnosticsQueryName) && !string.IsNullOrWhiteSpace(c.Original.DiagnosticsQueryName)) || (string.IsNullOrWhiteSpace(c.New.DiagnosticsQueryName) != string.IsNullOrWhiteSpace(c.Original.DiagnosticsQueryName)))
