@@ -101,6 +101,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
         }
 
         /// <summary>
+        /// Resolves the text a widget's caption is built from: first the placeholders, then the language.
+        /// </summary>
+        /// <param name="text">the stored text - plain, a culture record, or either of them with placeholders</param>
+        /// <param name="paramValues">the user's parameter values</param>
+        /// <param name="logger">receives template errors; may be null</param>
+        /// <returns>the caption in the reader's language</returns>
+        /// <remarks>
+        /// The order matters. Rendering FIRST and translating afterwards means a title template that is
+        /// only a placeholder (<c>{{From}}</c>) is not mistaken for a culture record - it starts with '{'
+        /// and ends with '}' just like one, and the translation would log a parse error for it. It also
+        /// lets a culture record carry placeholders in each of its languages.
+        /// </remarks>
+        public static string? RenderCaption(
+            string? text,
+            IReadOnlyDictionary<string, string?>? paramValues,
+            ILogger? logger)
+        {
+            string? rendered = RenderText(text, paramValues, logger);
+            return string.IsNullOrEmpty(rendered) ? rendered : WidgetTemplateFunctions.Translate(rendered);
+        }
+
+        /// <summary>
         /// Renders a short text template (query-string value, title) against the parameter values.
         /// </summary>
         /// <returns>the rendered text, or the unchanged input when it holds no template at all</returns>
@@ -199,7 +221,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
                     Row = rows.FirstOrDefault(),
                     Count = rows.Count,
                     Params = values,
-                    Title = RenderText(
+                    // Ueber RenderCaption und nicht ueber RenderText: DisplayName und TitleTemplate duerfen
+                    // ein Kultur-JSON sein, und der Titel im Modell soll die Sprache des Lesers tragen -
+                    // nicht den Rohsatz aller Sprachen.
+                    Title = RenderCaption(
                                 string.IsNullOrEmpty(widget.TitleTemplate)
                                     ? widget.DisplayName
                                     : widget.TitleTemplate,

@@ -75,13 +75,22 @@
     }
     else if (editMode)
     {
+        @* Die Breite muss im Bearbeiten-Modus an den Wrapper, den MudBlazor um jede Kachel legt: unser
+           eigenes div ist dort nicht mehr das Flex-Kind der Zone. Der Wrapper nimmt nur eine KLASSE
+           (ItemsClassSelector), keinen Style - deshalb je moeglicher Breite eine Regel, mit einem
+           instanz-eigenen Praefix, damit zwei Flaechen auf einer Seite sich nicht gegenseitig
+           ueberschreiben. *@
+        <style>@SpanCss()</style>
+        @* KEIN OnlyZone: das heisst "nimmt nur Ablagen entgegen" und unterdrueckt das Rendern der
+           Items vollstaendig - die Flaeche waere im Bearbeiten-Modus leer. *@
         <MudDropContainer T="WidgetTile" @ref="dropContainer"
                           Items="@tiles"
                           ItemsSelector="@((tile, zone) => true)"
                           ItemDropped="OnTileDropped"
                           ItemRenderer="@TileTemplate">
             <ChildContent>
-                <MudDropZone T="WidgetTile" Identifier="dashboard" AllowReorder="true" OnlyZone="true"
+                <MudDropZone T="WidgetTile" Identifier="dashboard" AllowReorder="true"
+                             ItemsClassSelector="@(tile => tile is null ? string.Empty : SpanClass(tile.ColSpan))"
                              Class="d-flex flex-wrap align-stretch" Style="min-height: 120px;" />
             </ChildContent>
         </MudDropContainer>
@@ -157,6 +166,9 @@
     private IDiagnosticsQueryService? queryService;
     private MudDropContainer<WidgetTile>? dropContainer;
 
+    /// <summary>Unterscheidet die Breitenklassen zweier Flaechen auf derselben Seite.</summary>
+    private readonly string instanceId = Guid.NewGuid().ToString("N");
+
     /// <summary>Der zuletzt gemeldete Viewport. <c>None</c> = noch keine Meldung.</summary>
     private Breakpoint breakpoint = Breakpoint.None;
 
@@ -171,6 +183,20 @@
     /// Beim Einschalten der Bearbeitung wird sie kopiert und dieser Zustand endet.
     /// </summary>
     private bool showingDefaults;
+
+    /// <summary>
+    /// Die Kultur, mit der der Store nach Uebersetzungen gefragt wird.
+    /// </summary>
+    /// <remarks>
+    /// Bei der INVARIANTEN Kultur ist <c>CurrentUICulture.Name</c> leer, und dann steigt
+    /// <c>StringExtensions.Translate</c> gar nicht erst in die Aufloesung ein - der Leser saehe das rohe
+    /// <c>{"de":…}</c> statt seines Textes. "Default" ist genau das Gemeinte: keine Sprache gewaehlt, also
+    /// die Vorgabe. Der Store sucht damit zuerst eine Lokalisierungs-Zeile "Default" (die es meist nicht
+    /// gibt, dann faellt er auf das Widget selbst zurueck) und loest anschliessend den Kultur-Datensatz
+    /// ueber seinen Default-Schluessel auf.
+    /// </remarks>
+    private static string StoreCulture
+        => string.IsNullOrEmpty(CultureInfo.CurrentUICulture.Name) ? "Default" : CultureInfo.CurrentUICulture.Name;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -201,8 +227,7 @@
                 return;
             }
 
-            string culture = CultureInfo.CurrentUICulture.Name;
-            BuildTiles(store, culture);
+            BuildTiles(store, StoreCulture);
             LoadTileData();
         }
         catch (Exception ex)
@@ -386,8 +411,7 @@
             }
 
             showingDefaults = false;
-            string culture = CultureInfo.CurrentUICulture.Name;
-            BuildTiles(store, culture);
+            BuildTiles(store, StoreCulture);
             LoadTileData();
             return true;
         }
@@ -438,12 +462,11 @@
             return;
         }
 
-        string culture = CultureInfo.CurrentUICulture.Name;
         DashboardWidgetDefinition[] available;
         try
         {
             var used = tiles.Select(t => t.Definition.DashboardWidgetId).ToHashSet();
-            available = (store.GetWidgetTemplates(culture) ?? Array.Empty<DashboardWidgetDefinition>())
+            available = (store.GetWidgetTemplates(StoreCulture) ?? Array.Empty<DashboardWidgetDefinition>())
                 .Where(w => Permitted(w) && !used.Contains(w.DashboardWidgetId))
                 .ToArray();
         }
@@ -515,6 +538,10 @@
         tile.ParamValues = new Dictionary<string, string?>(values, StringComparer.Ordinal);
         if (!string.IsNullOrEmpty(tile.Definition.TitleTemplate))
         {
+            // Bewusst RenderText und NICHT RenderCaption: dieser Wert wird als UserWidget.DisplayName
+            // GESPEICHERT. Wuerde hier schon uebersetzt, waere die Sprache des Einrichtens fuer immer
+            // festgeschrieben - der Kultur-Datensatz muss die Speicherung ueberleben. Uebersetzt wird
+            // beim Anzeigen (DashboardWidgetRunner.RenderCaption / TileTitle).
             tile.Definition.DisplayName =
                 DashboardWidgetRunner.RenderText(tile.Definition.TitleTemplate, tile.ParamValues, Logger)
                 ?? tile.Definition.DisplayName;
@@ -550,12 +577,45 @@
 
     private string TileStyle(WidgetTile tile)
     {
+        // Im Bearbeiten-Modus traegt der Wrapper des DropItems die Breite (SpanClass) - unser div fuellt
+        // ihn nur noch aus. Zwei Breitenangaben uebereinander waeren genau die Stelle, an der die Kacheln
+        // im Bearbeiten-Modus anders lägen als daneben.
+        if (editMode)
+        {
+            return "width: 100%;";
+        }
+
         int columns = EffectiveColumns;
         int span = Math.Clamp(tile.ColSpan, 1, columns);
         // Prozent statt fester Breiten, damit die Kacheln mit dem Fenster mitgehen.
         decimal width = 100m * span / columns;
         string percent = width.ToString("0.####", CultureInfo.InvariantCulture);
         return $"flex: 0 0 {percent}%; max-width: {percent}%;";
+    }
+
+    /// <summary>
+    /// Der Klassenname fuer eine Kachelbreite. Der Instanz-Praefix haelt zwei Dashboard-Flaechen auf
+    /// derselben Seite auseinander - sie koennen unterschiedlich viele Spalten haben.
+    /// </summary>
+    private string SpanClass(int span)
+        => $"itv-dash-{instanceId}-span-{Math.Clamp(span, 1, Math.Max(1, Columns))}";
+
+    /// <summary>
+    /// Die Breitenregeln fuer den Bearbeiten-Modus - eine je moeglicher Kachelbreite, gerechnet auf die
+    /// aktuell tatsaechlich dargestellte Spaltenzahl.
+    /// </summary>
+    private string SpanCss()
+    {
+        int columns = EffectiveColumns;
+        var css = new System.Text.StringBuilder();
+        for (int span = 1; span <= Math.Max(1, Columns); span++)
+        {
+            decimal width = 100m * Math.Clamp(span, 1, columns) / columns;
+            string percent = width.ToString("0.####", CultureInfo.InvariantCulture);
+            css.Append($".{SpanClass(span)} {{ flex: 0 0 {percent}%; max-width: {percent}%; }}");
+        }
+
+        return css.ToString();
     }
 
     private void OnBreakpointChanged(Breakpoint changed)
@@ -648,10 +708,16 @@
             </MudPaper>
         </div>;
 
+    /// <summary>
+    /// Die Beschriftung der Kachel. <c>Data.Title</c> ist bereits gerendert UND uebersetzt; der
+    /// <c>DisplayName</c> ist der Notnagel, wenn die Query nicht lief - er kann ein Kultur-Datensatz sein
+    /// und geht deshalb noch durch die Uebersetzung.
+    /// </summary>
     private string TileTitle(WidgetTile tile)
         => !string.IsNullOrWhiteSpace(tile.Data?.Title) ? tile.Data!.Title
-            : !string.IsNullOrWhiteSpace(tile.Definition.DisplayName) ? tile.Definition.DisplayName
-            : tile.Definition.SystemName;
+            : !string.IsNullOrWhiteSpace(tile.Definition.DisplayName)
+                ? WidgetTemplateFunctions.Translate(tile.Definition.DisplayName)
+                : tile.Definition.SystemName;
 
     private Task RaiseAction(WidgetTile tile, WidgetAction action)
         => OnWidgetAction.HasDelegate

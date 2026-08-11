@@ -4,7 +4,9 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div @ref="hostEl" data-nav-dnd-host="@hostId">
+@* data-itv-dnd-into: dieses Grid ist hierarchisch, das mittlere Drittel einer Zeile bedeutet
+   "darunter einhaengen". Flache Grids (z.B. die Dashboard-Widgets) lassen das Attribut weg. *@
+<div @ref="hostEl" data-itv-dnd-host="@hostId" data-itv-dnd-into="true">
 <MudDataGrid T="NavigationMenuViewModel"
              @ref="grid"
              ServerData="LoadData"
@@ -38,7 +40,7 @@
                 <CellTemplate>
                     @* Single drag/drop cell — source AND target. JS picks above/into/below from mouse-Y. *@
                     <span draggable="true"
-                          data-nav-dnd-id="@context.Item.NavigationMenuId"
+                          data-itv-dnd-id="@context.Item.NavigationMenuId"
                           title="Drag to reorder or to move under another parent"
                           style="display:inline-flex;align-items:center;padding:0 4px;">
                         <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" />
@@ -123,11 +125,11 @@
             try
             {
                 // Side-effect import — first call fetches and runs the helper (installs
-                // document-level listeners + window.itvNavDnd); subsequent calls hit the
+                // document-level listeners + window.itvGridDnd); subsequent calls hit the
                 // module cache. _content path matches this assembly's name.
                 await JS.InvokeAsync<IJSObjectReference>("import",
-                    "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/navigation-dnd.js");
-                await JS.InvokeVoidAsync("itvNavDnd.attach", hostEl, selfRef);
+                    "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/grid-dnd.js");
+                await JS.InvokeVoidAsync("itvGridDnd.attach", hostEl, selfRef);
                 jsAttached = true;
             }
             catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit gone */ }
@@ -162,7 +164,7 @@
     {
         if (jsAttached)
         {
-            try { await JS.InvokeVoidAsync("itvNavDnd.detach", hostEl); }
+            try { await JS.InvokeVoidAsync("itvGridDnd.detach", hostEl); }
             catch (Microsoft.JSInterop.JSDisconnectedException) { }
             catch { /* element gone */ }
         }

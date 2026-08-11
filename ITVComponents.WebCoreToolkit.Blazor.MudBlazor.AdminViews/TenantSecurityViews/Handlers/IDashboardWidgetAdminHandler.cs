@@ -12,6 +12,16 @@ public interface IDashboardWidgetAdminHandler
     Task<DashboardWidgetViewModel?> UpdateAsync(ClaimsPrincipal user, DashboardWidgetViewModel input);
     Task<bool> DeleteAsync(ClaimsPrincipal user, int dashboardWidgetId);
 
+    /// <summary>
+    /// Legt ein Widget in der Standard-Sammlung vor oder hinter ein anderes.
+    /// </summary>
+    /// <param name="user">der handelnde Benutzer - braucht <c>DashboardWidgets.Write</c></param>
+    /// <param name="draggedWidgetId">das verschobene Widget</param>
+    /// <param name="anchorWidgetId">das Widget, an dem es abgelegt wurde</param>
+    /// <param name="below">true = dahinter, false = davor</param>
+    /// <returns>false, wenn die Berechtigung fehlt oder eines der beiden Widgets nicht existiert</returns>
+    Task<bool> MoveAsync(ClaimsPrincipal user, int draggedWidgetId, int anchorWidgetId, bool below);
+
     Task<PagedResult<DashboardParamViewModel>> ListParamsAsync(ClaimsPrincipal user, int dashboardWidgetId, ListQuery query);
     Task<DashboardParamViewModel?> CreateParamAsync(ClaimsPrincipal user, int dashboardWidgetId, DashboardParamViewModel input);
     Task<DashboardParamViewModel?> UpdateParamAsync(ClaimsPrincipal user, DashboardParamViewModel input);

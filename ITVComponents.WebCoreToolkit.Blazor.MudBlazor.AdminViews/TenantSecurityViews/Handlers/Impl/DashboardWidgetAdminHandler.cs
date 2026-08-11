@@ -179,6 +179,37 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         return true;
     }
 
+    public async Task<bool> MoveAsync(ClaimsPrincipal user, int draggedWidgetId, int anchorWidgetId, bool below)
+    {
+        if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        if (draggedWidgetId == anchorWidgetId) return false;
+
+        using var db = CreateDb();
+        // Dieselbe Ordnung wie in ListAsync - sonst waere die Position, auf die der Benutzer gezogen hat,
+        // eine andere als die, die hier berechnet wird.
+        var all = await db.Widgets.OrderBy(w => w.SortOrder).ThenBy(w => w.SystemName).ToListAsync();
+        var dragged = all.FirstOrDefault(w => w.DashboardWidgetId == draggedWidgetId);
+        var anchor = all.FirstOrDefault(w => w.DashboardWidgetId == anchorWidgetId);
+        if (dragged == null || anchor == null) return false;
+
+        all.Remove(dragged);
+        var anchorIndex = all.IndexOf(anchor);
+        if (anchorIndex < 0) return false;
+        all.Insert(below ? anchorIndex + 1 : anchorIndex, dragged);
+
+        // Die ganze Liste neu stempeln statt nur den gezogenen Satz zwischen seine Nachbarn zu setzen:
+        // die Menge ist flach und klein, die SortOrder steht als Zahl im Gitter, und nach ein paar
+        // Halbierungen waeren daraus krumme Werte geworden. In Zehnerschritten, damit von Hand noch
+        // etwas dazwischen passt.
+        for (var i = 0; i < all.Count; i++)
+        {
+            all[i].SortOrder = (i + 1) * 10;
+        }
+
+        await db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<PagedResult<DashboardParamViewModel>> ListParamsAsync(ClaimsPrincipal user, int dashboardWidgetId, ListQuery query)
     {
         if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))

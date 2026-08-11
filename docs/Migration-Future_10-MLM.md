@@ -1823,6 +1823,29 @@ Die Funktion steht **auch im `TitleTemplate`** zur Verfügung — ein Kacheltite
 
 Eigene Funktionen dazuhängen geht an einer Stelle: `WidgetTemplateFunctions.ImportFunctions`.
 
+#### 25.4.2 `DisplayName` und `TitleTemplate` dürfen selbst ein Kultur-Datensatz sein
+
+Es gibt zwei Wege, einen Kacheltitel mehrsprachig zu halten, und beide funktionieren jetzt:
+
+1. eine **Lokalisierungs-Zeile** je Sprache (Reiter *Localizations* am Widget) — die gab es schon;
+2. ein **Kultur-JSON direkt im Feld**, also `{"de":"Offene Aufträge","Default":"Open orders"}` in
+   `DisplayName` bzw. `TitleTemplate`. Das ist die Form, die überall sonst im Toolkit gilt.
+
+Aufgelöst wird beim **Anzeigen**, in dieser Reihenfolge: erst die Platzhalter (Scriban), dann die Sprache.
+Die Reihenfolge ist Absicht — ein `TitleTemplate`, das nur aus `{{From}}` besteht, fängt mit `{` an und
+hört mit `}` auf und sähe sonst aus wie ein Kultur-Datensatz. Umgekehrt darf damit jede Sprache im
+Datensatz ihre eigenen Platzhalter tragen: `{"de":"Umsatz {{From}}","Default":"Revenue {{From}}"}`.
+
+Zwei Dinge dazu:
+
+- Der beim Einrichten aus dem `TitleTemplate` gebildete Kachelname wird **unübersetzt** gespeichert. Sonst
+  wäre die Sprache des Tages, an dem die Kachel eingerichtet wurde, für immer festgeschrieben.
+- Ist die Kultur des Lesers **leer** (invariante Kultur), wird jetzt auf `Default` aufgelöst statt gar
+  nicht — vorher sah man in diesem Fall das rohe JSON, obwohl alles richtig hinterlegt war.
+
+In der **Pflege-Ansicht** (`/Util/DashboardWidgets`) steht in der Spalte *Display name* weiterhin der
+Rohwert. Das ist gewollt: dort wird der Datensatz bearbeitet, nicht gelesen.
+
 ### 25.5 Parameter-Masken: `InputConfig` bekommt eine neue Form
 
 Die Parameter-Eingabe benutzt jetzt `DeclaredFieldsForm` — dieselbe Maske wie die Workflow-Aufgaben und
@@ -1880,6 +1903,26 @@ Template darüber hinaus tut, bleibt aber Sache seines Autors. Ein Template mit 
 Spalten sprengt die Seite nicht mehr, wird auf dem Telefon aber auch nicht lesbar. Wer Widgets für mobile
 Nutzung schreibt: wenige Spalten, keine festen Breiten, `{{ Row.… }}` für die Ein-Zahl-Kachel statt einer
 Tabelle.
+
+### 25.8 Reihenfolge der Standard-Sammlung per Ziehen
+
+In `/Util/DashboardWidgets` hat jede Zeile einen **Griff**: damit lässt sich die `SortOrder` durch Ziehen
+setzen, statt die Zahlen von Hand zu vergeben — dieselbe Bedienung wie in der Navigations-Verwaltung, nur
+ohne Schachtelung (eine Zeile kennt hier nur *davor* und *dahinter*). Beim Ablegen wird die ganze Liste in
+Zehnerschritten neu durchnummeriert, damit die Zahlen im Gitter lesbar bleiben.
+
+Zwei Grenzen, die man sieht statt sie zu erraten:
+
+- Der Griff ist **stumpf**, solange nach einer anderen Spalte oder absteigend sortiert ist — sonst hätte
+  man eine Reihenfolge vor Augen, die mit der geschriebenen nichts zu tun hat. Nach *Sort order* aufsteigend
+  (oder ganz ohne Sortierung) ist er scharf.
+- Gezogen wird **innerhalb einer Seite**; über eine Seitengrenze hinweg gibt es kein Ziel. Bei mehr Widgets
+  als eine Seite fasst: Seitengrösse hoch oder die Zahl im Dialog setzen.
+
+Das braucht `DashboardWidgets.Write`. Technisch: `wwwroot/grid-dnd.js` (`window.itvGridDnd`) — dieselbe
+Datei bedient jetzt auch die Navigations-Verwaltung, die vorher ein eigenes `navigation-dnd.js` hatte. Wer
+das alte Skript irgendwo von Hand als `<script>`-Tag gesetzt hat, muss den Pfad umstellen; über
+`<ITVentureReferences />` passiert das von selbst.
 
 ---
 

@@ -3,11 +3,15 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
 
 @inject IDashboardWidgetAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject ILogger<DashboardWidgets> Logger
+@implements IAsyncDisposable
 
 <PageTitle>Dashboard widgets</PageTitle>
 
@@ -21,6 +25,10 @@
 }
 else
 {
+    @* Kein data-itv-dnd-into: die Standard-Sammlung ist flach, eine Zeile kennt nur davor und
+       dahinter. Das Ziehen ordnet die SortOrder, nach der die Sammlung fuer einen neuen Benutzer
+       angelegt wird. *@
+    <div @ref="hostEl" data-itv-dnd-host="@hostId">
     <MudDataGrid T="DashboardWidgetViewModel"
                  @ref="grid"
                  ServerData="LoadData"
@@ -49,6 +57,26 @@ else
             </SecureView>
         </ToolBarContent>
         <Columns>
+            @if (hasWrite)
+            {
+                <TemplateColumn T="DashboardWidgetViewModel" Title="" Sortable="false">
+                    <CellTemplate>
+                        @* Eine Zelle, Quelle UND Ziel - das JS entscheidet aus der Maus-Y-Position, ob
+                           davor oder dahinter abgelegt wird. Der Griff bleibt stehen, wenn gerade nach
+                           etwas anderem sortiert ist, ist aber stumpf: sonst haette der Benutzer eine
+                           Reihenfolge vor Augen, die mit der berechneten Zielposition nichts zu tun hat. *@
+                        <span draggable="@canReorder"
+                              data-itv-dnd-id="@context.Item.DashboardWidgetId"
+                              title="@(canReorder
+                                         ? "Drag to change the order of the default collection"
+                                         : "Sort by 'Sort order' ascending to rearrange by dragging")"
+                              class="@(canReorder ? null : "mud-text-disabled")"
+                              style="display:inline-flex;align-items:center;padding:0 4px;">
+                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" />
+                        </span>
+                    </CellTemplate>
+                </TemplateColumn>
+            }
             <HierarchyColumn T="DashboardWidgetViewModel" />
             <PropertyColumn Property="x => x.SystemName" Title="System name" />
             <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
@@ -93,6 +121,7 @@ else
             <MudDataGridPager T="DashboardWidgetViewModel" />
         </PagerContent>
     </MudDataGrid>
+    </div>
 }
     </Permitted>
     <NotPermitted>
@@ -107,6 +136,14 @@ else
     private bool hasWrite;
     private string? search;
 
+    /// <summary>Darf im aktuellen Zustand des Gitters per Ziehen umsortiert werden?</summary>
+    private bool canReorder;
+
+    private ElementReference hostEl;
+    private readonly string hostId = Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<DashboardWidgets>? selfRef;
+    private bool jsAttached;
+
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
@@ -115,10 +152,82 @@ else
         hasWrite = Handler.HasPermission(currentUser, "DashboardWidgets.Write");
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Nicht auf firstRender: beim ersten Rendern steht currentUser noch nicht fest, also gibt es das
+        // Wirtselement mit der Drag-Spalte noch gar nicht.
+        if (jsAttached || !hasWrite || currentUser is null)
+        {
+            return;
+        }
+
+        selfRef = DotNetObjectReference.Create(this);
+        try
+        {
+            // Seiteneffekt-Import: der erste Aufruf laedt den Helfer (installiert die Listener auf
+            // document und window.itvGridDnd), spaetere treffen den Modul-Cache.
+            await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/grid-dnd.js");
+            await JS.InvokeVoidAsync("itvGridDnd.attach", hostEl, selfRef);
+            jsAttached = true;
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+        catch (Exception ex)
+        {
+            // Nicht durchwerfen: das Gitter bleibt ohne Ziehen benutzbar, die Sortierung ist ja auch im
+            // Dialog zu pflegen. Ohne Log waere aber unklar, warum das Ziehen nichts tut.
+            Logger.LogError(ex, "The drag-and-drop helper could not be attached - the widget grid stays usable without it.");
+            Snackbar.Add("Drag & drop could not be activated - use the sort order field instead.", Severity.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Ruft das JS auf, wenn eine Zeile auf einer anderen abgelegt wurde.
+    /// </summary>
+    /// <param name="draggedId">die gezogene Zeile</param>
+    /// <param name="anchorId">die Zeile, auf der losgelassen wurde</param>
+    /// <param name="zone">"above" oder "below" - dieses Gitter ist flach, "into" kommt hier nie an</param>
+    [JSInvokable]
+    public async Task HandleDrop(int draggedId, int anchorId, string zone)
+    {
+        if (!hasWrite) return;
+        var ok = await Handler.MoveAsync(currentUser!, draggedId, anchorId, zone == "below");
+        if (ok)
+        {
+            Snackbar.Add("Order changed", Severity.Success);
+            await ReloadGrid();
+        }
+        else
+        {
+            Snackbar.Add("Could not change the order", Severity.Warning);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("itvGridDnd.detach", hostEl); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "The drag-and-drop helper could not be detached - the element is probably already gone.");
+            }
+        }
+
+        selfRef?.Dispose();
+    }
+
     private async Task<GridData<DashboardWidgetViewModel>> LoadData(GridState<DashboardWidgetViewModel> state, CancellationToken ct)
     {
         if (currentUser is null) return new GridData<DashboardWidgetViewModel> { Items = Array.Empty<DashboardWidgetViewModel>(), TotalItems = 0 };
         var sort = state.SortDefinitions.FirstOrDefault();
+        // Umsortieren per Ziehen ergibt nur Sinn, solange die angezeigte Reihenfolge DIE Reihenfolge ist,
+        // die dabei geschrieben wird: ohne Sortierung (der Handler ordnet dann nach SortOrder) oder
+        // ausdruecklich aufsteigend nach SortOrder.
+        canReorder = hasWrite
+                     && (sort is null
+                         || (sort.SortBy == nameof(DashboardWidgetViewModel.SortOrder) && !sort.Descending));
         var query = new ListQuery
         {
             Page = state.Page,

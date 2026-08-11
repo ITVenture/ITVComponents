@@ -55,6 +55,12 @@
 
     private void Choose(DashboardWidgetDefinition widget) => MudDialog.Close(DialogResult.Ok(widget));
 
+    /// <summary>
+    /// Der Anzeigename in der Sprache des Lesers: er darf ein Kultur-Datensatz sein, und der Store loest
+    /// ihn nur auf, wenn die Kultur nicht leer ist. Auf Klartext ist der Aufruf ein No-op.
+    /// </summary>
     private static string Caption(DashboardWidgetDefinition widget)
-        => string.IsNullOrWhiteSpace(widget.DisplayName) ? widget.SystemName : widget.DisplayName;
+        => string.IsNullOrWhiteSpace(widget.DisplayName)
+            ? widget.SystemName
+            : WidgetTemplateFunctions.Translate(widget.DisplayName);
 }

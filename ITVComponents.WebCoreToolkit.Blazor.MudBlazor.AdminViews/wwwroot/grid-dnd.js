@@ -1,45 +1,58 @@
-// Drag-and-drop event delegation for NavigationTreeGrid.
+// Drag-and-drop event delegation for admin grids that let the user arrange rows.
 // Document-level listeners (installed once) recognise drag sources / drop targets via
-// data-nav-dnd-id attributes. The drop is dispatched to the .NET host whose
-// [data-nav-dnd-host] root contains the target — registered via attach() from each grid
-// instance, so cross-grid drops (parent <-> child rows) work transparently.
+// data-itv-dnd-id attributes. The drop is dispatched to the .NET host whose
+// [data-itv-dnd-host] root contains the target — registered via attach() from each grid
+// instance, so cross-grid drops (parent <-> child rows of a tree) work transparently.
+//
+// Two shapes of grid share this file:
+//   * hierarchical (navigation): the host root carries data-itv-dnd-into="true" and the middle
+//     third of a row means "make it a child of this one".
+//   * flat (dashboard widgets): no such attribute, the row splits in half into above / below.
+// Keeping both in ONE helper is deliberate — the zone maths and the listener bookkeeping would
+// otherwise exist twice and drift apart.
 
-window.itvNavDnd = window.itvNavDnd || (function () {
+window.itvGridDnd = window.itvGridDnd || (function () {
     const hosts = new Map();
     let draggedId = null;
     let lastZoneEl = null;
 
     function clearZoneClasses(el) {
         if (!el) return;
-        el.classList.remove('itv-nav-drop-above', 'itv-nav-drop-into', 'itv-nav-drop-below');
+        el.classList.remove('itv-dnd-above', 'itv-dnd-into', 'itv-dnd-below');
+    }
+
+    function allowsInto(el) {
+        const hostEl = el.closest('[data-itv-dnd-host]');
+        return !!hostEl && hostEl.dataset.itvDndInto === 'true';
     }
 
     function pickZone(el, clientY) {
         const rect = el.getBoundingClientRect();
         const rel = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
+        if (!allowsInto(el)) return rel < 0.5 ? 'above' : 'below';
         if (rel < 0.33) return 'above';
         if (rel < 0.67) return 'into';
         return 'below';
     }
 
     function injectStyle() {
-        if (document.getElementById('itv-nav-dnd-style')) return;
+        if (document.getElementById('itv-grid-dnd-style')) return;
         const style = document.createElement('style');
-        style.id = 'itv-nav-dnd-style';
+        style.id = 'itv-grid-dnd-style';
         style.textContent =
-            '[data-nav-dnd-id] { cursor: grab; }' +
-            '[data-nav-dnd-id]:active { cursor: grabbing; }' +
+            '[data-itv-dnd-id] { cursor: grab; }' +
+            '[data-itv-dnd-id]:active { cursor: grabbing; }' +
             // inset shadow with +y draws a band at the TOP edge, -y at the BOTTOM edge
-            '.itv-nav-drop-above { box-shadow: inset 0 3px 0 0 var(--mud-palette-primary, #594ae2); }' +
-            '.itv-nav-drop-into  { box-shadow: inset 0 0 0 2px var(--mud-palette-primary, #594ae2); background: rgba(89,74,226,0.06); }' +
-            '.itv-nav-drop-below { box-shadow: inset 0 -3px 0 0 var(--mud-palette-primary, #594ae2); }';
+            '.itv-dnd-above { box-shadow: inset 0 3px 0 0 var(--mud-palette-primary, #594ae2); }' +
+            '.itv-dnd-into  { box-shadow: inset 0 0 0 2px var(--mud-palette-primary, #594ae2); background: rgba(89,74,226,0.06); }' +
+            '.itv-dnd-below { box-shadow: inset 0 -3px 0 0 var(--mud-palette-primary, #594ae2); }';
         document.head.appendChild(style);
     }
 
     document.addEventListener('dragstart', (e) => {
-        const src = e.target.closest('[data-nav-dnd-id]');
+        const src = e.target.closest('[data-itv-dnd-id]');
         if (!src) return;
-        draggedId = parseInt(src.dataset.navDndId, 10);
+        draggedId = parseInt(src.dataset.itvDndId, 10);
         if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', String(draggedId)); } catch (_) { /* IE-compat */ }
@@ -54,21 +67,21 @@ window.itvNavDnd = window.itvNavDnd || (function () {
 
     document.addEventListener('dragover', (e) => {
         if (draggedId === null) return;
-        const tgt = e.target.closest('[data-nav-dnd-id]');
+        const tgt = e.target.closest('[data-itv-dnd-id]');
         if (!tgt) return;
-        const tgtId = parseInt(tgt.dataset.navDndId, 10);
+        const tgtId = parseInt(tgt.dataset.itvDndId, 10);
         if (tgtId === draggedId) return;
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
         const zone = pickZone(tgt, e.clientY);
         if (lastZoneEl && lastZoneEl !== tgt) clearZoneClasses(lastZoneEl);
         clearZoneClasses(tgt);
-        tgt.classList.add('itv-nav-drop-' + zone);
+        tgt.classList.add('itv-dnd-' + zone);
         lastZoneEl = tgt;
     });
 
     document.addEventListener('dragleave', (e) => {
-        const tgt = e.target.closest('[data-nav-dnd-id]');
+        const tgt = e.target.closest('[data-itv-dnd-id]');
         if (!tgt || tgt !== lastZoneEl) return;
         const related = e.relatedTarget;
         if (!related || !tgt.contains(related)) {
@@ -79,9 +92,9 @@ window.itvNavDnd = window.itvNavDnd || (function () {
 
     document.addEventListener('drop', (e) => {
         if (draggedId === null) return;
-        const tgt = e.target.closest('[data-nav-dnd-id]');
+        const tgt = e.target.closest('[data-itv-dnd-id]');
         if (!tgt) return;
-        const tgtId = parseInt(tgt.dataset.navDndId, 10);
+        const tgtId = parseInt(tgt.dataset.itvDndId, 10);
         if (tgtId === draggedId) return;
         e.preventDefault();
 
@@ -91,8 +104,8 @@ window.itvNavDnd = window.itvNavDnd || (function () {
         clearZoneClasses(lastZoneEl);
         lastZoneEl = null;
 
-        const hostEl = tgt.closest('[data-nav-dnd-host]');
-        const dotNet = hostEl ? hosts.get(hostEl.dataset.navDndHost) : null;
+        const hostEl = tgt.closest('[data-itv-dnd-host]');
+        const dotNet = hostEl ? hosts.get(hostEl.dataset.itvDndHost) : null;
         if (!dotNet) return;
         dotNet.invokeMethodAsync('HandleDrop', dragged, tgtId, zone).catch(() => { /* circuit gone */ });
     });
@@ -101,12 +114,12 @@ window.itvNavDnd = window.itvNavDnd || (function () {
 
     return {
         attach(hostEl, dotNet) {
-            if (!hostEl || !hostEl.dataset.navDndHost) return;
-            hosts.set(hostEl.dataset.navDndHost, dotNet);
+            if (!hostEl || !hostEl.dataset.itvDndHost) return;
+            hosts.set(hostEl.dataset.itvDndHost, dotNet);
         },
         detach(hostEl) {
-            if (!hostEl || !hostEl.dataset.navDndHost) return;
-            hosts.delete(hostEl.dataset.navDndHost);
+            if (!hostEl || !hostEl.dataset.itvDndHost) return;
+            hosts.delete(hostEl.dataset.itvDndHost);
         }
     };
 })();
