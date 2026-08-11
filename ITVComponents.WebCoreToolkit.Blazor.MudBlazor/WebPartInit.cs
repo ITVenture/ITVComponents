@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib.Config;
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents;
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics;
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts;
 using ITVComponents.Helpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib
                 // Zweiter Eintrag mit LEEREM Schluessel: Widgets aus der Zeit vor der Spalte tragen dort
                 // nichts, und die sollen sich weiter verhalten wie bisher.
                 c.RegisterRenderer<ScribanWidgetRenderer>(string.Empty);
+                c.RegisterRenderer<ScribanChartRenderer>(validate: ScribanChartRenderer.Validate);
+                c.RegisterRenderer<CScriptChartRenderer>(
+                    options: CScriptChartRenderer.DeclaredOptions,
+                    validate: CScriptChartRenderer.Validate);
                 RegisterConfiguredRenderers(c, config.WidgetRenderers);
             });
 

@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Scriban;
 using Scriban.Runtime;
@@ -53,7 +55,69 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
             globals.Import("Translate", translate);
             globals.Import("translate_for", translateFor);
             globals.Import("TranslateFor", translateFor);
+
+            // column(Rows, "Status") und json(wert): zusammen halten sie eine Deklaration kurz, die ein
+            // Renderer als JSON zurueckliest. Ohne sie muesste jedes Diagramm-Template seine Listen mit
+            // einer Schleife und von Hand gesetzten Kommas bauen.
+            var column = (Func<object?, string, IReadOnlyList<object?>>)((rows, name)
+                => WidgetRowAccessor.Column(rows as IEnumerable<object?>, name));
+            var json = (Func<object?, string>)Json;
+            globals.Import("column", column);
+            globals.Import("Column", column);
+            globals.Import("json", json);
+            globals.Import("Json", json);
         }
+
+        /// <summary>
+        /// Writes a value as JSON - text with the necessary escaping, numbers invariant, lists as arrays.
+        /// </summary>
+        /// <remarks>
+        /// Ohne diese Funktion muesste ein Template seine Anfuehrungszeichen selbst setzen, und ein Wert
+        /// mit einem <c>"</c> darin machte aus der Deklaration Text, den niemand mehr lesen kann.
+        /// </remarks>
+        public static string Json(object? value)
+        {
+            switch (value)
+            {
+                case null:
+                    return "null";
+
+                case string text:
+                    return JsonSerializer.Serialize(text, JsonText);
+
+                case bool flag:
+                    return flag ? "true" : "false";
+
+                // Zahlen invariant und ohne Tausendertrennung - eine Deklaration ist keine Anzeige.
+                case IFormattable number when value is byte or sbyte or short or ushort or int or uint
+                                              or long or ulong or float or double or decimal:
+                    return number.ToString(null, CultureInfo.InvariantCulture);
+
+                case IDictionary<string, object?> map:
+                    return "{" + string.Join(",",
+                        map.Select(e => $"{JsonSerializer.Serialize(e.Key, JsonText)}:{Json(e.Value)}")) + "}";
+
+                case IEnumerable list:
+                    return "[" + string.Join(",", list.Cast<object?>().Select(Json)) + "]";
+
+                default:
+                    return JsonSerializer.Serialize(value.ToString(), JsonText);
+            }
+        }
+
+        /// <summary>
+        /// Wie Text in die Deklaration geschrieben wird.
+        /// </summary>
+        /// <remarks>
+        /// Der Vorgabe-Encoder maskiert auch Zeichen, die JSON gar nicht stoeren - ein Umlaut wird dort zu
+        /// einer sechsstelligen Escape-Sequenz. Gueltig ist beides; lesbar ist nur das eine, und lesen muss
+        /// es der, der eine Kachel repariert. Anfuehrungszeichen und Steuerzeichen maskiert auch dieser
+        /// Encoder.
+        /// </remarks>
+        private static readonly JsonSerializerOptions JsonText = new()
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
 
         /// <summary>
         /// Creates a render context for a widget template.

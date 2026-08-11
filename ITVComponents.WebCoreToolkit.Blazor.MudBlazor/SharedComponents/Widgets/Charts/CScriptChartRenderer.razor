@@ -1,0 +1,247 @@
+@* Diagramm-Kachel, deren Konfiguration ein CScript-Ausdruck ist.
+
+   Der Text ist ein Objektliteral ueber demselben Modell, gegen das auch ein Scriban-Template rendert
+   (Rows, Row, Count, Params, Title) - mit LINQ und nativen C#-Ausdruecken, wo es passt:
+
+     { type: ChartType.Pie,
+       labels: Rows.Select(r => r.Status).ToArray(),
+       series: [ { name: "Anzahl", data: Rows.Select(r => r.Anzahl).ToArray() } ] }
+
+   ZWEI Eigenheiten von CScript, die man kennen muss:
+   - Text steht in DOPPELTEN Anfuehrungszeichen. Einfache bezeichnen einen TYP ('System.TimeSpan'), aus
+     'pie' wuerde also der Versuch, einen Typ namens pie zu laden.
+   - Ein Ausdruck darf grammatikalisch nicht mit '{' beginnen. Das Objektliteral ist aber genau das, was
+     hier stehen soll - deshalb klammert dieser Renderer es selbst ein, statt dem Autor die Eigenheit
+     aufzubuerden. Wer den Block-Modus waehlt, schreibt ohnehin 'return { ... };'.
+
+   Ausdruck oder Block wird GEWAEHLT und nicht geraten (Einstellung scriptMode): ein Block ohne return
+   liefert null, und Parse auf einen Block angewendet wirft nicht, sondern liefert still etwas Falsches. *@
+
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Components
+@using ITVComponents.Scripting.CScript.Core
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@attribute [WidgetRenderer("chart.cscript", DisplayName = "{\"de\":\"Diagramm (CScript)\",\"Default\":\"Chart (CScript)\"}", EditorLanguage = "csharp")]
+@implements IWidgetRenderer
+
+<ChartWidgetView Declaration="@declaration"
+                 Parameters="@parameters"
+                 Errors="@errors"
+                 OnAction="@OnAction" />
+
+@code {
+    /// <inheritdoc />
+    [Parameter] public string TemplateSource { get; set; } = "";
+
+    /// <inheritdoc />
+    [Parameter] public WidgetTemplateModel? Data { get; set; }
+
+    /// <inheritdoc />
+    [Parameter] public IReadOnlyDictionary<string, string?> Options { get; set; }
+        = new Dictionary<string, string?>();
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
+
+    /// <summary>Die Einstellung, mit der zwischen Ausdruck und Block gewaehlt wird.</summary>
+    public const string ScriptModeOption = "scriptMode";
+
+    /// <summary>Der Wert der Einstellung, der einen Anweisungsblock mit <c>return</c> meint.</summary>
+    public const string BlockMode = "block";
+
+    private ChartWidgetDeclaration? declaration;
+    private Dictionary<string, object?> parameters = new();
+    private List<string> errors = new();
+
+    private string? lastSource;
+    private object? lastData;
+    private string? lastMode;
+
+    protected override void OnParametersSet()
+    {
+        // Das Parameter-Woerterbuch der DynamicComponent entsteht bei JEDEM Zeichnen neu - ohne diesen
+        // Vergleich liefe die Auswertung bei jedem Render erneut.
+        string mode = Mode;
+        if (ReferenceEquals(lastSource, TemplateSource) && ReferenceEquals(lastData, Data) && lastMode == mode)
+        {
+            return;
+        }
+
+        lastSource = TemplateSource;
+        lastData = Data;
+        lastMode = mode;
+        Evaluate(mode);
+    }
+
+    private string Mode
+        => Options != null && Options.TryGetValue(ScriptModeOption, out string? value) && !string.IsNullOrEmpty(value)
+            ? value!
+            : "expression";
+
+    private void Evaluate(string mode)
+    {
+        declaration = null;
+        parameters = new Dictionary<string, object?>();
+        errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(TemplateSource))
+        {
+            errors.Add("The configuration is empty.");
+            return;
+        }
+
+        try
+        {
+            var variables = new Dictionary<string, object>
+            {
+                { nameof(WidgetTemplateModel.Rows), Data?.Rows ?? (object)Array.Empty<object?>() },
+                { nameof(WidgetTemplateModel.Row), Data?.Row! },
+                { nameof(WidgetTemplateModel.Count), Data?.Count ?? 0 },
+                { nameof(WidgetTemplateModel.Params), Data?.Params ?? new Dictionary<string, string?>() },
+                { nameof(WidgetTemplateModel.Title), Data?.Title ?? string.Empty },
+                // Damit ChartType.Pie geschrieben werden kann statt 'pie' - der Typ muss dafuer im
+                // Geltungsbereich liegen. Zeichenketten gehen weiterhin.
+                { nameof(ChartType), typeof(ChartType) }
+            };
+
+            object? result = string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase)
+                ? ExpressionParser.ParseBlock(TemplateSource, variables)
+                : ExpressionParser.Parse(AsExpression(TemplateSource), variables);
+
+            if (result == null)
+            {
+                errors.Add(string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase)
+                    ? "The script produced no result - is a 'return' missing?"
+                    : "The expression produced no result.");
+                return;
+            }
+
+            // Das ObjectLiteral von CScript IST ein Woerterbuch (IScope : IDictionary<string, object>),
+            // deshalb genuegt hier ein Zweig - siehe ChartWidgetDeclaration.AsMap.
+            IDictionary<string, object?>? map = result as IDictionary<string, object?>;
+
+            if (map == null)
+            {
+                errors.Add($"The configuration produced a {result.GetType().Name}, not a chart declaration.");
+                return;
+            }
+
+            declaration = ChartWidgetDeclaration.FromMap(map, errors);
+            if (declaration != null)
+            {
+                parameters = ChartParameterBinder.Bind(declaration.Extra, typeof(MudChart<double>), errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Die Kachel zeigt die Meldung; der Host bekommt die Ausnahme fuers Log. Ohne beides waere
+            // eine kaputte Konfiguration nur eine leere Flaeche.
+            errors.Add(ex.Message);
+            if (OnRenderError.HasDelegate)
+            {
+                _ = OnRenderError.InvokeAsync(ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Makes an object literal usable as an expression.
+    /// </summary>
+    /// <remarks>
+    /// Die Grammatik verbietet einem Ausdruck, mit <c>{</c> zu beginnen (der Interpreter meldet ein
+    /// "failed predicate"). Genau so sieht eine Diagramm-Deklaration aber aus - also wird sie geklammert.
+    /// Das ist keine Auslegung des Textes, sondern eine reine Syntax-Anpassung: was der Autor schreibt,
+    /// bleibt Wort fuer Wort dasselbe.
+    /// </remarks>
+    private static string AsExpression(string source)
+        => source.TrimStart().StartsWith("{", StringComparison.Ordinal) ? $"({source})" : source;
+
+    /// <summary>
+    /// The settings this renderer offers - handed to the registry so the editor can ask for them.
+    /// </summary>
+    public static IReadOnlyList<DeclaredField> DeclaredOptions { get; } = new[]
+    {
+        new DeclaredField
+        {
+            Name = ScriptModeOption,
+            Label = "Script mode",
+            Kind = DeclaredFieldKind.Choice,
+            HelpText = "An expression is a single object literal. A script block runs statements and must end with 'return'.",
+            Choices = new[]
+            {
+                new DeclaredChoice { Value = "expression", Label = "Expression" },
+                new DeclaredChoice { Value = BlockMode, Label = "Script block" }
+            }
+        }
+    };
+
+    /// <summary>
+    /// Checks a configuration when the widget is saved - so a broken one is found there and not by whoever
+    /// opens the dashboard.
+    /// </summary>
+    public static string? Validate(string? configuration, IReadOnlyDictionary<string, string?> options)
+    {
+        if (string.IsNullOrWhiteSpace(configuration))
+        {
+            return "The configuration is empty.";
+        }
+
+        bool block = options != null
+                     && options.TryGetValue(ScriptModeOption, out string? mode)
+                     && string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase);
+
+        // Ohne Daten geprueft: es geht um Syntax und Form, nicht um Werte. Eine Query laeuft dafuer nicht.
+        var variables = new Dictionary<string, object>
+        {
+            { nameof(WidgetTemplateModel.Rows), Array.Empty<object?>() },
+            { nameof(WidgetTemplateModel.Row), null! },
+            { nameof(WidgetTemplateModel.Count), 0 },
+            { nameof(WidgetTemplateModel.Params), new Dictionary<string, string?>() },
+            { nameof(WidgetTemplateModel.Title), string.Empty },
+            { nameof(ChartType), typeof(ChartType) }
+        };
+
+        try
+        {
+            object? result = block
+                ? ExpressionParser.ParseBlock(configuration, variables)
+                : ExpressionParser.Parse(AsExpression(configuration), variables);
+
+            if (result == null)
+            {
+                return block
+                    ? "The script produced no result - is a 'return' missing?"
+                    : "The expression produced no result.";
+            }
+
+            // Das ObjectLiteral von CScript IST ein Woerterbuch (IScope : IDictionary<string, object>),
+            // deshalb genuegt hier ein Zweig - siehe ChartWidgetDeclaration.AsMap.
+            IDictionary<string, object?>? map = result as IDictionary<string, object?>;
+
+            if (map == null)
+            {
+                return $"The configuration produces a {result.GetType().Name}, not a chart declaration.";
+            }
+
+            var errors = new List<string>();
+            ChartWidgetDeclaration? declared = ChartWidgetDeclaration.FromMap(map, errors);
+            if (declared != null)
+            {
+                ChartParameterBinder.Bind(declared.Extra, typeof(MudChart<double>), errors);
+            }
+
+            // Ohne Daten ist eine leere Serie normal - diese Beanstandung sagt hier nichts aus.
+            errors.RemoveAll(e => e.Contains("'series' is empty", StringComparison.Ordinal)
+                                  || e.Contains("label(s)", StringComparison.Ordinal));
+            return errors.Count != 0 ? string.Join(" ", errors) : null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+}

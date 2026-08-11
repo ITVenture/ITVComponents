@@ -1,0 +1,157 @@
+@* Diagramm-Kachel, deren Konfiguration ein Scriban-Template ist, das eine JSON-Deklaration rendert.
+
+   Gerendert wird mit demselben Modell und denselben Funktionen wie eine HTML-Kachel; nur was mit der
+   Ausgabe geschieht, ist anders. Kurz bleibt die Deklaration ueber column(...) und json(...):
+
+     { "type": "pie",
+       "labels": {{ json (column Rows "Status") }},
+       "series": [ { "name": "Anzahl", "data": {{ json (column Rows "Anzahl") }} } ] }
+
+   Wer umformen will, schreibt statt column eine eigene Schleife - genau wie im HTML-Template. *@
+
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
+@using System.Collections.Generic
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@using Scriban
+@using Scriban.Runtime
+@attribute [WidgetRenderer("chart.scriban", DisplayName = "{\"de\":\"Diagramm (Scriban)\",\"Default\":\"Chart (Scriban)\"}", EditorLanguage = "json")]
+@implements IWidgetRenderer
+
+<ChartWidgetView Declaration="@declaration"
+                 Parameters="@parameters"
+                 Errors="@errors"
+                 OnAction="@OnAction" />
+
+@code {
+    /// <inheritdoc />
+    [Parameter] public string TemplateSource { get; set; } = "";
+
+    /// <inheritdoc />
+    [Parameter] public WidgetTemplateModel? Data { get; set; }
+
+    /// <inheritdoc />
+    /// <remarks>Dieser Renderer hat keine Einstellungen - das Template sagt alles.</remarks>
+    [Parameter] public IReadOnlyDictionary<string, string?> Options { get; set; }
+        = new Dictionary<string, string?>();
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
+
+    private ChartWidgetDeclaration? declaration;
+    private Dictionary<string, object?> parameters = new();
+    private List<string> errors = new();
+
+    private string? lastSource;
+    private object? lastData;
+
+    protected override void OnParametersSet()
+    {
+        // Wie beim HTML-Renderer: das Parameter-Woerterbuch der DynamicComponent ist bei jedem Zeichnen
+        // neu, das Template soll aber nur bei geaenderter Quelle neu laufen.
+        if (ReferenceEquals(lastSource, TemplateSource) && ReferenceEquals(lastData, Data))
+        {
+            return;
+        }
+
+        lastSource = TemplateSource;
+        lastData = Data;
+        Render();
+    }
+
+    private void Render()
+    {
+        declaration = null;
+        parameters = new Dictionary<string, object?>();
+        errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(TemplateSource))
+        {
+            errors.Add("The configuration is empty.");
+            return;
+        }
+
+        try
+        {
+            Template template = Template.Parse(TemplateSource);
+            if (template.HasErrors)
+            {
+                errors.AddRange(template.Messages.Select(m => m.ToString()));
+                return;
+            }
+
+            ScriptObject globals = WidgetTemplateFunctions.CreateGlobals(Data);
+            string rendered = template.Render(WidgetTemplateFunctions.CreateContext(globals));
+
+            IDictionary<string, object?>? map = ChartJson.ToMap(rendered, errors);
+            if (map == null)
+            {
+                return;
+            }
+
+            declaration = ChartWidgetDeclaration.FromMap(map, errors);
+            if (declaration != null)
+            {
+                parameters = ChartParameterBinder.Bind(declaration.Extra, typeof(MudChart<double>), errors);
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add(ex.Message);
+            if (OnRenderError.HasDelegate)
+            {
+                _ = OnRenderError.InvokeAsync(ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks a configuration when the widget is saved: it must parse as a template and, rendered without
+    /// data, produce readable JSON.
+    /// </summary>
+    public static string? Validate(string? configuration, IReadOnlyDictionary<string, string?> options)
+    {
+        if (string.IsNullOrWhiteSpace(configuration))
+        {
+            return "The configuration is empty.";
+        }
+
+        try
+        {
+            Template template = Template.Parse(configuration);
+            if (template.HasErrors)
+            {
+                return string.Join(" ", template.Messages.Select(m => m.ToString()));
+            }
+
+            // Ohne Daten gerendert: es geht um Form und Syntax. Ein Template, das nur mit Zeilen
+            // gueltiges JSON ergibt (etwa weil ein Komma in der Schleife steckt), faellt hier NICHT auf -
+            // das kann eine Pruefung ohne Datenbank nicht leisten und soll nichts Falsches versprechen.
+            ScriptObject globals = WidgetTemplateFunctions.CreateGlobals(new WidgetTemplateModel());
+            string rendered = template.Render(WidgetTemplateFunctions.CreateContext(globals));
+
+            var errors = new List<string>();
+            IDictionary<string, object?>? map = ChartJson.ToMap(rendered, errors);
+            if (map != null)
+            {
+                ChartWidgetDeclaration? declared = ChartWidgetDeclaration.FromMap(map, errors);
+                if (declared != null)
+                {
+                    ChartParameterBinder.Bind(declared.Extra, typeof(MudChart<double>), errors);
+                }
+            }
+
+            errors.RemoveAll(e => e.Contains("'series' is empty", StringComparison.Ordinal)
+                                  || e.Contains("label(s)", StringComparison.Ordinal));
+            return errors.Count != 0 ? string.Join(" ", errors) : null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+    }
+}

@@ -1,0 +1,84 @@
+@* Der gemeinsame Teil beider Diagramm-Renderer: aus der Deklaration wird ein MudChart.
+
+   Er kennt weder Scriban noch CScript - die beiden unterscheiden sich nur darin, wie aus dem
+   Konfigurationstext eine Map wird. Alles danach passiert hier. *@
+
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
+@using Microsoft.AspNetCore.Components
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@inject NavigationManager Navigation
+
+@if (Errors.Count != 0)
+{
+    <MudAlert Severity="Severity.Error" Dense="true">
+        @ErrorTitle
+        <ul class="mt-1">
+            @foreach (string error in Errors)
+            {
+                <li><MudText Typo="Typo.caption">@error</MudText></li>
+            }
+        </ul>
+    </MudAlert>
+}
+else if (Declaration is not null)
+{
+    @* Die drei aufbereiteten Felder ausdruecklich - so prueft der Uebersetzer ihre Namen. Der Rest kommt
+       als geprueftes Woerterbuch dazu; T bleibt double, damit es ohne Typinferenz auskommt. *@
+    <MudChart T="double"
+              ChartType="@Declaration.Type"
+              ChartLabels="@labelTexts"
+              ChartSeries="@Declaration.Series"
+              SelectedIndexChanged="@OnSelected"
+              @attributes="@Parameters" />
+}
+
+@code {
+    /// <summary>What to draw. Null together with errors means: nothing could be read.</summary>
+    [Parameter] public ChartWidgetDeclaration? Declaration { get; set; }
+
+    /// <summary>The pass-through parameters, already checked and converted.</summary>
+    [Parameter] public Dictionary<string, object?> Parameters { get; set; } = new();
+
+    /// <summary>Everything that was wrong with the declaration. Empty = nothing.</summary>
+    [Parameter] public IReadOnlyList<string> Errors { get; set; } = Array.Empty<string>();
+
+    /// <summary>Raised when a category was clicked and it carries no navigation target.</summary>
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+
+    [Parameter] public string ErrorTitle { get; set; } = "This chart cannot be drawn:";
+
+    private string[] labelTexts = Array.Empty<string>();
+
+    protected override void OnParametersSet()
+    {
+        labelTexts = Declaration?.Labels.Select(l => l.Text).ToArray() ?? Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Klick auf ein Segment oder einen Legendeneintrag. Der Regelfall ist der Sprung auf eine Seite;
+    /// ohne Ziel bleibt es bei der Aktion, die eine Anwendung ueber OnWidgetAction bekommt - dasselbe,
+    /// was ein HTML-Template ueber data-widget-action ausloest.
+    /// </summary>
+    private void OnSelected(int index)
+    {
+        if (Declaration is null || index < 0 || index >= Declaration.Labels.Count)
+        {
+            return;
+        }
+
+        ChartWidgetLabel label = Declaration.Labels[index];
+        if (!string.IsNullOrWhiteSpace(label.NavigateTo))
+        {
+            // Relative Ziele loest NavigateTo gegen die Basis der Anwendung auf - und genau die traegt in
+            // einer mandanten-praefixierten Anwendung den Praefix. Ein root-absolutes Ziel ginge daran
+            // vorbei (BUG-PRE141); das bleibt Sache dessen, der es so schreibt.
+            Navigation.NavigateTo(label.NavigateTo!);
+            return;
+        }
+
+        if (OnAction.HasDelegate)
+        {
+            _ = OnAction.InvokeAsync(new WidgetAction("select", label.Text));
+        }
+    }
+}

@@ -1,8 +1,13 @@
 # Plan: Austauschbare Widget-Renderer (`IWidgetRenderer`)
 
-**Status:** **AP0–AP5 umgesetzt** (2026-08-11, uncommitted, nicht laufzeit-getestet; Build grün, 24 Tests
-grün). Offen: AP6a/6b/6c (Diagramm-Kern, CScript-, Scriban-Variante) und der Host-Migrationsschritt
-(zwei Spalten, Leitfaden §25.9).
+**Status:** **AP0–AP6c umgesetzt** (2026-08-11; AP0–5 committed als `6e7324ea`, AP6 uncommitted). Build
+grün, 48 Tests grün, **nicht laufzeit-getestet**. Offen: der Host-Migrationsschritt (zwei Spalten,
+Leitfaden §25.9) und der Host-Test.
+
+**Beim Umsetzen gelernt** (die Beispiele weiter unten waren teilweise falsch, siehe §25.9.3 im Leitfaden):
+CScript verlangt für Text **doppelte** Anführungszeichen — einfache bezeichnen einen Typ; und ein Ausdruck
+darf **nicht mit `{` beginnen** (Grammatik-Prädikat), weshalb der Renderer das Objektliteral selbst
+einklammert. `ChartType.Pie` funktioniert, weil der Typ als Variable im Geltungsbereich liegt.
 **Datum:** 2026-08-11
 **Grundlage:** `ISSUE-MLM-Dashboard-Widget-Renderers.md` (Anforderung aus dem Konsumenten).
 **Toolkit-Stand:** `5.0.0-PRE171`. Alles hier Genannte ist gegen diesen Stand gelesen; wo etwas abgeleitet

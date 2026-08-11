@@ -2003,7 +2003,76 @@ geprüft und ein fehlerhafter mit Schlüssel und Typname im Log abgelehnt — ni
 Vertrag nicht erfüllt oder Schlüssel doppelt. Der Start bricht deswegen nicht ab; die betroffenen Kacheln
 sagen es dann selbst (siehe unten).
 
-#### 25.9.3 Unbekannter Schlüssel
+#### 25.9.3 Die mitgelieferten Diagramm-Renderer
+
+Zwei Stück, beide über `MudChart` (kein zusätzliches JS, keine neue Abhängigkeit) und beide mit derselben
+Deklaration — sie unterscheiden sich **nur** darin, womit die Deklaration geschrieben wird:
+
+| Schlüssel | Konfiguration ist … |
+|---|---|
+| `chart.scriban` | ein Scriban-Template, das eine **JSON**-Deklaration rendert |
+| `chart.cscript` | ein **CScript**-Objektliteral (LINQ und native C#-Ausdrücke verfügbar) |
+
+```jsonc
+// chart.scriban
+{
+  "type": "pie",
+  "labels": {{ json (column Rows "Status") }},
+  "series": [ { "name": "Anzahl", "data": {{ json (column Rows "Anzahl") }} } ],
+  "chartOptions": { "chartPalette": ["#2979ff", "#00acc1"] }
+}
+```
+
+```csharp
+// chart.cscript
+{ type: ChartType.Pie,
+  labels: Rows.Select(r => r.Status).ToArray(),
+  series: [ { name: "Anzahl", data: Rows.Select(r => r.Anzahl).ToArray() } ] }
+```
+
+Für die Scriban-Seite gibt es zwei neue Template-Funktionen: **`column(Rows, "Name")`** zieht eine Spalte
+heraus (und bedient beide Zeilenformen — Wörterbuch aus dem dynamischen Adapter, Objekt mit Eigenschaften
+aus einer LINQ-Abfrage), **`json(wert)`** schreibt einen Wert JSON-gerecht. Wer umformen will, schreibt
+statt `column` eine eigene Schleife.
+
+**Zwei CScript-Eigenheiten, die man einmal wissen muss:**
+
+- **Text steht in doppelten Anführungszeichen.** Einfache bezeichnen in CScript einen **Typ**
+  (`'System.TimeSpan'`), aus `'pie'` würde der Versuch, einen Typ namens *pie* zu laden.
+- **Ein Ausdruck darf nicht mit `{` beginnen** — das verbietet die Grammatik. Der Renderer klammert das
+  Objektliteral deshalb selbst ein; wer den Modus *Script block* wählt, schreibt ohnehin `return { … };`.
+  Der Modus wird in den Renderer-Einstellungen **gewählt** und nicht geraten: ein Block ohne `return`
+  liefert `null`, und ein Block, der als Ausdruck ausgewertet wird, wirft nicht, sondern liefert still
+  etwas Falsches.
+
+**Aufbereitet** werden nur `type`, `labels` und `series`. **Alles andere wird durchgereicht**: jedes weitere
+Feld wird gegen die `[Parameter]`-Eigenschaften von `MudChart<double>` geprüft (Schreibweise egal) und auf
+den Zieltyp gebracht — `width`, `height`, `legendPosition`, `canHideSeries`, `matchBoundsToSize` und was
+MudBlazor künftig dazulegt, ohne dass hier eine Liste gepflegt werden muss. Ein Objekt-Wert auf einem
+Objekt-Parameter (`chartOptions`) wird rekursiv nach derselben Regel befüllt.
+
+Diese Prüfung ist der Grund, warum das tragfähig ist: MudBlazor-Komponenten fangen unbekannte Attribute
+über `UserAttributes` ab — ein verschriebenes `legendPositon` würde also **nicht** auffallen, sondern
+wirkungslos als HTML-Attribut enden. Der Renderer beanstandet es stattdessen, beim Speichern und in der
+Kachel. Gesperrt sind `chartType`/`chartLabels`/`chartSeries` (die kommen aus der Deklaration) und
+`selectedIndex`/`selectedIndexChanged` (die verdrahtet der Renderer).
+
+**Klick = Navigation.** Ein Beschriftungs-Eintrag darf statt Text ein Objekt sein:
+
+```jsonc
+"labels": [ { "text": "Offen", "navigateTo": "Orders?status=open" }, "Erledigt" ]
+```
+
+Klick auf Segment oder Legendeneintrag springt dann dorthin; ohne Ziel wird wie beim HTML-Template ein
+`WidgetAction("select", <Text>)` ausgelöst, das die Anwendung über ihr `OnWidgetAction` bekommt. **Ziele
+relativ angeben** (`Orders?...`, nicht `/Orders`): relative löst der Renderer gegen die Basis der Anwendung
+auf, und genau die trägt den Mandanten-Präfix — ein root-absolutes Ziel ginge daran vorbei (BUG-PRE141).
+
+Nicht zusammenpassende Längen von `labels` und `series[].data`, nicht-numerische Werte, unbekannte
+Diagrammtypen: alles Beanstandungen, keine stillen Korrekturen. Eine Kategorie lautlos wegzulassen wäre die
+schlechteste Auskunft — die Zahlen sähen richtig aus und wären es nicht.
+
+#### 25.9.4 Unbekannter Schlüssel
 
 Eine Kachel, deren `RendererKey` nicht registriert ist, zeigt **eine Fehlermeldung mit dem verlangten
 Schlüssel und der Liste der verfügbaren** — kein stiller Rückfall auf Scriban. Eine Kachel, die nach einem
