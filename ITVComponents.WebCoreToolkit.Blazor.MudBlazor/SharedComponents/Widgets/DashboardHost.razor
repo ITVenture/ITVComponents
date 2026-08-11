@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Options
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 @using ITVComponents.WebCoreToolkit.EntityFramework.DiagnosticsQueries
 @using ITVComponents.WebCoreToolkit.EntityFramework.Models
@@ -139,12 +140,21 @@
     [Parameter] public string PickerTitle { get; set; } = "Add widget";
     [Parameter] public string ParamsTitle { get; set; } = "Widget parameters";
 
+    /// <summary>Shown on a tile whose renderer key is not registered. <c>{0}</c> is the requested key.</summary>
+    [Parameter] public string UnknownRendererText { get; set; } = "No renderer is registered for '{0}'.";
+
+    [Parameter] public string AvailableRenderersText { get; set; } = "Available";
+
     /// <summary>One tile of the dashboard: its definition, its data and its current arrangement.</summary>
     private sealed class WidgetTile
     {
         public DashboardWidgetDefinition Definition { get; init; } = default!;
 
         public Dictionary<string, string?> ParamValues { get; set; } = new(StringComparer.Ordinal);
+
+        /// <summary>Die Einstellungen des Renderers - was in der Spalte RendererOptions stand.</summary>
+        public IReadOnlyDictionary<string, string?> RendererOptions { get; set; }
+            = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         public WidgetTemplateModel? Data { get; set; }
 
@@ -168,6 +178,15 @@
 
     /// <summary>Unterscheidet die Breitenklassen zweier Flaechen auf derselben Seite.</summary>
     private readonly string instanceId = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// Die registrierten Renderer. Ist nichts registriert (ein Host, der den WebPart nicht laedt), bleibt
+    /// die Registrierung leer - dann sagt jede Kachel das auch, statt nichts zu zeichnen.
+    /// </summary>
+    private WidgetRendererConfiguration RendererRegistry
+        => Services.GetService<IOptions<WidgetRendererConfiguration>>()?.Value ?? emptyRegistry;
+
+    private static readonly WidgetRendererConfiguration emptyRegistry = new();
 
     /// <summary>Der zuletzt gemeldete Viewport. <c>None</c> = noch keine Meldung.</summary>
     private Breakpoint breakpoint = Breakpoint.None;
@@ -286,29 +305,39 @@
         {
             Definition = widget,
             ParamValues = ReadParamValues(widget),
+            RendererOptions = ReadJsonMap(widget.RendererOptions, widget.SystemName, "renderer options"),
             // 0 heisst "nicht gesetzt" und wird als eine Spalte gelesen - so bleiben Zeilen aus der Zeit
             // vor der Spalte gueltig.
             ColSpan = widget.ColSpan <= 0 ? 1 : Math.Min(widget.ColSpan, Math.Max(1, Columns))
         };
 
     private Dictionary<string, string?> ReadParamValues(DashboardWidgetDefinition widget)
+        => ReadJsonMap(widget.ParamValues, widget.SystemName, "parameter values");
+
+    /// <summary>
+    /// Liest ein gespeichertes JSON-Objekt (Feldname -&gt; invarianter Wert).
+    /// </summary>
+    /// <remarks>
+    /// Nicht durchwerfen: die Kachel laeuft dann mit ihren Vorgaben weiter. Aber ohne Log waere unklar,
+    /// warum sie sich anders verhaelt als eingestellt.
+    /// </remarks>
+    private Dictionary<string, string?> ReadJsonMap(string? json, string? widgetName, string what)
     {
-        if (string.IsNullOrWhiteSpace(widget.ParamValues))
+        if (string.IsNullOrWhiteSpace(json))
         {
             return new Dictionary<string, string?>(StringComparer.Ordinal);
         }
 
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, string?>>(widget.ParamValues)
+            return JsonSerializer.Deserialize<Dictionary<string, string?>>(json)
                    ?? new Dictionary<string, string?>(StringComparer.Ordinal);
         }
         catch (JsonException ex)
         {
-            // Nicht durchwerfen: die Kachel laeuft dann mit ihren Vorgabe-Argumenten weiter. Aber ohne Log
-            // waere unklar, warum die Zahlen ploetzlich andere sind.
-            Logger.LogWarning(ex, "Stored parameter values of widget {Widget} are not readable - the widget runs without them.",
-                widget.SystemName);
+            Logger.LogWarning(ex,
+                "Stored {What} of widget {Widget} are not readable - the widget runs without them.",
+                what, widgetName);
             return new Dictionary<string, string?>(StringComparer.Ordinal);
         }
     }
@@ -694,15 +723,26 @@
                 {
                     <MudProgressCircular Indeterminate="true" Size="Size.Small" />
                 }
+                else if (RendererFor(tile) is null)
+                {
+                    @* Kein stiller Rueckfall auf Scriban: eine Kachel, die nach einem Tippfehler wortlos
+                       etwas anderes zeigt, ist genau die Sorte Fehler, die spaeter teuer wird. Hier steht,
+                       was verlangt wurde UND was verfuegbar waere. *@
+                    <MudAlert Severity="Severity.Error" Dense="true">
+                        @string.Format(UnknownRendererText, tile.Definition.RendererKey)
+                        <br />
+                        <MudText Typo="Typo.caption">
+                            @AvailableRenderersText: @string.Join(", ", RendererRegistry.KnownKeys)
+                        </MudText>
+                    </MudAlert>
+                }
                 else
                 {
                     @* Ein Template ist beliebiges HTML - eine breite Tabelle darin wuerde auf einem Telefon
                        sonst die ganze Seite in die Breite ziehen. Sie scrollt jetzt INNERHALB der Kachel. *@
                     <div style="overflow-x: auto;">
-                        <WidgetRenderer TemplateSource="@tile.Definition.Template"
-                                        Data="@tile.Data"
-                                        OnAction="@(action => RaiseAction(tile, action))"
-                                        OnRenderError="@(ex => OnTemplateError(tile, ex))" />
+                        <DynamicComponent Type="@RendererFor(tile)!.ComponentType"
+                                          Parameters="@RendererParameters(tile)" />
                     </div>
                 }
             </MudPaper>
@@ -718,6 +758,33 @@
             : !string.IsNullOrWhiteSpace(tile.Definition.DisplayName)
                 ? WidgetTemplateFunctions.Translate(tile.Definition.DisplayName)
                 : tile.Definition.SystemName;
+
+    /// <summary>
+    /// Der Renderer dieser Kachel, oder null wenn ihr Schluessel nicht registriert ist.
+    /// </summary>
+    private WidgetRendererDescriptor? RendererFor(WidgetTile tile)
+        => RendererRegistry.Get(tile.Definition.RendererKey);
+
+    /// <summary>
+    /// Die Parameter, mit denen der Renderer gezeichnet wird.
+    /// </summary>
+    /// <remarks>
+    /// Die Namen ueber <c>nameof</c> und nicht als Zeichenketten: eine <c>DynamicComponent</c> prueft ihr
+    /// Woerterbuch erst zur Laufzeit, so faellt eine Umbenennung im Vertrag schon beim Uebersetzen auf.
+    /// Das Woerterbuch entsteht bei jedem Zeichnen neu - der Renderer bekommt also jedes Mal
+    /// <c>OnParametersSet</c> und muss seine teure Arbeit selbst puffern.
+    /// </remarks>
+    private Dictionary<string, object?> RendererParameters(WidgetTile tile)
+        => new()
+        {
+            { nameof(IWidgetRenderer.TemplateSource), tile.Definition.Template ?? string.Empty },
+            { nameof(IWidgetRenderer.Data), tile.Data },
+            { nameof(IWidgetRenderer.Options), tile.RendererOptions },
+            { nameof(IWidgetRenderer.OnAction),
+                EventCallback.Factory.Create<WidgetAction>(this, action => RaiseAction(tile, action)) },
+            { nameof(IWidgetRenderer.OnRenderError),
+                EventCallback.Factory.Create<Exception>(this, ex => OnTemplateError(tile, ex)) }
+        };
 
     private Task RaiseAction(WidgetTile tile, WidgetAction action)
         => OnWidgetAction.HasDelegate

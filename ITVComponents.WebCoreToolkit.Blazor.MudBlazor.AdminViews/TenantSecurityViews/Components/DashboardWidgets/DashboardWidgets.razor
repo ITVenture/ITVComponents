@@ -270,6 +270,10 @@ else
             Area = item.Area,
             CustomQueryString = item.CustomQueryString,
             Template = item.Template,
+            // Die beiden muessen mit: der Dialog bekommt eine KOPIE, und was hier fehlt, wuerde beim
+            // Speichern als geleert zurueckgeschrieben.
+            RendererKey = item.RendererKey,
+            RendererOptions = item.RendererOptions,
             InitiallyActive = item.InitiallyActive,
             SortOrder = item.SortOrder
         };

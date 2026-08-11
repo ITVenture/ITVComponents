@@ -1,3 +1,10 @@
+@using System.Text.Json
+@using Microsoft.Extensions.Options
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+
+@inject IOptions<WidgetRendererConfiguration> RendererRegistryAccessor
+
 <MudDialog Class="itv-fill-editor">
     <DialogContent>
         <DialogFillStyles />
@@ -12,8 +19,42 @@
                        Label="Initially active (part of the default collection)" />
             <MudNumericField T="int" @bind-Value="Model.SortOrder" Label="Sort order"
                              HelperText="Position within the default collection. Users who arrange their own dashboard keep their own order." />
-            <MudText Typo="Typo.caption" Class="mt-3">Template (Scriban)</MudText>
-            <CodeEditor @ref="templateEditor" Value="@Model.Template" Language="html" Height="280" Fill="true" />
+
+            @* Auswahl statt Freitext: ein Schluessel kann nur auf einen Renderer zeigen, den der Host
+               registriert hat - und was registriert ist, weiss der Editor. *@
+            <MudSelect T="string" Value="@SelectedKey" ValueChanged="OnRendererChanged" Label="Renderer"
+                       HelperText="What draws this widget. The template below is read by that renderer.">
+                @foreach (var descriptor in Renderers)
+                {
+                    <MudSelectItem T="string" Value="@descriptor.Key">
+                        @WidgetTemplateFunctions.Translate(descriptor.DisplayName)
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (Current is { Options.Count: > 0 })
+            {
+                @* Die Einstellungen des Renderers - deklariert an seinem Descriptor, gerendert von
+                   derselben generischen Maske wie die Widget-Parameter. *@
+                <MudText Typo="Typo.caption" Class="mt-3">Renderer settings</MudText>
+                <DeclaredFieldsForm @ref="optionsForm"
+                                    @key="@($"opt-{SelectedKey}")"
+                                    Fields="@Current.Options"
+                                    Prefill="@optionsPrefill"
+                                    PrefillIsInvariant="true"
+                                    AllowReadOnly="false"
+                                    ResetKey="@SelectedKey" />
+            }
+
+            <MudText Typo="Typo.caption" Class="mt-3">Configuration (@EditorLanguage)</MudText>
+            @* Neu aufbauen, wenn der Renderer wechselt: Monaco bekommt seine Sprache beim Erzeugen. *@
+            <CodeEditor @ref="templateEditor" @key="@($"cfg-{SelectedKey}")"
+                        Value="@Model.Template" Language="@EditorLanguage" Height="280" Fill="true" />
+
+            @if (!string.IsNullOrEmpty(validationError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@validationError</MudAlert>
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -32,6 +73,79 @@
 
     private MudForm? form;
     private CodeEditor? templateEditor;
+    private DeclaredFieldsForm? optionsForm;
+    private Dictionary<string, object?>? optionsPrefill;
+    private string? validationError;
+
+    private IReadOnlyList<WidgetRendererDescriptor> Renderers
+        => RendererRegistryAccessor.Value.Descriptors.ToArray();
+
+    /// <summary>Der gewaehlte Schluessel; null und leer sind dasselbe (der Standard-Renderer).</summary>
+    private string SelectedKey => Model.RendererKey ?? string.Empty;
+
+    private WidgetRendererDescriptor? Current => RendererRegistryAccessor.Value.Get(SelectedKey);
+
+    private string EditorLanguage => Current?.EditorLanguage ?? "html";
+
+    protected override void OnParametersSet()
+    {
+        // Die Maske nimmt object-Werte, gespeichert sind sie als Text; die Umwandlung macht sie selbst,
+        // weil PrefillIsInvariant gesetzt ist.
+        optionsPrefill = ReadOptions().ToDictionary(v => v.Key, v => (object?)v.Value, StringComparer.Ordinal);
+    }
+
+    private Dictionary<string, string?> ReadOptions()
+    {
+        if (string.IsNullOrWhiteSpace(Model.RendererOptions))
+        {
+            return new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string?>>(Model.RendererOptions)
+                   ?? new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+        catch (JsonException)
+        {
+            // Kein Log-Aufruf und kein Abbruch: der Wert wird hier gerade bearbeitet, und die Maske
+            // startet dann eben leer. Gespeichert wird ohnehin, was sie liefert.
+            return new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Wechselt den Renderer und rettet dabei den bereits geschriebenen Konfigurationstext - der Editor
+    /// wird gleich neu aufgebaut (andere Sprache), und ohne diesen Schritt waere die Eingabe weg.
+    /// </summary>
+    private async Task OnRendererChanged(string? key)
+    {
+        if (templateEditor is not null)
+        {
+            Model.Template = await templateEditor.GetValueAsync();
+        }
+
+        CaptureOptions();
+        Model.RendererKey = string.IsNullOrEmpty(key) ? null : key;
+        validationError = null;
+        optionsPrefill = ReadOptions().ToDictionary(v => v.Key, v => (object?)v.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>Uebernimmt die Eingaben der Options-Maske ins Modell.</summary>
+    /// <returns>die Werte, wie sie gespeichert wuerden</returns>
+    private Dictionary<string, string?> CaptureOptions()
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (optionsForm is not null && optionsForm.TryGetInvariantResult(out Dictionary<string, string?> result))
+        {
+            values = result;
+        }
+
+        // Leere Eingaben als null ablegen und nicht als "{}": sonst bliebe ein geleerter Satz als Rest
+        // stehen - dieselbe Regel wie bei den Parameter-Werten der Kacheln.
+        Model.RendererOptions = values.Count != 0 ? JsonSerializer.Serialize(values) : null;
+        return values;
+    }
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -41,6 +155,17 @@
         await form.Validate();
         if (!form.IsValid) return;
         if (templateEditor is not null) Model.Template = await templateEditor.GetValueAsync();
+
+        Dictionary<string, string?> options = CaptureOptions();
+
+        // Die Pruefung des Renderers, solange der Dialog noch offen ist: eine kaputte Konfiguration soll
+        // hier auffallen und nicht als Fehler-Kachel bei dem, der das Dashboard oeffnet.
+        validationError = Current?.Validate?.Invoke(Model.Template, options);
+        if (!string.IsNullOrEmpty(validationError))
+        {
+            return;
+        }
+
         MudDialog.Close(DialogResult.Ok(Model));
     }
 }

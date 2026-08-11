@@ -342,6 +342,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Dia
                 SystemName = tmp.SystemName,
                 Template = lng.Template,
                 TitleTemplate = lng.TitleTemplate,
+                // Aus tmp und NICHT aus lng: der Konfigurationstext darf je Sprache abweichen, der
+                // Renderer nicht - sonst zeichnete dieselbe Kachel je nach Sprache etwas anderes.
+                RendererKey = tmp.RendererKey,
+                RendererOptions = tmp.RendererOptions,
                 UserWidgetId = userWidget?.UserWidgetId??0,
                 DashboardWidgetId = tmp.DashboardWidgetId,
                 // Die Sortierung wurde hier bisher NICHT uebernommen - die Reihenfolge steckte allein in

@@ -25,6 +25,15 @@ public class DashboardWidgetViewModel
     public string? Template { get; set; }
 
     /// <summary>
+    /// Which renderer draws this widget. Empty = the built-in Scriban renderer.
+    /// </summary>
+    [MaxLength(64)]
+    public string? RendererKey { get; set; }
+
+    /// <summary>The renderer's settings as a JSON object (field name -&gt; invariant value).</summary>
+    public string? RendererOptions { get; set; }
+
+    /// <summary>
     /// Part of the default collection? A user without own widgets sees exactly these, and gets a copy of
     /// them the moment they start editing their dashboard.
     /// </summary>

@@ -121,6 +121,8 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                 Area = w.Area,
                 CustomQueryString = w.CustomQueryString,
                 Template = w.Template,
+                RendererKey = w.RendererKey,
+                RendererOptions = w.RendererOptions,
                 InitiallyActive = w.InitiallyActive,
                 SortOrder = w.SortOrder
             }).ToListAsync();
@@ -140,6 +142,8 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             Area = input.Area ?? string.Empty,
             CustomQueryString = input.CustomQueryString ?? string.Empty,
             Template = input.Template ?? string.Empty,
+            RendererKey = input.RendererKey,
+            RendererOptions = input.RendererOptions,
             InitiallyActive = input.InitiallyActive,
             SortOrder = input.SortOrder
         };
@@ -162,6 +166,8 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.Area = input.Area ?? string.Empty;
         entity.CustomQueryString = input.CustomQueryString ?? string.Empty;
         entity.Template = input.Template ?? string.Empty;
+        entity.RendererKey = input.RendererKey;
+        entity.RendererOptions = input.RendererOptions;
         entity.InitiallyActive = input.InitiallyActive;
         entity.SortOrder = input.SortOrder;
         await db.SaveChangesAsync();

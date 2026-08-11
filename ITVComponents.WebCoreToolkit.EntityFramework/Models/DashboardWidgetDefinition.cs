@@ -23,6 +23,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Models
 
         public string Template { get; set; }
 
+        /// <summary>
+        /// Which renderer draws this widget. Null/empty = the built-in Scriban renderer, i.e. the behaviour
+        /// every widget had before the column existed.
+        /// </summary>
+        public string RendererKey { get; set; }
+
+        /// <summary>
+        /// The renderer's settings as a JSON object (field name -&gt; invariant value), null when it has
+        /// none. Was der Renderer damit anfaengt, entscheidet er selbst - deklariert werden die Felder an
+        /// seinem Descriptor.
+        /// </summary>
+        public string RendererOptions { get; set; }
+
         public int SortOrder { get; set; }
 
         /// <summary>

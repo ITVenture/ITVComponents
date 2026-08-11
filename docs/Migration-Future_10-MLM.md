@@ -1924,6 +1924,91 @@ Datei bedient jetzt auch die Navigations-Verwaltung, die vorher ein eigenes `nav
 das alte Skript irgendwo von Hand als `<script>`-Tag gesetzt hat, muss den Pfad umstellen; über
 `<ITVentureReferences />` passiert das von selbst.
 
+### 25.9 Austauschbare Renderer — **Pflicht: 2 weitere Spalten**
+
+Womit eine Kachel gezeichnet wird, ist neu **auswählbar**. Der eingebaute Scriban-Renderer ist dabei eine
+Implementierung unter mehreren; ein Konsument kann eigene beisteuern, ohne dass das Toolkit dafür ein
+Release braucht. Zwei additive Spalten, wieder **manuell** (Snapshot-Drift, wie §25.1):
+
+```sql
+ALTER TABLE [Widgets] ADD [RendererKey] nvarchar(64) NULL;
+ALTER TABLE [Widgets] ADD [RendererOptions] nvarchar(max) NULL;
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "Widgets" ADD COLUMN "RendererKey" character varying(64) NULL;
+ALTER TABLE "Widgets" ADD COLUMN "RendererOptions" text NULL;
+```
+
+`RendererKey` leer oder NULL heisst **Scriban** — bestehende Widgets verhalten sich unverändert. Ohne die
+Spalten schlägt jede Widget-Query mit *„Invalid column name 'RendererKey'"* fehl.
+
+#### 25.9.1 Einen eigenen Renderer schreiben
+
+Ein Renderer ist eine gewöhnliche Blazor-Komponente, die `IWidgetRenderer` erfüllt und ihren Schlüssel als
+Attribut trägt:
+
+```razor
+@namespace MeineAnwendung.Widgets
+@attribute [WidgetRenderer("ampel", DisplayName = "{\"de\":\"Ampel\",\"Default\":\"Traffic light\"}", EditorLanguage = "json")]
+@implements IWidgetRenderer
+
+@code {
+    [Parameter] public string TemplateSource { get; set; } = "";
+    [Parameter] public WidgetTemplateModel? Data { get; set; }
+    [Parameter] public IReadOnlyDictionary<string, string?> Options { get; set; } = new Dictionary<string, string?>();
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+    [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
+}
+```
+
+Angemeldet wird er beim Start:
+
+```csharp
+services.ConfigureWidgetRenderers(c => c.RegisterRenderer<AmpelRenderer>());
+```
+
+Schlüssel, Beschriftung und Editor-Sprache kommen aus dem Attribut; Überladungen von `RegisterRenderer`
+übersteuern sie, wenn derselbe Typ unter mehreren Schlüsseln laufen soll. `RegisterRenderer<T>` verlangt
+`IComponent` **und** `IWidgetRenderer` schon beim Übersetzen — was durchkommt, kann die Fläche auch zeichnen.
+
+**Der Konfigurationstext wird bei jedem Zeichnen neu gesetzt** (die Kachel hängt an einer
+`DynamicComponent`, und die baut ihr Parameter-Wörterbuch jedes Mal neu auf). Teure Arbeit — Übersetzen,
+Auswerten, Parsen — gehört deshalb gepuffert und nur bei geänderter Quelle wiederholt; der eingebaute
+`WidgetRenderer` macht genau das seit jeher.
+
+**Einstellungen** deklariert der Renderer bei der Registrierung als `DeclaredField`-Liste (`options:`); der
+Editor zeigt dafür dieselbe generische Maske wie für die Widget-Parameter, und die Werte landen invariant
+in `RendererOptions`. Eine Prüfmethode (`validate:`) lässt eine kaputte Konfiguration schon **beim
+Speichern** auffallen statt erst als Fehler-Kachel.
+
+#### 25.9.2 Alternativ über die Teile-Konfiguration
+
+Wer lieber konfiguriert als registriert, nennt den **Typ** im WebPart-Abschnitt — der Schlüssel kommt auch
+dort aus dem Attribut:
+
+```jsonc
+"MudBasicViews": {
+  "UseViews": true,
+  "WidgetRenderers": [
+    { "Type": "MeineAnwendung.Widgets.AmpelRenderer, MeineAnwendung" }
+  ]
+}
+```
+
+Dieser Weg kann nicht beim Übersetzen prüfen, was da steht. Deshalb wird jeder Eintrag **beim Start**
+geprüft und ein fehlerhafter mit Schlüssel und Typname im Log abgelehnt — nicht auflösbar, keine Komponente,
+Vertrag nicht erfüllt oder Schlüssel doppelt. Der Start bricht deswegen nicht ab; die betroffenen Kacheln
+sagen es dann selbst (siehe unten).
+
+#### 25.9.3 Unbekannter Schlüssel
+
+Eine Kachel, deren `RendererKey` nicht registriert ist, zeigt **eine Fehlermeldung mit dem verlangten
+Schlüssel und der Liste der verfügbaren** — kein stiller Rückfall auf Scriban. Eine Kachel, die nach einem
+Tippfehler wortlos etwas anderes zeichnet, ist genau die Sorte Fehler, die später teuer wird.
+
 ---
 
 ## Schnellübersicht der Breaking Changes

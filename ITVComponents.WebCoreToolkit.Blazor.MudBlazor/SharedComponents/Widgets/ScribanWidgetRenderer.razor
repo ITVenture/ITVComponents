@@ -1,0 +1,39 @@
+@* Der eingebaute Renderer: das Widget-Template ist Scriban-Text, das Ergebnis ist HTML.
+
+   Er baut NICHT selbst - er reicht an WidgetRenderer weiter, der das seit jeher tut. Der Umweg ueber
+   diese duenne Komponente hat einen Grund: WidgetRenderer.Data ist object? (die Komponente rendert auch
+   gegen beliebige Daten und wird ausserhalb des Dashboards benutzt), der Vertrag verlangt aber den
+   typisierten WidgetTemplateModel. Wuerde man WidgetRenderer darauf verengen, waere das ein Bruch fuer
+   jeden, der sie direkt einsetzt. *@
+
+@* Der Namensraum MUSS explizit gesetzt werden - sonst leitet Razor ihn aus dem RootNamespace ab und die
+   Nachbar-Komponenten in diesem Ordner finden dieses Element nicht (nur RZ10012, Parameter werden still
+   zu HTML-Attributen). *@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@using Microsoft.AspNetCore.Components
+@attribute [WidgetRenderer("scriban", DisplayName = "{\"de\":\"Vorlage (Scriban)\",\"Default\":\"Template (Scriban)\"}", EditorLanguage = "html")]
+@implements IWidgetRenderer
+
+<WidgetRenderer TemplateSource="@TemplateSource"
+                Data="@Data"
+                OnAction="@OnAction"
+                OnRenderError="@OnRenderError" />
+
+@code {
+    /// <inheritdoc />
+    [Parameter] public string TemplateSource { get; set; } = "";
+
+    /// <inheritdoc />
+    [Parameter] public WidgetTemplateModel? Data { get; set; }
+
+    /// <inheritdoc />
+    /// <remarks>Der Scriban-Renderer hat keine Einstellungen - das Template sagt alles.</remarks>
+    [Parameter] public IReadOnlyDictionary<string, string?> Options { get; set; }
+        = new Dictionary<string, string?>();
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<WidgetAction> OnAction { get; set; }
+
+    /// <inheritdoc />
+    [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
+}

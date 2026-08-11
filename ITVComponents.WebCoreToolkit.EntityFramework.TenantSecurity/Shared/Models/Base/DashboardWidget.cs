@@ -47,6 +47,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public string Template { get; set; }
 
         /// <summary>
+        /// Womit diese Kachel gezeichnet wird. Leer/NULL = der eingebaute Scriban-Renderer, also das
+        /// Verhalten, das jedes Widget vor dieser Spalte hatte.
+        /// </summary>
+        /// <remarks>
+        /// Ein Schluessel und kein Typname: er kann nur auf einen Renderer zeigen, den der Host beim Start
+        /// registriert hat. Die Spalte ist NICHT lokalisierbar - womit gezeichnet wird, ist keine
+        /// Sprachfrage; der Konfigurationstext in <see cref="Template"/> bleibt es dagegen.
+        /// </remarks>
+        [MaxLength(64)]
+        public string RendererKey { get; set; }
+
+        /// <summary>
+        /// Die Einstellungen des Renderers als JSON-Objekt (Feldname -&gt; invarianter Wert), NULL wenn er
+        /// keine hat. Welche Felder es gibt, deklariert der Renderer an seinem Descriptor - deshalb EINE
+        /// Spalte fuer alle statt einer je Kachelart.
+        /// </summary>
+        public string RendererOptions { get; set; }
+
+        /// <summary>
         /// Gehoert dieses Widget zur Standard-Sammlung? Wer noch keine eigenen Widgets hat, bekommt genau
         /// diese zu sehen - und beim ersten Bearbeiten werden sie fuer ihn kopiert.
         /// </summary>
