@@ -116,6 +116,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Vie
         /// also - deshalb traegt die Kennung die Art mit ("f:12" / "r:34").
         /// </summary>
         public string DragKey => HelpResourceNodeKey.For(IsFolder, Id);
+
+        /// <summary>
+        /// Art und Id sind die Identitaet einer Zeile. Das Gitter merkt sich die aufgeklappten Zeilen als
+        /// Menge dieser Modelle - jedes Neuladen liefert aber NEUE Instanzen. Ohne Wert-Gleichheit wuerde
+        /// es sie nicht wiedererkennen und der Baum klappte zu.
+        /// </summary>
+        public override bool Equals(object? obj)
+            => obj is HelpResourceNodeViewModel other && other.IsFolder == IsFolder && other.Id == Id;
+
+        public override int GetHashCode() => HashCode.Combine(IsFolder, Id);
     }
 
     /// <summary>

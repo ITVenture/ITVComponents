@@ -59,11 +59,13 @@
 
                 @* Nach einem Ablegen wird der Baum neu aufgebaut: der verschobene Eintrag kann ueberall
                    gelandet sein, und eine halb aktualisierte Ansicht ist schlimmer als eine, die einmal
-                   zuklappt. *@
+                   neu aufbaut. Die aufgeklappten Ordner ueberleben das, weil expandedFolders hier liegt
+                   und nicht im Baum - sonst waere nach jedem Ablegen alles zu. *@
                 <HelpResourceTree @key="treeKey" @ref="tree"
                                   FolderId="null"
                                   CurrentUser="@currentUser"
-                                  CanWrite="@canWrite" />
+                                  CanWrite="@canWrite"
+                                  ExpandedFolders="@expandedFolders" />
             </div>
         }
     </Permitted>
@@ -77,6 +79,12 @@
     private bool canWrite;
     private HelpResourceTree? tree;
     private int treeKey;
+
+    /// <summary>
+    /// Die aufgeklappten Ordner des ganzen Baums. Liegt hier, damit das Neuaufbauen (treeKey) die
+    /// Aufklapp-Zustaende nicht mitnimmt; alle Ebenen schreiben in dieses eine Set.
+    /// </summary>
+    private readonly HashSet<int> expandedFolders = new();
 
     private ElementReference hostEl;
     private readonly string hostId = Guid.NewGuid().ToString("N");

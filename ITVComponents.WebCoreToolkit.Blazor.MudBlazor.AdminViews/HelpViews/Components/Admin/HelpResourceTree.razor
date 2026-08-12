@@ -10,7 +10,8 @@
 @inject ISnackbar Snackbar
 
 <MudDataGrid T="HelpResourceNodeViewModel" @ref="grid" ServerData="LoadData" Dense="true" Hover="true"
-             Groupable="false" SortMode="SortMode.None">
+             Groupable="false" SortMode="SortMode.None"
+             HierarchyVisibilityToggled="HierarchyToggled">
     <Columns>
         <TemplateColumn T="HelpResourceNodeViewModel" Title="" Sortable="false">
             <CellTemplate>
@@ -28,8 +29,11 @@
                 }
             </CellTemplate>
         </TemplateColumn>
+        @* InitiallyExpandedFunc stellt beim Aufbauen dieser Ebene wieder her, was vorher offen war -
+           ExpandedFolders ueberlebt das Neuaufbauen des Baums, weil die Seite das Set haelt. *@
         <HierarchyColumn T="HelpResourceNodeViewModel"
-                         ButtonDisabledFunc="@(n => !n.IsFolder || n.ChildCount == 0)" />
+                         ButtonDisabledFunc="@(n => !n.IsFolder || n.ChildCount == 0)"
+                         InitiallyExpandedFunc="@(n => n.IsFolder && n.ChildCount != 0 && ExpandedFolders.Contains(n.Id))" />
         <TemplateColumn T="HelpResourceNodeViewModel" Title="Name" Sortable="false">
             <CellTemplate>
                 <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
@@ -72,6 +76,7 @@
                 <HelpResourceTree FolderId="@context.Item.Id"
                                   CurrentUser="@CurrentUser"
                                   CanWrite="@CanWrite"
+                                  ExpandedFolders="@ExpandedFolders"
                                   OnChanged="@OnChanged" />
             </MudPaper>
         }
@@ -88,6 +93,13 @@
     [Parameter, EditorRequired] public System.Security.Claims.ClaimsPrincipal CurrentUser { get; set; } = default!;
 
     [Parameter] public bool CanWrite { get; set; }
+
+    /// <summary>
+    /// Die Ids der aufgeklappten Ordner - EIN Set fuer den ganzen Baum, von der Seite gehalten und durch
+    /// alle Ebenen durchgereicht. Es wird hier absichtlich veraendert (nicht ersetzt): so weiss auch die
+    /// Ebene, die nach einem Ablegen neu entsteht, was vorher offen war.
+    /// </summary>
+    [Parameter] public HashSet<int> ExpandedFolders { get; set; } = new();
 
     /// <summary>Wird ausgeloest, wenn sich an dieser Ebene etwas geaendert hat.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
@@ -107,6 +119,27 @@
         if (grid is not null)
         {
             await grid.ReloadServerData();
+        }
+    }
+
+    /// <summary>
+    /// Haelt fest, welche Ordner offen sind. Nur mitschreiben - das Aufklappen selbst macht das Gitter.
+    /// </summary>
+    private void HierarchyToggled(
+        global::MudBlazor.Utilities.DataGridHierarchyVisibilityToggledEventArgs<HelpResourceNodeViewModel> args)
+    {
+        if (!args.Item.IsFolder)
+        {
+            return;
+        }
+
+        if (args.Expanded)
+        {
+            ExpandedFolders.Add(args.Item.Id);
+        }
+        else
+        {
+            ExpandedFolders.Remove(args.Item.Id);
         }
     }
 
@@ -172,6 +205,10 @@
                 Snackbar.Add(error, Severity.Warning);
                 return;
             }
+
+            // Sonst blieben die Ids geloeschter Ordner im Set liegen - harmlos, aber ein neuer Ordner
+            // koennte dieselbe Id bekommen und waere dann grundlos offen.
+            ExpandedFolders.Remove(node.Id);
         }
         else if (!await Handler.DeleteResourceAsync(CurrentUser, node.Id))
         {
