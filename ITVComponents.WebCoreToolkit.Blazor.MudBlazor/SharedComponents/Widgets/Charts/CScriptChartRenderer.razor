@@ -4,15 +4,22 @@
    (Rows, Row, Count, Params, Title) - mit LINQ und nativen C#-Ausdruecken, wo es passt:
 
      { type: ChartType.Pie,
-       labels: Rows.Select(r => r.Status).ToArray(),
-       series: [ { name: "Anzahl", data: Rows.Select(r => r.Anzahl).ToArray() } ] }
+       labels: column(Rows, "Status"),
+       series: [ { name: "Anzahl", data: column(Rows, "Anzahl") } ] }
 
-   ZWEI Eigenheiten von CScript, die man kennen muss:
+   DREI Eigenheiten von CScript, die man kennen muss:
    - Text steht in DOPPELTEN Anfuehrungszeichen. Einfache bezeichnen einen TYP ('System.TimeSpan'), aus
      'pie' wuerde also der Versuch, einen Typ namens pie zu laden.
    - Ein Ausdruck darf grammatikalisch nicht mit '{' beginnen. Das Objektliteral ist aber genau das, was
      hier stehen soll - deshalb klammert dieser Renderer es selbst ein, statt dem Autor die Eigenheit
      aufzubuerden. Wer den Block-Modus waehlt, schreibt ohnehin 'return { ... };'.
+   - Es gibt KEINE Lambda-Ausdruecke: Rows.Select(r => r.Status) ist ein Syntaxfehler, und ein
+     Funktions-Literal nehmen die LINQ-Methoden nicht an. Dafuer gibt es column(Rows, "Spalte"). Wer mehr
+     braucht, nimmt die native Einbettung - echtes C#, auch als Wert mitten in der Deklaration:
+       labels: `E(Rows as Rows->DEFAULT)::@"...C#, Zugriff ueber Global.Rows..." with {}
+     Das "with {…}" ist PFLICHT, auch leer. using-Anweisungen und Referenzen bringt man ueber
+     `U(cfg)"using ...;" bzw. `R(cfg)"Assembly" an - beides sind Anweisungen und gehen darum nur im
+     Block-Modus. System.Linq ist in DEFAULT schon enthalten.
 
    Ausdruck oder Block wird GEWAEHLT und nicht geraten (Einstellung scriptMode): ein Block ohne return
    liefert null, und Parse auf einen Block angewendet wirft nicht, sondern liefert still etwas Falsches. *@
@@ -96,17 +103,7 @@
 
         try
         {
-            var variables = new Dictionary<string, object>
-            {
-                { nameof(WidgetTemplateModel.Rows), Data?.Rows ?? (object)Array.Empty<object?>() },
-                { nameof(WidgetTemplateModel.Row), Data?.Row! },
-                { nameof(WidgetTemplateModel.Count), Data?.Count ?? 0 },
-                { nameof(WidgetTemplateModel.Params), Data?.Params ?? new Dictionary<string, string?>() },
-                { nameof(WidgetTemplateModel.Title), Data?.Title ?? string.Empty },
-                // Damit ChartType.Pie geschrieben werden kann statt 'pie' - der Typ muss dafuer im
-                // Geltungsbereich liegen. Zeichenketten gehen weiterhin.
-                { nameof(ChartType), typeof(ChartType) }
-            };
+            Dictionary<string, object> variables = BuildVariables(Data);
 
             object? result = string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase)
                 ? ExpressionParser.ParseBlock(TemplateSource, variables)
@@ -146,6 +143,47 @@
                 _ = OnRenderError.InvokeAsync(ex);
             }
         }
+    }
+
+    /// <summary>
+    /// What the configuration can reach: the data model, the chart type and the same helpers the Scriban
+    /// side has. Public, damit der Gleichlauf von Pruefung und Ausfuehrung pruefbar ist.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>column</c> ist hier nicht Bequemlichkeit, sondern der Ersatz fuer etwas, das CScript NICHT hat:
+    /// Lambda-Ausdruecke. <c>Rows.Select(r =&gt; r.Status)</c> ist ein Syntaxfehler, und ein
+    /// Funktions-Literal nehmen die LINQ-Methoden nicht an ("No capable Method found for Select"). Ohne
+    /// diesen Helfer bliebe fuer die haeufigste Aufgabe - eine Spalte als Liste - nur die native
+    /// Einbettung.
+    /// </para>
+    /// <para>
+    /// <c>ChartType</c> liegt als TYP im Geltungsbereich, damit <c>ChartType.Pie</c> geschrieben werden
+    /// kann; Zeichenketten gehen weiterhin. <c>translate</c> loest einen Kultur-Datensatz auf, wie im
+    /// Scriban-Template.
+    /// </para>
+    /// </remarks>
+    public static Dictionary<string, object> BuildVariables(WidgetTemplateModel? data)
+    {
+        var column = (Func<object?, string, IReadOnlyList<object?>>)((rows, name)
+            => WidgetRowAccessor.Column(rows as IEnumerable<object?>, name));
+        var translate = (Func<object?, string>)(value => WidgetTemplateFunctions.Translate(value));
+
+        return new Dictionary<string, object>
+        {
+            // IMMER als object[] - und zwar bei der Pruefung wie beim Ausfuehren. Wer im nativen Code
+            // castet, braucht einen Typ, auf den er sich verlassen kann; vorher lag hier beim Ausfuehren
+            // eine List<object> (so baut sie der Runner) und beim Pruefen ein object[]. Das Ergebnis war
+            // das denkbar Schlechteste: was sich speichern liess, scheiterte im Betrieb - und umgekehrt.
+            { nameof(WidgetTemplateModel.Rows), data?.Rows?.ToArray() ?? Array.Empty<object?>() },
+            { nameof(WidgetTemplateModel.Row), data?.Row! },
+            { nameof(WidgetTemplateModel.Count), data?.Count ?? 0 },
+            { nameof(WidgetTemplateModel.Params), data?.Params ?? new Dictionary<string, string?>() },
+            { nameof(WidgetTemplateModel.Title), data?.Title ?? string.Empty },
+            { nameof(ChartType), typeof(ChartType) },
+            { "column", column },
+            { "translate", translate }
+        };
     }
 
     /// <summary>
@@ -195,15 +233,7 @@
                      && string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase);
 
         // Ohne Daten geprueft: es geht um Syntax und Form, nicht um Werte. Eine Query laeuft dafuer nicht.
-        var variables = new Dictionary<string, object>
-        {
-            { nameof(WidgetTemplateModel.Rows), Array.Empty<object?>() },
-            { nameof(WidgetTemplateModel.Row), null! },
-            { nameof(WidgetTemplateModel.Count), 0 },
-            { nameof(WidgetTemplateModel.Params), new Dictionary<string, string?>() },
-            { nameof(WidgetTemplateModel.Title), string.Empty },
-            { nameof(ChartType), typeof(ChartType) }
-        };
+        Dictionary<string, object> variables = BuildVariables(null);
 
         try
         {

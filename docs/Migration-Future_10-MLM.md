@@ -2031,24 +2031,69 @@ Deklaration — sie unterscheiden sich **nur** darin, womit die Deklaration gesc
 ```csharp
 // chart.cscript
 { type: ChartType.Pie,
-  labels: Rows.Select(r => r.Status).ToArray(),
-  series: [ { name: "Anzahl", data: Rows.Select(r => r.Anzahl).ToArray() } ] }
+  labels: column(Rows, "Status"),
+  series: [ { name: "Anzahl", data: column(Rows, "Anzahl") } ] }
 ```
 
-Für die Scriban-Seite gibt es zwei neue Template-Funktionen: **`column(Rows, "Name")`** zieht eine Spalte
-heraus (und bedient beide Zeilenformen — Wörterbuch aus dem dynamischen Adapter, Objekt mit Eigenschaften
-aus einer LINQ-Abfrage), **`json(wert)`** schreibt einen Wert JSON-gerecht. Wer umformen will, schreibt
-statt `column` eine eigene Schleife.
+**`column(Rows, "Name")`** gibt es auf **beiden** Seiten: es zieht eine Spalte als Liste heraus und bedient
+dabei beide Zeilenformen (Wörterbuch aus dem dynamischen Adapter, Objekt mit Eigenschaften aus einer
+LINQ-Abfrage). Auf der Scriban-Seite kommt **`json(wert)`** dazu, das einen Wert JSON-gerecht schreibt —
+Escaping, Zahlen invariant, Listen als Arrays.
 
-**Zwei CScript-Eigenheiten, die man einmal wissen muss:**
+**Drei CScript-Eigenheiten, die man einmal wissen muss** (alle drei gegen den Interpreter geprüft):
 
 - **Text steht in doppelten Anführungszeichen.** Einfache bezeichnen in CScript einen **Typ**
   (`'System.TimeSpan'`), aus `'pie'` würde der Versuch, einen Typ namens *pie* zu laden.
-- **Ein Ausdruck darf nicht mit `{` beginnen** — das verbietet die Grammatik. Der Renderer klammert das
-  Objektliteral deshalb selbst ein; wer den Modus *Script block* wählt, schreibt ohnehin `return { … };`.
-  Der Modus wird in den Renderer-Einstellungen **gewählt** und nicht geraten: ein Block ohne `return`
-  liefert `null`, und ein Block, der als Ausdruck ausgewertet wird, wirft nicht, sondern liefert still
-  etwas Falsches.
+- **Es gibt keine Lambda-Ausdrücke.** `Rows.Select(r => r.Status)` ist ein *Syntaxfehler*, und ein
+  Funktions-Literal (`function(r) { … }`) nehmen die LINQ-Methoden nicht an (*„No capable Method found for
+  Select"*). Genau dafür ist `column` da. Auf einzelne Werte greift man direkt zu — beides funktioniert,
+  auch bei Wörterbuch-Zeilen:
+
+  ```csharp
+  Rows[0].Status        // Eigenschaft
+  Rows[0]["Status"]     // Spaltenname
+  Rows.Length           // Anzahl (auch Count über das Modell)
+  ```
+
+  Wer wirklich LINQ braucht, nimmt die **native Einbettung** — dort läuft echtes C#, und sie darf auch als
+  Wert **mitten in der Deklaration** stehen:
+
+  ```csharp
+  { type: ChartType.Pie,
+    labels: `E(Rows as Rows->DEFAULT)::@"Dictionary<string,object>[] rw =
+                 ((object[])Global.Rows).Cast<Dictionary<string,object>>().ToArray();
+               return (from t in rw select (string)t[""Topic""]).ToArray();" with {},
+    series: [ { name: "Anzahl", data: column(Rows, "Anzahl") } ] }
+  ```
+
+  Dazu vier Dinge, die man wissen muss:
+
+  - **`with { … }` ist Pflicht**, auch leer. Ohne das Anhängsel ist der Ausdruck ein Syntaxfehler.
+  - Es gibt **zwei Formen**, und sie schreiben den Code unterschiedlich:
+    - **mit Zielobjekt** — `` `E(ziel as name -> cfg)::"code" with {…} ``. Der Code ist ein
+      **String-Literal**; für mehrzeiligen Code mit Anführungszeichen die verbatim-Form `@"…"` benutzen und
+      innere Anführungszeichen verdoppeln (`""`).
+    - **ohne Zielobjekt** — `` `E(#cfg)::@#code# with {…} ``. Hier steht der Code als **Block** zwischen
+      `@#` und `#`; ein String-Literal ist dort nicht vorgesehen.
+
+    In beiden Fällen liegen das Ziel und die `with`-Werte im C#-Code unter `Global.<name>`.
+  - **`Global.Rows` ist ein `object[]`** — beim Prüfen wie beim Ausführen derselbe Typ, darauf kann man
+    sich beim Casten verlassen. Die **Elemente** hängen dagegen an der Datenquelle: über den dynamischen
+    Adapter sind es `Dictionary<string, object>`, über einen DbContext kommt, was die Abfrage zurückgibt
+    (typischerweise anonyme Typen). `column(…)` nimmt beides — ein handgeschriebener Element-Cast nicht.
+  - Die **Konfiguration** (`DEFAULT` oder ein eigener Name) bündelt `using`-Anweisungen und Referenzen:
+    `` `U(cfg)"using System.Linq;"; `` bzw. `` `R(cfg)"Assembly" ``. Beides sind **Anweisungen** — sie gehen
+    nur im Modus *Script block*, nicht in einem Ausdruck. **`System`, `System.Linq` und
+    `System.Collections.Generic` sind in jeder Konfiguration automatisch dabei**; `` `U `` braucht man nur
+    für weitere Namensräume. **Der Name ist gross-/kleinschreibungsempfindlich**: `Default` und `DEFAULT`
+    sind zwei verschiedene Konfigurationen — wer per `` `U `` etwas anmeldet und bei `` `E `` anders
+    schreibt, meldet es an einer Konfiguration an, die niemand benutzt.
+
+- **Ein Ausdruck darf nicht mit `{` beginnen** — das verbietet die Grammatik. Das Objektliteral ist aber
+  genau das, was hier steht; der Renderer klammert es deshalb selbst ein. Wer den Modus *Script block*
+  wählt, schreibt ohnehin `return { … };`. Der Modus wird in den Renderer-Einstellungen **gewählt** und
+  nicht geraten: ein Block ohne `return` liefert `null`, und ein Block, der als Ausdruck ausgewertet wird,
+  wirft nicht, sondern liefert still etwas Falsches.
 
 **Aufbereitet** werden nur `type`, `labels` und `series`. **Alles andere wird durchgereicht**: jedes weitere
 Feld wird gegen die `[Parameter]`-Eigenschaften von `MudChart<double>` geprüft (Schreibweise egal) und auf

@@ -342,6 +342,76 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
                 new Dictionary<string, string?>()));
         }
 
+        /// <summary>
+        /// CScript kennt KEINE Lambda-Ausdruecke - Rows.Select(r => r.Status) ist ein Syntaxfehler, und ein
+        /// Funktions-Literal nehmen die LINQ-Methoden nicht an. Deshalb liegt column(...) im
+        /// Geltungsbereich; ohne diesen Helfer bliebe fuer die haeufigste Aufgabe nur die native
+        /// Einbettung. Der Aufruf muss auch MITTEN im Objektliteral gehen.
+        /// </summary>
+        [TestMethod]
+        public void CScriptValidation_AcceptsTheColumnHelper()
+        {
+            Assert.IsNull(CScriptChartRenderer.Validate(
+                "{type: \"pie\", labels: column(Rows, \"Status\"), " +
+                "series: [{name: \"Anzahl\", data: column(Rows, \"Anzahl\")}]}",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>
+        /// Der Ausweg fuer alles, was column nicht abdeckt: native Einbettung als WERT in der Deklaration.
+        /// Merke: das "with {}" ist Pflicht, auch leer - ohne es ist der Ausdruck ein Syntaxfehler.
+        /// </summary>
+        [TestMethod]
+        public void CScriptValidation_AcceptsNativeEmbedding()
+        {
+            Assert.IsNull(CScriptChartRenderer.Validate(
+                "{type: \"pie\", " +
+                "labels: `E(#DEFAULT)::@#return new string[]{\"a\"};# with {}, " +
+                "series: [{name: \"x\", data: [1]}]}",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>
+        /// Pruefung und Ausfuehrung MUESSEN denselben Typ reichen. Vorher lag beim Ausfuehren eine
+        /// List&lt;object&gt; im Geltungsbereich (so baut sie der Runner) und beim Pruefen ein object[] -
+        /// ein nativer Cast konnte also entweder gespeichert werden ODER laufen, nie beides.
+        /// </summary>
+        [TestMethod]
+        public void CScriptVariables_OfferRowsAsTheSameTypeWhenCheckingAndWhenRunning()
+        {
+            object? whenChecking = CScriptChartRenderer.BuildVariables(null)["Rows"];
+
+            var model = new WidgetTemplateModel { Rows = new List<object?> { new { A = 1 } } };
+            object? whenRunning = CScriptChartRenderer.BuildVariables(model)["Rows"];
+
+            Assert.IsInstanceOfType<object[]>(whenChecking);
+            Assert.IsInstanceOfType<object[]>(whenRunning);
+            Assert.AreEqual(whenChecking.GetType(), whenRunning.GetType());
+        }
+
+        /// <summary>Der dokumentierte Cast im nativen Code muss die Pruefung ueberstehen.</summary>
+        [TestMethod]
+        public void CScriptValidation_AcceptsTheDocumentedNativeCast()
+        {
+            Assert.IsNull(CScriptChartRenderer.Validate(
+                "{type: \"pie\", " +
+                // Ziel-Form: der Code steht als STRING-Literal (@"..."), nicht als @#...#-Block - den
+                // gibt es nur bei der Form ohne Zielobjekt.
+                "labels: `E(Rows as Rows->DEFAULT)::@\"object[] rw = (object[])Global.Rows; " +
+                "return (from t in rw select t.ToString()).ToArray();\" with {}, " +
+                "series: [{name: \"x\", data: [1]}]}",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>Ein Lambda ist und bleibt ein Syntaxfehler - die Meldung soll ihn nennen.</summary>
+        [TestMethod]
+        public void CScriptValidation_RejectsALambda()
+        {
+            Assert.IsNotNull(CScriptChartRenderer.Validate(
+                "{type: \"pie\", labels: Rows.Select(r => r.Status)}",
+                new Dictionary<string, string?>()));
+        }
+
         /// <summary>Im Block-Modus ist dasselbe mit einem return zu schreiben.</summary>
         [TestMethod]
         public void CScriptValidation_AcceptsABlockWithReturn()

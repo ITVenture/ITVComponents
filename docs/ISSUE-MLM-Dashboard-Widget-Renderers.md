@@ -1,7 +1,12 @@
 # Issue: Austauschbare Widget-Renderer (`IWidgetRenderer`) statt fest verdrahtetem Scriban (Anstoß aus MLM)
 
-**Status:** OFFEN — Anforderung aus dem Konsumenten, toolkit-seitig noch nichts umgesetzt.
-**Datum:** 2026-08-11
+**Status:** TOOLKIT-SEITIG ERLEDIGT mit `5.0.0-PRE172` (Leitfaden §25.9) — noch am selben Tag umgesetzt,
+und zwar über die Anforderung hinaus: zwei Diagramm-Renderer statt einem (`chart.scriban` /
+`chart.cscript`), Renderer-Einstellungen als eigenes Feld (`RendererOptions`), Attribut-basierte
+Schlüssel/Beschriftung, Prüfmethode beim Speichern, Config-Export zieht beide Felder mit. Offen ist nur
+noch, was in MLM passiert: die Startseiten-Kachel könnte vom handgeschriebenen SVG auf einen
+Diagramm-Renderer umziehen (kein Zwang — der Scriban-Weg bleibt).
+**Datum:** 2026-08-11 (erledigt am selben Tag)
 **Quelle:** MLMManager-Session (Konsument). MLM hat die Dashboard-Fläche (§25) auf der Startseite
 eingebunden (`MLMManager.Web/Components/Pages/Home.razor`) und braucht als Nächstes Diagramm-Kacheln.
 **Toolkit-Stand:** `5.0.0-PRE171`. Alle Aussagen sind gegen diesen Stand verifiziert; wo etwas abgeleitet

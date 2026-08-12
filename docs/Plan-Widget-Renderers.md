@@ -4,10 +4,19 @@
 grün, 48 Tests grün, **nicht laufzeit-getestet**. Offen: der Host-Migrationsschritt (zwei Spalten,
 Leitfaden §25.9) und der Host-Test.
 
-**Beim Umsetzen gelernt** (die Beispiele weiter unten waren teilweise falsch, siehe §25.9.3 im Leitfaden):
-CScript verlangt für Text **doppelte** Anführungszeichen — einfache bezeichnen einen Typ; und ein Ausdruck
-darf **nicht mit `{` beginnen** (Grammatik-Prädikat), weshalb der Renderer das Objektliteral selbst
-einklammert. `ChartType.Pie` funktioniert, weil der Typ als Variable im Geltungsbereich liegt.
+**Beim Umsetzen gelernt** (die CScript-Beispiele weiter unten sind damit überholt — es gilt §25.9.3 im
+Leitfaden). Alles drei am Interpreter geprüft, nicht abgeleitet:
+
+- Text braucht **doppelte** Anführungszeichen; einfache bezeichnen einen **Typ** (`'System.TimeSpan'`).
+- Es gibt **keine Lambda-Ausdrücke**: `Rows.Select(r => r.Status)` ist ein Syntaxfehler, ein
+  Funktions-Literal nehmen die LINQ-Methoden nicht an. Deshalb bekommt der CScript-Renderer denselben
+  Helfer wie die Scriban-Seite — **`column(Rows, "Spalte")`**, aufrufbar auch mitten im Objektliteral.
+  Echtes LINQ gibt es nur in der nativen Einbettung
+  (`` `E(#DEFAULT)::@# … # with {Rows: Rows} ``), die als ganzer Ausdruck funktioniert, aber nicht als
+  Wert innerhalb eines Literals.
+- Ein Ausdruck darf **nicht mit `{` beginnen** (Grammatik-Prädikat) — der Renderer klammert das
+  Objektliteral selbst ein. `ChartType.Pie` funktioniert, weil der Typ als Variable im Geltungsbereich
+  liegt.
 **Datum:** 2026-08-11
 **Grundlage:** `ISSUE-MLM-Dashboard-Widget-Renderers.md` (Anforderung aus dem Konsumenten).
 **Toolkit-Stand:** `5.0.0-PRE171`. Alles hier Genannte ist gegen diesen Stand gelesen; wo etwas abgeleitet
