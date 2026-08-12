@@ -1986,8 +1986,13 @@ Auswerten, Parsen — gehört deshalb gepuffert und nur bei geänderter Quelle w
 
 **Einstellungen** deklariert der Renderer bei der Registrierung als `DeclaredField`-Liste (`options:`); der
 Editor zeigt dafür dieselbe generische Maske wie für die Widget-Parameter, und die Werte landen invariant
-in `RendererOptions`. Eine Prüfmethode (`validate:`) lässt eine kaputte Konfiguration schon **beim
-Speichern** auffallen statt erst als Fehler-Kachel.
+in `RendererOptions`.
+
+Eine Prüfmethode (`validate:`) meldet sich beim **Speichern**. Sie prüft die **Syntax** — ob sich der Text
+übersetzen lässt —, und **nur** die. Was eine Konfiguration *tut*, lässt sich ohne Daten nicht beurteilen:
+ein völlig richtiges `Rows[0].Months` scheitert an einer leeren Zeilenliste, und eine Prüfung, die deswegen
+das Speichern verweigert, ist schlimmer als keine. Inhaltliche Fehler — unbekannter Parameter, unlesbare
+Deklaration, Wert keine Zahl — zeigt deshalb die **Kachel**, mit Meldung und Log-Eintrag.
 
 Optional dazu `describeParameters:` — liefert einen Kommentarblock, den der Editor über den Knopf
 **„Insert parameters"** unter die Konfiguration hängt. Gedacht für das, was **nur der Code weiß** (bei den
@@ -2110,8 +2115,9 @@ Objekt-Parameter (`chartOptions`) wird rekursiv nach derselben Regel befüllt.
 
 Diese Prüfung ist der Grund, warum das tragfähig ist: MudBlazor-Komponenten fangen unbekannte Attribute
 über `UserAttributes` ab — ein verschriebenes `legendPositon` würde also **nicht** auffallen, sondern
-wirkungslos als HTML-Attribut enden. Der Renderer beanstandet es stattdessen, beim Speichern und in der
-Kachel. Gesperrt sind `chartType`/`chartLabels`/`chartSeries` (die kommen aus der Deklaration) und
+wirkungslos als HTML-Attribut enden. Der Renderer beanstandet es stattdessen **in der Kachel** (beim
+Speichern wird nur die Syntax geprüft, s. §25.9.1) und schreibt den Grund ins Log. Gesperrt sind
+`chartType`/`chartLabels`/`chartSeries` (die kommen aus der Deklaration) und
 `selectedIndex`/`selectedIndexChanged` (die verdrahtet der Renderer).
 
 **Klick = Navigation.** Ein Beschriftungs-Eintrag darf statt Text ein Objekt sein:

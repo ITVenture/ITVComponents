@@ -28,9 +28,11 @@
 @using System.Collections.Generic
 @using Microsoft.AspNetCore.Components
 @using ITVComponents.Scripting.CScript.Core
+@using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
 @attribute [WidgetRenderer("chart.cscript", DisplayName = "{\"de\":\"Diagramm (CScript)\",\"Default\":\"Chart (CScript)\"}", EditorLanguage = "csharp")]
 @implements IWidgetRenderer
+@inject ILogger<CScriptChartRenderer> Logger
 
 <ChartWidgetView Declaration="@declaration"
                  Parameters="@parameters"
@@ -135,9 +137,13 @@
         }
         catch (Exception ex)
         {
-            // Die Kachel zeigt die Meldung; der Host bekommt die Ausnahme fuers Log. Ohne beides waere
-            // eine kaputte Konfiguration nur eine leere Flaeche.
+            // Die Kachel zeigt die Meldung, das Log bekommt den ganzen Vorgang: welcher Modus, welcher
+            // Text. Weil beim Speichern nur noch die Syntax geprueft wird, ist DIES die Stelle, an der ein
+            // inhaltlicher Fehler sichtbar werden muss - und zwar nachvollziehbar.
             errors.Add(ex.Message);
+            Logger.LogError(ex,
+                "Die CScript-Diagramm-Konfiguration konnte nicht ausgewertet werden (Modus {Mode}). Text: {Configuration}",
+                mode, TemplateSource);
             if (OnRenderError.HasDelegate)
             {
                 _ = OnRenderError.InvokeAsync(ex);
@@ -231,9 +237,16 @@
         => ChartParameterBinder.Describe(typeof(MudChart<double>), asJson: false);
 
     /// <summary>
-    /// Checks a configuration when the widget is saved - so a broken one is found there and not by whoever
-    /// opens the dashboard.
+    /// Checks a configuration when the widget is saved - <b>syntactically</b>.
     /// </summary>
+    /// <remarks>
+    /// Hier wird NICHTS ausgefuehrt. Der frueher gewaehlte Weg - einmal mit leeren Zeilen auswerten -
+    /// beanstandete jede voellig richtige Konfiguration, die auf Daten zugreift: <c>Rows[0].Months</c>
+    /// scheitert ohne Zeilen mit "Index was outside the bounds of the array", und der Editor liess sich
+    /// nicht mehr speichern. Was ein Ausdruck TUT, laesst sich ohne Daten nicht beurteilen; ob er
+    /// uebersetzbar ist, schon. Alles Weitere - unbekannte Parameter, unlesbare Deklaration - meldet die
+    /// Kachel zur Laufzeit, mit Meldung und Log-Eintrag.
+    /// </remarks>
     public static string? Validate(string? configuration, IReadOnlyDictionary<string, string?> options)
     {
         if (string.IsNullOrWhiteSpace(configuration))
@@ -245,46 +258,26 @@
                      && options.TryGetValue(ScriptModeOption, out string? mode)
                      && string.Equals(mode, BlockMode, StringComparison.OrdinalIgnoreCase);
 
-        // Ohne Daten geprueft: es geht um Syntax und Form, nicht um Werte. Eine Query laeuft dafuer nicht.
-        Dictionary<string, object> variables = BuildVariables(null);
-
         try
         {
-            object? result = block
-                ? ExpressionParser.ParseBlock(configuration, variables)
-                : ExpressionParser.Parse(AsExpression(configuration), variables);
-
-            if (result == null)
-            {
-                return block
-                    ? "The script produced no result - is a 'return' missing?"
-                    : "The expression produced no result.";
-            }
-
-            // Das ObjectLiteral von CScript IST ein Woerterbuch (IScope : IDictionary<string, object>),
-            // deshalb genuegt hier ein Zweig - siehe ChartWidgetDeclaration.AsMap.
-            IDictionary<string, object?>? map = result as IDictionary<string, object?>;
-
-            if (map == null)
-            {
-                return $"The configuration produces a {result.GetType().Name}, not a chart declaration.";
-            }
-
-            var errors = new List<string>();
-            ChartWidgetDeclaration? declared = ChartWidgetDeclaration.FromMap(map, errors);
-            if (declared != null)
-            {
-                ChartParameterBinder.Bind(declared.Extra, typeof(MudChart<double>), errors);
-            }
-
-            // Ohne Daten ist eine leere Serie normal - diese Beanstandung sagt hier nichts aus.
-            errors.RemoveAll(e => e.Contains("'series' is empty", StringComparison.Ordinal)
-                                  || e.Contains("label(s)", StringComparison.Ordinal));
-            return errors.Count != 0 ? string.Join(" ", errors) : null;
+            ExpressionParser.GetRawExpressionTree(
+                block ? configuration! : AsExpression(configuration!),
+                block ? ExpressionParser.ExpressionMode.Program : ExpressionParser.ExpressionMode.Expression);
         }
         catch (Exception ex)
         {
             return ex.Message;
         }
+
+        // Das eine, was sich am Text sicher sagen laesst: ohne 'return' kann ein Block kein Ergebnis
+        // haben. Eine Textsuche genuegt dafuer - kommt das Wort nirgends vor, gibt es auch keinen Pfad,
+        // auf dem eines entstuende.
+        if (block && configuration!.IndexOf("return", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return "A script block must end with 'return' - without it the configuration has no result.";
+        }
+
+        return null;
     }
+
 }

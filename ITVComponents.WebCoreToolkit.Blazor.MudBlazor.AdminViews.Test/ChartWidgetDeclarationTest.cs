@@ -309,14 +309,42 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         // ---- Die Pruefung beim Speichern -----------------------------------------------------------
 
         [TestMethod]
-        public void ScribanValidation_AcceptsAGoodTemplateAndRejectsBrokenJson()
+        public void ScribanValidation_AcceptsAGoodTemplateAndRejectsABrokenOne()
         {
             Assert.IsNull(ScribanChartRenderer.Validate(
                 "{ \"type\": \"pie\", \"series\": [ { \"name\": \"x\", \"data\": [] } ] }",
                 new Dictionary<string, string?>()));
 
+            // Ein Scriban-Fehler: die Schleife wird nie geschlossen. Unvollstaendiges JSON ist dagegen
+            // KEINE Beanstandung mehr - dazu muesste man rendern, und was ein Template mit echten Zeilen
+            // erzeugt, weiss man beim Speichern nicht.
             Assert.IsNotNull(ScribanChartRenderer.Validate(
-                "{ \"type\": \"pie\", ", new Dictionary<string, string?>()));
+                "{{ for row in Rows }} x", new Dictionary<string, string?>()));
+        }
+
+        /// <summary>
+        /// Der Fall aus dem Betrieb: eine voellig richtige Konfiguration, die auf Daten zugreift. Frueher
+        /// wertete die Pruefung sie mit LEEREN Zeilen aus - Rows[0] schlug mit "Index was outside the
+        /// bounds of the array" fehl, und der Editor liess sich nicht speichern. Geprueft wird jetzt nur
+        /// noch, ob sich der Text uebersetzen laesst.
+        /// </summary>
+        [TestMethod]
+        public void CScriptValidation_AcceptsAnExpressionThatReadsData()
+        {
+            Assert.IsNull(CScriptChartRenderer.Validate(
+                "{ type: ChartType.Donut, " +
+                "labels: Rows[0].Months, " +
+                "series: [ { name: \"Total\", data: Rows[0][\"All-Over\"] } ] }",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>Dasselbe fuer die Scriban-Seite: ein Template, das erst mit Zeilen JSON ergibt.</summary>
+        [TestMethod]
+        public void ScribanValidation_AcceptsATemplateThatOnlyYieldsJsonWithData()
+        {
+            Assert.IsNull(ScribanChartRenderer.Validate(
+                "{ \"type\": \"pie\", \"labels\": [ {{ for row in Rows }}{{ json row.Topic }},{{ end }} ] }",
+                new Dictionary<string, string?>()));
         }
 
         /// <summary>

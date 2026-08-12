@@ -14,10 +14,12 @@
 @using System.Text.Json
 @using Microsoft.AspNetCore.Components
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
+@using Microsoft.Extensions.Logging
 @using Scriban
 @using Scriban.Runtime
 @attribute [WidgetRenderer("chart.scriban", DisplayName = "{\"de\":\"Diagramm (Scriban)\",\"Default\":\"Chart (Scriban)\"}", EditorLanguage = "json")]
 @implements IWidgetRenderer
+@inject ILogger<ScribanChartRenderer> Logger
 
 <ChartWidgetView Declaration="@declaration"
                  Parameters="@parameters"
@@ -102,6 +104,9 @@
         catch (Exception ex)
         {
             errors.Add(ex.Message);
+            Logger.LogError(ex,
+                "Die Scriban-Diagramm-Konfiguration konnte nicht gerendert werden. Text: {Configuration}",
+                TemplateSource);
             if (OnRenderError.HasDelegate)
             {
                 _ = OnRenderError.InvokeAsync(ex);
@@ -118,9 +123,14 @@
         => ChartParameterBinder.Describe(typeof(MudChart<double>), asJson: true);
 
     /// <summary>
-    /// Checks a configuration when the widget is saved: it must parse as a template and, rendered without
-    /// data, produce readable JSON.
+    /// Checks a configuration when the widget is saved - <b>syntactically</b>.
     /// </summary>
+    /// <remarks>
+    /// Nur das Template wird uebersetzt, nicht gerendert. Ein Rendern ohne Daten beanstandete sonst
+    /// Templates, die erst MIT Zeilen gueltiges JSON ergeben - und liess sie nicht mehr speichern. Ob die
+    /// Deklaration am Ende lesbar ist und ob ihre Parameter existieren, zeigt die Kachel zur Laufzeit;
+    /// dort steht die Meldung und dort entsteht der Log-Eintrag.
+    /// </remarks>
     public static string? Validate(string? configuration, IReadOnlyDictionary<string, string?> options)
     {
         if (string.IsNullOrWhiteSpace(configuration))
@@ -131,35 +141,14 @@
         try
         {
             Template template = Template.Parse(configuration);
-            if (template.HasErrors)
-            {
-                return string.Join(" ", template.Messages.Select(m => m.ToString()));
-            }
-
-            // Ohne Daten gerendert: es geht um Form und Syntax. Ein Template, das nur mit Zeilen
-            // gueltiges JSON ergibt (etwa weil ein Komma in der Schleife steckt), faellt hier NICHT auf -
-            // das kann eine Pruefung ohne Datenbank nicht leisten und soll nichts Falsches versprechen.
-            ScriptObject globals = WidgetTemplateFunctions.CreateGlobals(new WidgetTemplateModel());
-            string rendered = template.Render(WidgetTemplateFunctions.CreateContext(globals));
-
-            var errors = new List<string>();
-            IDictionary<string, object?>? map = ChartJson.ToMap(rendered, errors);
-            if (map != null)
-            {
-                ChartWidgetDeclaration? declared = ChartWidgetDeclaration.FromMap(map, errors);
-                if (declared != null)
-                {
-                    ChartParameterBinder.Bind(declared.Extra, typeof(MudChart<double>), errors);
-                }
-            }
-
-            errors.RemoveAll(e => e.Contains("'series' is empty", StringComparison.Ordinal)
-                                  || e.Contains("label(s)", StringComparison.Ordinal));
-            return errors.Count != 0 ? string.Join(" ", errors) : null;
+            return template.HasErrors
+                ? string.Join(" ", template.Messages.Select(m => m.ToString()))
+                : null;
         }
         catch (Exception ex)
         {
             return ex.Message;
         }
     }
+
 }

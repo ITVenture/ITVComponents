@@ -33,6 +33,10 @@ der Komponente selbst und ist damit immer der Stand der eingesetzten Fassung.
 ein Wert, der keine Zahl ist, ein Parameter, den es nicht gibt —, sagt die Kachel es und zeichnet nicht
 irgendetwas Halbes.
 
+**Beim Speichern wird nur die Syntax geprüft.** Ob die Konfiguration die richtigen Zahlen liefert, zeigt
+sich erst mit echten Daten — deshalb blockiert der Editor nichts, was er nicht sicher beurteilen kann.
+Alles Weitere steht in der Kachel selbst und im Log.
+
 ## Die Abfrage
 
 Das Übliche ist eine Abfrage mit einer Beschriftungs- und einer Wertespalte:
