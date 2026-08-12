@@ -4,12 +4,19 @@
 // [data-itv-dnd-host] root contains the target — registered via attach() from each grid
 // instance, so cross-grid drops (parent <-> child rows of a tree) work transparently.
 //
-// Two shapes of grid share this file:
-//   * hierarchical (navigation): the host root carries data-itv-dnd-into="true" and the middle
-//     third of a row means "make it a child of this one".
-//   * flat (dashboard widgets): no such attribute, the row splits in half into above / below.
-// Keeping both in ONE helper is deliberate — the zone maths and the listener bookkeeping would
-// otherwise exist twice and drift apart.
+// Three shapes of grid share this file, chosen by data-itv-dnd-into on the host root:
+//   * "true"  — hierarchical (navigation): the middle third of a row means "make it a child of
+//               this one", the outer thirds mean above / below.
+//   * "only"  — hierarchy WITHOUT ordering (help resources): the whole row is one target and the
+//               only zone is "into". Ohne Sortierung waeren above/below Zonen ohne Wirkung.
+//   * absent  — flat (dashboard widgets): the row splits in half into above / below.
+// Keeping them in ONE helper is deliberate — the zone maths and the listener bookkeeping would
+// otherwise exist several times and drift apart.
+//
+// Kennungen sind opake ZEICHENKETTEN. Ein Gitter mit zwei Arten von Zeilen (Ordner, Ressourcen)
+// braucht eine Kennung, die die Art mitfuehrt ("f:12" / "r:34") - blosse Zahlen kollidierten dort.
+// Und nicht jede Zeile ist ein Ziel: wer data-itv-dnd-nodrop traegt, laesst sich ziehen, nimmt aber
+// nichts auf (eine Ressource haelt keine andere).
 
 window.itvGridDnd = window.itvGridDnd || (function () {
     const hosts = new Map();
@@ -21,15 +28,22 @@ window.itvGridDnd = window.itvGridDnd || (function () {
         el.classList.remove('itv-dnd-above', 'itv-dnd-into', 'itv-dnd-below');
     }
 
-    function allowsInto(el) {
+    function intoMode(el) {
         const hostEl = el.closest('[data-itv-dnd-host]');
-        return !!hostEl && hostEl.dataset.itvDndInto === 'true';
+        return hostEl ? (hostEl.dataset.itvDndInto || '') : '';
+    }
+
+    function isTarget(el) {
+        return !!el && el.dataset.itvDndNodrop !== 'true';
     }
 
     function pickZone(el, clientY) {
+        const mode = intoMode(el);
+        if (mode === 'only') return 'into';
+
         const rect = el.getBoundingClientRect();
         const rel = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5;
-        if (!allowsInto(el)) return rel < 0.5 ? 'above' : 'below';
+        if (mode !== 'true') return rel < 0.5 ? 'above' : 'below';
         if (rel < 0.33) return 'above';
         if (rel < 0.67) return 'into';
         return 'below';
@@ -52,7 +66,7 @@ window.itvGridDnd = window.itvGridDnd || (function () {
     document.addEventListener('dragstart', (e) => {
         const src = e.target.closest('[data-itv-dnd-id]');
         if (!src) return;
-        draggedId = parseInt(src.dataset.itvDndId, 10);
+        draggedId = src.dataset.itvDndId;
         if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', String(draggedId)); } catch (_) { /* IE-compat */ }
@@ -68,8 +82,8 @@ window.itvGridDnd = window.itvGridDnd || (function () {
     document.addEventListener('dragover', (e) => {
         if (draggedId === null) return;
         const tgt = e.target.closest('[data-itv-dnd-id]');
-        if (!tgt) return;
-        const tgtId = parseInt(tgt.dataset.itvDndId, 10);
+        if (!isTarget(tgt)) return;
+        const tgtId = tgt.dataset.itvDndId;
         if (tgtId === draggedId) return;
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
@@ -93,8 +107,8 @@ window.itvGridDnd = window.itvGridDnd || (function () {
     document.addEventListener('drop', (e) => {
         if (draggedId === null) return;
         const tgt = e.target.closest('[data-itv-dnd-id]');
-        if (!tgt) return;
-        const tgtId = parseInt(tgt.dataset.itvDndId, 10);
+        if (!isTarget(tgt)) return;
+        const tgtId = tgt.dataset.itvDndId;
         if (tgtId === draggedId) return;
         e.preventDefault();
 

@@ -188,13 +188,18 @@ else
     /// <summary>
     /// Ruft das JS auf, wenn eine Zeile auf einer anderen abgelegt wurde.
     /// </summary>
-    /// <param name="draggedId">die gezogene Zeile</param>
-    /// <param name="anchorId">die Zeile, auf der losgelassen wurde</param>
+    /// <param name="draggedKey">die gezogene Zeile</param>
+    /// <param name="anchorKey">die Zeile, auf der losgelassen wurde</param>
     /// <param name="zone">"above" oder "below" - dieses Gitter ist flach, "into" kommt hier nie an</param>
+    /// <remarks>
+    /// Die Kennungen sind Zeichenketten, weil das gemeinsame JS sie als undurchsichtig behandelt - ein
+    /// anderes Gitter (die Hilfe-Ressourcen) fuehrt darin die Art der Zeile mit.
+    /// </remarks>
     [JSInvokable]
-    public async Task HandleDrop(int draggedId, int anchorId, string zone)
+    public async Task HandleDrop(string draggedKey, string anchorKey, string zone)
     {
         if (!hasWrite) return;
+        if (!int.TryParse(draggedKey, out int draggedId) || !int.TryParse(anchorKey, out int anchorId)) return;
         var ok = await Handler.MoveAsync(currentUser!, draggedId, anchorId, zone == "below");
         if (ok)
         {

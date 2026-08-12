@@ -42,6 +42,31 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         Task<bool> DeleteResourceAsync(ClaimsPrincipal admin, int helpResourceId, CancellationToken ct = default);
 
         /// <summary>
+        /// Lists one level of the resource library: the folders and resources directly below
+        /// <paramref name="folderId"/> (null = the root), folders first, each side by name.
+        /// </summary>
+        Task<HelpResourceNodeViewModel[]> ListNodesAsync(ClaimsPrincipal admin, int? folderId,
+            CancellationToken ct = default);
+
+        /// <summary>Creates (id == 0) or renames a folder. Returns an error message, or null on success.</summary>
+        Task<string?> SaveFolderAsync(ClaimsPrincipal admin, int helpResourceFolderId, int? parentId, string name,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Deletes a folder - only when it is empty. Ein Ordner, der Inhalt mitnimmt, waere bei einer reinen
+        /// Ordnungsstruktur der teuerste denkbare Fehlgriff.
+        /// </summary>
+        Task<string?> DeleteFolderAsync(ClaimsPrincipal admin, int helpResourceFolderId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Moves a node (folder or resource) into a folder - <paramref name="targetKey"/> is a node key or
+        /// <c>HelpResourceNodeKey.Root</c>.
+        /// </summary>
+        /// <returns>an error message, or null on success</returns>
+        Task<string?> MoveNodeAsync(ClaimsPrincipal admin, string nodeKey, string targetKey,
+            CancellationToken ct = default);
+
+        /// <summary>
         /// Validates and stores an uploaded file for a resource+culture through <c>IHelpResourceStore</c> and
         /// upserts the <c>HelpResourceFile</c> row (replacing any prior file for that culture). Returns an error
         /// message on rejection, or null on success.

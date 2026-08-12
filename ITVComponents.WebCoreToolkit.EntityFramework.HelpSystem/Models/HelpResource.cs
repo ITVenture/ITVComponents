@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Models
@@ -24,6 +25,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Models
         public string? Description { get; set; }
 
         public HelpResourceKind Kind { get; set; }
+
+        /// <summary>
+        /// The folder this resource is filed in; null = at the root. Reine Ordnung: der Name bleibt global
+        /// eindeutig, und aus dem Hilfe-Inhalt wird die Ressource weiterhin flach ueber ihn angesprochen.
+        /// </summary>
+        public int? FolderId { get; set; }
+
+        [ForeignKey(nameof(FolderId))]
+        public virtual HelpResourceFolder? Folder { get; set; }
 
         /// <summary>The stored files, one per culture (<c>DEFAULT</c> is the fallback).</summary>
         public virtual ICollection<HelpResourceFile> Files { get; set; } = new List<HelpResourceFile>();

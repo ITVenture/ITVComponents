@@ -151,6 +151,223 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             return true;
         }
 
+        public async Task<HelpResourceNodeViewModel[]> ListNodesAsync(ClaimsPrincipal admin, int? folderId,
+            CancellationToken ct = default)
+        {
+            if (!CanManage(admin))
+            {
+                return Array.Empty<HelpResourceNodeViewModel>();
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var folders = await db.HelpResourceFolders.AsNoTracking()
+                .Where(f => f.ParentId == folderId)
+                .OrderBy(f => f.Name)
+                .Select(f => new HelpResourceNodeViewModel
+                {
+                    IsFolder = true,
+                    Id = f.HelpResourceFolderId,
+                    Name = f.Name,
+                    // Beides zaehlt, weil beides den Ordner am Loeschen hindert - und weil der Pfeil zum
+                    // Aufklappen sonst an einem Ordner haengt, unter dem nichts kommt.
+                    ChildCount = f.Children.Count + f.Resources.Count
+                }).ToArrayAsync(ct);
+
+            var resources = await db.HelpResources.AsNoTracking()
+                .Where(r => r.FolderId == folderId)
+                .OrderBy(r => r.Name)
+                .Select(r => new HelpResourceNodeViewModel
+                {
+                    IsFolder = false,
+                    Id = r.HelpResourceId,
+                    Name = r.Name,
+                    Description = r.Description,
+                    Kind = r.Kind,
+                    FileCount = r.Files.Count
+                }).ToArrayAsync(ct);
+
+            // Ordner zuerst: die Struktur soll man sehen, bevor man den Inhalt liest.
+            return folders.Concat(resources).ToArray();
+        }
+
+        public async Task<string?> SaveFolderAsync(ClaimsPrincipal admin, int helpResourceFolderId, int? parentId,
+            string name, CancellationToken ct = default)
+        {
+            if (!services.VerifyUserPermissions(HelpPermissions.ResourcesWriteAny))
+            {
+                return "Not authorized.";
+            }
+
+            name = name?.Trim() ?? string.Empty;
+            if (name.Length == 0)
+            {
+                return "The folder needs a name.";
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            // Eindeutigkeit im Handler und nicht ueber einen Index: der muesste (ParentId, Name) umfassen,
+            // und ueber eine NULL-Spalte verhalten sich SQL Server und PostgreSQL dabei verschieden.
+            if (await db.HelpResourceFolders.AnyAsync(
+                    f => f.ParentId == parentId && f.Name == name && f.HelpResourceFolderId != helpResourceFolderId, ct))
+            {
+                return $"A folder named '{name}' already exists here.";
+            }
+
+            if (helpResourceFolderId == 0)
+            {
+                db.HelpResourceFolders.Add(new HelpResourceFolder { ParentId = parentId, Name = name });
+            }
+            else
+            {
+                var folder = await db.HelpResourceFolders
+                    .FirstOrDefaultAsync(f => f.HelpResourceFolderId == helpResourceFolderId, ct);
+                if (folder == null)
+                {
+                    return "The folder no longer exists.";
+                }
+
+                folder.Name = name;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        public async Task<string?> DeleteFolderAsync(ClaimsPrincipal admin, int helpResourceFolderId,
+            CancellationToken ct = default)
+        {
+            if (!services.VerifyUserPermissions(HelpPermissions.ResourcesWriteAny))
+            {
+                return "Not authorized.";
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var folder = await db.HelpResourceFolders
+                .FirstOrDefaultAsync(f => f.HelpResourceFolderId == helpResourceFolderId, ct);
+            if (folder == null)
+            {
+                return "The folder no longer exists.";
+            }
+
+            // Nur leere Ordner: eine Ordnungsstruktur, die beim Loeschen Inhalte mitnimmt, ist der
+            // teuerste denkbare Fehlgriff - der Weg zurueck fuehrt dann ueber die Sicherung.
+            int folders = await db.HelpResourceFolders.CountAsync(f => f.ParentId == helpResourceFolderId, ct);
+            int resources = await db.HelpResources.CountAsync(r => r.FolderId == helpResourceFolderId, ct);
+            if (folders + resources != 0)
+            {
+                return $"'{folder.Name}' is not empty ({folders} folder(s), {resources} resource(s)). "
+                       + "Move its contents elsewhere first.";
+            }
+
+            db.HelpResourceFolders.Remove(folder);
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        public async Task<string?> MoveNodeAsync(ClaimsPrincipal admin, string nodeKey, string targetKey,
+            CancellationToken ct = default)
+        {
+            if (!services.VerifyUserPermissions(HelpPermissions.ResourcesWriteAny))
+            {
+                return "Not authorized.";
+            }
+
+            if (!HelpResourceNodeKey.TryParse(nodeKey, out bool nodeIsFolder, out int nodeId))
+            {
+                return "The dragged item could not be identified.";
+            }
+
+            // Das Ziel ist entweder die Wurzel oder ein ORDNER - in eine Ressource kann nichts hinein.
+            int? targetFolderId = null;
+            if (!string.Equals(targetKey, HelpResourceNodeKey.Root, StringComparison.Ordinal))
+            {
+                if (!HelpResourceNodeKey.TryParse(targetKey, out bool targetIsFolder, out int targetId)
+                    || !targetIsFolder)
+                {
+                    return "A resource cannot hold other items - drop onto a folder or onto the root.";
+                }
+
+                targetFolderId = targetId;
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            if (targetFolderId.HasValue
+                && !await db.HelpResourceFolders.AnyAsync(f => f.HelpResourceFolderId == targetFolderId.Value, ct))
+            {
+                return "The target folder no longer exists.";
+            }
+
+            if (!nodeIsFolder)
+            {
+                var resource = await db.HelpResources.FirstOrDefaultAsync(r => r.HelpResourceId == nodeId, ct);
+                if (resource == null)
+                {
+                    return "The resource no longer exists.";
+                }
+
+                resource.FolderId = targetFolderId;
+                await db.SaveChangesAsync(ct);
+                return null;
+            }
+
+            var moved = await db.HelpResourceFolders.FirstOrDefaultAsync(f => f.HelpResourceFolderId == nodeId, ct);
+            if (moved == null)
+            {
+                return "The folder no longer exists.";
+            }
+
+            if (targetFolderId == nodeId)
+            {
+                return "A folder cannot be moved into itself.";
+            }
+
+            // Ein Ordner darf nicht unter sich selbst wandern - sonst haengt sein Teilbaum an nichts mehr
+            // und ist in der Ansicht nicht wiederzufinden.
+            if (targetFolderId.HasValue && await IsDescendantOrSelfAsync(db, targetFolderId.Value, nodeId, ct))
+            {
+                return "A folder cannot be moved into one of its own subfolders.";
+            }
+
+            moved.ParentId = targetFolderId;
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        /// <summary>Liegt <paramref name="candidateId"/> im Teilbaum von <paramref name="folderId"/>?</summary>
+        private static async Task<bool> IsDescendantOrSelfAsync(TContext db, int candidateId, int folderId,
+            CancellationToken ct)
+        {
+            int current = candidateId;
+            int guard = 0;
+            while (true)
+            {
+                if (current == folderId)
+                {
+                    return true;
+                }
+
+                // Notbremse: eine im Bestand vorhandene Schleife darf hier nicht zum Haenger werden.
+                if (++guard > 256)
+                {
+                    return true;
+                }
+
+                int? parentId = await db.HelpResourceFolders.AsNoTracking()
+                    .Where(f => f.HelpResourceFolderId == current)
+                    .Select(f => f.ParentId)
+                    .FirstOrDefaultAsync(ct);
+                if (parentId is null)
+                {
+                    return false;
+                }
+
+                current = parentId.Value;
+            }
+        }
+
         public async Task<string?> SaveResourceFileAsync(ClaimsPrincipal admin, int helpResourceId, string culture, byte[] content,
             string? contentType, string? fileName, CancellationToken ct = default)
         {

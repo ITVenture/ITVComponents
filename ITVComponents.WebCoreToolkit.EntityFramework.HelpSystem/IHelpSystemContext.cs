@@ -16,6 +16,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem
 
         DbSet<HelpResource> HelpResources { get; set; }
 
+        /// <summary>Folders of the resource library - organisation only, see <see cref="HelpResourceFolder"/>.</summary>
+        DbSet<HelpResourceFolder> HelpResourceFolders { get; set; }
+
         DbSet<HelpResourceFile> HelpResourceFiles { get; set; }
 
         /// <summary>Backing table for the built-in reference resource store. Hosts using their own

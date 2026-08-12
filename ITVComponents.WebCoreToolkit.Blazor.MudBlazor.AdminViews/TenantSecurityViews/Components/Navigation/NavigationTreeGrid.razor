@@ -137,10 +137,15 @@
         }
     }
 
+    /// <summary>
+    /// Die Kennungen kommen als Zeichenkette: das gemeinsame JS behandelt sie als undurchsichtig, weil
+    /// ein anderes Gitter (die Hilfe-Ressourcen) darin die Art der Zeile mitfuehren muss.
+    /// </summary>
     [JSInvokable]
-    public async Task HandleDrop(int draggedId, int anchorId, string zone)
+    public async Task HandleDrop(string draggedKey, string anchorKey, string zone)
     {
         if (!HasWrite) return;
+        if (!int.TryParse(draggedKey, out int draggedId) || !int.TryParse(anchorKey, out int anchorId)) return;
         var anchor = zone switch
         {
             "above" => NavigationMoveAnchor.Above,

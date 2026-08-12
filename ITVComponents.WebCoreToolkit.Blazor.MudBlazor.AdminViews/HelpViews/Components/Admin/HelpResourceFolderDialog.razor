@@ -1,0 +1,46 @@
+@* Anlegen und Umbenennen eines Ordners. Mehr gibt es an einem Ordner nicht einzustellen - er ordnet
+   nur ein. *@
+
+@inject IHelpResourceHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="Name" Label="Folder name" MaxLength="200" Immediate="true"
+                      HelperText="Only for organising the library - resource names stay unique and are referenced flat." />
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">@(FolderId == 0 ? "Create" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>0 = neu anlegen.</summary>
+    [Parameter] public int FolderId { get; set; }
+
+    /// <summary>Der Ordner, in dem der neue Ordner entsteht; null = Wurzel. Beim Umbenennen unbenutzt.</summary>
+    [Parameter] public int? ParentId { get; set; }
+
+    [Parameter] public string Name { get; set; } = string.Empty;
+
+    private string? error;
+
+    private async Task Save()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+
+        // Der Handler entscheidet ueber Berechtigung, leeren und doppelten Namen - und sagt es im Klartext.
+        error = await Handler.SaveFolderAsync(auth.User, FolderId, ParentId, Name);
+        if (error is null)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

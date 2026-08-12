@@ -1,10 +1,14 @@
 @page "/Help/Admin/Resources"
+@using Microsoft.Extensions.Logging
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject IHelpResourceHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject ILogger<HelpResources> Logger
+@implements IAsyncDisposable
 
 <PageTitle>Help resources</PageTitle>
 
@@ -14,45 +18,54 @@
     <Permitted>
         <MudText Typo="Typo.body2" Class="mb-3">
             Named media (images / videos) referenced from help content as <code>resource:{name}</code>. Each
-            resource can hold one file per language (<code>DEFAULT</code> is the fallback).
+            resource can hold one file per language (<code>DEFAULT</code> is the fallback). Folders are for
+            <b>organising this list only</b> — a resource keeps its unique name and is always referenced flat,
+            no matter which folder it sits in.
         </MudText>
-        <MudTable Items="resources" Dense="true" Hover="true" Loading="@loading">
-            <ToolBarContent>
-                <MudText Typo="Typo.subtitle2">Resources</MudText>
-                <MudSpacer />
-                <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="Reload" />
-                <SecureView RequiredPermissions="Help.Admin.Resources.Write">
-                    <Permitted>
-                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => Edit(null))">Add resource</MudButton>
-                    </Permitted>
-                </SecureView>
-            </ToolBarContent>
-            <HeaderContent>
-                <MudTh>Name</MudTh>
-                <MudTh>Kind</MudTh>
-                <MudTh>Files</MudTh>
-                <MudTh>Description</MudTh>
-                <MudTh></MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Kind">@context.Kind</MudTd>
-                <MudTd DataLabel="Files">@context.FileCount</MudTd>
-                <MudTd DataLabel="Description">@context.Description</MudTd>
-                <MudTd>
-                    <SecureView RequiredPermissions="Help.Admin.Resources.Write">
-                        <Permitted>
-                            <MudStack Row="true" Spacing="1">
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => Delete(context))" />
+
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            @* data-itv-dnd-into="only": hier wird nicht sortiert, es gibt genau eine Zone - "hinein".
+               Die ganze Zeile eines Ordners ist damit das Ziel. *@
+            <div @ref="hostEl" data-itv-dnd-host="@hostId" data-itv-dnd-into="only">
+                <MudToolBar Dense="true" Class="px-0">
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="ReloadAll" />
+                    @if (canWrite)
+                    {
+                        <MudButton StartIcon="@Icons.Material.Filled.CreateNewFolder" Size="Size.Small"
+                                   OnClick="@(() => AddFolder(null))">Add folder</MudButton>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary"
+                                   Size="Size.Small" Class="ml-2" OnClick="AddResource">Add resource</MudButton>
+                    }
+                    <MudSpacer />
+                    @if (canWrite)
+                    {
+                        @* Die Ablage fuer die Wurzel: ohne sie kaeme nichts wieder aus einem Ordner heraus.
+                           Sie ist Ziel, aber selbst nicht ziehbar. *@
+                        <div data-itv-dnd-id="@HelpResourceNodeKey.Root"
+                             class="pa-2 mud-border-lines-default"
+                             style="border:1px dashed var(--mud-palette-lines-default);border-radius:var(--mud-default-borderradius);">
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                <MudIcon Icon="@Icons.Material.Filled.DriveFileMove" Size="Size.Small" />
+                                <MudText Typo="Typo.caption">Drop here to move to the top level</MudText>
                             </MudStack>
-                        </Permitted>
-                    </SecureView>
-                </MudTd>
-            </RowTemplate>
-            <NoRecordsContent><MudText>No resources.</MudText></NoRecordsContent>
-        </MudTable>
+                        </div>
+                    }
+                </MudToolBar>
+
+                @* Nach einem Ablegen wird der Baum neu aufgebaut: der verschobene Eintrag kann ueberall
+                   gelandet sein, und eine halb aktualisierte Ansicht ist schlimmer als eine, die einmal
+                   zuklappt. *@
+                <HelpResourceTree @key="treeKey" @ref="tree"
+                                  FolderId="null"
+                                  CurrentUser="@currentUser"
+                                  CanWrite="@canWrite" />
+            </div>
+        }
     </Permitted>
     <NotPermitted>
         <MudAlert Severity="Severity.Warning">You don't have permission to manage help resources.</MudAlert>
@@ -61,75 +74,125 @@
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
-    private bool loading;
-    private HelpResourceViewModel[] resources = System.Array.Empty<HelpResourceViewModel>();
+    private bool canWrite;
+    private HelpResourceTree? tree;
+    private int treeKey;
+
+    private ElementReference hostEl;
+    private readonly string hostId = Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<HelpResources>? selfRef;
+    private bool jsAttached;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        await Reload();
+        canWrite = Handler.CanWrite(currentUser);
     }
 
-    private async Task Reload()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (currentUser is null)
+        // Nicht an firstRender gebunden: beim ersten Rendern steht currentUser noch nicht fest, also gibt
+        // es das Wirtselement noch gar nicht.
+        if (jsAttached || !canWrite || currentUser is null)
         {
             return;
         }
 
-        loading = true;
+        selfRef = DotNetObjectReference.Create(this);
         try
         {
-            resources = await Handler.ListResourcesAsync(currentUser);
+            await JS.InvokeAsync<IJSObjectReference>("import",
+                "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/grid-dnd.js");
+            await JS.InvokeVoidAsync("itvGridDnd.attach", hostEl, selfRef);
+            jsAttached = true;
         }
-        finally
+        catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+        catch (Exception ex)
         {
-            loading = false;
+            // Nicht durchwerfen: die Ablage bleibt ohne Ziehen benutzbar (Ordner im Dialog waehlen).
+            // Ohne Log waere aber unklar, warum das Ziehen nichts tut.
+            Logger.LogError(ex, "Der Drag-and-drop-Helfer konnte nicht angebunden werden - die Ressourcen-Ablage laeuft ohne ihn.");
+            Snackbar.Add("Drag & drop could not be activated.", Severity.Warning);
         }
     }
 
-    private async Task Edit(HelpResourceViewModel? resource)
+    /// <summary>
+    /// Ein Eintrag wurde auf einem Ordner oder auf der Wurzel abgelegt.
+    /// </summary>
+    /// <param name="draggedKey">der gezogene Eintrag ("f:12" / "r:34")</param>
+    /// <param name="targetKey">das Ziel - ein Ordner oder <c>root</c></param>
+    /// <param name="zone">bei dieser Ablage immer "into"</param>
+    [JSInvokable]
+    public async Task HandleDrop(string draggedKey, string targetKey, string zone)
     {
-        HelpResourceEditViewModel model;
-        if (resource is null)
-        {
-            model = new HelpResourceEditViewModel();
-        }
-        else
-        {
-            var loaded = await Handler.GetResourceAsync(currentUser!, resource.HelpResourceId);
-            if (loaded is null)
-            {
-                return;
-            }
-
-            model = loaded;
-        }
-
-        var parameters = new DialogParameters<HelpResourceDialog> { { d => d.Model, model } };
-        var title = model.HelpResourceId == 0 ? "New resource" : "Edit resource";
-        var dlg = await DialogService.ShowAsync<HelpResourceDialog>(title, parameters, EditDialogDefaults.Detail);
-        await dlg.Result;
-        await Reload();
-    }
-
-    private async Task Delete(HelpResourceViewModel resource)
-    {
-        var confirmed = await DialogService.ShowMessageBoxAsync("Delete", $"Delete the resource '{resource.Name}' and all its files?", yesText: "Delete", cancelText: "Cancel");
-        if (confirmed != true)
+        if (!canWrite || currentUser is null)
         {
             return;
         }
 
-        if (await Handler.DeleteResourceAsync(currentUser!, resource.HelpResourceId))
+        string? error = await Handler.MoveNodeAsync(currentUser, draggedKey, targetKey);
+        if (error is not null)
         {
-            Snackbar.Add("Resource deleted.", Severity.Success);
-            await Reload();
+            // Verstaendliche Ablehnungen (Ordner in sich selbst, Ziel ist eine Ressource) kommen als Text
+            // zurueck - der Benutzer soll wissen, warum nichts passiert ist.
+            Snackbar.Add(error, Severity.Warning);
+            return;
         }
-        else
+
+        Snackbar.Add("Moved", Severity.Success);
+        await ReloadAll();
+    }
+
+    private async Task AddFolder(int? parentId)
+    {
+        var parameters = new DialogParameters<HelpResourceFolderDialog>
         {
-            Snackbar.Add("Delete failed.", Severity.Error);
+            { d => d.FolderId, 0 },
+            { d => d.ParentId, parentId }
+        };
+        var dialog = await DialogService.ShowAsync<HelpResourceFolderDialog>("New folder", parameters);
+        if (await dialog.Result is { Canceled: false })
+        {
+            await ReloadAll();
         }
+    }
+
+    /// <summary>
+    /// Legt eine Ressource an. Sie erscheint in der Wurzel und wird von dort per Ziehen einsortiert - der
+    /// Dialog kennt bewusst keinen Ordner: schriebe er ihn bei JEDEM Speichern mit, wuerde ein spaeteres
+    /// Bearbeiten die per Ziehen gewaehlte Ablage stillschweigend zuruecksetzen.
+    /// </summary>
+    private async Task AddResource()
+    {
+        var parameters = new DialogParameters<HelpResourceDialog>
+        {
+            { d => d.Model, new HelpResourceEditViewModel() }
+        };
+        await (await DialogService.ShowAsync<HelpResourceDialog>("New resource", parameters,
+            EditDialogDefaults.Detail)).Result;
+        await ReloadAll();
+    }
+
+    private Task ReloadAll()
+    {
+        treeKey++;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("itvGridDnd.detach", hostEl); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Der Drag-and-drop-Helfer konnte nicht abgemeldet werden - das Element ist vermutlich schon weg.");
+            }
+        }
+
+        selfRef?.Dispose();
     }
 }

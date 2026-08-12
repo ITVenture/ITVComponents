@@ -86,6 +86,68 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Vie
         public int FileCount { get; set; }
     }
 
+    /// <summary>
+    /// One row of the resource library: either a folder or a resource. Beide teilen sich die Ansicht,
+    /// deshalb teilen sie sich auch die Zeile.
+    /// </summary>
+    public class HelpResourceNodeViewModel
+    {
+        /// <summary>true = Ordner, false = Ressource.</summary>
+        public bool IsFolder { get; set; }
+
+        /// <summary>Die Kennung innerhalb ihrer Art (Ordner-Id bzw. Ressourcen-Id).</summary>
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        /// <summary>Nur bei Ressourcen belegt.</summary>
+        public HelpResourceKind Kind { get; set; }
+
+        /// <summary>Nur bei Ressourcen: wie viele Sprachdateien haengen daran.</summary>
+        public int FileCount { get; set; }
+
+        /// <summary>Nur bei Ordnern: wie viele Unterordner und Ressourcen liegen darin.</summary>
+        public int ChildCount { get; set; }
+
+        /// <summary>
+        /// Die Kennung fuer das Ziehen. Ordner und Ressourcen haben je eigene Zaehler, ihre Ids kollidieren
+        /// also - deshalb traegt die Kennung die Art mit ("f:12" / "r:34").
+        /// </summary>
+        public string DragKey => HelpResourceNodeKey.For(IsFolder, Id);
+    }
+
+    /// <summary>
+    /// Wandelt die Kennung einer Zeile in Art und Id - und zurueck.
+    /// </summary>
+    /// <remarks>
+    /// Eine eigene kleine Klasse, weil beide Seiten dasselbe verstehen muessen: das Markup schreibt die
+    /// Kennung, der Handler liest sie nach dem Ablegen wieder aus.
+    /// </remarks>
+    public static class HelpResourceNodeKey
+    {
+        /// <summary>Die Kennung der Wurzel - dorthin zieht man, was aus jedem Ordner heraus soll.</summary>
+        public const string Root = "root";
+
+        public static string For(bool isFolder, int id) => (isFolder ? "f:" : "r:") + id.ToString();
+
+        /// <summary>Liest eine Kennung. Liefert false, wenn sie nicht zu deuten ist.</summary>
+        public static bool TryParse(string? key, out bool isFolder, out int id)
+        {
+            isFolder = false;
+            id = 0;
+            if (string.IsNullOrEmpty(key) || key.Length < 3)
+            {
+                return false;
+            }
+
+            isFolder = key[0] == 'f';
+            return (key[0] == 'f' || key[0] == 'r') && key[1] == ':'
+                   && int.TryParse(key.Substring(2), out id);
+        }
+    }
+
     /// <summary>A localized file binding of a resource (metadata only; bytes live in the store).</summary>
     public class HelpResourceFileViewModel
     {

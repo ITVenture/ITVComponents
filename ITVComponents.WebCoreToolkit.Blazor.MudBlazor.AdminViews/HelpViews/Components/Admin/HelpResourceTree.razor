@@ -1,0 +1,194 @@
+@* Eine Ebene der Ressourcen-Ablage: die Ordner und Ressourcen unterhalb von FolderId, und je Ordner
+   wieder eine Ebene dieser Komponente. Die Tiefe ist damit beliebig.
+
+   Sortiert wird nichts - die Struktur ist reine Ordnung, die Anzeige geht nach Namen. Deshalb kennt das
+   Ziehen hier nur EINE Zone ("hinein"), gesteuert ueber data-itv-dnd-into="only" am Wirtselement der
+   Seite. *@
+
+@inject IHelpResourceHandler Handler
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDataGrid T="HelpResourceNodeViewModel" @ref="grid" ServerData="LoadData" Dense="true" Hover="true"
+             Groupable="false" SortMode="SortMode.None">
+    <Columns>
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    @* Quelle UND - nur bei Ordnern - Ziel. Eine Ressource haelt keine andere, deshalb
+                       traegt sie data-itv-dnd-nodrop; ziehen laesst sie sich trotzdem. *@
+                    <span draggable="true"
+                          data-itv-dnd-id="@context.Item.DragKey"
+                          data-itv-dnd-nodrop="@(context.Item.IsFolder ? "false" : "true")"
+                          title="@(context.Item.IsFolder ? "Drag into another folder, or drop items here" : "Drag into a folder")"
+                          style="display:inline-flex;align-items:center;padding:0 4px;">
+                        <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Size="Size.Small" />
+                    </span>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <HierarchyColumn T="HelpResourceNodeViewModel"
+                         ButtonDisabledFunc="@(n => !n.IsFolder || n.ChildCount == 0)" />
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="Name" Sortable="false">
+            <CellTemplate>
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                    <MudIcon Size="Size.Small"
+                             Icon="@(context.Item.IsFolder ? Icons.Material.Filled.Folder : IconFor(context.Item.Kind))"
+                             Color="@(context.Item.IsFolder ? Color.Warning : Color.Default)" />
+                    <MudText Typo="Typo.body2">@context.Item.Name</MudText>
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="Kind" Sortable="false">
+            <CellTemplate>@(context.Item.IsFolder ? "" : context.Item.Kind.ToString())</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="Files" Sortable="false">
+            <CellTemplate>@(context.Item.IsFolder ? "" : context.Item.FileCount.ToString())</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="Description" Sortable="false">
+            <CellTemplate>@context.Item.Description</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="HelpResourceNodeViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => Edit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <ChildRowContent>
+        @if (context.Item.IsFolder)
+        {
+            <MudPaper Elevation="0" Class="pa-2 ml-4">
+                @* OnChanged unveraendert weiterreichen und NICHT selbst neu laden: sonst klappt beim
+                   Ablegen in einer Unterebene der ganze Baum zusammen. *@
+                <HelpResourceTree FolderId="@context.Item.Id"
+                                  CurrentUser="@CurrentUser"
+                                  CanWrite="@CanWrite"
+                                  OnChanged="@OnChanged" />
+            </MudPaper>
+        }
+    </ChildRowContent>
+    <NoRecordsContent>
+        <MudText Typo="Typo.body2" Class="pa-2 mud-text-secondary">Empty.</MudText>
+    </NoRecordsContent>
+</MudDataGrid>
+
+@code {
+    /// <summary>Der Ordner, dessen Inhalt diese Ebene zeigt; null = die Wurzel.</summary>
+    [Parameter] public int? FolderId { get; set; }
+
+    [Parameter, EditorRequired] public System.Security.Claims.ClaimsPrincipal CurrentUser { get; set; } = default!;
+
+    [Parameter] public bool CanWrite { get; set; }
+
+    /// <summary>Wird ausgeloest, wenn sich an dieser Ebene etwas geaendert hat.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private MudDataGrid<HelpResourceNodeViewModel>? grid;
+
+    private async Task<GridData<HelpResourceNodeViewModel>> LoadData(
+        GridState<HelpResourceNodeViewModel> state, CancellationToken ct)
+    {
+        var nodes = await Handler.ListNodesAsync(CurrentUser, FolderId, ct);
+        return new GridData<HelpResourceNodeViewModel> { Items = nodes, TotalItems = nodes.Length };
+    }
+
+    /// <summary>Laedt diese Ebene neu - von aussen aufrufbar, damit die Seite nach einem Ablegen nachziehen kann.</summary>
+    public async Task ReloadAsync()
+    {
+        if (grid is not null)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    private static string IconFor(HelpResourceKind kind)
+        => kind switch
+        {
+            HelpResourceKind.Image => Icons.Material.Filled.Image,
+            HelpResourceKind.Video => Icons.Material.Filled.Movie,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+
+    private async Task Edit(HelpResourceNodeViewModel node)
+    {
+        if (node.IsFolder)
+        {
+            var parameters = new DialogParameters<HelpResourceFolderDialog>
+            {
+                { d => d.FolderId, node.Id },
+                { d => d.ParentId, FolderId },
+                { d => d.Name, node.Name }
+            };
+            var dialog = await DialogService.ShowAsync<HelpResourceFolderDialog>("Rename folder", parameters);
+            if (await dialog.Result is { Canceled: false })
+            {
+                await Changed();
+            }
+
+            return;
+        }
+
+        // Der Dialog nimmt das geladene Modell, nicht die Id - so war es hier schon immer.
+        var loaded = await Handler.GetResourceAsync(CurrentUser, node.Id);
+        if (loaded is null)
+        {
+            return;
+        }
+
+        var editParameters = new DialogParameters<HelpResourceDialog> { { d => d.Model, loaded } };
+        await (await DialogService.ShowAsync<HelpResourceDialog>("Edit resource", editParameters,
+            EditDialogDefaults.Detail)).Result;
+
+        // Der Dialog speichert selbst und meldet kein Ergebnis zurueck - deshalb wird hier immer neu
+        // geladen und nicht nur bei "nicht abgebrochen".
+        await Changed();
+    }
+
+    private async Task Delete(HelpResourceNodeViewModel node)
+    {
+        bool? ok = await DialogService.ShowMessageBoxAsync(
+            node.IsFolder ? "Delete folder" : "Delete resource",
+            $"Really delete '{node.Name}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true)
+        {
+            return;
+        }
+
+        if (node.IsFolder)
+        {
+            // Der Handler laesst nur LEERE Ordner gehen und sagt sonst, was noch drin liegt.
+            string? error = await Handler.DeleteFolderAsync(CurrentUser, node.Id);
+            if (error is not null)
+            {
+                Snackbar.Add(error, Severity.Warning);
+                return;
+            }
+        }
+        else if (!await Handler.DeleteResourceAsync(CurrentUser, node.Id))
+        {
+            Snackbar.Add("The resource could not be deleted.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Deleted", Severity.Success);
+        await Changed();
+    }
+
+    private async Task Changed()
+    {
+        await ReloadAsync();
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync();
+        }
+    }
+}
