@@ -65,7 +65,11 @@ else
                            davor oder dahinter abgelegt wird. Der Griff bleibt stehen, wenn gerade nach
                            etwas anderem sortiert ist, ist aber stumpf: sonst haette der Benutzer eine
                            Reihenfolge vor Augen, die mit der berechneten Zielposition nichts zu tun hat. *@
-                        <span draggable="@canReorder"
+                        @* draggable MUSS als Zeichenkette "true"/"false" gesetzt werden und darf kein
+                           bool sein: Blazor rendert ein true als WERTLOSES Attribut, und draggable ist
+                           in HTML kein boolesches, sondern ein aufzaehlendes Attribut - ohne ="true"
+                           gilt "auto", und ein span ist damit nicht ziehbar. *@
+                        <span draggable="@(canReorder ? "true" : "false")"
                               data-itv-dnd-id="@context.Item.DashboardWidgetId"
                               title="@(canReorder
                                          ? "Drag to change the order of the default collection"
