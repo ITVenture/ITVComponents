@@ -196,7 +196,12 @@
     /// bleibt Wort fuer Wort dasselbe.
     /// </remarks>
     private static string AsExpression(string source)
-        => source.TrimStart().StartsWith("{", StringComparison.Ordinal) ? $"({source})" : source;
+        // Die schliessende Klammer MUSS auf eine eigene Zeile: endet der Text mit einem
+        // Zeilenkommentar - und genau so endet er, wenn der Knopf "Parameter einfuegen" seine
+        // Uebersicht angehaengt hat -, verschluckt der Kommentar sonst die Klammer.
+        => source.TrimStart().StartsWith("{", StringComparison.Ordinal)
+            ? $"({source}{Environment.NewLine})"
+            : source;
 
     /// <summary>
     /// The settings this renderer offers - handed to the registry so the editor can ask for them.
@@ -216,6 +221,14 @@
             }
         }
     };
+
+    /// <summary>
+    /// Lists the pass-through parameters of the chart component - for the editor's "insert parameters"
+    /// button. Was hier steht, kommt aus der Komponente selbst und ist damit immer der Stand der
+    /// eingesetzten Fassung; die Beispiele dazu stehen in der Hilfe.
+    /// </summary>
+    public static string DescribeParameters()
+        => ChartParameterBinder.Describe(typeof(MudChart<double>), asJson: false);
 
     /// <summary>
     /// Checks a configuration when the widget is saved - so a broken one is found there and not by whoever

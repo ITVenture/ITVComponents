@@ -13,8 +13,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
     /// <remarks>
     /// Dieselbe Form wie <c>CustomCompanyInfoViewConfiguration</c> bei den Zusatzangaben-Masken: ein
     /// Schluessel kann nur auf etwas zeigen, das der Host selbst registriert hat. Der Konfigurationsweg
-    /// (WebPart-Abschnitt <c>WidgetRenderers</c>) fuellt dieselbe Registrierung ueber
-    /// <see cref="RegisterRenderer(Type, string, string, string, IReadOnlyList{DeclaredField}, Func{string, IReadOnlyDictionary{string, string}, string})"/>.
+    /// (WebPart-Abschnitt <c>WidgetRenderers</c>) fuellt dieselbe Registrierung ueber die
+    /// <c>RegisterRenderer</c>-Ueberladung mit <c>Type</c>.
     /// </remarks>
     public class WidgetRendererConfiguration
     {
@@ -37,9 +37,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
             string? displayName = null,
             string? editorLanguage = null,
             IReadOnlyList<DeclaredField>? options = null,
-            Func<string?, IReadOnlyDictionary<string, string?>, string?>? validate = null)
+            Func<string?, IReadOnlyDictionary<string, string?>, string?>? validate = null,
+            Func<string>? describeParameters = null)
             where T : IComponent, IWidgetRenderer
-            => RegisterRenderer(typeof(T), key, displayName, editorLanguage, options, validate);
+            => RegisterRenderer(typeof(T), key, displayName, editorLanguage, options, validate, describeParameters);
 
         /// <summary>
         /// Registers a renderer by type - the way in for the configuration path, where the type is a string
@@ -56,7 +57,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
             string? displayName = null,
             string? editorLanguage = null,
             IReadOnlyList<DeclaredField>? options = null,
-            Func<string?, IReadOnlyDictionary<string, string?>, string?>? validate = null)
+            Func<string?, IReadOnlyDictionary<string, string?>, string?>? validate = null,
+            Func<string>? describeParameters = null)
         {
             ArgumentNullException.ThrowIfNull(componentType);
 
@@ -101,7 +103,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
                               ?? (effectiveKey.Length != 0 ? effectiveKey : componentType.Name),
                 EditorLanguage = editorLanguage ?? attribute?.EditorLanguage ?? "html",
                 Options = options ?? Array.Empty<DeclaredField>(),
-                Validate = validate
+                Validate = validate,
+                DescribeParameters = describeParameters
             };
 
             return this;

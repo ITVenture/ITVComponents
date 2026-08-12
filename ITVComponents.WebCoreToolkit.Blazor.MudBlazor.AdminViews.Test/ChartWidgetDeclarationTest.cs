@@ -403,6 +403,44 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
                 new Dictionary<string, string?>()));
         }
 
+        /// <summary>
+        /// Der Knopf "Insert parameters" haengt seinen Block als Kommentar UNTER die Konfiguration. Beide
+        /// Sprachen muessen das aushalten - sonst macht die Stuetze die Konfiguration kaputt.
+        /// </summary>
+        [TestMethod]
+        public void BothRenderers_AcceptATrailingCommentBlock()
+        {
+            // Je Sprache ihre eigene Schreibweise: JSON verlangt gequotete Schluessel, CScript nicht.
+            const string asJson = "{\"type\": \"pie\", \"series\": [{\"name\": \"x\", \"data\": [1]}]}";
+            const string declaration = "{type: \"pie\", series: [{name: \"x\", data: [1]}]}";
+
+            string json = asJson + Environment.NewLine + Environment.NewLine
+                          + ScribanChartRenderer.DescribeParameters();
+            string? jsonMessage = ScribanChartRenderer.Validate(json, new Dictionary<string, string?>());
+            Assert.IsNull(jsonMessage,
+                $"Die JSON-Seite muss den angehaengten Kommentarblock lesen koennen: {jsonMessage}");
+
+            string cscript = declaration + Environment.NewLine + Environment.NewLine
+                             + CScriptChartRenderer.DescribeParameters();
+            string? cscriptMessage = CScriptChartRenderer.Validate(cscript, new Dictionary<string, string?>());
+            Assert.IsNull(cscriptMessage,
+                $"Die CScript-Seite muss den angehaengten Kommentarblock lesen koennen: {cscriptMessage}");
+        }
+
+        /// <summary>Die Uebersicht muss die Parameter nennen, die es wirklich gibt - und die reservierten nicht.</summary>
+        [TestMethod]
+        public void Describe_ListsPassThroughParametersAndOmitsTheReservedOnes()
+        {
+            string text = ChartParameterBinder.Describe(typeof(MudChart<double>), asJson: true);
+
+            StringAssert.Contains(text, "legendPosition");
+            StringAssert.Contains(text, "chartOptions");
+            // Die Aufzaehlungswerte sind der eigentliche Nutzen: sie stehen sonst nur in der Fremdquelle.
+            StringAssert.Contains(text, "Bottom");
+            Assert.IsFalse(text.Contains("chartSeries", StringComparison.OrdinalIgnoreCase),
+                "Reservierte Parameter gehoeren nicht in die Uebersicht - sie waeren nur eine Einladung zum Fehler.");
+        }
+
         /// <summary>Ein Lambda ist und bleibt ein Syntaxfehler - die Meldung soll ihn nennen.</summary>
         [TestMethod]
         public void CScriptValidation_RejectsALambda()

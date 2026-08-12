@@ -58,6 +58,22 @@
     public async Task<string> GetValueAsync()
         => editor is null ? (Value ?? string.Empty) : await editor.GetValue();
 
+    /// <summary>
+    /// Replaces the editor content.
+    /// </summary>
+    /// <remarks>
+    /// Fuer Faelle, in denen der Text NICHT vom Tippen kommt - etwa ein Knopf, der eine Vorlage oder eine
+    /// Parameter-Uebersicht einfuegt. Ist der Editor noch nicht da, wird der Anfangswert gesetzt.
+    /// </remarks>
+    public async Task SetValueAsync(string value)
+    {
+        Value = value;
+        if (editor is not null)
+        {
+            await editor.SetValue(value);
+        }
+    }
+
     /// <summary>Switches the syntax highlighting language at runtime without losing the current text.</summary>
     public async Task SetLanguageAsync(string languageId)
     {

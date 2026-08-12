@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using ITVComponents.TypeConversion;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
@@ -99,6 +100,116 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 
             return result;
         }
+
+        /// <summary>
+        /// Lists the pass-through parameters as a comment block - what the editor's "insert parameters"
+        /// button writes under the declaration.
+        /// </summary>
+        /// <param name="componentType">the chart component whose parameters are listed</param>
+        /// <param name="asJson">true = JSON-Schreibweise (Scriban-Seite), false = CScript</param>
+        /// <remarks>
+        /// Bewusst GENERIERT und nicht von Hand gepflegt: welche Parameter es gibt und welchen Typ sie
+        /// haben, weiss nur die Komponente. In einer Hilfe-Datei waere diese Liste nach der naechsten
+        /// MudBlazor-Fassung stille Falschinformation - hier ist sie immer die der eingesetzten Fassung.
+        /// Die Beispiele dazu gehoeren umgekehrt in die Hilfe: die kann diese Methode nicht wissen.
+        /// </remarks>
+        public static string Describe(Type componentType, bool asJson)
+        {
+            ArgumentNullException.ThrowIfNull(componentType);
+
+            var text = new StringBuilder();
+            text.AppendLine($"// Weitere Parameter ({componentType.Name}, Stand der eingesetzten MudBlazor-Fassung).");
+            text.AppendLine("// Sie stehen neben type/labels/series und werden auf Namen und Typ geprueft.");
+
+            IEnumerable<PropertyInfo> parameters = componentType
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.GetCustomAttribute<ParameterAttribute>() != null)
+                .Where(p => !Reserved.Contains(p.Name))
+                .Where(p => !IsRenderFragment(p.PropertyType))
+                .OrderBy(p => p.Name, StringComparer.Ordinal);
+
+            foreach (PropertyInfo parameter in parameters)
+            {
+                string name = asJson ? $"\"{CamelCase(parameter.Name)}\"" : CamelCase(parameter.Name);
+                text.AppendLine($"//   {name}: {Sample(parameter.PropertyType, asJson)}");
+            }
+
+            return text.ToString().TrimEnd();
+        }
+
+        /// <summary>RenderFragments lassen sich aus einer Konfiguration nicht schreiben.</summary>
+        private static bool IsRenderFragment(Type type)
+            => type == typeof(RenderFragment)
+               || (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(RenderFragment<>))
+               || typeof(Delegate).IsAssignableFrom(type);
+
+        /// <summary>
+        /// Ein Beispielwert samt der Auskunft, was zulaessig ist - bei Aufzaehlungen ALLE Werte, bei
+        /// Objekten deren Felder. Genau die Angaben, die man sonst in der MudBlazor-Quelle nachsieht.
+        /// </summary>
+        private static string Sample(Type type, bool asJson)
+        {
+            Type target = Nullable.GetUnderlyingType(type) ?? type;
+
+            if (target.IsEnum)
+            {
+                string[] names = Enum.GetNames(target);
+                string first = asJson ? $"\"{names[0]}\"" : $"{target.Name}.{names[0]}";
+                return $"{first}   // {string.Join(" | ", names)}";
+            }
+
+            if (target == typeof(bool))
+            {
+                return "true   // true | false";
+            }
+
+            if (target == typeof(string))
+            {
+                return "\"…\"";
+            }
+
+            if (target.IsPrimitive || target == typeof(decimal))
+            {
+                return $"0   // {target.Name}";
+            }
+
+            if (target.IsArray || (target.IsGenericType && typeof(IEnumerable).IsAssignableFrom(target)))
+            {
+                return "[ … ]";
+            }
+
+            // Objekt-Parameter: eine Ebene tief aufschluesseln - das ist der Fall chartOptions, und ohne
+            // die Felder waere der Hinweis "ein IChartOptions" wertlos.
+            Type concrete = target.IsInterface && target.IsAssignableFrom(typeof(ChartOptions))
+                ? typeof(ChartOptions)
+                : target;
+            string[] members = concrete.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanWrite && !IsRenderFragment(p.PropertyType))
+                .OrderBy(p => p.Name, StringComparer.Ordinal)
+                .Select(p => $"{CamelCase(p.Name)}: {ShortType(p.PropertyType)}")
+                .ToArray();
+
+            return members.Length != 0
+                ? "{ " + string.Join(", ", members) + " }"
+                : $"…   // {concrete.Name}";
+        }
+
+        private static string ShortType(Type type)
+        {
+            Type target = Nullable.GetUnderlyingType(type) ?? type;
+            if (target.IsEnum)
+            {
+                return string.Join("|", Enum.GetNames(target));
+            }
+
+            if (target == typeof(bool)) return "bool";
+            if (target == typeof(string)) return "string";
+            if (target.IsArray) return ShortType(target.GetElementType()!) + "[]";
+            return target.Name;
+        }
+
+        private static string CamelCase(string name)
+            => name.Length != 0 ? char.ToLowerInvariant(name[0]) + name.Substring(1) : name;
 
         private static bool TryConvert(object? value, Type targetType, out object? converted, out string? why)
         {

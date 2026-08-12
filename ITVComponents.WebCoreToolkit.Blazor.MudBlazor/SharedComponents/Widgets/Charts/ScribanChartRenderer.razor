@@ -110,6 +110,14 @@
     }
 
     /// <summary>
+    /// Lists the pass-through parameters of the chart component - for the editor's "insert parameters"
+    /// button. Was hier steht, kommt aus der Komponente selbst und ist damit immer der Stand der
+    /// eingesetzten Fassung; die Beispiele dazu stehen in der Hilfe.
+    /// </summary>
+    public static string DescribeParameters()
+        => ChartParameterBinder.Describe(typeof(MudChart<double>), asJson: true);
+
+    /// <summary>
     /// Checks a configuration when the widget is saved: it must parse as a template and, rendered without
     /// data, produce readable JSON.
     /// </summary>

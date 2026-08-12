@@ -1989,6 +1989,13 @@ Editor zeigt dafür dieselbe generische Maske wie für die Widget-Parameter, und
 in `RendererOptions`. Eine Prüfmethode (`validate:`) lässt eine kaputte Konfiguration schon **beim
 Speichern** auffallen statt erst als Fehler-Kachel.
 
+Optional dazu `describeParameters:` — liefert einen Kommentarblock, den der Editor über den Knopf
+**„Insert parameters"** unter die Konfiguration hängt. Gedacht für das, was **nur der Code weiß** (bei den
+Diagramm-Renderern: die Parameter der Diagramm-Komponente samt Typen und zulässigen Werten, per Reflection
+ermittelt). Erklärungen und Beispiele gehören dagegen ins Hilfesystem — eine generierte Liste kann sie
+nicht liefern, und sie veralten nicht mit der nächsten Fassung einer Fremdbibliothek. Vorlagen dafür liegen
+unter `docs/help/widget-chart-*.md`.
+
 #### 25.9.2 Alternativ über die Teile-Konfiguration
 
 Wer lieber konfiguriert als registriert, nennt den **Typ** im WebPart-Abschnitt — der Schlüssel kommt auch

@@ -46,10 +46,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib
                 // Zweiter Eintrag mit LEEREM Schluessel: Widgets aus der Zeit vor der Spalte tragen dort
                 // nichts, und die sollen sich weiter verhalten wie bisher.
                 c.RegisterRenderer<ScribanWidgetRenderer>(string.Empty);
-                c.RegisterRenderer<ScribanChartRenderer>(validate: ScribanChartRenderer.Validate);
+                c.RegisterRenderer<ScribanChartRenderer>(
+                    validate: ScribanChartRenderer.Validate,
+                    describeParameters: ScribanChartRenderer.DescribeParameters);
                 c.RegisterRenderer<CScriptChartRenderer>(
                     options: CScriptChartRenderer.DeclaredOptions,
-                    validate: CScriptChartRenderer.Validate);
+                    validate: CScriptChartRenderer.Validate,
+                    describeParameters: CScriptChartRenderer.DescribeParameters);
                 RegisterConfiguredRenderers(c, config.WidgetRenderers);
             });
 

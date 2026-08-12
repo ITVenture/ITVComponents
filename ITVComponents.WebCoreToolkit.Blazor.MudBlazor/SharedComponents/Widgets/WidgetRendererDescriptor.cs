@@ -43,5 +43,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
         /// Fehler-Kachel bei dem, der das Dashboard oeffnet.
         /// </remarks>
         public Func<string?, IReadOnlyDictionary<string, string?>, string?>? Validate { get; init; }
+
+        /// <summary>
+        /// Returns a comment block listing what the configuration may contain beyond the obvious - shown by
+        /// the editor's "insert parameters" button. Null = the renderer offers nothing to insert.
+        /// </summary>
+        /// <remarks>
+        /// Gedacht fuer Angaben, die nur der CODE kennt (etwa die Parameter der Diagramm-Komponente samt
+        /// Typ). Beispiele und Erklaerungen gehoeren dagegen ins Hilfesystem: die kann eine generierte
+        /// Liste nicht liefern, und sie veralten nicht mit der naechsten Fassung einer Fremdbibliothek.
+        /// </remarks>
+        public Func<string>? DescribeParameters { get; init; }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
@@ -30,11 +31,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 
             try
             {
-                using JsonDocument document = JsonDocument.Parse(json,
-                    new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+                // Ueber einen Reader und ParseValue statt ueber Parse(string): so darf hinter der
+                // Deklaration noch etwas stehen. Genau das tut der Knopf "Parameter einfuegen" - er haengt
+                // die Uebersicht als Kommentarblock an, und Parse(string) wuerde das als "zusaetzlicher
+                // Inhalt" abweisen. Was WIRKLICH danach kommt, wird trotzdem geprueft (unten).
+                var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(json),
+                    new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+                using JsonDocument document = JsonDocument.ParseValue(ref reader);
                 if (document.RootElement.ValueKind != JsonValueKind.Object)
                 {
                     errors.Add($"The template produced a JSON {document.RootElement.ValueKind}, not an object.");
+                    return null;
+                }
+
+                // Kommentare hat der Reader uebersprungen; ein weiteres Token waere echter Inhalt - und
+                // der ist ein Fehler, kein Beiwerk (zwei Deklarationen hintereinander etwa).
+                if (reader.Read())
+                {
+                    errors.Add("There is more than the declaration in the configuration - a second value follows it.");
                     return null;
                 }
 

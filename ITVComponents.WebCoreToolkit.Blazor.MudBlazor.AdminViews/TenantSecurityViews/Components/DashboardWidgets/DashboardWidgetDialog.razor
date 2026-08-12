@@ -46,9 +46,25 @@
                                     ResetKey="@SelectedKey" />
             }
 
-            <MudText Typo="Typo.caption" Class="mt-3">Configuration (@EditorLanguage)</MudText>
-            @* Neu aufbauen, wenn der Renderer wechselt: Monaco bekommt seine Sprache beim Erzeugen. *@
-            <CodeEditor @ref="templateEditor" @key="@($"cfg-{SelectedKey}")"
+            <div class="d-flex align-center mt-3">
+                <MudText Typo="Typo.caption">Configuration (@EditorLanguage)</MudText>
+                <MudSpacer />
+                @if (Current?.DescribeParameters is not null)
+                {
+                    @* Schnelle Stuetze beim Schreiben: haengt die Parameter der Renderer-Komponente als
+                       Kommentar unter das, was schon dasteht. Bewusst ANHAENGEN und nichts ersetzen -
+                       niemand soll seine Arbeit an einen Knopf verlieren. *@
+                    <MudTooltip Text="Adds the renderer's parameters as a comment below the configuration">
+                        <MudButton StartIcon="@Icons.Material.Filled.PlaylistAdd" Size="Size.Small"
+                                   Variant="Variant.Text" OnClick="InsertParameters">
+                            Insert parameters
+                        </MudButton>
+                    </MudTooltip>
+                }
+            </div>
+            @* Kein @key: der Editor bleibt beim Renderer-Wechsel stehen, nur seine Sprache wird
+               umgeschaltet - so gehen weder Text noch Cursor verloren. *@
+            <CodeEditor @ref="templateEditor"
                         Value="@Model.Template" Language="@EditorLanguage" Height="280" Fill="true" />
 
             @if (!string.IsNullOrEmpty(validationError))
@@ -115,8 +131,9 @@
     }
 
     /// <summary>
-    /// Wechselt den Renderer und rettet dabei den bereits geschriebenen Konfigurationstext - der Editor
-    /// wird gleich neu aufgebaut (andere Sprache), und ohne diesen Schritt waere die Eingabe weg.
+    /// Wechselt den Renderer: der geschriebene Text wird ins Modell uebernommen, die Optionen gesichert
+    /// und dem Editor die neue Sprache gesagt. Der Text bleibt stehen - ein Wechsel ist oft ein Vertippen
+    /// in der Auswahl, und dann waere die Arbeit weg.
     /// </summary>
     private async Task OnRendererChanged(string? key)
     {
@@ -129,6 +146,34 @@
         Model.RendererKey = string.IsNullOrEmpty(key) ? null : key;
         validationError = null;
         optionsPrefill = ReadOptions().ToDictionary(v => v.Key, v => (object?)v.Value, StringComparer.Ordinal);
+
+        // Nur die Sprache umschalten: der Editor behaelt Text, Cursor und Rueckgaengig-Verlauf. Ihn ueber
+        // einen @key neu aufzubauen waere die einfachere, aber schlechtere Loesung.
+        if (templateEditor is not null)
+        {
+            await templateEditor.SetLanguageAsync(EditorLanguage);
+        }
+    }
+
+    /// <summary>
+    /// Haengt die Parameter-Uebersicht des Renderers unter die Konfiguration.
+    /// </summary>
+    /// <remarks>
+    /// Der Text kommt aus dem Descriptor und wird dort GENERIERT - er ist damit immer der Stand der
+    /// eingesetzten Fassung. Beispiele und Erklaerungen stehen in der Hilfe; hier geht es um die Frage
+    /// "was darf ich hier ueberhaupt schreiben", und die soll man nicht nachschlagen muessen.
+    /// </remarks>
+    private async Task InsertParameters()
+    {
+        if (templateEditor is null || Current?.DescribeParameters is null)
+        {
+            return;
+        }
+
+        string current = await templateEditor.GetValueAsync();
+        string hints = Current.DescribeParameters();
+        string separator = string.IsNullOrWhiteSpace(current) ? string.Empty : Environment.NewLine + Environment.NewLine;
+        await templateEditor.SetValueAsync(current + separator + hints);
     }
 
     /// <summary>Uebernimmt die Eingaben der Options-Maske ins Modell.</summary>
