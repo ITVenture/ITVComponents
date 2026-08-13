@@ -40,7 +40,10 @@ namespace ITVComponents.Scripting.CScript.Ast.Expressions
         /// Loest den Typnamen auf und erzeugt den Knoten.
         /// </summary>
         /// <param name="position">die Quellposition</param>
-        /// <param name="typeName">der Name des Typs</param>
+        /// <param name="typeName">
+        /// der Name des Typs - bei der offenen Form bereits samt Stelligkeit (Name`1), weil dann
+        /// keine Argumente vorliegen, aus denen sie sich ableiten liesse
+        /// </param>
         /// <param name="assemblyName">die Assembly, in der gesucht wird, oder null</param>
         /// <param name="typeArguments">die generischen Argumente, oder null</param>
         public static TypeLiteralNode Resolve(SourcePosition position, string typeName, string assemblyName,

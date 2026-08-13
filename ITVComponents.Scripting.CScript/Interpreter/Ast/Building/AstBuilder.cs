@@ -774,8 +774,22 @@ namespace ITVComponents.Scripting.CScript.Ast.Building
                 assembly = StringHelper.Parse(path.GetText());
             }
 
-            return TypeLiteralNode.Resolve(Position(context), context.typeLiteralIdentifier().GetText(), assembly,
-                GenericArguments(context.typeArguments(), context));
+            string typeName = context.typeLiteralIdentifier().GetText();
+            ITVScriptingParser.TypeArgumentsContext typeArguments = context.typeArguments();
+
+            // Am Typ-Literal SELBST ist die offene Definition ein zulaessiges Ergebnis:
+            // 'System.Collections.Generic.List`1' liefert List<>, und geschlossen wird sie erst
+            // dort, wo die Argumente stehen - etwa in new Liste<#t>(), dessen Konstruktor-Pfad
+            // MakeGenericType ohnehin selbst ruft. Abgewiesen wird die offene Form nur in
+            // Aufrufen und Konstruktionen, wo die Argumente fehlen wuerden.
+            if (typeArguments is ITVScriptingParser.OpenGenericsContext)
+            {
+                return TypeLiteralNode.Resolve(Position(context), typeName + typeArguments.GetText(), assembly,
+                    null);
+            }
+
+            return TypeLiteralNode.Resolve(Position(context), typeName, assembly,
+                GenericArguments(typeArguments, context));
         }
 
         public override INode VisitArrayLiteralExpression(
@@ -1056,7 +1070,8 @@ namespace ITVComponents.Scripting.CScript.Ast.Building
         }
 
         /// <summary>
-        /// Liest die generischen Argumente. Nur geschlossene Generics sind erlaubt.
+        /// Liest die generischen Argumente eines Aufrufs oder einer Konstruktion. Hier sind nur
+        /// geschlossene Generics erlaubt - das Typ-Literal selbst kennt auch die offene Form.
         /// </summary>
         private IReadOnlyList<IExpressionNode> GenericArguments(
             ITVScriptingParser.TypeArgumentsContext context, ParserRuleContext owner)
@@ -1069,7 +1084,8 @@ namespace ITVComponents.Scripting.CScript.Ast.Building
             if (!(context is ITVScriptingParser.FinalGenericsContext finalGenerics))
             {
                 throw new ScriptException(
-                    $"Open Generic Arguments are not supported at {Position(owner).Line}/{Position(owner).Column}");
+                    "Open Generic Arguments are not supported in calls and object-creations at " +
+                    $"{Position(owner).Line}/{Position(owner).Column}");
             }
 
             var typed = finalGenerics.typedArguments();
