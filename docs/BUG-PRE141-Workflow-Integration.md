@@ -91,6 +91,18 @@ options-only-ctor markieren); mindestens aber (c) den Leitfaden um die Factory-R
 Variante (b) mit `[ActivatorUtilitiesConstructor]` wäre die kleinste Änderung und würde
 `AddDbContextFactory<WorkflowContext>` **und** `dotnet ef` in einem Zug reparieren.
 
+### Erledigt
+
+Variante (b) ist umgesetzt: der options-only-Ctor trägt `[ActivatorUtilitiesConstructor]`, damit ist
+`AddDbContextFactory<WorkflowContext>` ohne eigene Factory-Implementierung wieder möglich (die
+konsumenten-seitige `WorkflowContextFactory` bleibt gültig — sie ruft den Ctor ohnehin explizit).
+
+Dazu ein vierter Ctor für den DI-Weg, der den Tenant-Schalter als `IOptions<WorkflowContextOptions>`
+statt als `bool` nimmt und per Ctor-Verkettung auf den bool-Ctor umleitet — der bleibt für den
+Plugin-/Mehr-Umgebungs-Weg der praktischere. **Wichtig für die Wahl:** die Factory ist und bleibt der
+*filterfreie* Weg. Wer die Mandanten-Filterung in den Views will, muss den Kontext über einen der beiden
+tenant-fähigen Ctors bauen — siehe die Tabelle in `Workflow-Integration-Guide.md` §2.1.
+
 ---
 
 ## 2. `sp.GetRequiredService<PluginFactory>()` aus dem Leitfaden existiert nicht — **Blocker**

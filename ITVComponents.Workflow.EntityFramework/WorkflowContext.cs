@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.Runtime;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.Workflow.EntityFramework
@@ -453,6 +454,20 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Options-only-Ctor fuer Migrationen/Design-Time/Tests. Es wird KEIN Tenant-Filter gesetzt -
         /// alle Zeilen sind sichtbar.
         /// </summary>
+        /// <remarks>
+        /// Die Markierung mit <see cref="ActivatorUtilitiesConstructorAttribute"/> ist kein Beiwerk: dieser
+        /// Kontext hat mehrere Ctors, und <c>ActivatorUtilities</c> - das hinter
+        /// <c>AddDbContextFactory&lt;WorkflowContext&gt;</c> und dem <c>dotnet ef</c>-Discovery steht -
+        /// bricht bei Mehrdeutigkeit ab ("Multiple constructors accepting all given argument types") und
+        /// nimmt den ganzen Host-Start mit. Die Markierung macht die Wahl eindeutig und trifft dabei die
+        /// richtige: die Factory ist der <b>filterfreie</b> Weg (Runner, Inline-Ausfuehrung, Migrationen).
+        /// <para>
+        /// Wer den <b>tenant-faehigen</b> Kontext aus der DI will, registriert ihn mit einem eigenen
+        /// Factory-Delegaten auf einen der beiden anderen Ctors - Auto-Wiring ueber
+        /// <c>AddTransient&lt;WorkflowContext&gt;()</c> ist dafuer ausdruecklich nicht der Weg.
+        /// </para>
+        /// </remarks>
+        [ActivatorUtilitiesConstructor]
         public WorkflowContext(DbContextOptions<WorkflowContext> options) : base(options)
         {
         }
@@ -478,6 +493,28 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             UseTenantFilter = useTenantFilter;
             this.modelOptions.ConfigureExpressionProperty(() => CurrentTenant);
+        }
+
+        /// <summary>
+        /// DI-Ctor: wie der Plugin-/Laufzeit-Ctor, aber mit dem Tenant-Schalter als aufloesbarem
+        /// <see cref="WorkflowContextOptions"/> statt als <see cref="bool"/> - damit laesst sich der
+        /// tenant-faehige Kontext ohne literales <c>true</c> im Registrierungs-Delegaten bauen und der
+        /// Schalter aus der Konfiguration speisen.
+        /// </summary>
+        /// <remarks>
+        /// Eine <b>Ergaenzung</b>, kein Ersatz: im Mehr-Instanzen-Betrieb (je Umgebung eine eigene
+        /// scope-owned Kontext-Dependency) bleibt der bool-Ctor der praktischere Weg, weil dort ohnehin je
+        /// Umgebung explizit gebaut wird. Diese Ueberladung leitet nur auf ihn um.
+        /// <para>
+        /// Fehlt die Registrierung von <c>IOptions&lt;WorkflowContextOptions&gt;</c>, gilt der Standard
+        /// des Options-Typs (<see cref="WorkflowContextOptions.UseTenantFilter"/> = true).
+        /// </para>
+        /// </remarks>
+        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IUserAwareContext userContext,
+            IOptions<WorkflowContextOptions> tenantOptions,
+            IOptions<DbContextModelBuilderOptions<WorkflowContext>> modelOptions)
+            : this(dbOptions, userContext, tenantOptions?.Value?.UseTenantFilter ?? true, modelOptions)
+        {
         }
 
         /// <summary>Schaltet die tenant-abhaengige Filterung.</summary>

@@ -1,10 +1,12 @@
 using System;
+using System.Linq;
 using ITVComponents.EFRepo.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Workflow.EntityFramework.Test
@@ -42,6 +44,16 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 new SqliteTestOptionsLoader(connection),
                 new FakeUserContext { CurrentTenant = tenant },
                 useTenantFilter: true,
+                new WorkflowFilterInitializer<WorkflowContext>());
+        }
+
+        /// <summary>Derselbe Kontext ueber den DI-Ctor (Tenant-Schalter als Options-Objekt).</summary>
+        private WorkflowContext MakeOptionsContext(string tenant, WorkflowContextOptions options)
+        {
+            return new WorkflowContext(
+                new SqliteTestOptionsLoader(connection),
+                new FakeUserContext { CurrentTenant = tenant },
+                options == null ? null : Options.Create(options),
                 new WorkflowFilterInitializer<WorkflowContext>());
         }
 
@@ -105,6 +117,41 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             // Nur acme sieht die Instanz.
             Assert.IsNotNull(acme.GetInstance("i1"), "owner sees its instance");
             Assert.IsNull(beta.GetInstance("i1"), "another tenant must not see the instance");
+        }
+
+        /// <summary>
+        /// Der DI-Ctor leitet den Schalter aus <see cref="WorkflowContextOptions"/> auf den bool-Ctor um -
+        /// ausdruecklich gesetzt wie ausgelassen. Ohne Options gilt der Standard <c>true</c>: der DI-Weg
+        /// laeuft im Web, und dort ist "zu viel sehen" der teure Fehler.
+        /// </summary>
+        [TestMethod]
+        public void OptionsCtorRoutesTenantFilterToBoolCtor()
+        {
+            var acme = StoreFor("acme");
+            acme.SaveDefinition(Definition("acmeflow", "acme"));
+
+            using (WorkflowContext ctx = MakeOptionsContext("beta",
+                       new WorkflowContextOptions { UseTenantFilter = true }))
+            {
+                Assert.IsTrue(ctx.UseTenantFilter, "the switch must arrive at the bool ctor");
+                Assert.AreEqual("beta", ctx.CurrentTenant);
+                Assert.IsNull(ctx.WorkflowDefinitions.FirstOrDefault(d => d.Id == "acmeflow"),
+                    "another tenant's definition must be hidden");
+            }
+
+            using (WorkflowContext ctx = MakeOptionsContext("beta", null))
+            {
+                Assert.IsTrue(ctx.UseTenantFilter, "missing options must default to the restrictive side");
+            }
+
+            using (WorkflowContext ctx = MakeOptionsContext("beta",
+                       new WorkflowContextOptions { UseTenantFilter = false }))
+            {
+                // Ausgeschaltet heisst NICHT filterfrei: der Filter bleibt im Modell und wertet den
+                // aktiven Mandanten als null aus - sichtbar ist dann nur noch, was niemandem gehoert.
+                Assert.IsFalse(ctx.UseTenantFilter);
+                Assert.IsNull(ctx.CurrentTenant);
+            }
         }
     }
 }

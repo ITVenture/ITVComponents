@@ -65,6 +65,65 @@ wird — anhand von drei Deployment-Szenarien:
    `IUserAwareContext` (Tenant-Quelle) und `useTenantFilter`. Der Host stellt daraus einen
    `IDbContextFactory<WorkflowContext>` bereit (davon hängen die View-Handler ab).
 
+   > **Welcher Ctor — und was der Tenant-Filter davon hat.** Der Kontext hat vier Ctors, und die Wahl
+   > entscheidet, ob es die globalen Query-Filter (`WorkflowContextFilters`) überhaupt gibt:
+   >
+   > | Weg | Filter im Modell? | Wofür |
+   > | --- | --- | --- |
+   > | `new WorkflowContext(options)` — options-only, `[ActivatorUtilitiesConstructor]` | **nein**, gar keine | Runner, Inline-Ausführung, Migrationen, `dotnet ef` |
+   > | `(loader, userContext, useTenantFilter: true, filterInitializer)` | ja | Plugin-/Mehr-Umgebungs-Weg: je Umgebung explizit gebaut |
+   > | `(loader, userContext, IOptions<WorkflowContextOptions>, filterInitializer)` | ja | DI-Weg: derselbe Schalter aus der Konfiguration statt als Literal |
+   >
+   > Zwei Fallen, beide still: `useTenantFilter: false` **zusammen mit** dem `WorkflowFilterInitializer`
+   > heißt *nicht* „kein Filter", sondern „Filter auf `TenantId IS NULL`" — filterfrei ist allein der
+   > options-only-Weg. Und umgekehrt: läuft der **Runner** gegen einen gefilterten Kontext, findet sein
+   > Suchlauf (`FindDueInstances`, `ClaimDueTimers`, `ReleaseLocksOfOwner`) nur noch mandantenlose Zeilen —
+   > er läuft *vor* jedem `WorkflowExecutionScope`. Views gefiltert, Runner filterfrei.
+   >
+   > Der DI-Weg mit explizitem Delegaten (Auto-Wiring über `AddTransient<WorkflowContext>()` ist
+   > ausdrücklich nicht gemeint — mehrere Ctors sind auflösbar, das quittiert der Container mit einer
+   > Mehrdeutigkeit):
+   >
+   > ```csharp
+   > services.AddSingleton<ContextOptionsLoader<WorkflowContext>>(_ =>
+   >     new SqlContextOptionsLoader<WorkflowContext>(connStr, useProxies: false, commandTimeout: 30,
+   >         sql =>
+   >         {
+   >             // Pflicht, sobald das Schema in einer bestehenden Host-DB liegt:
+   >             sql.MigrationsAssembly("ITVComponents.Workflow.EntityFramework.SqlServer");
+   >             sql.MigrationsHistoryTable("__EFMigrationsHistoryWorkflow");
+   >         }));
+   > services.AddSingleton<IOptions<DbContextModelBuilderOptions<WorkflowContext>>>(_ =>
+   >     new WorkflowFilterInitializer<WorkflowContext>());
+   > services.Configure<WorkflowContextOptions>(o => o.UseTenantFilter = true);   // Standard ist true
+   >
+   > services.AddTransient(sp => new WorkflowContext(
+   >     sp.GetRequiredService<ContextOptionsLoader<WorkflowContext>>(),
+   >     sp.GetRequiredService<IUserAwareContext>(),
+   >     sp.GetRequiredService<IOptions<WorkflowContextOptions>>(),
+   >     sp.GetRequiredService<IOptions<DbContextModelBuilderOptions<WorkflowContext>>>()));
+   > ```
+   >
+   > Der vierte Parameter ist der Zugang zum provider-eigenen Options-Builder;
+   > `PostgreSqlContextOptionsLoader` hat dieselbe Überladung
+   > (`Action<NpgsqlDbContextOptionsBuilder>`, Timeouts inbegriffen).
+   >
+   > **Wird der Loader als Plugin geladen** (DB-getriebene Konfiguration, dort gibt es keine Callbacks),
+   > nimmt man die String-Überladung — sie deckt genau den Shared-DB-Fall ab:
+   > `SqlContextOptionsLoader(connStr, false, 30, "ITVComponents.Workflow.EntityFramework.SqlServer",
+   > "__EFMigrationsHistoryWorkflow")` bzw. beim Postgres-Loader ohne den Timeout-Parameter. Für alles
+   > darüber hinaus bleibt die Verkettung über einen inneren `ContextOptionsLoader` (Parent-Ctor) der Weg.
+   >
+   > `IUserAwareContext` ist nirgends als Interface registriert — entweder den Security-Context nehmen
+   > (er implementiert es) oder einen Zweizeiler über `IPermissionScope`:
+   > `CurrentTenant => scope.PermissionPrefix?.ToLower()`. **Das `ToLower()` ist Pflicht**, sonst filtert
+   > es still ins Leere.
+   >
+   > Liegen Views und Runner in derselben Anwendung, existieren beide Registrierungen nebeneinander —
+   > dann gehören die Migrations-Einstellungen in **beide** Options-Quellen (sonst legt der eine Weg in
+   > `__EFMigrationsHistoryWorkflow` an und der andere sucht in `__EFMigrationsHistory`). Am besten eine
+   > gemeinsame `static void ConfigureWorkflowSql(SqlServerDbContextOptionsBuilder sql)`.
+
 2. **Store / Engine registrieren** (es gibt bewusst keinen `AddWorkflowEngine`-Zauber — explizit
    verdrahten):
 
