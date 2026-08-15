@@ -22,7 +22,13 @@
      Block-Modus. System.Linq ist in DEFAULT schon enthalten.
 
    Ausdruck oder Block wird GEWAEHLT und nicht geraten (Einstellung scriptMode): ein Block ohne return
-   liefert null, und Parse auf einen Block angewendet wirft nicht, sondern liefert still etwas Falsches. *@
+   liefert null, und Parse auf einen Block angewendet wirft nicht, sondern liefert still etwas Falsches.
+
+   MEHRERE Diagramme aus DENSELBEN Daten: statt des einen Objektliterals eine LISTE davon. Die Abfrage
+   laeuft dabei genau einmal; jeder Eintrag darf zusaetzlich title, minWidth und action tragen:
+
+     [ { title: "Nach Status", type: ChartType.Pie,  labels: column(Rows, "Status"), … },
+       { title: "Verlauf",     type: ChartType.Line, minWidth: 400, … } ] *@
 
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 @using System.Collections.Generic
@@ -34,8 +40,7 @@
 @implements IWidgetRenderer
 @inject ILogger<CScriptChartRenderer> Logger
 
-<ChartWidgetView Declaration="@declaration"
-                 Parameters="@parameters"
+<ChartWidgetView Panels="@panels"
                  Errors="@errors"
                  OnAction="@OnAction" />
 
@@ -62,8 +67,7 @@
     /// <summary>Der Wert der Einstellung, der einen Anweisungsblock mit <c>return</c> meint.</summary>
     public const string BlockMode = "block";
 
-    private ChartWidgetDeclaration? declaration;
-    private Dictionary<string, object?> parameters = new();
+    private IReadOnlyList<ChartWidgetPanel> panels = Array.Empty<ChartWidgetPanel>();
     private List<string> errors = new();
 
     private string? lastSource;
@@ -93,8 +97,7 @@
 
     private void Evaluate(string mode)
     {
-        declaration = null;
-        parameters = new Dictionary<string, object?>();
+        panels = Array.Empty<ChartWidgetPanel>();
         errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(TemplateSource))
@@ -119,21 +122,13 @@
                 return;
             }
 
-            // Das ObjectLiteral von CScript IST ein Woerterbuch (IScope : IDictionary<string, object>),
-            // deshalb genuegt hier ein Zweig - siehe ChartWidgetDeclaration.AsMap.
-            IDictionary<string, object?>? map = result as IDictionary<string, object?>;
-
-            if (map == null)
+            IReadOnlyList<object?>? entries = AsEntries(result, errors);
+            if (entries == null)
             {
-                errors.Add($"The configuration produced a {result.GetType().Name}, not a chart declaration.");
                 return;
             }
 
-            declaration = ChartWidgetDeclaration.FromMap(map, errors);
-            if (declaration != null)
-            {
-                parameters = ChartParameterBinder.Bind(declaration.Extra, typeof(MudChart<double>), errors);
-            }
+            panels = ChartWidgetPanel.Build(entries);
         }
         catch (Exception ex)
         {
@@ -148,6 +143,43 @@
             {
                 _ = OnRenderError.InvokeAsync(ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// Reads what the script returned as one entry per chart.
+    /// </summary>
+    /// <param name="result">what the expression or the block produced</param>
+    /// <param name="errors">receives the complaint when it is neither - das betrifft die ganze Kachel</param>
+    /// <returns>the entries, or null when the result is not a declaration at all</returns>
+    /// <remarks>
+    /// Das ObjectLiteral von CScript IST ein Woerterbuch (<c>IScope : IDictionary&lt;string, object&gt;</c>)
+    /// - siehe die Anmerkung an <c>ChartWidgetDeclaration.AsMap</c>. Es muss deshalb VOR der Aufzaehlung
+    /// geprueft werden: ein Woerterbuch ist selbst aufzaehlbar, und aus einem Diagramm wuerden sonst so
+    /// viele "Diagramme", wie die Deklaration Felder hat.
+    /// </remarks>
+    public static IReadOnlyList<object?>? AsEntries(object? result, List<string> errors)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        switch (result)
+        {
+            case null:
+                errors.Add("The configuration produced no chart declaration.");
+                return null;
+
+            case IDictionary<string, object?> map:
+                return new object?[] { map };
+
+            case string text:
+                errors.Add($"The configuration produced the text '{text}', not a chart declaration.");
+                return null;
+
+            case System.Collections.IEnumerable list:
+                return list.Cast<object?>().ToArray();
+
+            default:
+                errors.Add($"The configuration produced a {result.GetType().Name}, not a chart declaration.");
+                return null;
         }
     }
 
@@ -193,21 +225,27 @@
     }
 
     /// <summary>
-    /// Makes an object literal usable as an expression.
+    /// Makes an object or array literal usable as an expression.
     /// </summary>
     /// <remarks>
     /// Die Grammatik verbietet einem Ausdruck, mit <c>{</c> zu beginnen (der Interpreter meldet ein
     /// "failed predicate"). Genau so sieht eine Diagramm-Deklaration aber aus - also wird sie geklammert.
     /// Das ist keine Auslegung des Textes, sondern eine reine Syntax-Anpassung: was der Autor schreibt,
-    /// bleibt Wort fuer Wort dasselbe.
+    /// bleibt Wort fuer Wort dasselbe. Die Liste MEHRERER Diagramme beginnt mit <c>[</c> und bekommt
+    /// dieselbe Klammer - eine Klammer um einen Ausdruck aendert nie seine Bedeutung, und darauf zu
+    /// wetten, dass die Grammatik ein Feld-Literal am Anfang mag, waere unnoetig.
     /// </remarks>
     private static string AsExpression(string source)
+    {
+        string trimmed = source.TrimStart();
         // Die schliessende Klammer MUSS auf eine eigene Zeile: endet der Text mit einem
         // Zeilenkommentar - und genau so endet er, wenn der Knopf "Parameter einfuegen" seine
         // Uebersicht angehaengt hat -, verschluckt der Kommentar sonst die Klammer.
-        => source.TrimStart().StartsWith("{", StringComparison.Ordinal)
+        return trimmed.StartsWith("{", StringComparison.Ordinal)
+               || trimmed.StartsWith("[", StringComparison.Ordinal)
             ? $"({source}{Environment.NewLine})"
             : source;
+    }
 
     /// <summary>
     /// The settings this renderer offers - handed to the registry so the editor can ask for them.

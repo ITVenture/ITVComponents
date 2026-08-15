@@ -119,7 +119,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 
             var text = new StringBuilder();
             text.AppendLine($"// Weitere Parameter ({componentType.Name}, Stand der eingesetzten MudBlazor-Fassung).");
-            text.AppendLine("// Sie stehen neben type/labels/series und werden auf Namen und Typ geprueft.");
+            text.AppendLine(
+                $"// Sie stehen neben {string.Join("/", ChartWidgetDeclaration.PreparedFields)} und werden auf Namen und Typ geprueft.");
+            text.AppendLine("// Mehrere Diagramme aus denselben Daten: eine LISTE solcher Deklarationen.");
 
             IEnumerable<PropertyInfo> parameters = componentType
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)

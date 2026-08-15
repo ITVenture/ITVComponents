@@ -24,6 +24,14 @@ Drei Felder werden aus den Daten gebaut:
 | `labels` | ausser bei `line` | die Kategorien — Text oder `{ "text": …, "navigateTo": … }` |
 | `series` | ja | Liste aus `{ "name": …, "data": [ … ] }` |
 
+Drei weitere Felder gehören dem Rahmen und werden **nicht** an die Diagramm-Komponente durchgereicht:
+
+| Feld | Vorgabe | Bedeutung |
+|---|---|---|
+| `title` | — | Überschrift über diesem Diagramm. Darf ein Kultur-Datensatz sein. |
+| `minWidth` | `280` | Breite in Pixeln, unter der dieses Diagramm auf eine eigene Zeile rutscht. `0` = immer nebeneinander. |
+| `action` | `select` | Name der Aktion, die ein Klick ohne `navigateTo` meldet. |
+
 Alles Weitere wird **an die Diagramm-Komponente durchgereicht** (`width`, `height`, `legendPosition`,
 `chartOptions`, …). Welche Namen es gibt und was sie erwarten, zeigt im Editor der Knopf
 **„Insert parameters"** — er hängt die Liste als Kommentar unter die Konfiguration. Diese Liste kommt aus
@@ -36,6 +44,35 @@ irgendetwas Halbes.
 **Beim Speichern wird nur die Syntax geprüft.** Ob die Konfiguration die richtigen Zahlen liefert, zeigt
 sich erst mit echten Daten — deshalb blockiert der Editor nichts, was er nicht sicher beurteilen kann.
 Alles Weitere steht in der Kachel selbst und im Log.
+
+## Mehrere Diagramme aus einer Abfrage
+
+Statt **einer** Deklaration darf dort auch eine **Liste** stehen. Die Abfrage läuft dann trotzdem nur
+einmal — aus denselben Zeilen entstehen mehrere Grafiken:
+
+```jsonc
+// Scriban / JSON
+[ { "title": "Nach Status", "type": "pie",  "labels": …, "series": … },
+  { "title": "Verlauf",     "type": "line", "minWidth": 400, "series": … } ]
+```
+
+```csharp
+// CScript
+[ { title: "Nach Status", type: ChartType.Pie,  labels: column(Rows, "Status"), series: [ … ] },
+  { title: "Verlauf",     type: ChartType.Line, minWidth: 400, series: [ … ] } ]
+```
+
+Wie sie sich anordnen, entscheidet der **Platz**: nebeneinander, solange jedes noch seine `minWidth`
+bekommt, sonst untereinander. Das richtet sich nach der tatsächlichen Breite der Kachel — die hängt an
+ihrer eingestellten Breite *und* am Fenster, ein Diagramm auf dem Telefon steht also von selbst unter dem
+anderen.
+
+Ein Fehler in **einer** dieser Deklarationen betrifft auch nur sie: an ihrem Platz steht die Meldung, die
+übrigen Diagramme werden gezeichnet. Nur was die ganze Konfiguration unlesbar macht (kaputtes JSON, ein
+Skript, das abbricht), ersetzt die ganze Kachel.
+
+Bei mehreren Diagrammen lohnt sich `action`: `WidgetAction` trägt nur Name und Argument, sonst wüsste die
+Anwendung beim Klick nicht, **welches** Diagramm gemeint war.
 
 ## Die Abfrage
 

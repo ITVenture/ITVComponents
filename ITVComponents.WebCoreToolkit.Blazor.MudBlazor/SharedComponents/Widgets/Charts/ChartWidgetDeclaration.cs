@@ -31,11 +31,47 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
     /// </remarks>
     public sealed class ChartWidgetDeclaration
     {
+        /// <summary>Ab dieser Breite passt ein Diagramm noch neben ein anderes.</summary>
+        public const int DefaultMinWidth = 280;
+
+        /// <summary>Der Name der Aktion, die ein Klick ohne Navigationsziel ausloest.</summary>
+        public const string DefaultAction = "select";
+
         public ChartType Type { get; init; }
 
         public IReadOnlyList<ChartWidgetLabel> Labels { get; init; } = Array.Empty<ChartWidgetLabel>();
 
         public List<ChartSeries<double>> Series { get; init; } = new();
+
+        /// <summary>
+        /// The caption above this chart. Null hides it.
+        /// </summary>
+        /// <remarks>
+        /// Bei mehreren Diagrammen in einer Kachel reicht die Kachel-Beschriftung nicht mehr aus. Der Wert
+        /// darf ein Kultur-Datensatz sein; uebersetzt wird beim ANZEIGEN, nicht hier - so bleibt diese
+        /// Klasse ohne Umgebung pruefbar.
+        /// </remarks>
+        public string? Title { get; init; }
+
+        /// <summary>
+        /// The width below which this chart wraps to its own line, in pixels.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst eine Mindestbreite und keine Spaltenzahl: wie breit die Kachel wirklich ist, haengt an
+        /// ihrem ColSpan UND am Fenster - das weiss nur der Browser. Mit einer Mindestbreite ordnen sich
+        /// die Diagramme von selbst nebeneinander, solange der Platz reicht, und untereinander, sobald er
+        /// nicht mehr reicht. 0 heisst "immer nebeneinander, Platz zu gleichen Teilen".
+        /// </remarks>
+        public int MinWidth { get; init; } = DefaultMinWidth;
+
+        /// <summary>
+        /// The action name a click without a navigation target raises.
+        /// </summary>
+        /// <remarks>
+        /// Er ist einstellbar, weil eine Anwendung sonst nicht unterscheiden koennte, WELCHES Diagramm
+        /// einer Kachel geklickt wurde - <c>WidgetAction</c> traegt nur Name und Argument.
+        /// </remarks>
+        public string Action { get; init; } = DefaultAction;
 
         /// <summary>Every other field of the declaration, unconverted.</summary>
         public IReadOnlyDictionary<string, object?> Extra { get; init; }
@@ -96,14 +132,84 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 Type = type,
                 Labels = labels,
                 Series = series,
+                Title = ReadTitle(values),
+                MinWidth = ReadMinWidth(values, errors),
+                Action = ReadAction(values),
                 Extra = extra
             };
         }
 
+        /// <summary>
+        /// The fields this class prepares itself - everything else is a parameter of the chart component.
+        /// </summary>
+        /// <remarks>
+        /// Oeffentlich, weil die Uebersicht des Knopfes "Parameter einfuegen" sie nennen muss. Stuende die
+        /// Liste dort ein zweites Mal, waere sie beim naechsten neuen Feld sofort falsch - und ein Feld,
+        /// das die Uebersicht als Diagramm-Parameter ausgibt, obwohl es hier abgefangen wird, ist eine
+        /// Einladung zum Fehler.
+        /// </remarks>
+        public static IReadOnlyList<string> PreparedFields { get; } = new[]
+        {
+            "type", "labels", "series", "title", "minWidth", "action"
+        };
+
         private static bool IsPreparedField(string name)
-            => string.Equals(name, "type", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(name, "labels", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(name, "series", StringComparison.OrdinalIgnoreCase);
+            => PreparedFields.Any(f => string.Equals(f, name, StringComparison.OrdinalIgnoreCase));
+
+        private static string? ReadTitle(IDictionary<string, object?> values)
+        {
+            if (!values.TryGetValue("title", out object? raw) || raw == null)
+            {
+                return null;
+            }
+
+            string text = Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private static string ReadAction(IDictionary<string, object?> values)
+        {
+            if (!values.TryGetValue("action", out object? raw) || raw == null)
+            {
+                return DefaultAction;
+            }
+
+            string text = Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(text) ? DefaultAction : text;
+        }
+
+        private static int ReadMinWidth(IDictionary<string, object?> values, List<string> errors)
+        {
+            if (!values.TryGetValue("minWidth", out object? raw) || raw == null)
+            {
+                return DefaultMinWidth;
+            }
+
+            // Eine Zahl, keine CSS-Laenge: aus "300px" liesse sich zwar rechnen, aber dann muesste diese
+            // Klasse Einheiten kennen - und '50%' waere eine Angabe, mit der der Umbruch nichts anfangen
+            // kann. Wer die Groesse des Diagramms selbst meint, setzt weiterhin width/height durch.
+            if (raw is IConvertible)
+            {
+                try
+                {
+                    int width = Convert.ToInt32(raw, CultureInfo.InvariantCulture);
+                    if (width >= 0)
+                    {
+                        return width;
+                    }
+
+                    errors.Add($"'minWidth' cannot be negative ({width}).");
+                    return DefaultMinWidth;
+                }
+                catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+                {
+                    // Faellt unten in dieselbe Meldung.
+                }
+            }
+
+            errors.Add($"'minWidth' must be a number of pixels, not '{raw}'.");
+            return DefaultMinWidth;
+        }
 
         private static ChartType ReadType(IDictionary<string, object?> values, List<string> errors)
         {

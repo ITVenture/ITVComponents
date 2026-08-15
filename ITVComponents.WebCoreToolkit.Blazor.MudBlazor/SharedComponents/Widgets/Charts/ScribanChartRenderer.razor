@@ -7,7 +7,13 @@
        "labels": {{ json (column Rows "Status") }},
        "series": [ { "name": "Anzahl", "data": {{ json (column Rows "Anzahl") }} } ] }
 
-   Wer umformen will, schreibt statt column eine eigene Schleife - genau wie im HTML-Template. *@
+   Wer umformen will, schreibt statt column eine eigene Schleife - genau wie im HTML-Template.
+
+   MEHRERE Diagramme aus DERSELBEN Abfrage: statt des Objekts ein Array davon. Die Daten werden dabei
+   genau einmal geholt; jeder Eintrag darf zusaetzlich title, minWidth und action tragen.
+
+     [ { "title": "Nach Status", "type": "pie",  … },
+       { "title": "Verlauf",     "type": "line", "minWidth": 400, … } ] *@
 
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 @using System.Collections.Generic
@@ -21,8 +27,7 @@
 @implements IWidgetRenderer
 @inject ILogger<ScribanChartRenderer> Logger
 
-<ChartWidgetView Declaration="@declaration"
-                 Parameters="@parameters"
+<ChartWidgetView Panels="@panels"
                  Errors="@errors"
                  OnAction="@OnAction" />
 
@@ -44,8 +49,7 @@
     /// <inheritdoc />
     [Parameter] public EventCallback<Exception> OnRenderError { get; set; }
 
-    private ChartWidgetDeclaration? declaration;
-    private Dictionary<string, object?> parameters = new();
+    private IReadOnlyList<ChartWidgetPanel> panels = Array.Empty<ChartWidgetPanel>();
     private List<string> errors = new();
 
     private string? lastSource;
@@ -67,8 +71,7 @@
 
     private void Render()
     {
-        declaration = null;
-        parameters = new Dictionary<string, object?>();
+        panels = Array.Empty<ChartWidgetPanel>();
         errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(TemplateSource))
@@ -89,17 +92,15 @@
             ScriptObject globals = WidgetTemplateFunctions.CreateGlobals(Data);
             string rendered = template.Render(WidgetTemplateFunctions.CreateContext(globals));
 
-            IDictionary<string, object?>? map = ChartJson.ToMap(rendered, errors);
-            if (map == null)
+            // Unlesbares JSON betrifft die ganze Kachel - dann gibt es nichts zu zeichnen. Was ein
+            // EINZELNER Eintrag taugt, entscheidet erst Build; dessen Fehler bleiben an ihrem Diagramm.
+            IReadOnlyList<object?>? entries = ChartJson.ToEntries(rendered, errors);
+            if (entries == null)
             {
                 return;
             }
 
-            declaration = ChartWidgetDeclaration.FromMap(map, errors);
-            if (declaration != null)
-            {
-                parameters = ChartParameterBinder.Bind(declaration.Extra, typeof(MudChart<double>), errors);
-            }
+            panels = ChartWidgetPanel.Build(entries);
         }
         catch (Exception ex)
         {

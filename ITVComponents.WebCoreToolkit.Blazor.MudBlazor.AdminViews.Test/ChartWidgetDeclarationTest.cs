@@ -225,31 +225,177 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         // ---- JSON-Seite ---------------------------------------------------------------------------
 
         [TestMethod]
-        public void RenderedJson_BecomesAMap()
+        public void RenderedJson_BecomesOneEntry()
         {
             var errors = new List<string>();
-            IDictionary<string, object?>? map = ChartJson.ToMap(
+            IReadOnlyList<object?>? entries = ChartJson.ToEntries(
                 "{ \"type\": \"pie\", \"series\": [ { \"name\": \"x\", \"data\": [1, 2] } ] }", errors);
 
-            Assert.IsNotNull(map);
+            Assert.IsNotNull(entries);
+            Assert.AreEqual(1, entries!.Count);
             CollectionAssert.AreEqual(Array.Empty<string>(), errors);
-            Assert.IsNotNull(ChartWidgetDeclaration.FromMap(map, errors));
+            Assert.IsNotNull(ChartWidgetDeclaration.FromMap(
+                (IDictionary<string, object?>)entries[0]!, errors));
         }
 
         [TestMethod]
         public void BrokenJson_IsReportedWithItsReason()
         {
             var errors = new List<string>();
-            Assert.IsNull(ChartJson.ToMap("{ \"type\": ", errors));
+            Assert.IsNull(ChartJson.ToEntries("{ \"type\": ", errors));
             Assert.AreEqual(1, errors.Count);
             StringAssert.Contains(errors[0], "not valid JSON");
         }
 
+        /// <summary>
+        /// Ein Array an der Wurzel sind MEHRERE Diagramme aus derselben Abfrage - der ganze Zweck dieser
+        /// Form. Ein Objekt bleibt daneben gueltig, sonst waere jede bestehende Kachel kaputt.
+        /// </summary>
         [TestMethod]
-        public void JsonArray_IsNotADeclaration()
+        public void JsonArray_BecomesOneEntryPerChart()
         {
             var errors = new List<string>();
-            Assert.IsNull(ChartJson.ToMap("[1, 2]", errors));
+            IReadOnlyList<object?>? entries = ChartJson.ToEntries(
+                "[ { \"type\": \"pie\", \"series\": [ { \"name\": \"x\", \"data\": [1] } ] }, " +
+                "  { \"type\": \"bar\", \"series\": [ { \"name\": \"y\", \"data\": [2] } ] } ]", errors);
+
+            Assert.IsNotNull(entries);
+            Assert.AreEqual(2, entries!.Count);
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors);
+
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(entries);
+            Assert.AreEqual(2, panels.Count);
+            Assert.AreEqual(ChartType.Pie, panels[0].Declaration!.Type);
+            Assert.AreEqual(ChartType.Bar, panels[1].Declaration!.Type);
+            Assert.IsTrue(panels.All(p => p.Errors.Count == 0));
+        }
+
+        /// <summary>Weder Zahl noch Text sind eine Deklaration - aber die Kachel steht trotzdem.</summary>
+        [TestMethod]
+        public void JsonScalarsInAnArray_BecomeErrorsAtTheirOwnPlace()
+        {
+            var errors = new List<string>();
+            IReadOnlyList<object?>? entries = ChartJson.ToEntries("[1, 2]", errors);
+
+            Assert.IsNotNull(entries);
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors);
+
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(entries!);
+            Assert.AreEqual(2, panels.Count);
+            Assert.IsTrue(panels.All(p => p.Declaration is null && p.Errors.Count == 1),
+                string.Join(" | ", panels.SelectMany(p => p.Errors)));
+        }
+
+        /// <summary>Ein Skalar an der Wurzel ist dagegen gar nichts - das betrifft die ganze Kachel.</summary>
+        [TestMethod]
+        public void JsonScalarAtTheRoot_IsNoDeclarationAtAll()
+        {
+            var errors = new List<string>();
+            Assert.IsNull(ChartJson.ToEntries("42", errors));
+            Assert.AreEqual(1, errors.Count);
+        }
+
+        // ---- Mehrere Diagramme in einer Kachel ------------------------------------------------------
+
+        /// <summary>
+        /// Der Punkt, um den es bei mehreren Diagrammen geht: ein kaputter Eintrag nimmt die uebrigen
+        /// NICHT mit. Sonst loescht ein Tippfehler im zweiten Diagramm das erste gleich mit aus, und was
+        /// noch richtig ist, sieht man nicht mehr.
+        /// </summary>
+        [TestMethod]
+        public void ABrokenEntry_DoesNotTakeTheOthersDown()
+        {
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(new object?[]
+            {
+                Map(("type", "pie"), ("series", new object?[] { Map(("name", "x"), ("data", new object?[] { 1 })) })),
+                Map(("type", "kuchen"), ("series", new object?[] { Map(("name", "y"), ("data", new object?[] { 2 })) })),
+                Map(("type", "bar"), ("series", new object?[] { Map(("name", "z"), ("data", new object?[] { 3 })) }))
+            });
+
+            Assert.AreEqual(3, panels.Count);
+            Assert.AreEqual(0, panels[0].Errors.Count);
+            Assert.AreNotEqual(0, panels[1].Errors.Count);
+            Assert.AreEqual(0, panels[2].Errors.Count);
+        }
+
+        /// <summary>
+        /// title, minWidth und action gehoeren dem Mantel und duerfen NICHT als Parameter der
+        /// Diagramm-Komponente durchgereicht werden - dort waeren sie unbekannt und die Kachel zeigte
+        /// statt des Diagramms eine Beanstandung.
+        /// </summary>
+        [TestMethod]
+        public void PanelFields_AreReadAndNotPassedToTheChart()
+        {
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(new object?[]
+            {
+                Map(("type", "pie"),
+                    ("title", "Nach Status"),
+                    ("minWidth", 400),
+                    ("action", "status"),
+                    ("series", new object?[] { Map(("name", "x"), ("data", new object?[] { 1 })) }))
+            });
+
+            ChartWidgetPanel panel = panels.Single();
+            CollectionAssert.AreEqual(Array.Empty<string>(), panel.Errors.ToArray());
+            Assert.AreEqual("Nach Status", panel.Declaration!.Title);
+            Assert.AreEqual(400, panel.Declaration.MinWidth);
+            Assert.AreEqual("status", panel.Declaration.Action);
+            Assert.AreEqual(0, panel.Declaration.Extra.Count);
+            Assert.AreEqual(0, panel.Parameters.Count);
+        }
+
+        /// <summary>Ohne Angabe bleibt es bei den Vorgaben - eine bestehende Konfiguration aendert sich nicht.</summary>
+        [TestMethod]
+        public void PanelFields_HaveDefaults()
+        {
+            var errors = new List<string>();
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                ("type", "pie"),
+                ("series", new object?[] { Map(("name", "x"), ("data", new object?[] { 1 })) })), errors);
+
+            Assert.IsNull(declaration!.Title);
+            Assert.AreEqual(ChartWidgetDeclaration.DefaultMinWidth, declaration.MinWidth);
+            Assert.AreEqual(ChartWidgetDeclaration.DefaultAction, declaration.Action);
+        }
+
+        /// <summary>
+        /// minWidth ist eine Zahl von Pixeln, keine CSS-Laenge: mit "50%" koennte der Umbruch nicht
+        /// rechnen. Wer die Groesse des Diagramms selbst meint, setzt width/height durch.
+        /// </summary>
+        [TestMethod]
+        public void MinWidth_MustBeANumber()
+        {
+            var errors = new List<string>();
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                ("type", "pie"),
+                ("minWidth", "50%"),
+                ("series", new object?[] { Map(("name", "x"), ("data", new object?[] { 1 })) })), errors);
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "minWidth");
+            Assert.AreEqual(ChartWidgetDeclaration.DefaultMinWidth, declaration!.MinWidth);
+        }
+
+        /// <summary>
+        /// Das ObjectLiteral von CScript ist selbst aufzaehlbar. Wuerde die Liste zuerst geprueft, zerfiele
+        /// EIN Diagramm in so viele "Diagramme", wie seine Deklaration Felder hat.
+        /// </summary>
+        [TestMethod]
+        public void CScriptResult_IsOneEntryForAMapAndOnePerItemForAList()
+        {
+            var errors = new List<string>();
+            IDictionary<string, object?> one = Map(("type", "pie"));
+
+            IReadOnlyList<object?>? single = CScriptChartRenderer.AsEntries(one, errors);
+            Assert.AreEqual(1, single!.Count);
+            Assert.AreSame(one, single[0]);
+
+            IReadOnlyList<object?>? many = CScriptChartRenderer.AsEntries(
+                new List<object?> { one, Map(("type", "bar")) }, errors);
+            Assert.AreEqual(2, many!.Count);
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors);
+            Assert.IsNull(CScriptChartRenderer.AsEntries(42, errors));
             Assert.AreEqual(1, errors.Count);
         }
 
@@ -358,6 +504,30 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         {
             Assert.IsNull(CScriptChartRenderer.Validate(
                 "{type: \"pie\", series: [{name: \"x\", data: [1]}]}",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>
+        /// Mehrere Diagramme sind eine LISTE von Objektliteralen. Der Renderer klammert sie genauso ein
+        /// wie ein einzelnes - ohne diese Klammer entscheidet die Grammatik darueber, und darauf soll sich
+        /// niemand verlassen muessen.
+        /// </summary>
+        [TestMethod]
+        public void CScriptValidation_AcceptsAListOfDeclarations()
+        {
+            Assert.IsNull(CScriptChartRenderer.Validate(
+                "[{title: \"Nach Status\", type: \"pie\", series: [{name: \"x\", data: [1]}]}, " +
+                "{title: \"Verlauf\", type: ChartType.Line, minWidth: 400, series: [{name: \"y\", data: [2]}]}]",
+                new Dictionary<string, string?>()));
+        }
+
+        /// <summary>Dasselbe auf der JSON-Seite: ein Array an der Wurzel ist eine gueltige Konfiguration.</summary>
+        [TestMethod]
+        public void ScribanValidation_AcceptsAnArrayOfDeclarations()
+        {
+            Assert.IsNull(ScribanChartRenderer.Validate(
+                "[ { \"type\": \"pie\", \"series\": [ { \"name\": \"x\", \"data\": [1] } ] }, " +
+                "  { \"type\": \"bar\", \"series\": [ { \"name\": \"y\", \"data\": [2] } ] } ]",
                 new Dictionary<string, string?>()));
         }
 

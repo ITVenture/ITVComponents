@@ -15,12 +15,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
     /// </remarks>
     public static class ChartJson
     {
-        /// <summary>Parses the rendered text.</summary>
+        /// <summary>
+        /// Parses the rendered text into one entry per chart.
+        /// </summary>
         /// <param name="json">what the template produced</param>
         /// <param name="errors">receives the parse error, with the position - JSON-Fehler sind sonst
         /// nicht zu finden</param>
-        /// <returns>the declaration, or null when the text is not a JSON object</returns>
-        public static IDictionary<string, object?>? ToMap(string? json, List<string> errors)
+        /// <returns>the entries, or null when the text is not readable at all</returns>
+        /// <remarks>
+        /// <para>
+        /// Ein Objekt an der Wurzel ist EIN Diagramm, ein Array sind mehrere - so bleibt jede bisherige
+        /// Konfiguration Wort fuer Wort gueltig, und aus derselben Abfrage lassen sich mehrere Grafiken
+        /// bauen, ohne die Daten ein zweites Mal zu holen.
+        /// </para>
+        /// <para>
+        /// Was ein einzelner Eintrag ist, prueft diese Klasse ABSICHTLICH nicht: das tut
+        /// <see cref="ChartWidgetPanel.Build"/> - und zwar fuer beide Herkuenfte nach derselben Regel.
+        /// Hier scheitert nur, was die ganze Kachel betrifft; ein einzelner unbrauchbarer Eintrag darf die
+        /// uebrigen Diagramme nicht mitnehmen.
+        /// </para>
+        /// </remarks>
+        public static IReadOnlyList<object?>? ToEntries(string? json, List<string> errors)
         {
             ArgumentNullException.ThrowIfNull(errors);
             if (string.IsNullOrWhiteSpace(json))
@@ -38,9 +53,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(json),
                     new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
                 using JsonDocument document = JsonDocument.ParseValue(ref reader);
-                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                if (document.RootElement.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
                 {
-                    errors.Add($"The template produced a JSON {document.RootElement.ValueKind}, not an object.");
+                    errors.Add(
+                        $"The template produced a JSON {document.RootElement.ValueKind}, not an object or an array of objects.");
                     return null;
                 }
 
@@ -52,7 +68,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                     return null;
                 }
 
-                return (IDictionary<string, object?>?)ToObject(document.RootElement);
+                object? root = ToObject(document.RootElement);
+                // Der Cast ist noetig: die beiden Zweige haben keinen gemeinsamen Typ, nur eine
+                // gemeinsame Schnittstelle.
+                return root is List<object?> entries
+                    ? (IReadOnlyList<object?>)entries
+                    : new object?[] { root };
             }
             catch (JsonException ex)
             {
