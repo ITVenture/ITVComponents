@@ -40,15 +40,26 @@ der Komponente selbst und ist damit immer der Stand der eingesetzten Fassung.
 ## Eigene Größe
 
 `width` und `height` gehören zu diesen durchgereichten Parametern — mit einer Besonderheit: eine
-**absolute** Angabe (`"150px"`, `"12rem"`, `150`) bestimmt nicht nur das Diagramm, sondern auch den
+**absolute** `width` (`"150px"`, `"12rem"`, `150`) bestimmt nicht nur das Diagramm, sondern auch den
 **Platz**, den es einnimmt. Der Platz richtet sich dann nach dem Diagramm statt nach `minWidth` und dem
 freien Restplatz; eine Überschrift steht dadurch mittig über dem Diagramm und nicht über einem viel
-breiteren Kasten. Bei `height` kommt hinzu, dass das Diagramm nicht mehr auf die Höhe des höchsten in
-seiner Zeile gezogen wird.
+breiteren Kasten.
 
 Eine **relative** Angabe (`"80%"` — das ist die Vorgabe) bleibt eine Angabe über das Diagramm allein: sie
 rechnet gegen den Platz, und der kann sich nicht umgekehrt nach ihr richten. Dort entscheiden weiter
 `minWidth` und der verfügbare Platz.
+
+`height` gehört immer dem Diagramm allein: wie hoch ein Platz ist, ergibt sich aus seiner **Zeile**.
+
+## Überschriften unterschiedlicher Länge
+
+Bricht die Überschrift eines Diagramms um und die des Nachbarn nicht, beginnen die beiden Diagramme
+trotzdem auf derselben Höhe: die zusätzliche Zeile wird **über** der kürzeren Überschrift eingefügt, nicht
+zwischen Überschrift und Diagramm. Dafür ist nichts einzustellen, und es gibt auch keine reservierte
+Titelhöhe, die bei einzeiligen Überschriften Platz verschenken würde.
+
+Sind die Diagramme einer Zeile **unterschiedlich hoch**, richten sich ihre Unterkanten aus — beides
+zugleich geht nicht.
 
 `labels` und die Werte einer Serie müssen **gleich lang** sein. Passt etwas nicht — ein unbekannter Typ,
 ein Wert, der keine Zahl ist, ein Parameter, den es nicht gibt —, sagt die Kachel es und zeichnet nicht

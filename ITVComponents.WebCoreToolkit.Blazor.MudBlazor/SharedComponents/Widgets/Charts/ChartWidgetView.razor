@@ -125,10 +125,13 @@ else
                 : FormattableString.Invariant($"flex: 1 1 {min}px; min-width: min(100%, {min}px);"));
         }
 
-        if (flexChild && panel.DeclaredHeight != null)
+        if (flexChild)
         {
-            // Eine eigene Hoehe heisst auch: nicht auf die Hoehe der hoechsten Kachel dieser Zeile ziehen.
-            style.Append(" align-self: flex-start;");
+            // Eine Spalte aus Ueberschrift und Diagramm - die Voraussetzung dafuer, dass der Platz, den die
+            // Streckung auf die Zeilenhoehe bringt, in der Ueberschrift landet und nicht zwischen ihr und
+            // dem Diagramm (siehe CaptionStyle). Deshalb wird hier auch NICHT gegen die Streckung
+            // gearbeitet: sie ist genau das, woraus der Ausgleich entsteht.
+            style.Append(" display: flex; flex-direction: column;");
         }
 
         return style.ToString();
@@ -140,39 +143,78 @@ else
     /// </summary>
     private RenderFragment<ChartWidgetPanel> Panel => panel =>
         @<text>
-            @if (!string.IsNullOrEmpty(panel.Declaration?.Title))
-            {
-                @* Uebersetzt wird HIER und nicht beim Lesen der Deklaration: der Titel darf ein
-                   Kultur-Datensatz sein, und die Aufloesung gehoert zur Anzeige. *@
-                <MudText Typo="Typo.subtitle2" Align="Align.Center">
-                    @WidgetTemplateFunctions.Translate(panel.Declaration!.Title!)
-                </MudText>
-            }
-            @if (panel.Errors.Count != 0)
-            {
-                <MudAlert Severity="Severity.Error" Dense="true">
-                    @ErrorTitle
-                    <ul class="mt-1">
-                        @foreach (string error in panel.Errors)
-                        {
-                            <li><MudText Typo="Typo.caption">@error</MudText></li>
-                        }
-                    </ul>
-                </MudAlert>
-            }
-            else if (panel.Declaration is not null)
-            {
-                @* Die drei aufbereiteten Felder ausdruecklich - so prueft der Uebersetzer ihre Namen. Der
-                   Rest kommt als geprueftes Woerterbuch dazu; T bleibt double, damit es ohne Typinferenz
-                   auskommt. *@
-                <MudChart T="double"
-                          ChartType="@panel.Declaration.Type"
-                          ChartLabels="@panel.LabelTexts"
-                          ChartSeries="@panel.Declaration.Series"
-                          SelectedIndexChanged="@(index => OnSelected(panel, index))"
-                          @attributes="@panel.Parameters" />
-            }
+            @* Die Ueberschrift steht IMMER in einem eigenen Block - auch wenn es keine gibt. Er ist der
+               Ausgleich, mit dem die Diagramme einer Zeile buendig werden (siehe CaptionStyle). *@
+            <div style="@CaptionStyle">
+                @if (!string.IsNullOrEmpty(panel.Declaration?.Title))
+                {
+                    @* Uebersetzt wird HIER und nicht beim Lesen der Deklaration: der Titel darf ein
+                       Kultur-Datensatz sein, und die Aufloesung gehoert zur Anzeige. *@
+                    <MudText Typo="Typo.subtitle2" Align="Align.Center">
+                        @WidgetTemplateFunctions.Translate(panel.Declaration!.Title!)
+                    </MudText>
+                }
+            </div>
+            <div style="@ChartBlockStyle">
+                @if (panel.Errors.Count != 0)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">
+                        @ErrorTitle
+                        <ul class="mt-1">
+                            @foreach (string error in panel.Errors)
+                            {
+                                <li><MudText Typo="Typo.caption">@error</MudText></li>
+                            }
+                        </ul>
+                    </MudAlert>
+                }
+                else if (panel.Declaration is not null)
+                {
+                    @* Die drei aufbereiteten Felder ausdruecklich - so prueft der Uebersetzer ihre Namen.
+                       Der Rest kommt als geprueftes Woerterbuch dazu; T bleibt double, damit es ohne
+                       Typinferenz auskommt. *@
+                    <MudChart T="double"
+                              ChartType="@panel.Declaration.Type"
+                              ChartLabels="@panel.LabelTexts"
+                              ChartSeries="@panel.Declaration.Series"
+                              SelectedIndexChanged="@(index => OnSelected(panel, index))"
+                              @attributes="@panel.Parameters" />
+                }
+            </div>
         </text>;
+
+    /// <summary>
+    /// Der Block, in dem die Ueberschrift sitzt - und der Ausgleich, mit dem die Diagramme einer Zeile
+    /// buendig werden.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Das Problem: eine Ueberschrift, die umbricht, ist eine Zeile hoeher als eine einzeilige - das
+    /// Diagramm darunter beginnt dann tiefer als das daneben. Eine feste Hoehe fuer die Ueberschrift waere
+    /// die naheliegende, aber falsche Antwort: bei einzeiligen Titeln verschenkt sie Platz und bei einem
+    /// dreizeiligen sitzt wieder alles schief.
+    /// </para>
+    /// <para>
+    /// Stattdessen wird der Platz genommen, den es ohnehin schon gibt: die Diagramme einer Zeile sind
+    /// durch <c>align-items: stretch</c> alle so hoch wie das hoechste. Was einem niedrigeren dabei an
+    /// Hoehe zuwaechst, bekommt der Ueberschriften-Block (<c>flex-grow: 1</c>) und legt seinen Text UNTEN
+    /// hin - der Ueberschuss landet also ueber der Ueberschrift statt zwischen ihr und dem Diagramm.
+    /// Damit stehen die Diagramme auf einer Linie, ohne dass irgendwo eine Zahl steht.
+    /// </para>
+    /// <para>
+    /// Genau genommen richtet das die UNTERkanten aus; sind die Diagramme gleich hoch - der Regelfall -,
+    /// sind damit auch die Oberkanten buendig. Bei ungleich hohen Diagrammen laesst sich ohnehin nur
+    /// eines von beidem haben, und die gemeinsame Standlinie ist das, was man sieht.
+    /// </para>
+    /// </remarks>
+    private const string CaptionStyle
+        = "flex: 1 0 auto; display: flex; align-items: flex-end; justify-content: center;";
+
+    /// <summary>
+    /// Das Diagramm selbst - es waechst NICHT mit. Der Ueberschuss gehoert der Ueberschrift; ginge er
+    /// hierher, waere zwischen Titel und Diagramm ein Loch und die Diagramme laegen wieder ungleich.
+    /// </summary>
+    private const string ChartBlockStyle = "flex: 0 0 auto;";
 
     /// <summary>
     /// Klick auf ein Segment oder einen Legendeneintrag. Der Regelfall ist der Sprung auf eine Seite;

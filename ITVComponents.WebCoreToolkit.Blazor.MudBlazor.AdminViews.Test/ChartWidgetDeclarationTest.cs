@@ -386,11 +386,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         [TestMethod]
         public void AbsoluteSize_IsTheDeclaredSize()
         {
-            ChartWidgetPanel panel = OnePanel(("width", "150px"), ("height", "12rem"));
+            ChartWidgetPanel panel = OnePanel(("width", "12rem"), ("height", "150px"));
 
             CollectionAssert.AreEqual(Array.Empty<string>(), panel.Errors.ToArray());
-            Assert.AreEqual("150px", panel.DeclaredWidth);
-            Assert.AreEqual("12rem", panel.DeclaredHeight);
+            Assert.AreEqual("12rem", panel.DeclaredWidth);
         }
 
         /// <summary>Eine nackte Zahl ist als Pixel gemeint - so liest sie auch das svg-Attribut.</summary>
@@ -418,10 +417,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         [TestMethod]
         public void NoSize_IsNoDeclaredSize()
         {
-            ChartWidgetPanel panel = OnePanel();
+            Assert.IsNull(OnePanel().DeclaredWidth);
+        }
 
+        /// <summary>
+        /// Eine deklarierte HOEHE bestimmt den Platz nicht: wie hoch er ist, ergibt sich aus seiner Zeile -
+        /// nur so stehen die Diagramme einer Zeile auf einer Linie.
+        /// </summary>
+        [TestMethod]
+        public void Height_IsPassedThroughButShapesNoPlace()
+        {
+            ChartWidgetPanel panel = OnePanel(("height", "150px"));
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), panel.Errors.ToArray());
+            Assert.AreEqual("150px", panel.Parameters["Height"]);
             Assert.IsNull(panel.DeclaredWidth);
-            Assert.IsNull(panel.DeclaredHeight);
         }
 
         /// <summary>Ein zeichenbares Diagramm mit den uebergebenen Zusatzfeldern.</summary>

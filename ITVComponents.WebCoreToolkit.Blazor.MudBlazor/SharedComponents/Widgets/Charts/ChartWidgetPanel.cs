@@ -40,15 +40,19 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
         /// The width this chart was declared with, if it is an absolute length - otherwise null.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Wer <c>width: "150px"</c> schreibt, meint das Diagramm UND den Platz, den es einnimmt. Ohne diese
         /// Auskunft nahm der umgebende Platz weiter seine Mindestbreite plus allen Restplatz: der Mantel war
         /// viel breiter als das Diagramm, und die mittig gesetzte Ueberschrift stand irgendwo, nur nicht
         /// darueber.
+        /// </para>
+        /// <para>
+        /// Nur die Breite und nicht auch die Hoehe: wie hoch ein Platz ist, ergibt sich aus seiner ZEILE -
+        /// die Diagramme einer Zeile sind gleich hoch, damit sie auf einer Linie stehen (siehe
+        /// <c>ChartWidgetView.CaptionStyle</c>). Eine deklarierte Hoehe gehoert deshalb dem Diagramm allein.
+        /// </para>
         /// </remarks>
         public string? DeclaredWidth => AbsoluteLength(nameof(MudChart<double>.Width));
-
-        /// <summary>The height this chart was declared with, if it is an absolute length - otherwise null.</summary>
-        public string? DeclaredHeight => AbsoluteLength(nameof(MudChart<double>.Height));
 
         /// <summary>
         /// Reads a passed-through size as an absolute CSS length.
