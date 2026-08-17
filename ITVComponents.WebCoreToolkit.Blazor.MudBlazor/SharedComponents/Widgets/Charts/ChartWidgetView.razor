@@ -6,7 +6,11 @@
    Eine Konfiguration darf ein Diagramm beschreiben oder mehrere. Mehrere ordnen sich nach dem Platz:
    nebeneinander, solange jedes noch seine Mindestbreite bekommt, sonst untereinander. Bewusst ueber
    Flex und nicht ueber Breakpoints - wie breit die Kachel wirklich ist, haengt an ihrem ColSpan UND am
-   Fenster, und das weiss nur der Browser. *@
+   Fenster, und das weiss nur der Browser.
+
+   Wer dem Diagramm eine eigene Groesse gibt (width/height), bekommt einen Platz, der sich DANACH richtet
+   und nicht nach Mindestbreite und Restplatz - siehe SizeStyle. Sonst waere der Platz breiter als das
+   Diagramm darin, und alles, was darin ausgerichtet wird (die Ueberschrift), saesse daneben. *@
 
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 @using System.Globalization
@@ -28,18 +32,27 @@
         </ul>
     </MudAlert>
 }
+else if (Panels.Count == 1 && Panels[0].DeclaredWidth == null)
+{
+    @* Der Regelfall - ein Diagramm, dessen Breite sich nach der Kachel richtet. Ohne Mantel, damit eine
+       bestehende Kachel exakt so aussieht wie vorher. *@
+    @Panel(Panels[0])
+}
 else if (Panels.Count == 1)
 {
-    @* Der Regelfall - ein Diagramm. Ohne den Flex-Mantel, damit eine bestehende Kachel exakt so aussieht
-       wie vorher. *@
-    @Panel(Panels[0])
+    @* Ein Diagramm mit EIGENER Breite bekommt auch als einziges einen Mantel: sonst nimmt der Block die
+       ganze Kachelbreite ein, und die mittig gesetzte Ueberschrift stuende ueber der Kachel statt ueber
+       dem Diagramm. *@
+    <div style="@SizeStyle(Panels[0], flexChild: false)">
+        @Panel(Panels[0])
+    </div>
 }
 else
 {
     <div class="d-flex flex-wrap align-stretch">
         @foreach (ChartWidgetPanel panel in Panels)
         {
-            <div class="pa-1" style="@PanelStyle(panel)">
+            <div class="pa-1" style="@SizeStyle(panel, flexChild: true)">
                 @Panel(panel)
             </div>
         }
@@ -62,16 +75,63 @@ else
     [Parameter] public string ErrorTitle { get; set; } = "This chart cannot be drawn:";
 
     /// <summary>
-    /// Wie viel Platz ein Diagramm beansprucht: seine Mindestbreite, und darueber hinaus zu gleichen
-    /// Teilen. <c>min(100%, …)</c> ist die Sicherung fuer den schmalen Fall - ohne sie wuerde eine Kachel,
-    /// die selbst schmaler ist als die Mindestbreite, seitlich ueberlaufen.
+    /// Wie viel Platz ein Diagramm beansprucht.
     /// </summary>
-    private static string PanelStyle(ChartWidgetPanel panel)
+    /// <param name="panel">das Diagramm</param>
+    /// <param name="flexChild">true, wenn der Platz ein Flex-Kind ist (mehrere Diagramme in einer Kachel)</param>
+    /// <remarks>
+    /// <para>
+    /// Hat das Diagramm eine EIGENE, absolute Groesse (<c>width: "150px"</c>), richtet sich der Platz nach
+    /// ihm statt nach Mindestbreite und Restplatz. Vorher zog das Flex-Kind allen freien Platz an sich - der
+    /// Platz war dann viel breiter als das Diagramm darin, und die mittig gesetzte Ueberschrift stand
+    /// irgendwo, nur nicht darueber.
+    /// </para>
+    /// <para>
+    /// <c>min-content</c> und nicht <c>fit-content</c>: eine Ueberschrift darf die Breite NICHT bestimmen.
+    /// Mit <c>fit-content</c> haette ein laengerer Titel den Platz wieder aufgezogen, ungebrochen bis zur
+    /// Kachelbreite - genau derselbe schiefe Sitz, nur mit anderer Ursache. Mit <c>min-content</c> traegt er
+    /// nur sein laengstes Wort bei und bricht um. Das Diagramm bleibt trotzdem vollstaendig: sein eigenes
+    /// Wurzelelement traegt <c>min-width: fit-content</c>, eine Legende daneben gehoert also dazu. Die
+    /// Untergrenze ist die gewuenschte Breite selbst - eine feste Breite waere hier falsch, sie wuerde die
+    /// Legende abschneiden. Die Reserve ist der Innenabstand des Mantels.
+    /// </para>
+    /// <para>
+    /// Ohne eigene Groesse bleibt es beim bisherigen Verhalten: Mindestbreite, darueber hinaus zu gleichen
+    /// Teilen. <c>min(100%, …)</c> ist die Sicherung fuer den schmalen Fall - ohne sie wuerde eine Kachel,
+    /// die selbst schmaler ist als die Mindestbreite, seitlich ueberlaufen. <c>minWidth</c> hat neben einer
+    /// absoluten Breite keine Wirkung mehr: was die Breite ist, steht dann schon fest.
+    /// </para>
+    /// </remarks>
+    private static string SizeStyle(ChartWidgetPanel panel, bool flexChild)
     {
-        int min = panel.Declaration?.MinWidth ?? ChartWidgetDeclaration.DefaultMinWidth;
-        return min <= 0
-            ? "flex: 1 1 0; min-width: 0;"
-            : FormattableString.Invariant($"flex: 1 1 {min}px; min-width: min(100%, {min}px);");
+        string? width = panel.DeclaredWidth;
+        var style = new System.Text.StringBuilder();
+        if (width != null)
+        {
+            if (flexChild)
+            {
+                // 0 0 auto: nicht wachsen, nicht schrumpfen - die Basis ist die width von unten.
+                style.Append("flex: 0 0 auto; ");
+            }
+
+            style.Append(FormattableString.Invariant(
+                $"width: min-content; min-width: min(100%, {width}); max-width: 100%;"));
+        }
+        else
+        {
+            int min = panel.Declaration?.MinWidth ?? ChartWidgetDeclaration.DefaultMinWidth;
+            style.Append(min <= 0
+                ? "flex: 1 1 0; min-width: 0;"
+                : FormattableString.Invariant($"flex: 1 1 {min}px; min-width: min(100%, {min}px);"));
+        }
+
+        if (flexChild && panel.DeclaredHeight != null)
+        {
+            // Eine eigene Hoehe heisst auch: nicht auf die Hoehe der hoechsten Kachel dieser Zeile ziehen.
+            style.Append(" align-self: flex-start;");
+        }
+
+        return style.ToString();
     }
 
     /// <summary>

@@ -57,10 +57,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
         /// The width below which this chart wraps to its own line, in pixels.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Bewusst eine Mindestbreite und keine Spaltenzahl: wie breit die Kachel wirklich ist, haengt an
         /// ihrem ColSpan UND am Fenster - das weiss nur der Browser. Mit einer Mindestbreite ordnen sich
         /// die Diagramme von selbst nebeneinander, solange der Platz reicht, und untereinander, sobald er
         /// nicht mehr reicht. 0 heisst "immer nebeneinander, Platz zu gleichen Teilen".
+        /// </para>
+        /// <para>
+        /// Sie gilt fuer ein Diagramm, dessen Breite sich nach dem Platz richtet. Traegt die Deklaration
+        /// eine absolute <c>width</c>, steht die Breite schon fest und bestimmt den Platz - dieser Wert hat
+        /// dann keine Wirkung mehr (siehe <c>ChartWidgetView.SizeStyle</c>).
+        /// </para>
         /// </remarks>
         public int MinWidth { get; init; } = DefaultMinWidth;
 

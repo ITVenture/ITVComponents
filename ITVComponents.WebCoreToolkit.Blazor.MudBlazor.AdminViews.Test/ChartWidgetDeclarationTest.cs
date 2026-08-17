@@ -376,6 +376,67 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             Assert.AreEqual(ChartWidgetDeclaration.DefaultMinWidth, declaration!.MinWidth);
         }
 
+        // ---- Eigene Groesse ----------------------------------------------------------------------
+
+        /// <summary>
+        /// Eine absolute Groesse am Diagramm muss auch den PLATZ bestimmen, den es einnimmt - sonst nimmt
+        /// der Platz weiter seine Mindestbreite plus allen Restplatz, und alles, was darin ausgerichtet
+        /// wird (die Ueberschrift), sitzt neben dem Diagramm statt darueber.
+        /// </summary>
+        [TestMethod]
+        public void AbsoluteSize_IsTheDeclaredSize()
+        {
+            ChartWidgetPanel panel = OnePanel(("width", "150px"), ("height", "12rem"));
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), panel.Errors.ToArray());
+            Assert.AreEqual("150px", panel.DeclaredWidth);
+            Assert.AreEqual("12rem", panel.DeclaredHeight);
+        }
+
+        /// <summary>Eine nackte Zahl ist als Pixel gemeint - so liest sie auch das svg-Attribut.</summary>
+        [TestMethod]
+        public void BareNumberSize_IsPixels()
+        {
+            ChartWidgetPanel panel = OnePanel(("width", 150));
+
+            Assert.AreEqual("150px", panel.DeclaredWidth);
+        }
+
+        /// <summary>
+        /// Eine relative Angabe rechnet gegen den Platz - der darf sich dann nicht umgekehrt nach ihr
+        /// richten, das waere zirkulaer. Sie ist deshalb KEINE eigene Groesse.
+        /// </summary>
+        [TestMethod]
+        public void RelativeSize_IsNoDeclaredSize()
+        {
+            Assert.IsNull(OnePanel(("width", "80%")).DeclaredWidth);
+            Assert.IsNull(OnePanel(("width", "auto")).DeclaredWidth);
+            Assert.IsNull(OnePanel(("width", "calc(100% - 20px)")).DeclaredWidth);
+        }
+
+        /// <summary>Ohne Angabe bleibt es beim bisherigen Verhalten: Mindestbreite und Restplatz.</summary>
+        [TestMethod]
+        public void NoSize_IsNoDeclaredSize()
+        {
+            ChartWidgetPanel panel = OnePanel();
+
+            Assert.IsNull(panel.DeclaredWidth);
+            Assert.IsNull(panel.DeclaredHeight);
+        }
+
+        /// <summary>Ein zeichenbares Diagramm mit den uebergebenen Zusatzfeldern.</summary>
+        private static ChartWidgetPanel OnePanel(params (string Key, object? Value)[] extra)
+        {
+            var fields = new List<(string, object?)>
+            {
+                ("type", "pie"),
+                ("series", new object?[] { Map(("name", "x"), ("data", new object?[] { 1 })) })
+            };
+            fields.AddRange(extra.Select(e => (e.Key, e.Value)));
+
+            return ChartWidgetPanel.Build(new object?[] { Map(fields.ToArray()) }).Single();
+        }
+
         /// <summary>
         /// Das ObjectLiteral von CScript ist selbst aufzaehlbar. Wuerde die Liste zuerst geprueft, zerfiele
         /// EIN Diagramm in so viele "Diagramme", wie seine Deklaration Felder hat.

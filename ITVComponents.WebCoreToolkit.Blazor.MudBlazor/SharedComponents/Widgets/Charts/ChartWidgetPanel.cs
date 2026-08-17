@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using MudBlazor;
 
@@ -34,6 +35,67 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 
         /// <summary>Die Beschriftungen als Zeichenketten - was die Diagramm-Komponente entgegennimmt.</summary>
         public string[] LabelTexts { get; init; } = Array.Empty<string>();
+
+        /// <summary>
+        /// The width this chart was declared with, if it is an absolute length - otherwise null.
+        /// </summary>
+        /// <remarks>
+        /// Wer <c>width: "150px"</c> schreibt, meint das Diagramm UND den Platz, den es einnimmt. Ohne diese
+        /// Auskunft nahm der umgebende Platz weiter seine Mindestbreite plus allen Restplatz: der Mantel war
+        /// viel breiter als das Diagramm, und die mittig gesetzte Ueberschrift stand irgendwo, nur nicht
+        /// darueber.
+        /// </remarks>
+        public string? DeclaredWidth => AbsoluteLength(nameof(MudChart<double>.Width));
+
+        /// <summary>The height this chart was declared with, if it is an absolute length - otherwise null.</summary>
+        public string? DeclaredHeight => AbsoluteLength(nameof(MudChart<double>.Height));
+
+        /// <summary>
+        /// Reads a passed-through size as an absolute CSS length.
+        /// </summary>
+        /// <param name="parameter">the parameter name of the chart component</param>
+        /// <returns>the length, or null when there is none or it is relative</returns>
+        /// <remarks>
+        /// <para>
+        /// Nur ABSOLUTE Laengen: eine relative Angabe (<c>80%</c> - und das ist die Vorgabe der
+        /// Diagramm-Komponente) rechnet gegen den Elternteil. Wuerde sich der Elternteil dann nach ihr
+        /// richten, waere die Rechnung zirkulaer, und was dabei herauskommt, entscheidet der Browser. Ohne
+        /// absolute Angabe bleibt es deshalb beim bisherigen Verhalten.
+        /// </para>
+        /// <para>
+        /// Eine nackte Zahl ist als Pixel gemeint - so liest sie auch das <c>svg</c>-Attribut, an dem die
+        /// Angabe landet.
+        /// </para>
+        /// </remarks>
+        private string? AbsoluteLength(string parameter)
+        {
+            if (!Parameters.TryGetValue(parameter, out object? raw) || raw == null)
+            {
+                return null;
+            }
+
+            string text = (Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty).Trim();
+            if (text.Length == 0 || text.Contains('%', StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            // Schluesselwoerter beschreiben keine Groesse, sondern ein Verhalten - daraus laesst sich kein
+            // Platz ableiten.
+            if (RelativeKeywords.Contains(text))
+            {
+                return null;
+            }
+
+            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double number)
+                ? FormattableString.Invariant($"{number}px")
+                : text;
+        }
+
+        private static readonly HashSet<string> RelativeKeywords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "auto", "inherit", "initial", "unset", "revert", "fit-content", "max-content", "min-content", "none"
+        };
 
         /// <summary>
         /// Turns the entries of a configuration into one panel each.

@@ -29,13 +29,26 @@ Drei weitere Felder gehören dem Rahmen und werden **nicht** an die Diagramm-Kom
 | Feld | Vorgabe | Bedeutung |
 |---|---|---|
 | `title` | — | Überschrift über diesem Diagramm. Darf ein Kultur-Datensatz sein. |
-| `minWidth` | `280` | Breite in Pixeln, unter der dieses Diagramm auf eine eigene Zeile rutscht. `0` = immer nebeneinander. |
+| `minWidth` | `280` | Breite in Pixeln, unter der dieses Diagramm auf eine eigene Zeile rutscht. `0` = immer nebeneinander. Ohne Wirkung, wenn `width` eine absolute Länge ist — dann steht die Breite schon fest. |
 | `action` | `select` | Name der Aktion, die ein Klick ohne `navigateTo` meldet. |
 
 Alles Weitere wird **an die Diagramm-Komponente durchgereicht** (`width`, `height`, `legendPosition`,
 `chartOptions`, …). Welche Namen es gibt und was sie erwarten, zeigt im Editor der Knopf
 **„Insert parameters"** — er hängt die Liste als Kommentar unter die Konfiguration. Diese Liste kommt aus
 der Komponente selbst und ist damit immer der Stand der eingesetzten Fassung.
+
+## Eigene Größe
+
+`width` und `height` gehören zu diesen durchgereichten Parametern — mit einer Besonderheit: eine
+**absolute** Angabe (`"150px"`, `"12rem"`, `150`) bestimmt nicht nur das Diagramm, sondern auch den
+**Platz**, den es einnimmt. Der Platz richtet sich dann nach dem Diagramm statt nach `minWidth` und dem
+freien Restplatz; eine Überschrift steht dadurch mittig über dem Diagramm und nicht über einem viel
+breiteren Kasten. Bei `height` kommt hinzu, dass das Diagramm nicht mehr auf die Höhe des höchsten in
+seiner Zeile gezogen wird.
+
+Eine **relative** Angabe (`"80%"` — das ist die Vorgabe) bleibt eine Angabe über das Diagramm allein: sie
+rechnet gegen den Platz, und der kann sich nicht umgekehrt nach ihr richten. Dort entscheiden weiter
+`minWidth` und der verfügbare Platz.
 
 `labels` und die Werte einer Serie müssen **gleich lang** sein. Passt etwas nicht — ein unbekannter Typ,
 ein Wert, der keine Zahl ist, ein Parameter, den es nicht gibt —, sagt die Kachel es und zeichnet nicht
