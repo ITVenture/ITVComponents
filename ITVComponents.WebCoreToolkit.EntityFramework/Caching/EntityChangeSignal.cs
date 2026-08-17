@@ -9,7 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
-namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching
+namespace ITVComponents.WebCoreToolkit.EntityFramework.Caching
 {
     /// <summary>
     /// EF-backed implementation of <see cref="IEntityChangeSignal"/>. It maps the entity tables of
@@ -19,6 +19,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cac
     /// a singleton, so a write in one circuit/request invalidates buffered data in all others.
     /// </summary>
     /// <typeparam name="TContext">the DbContext whose writes are tracked</typeparam>
+    /// <remarks>
+    /// Diese Klasse ist <b>nicht</b> security-spezifisch: sie kennt nur den Schreib-Verfolger, die
+    /// Topic-Einstellungen und das EF-Modell. Sie lag zunaechst im TenantSecurity-Paket, weil dort der erste
+    /// Verbraucher entstand (Berechtigungs- und Navigations-Puffer) - damit war sie fuer jeden anderen
+    /// Kontext (z.B. den Workflow-Kontext) nur ueber eine Security-Abhaengigkeit erreichbar. Welche
+    /// Entitaeten zu welchem Thema gehoeren, bringt jeder Verbraucher selbst mit.
+    /// </remarks>
     public class EntityChangeSignal<TContext> : IEntityChangeSignal<TContext> where TContext : DbContext
     {
         private readonly IEntityWriteTracker<TContext> tracker;

@@ -134,6 +134,58 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         }
 
         /// <inheritdoc/>
+        public async Task<UserTaskListItem?> FindNextAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            {
+                return null;
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+
+            // Dieselben Bausteine wie die Arbeitsliste - insbesondere OpenTasks, das schon auf den Tenant und
+            // auf "wartend MIT Aufgabenart" einschraenkt. Das ist die verlaessliche Abgrenzung: der Abschluss
+            // raeumt die Aufgabenart des Tokens ab und setzt es aktiv, ein weiterlaufender Zweig kann hier
+            // also nicht als Aufgabe erscheinen. Die Token-Id bleibt dabei dieselbe - ein Zyklus, der spaeter
+            // WIEDER an derselben Aufgabe haelt, ist deshalb ein voellig regulaerer naechster Schritt und
+            // darf nicht ueber die Id ausgeschlossen werden.
+            IQueryable<TokenRow> tokens = OpenTasks(ctx).Where(t => t.InstanceId == instanceId);
+            IReadOnlyCollection<string> allowed = await AllowedPermissionsAsync(tokens);
+
+            string? me = UserName(user);
+            IQueryable<TokenRow> visible = RestrictToVisible(tokens, allowed)
+                .Where(t => t.AssignedTo == me || t.AssignedTo == null);
+
+            var joined = from t in visible
+                         join i in ctx.WorkflowInstances.AsNoTracking() on t.InstanceId equals i.Id
+                         select new UserTaskListItem
+                         {
+                             InstanceId = t.InstanceId,
+                             TokenId = t.TokenId,
+                             DefinitionId = i.DefinitionId,
+                             NodeId = t.NodeId,
+                             TaskKey = t.TaskKey!,
+                             Title = t.TaskTitle,
+                             AssignedTo = t.AssignedTo,
+                             CreatedUtc = t.TaskCreatedUtc,
+                             DueUtc = t.TaskDueUtc,
+                             ClaimedBy = t.ClaimedBy,
+                             ClaimedUntil = t.ClaimedUntil,
+                             CorrelationKey = i.CorrelationKey
+                         };
+
+            // Aelteste zuerst, die Token-Id als zweites Kriterium: ohne sie waere die Reihenfolge zweier am
+            // selben Zeitpunkt geparkter Aufgaben (ein paralleler Split) dem Zufall der Datenbank
+            // ueberlassen - und damit auch, welche der Assistent als naechste zeigt.
+            return await joined
+                .OrderBy(t => t.CreatedUtc)
+                .ThenBy(t => t.TokenId)
+                .FirstOrDefaultAsync();
+        }
+
+        /// <inheritdoc/>
         public async Task<UserTaskDescriptor?> GetTaskAsync(ClaimsPrincipal user, string instanceId,
             string tokenId, string? environment = null)
         {

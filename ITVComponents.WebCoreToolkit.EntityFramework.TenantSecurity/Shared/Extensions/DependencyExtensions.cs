@@ -11,8 +11,8 @@ using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.Cookies;
+using ITVComponents.WebCoreToolkit.EntityFramework.Caching;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
-using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Caching;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.GlobalFiltering;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Logging;
@@ -109,13 +109,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 o.Add(EntityChangeTopics.Navigation, DefaultSecurityEntities);
             });
 
-            // Per-context signal (open generic, resolvable as IEntityChangeSignal<TAnyContext> once its tracker
-            // and EntitySignalOptions<TAnyContext> are set up).
-            services.TryAddSingleton(typeof(IEntityChangeSignal<>), typeof(EntityChangeSignal<>));
-
-            // Non-generic alias for the security context, used by the context-agnostic consumers
-            // (navigation, permission scope, EntityChangeRefresher) that cannot name TContext.
-            services.TryAddSingleton<IEntityChangeSignal>(sp => sp.GetRequiredService<IEntityChangeSignal<TContext>>());
+            // Die Registrierung selbst ist nicht security-spezifisch und liegt deshalb im
+            // EntityFramework-Paket: offen generisch (fuer JEDEN Kontext aufloesbar, sobald er einen
+            // Schreib-Verfolger hat) plus den nicht-generischen Alias fuer den hier genannten Kontext, den
+            // die kontext-blinden Verbraucher (Navigation, Berechtigungs-Bereich, EntityChangeRefresher)
+            // benutzen. Security-spezifisch sind allein die Themen oben.
+            services.AddEntityChangeSignal<TContext>();
             return services;
         }
 

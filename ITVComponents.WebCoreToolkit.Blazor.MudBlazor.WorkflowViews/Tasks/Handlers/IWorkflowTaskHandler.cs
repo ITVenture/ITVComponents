@@ -43,6 +43,32 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             string? environment = null);
 
         /// <summary>
+        /// Findet die naechste offene Aufgabe <b>dieser Instanz</b>, an der der aktuelle Benutzer arbeiten
+        /// darf - aelteste zuerst. Liefert null, wenn es keine gibt (oder keine fuer ihn).
+        /// </summary>
+        /// <param name="user">der aktuelle Benutzer</param>
+        /// <param name="instanceId">die Instanz, in der gesucht wird</param>
+        /// <param name="environment">die Workflow-Umgebung (Store); null = die Standard-Umgebung</param>
+        /// <returns>die naechste Aufgabe, oder null</returns>
+        /// <remarks>
+        /// <para>
+        /// Der Baustein fuer den fortlaufenden Betrieb ("Assistent"): nach dem Abschluss gleich mit dem
+        /// naechsten Schritt derselben Instanz weitermachen, statt den Benutzer in die Arbeitsliste zu
+        /// schicken. Beruecksichtigt werden nur Aufgaben, die ihm zugewiesen sind oder im Pool liegen - eine
+        /// Aufgabe, die einem ANDEREN gehoert, ist kein naechster Schritt fuer ihn, sondern eine Uebergabe.
+        /// </para>
+        /// <para>
+        /// Was hier NICHT geprueft wird: ob der Vorgang gleich noch eine Aufgabe bringt. Solange der Zweig
+        /// laeuft (eine automatische Aktivitaet dazwischen, ein Runner, der ihn erst aufnimmt), ist das
+        /// Token aktiv und keine Aufgabe - dann liefert diese Methode null, obwohl "gleich" etwas kommt. Wer
+        /// darauf warten will, fragt erneut; ein Weckruf dafuer ist
+        /// <c>WorkflowChangeTopics.Progress</c>.
+        /// </para>
+        /// </remarks>
+        Task<UserTaskListItem?> FindNextAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null);
+
+        /// <summary>
         /// Setzt die <b>weiche Sperre</b>: markiert die Aufgabe als "wird gerade bearbeitet". Sie blockiert
         /// niemanden - die harte Entscheidung faellt am Abschluss - sondern warnt den zweiten Bearbeiter,
         /// bevor er die Arbeit doppelt macht. Liefert den bisherigen Inhaber, wenn ein FREMDER Claim

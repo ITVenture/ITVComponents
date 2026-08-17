@@ -10,6 +10,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Han
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Handlers.Impl;
+using ITVComponents.Workflow.EntityFramework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
@@ -87,6 +88,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Extensions
                     services.AddScoped<IWorkflowTaskHandler, WorkflowTaskHandler>();
                 }
             }
+
+            // Der Weckruf, mit dem ein wartender Aufgaben-Dialog erfaehrt, dass sich die Instanz bewegt hat.
+            // Immer registriert: ohne aktiven Schreib-Verfolger ist er ein stiller No-op, und der Dialog
+            // fragt dann in seinem eigenen Takt nach - er haengt nicht davon ab.
+            services.AddWorkflowChangeSignal();
 
             return services;
         }

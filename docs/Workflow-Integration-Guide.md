@@ -1974,3 +1974,112 @@ liegen; die Abfrage nach Wartepunkten läuft im Store des Senders.
 
 Eine neue Tabelle **`Outbox`** (Schlüssel `(InstanceId, Id)`, Indizes auf `ClaimedUntil` und `CreatedUtc`)
 → Migration **`MessageOutbox`** je Provider-Projekt.
+
+---
+
+## 24. Mehrstufige Vorgänge in einem Dialog (fortlaufender Aufgaben-Modus)
+
+Ein Vorgang, der aus mehreren Benutzer-Schritten besteht — Kunde anlegen, Angaben prüfen, freigeben —,
+hatte bisher nach jedem Schritt denselben Bruch: Dialog zu, zurück in **Meine Aufgaben**, Aufgabe suchen,
+**Bearbeiten**. Der Aufgaben-Dialog kann das jetzt selbst: nach dem Abschluss hängt er sich auf die
+**nächste Aufgabe derselben Instanz** um, und wenn zwischen zwei Schritten noch eine automatische
+Aktivität liegt, wartet er darauf.
+
+Er ist damit dasselbe wie vorher — der Mantel um eine Aufgabe —, nur nicht mehr an *eine* Aufgabe
+gebunden. Die Arbeitsliste bleibt unverändert einer von mehreren Einstiegen.
+
+### Aus einem Modul heraus starten
+
+Das Modul startet den Workflow selbst (Korrelation = fachlicher Schlüssel, z.B. die Kunden-Id) und öffnet
+den Dialog auf die **Instanz** — ohne Token:
+
+```csharp
+var parameters = new DialogParameters<UserTaskDialog>
+{
+    { d => d.InstanceId, instanceId },   // aus dem Start
+    { d => d.Continuous, true },         // nach jedem Schritt weiter
+    { d => d.Environment, null }         // Standard-Umgebung
+};
+await DialogService.ShowAsync<UserTaskDialog>("Kunde einrichten", parameters, EditDialogDefaults.Detail);
+```
+
+**`TokenId` leer heißt „die nächste offene Aufgabe dieser Instanz".** Genau das braucht der Einstieg
+direkt nach dem Start: da gibt es die Instanz, aber noch keine Aufgabe — der Zweig läuft ja gerade erst
+los. Der Dialog zeigt für diesen Moment den Wartezustand und öffnet die erste Aufgabe, sobald sie steht.
+
+Der Dialog-Kopf gehört in diesem Modus dem **Vorgang** (er wechselt nicht mit jedem Schritt); der Titel
+der aktuellen Aufgabe steht im Inhalt.
+
+### Welche Aufgabe als nächste gilt
+
+`IWorkflowTaskHandler.FindNextAsync(user, instanceId, environment)` — dieselben Bausteine wie die
+Arbeitsliste, also derselbe Tenant-Filter und dieselbe Permission-Prüfung, zusätzlich:
+
+- nur **offene** Aufgaben dieser Instanz (wartend **mit** Aufgabenart),
+- nur, was dem Benutzer zugewiesen ist **oder** im Pool liegt — eine Aufgabe, die einem *anderen* gehört,
+  ist kein nächster Schritt, sondern eine Übergabe,
+- älteste zuerst, Token-Id als zweites Kriterium (bei einem parallelen Split parken zwei Aufgaben im
+  selben Moment; ohne das zweite Kriterium entschiede die Datenbank, welche zuerst kommt).
+
+Mehrere gleichzeitig offene Aufgaben werden also **nacheinander** abgearbeitet, bis keine mehr da ist —
+ohne dass die Oberfläche etwas über den Graphen wissen muss.
+
+> **Die Token-Id ist kein Ausschlusskriterium.** Der Abschluss räumt die Aufgabenart des Tokens ab und
+> setzt es aktiv — die *Id* behält es. Ein Zyklus, der später wieder an derselben Aufgabe hält, ist
+> deshalb ein völlig regulärer nächster Schritt. Was „erledigt" von „wieder offen" unterscheidet, ist der
+> Zustand, nie die Id.
+
+### Warten auf den nächsten Schritt
+
+Zwei Wege, und der zweite ist nur das Netz:
+
+1. **Weckruf** über `IEntityChangeSignal<WorkflowContext>`, Thema `WorkflowChangeTopics.Progress`
+   (Tokens + Instanzen). Er sagt nur, dass sich *irgendwo* etwas bewegt hat — die Instanz-Id steht nicht
+   darin. Der Dialog nimmt ihn als Anlass, erneut nachzufragen; die Wahrheit steht in der Datenbank.
+2. **Eigener Takt** (3 s) und eine Obergrenze (`WaitTimeout`, Standard 30 s). Läuft sie ab, sagt der
+   Dialog, dass der Vorgang weiterläuft — das ist kein Fehler, sondern die ehrliche Auskunft, dass er
+   gerade nicht mehr in dieser Sitzung zu Hause ist.
+
+Die Obergrenze deckt bewusst nur die **automatischen** Strecken zwischen zwei Benutzer-Schritten ab,
+nicht das Warten auf einen Menschen oder einen Timer.
+
+> **Der Weckruf trägt nur im eigenen Prozess.** Er ist ein Singleton-Ereignis, kein Bus. Läuft der Runner
+> als **eigener Prozess**, erfährt der Web-Prozess nichts davon — dort wirkt allein der eigene Takt (und
+> der Zeitrahmen sollte dann grösser gewählt werden). Im Web-Only-Betrieb und mit dem `WorkflowWorkerService`
+> (BackgroundService im Web-Prozess) trägt er.
+
+### Was der Host dafür verdrahten muss
+
+Der Weckruf hängt am Schreib-Verfolger des `WorkflowContext`. Drei Teile, alle optional — fehlt einer,
+bleibt es beim eigenen Takt (und der Dialog sagt es beim Öffnen im Log):
+
+1. **`ActivationSettings.UseEntityTracker: true`** (TenantSecurity-WebPart). Registriert
+   `IEntityWriteTracker<>` und `IEntityChangeSignal<>` **offen generisch** — damit gelten sie auch für den
+   Workflow-Kontext, ohne dass dort etwas registriert werden muss.
+2. **Der Interceptor am `WorkflowContext`.** Der WebPart-Konfigurator, der ihn an die Security-Kontexte
+   hängt, erreicht den Workflow-Kontext nicht: der wird über einen `ContextOptionsLoader` gebaut. Dafür
+   gibt es `EntityWriteTrackerInterceptorOptionsLoader<TContext>` — dasselbe Schema wie beim
+   Mandanten-Interceptor: über den vorhandenen Loader legen, den **äußersten** Loader dem Kontext geben.
+
+   ```csharp
+   services.AddSingleton<ContextOptionsLoader<WorkflowContext>>(sp =>
+   {
+       var inner = new SqlContextOptionsLoader<WorkflowContext>(connStr, false, 30,
+           "ITVComponents.Workflow.EntityFramework.SqlServer", "__EFMigrationsHistoryWorkflow");
+       return new EntityWriteTrackerInterceptorOptionsLoader<WorkflowContext>(inner, sp);
+   });
+   ```
+
+   Per **Plugin-Konfiguration** wird der Loader genauso über den inneren gelegt (Ctor
+   `(parent, IServiceProvider)`); für einen Host ohne Dienstverzeichnis gibt es den Ctor mit festem
+   `IEntityWriteTracker<TContext>`.
+3. **Die Themen** — `AddWorkflowChangeSignal()`. Ruft `AddWorkflowViews` bereits selbst auf; wer die Views
+   nicht registriert, ruft es selbst.
+
+> **Der nicht-generische `IEntityChangeSignal` gehört dem Security-Kontext.** Der Workflow-Weg beansprucht
+> ihn ausdrücklich nicht (`AddEntityChangeSignal()` ohne Typ-Argument). Er wird per `TryAdd` registriert,
+> es gewinnt also der erste Anmelder — wäre das der Workflow-Kontext, hingen Navigations- und
+> Berechtigungs-Puffer danach still am falschen Signal und würden nie mehr ungültig. Das erlebt man an der
+> Oberfläche als „Rechte ziehen nicht" und sucht es an ganz anderer Stelle.
+
+Kein Schema-Eingriff: es werden keine Spalten und keine Tabellen gebraucht.

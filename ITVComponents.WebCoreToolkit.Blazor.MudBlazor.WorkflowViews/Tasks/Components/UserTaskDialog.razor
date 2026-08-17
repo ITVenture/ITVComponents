@@ -1,8 +1,12 @@
 @using System.Globalization
+@using ITVComponents.EFRepo.Helpers
 @using ITVComponents.Helpers
 @using ITVComponents.Logging
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Configuration
+@using ITVComponents.WebCoreToolkit.Caching
 @using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.Workflow.EntityFramework
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Options
 @implements IAsyncDisposable
 
@@ -11,11 +15,17 @@
 @inject ISnackbar Snackbar
 @inject IStringLocalizer<WorkflowTaskMessages> L
 @inject IOptions<WorkflowTaskViewConfiguration> ViewRegistry
+@inject IServiceProvider Services
 
 @* Der MANTEL der Aufgabe. Er gehoert genau einmal hierher, weil der teure Teil nicht das Anzeigen ist,
    sondern der Abschluss: Ergebnis-Mapping, weiche Sperre, Doppel-Klick, Versionskonflikt und "war schon
    erledigt". Was darin gerendert wird - eigene Komponente oder generische Maske - ist der austauschbare
-   Teil. *@
+   Teil.
+
+   Im FORTLAUFENDEN Betrieb (Continuous) bleibt derselbe Mantel stehen und haengt sich auf die naechste
+   Aufgabe derselben Instanz um: der Benutzer arbeitet einen mehrstufigen Vorgang in EINEM Dialog durch,
+   statt nach jedem Schritt in die Arbeitsliste zurueckzukehren und die Fortsetzung dort zu suchen. Genau
+   deshalb sitzt das hier und nicht in der Arbeitsliste - sie ist nur EINER der Einstiege. *@
 
 <MudDialog>
     <DialogContent>
@@ -24,21 +34,46 @@
             <MudProgressCircular Indeterminate="true" />
             <MudText Typo="Typo.body2" Class="ml-2">@L["Loading"]</MudText>
         }
+        else if (waiting)
+        {
+            @* Der Vorgang laeuft, haelt aber (noch) nicht bei uns: eine automatische Aktivitaet dazwischen,
+               oder der Runner hat den Zweig noch nicht aufgenommen. *@
+            <div class="d-flex align-center">
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                <MudText Typo="Typo.body2" Class="ml-3">@L["WaitingForNextStep"]</MudText>
+            </div>
+        }
+        else if (handedOn)
+        {
+            @* Kein Fehler, sondern der Regelfall am Ende eines Abschnitts: der Vorgang liegt jetzt woanders
+               (bei einem anderen Bearbeiter, in einer automatischen Strecke) oder ist fertig. *@
+            <MudAlert Severity="Severity.Info">
+                @L["NoMoreTasks"]
+                <br />
+                <MudText Typo="Typo.caption">@L["ProcessKeepsRunning"]</MudText>
+            </MudAlert>
+        }
         else if (taskContext is null)
         {
             <MudAlert Severity="Severity.Warning">@L["TaskGone"]</MudAlert>
         }
         else
         {
+            @if (Continuous)
+            {
+                @* Im fortlaufenden Betrieb wechselt die Aufgabe, die Kopfzeile des Dialogs aber nicht (sie
+                   gehoert dem Vorgang, aus dem heraus geoeffnet wurde). Also steht die Aufgabe hier. *@
+                <MudText Typo="Typo.subtitle1" Class="mb-2">@TaskTitle</MudText>
+            }
             @if (!string.IsNullOrEmpty(claimWarning))
             {
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">@claimWarning</MudAlert>
             }
 
-            <CascadingValue Value="taskContext" IsFixed="true">
-                @* Eigene oder generische Maske - fuer den Mantel dasselbe: sie zeigt an und liefert auf
-                   Zuruf ihre Ausgabewerte (IUserTaskView). Die Knoepfe stehen in beiden Faellen unten in
-                   der Fusszeile, nicht im scrollenden Inhalt. *@
+            @* @key auf der Kaskade: die Maske MUSS beim Wechsel der Aufgabe neu gebaut werden. Ohne den
+               Schluessel behielte Blazor die vorhandene Instanz (und mit IsFixed="true" auch den alten
+               Kontext) - der Benutzer sähe die Eingaben des vorigen Schritts. *@
+            <CascadingValue Value="taskContext" IsFixed="true" @key="@currentTokenId">
                 @if (customView is not null)
                 {
                     <DynamicComponent Type="customView" @ref="dynamicView" />
@@ -53,7 +88,7 @@
     <DialogActions>
         <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
         <MudSpacer />
-        @if (taskContext is not null)
+        @if (taskContext is not null && !waiting && !handedOn)
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@busy"
                        OnClick="CompleteFromViewAsync">@L["Complete"]</MudButton>
@@ -68,14 +103,45 @@
     /// <summary>Die Instanz, zu der die Aufgabe gehoert.</summary>
     [Parameter] public string InstanceId { get; set; } = "";
 
-    /// <summary>Das wartende Token - die Aufgabe selbst.</summary>
+    /// <summary>
+    /// Das wartende Token - die Aufgabe selbst. <b>Leer</b> heisst "die naechste offene Aufgabe dieser
+    /// Instanz" und wartet, falls gerade keine offen ist: der Einstieg fuer ein Modul, das den Vorgang
+    /// selbst gestartet hat und die Instanz-Id kennt, aber noch keine Aufgabe.
+    /// </summary>
     [Parameter] public string TokenId { get; set; } = "";
 
     /// <summary>Die Workflow-Umgebung (Store) dieser Aufgabe; null = Standard.</summary>
     [Parameter] public string? Environment { get; set; }
 
+    /// <summary>
+    /// Nach dem Abschluss gleich mit der naechsten Aufgabe derselben Instanz weitermachen, statt den Dialog
+    /// zu schliessen.
+    /// </summary>
+    [Parameter] public bool Continuous { get; set; }
+
+    /// <summary>
+    /// Wie lange auf den naechsten Schritt gewartet wird, bevor der Dialog sagt, dass der Vorgang
+    /// weiterlaeuft.
+    /// </summary>
+    /// <remarks>
+    /// Die Obergrenze ist bewusst knapp: sie deckt die automatischen Aktivitaeten zwischen zwei
+    /// Benutzer-Schritten ab, nicht das Warten auf einen Menschen oder einen Timer. Laeuft sie ab, ist das
+    /// keine Stoerung - der Vorgang ist dann einfach nicht mehr in dieser Sitzung zu Hause.
+    /// </remarks>
+    [Parameter] public TimeSpan WaitTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Wie lange die weiche Sperre gilt, wenn niemand sie erneuert.</summary>
     private static readonly TimeSpan ClaimDuration = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Der Takt, in dem beim Warten selbst nachgesehen wird - das Netz unter dem Weckruf.
+    /// </summary>
+    /// <remarks>
+    /// Es ist ausdruecklich NICHT der Hauptweg: kommt der Weckruf, ist die Wartezeit sofort vorbei. Er
+    /// traegt aber nur im eigenen Prozess und nur mit aktivem Schreib-Verfolger; ohne beides waere der
+    /// Dialog ohne diesen Takt blind. Deshalb ruhig statt hektisch.
+    /// </remarks>
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
     private WorkflowTaskContext? taskContext;
     private GenericTaskForm? form;
@@ -83,33 +149,214 @@
     private Type? customView;
     private ClaimsPrincipal? currentUser;
     private string? claimWarning;
+
+    /// <summary>Die Aufgabe, an der wir gerade sitzen - im fortlaufenden Betrieb wechselt sie.</summary>
+    private string currentTokenId = "";
+
+    private IEntityChangeSignal<WorkflowContext>? progressSignal;
+
+    /// <summary>
+    /// Der Weckruf als abwartbares Ereignis. Wird VOR jeder Nachfrage neu gesetzt, damit eine Meldung, die
+    /// zwischen Nachfrage und Warten eintrifft, nicht verloren geht.
+    /// </summary>
+    private TaskCompletionSource? progressPulse;
+
     private bool loading = true;
     private bool busy;
     private bool claimed;
     private bool completed;
+    private bool waiting;
+    private bool handedOn;
+    private bool disposed;
 
     protected override async Task OnInitializedAsync()
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
 
-        UserTaskDescriptor? descriptor = await Handler.GetTaskAsync(currentUser, InstanceId, TokenId, Environment);
-        if (descriptor is not null)
-        {
-            customView = ResolveView(descriptor);
-            taskContext = new WorkflowTaskContext(descriptor, CompleteAsync, Translate);
+        SubscribeToProgress();
 
-            string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, TokenId, ClaimDuration, Environment);
-            claimed = true;
-            if (!string.IsNullOrEmpty(foreignOwner))
-            {
-                claimWarning = string.Format(L["ClaimedByOther"], foreignOwner,
-                    DateTime.Now.ToString("t", CultureInfo.CurrentCulture));
-            }
+        if (!string.IsNullOrEmpty(TokenId))
+        {
+            await OpenAsync(TokenId);
+            loading = false;
+            return;
         }
 
+        // Ohne Token wird gewartet - aber NICHT hier: ein await in OnInitializedAsync verzoegert das erste
+        // Rendern, der Dialog stuende bis zu WaitTimeout leer da. Der Wartezustand wird gerendert, die
+        // Suche laeuft danach an.
         loading = false;
+        waiting = true;
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && waiting)
+        {
+            await WaitForNextAsync();
+        }
+    }
+
+    /// <summary>
+    /// Haengt sich an den Weckruf des Workflow-Kontexts, wenn es einen gibt.
+    /// </summary>
+    /// <remarks>
+    /// Der Verfolger wird ZUERST gefragt: das Signal ist offen generisch registriert, seine Aufloesung
+    /// wuerde ohne Verfolger nicht null liefern, sondern werfen. Fehlt er, ist das kein Fehler (der
+    /// Schalter ist optional) - dann bleibt der eigene Takt, und das gehoert ins Log, sonst sucht man
+    /// spaeter, warum der Dialog "langsam" reagiert.
+    /// </remarks>
+    private void SubscribeToProgress()
+    {
+        if (Services.GetService<IEntityWriteTracker<WorkflowContext>>() is null)
+        {
+            LogEnvironment.LogEvent(
+                "UserTaskDialog: kein IEntityWriteTracker<WorkflowContext> registriert - der Dialog erfaehrt " +
+                "den Fortschritt einer Instanz nicht per Weckruf, sondern nur durch eigenes Nachfragen " +
+                $"(alle {PollInterval.TotalSeconds:0} s). Mit ActivationSettings.UseEntityTracker=true und dem " +
+                "EntityWriteTrackerInterceptor am Workflow-Kontext ist er sofort da.", LogSeverity.Report);
+            return;
+        }
+
+        progressSignal = Services.GetService<IEntityChangeSignal<WorkflowContext>>();
+        if (progressSignal is not null)
+        {
+            progressSignal.Changed += OnWorkflowProgressed;
+        }
+    }
+
+    /// <summary>
+    /// Der Weckruf. Er sagt nur, dass sich <b>irgendwo</b> ein Token bewegt hat - deshalb wird hier nichts
+    /// entschieden und nichts gezeichnet, sondern nur die Wartezeit beendet; nachgesehen wird danach in der
+    /// Datenbank.
+    /// </summary>
+    /// <remarks>
+    /// Laeuft auf einem fremden Thread (der Schreiber verteilt ueber den ThreadPool). Ein
+    /// <c>TaskCompletionSource</c> ist genau deshalb das richtige Mittel: kein Zugriff auf den
+    /// Renderer-Kontext, keine Marshalling-Frage, kein Zustand, der zwischen zwei Circuits geraten kann.
+    /// </remarks>
+    private void OnWorkflowProgressed(string topic)
+    {
+        if (disposed || !string.Equals(topic, WorkflowChangeTopics.Progress, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        progressPulse?.TrySetResult();
+    }
+
+    /// <summary>
+    /// Wartet, bis die Instanz wieder bei diesem Benutzer haelt - und oeffnet dann die Aufgabe. Ohne
+    /// Ergebnis innerhalb von <see cref="WaitTimeout"/> endet der Assistent mit der Auskunft, dass der
+    /// Vorgang weiterlaeuft.
+    /// </summary>
+    private async Task WaitForNextAsync()
+    {
+        DateTime deadline = DateTime.UtcNow
+                            + (WaitTimeout > TimeSpan.Zero ? WaitTimeout : TimeSpan.FromSeconds(30));
+
+        while (!disposed)
+        {
+            // Erst das Ereignis scharf machen, dann nachsehen: umgekehrt faellt eine Meldung, die genau
+            // zwischen Nachfrage und Warten eintrifft, in die Luecke - und der Dialog wartet den ganzen
+            // Takt ab, obwohl die Aufgabe schon dasteht.
+            progressPulse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            if (await TryOpenNextAsync())
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                break;
+            }
+
+            await Task.WhenAny(progressPulse.Task, Task.Delay(PollInterval));
+        }
+
+        if (disposed)
+        {
+            return;
+        }
+
+        waiting = false;
+        handedOn = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Sucht die naechste Aufgabe und oeffnet sie. False = es gibt (noch) keine.</summary>
+    private async Task<bool> TryOpenNextAsync()
+    {
+        UserTaskListItem? next;
+        try
+        {
+            next = await Handler.FindNextAsync(currentUser!, InstanceId, Environment);
+        }
+        catch (Exception ex)
+        {
+            // Nicht durchwerfen: der Dialog steht sonst mit einer Ausnahme im Nichts, obwohl der Vorgang
+            // laeuft. Weitersuchen ist richtig - aber nur mit Spur, sonst wartet er stumm bis zum Deckel.
+            LogEnvironment.LogEvent(
+                $"UserTaskDialog: konnte die naechste Aufgabe der Instanz '{InstanceId}' nicht ermitteln: " +
+                $"{ex.OutlineException()}", LogSeverity.Error);
+            return false;
+        }
+
+        if (next is null)
+        {
+            return false;
+        }
+
+        waiting = false;
+        await OpenAsync(next.TokenId);
+        return true;
+    }
+
+    /// <summary>
+    /// Oeffnet eine Aufgabe in diesem Mantel: Beschreibung holen, Maske bestimmen, weiche Sperre setzen.
+    /// </summary>
+    /// <remarks>
+    /// Auch der Weg fuer den WECHSEL im fortlaufenden Betrieb - deshalb wird hier alles zurueckgesetzt, was
+    /// zur vorigen Aufgabe gehoerte. Die beiden Masken-Verweise ausdruecklich mit: sie zeigen sonst noch auf
+    /// die alte Maske, und der Erledigen-Knopf fragte die falsche nach ihren Werten.
+    /// </remarks>
+    private async Task OpenAsync(string tokenId)
+    {
+        currentTokenId = tokenId;
+        taskContext = null;
+        customView = null;
+        form = null;
+        dynamicView = null;
+        claimWarning = null;
+        completed = false;
+        handedOn = false;
+
+        UserTaskDescriptor? descriptor =
+            await Handler.GetTaskAsync(currentUser, InstanceId, tokenId, Environment);
+        if (descriptor is null)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        customView = ResolveView(descriptor);
+        taskContext = new WorkflowTaskContext(descriptor, CompleteAsync, Translate);
+
+        string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, tokenId, ClaimDuration, Environment);
+        claimed = true;
+        if (!string.IsNullOrEmpty(foreignOwner))
+        {
+            claimWarning = string.Format(L["ClaimedByOther"], foreignOwner,
+                DateTime.Now.ToString("t", CultureInfo.CurrentCulture));
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Der Titel der aktuellen Aufgabe - schon uebersetzt und formatiert.</summary>
+    private string? TaskTitle => taskContext?.Title;
 
     /// <summary>
     /// Findet die Maske: ausdruecklicher <c>ViewKey</c>, sonst die Aufgabenart, sonst die generische
@@ -154,7 +401,7 @@
             // schon beim Uebersetzen) - aber still danebengreifen darf es trotzdem nicht.
             LogEnvironment.LogEvent(
                 $"UserTaskDialog: the view for task '{taskContext?.TaskKey}' (instance " +
-                $"'{InstanceId}', token '{TokenId}') does not implement IUserTaskView - the task cannot " +
+                $"'{InstanceId}', token '{currentTokenId}') does not implement IUserTaskView - the task cannot " +
                 "be completed from the dialog.", LogSeverity.Error);
             Snackbar.Add(L["ViewCannotComplete"], Severity.Error);
             return;
@@ -178,7 +425,8 @@
 
     /// <summary>
     /// Der EINE Abschlussweg - auch fuer eigene Masken. Er kapselt Doppel-Klick-Schutz, die Meldung je
-    /// Ausgang und das Schliessen des Dialogs.
+    /// Ausgang und - je nach Betriebsart - das Schliessen des Dialogs oder den Uebergang zum naechsten
+    /// Schritt.
     /// </summary>
     private async Task<UserTaskCompletionStatus> CompleteAsync(IDictionary<string, object>? result)
     {
@@ -191,7 +439,7 @@
         try
         {
             UserTaskCompletionResult completion =
-                await Handler.CompleteAsync(currentUser!, InstanceId, TokenId, result, Environment);
+                await Handler.CompleteAsync(currentUser!, InstanceId, currentTokenId, result, Environment);
             switch (completion.Status)
             {
                 case UserTaskCompletionStatus.Completed:
@@ -211,12 +459,28 @@
                     break;
             }
 
-            if (completed)
+            if (!completed)
             {
-                claimed = false; // Mit dem Abschluss ist die Sperre gegenstandslos (der Store raeumt sie ab).
-                MudDialog.Close(DialogResult.Ok(true));
+                return completion.Status;
             }
 
+            claimed = false; // Mit dem Abschluss ist die Sperre gegenstandslos (der Store raeumt sie ab).
+
+            // Weiter geht es nur nach einem ECHTEN Abschluss. Nach "war schon erledigt" hat dieser Benutzer
+            // den Zweig nicht bewegt, und ein Fault braucht Aufmerksamkeit statt des naechsten Schritts -
+            // in beiden Faellen waere ein Weiterspringen eine Behauptung ueber einen Vorgang, die nicht
+            // stimmt.
+            if (Continuous && completion.Status == UserTaskCompletionStatus.Completed)
+            {
+                taskContext = null;
+                completed = false;
+                waiting = true;
+                StateHasChanged();
+                await WaitForNextAsync();
+                return completion.Status;
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
             return completion.Status;
         }
         finally
@@ -234,13 +498,26 @@
     /// <summary>
     /// Gibt die weiche Sperre frei, wenn der Dialog verschwindet - auch, wenn der Benutzer ihn mit Escape
     /// oder einem Klick daneben schliesst. Ohne das blieben Aufgaben bis zum Ablauf der Frist als
-    /// "wird bearbeitet" markiert.
+    /// "wird bearbeitet" markiert. Beendet ausserdem ein laufendes Warten und das Weckruf-Abo.
     /// </summary>
-    public async ValueTask DisposeAsync() => await ReleaseClaimAsync();
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        if (progressSignal is not null)
+        {
+            progressSignal.Changed -= OnWorkflowProgressed;
+        }
+
+        // Ein Wartender haengt womoeglich gerade am Takt - ihn zu wecken beendet die Schleife sofort
+        // (sie prueft danach 'disposed'), statt bis zum naechsten Tick weiterzulaufen.
+        progressPulse?.TrySetResult();
+
+        await ReleaseClaimAsync();
+    }
 
     private async Task ReleaseClaimAsync()
     {
-        if (!claimed || currentUser is null)
+        if (!claimed || currentUser is null || string.IsNullOrEmpty(currentTokenId))
         {
             return;
         }
@@ -248,7 +525,7 @@
         claimed = false;
         try
         {
-            await Handler.ReleaseClaimAsync(currentUser, InstanceId, TokenId, Environment);
+            await Handler.ReleaseClaimAsync(currentUser, InstanceId, currentTokenId, Environment);
         }
         catch (Exception ex)
         {
@@ -256,8 +533,8 @@
             // beim Dispose auch schon weg sein) - stillschweigen darf sie aber nicht: sonst bliebe die
             // Aufgabe ohne erkennbaren Grund gesperrt.
             LogEnvironment.LogEvent(
-                $"Konnte die Bearbeitungs-Markierung der Aufgabe '{InstanceId}/{TokenId}' nicht freigeben: " +
-                $"{ex.OutlineException()}", LogSeverity.Warning);
+                $"Konnte die Bearbeitungs-Markierung der Aufgabe '{InstanceId}/{currentTokenId}' nicht " +
+                $"freigeben: {ex.OutlineException()}", LogSeverity.Warning);
         }
     }
 }

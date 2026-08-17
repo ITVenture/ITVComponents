@@ -169,4 +169,13 @@
   <data name="No" xml:space="preserve">
     <value>No</value>
   </data>
+  <data name="WaitingForNextStep" xml:space="preserve">
+    <value>The process is running - the next step is being prepared…</value>
+  </data>
+  <data name="NoMoreTasks" xml:space="preserve">
+    <value>There is currently no task for you in this process.</value>
+  </data>
+  <data name="ProcessKeepsRunning" xml:space="preserve">
+    <value>The process keeps running. As soon as something is up to you again, you will find it under "My tasks".</value>
+  </data>
 </root>
