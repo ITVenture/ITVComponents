@@ -59,10 +59,11 @@
         }
         else
         {
-            @if (Continuous)
+            @if (assistantSession)
             {
-                @* Im fortlaufenden Betrieb wechselt die Aufgabe, die Kopfzeile des Dialogs aber nicht (sie
-                   gehoert dem Vorgang, aus dem heraus geoeffnet wurde). Also steht die Aufgabe hier. *@
+                @* Im gefuehrten Ablauf wechselt die Aufgabe, die Kopfzeile des Dialogs aber nicht (sie
+                   gehoert dem Vorgang, aus dem heraus geoeffnet wurde). Also steht die Aufgabe hier - auch
+                   noch beim letzten Schritt, der selbst nicht mehr weiterfuehrt. *@
                 <MudText Typo="Typo.subtitle1" Class="mb-2">@TaskTitle</MudText>
             }
             @if (!string.IsNullOrEmpty(claimWarning))
@@ -114,10 +115,22 @@
     [Parameter] public string? Environment { get; set; }
 
     /// <summary>
-    /// Nach dem Abschluss gleich mit der naechsten Aufgabe derselben Instanz weitermachen, statt den Dialog
-    /// zu schliessen.
+    /// Uebersteuert, ob nach dem Abschluss gleich mit der naechsten Aufgabe derselben Instanz weitergemacht
+    /// wird. <b>Null (Vorgabe) heisst: das Modell entscheidet</b> - der Knoten sagt es ueber
+    /// <c>RunsInAssistant</c>.
     /// </summary>
-    [Parameter] public bool Continuous { get; set; }
+    /// <remarks>
+    /// Dass die Vorgabe das MODELL fragt, ist der Punkt: sonst haenge der gefuehrte Ablauf daran, wo der
+    /// Benutzer eingestiegen ist. Wer den Assistenten mittendrin schliesst und die Aufgabe spaeter aus
+    /// seiner Arbeitsliste heraus wieder oeffnet, bekommt ihn damit unveraendert zurueck - die Arbeitsliste
+    /// muss dafuer nichts wissen und nichts setzen.
+    /// <para>
+    /// Ausdruecklich gesetzt wird der Wert nur, wo eine Oberflaeche es besser weiss: <c>true</c> fuehrt auch
+    /// durch Schritte, die im Modell nicht als gefuehrt markiert sind, <c>false</c> zeigt bewusst nur den
+    /// einen Schritt.
+    /// </para>
+    /// </remarks>
+    [Parameter] public bool? Continuous { get; set; }
 
     /// <summary>
     /// Wie lange auf den naechsten Schritt gewartet wird, bevor der Dialog sagt, dass der Vorgang
@@ -142,6 +155,7 @@
     /// Dialog ohne diesen Takt blind. Deshalb ruhig statt hektisch.
     /// </remarks>
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
+
 
     private WorkflowTaskContext? taskContext;
     private GenericTaskForm? form;
@@ -169,6 +183,16 @@
     private bool handedOn;
     private bool disposed;
 
+    /// <summary>
+    /// True, sobald dieser Dialog einen gefuehrten Ablauf zeigt - er bleibt es bis zum Schliessen.
+    /// </summary>
+    /// <remarks>
+    /// Nicht dasselbe wie <see cref="LeadsOn"/>: der LETZTE Schritt eines Assistenten fuehrt nicht mehr
+    /// weiter, gehoert aber noch dazu. Waere die Anzeige an LeadsOn gebunden, verschwaende die Beschriftung
+    /// der Aufgabe ausgerechnet auf dem letzten Schritt.
+    /// </remarks>
+    private bool assistantSession;
+
     protected override async Task OnInitializedAsync()
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
@@ -186,6 +210,9 @@
         // Ohne Token wird gewartet - aber NICHT hier: ein await in OnInitializedAsync verzoegert das erste
         // Rendern, der Dialog stuende bis zu WaitTimeout leer da. Der Wartezustand wird gerendert, die
         // Suche laeuft danach an.
+        // Wer ohne Aufgabe einsteigt, meint den Vorgang und nicht einen Schritt - das IST ein gefuehrter
+        // Ablauf, auch bevor die erste Aufgabe da ist.
+        assistantSession = true;
         loading = false;
         waiting = true;
     }
@@ -273,6 +300,10 @@
                 break;
             }
 
+            // Gesammelt wird an der QUELLE (EntitySignalDebounceSettings, fuer dieses Thema per Vorgabe
+            // 250 ms): ein Schwung Schreibvorgaenge kommt hier also schon als EIN Weckruf an. Diesen Dialog
+            // nochmals bremsen zu lassen, hiesse zweimal dasselbe Fenster - und die Summe waere eine
+            // Verzoegerung, die niemand mehr einer Einstellung zuordnen kann.
             await Task.WhenAny(progressPulse.Task, Task.Delay(PollInterval));
         }
 
@@ -334,7 +365,7 @@
         handedOn = false;
 
         UserTaskDescriptor? descriptor =
-            await Handler.GetTaskAsync(currentUser, InstanceId, tokenId, Environment);
+            await Handler.GetTaskAsync(currentUser!, InstanceId, tokenId, Environment);
         if (descriptor is null)
         {
             StateHasChanged();
@@ -343,8 +374,9 @@
 
         customView = ResolveView(descriptor);
         taskContext = new WorkflowTaskContext(descriptor, CompleteAsync, Translate);
+        assistantSession |= LeadsOn;
 
-        string? foreignOwner = await Handler.ClaimAsync(currentUser, InstanceId, tokenId, ClaimDuration, Environment);
+        string? foreignOwner = await Handler.ClaimAsync(currentUser!, InstanceId, tokenId, ClaimDuration, Environment);
         claimed = true;
         if (!string.IsNullOrEmpty(foreignOwner))
         {
@@ -357,6 +389,18 @@
 
     /// <summary>Der Titel der aktuellen Aufgabe - schon uebersetzt und formatiert.</summary>
     private string? TaskTitle => taskContext?.Title;
+
+    /// <summary>
+    /// Fuehrt dieser Dialog nach dem Abschluss weiter? Der Aufrufer kann es sagen; sonst entscheidet die
+    /// AKTUELLE Aufgabe.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst an der gerade offenen Aufgabe und nicht einmal beim Oeffnen festgelegt: so endet der
+    /// gefuehrte Ablauf von selbst, sobald ein Schritt nicht mehr dazugehoert - auch ohne dass jemand
+    /// <c>EndsAssistant</c> gepflegt hat. Der Schritt wird dann noch normal gezeigt (er ist geladen und
+    /// gehoert diesem Benutzer); danach ist Schluss.
+    /// </remarks>
+    private bool LeadsOn => Continuous ?? taskContext?.Descriptor.RunsInAssistant ?? false;
 
     /// <summary>
     /// Findet die Maske: ausdruecklicher <c>ViewKey</c>, sonst die Aufgabenart, sonst die generische
@@ -470,7 +514,12 @@
             // den Zweig nicht bewegt, und ein Fault braucht Aufmerksamkeit statt des naechsten Schritts -
             // in beiden Faellen waere ein Weiterspringen eine Behauptung ueber einen Vorgang, die nicht
             // stimmt.
-            if (Continuous && completion.Status == UserTaskCompletionStatus.Completed)
+            //
+            // EndsAssistant kommt aus dem Modell (UserActivityNode): der Knoten sagt, dass mit ihm der
+            // gefuehrte Teil endet. Ohne das liefe der Assistent durch den ganzen Prozess weiter - bei
+            // dreissig Schritten, von denen fuenf gefuehrt sind, ist das genau falsch herum.
+            if (LeadsOn && completion.Status == UserTaskCompletionStatus.Completed
+                        && !completion.EndsAssistant)
             {
                 taskContext = null;
                 completed = false;

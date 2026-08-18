@@ -542,6 +542,58 @@ namespace ITVComponents.Workflow.Model
         public ScriptMode FormatDataMode { get; set; } = ScriptMode.Expression;
 
         /// <summary>
+        /// Gehoert diese Aufgabe zu einem <b>gefuehrten Abschnitt</b>? Dann fuehrt eine Oberflaeche, die das
+        /// kann, nach ihrem Abschluss gleich zum naechsten Schritt weiter, statt sich zu schliessen.
+        /// Vorgabe: nein - eine Aufgabe steht fuer sich.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Die Eigenschaft gehoert dem KNOTEN und nicht dem Aufruf: sonst haenge der gefuehrte Modus daran,
+        /// WO der Benutzer eingestiegen ist. Wer den Assistenten mittendrin schliesst und die Aufgabe
+        /// spaeter aus seiner Arbeitsliste heraus wieder oeffnet, bekommt damit denselben gefuehrten Ablauf
+        /// - der Vorgang ist gefuehrt, nicht die Sitzung.
+        /// </para>
+        /// <para>
+        /// Wo der gefuehrte Abschnitt endet, kann <see cref="EndsAssistant"/> genauer sagen. Ohne dieses
+        /// Feld endet er von selbst, sobald der naechste Schritt nicht mehr dazugehoert - nur eben erst,
+        /// nachdem die Oberflaeche auf ihn gewartet hat.
+        /// </para>
+        /// </remarks>
+        public bool RunsInAssistant { get; set; }
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck: liefert er <c>true</c>, endet mit dieser Aufgabe der <b>gefuehrte
+        /// Teil</b> des Vorgangs - eine Oberflaeche, die einen Assistenten fuehrt, schliesst danach, statt
+        /// auf den naechsten Schritt zu warten. Leer/null = der Vorgang gilt als fortsetzbar.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Knoten sagt damit etwas ueber SICH: "nach mir ist der gefuehrte Teil zu Ende". Bewusst nicht
+        /// am ersten NICHT-gefuehrten Knoten - der Assistent muesste diesen sonst erst abwarten und finden,
+        /// nur um ihn zu verwerfen; und bei einem spaeter eingeschobenen Schritt saesse die Aussage an der
+        /// falschen Stelle.
+        /// </para>
+        /// <para>
+        /// Ein Ausdruck und kein Schalter, weil die Antwort von den Daten abhaengen darf ("ab 1000 geht es
+        /// zur Freigabe, sonst ist Schluss"). Ausgewertet wird beim ABSCHLUSS, nach dem Uebernehmen der
+        /// Ergebniswerte - die Eingaben dieses Schritts stehen also schon im Variablen-Stack.
+        /// </para>
+        /// <para>
+        /// Eine fehlgeschlagene Auswertung faultet die Instanz <b>nicht</b>: die Aufgabe ist erledigt, das
+        /// Ergebnis gespeichert. Sie gilt dann als "nicht beendet" - der Assistent laeuft weiter, was
+        /// sichtbar ist und niemandem schadet. Die umgekehrte Vorgabe wuerde einen Tippfehler zu einem
+        /// stillen Abbruch nach dem ersten Schritt machen.
+        /// </para>
+        /// </remarks>
+        public string EndsAssistant { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="EndsAssistant"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes Skript mit
+        /// <c>return</c>.
+        /// </summary>
+        public ScriptMode EndsAssistantMode { get; set; } = ScriptMode.Expression;
+
+        /// <summary>
         /// Datenfluss <b>hinein</b>: was die Maske zu sehen bekommt. Die Bindungen werden aufgeloest, wenn
         /// die Aufgabe geoeffnet wird (nicht beim Parken) - die Maske sieht damit den aktuellen Stand und es
         /// braucht keine zweite Ablage. <see cref="ActivityInputBinding.Parameter"/> ist der Name im

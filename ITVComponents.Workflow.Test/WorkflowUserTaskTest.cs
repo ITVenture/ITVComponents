@@ -375,6 +375,117 @@ namespace ITVComponents.Workflow.Test
                 engine.CompleteUserTask(instance.Id, tokenId).Status);
         }
 
+        // --- Ende des gefuehrten Teils --------------------------------------------------------------
+
+        /// <summary>
+        /// Der gefuehrte Ablauf ist eine Eigenschaft des KNOTENS und steht deshalb in der Beschreibung, die
+        /// die Oberflaeche beim Oeffnen bekommt - egal, ob sie aus einem Modul heraus oder aus der
+        /// Arbeitsliste oeffnet. Ohne das haenge der Assistent daran, WO der Benutzer eingestiegen ist.
+        /// </summary>
+        [TestMethod]
+        public void Descriptor_TellsWhetherTheTaskRunsInAnAssistant()
+        {
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.RunsInAssistant = true;
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            Assert.IsTrue(engine.DescribeUserTask(instance.Id, tokenId).RunsInAssistant);
+        }
+
+        /// <summary>Ohne Angabe steht eine Aufgabe fuer sich - das bisherige Verhalten.</summary>
+        [TestMethod]
+        public void Descriptor_DefaultsToNoAssistant()
+        {
+            store.SaveDefinition(OneTask("t", node => node.TaskKey = "Check"));
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            Assert.IsFalse(engine.DescribeUserTask(instance.Id, tokenId).RunsInAssistant);
+        }
+
+        /// <summary>Ohne Ausdruck bleibt es beim Bisherigen: der Vorgang gilt als fortsetzbar.</summary>
+        [TestMethod]
+        public void CompleteUserTask_WithoutEndsAssistant_DoesNotEndIt()
+        {
+            store.SaveDefinition(OneTask("t", node => node.TaskKey = "Check"));
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            Assert.IsFalse(engine.CompleteUserTask(instance.Id, tokenId).EndsAssistant);
+        }
+
+        /// <summary>
+        /// Der eigentliche Punkt des Ausdrucks: er wird NACH dem Uebernehmen der Ergebniswerte
+        /// ausgewertet - die Antwort darf also von dem abhaengen, was der Benutzer gerade eingegeben hat.
+        /// Wuerde er vorher laufen, saehe er den Wert von vorhin und die Entscheidung waere immer einen
+        /// Schritt zu spaet.
+        /// </summary>
+        [TestMethod]
+        public void EndsAssistant_SeesTheResultOfTheStepItCloses()
+        {
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "decision", Variable = "approved" });
+                node.EndsAssistant = "approved";
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(instance.Id, tokenId,
+                new Dictionary<string, object> { { "decision", true } });
+
+            Assert.AreEqual(UserTaskCompletionStatus.Completed, result.Status);
+            Assert.IsTrue(result.EndsAssistant);
+        }
+
+        /// <summary>Derselbe Knoten, andere Eingabe - der gefuehrte Teil laeuft weiter.</summary>
+        [TestMethod]
+        public void EndsAssistant_IsFalseWhenTheExpressionSaysSo()
+        {
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "decision", Variable = "approved" });
+                node.EndsAssistant = "approved";
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            Assert.IsFalse(engine.CompleteUserTask(instance.Id, tokenId,
+                new Dictionary<string, object> { { "decision", false } }).EndsAssistant);
+        }
+
+        /// <summary>
+        /// Ein kaputter Ausdruck faultet die Instanz NICHT - anders als bei der Zuweisung. Die Aufgabe ist
+        /// erledigt und ihr Ergebnis gespeichert; daran darf eine Anzeige-Entscheidung nichts mehr aendern.
+        /// </summary>
+        [TestMethod]
+        public void EndsAssistant_ThatFails_DoesNotFaultTheInstance()
+        {
+            store.SaveDefinition(OneTask("t", node =>
+            {
+                node.TaskKey = "Check";
+                node.EndsAssistant = "kaputt(";
+            }));
+
+            WorkflowInstance instance = engine.StartWorkflow("t");
+            string tokenId = instance.Tokens.Single(x => x.Status == TokenStatus.Waiting).Id;
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(instance.Id, tokenId);
+
+            Assert.AreEqual(UserTaskCompletionStatus.Completed, result.Status);
+            Assert.IsFalse(result.EndsAssistant);
+            Assert.AreNotEqual(WorkflowStatus.Faulted, store.GetInstance(instance.Id).Status);
+        }
+
         [TestMethod]
         public void CompleteUserTask_UnknownToken_ReportsNotFound()
         {

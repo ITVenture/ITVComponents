@@ -682,6 +682,8 @@ nebenläufigkeits-sicher über `TryCommitInstance`, mit einem eigenen Ausgang f�
 | `Inputs` / `Outputs` | Was die Maske sieht bzw. zurückgibt (dieselbe Bindungs-Maschinerie wie an der Aktivität, inkl. `ScopeMode`/`RetainVariables`). |
 | `FormFields` | Deklaration der **generischen Maske**. Leer = die Aufgabe wird nur bestätigt. |
 | `DueInHours` | Frist ab dem Parken — reine Anzeige-/Sortierinformation. |
+| `RunsInAssistant` | Die Aufgabe gehört zu einem **geführten Abschnitt** (§24): danach wird gleich zum nächsten Schritt weitergeführt. Vorgabe: nein. |
+| `EndsAssistant` | CScript → `true`/`false`. `true` heißt: mit dieser Aufgabe endet der geführte Abschnitt. Ausgewertet beim Abschluss, **nach** dem Übernehmen der Ergebniswerte. Leer = er endet von selbst, sobald ein Schritt nicht mehr dazugehört. |
 
 Zwei Dinge, die man nicht verwechseln darf: **Permission** = siehst du diese Sorte Aufgabe,
 **Assignment** = ist dieser konkrete Fall deiner.
@@ -1997,8 +1999,8 @@ den Dialog auf die **Instanz** — ohne Token:
 var parameters = new DialogParameters<UserTaskDialog>
 {
     { d => d.InstanceId, instanceId },   // aus dem Start
-    { d => d.Continuous, true },         // nach jedem Schritt weiter
     { d => d.Environment, null }         // Standard-Umgebung
+    // Continuous bleibt null: welche Schritte geführt werden, sagt das Modell (RunsInAssistant).
 };
 await DialogService.ShowAsync<UserTaskDialog>("Kunde einrichten", parameters, EditDialogDefaults.Detail);
 ```
@@ -2029,6 +2031,51 @@ ohne dass die Oberfläche etwas über den Graphen wissen muss.
 > deshalb ein völlig regulärer nächster Schritt. Was „erledigt" von „wieder offen" unterscheidet, ist der
 > Zustand, nie die Id.
 
+### Der geführte Abschnitt gehört dem Modell
+
+Ob ein Schritt geführt wird, sagt der **Knoten** (`RunsInAssistant`) — nicht der Aufruf. Das ist der
+Unterschied, an dem in der Praxis alles hängt: wer den Assistenten mittendrin schließt und die Aufgabe
+später aus **Meine Aufgaben** heraus wieder öffnet, bekommt denselben geführten Ablauf zurück. Die
+Arbeitsliste muss dafür nichts wissen und nichts setzen; der Vorgang bringt seinen Charakter selbst mit.
+
+Der Dialog-Parameter `Continuous` ist deshalb ein `bool?` und **null** in der Vorgabe („das Modell
+entscheidet"). Gesetzt wird er nur, wo eine Oberfläche es besser weiß: `true` führt auch durch Schritte,
+die im Modell nicht markiert sind, `false` zeigt bewusst nur den einen Schritt.
+
+Entschieden wird das an der **gerade offenen** Aufgabe, nicht einmalig beim Öffnen. Damit endet ein
+geführter Abschnitt von selbst, sobald ein Schritt nicht mehr dazugehört — dieser Schritt wird noch normal
+gezeigt (er ist geladen und gehört diesem Benutzer), danach ist Schluss.
+
+### Wo der geführte Abschnitt endet
+
+Besteht ein Prozess aus dreißig Schritten, von denen nur die ersten fünf Assistenten-Charakter haben,
+könnte man es dabei belassen: Schritt 6 trägt `RunsInAssistant` nicht, also endet der Ablauf dort. Der
+Preis ist das Warten — der Dialog wartet erst auf Schritt 6, um dann festzustellen, dass er nicht dazu
+gehört. Wer das vermeiden (oder die Antwort von den Daten abhängig machen) will, nimmt zusätzlich
+`EndsAssistant` — ein CScript-Ausdruck, der `true` liefert, wenn mit dieser Aufgabe Schluss ist.
+
+```csharp
+true                       // konstant: nach diesem Schritt ist der geführte Teil vorbei
+approved == false          // datenabhängig: nur bei Ablehnung ist hier Schluss
+betrag > 1000              // … sonst geht es für dich mit der Freigabe weiter
+```
+
+Drei Eigenschaften, die dabei zählen:
+
+- **Ausgewertet beim Abschluss, nach dem Übernehmen der Ergebniswerte.** Der Ausdruck sieht also, was der
+  Benutzer *gerade* eingegeben hat — sonst wäre jede datenabhängige Entscheidung einen Schritt zu spät.
+- **Am abschließenden Knoten**, nicht am ersten nicht-geführten. Sonst müsste der Assistent den nächsten
+  Schritt erst abwarten und finden, nur um ihn zu verwerfen — und ein später eingeschobener Schritt
+  brächte die Aussage an die falsche Stelle.
+- **Ein Fehler faultet die Instanz nicht.** Die Aufgabe ist erledigt und ihr Ergebnis gespeichert; daran
+  darf eine Anzeige-Entscheidung nichts mehr ändern. Sie gilt dann als „endet nicht" — der Assistent läuft
+  weiter, was sichtbar ist. Die umgekehrte Vorgabe würde einen Tippfehler zu einem stillen Abbruch nach
+  dem ersten Schritt machen, den niemand bemerkt. (Anders als beim `Assignment`: dort *ist* ein Fehler ein
+  Fault, weil die Aufgabe sonst für jeden mit der Permission sichtbar wäre.)
+
+Der Wert kommt über `UserTaskCompletionResult.EndsAssistant` zurück — eine eigene Oberfläche, die nicht
+den mitgelieferten Dialog benutzt, kann sich also genauso danach richten.
+
 ### Warten auf den nächsten Schritt
 
 Zwei Wege, und der zweite ist nur das Netz:
@@ -2039,6 +2086,13 @@ Zwei Wege, und der zweite ist nur das Netz:
 2. **Eigener Takt** (3 s) und eine Obergrenze (`WaitTimeout`, Standard 30 s). Läuft sie ab, sagt der
    Dialog, dass der Vorgang weiterläuft — das ist kein Fehler, sondern die ehrliche Auskunft, dass er
    gerade nicht mehr in dieser Sitzung zu Hause ist.
+
+Gesammelt wird dabei an der **Quelle**, nicht im Dialog: das Thema `WorkflowProgress` hat ein
+voreingestelltes Sammelfenster von **250 ms** (`EntitySignalDebounceSettings`, gesetzt von
+`AddWorkflowChangeSignal`). Der Weckruf gilt der ganzen Token-Tabelle — ein Runner, der einen Schwung
+Instanzen vortreibt, erzeugt sonst einen Schwung Meldungen, und jeder wartende Dialog sieht ebenso oft
+nach. Für den Benutzer ist das Fenster nicht wahrnehmbar; wer es ändern will, tut das an einer Stelle für
+alle Empfänger (siehe MLM-Leitfaden §26.4).
 
 Die Obergrenze deckt bewusst nur die **automatischen** Strecken zwischen zwei Benutzer-Schritten ab,
 nicht das Warten auf einen Menschen oder einen Timer.

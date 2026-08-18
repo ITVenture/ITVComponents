@@ -38,6 +38,28 @@
                              Class="mt-3" Min="0"
                              HelperText="Display and sorting only — an overdue task does NOT continue by itself (use a timer in a parallel branch)." />
 
+            <MudSwitch T="bool" @bind-Value="Node.RunsInAssistant" Color="Color.Primary" Class="mt-3"
+                       Label="Runs in an assistant" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                The task belongs to a <b>guided section</b>: after it is completed, a screen that can do so
+                leads straight on to the next step instead of closing. This is a property of the NODE, not of
+                how the task was opened — someone who closes the assistant halfway and later opens the task
+                from their work list gets the same guided run.
+            </MudText>
+
+            <MudText Typo="Typo.caption" Class="mt-3">Ends the assistant (CScript → true/false)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Optional, and only relevant inside a guided section. <b>true</b> means: with this task the
+                guided part is over — the screen closes instead of waiting for the next step. Evaluated on
+                completion, <i>after</i> the results were applied, so it may depend on what the user just
+                entered. Without it the section ends by itself as soon as a step no longer belongs to it —
+                only then the screen has waited for that step first. A failing expression does not fault the
+                instance; it counts as "does not end" and lands in the log and the instance history.
+            </MudText>
+            <CScriptField @ref="endsAssistantField" Height="90" Value="@Node.EndsAssistant"
+                          ValueChanged="@(v => Node.EndsAssistant = v)"
+                          Mode="Node.EndsAssistantMode" ModeChanged="@(m => Node.EndsAssistantMode = m)" />
+
             <SectionSelect Node="Node" Def="Def" />
         </MudTabPanel>
 
@@ -145,9 +167,10 @@
     private CScriptField? titleJsonField;
     private CScriptField? descField;
     private CScriptField? formatDataField;
+    private CScriptField? endsAssistantField;
 
     /// <summary>
-    /// Holt den aktuellen Text der Monaco-Felder (Assignment, Title, Description, FormatData)
+    /// Holt den aktuellen Text der Monaco-Felder (Assignment, EndsAssistant, Title, Description, FormatData)
     /// ins Modell. Monaco meldet seinen Wert erst beim Verlassen - der Editor ruft dies vor jedem
     /// Speichern/Schliessen.
     /// </summary>
@@ -161,6 +184,11 @@
         if (assignField is not null)
         {
             Node.Assignment = await assignField.GetValueAsync();
+        }
+
+        if (endsAssistantField is not null)
+        {
+            Node.EndsAssistant = await endsAssistantField.GetValueAsync();
         }
 
         if (titleJsonField is not null)

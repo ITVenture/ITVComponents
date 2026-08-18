@@ -29,10 +29,12 @@ namespace ITVComponents.Workflow
     public class UserTaskCompletionResult
     {
         /// <summary>Erzeugt ein Ergebnis.</summary>
-        public UserTaskCompletionResult(UserTaskCompletionStatus status, IReadOnlyList<string> activatedTokenIds)
+        public UserTaskCompletionResult(UserTaskCompletionStatus status, IReadOnlyList<string> activatedTokenIds,
+            bool endsAssistant = false)
         {
             Status = status;
             ActivatedTokenIds = activatedTokenIds ?? Array.Empty<string>();
+            EndsAssistant = endsAssistant;
         }
 
         /// <summary>Der Ausgang des Abschlusses.</summary>
@@ -42,6 +44,17 @@ namespace ITVComponents.Workflow
         /// Die Ids der dadurch aktiv gewordenen Tokens - der Runner reiht sie als Zweig-Tasks ein.
         /// </summary>
         public IReadOnlyList<string> ActivatedTokenIds { get; }
+
+        /// <summary>
+        /// True, wenn mit dieser Aufgabe der <b>gefuehrte Teil</b> des Vorgangs endet
+        /// (<see cref="UserActivityNode.EndsAssistant"/>): eine Oberflaeche, die einen Assistenten fuehrt,
+        /// schliesst danach, statt auf den naechsten Schritt zu warten.
+        /// </summary>
+        /// <remarks>
+        /// Nur beim Ausgang <see cref="UserTaskCompletionStatus.Completed"/> aussagekraeftig - sonst hat
+        /// dieser Aufruf den Zweig gar nicht bewegt.
+        /// </remarks>
+        public bool EndsAssistant { get; }
 
         /// <summary>Kurzform fuer <see cref="UserTaskCompletionStatus.Completed"/>.</summary>
         public bool Success => Status == UserTaskCompletionStatus.Completed;
@@ -112,5 +125,17 @@ namespace ITVComponents.Workflow
 
         /// <summary>Die Deklaration der generischen Maske (leer = reine Bestaetigung).</summary>
         public List<UserTaskField> FormFields { get; set; } = new List<UserTaskField>();
+
+        /// <summary>
+        /// Gehoert diese Aufgabe zu einem <b>gefuehrten Abschnitt</b>
+        /// (<see cref="UserActivityNode.RunsInAssistant"/>)? Dann fuehrt eine Oberflaeche, die das kann,
+        /// nach dem Abschluss gleich zum naechsten Schritt weiter.
+        /// </summary>
+        /// <remarks>
+        /// Steht hier und nicht nur am Knoten, weil die Oberflaeche es beim OEFFNEN wissen muss - und zwar
+        /// unabhaengig davon, wo der Benutzer eingestiegen ist. Genau deshalb hat auch die Arbeitsliste
+        /// nichts weiter zu tun: sie oeffnet wie immer, und der Vorgang bringt seinen Charakter selbst mit.
+        /// </remarks>
+        public bool RunsInAssistant { get; set; }
     }
 }

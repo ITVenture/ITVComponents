@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -2784,12 +2785,14 @@ namespace ITVComponents.Workflow
             }
 
             UserTaskCompletionStatus outcome = UserTaskCompletionStatus.NotFound;
+            bool endsAssistant = false;
             IReadOnlyList<string> activated = ReactivateAndCommit(instanceId, "CompleteUserTask",
                 (fresh, definition) =>
                 {
                     // Der Delegat kann bei einem Versionskonflikt erneut laufen - der Ausgang wird deshalb
                     // je Versuch neu bestimmt, nicht akkumuliert.
                     outcome = UserTaskCompletionStatus.NotFound;
+                    endsAssistant = false;
                     Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
                     if (token == null)
                     {
@@ -2820,6 +2823,10 @@ namespace ITVComponents.Workflow
                         result ?? new Dictionary<string, object>(StringComparer.Ordinal));
                     fresh.Log("UserTaskCompleted", node.Id,
                         completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
+                    // NACH dem Uebernehmen der Ergebniswerte: die Antwort darf von dem abhaengen, was der
+                    // Benutzer gerade eingegeben hat. Und mit dem Scope von JETZT - ApplyMappedOutputs kann
+                    // ihn bei ScopeMode.Replace ersetzt haben.
+                    endsAssistant = EvaluateEndsAssistant(fresh, node, Scope(fresh, token));
                     ClearUserTask(token);
                     token.Status = TokenStatus.Active;
                     // Eine erledigte Aufgabe kann ebenfalls etwas bewirkt haben (Freigabe erteilt,
@@ -2836,7 +2843,47 @@ namespace ITVComponents.Workflow
                     return new List<string> { token.Id };
                 });
 
-            return new UserTaskCompletionResult(outcome, activated);
+            return new UserTaskCompletionResult(outcome, activated, endsAssistant);
+        }
+
+        /// <summary>
+        /// Wertet aus, ob mit dieser Aufgabe der <b>gefuehrte Teil</b> des Vorgangs endet
+        /// (<see cref="UserActivityNode.EndsAssistant"/>).
+        /// </summary>
+        /// <param name="instance">die Instanz - fuer den Verlaufseintrag im Fehlerfall</param>
+        /// <param name="node">der Knoten der eben erledigten Aufgabe</param>
+        /// <param name="scope">der Variablen-Stack NACH dem Uebernehmen der Ergebniswerte</param>
+        /// <returns>true, wenn die Oberflaeche danach nicht weiterfuehren soll</returns>
+        /// <remarks>
+        /// Ein Fehler faultet die Instanz ausdruecklich NICHT: die Aufgabe ist erledigt und ihr Ergebnis
+        /// gespeichert - daran soll eine Anzeige-Entscheidung nichts mehr aendern. Er faellt auf "endet
+        /// nicht" zurueck, also auf das Verhalten ohne Ausdruck: der Assistent laeuft weiter, was der
+        /// Benutzer sieht. Umgekehrt waere ein Tippfehler ein stiller Abbruch nach dem ersten Schritt, den
+        /// niemand bemerkt.
+        /// </remarks>
+        private bool EvaluateEndsAssistant(WorkflowInstance instance, UserActivityNode node,
+            Dictionary<string, object> scope)
+        {
+            if (string.IsNullOrWhiteSpace(node.EndsAssistant))
+            {
+                return false;
+            }
+
+            try
+            {
+                object value = evaluator.Evaluate(node.EndsAssistant, scope, node.EndsAssistantMode);
+                return value is bool flag
+                    ? flag
+                    : value != null && Convert.ToBoolean(value, CultureInfo.InvariantCulture);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"CompleteUserTask: 'EndsAssistant' expression of user task '{node.Id}' failed - the " +
+                    $"assistant keeps going: {ex.OutlineException()}", LogSeverity.Error);
+                instance.Log("EndsAssistantFailed", node.Id, ex.Message);
+                return false;
+            }
         }
 
         /// <summary>
@@ -2916,7 +2963,8 @@ namespace ITVComponents.Workflow
                 CreatedUtc = token.TaskCreatedUtc,
                 DueUtc = token.TaskDueUtc,
                 Payload = new Dictionary<string, object>(payload, StringComparer.Ordinal),
-                FormFields = node.FormFields ?? new List<UserTaskField>()
+                FormFields = node.FormFields ?? new List<UserTaskField>(),
+                RunsInAssistant = node.RunsInAssistant
             };
         }
 

@@ -2158,8 +2158,8 @@ unverändert für genau eine Aufgabe.
 ```csharp
 var parameters = new DialogParameters<UserTaskDialog>
 {
-    { d => d.InstanceId, instanceId },   // aus dem eigenen Start des Workflows
-    { d => d.Continuous, true }          // nach jedem Schritt weiter
+    { d => d.InstanceId, instanceId }    // aus dem eigenen Start des Workflows
+    // Continuous bleibt null = „das Modell entscheidet" (siehe unten).
 };
 await DialogService.ShowAsync<UserTaskDialog>("Kunde einrichten", parameters, EditDialogDefaults.Detail);
 ```
@@ -2167,6 +2167,20 @@ await DialogService.ShowAsync<UserTaskDialog>("Kunde einrichten", parameters, Ed
 `TokenId` bleibt leer — das heißt „die nächste offene Aufgabe dieser Instanz" und deckt den Moment
 direkt nach dem Start ab, in dem es noch keine gibt. Details, Auswahlregeln und der Wartezustand stehen in
 `docs/Workflow-Integration-Guide.md` §24.
+
+**Welche Schritte geführt werden, entscheidet das Modell** — zwei neue Felder am Aufgaben-Knoten, beide im
+Editor unter *General*:
+
+- **`RunsInAssistant`** (Schalter): dieser Schritt gehört zu einem geführten Abschnitt. Das ist der Grund,
+  warum der Dialog-Parameter `Continuous` jetzt `bool?` ist und **null** in der Vorgabe: wer den
+  Assistenten mittendrin schließt und die Aufgabe später aus *Meine Aufgaben* wieder öffnet, bekommt
+  denselben geführten Ablauf zurück. Die Arbeitsliste setzt dafür nichts.
+- **`EndsAssistant`** (CScript → `true`/`false`): mit dieser Aufgabe ist der geführte Abschnitt zu Ende.
+  Ausgewertet beim Abschluss **nach** dem Übernehmen der Ergebniswerte, darf also von der Eingabe
+  abhängen; ein Fehler faultet die Instanz nicht. Ohne das Feld endet der Abschnitt von selbst, sobald ein
+  Schritt kein `RunsInAssistant` mehr trägt — nur wartet der Dialog dann erst auf diesen Schritt.
+
+Bestehende Definitionen sind unberührt: ohne `RunsInAssistant` verhält sich jede Aufgabe wie bisher.
 
 ### 26.2 Empfohlen: den Weckruf verdrahten
 
@@ -2188,7 +2202,50 @@ träge. Mit Weckruf reagiert er sofort. Drei Teile:
 > im Web-Prozess reicht das. Läuft der Runner separat, bleibt der eigene Takt — dann `WaitTimeout` am
 > Dialog grösszügiger setzen.
 
-### 26.3 Umzug: `EntityChangeSignal<TContext>`
+### 26.3 Sammelfenster für den Weckruf (optional, wirkt auf **alle** Empfänger)
+
+Eine Meldung gilt einer Menge von **Tabellen**, nicht einer Zeile. Wer einen Schwung Zeilen bewegt (ein
+Runner, ein Import), erzeugt damit einen Schwung Meldungen — und jeder Empfänger sieht ebenso oft nach.
+Dagegen gibt es ein **Sammelfenster je Thema**: die erste Meldung eröffnet es, an seinem Ende ergeht der
+Weckruf einmal.
+
+**Nur der Weckruf wird gesammelt, nie der Zeitstempel.** `GetLastChange` bleibt synchron, die puffernden
+Verbraucher (Navigation, Berechtigungen, FK-Beschriftungen) sehen eine Änderung beim nächsten Zugriff also
+weiterhin sofort. Verzögert wird ausschließlich das aktive Benachrichtigen — deshalb sitzt die Bremse im
+Signal und nicht im Interceptor.
+
+Drei Wege, in dieser Rangfolge:
+
+| Weg | Wie |
+|---|---|
+| **WebPart** (Security-Kontext) | `ActivationSettings.EntityChangeSignal` — `{"DefaultMilliseconds": 0, "RefreshSeconds": 0, "Topics": {"WorkflowProgress": 250}}` |
+| **Code** | `services.Configure<EntitySignalDebounceSettings>(o => o.Topics["…"] = 250)` |
+| **GlobalSettings** (Plugin-Hosts) | JSON-Eintrag **`EntityChangeSignal`** mit demselben Aufbau — **gewinnt** gegen beides |
+
+Der GlobalSettings-Weg ist für Hosts, die ihre Kontexte über das Plugin-System bauen: dort gibt es keine
+`Services.Configure`-Gelegenheit mehr, wohl aber die DB-getriebenen Einstellungen. Gelesen wird über einen
+eigenen Scope — es ist damit eine **prozessweite** Einstellung, ausdrücklich keine je Mandant. Ist der
+Eintrag unlesbar, bleibt es bei der Code-Einstellung (mit Log-Zeile).
+
+**Nachladen ohne Neustart:** `RefreshSeconds` (in der Host-Einstellung, siehe unten) lässt den DB-Eintrag
+im angegebenen Takt neu lesen — praktisch, solange an den Werten noch gedreht wird; im eingeschwungenen
+Betrieb gehört er auf `0` (die Vorgabe), denn jeder Zyklus ist eine Abfrage, die sonst nie nötig wäre.
+
+Drei Dinge dazu, die man wissen sollte:
+
+- **Nur das erste Lesen ist synchron.** Der Aufrufer ist der Thread, der gerade gespeichert hat — dort
+  gehört kein DB-Zugriff hin. Aufgefrischt wird nebenher; bis das durch ist, gilt die bisherige Fassung.
+- **`RefreshSeconds` wird nie aus der Datenbank übernommen**, nur aus der Host-Einstellung. Ein Eintrag mit
+  `0` würde sich sonst selbst aussperren: das Nachladen wäre aus, und die einzige Stelle, an der man es
+  wieder einschalten könnte, würde nicht mehr gelesen.
+- **Ins Log geht die Änderung, nicht der Zustand** — sonst liefe dieselbe Zeile im Takt durch und wäre
+  genau dann wertlos, wenn man wissen will, ob eine Änderung gezogen hat.
+
+Vorbelegt ist nur `WorkflowProgress` mit 250 ms (durch `AddWorkflowChangeSignal`, und nur falls der Host
+nichts dazu gesagt hat). Alles andere — insbesondere `Security` und `Navigation` — meldet **sofort**, wie
+bisher.
+
+### 26.4 Umzug: `EntityChangeSignal<TContext>`
 
 Die Implementierung ist von `…EntityFramework.TenantSecurity.Shared.Caching` nach
 `ITVComponents.WebCoreToolkit.EntityFramework.Caching` gewandert — sie ist nicht security-spezifisch und war
@@ -2235,4 +2292,4 @@ Betroffen ist nur, wer die **Klasse selbst** namentlich verwendet — dann das `
 | 28 | **Zusatzangaben-Module** (§23) | Kein Schema-Change, opt-in. Ohne GlobalSetting `CustomCompanyInfo` passiert nichts. Module sind globale Plugins nach `ICustomCompanyInformationHandler` (Blazor-frei); Reiter erscheinen im Onboarding **und** neu im Firmenprofil (Tab 1), dort gated durch `EditPermission` des Moduls — geprüft beim Anzeigen **und** beim Schreiben. Der Feld-Renderer ist nach `Blazor.MudBlazor/SharedComponents/DeclaredFieldsForm.razor` gewandert (`UserTaskFieldsForm` = Adapter, API unverändert); zwei Verhaltenskorrekturen betreffen auch die Workflow-Aufgabenmasken (Ja/Nein-Pflichtfeld startet auf `false`, Vorbelegung ohne `ResetKey`) |
 | 29 | **Anonym ladbare Plugins** (§24) | **Pflicht:** Spalte ``WebPlugins.AllowAnonymous bit NOT NULL DEFAULT 0`` **manuell** anlegen (SQL in §24.1) — **nicht** via ``dotnet ef migrations add`` (Snapshot-Drift, s. §20). Sonst schlägt jede Plugin-Query mit *„Invalid column name 'AllowAnonymous'"* fehl. Danach je Plugin setzen, das **vor** der Anmeldung greifen soll — allen voran die Zusatzangaben-Module aus §23, sonst fehlt ihr Reiter im anonymen Onboarding. Nur für **globale** Plugins wirksam (Mandanten-Zeilen liefern immer ``false``). Greift nur im Anonym-Fall; für angemeldete Benutzer entscheidet weiter die Berechtigung. Neue ``VerifyUserPermissions``-Überladung mit ``out bool isUserAuthenticated`` (additiv) |
 | 30 | **Blazor-Dashboard** (§25) | **Pflicht:** vier Spalten **manuell** anlegen (SQL in §25.1) — `Widgets.InitiallyActive bit NOT NULL DEFAULT 0`, `Widgets.SortOrder int NOT NULL DEFAULT 0`, `UserWidgets.ColSpan int NOT NULL DEFAULT 0`, `UserWidgets.ParamValues nvarchar(max) NULL`; **nicht** via `dotnet ef migrations add` (Snapshot-Drift, s. §20). Sonst schlägt jede Widget-Query mit *„Invalid column name 'InitiallyActive'"* fehl. Neu: Fläche `<DashboardHost>` + fertige Seite `/Dashboard`, Daten über `IDiagnosticsQueryService` **ohne** HTTP-Umweg. Standard-Sammlung über **Initially active** + **Sort order** im Widget-Editor; wer noch keine eigenen Widgets hat sieht sie ungespeichert, beim ersten Bearbeiten wird sie kopiert. **Template-Bruch:** gerendert wird mit **Scriban**, `{{ ->Key }}` und `{{ $expr }}`/`{{ !$expr }}` aus `processMessage` funktionieren **nicht** mehr (Tabelle in §25.4); Modell ist `Rows`/`Row`/`Count`/`Params`/`Title`. `InputConfig` hat eine neue, neutrale Form (§25.5) — alte Kendo-Configs werden ignoriert statt zu brechen, `MaskedText` wird Textfeld. Parameter-Eingaben werden neu mitgespeichert und sind später änderbar. `/DBW` schleift `ColSpan`/`ParamValues` mit; eigene Kopien dieser Endpunkte müssen das auch (§25.6). **Mobil** (§25.7): Spaltenzahl folgt dem Viewport (Xs = 1, Sm = Hälfte), gespeicherter `ColSpan` bleibt die Absicht des Benutzers; **Umsortieren per Ziehen geht auf Touch nicht** (HTML5-Drag-Ereignisse) → dafür „nach vorn/nach hinten" im Kachel-Menü |
-| 31 | **Fortlaufender Aufgaben-Dialog** (§26) | Kein Schema-Change, opt-in. `UserTaskDialog` kann mit `Continuous=true` (und leerer `TokenId` = „nächste Aufgabe dieser Instanz") einen mehrstufigen Vorgang in **einem** Dialog durcharbeiten; wartet zwischen zwei Benutzer-Schritten auf automatische Aktivitäten (`WaitTimeout`, Standard 30 s). `IWorkflowTaskHandler` hat ein neues Member `FindNextAsync` — **eigene Implementierungen des Interfaces brechen**. **Empfohlen:** `EntityWriteTrackerInterceptorOptionsLoader<WorkflowContext>` über den vorhandenen Options-Loader legen (§26.2), sonst wartet der Dialog im 3-s-Takt statt auf Weckruf. **Umzug:** `EntityChangeSignal<TContext>` → `ITVComponents.WebCoreToolkit.EntityFramework.Caching` (Vertrag/Registrierung/Verhalten unverändert, nur `using` anpassen, wenn die Klasse namentlich verwendet wird) |
+| 31 | **Fortlaufender Aufgaben-Dialog** (§26) | Kein Schema-Change, opt-in. `UserTaskDialog` kann mit `Continuous=true` (und leerer `TokenId` = „nächste Aufgabe dieser Instanz") einen mehrstufigen Vorgang in **einem** Dialog durcharbeiten; wartet zwischen zwei Benutzer-Schritten auf automatische Aktivitäten (`WaitTimeout`, Standard 30 s). `IWorkflowTaskHandler` hat ein neues Member `FindNextAsync` — **eigene Implementierungen des Interfaces brechen**. Welche Schritte geführt werden, sagt das **Modell**: neue Knotenfelder `RunsInAssistant` (Schalter) und `EndsAssistant` (CScript, beim Abschluss nach dem Übernehmen der Ergebniswerte ausgewertet), beide im Editor-Reiter *General*; Ergebnisse in `UserTaskDescriptor.RunsInAssistant` bzw. `UserTaskCompletionResult.EndsAssistant` (Ctor additiv erweitert). Der Dialog-Parameter `Continuous` ist deshalb **`bool?`** (null = Modell entscheidet) — ein Assistent, den man zwischendurch schließt, kommt aus der Arbeitsliste heraus als Assistent zurück. Bestehende Definitionen unberührt. **Empfohlen:** `EntityWriteTrackerInterceptorOptionsLoader<WorkflowContext>` über den vorhandenen Options-Loader legen (§26.2), sonst wartet der Dialog im 3-s-Takt statt auf Weckruf. **Umzug:** `EntityChangeSignal<TContext>` → `ITVComponents.WebCoreToolkit.EntityFramework.Caching` (Vertrag/Registrierung/Verhalten unverändert, nur `using` anpassen, wenn die Klasse namentlich verwendet wird). **Neu, optional:** Sammelfenster je Thema für den Weckruf (`EntitySignalDebounceSettings`, §26.3) — über `ActivationSettings.EntityChangeSignal`, `services.Configure` oder den GlobalSettings-Eintrag `EntityChangeSignal` (der gewinnt). Verzögert **nur** die aktive Benachrichtigung, nie den Zeitstempel; vorbelegt ist einzig `WorkflowProgress` mit 250 ms, `Security`/`Navigation` melden wie bisher sofort |
