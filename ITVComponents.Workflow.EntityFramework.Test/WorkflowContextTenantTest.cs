@@ -42,7 +42,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowContext(
                 new SqliteTestOptionsLoader(connection),
-                new FakeUserContext { CurrentTenant = tenant },
+                TestServices.ForTenant(tenant),
                 useTenantFilter: true,
                 new WorkflowFilterInitializer<WorkflowContext>());
         }
@@ -52,7 +52,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowContext(
                 new SqliteTestOptionsLoader(connection),
-                new FakeUserContext { CurrentTenant = tenant },
+                TestServices.ForTenant(tenant),
                 options == null ? null : Options.Create(options),
                 new WorkflowFilterInitializer<WorkflowContext>());
         }

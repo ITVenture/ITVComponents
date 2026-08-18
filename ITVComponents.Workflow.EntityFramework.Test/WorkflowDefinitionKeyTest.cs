@@ -29,7 +29,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             connection = new SqliteConnection("DataSource=:memory:");
             connection.Open();
             using var ctx = new WorkflowContext(new SqliteTestOptionsLoader(connection),
-                new FakeUserContext { CurrentTenant = null }, useTenantFilter: true,
+                TestServices.ForTenant(null), useTenantFilter: true,
                 new WorkflowFilterInitializer<WorkflowContext>());
             ctx.Database.EnsureCreated();
         }
@@ -39,7 +39,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         private EfWorkflowStore StoreFor(string tenant)
             => new EfWorkflowStore(() => new WorkflowContext(new SqliteTestOptionsLoader(connection),
-                new FakeUserContext { CurrentTenant = tenant }, useTenantFilter: true,
+                TestServices.ForTenant(tenant), useTenantFilter: true,
                 new WorkflowFilterInitializer<WorkflowContext>()));
 
         private static WorkflowDefinition Linear(string id, bool isPublic = false)

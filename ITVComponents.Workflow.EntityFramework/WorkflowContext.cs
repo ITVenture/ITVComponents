@@ -1,13 +1,14 @@
-using System;
 using ITVComponents.EFRepo.DIIntegration;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
+using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.Runtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System;
 
 namespace ITVComponents.Workflow.EntityFramework
 {
@@ -445,10 +446,15 @@ namespace ITVComponents.Workflow.EntityFramework
     /// aus dem Web-Stack direkt. Der options-only-Ctor (Migrationen/Tests) laesst die Tenant-Filter aus.
     /// </remarks>
     [ScopedDependency(FriendlyName = "WorkflowContext")]
-    public class WorkflowContext : DbContext, IPlugin
+    public class WorkflowContext : DbContext, IPlugin, IUserAwareContext
     {
         private readonly DbContextModelBuilderOptions<WorkflowContext> modelOptions;
-        private readonly IUserAwareContext userContext;
+
+        private readonly IServiceProvider services;
+        //private readonly IUserAwareContext userContext;
+
+        private readonly IPermissionScope? scopeProvider;
+        private readonly IContextUserProvider? userProvider;
 
         /// <summary>
         /// Options-only-Ctor fuer Migrationen/Design-Time/Tests. Es wird KEIN Tenant-Filter gesetzt -
@@ -476,10 +482,12 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Basis-Ctor mit Model-Optionen und Tenant-Quelle. Wird vom Plugin-Ctor genutzt.
         /// </summary>
         public WorkflowContext(DbContextOptions options, DbContextModelBuilderOptions<WorkflowContext> modelOptions,
-            IUserAwareContext userContext) : base(options)
+            IServiceProvider services) : base(options)
         {
             this.modelOptions = modelOptions;
-            this.userContext = userContext;
+            this.services = services;
+            this.scopeProvider = services.GetService<IPermissionScope>();
+            this.userProvider = services.GetService<IContextUserProvider>();
         }
 
         /// <summary>
@@ -487,9 +495,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// (Provider-Wahl im Host), der Tenant ueber den injizierten <see cref="IUserAwareContext"/>.
         /// <paramref name="useTenantFilter"/> schaltet die Tenant-Schicht.
         /// </summary>
-        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IUserAwareContext userContext,
+        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IServiceProvider services,
             bool useTenantFilter, IOptions<DbContextModelBuilderOptions<WorkflowContext>> modelOptions)
-            : this(dbOptions.Options, modelOptions.Value, userContext)
+            : this(dbOptions.Options, modelOptions.Value, services)
         {
             UseTenantFilter = useTenantFilter;
             this.modelOptions.ConfigureExpressionProperty(() => CurrentTenant);
@@ -510,10 +518,10 @@ namespace ITVComponents.Workflow.EntityFramework
         /// des Options-Typs (<see cref="WorkflowContextOptions.UseTenantFilter"/> = true).
         /// </para>
         /// </remarks>
-        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IUserAwareContext userContext,
+        public WorkflowContext(ContextOptionsLoader<WorkflowContext> dbOptions, IServiceProvider services,
             IOptions<WorkflowContextOptions> tenantOptions,
             IOptions<DbContextModelBuilderOptions<WorkflowContext>> modelOptions)
-            : this(dbOptions, userContext, tenantOptions?.Value?.UseTenantFilter ?? true, modelOptions)
+            : this(dbOptions, services, tenantOptions?.Value?.UseTenantFilter ?? true, modelOptions)
         {
         }
 
@@ -532,7 +540,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// </remarks>
         public string CurrentTenant => WorkflowExecutionScope.HasTenant
             ? WorkflowExecutionScope.CurrentTenant
-            : (UseTenantFilter ? userContext?.CurrentTenant : null);
+            : (UseTenantFilter ? scopeProvider?.PermissionPrefix : null);
+
+        public string? CurrentUserName => userProvider?.User?.Identity?.Name;
 
         /// <inheritdoc/>
         public string UniqueName { get; set; }
