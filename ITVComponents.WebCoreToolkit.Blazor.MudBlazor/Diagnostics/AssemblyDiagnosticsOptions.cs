@@ -25,6 +25,14 @@ public class AssemblyDiagnosticsOptions
     public string ConfigDownloadIdentifier { get; set; }
 
     /// <summary>
+    /// File-type hint sent with an uploaded configuration. Optional: when empty the download identifier is used
+    /// with any export-profile suffix stripped. The two are deliberately separate — the download carries the
+    /// chosen profile (<c>sysCfg@Help</c>), while the upload must stay on the plain type, because what gets
+    /// compared is decided by the content of the uploaded file and not by what was picked for the download.
+    /// </summary>
+    public string? ConfigUploadIdentifier { get; set; }
+
+    /// <summary>
     /// Optional explicit <c>IConfigurationHandler</c> plugin name used when applying the reviewed configuration
     /// changes. When empty, the default registered handler is used (mirrors the MVC <c>ExplicitConfigHandler</c>).
     /// </summary>

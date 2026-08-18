@@ -8,6 +8,7 @@ using ITVComponents.EFRepo.DataSync;
 using ITVComponents.EFRepo.DataSync.Models;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
@@ -87,6 +88,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         private ConfigExtensionOptions ExtensionOptions
             => services?.GetService<IOptions<ConfigExtensionOptions>>()?.Value ?? new ConfigExtensionOptions();
 
+        // Same resolution as the extensions above. Without any configuration this still yields the built-in
+        // Full/BasicOnly profiles, so the export behaves exactly as it did before profiles existed.
+        private ConfigExportProfileOptions ProfileOptions
+            => services?.GetService<IOptions<ConfigExportProfileOptions>>()?.Value ?? new ConfigExportProfileOptions();
+
         ChangeDetail IConfigChangeContext.MakeDetail(string columnName, string value, string valueExpression, string currentValue, bool multiline, bool apply)
             => MakeDetail(columnName, value, valueExpression, currentValue, multiline, apply);
 
@@ -96,8 +102,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         string IConfigChangeContext.MakeLinqQuery(string sourceEntity, string filterProperty, string additionalWhere, bool ignoreFail, string managedFilterType, string scriptedFilterType, string filterValueVariable)
             => MakeLinqQuery<TContext>(sourceEntity, filterProperty, additionalWhere, ignoreFail, managedFilterType, scriptedFilterType, filterValueVariable);
 
-        /// <summary>Builds the current (IST) markup for every registered config-extension (null if none).</summary>
-        private List<ConfigExtensionMarkup> DescribeExtensions()
+        /// <summary>
+        /// Builds the current (IST) markup for the config-extensions the given profile includes (null if none).
+        /// A null profile means every registered extension.
+        /// </summary>
+        private List<ConfigExtensionMarkup> DescribeExtensions(ConfigExportProfile profile = null)
         {
             var opts = ExtensionOptions;
             if (services == null || opts.Handlers.Count == 0)
@@ -109,6 +118,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             using var scope = services.CreateScope();
             foreach (var reg in opts.Handlers)
             {
+                if (profile != null && !profile.IncludesExtension(reg.SectionKey))
+                {
+                    continue;
+                }
+
                 var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
                 var markup = handler.Describe(DbContext);
                 if (markup != null)
@@ -171,40 +185,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
 
         protected override void PerformCompareInternal(string fileType, byte[] content)
         {
-            switch (fileType)
+            // A profile suffix is irrelevant here — what gets compared is decided by the content of the file, not
+            // by what the uploader picked. It is only split off so a hint that carried one over (sysCfg@Help) is
+            // not rejected as an unknown file-type.
+            var baseType = ConfigExportProfiles.Split(fileType, out _);
+            switch (baseType)
             {
                 case "sysCfg":
                     using (var h = new FullSecurityAccessHelper<TTrustConfig>(DbContext, new() { ShowAllTenants = true, HideGlobals = false }))
                     {
-                        var sys = DescribeSystem();
                         var upSys =
                             JsonHelper.FromJsonString<SystemTemplateMarkup>(
                                 Encoding.UTF8.GetString(content), SerializationTypingMode.NativePolymorphism);
-                        ComparePlugIns(sys.PlugIns, upSys.PlugIns);
-                        CompareConstants(sys.Constants, upSys.Constants);
-                        ComparePermissions(sys.Permissions, upSys.Permissions);
-                        CompareGlobalRoles(sys.GlobalRoles, upSys.GlobalRoles);
-                        CompareAuthenticationTypes(sys.AuthenticationTypes, upSys.AuthenticationTypes);
-                        CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates, upSys.AuthenticationTypeClaimTemplates);
-                        CompareGlobalSettings(sys.Settings, upSys.Settings);
-                        CompareFeatures(sys.Features, upSys.Features);
-                        CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
-                        CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
-                        CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
-                        CompareDashboardWidgetLocales(sys.DashboardWidgetLocales, upSys.DashboardWidgetLocales);
-                        CompareNavigation(sys.Navigation, upSys.Navigation);
-                        CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
-                        CompareHealthScripts(sys.HealthScripts, upSys.HealthScripts);
-                        CompareAssetTemplates(sys.AssetTemplates, upSys.AssetTemplates);
-                        // Skip (instead of deleting everything) when an older config-export lacks these newer sections.
-                        if (upSys.ExternalOAuthServices != null)
-                        {
-                            CompareExternalOAuthServices(sys.ExternalOAuthServices, upSys.ExternalOAuthServices);
-                        }
 
-                        if (upSys.TemplateModules != null)
+                        // Describe only as much of the current state as the uploaded file actually claims: a
+                        // Billing-only file must not make us read (and base64-encode) every help resource.
+                        var comparedSections = new ConfigExportProfile
                         {
-                            CompareTemplateModules(sys.TemplateModules, upSys.TemplateModules);
+                            OmitBasicData = upSys.OmitBasicData,
+                            ActiveExtensions = upSys.Extensions?.Select(n => n.SectionKey).ToArray() ?? Array.Empty<string>()
+                        };
+                        var sys = DescribeSystem(comparedSections);
+
+                        if (!upSys.OmitBasicData)
+                        {
+                            CompareBasicData(sys, upSys);
+                        }
+                        else if (HasAnyBasicData(upSys))
+                        {
+                            // The flag wins, but not silently: someone hand-edited base data into a file that
+                            // declares it carries none, and would otherwise wonder why nothing arrived.
+                            RegisterChange(new Change
+                            {
+                                ChangeType = ChangeType.Warning,
+                                EntityName = "Base configuration data was ignored",
+                                Details =
+                                {
+                                    MakeDetail("Reason",
+                                        "The uploaded file declares OmitBasicData, so its base sections are not compared. Export without that profile setting to transfer them.",
+                                        apply: false)
+                                }
+                            });
+                            LogEnvironment.LogEvent(
+                                "An uploaded system-configuration declares OmitBasicData but still carries base sections; they were ignored.",
+                                LogSeverity.Warning);
                         }
 
                         // Feature-library-contributed sections (e.g. Billing). Null on older exports / no extension.
@@ -217,13 +241,137 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             }
         }
 
+        /// <summary>
+        /// Compares the base (non-extension) sections. Every section is guarded: one that the uploaded file does
+        /// not carry is skipped rather than compared against an empty set — otherwise a partial export would come
+        /// out of the diff as "delete the entire system configuration", pre-selected for apply.
+        /// </summary>
+        private void CompareBasicData(SystemTemplateMarkup sys, SystemTemplateMarkup upSys)
+        {
+            if (upSys.PlugIns != null)
+            {
+                ComparePlugIns(sys.PlugIns, upSys.PlugIns);
+            }
+
+            if (upSys.Constants != null)
+            {
+                CompareConstants(sys.Constants, upSys.Constants);
+            }
+
+            if (upSys.Permissions != null)
+            {
+                ComparePermissions(sys.Permissions, upSys.Permissions);
+            }
+
+            if (upSys.GlobalRoles != null)
+            {
+                CompareGlobalRoles(sys.GlobalRoles, upSys.GlobalRoles);
+            }
+
+            if (upSys.AuthenticationTypes != null)
+            {
+                CompareAuthenticationTypes(sys.AuthenticationTypes, upSys.AuthenticationTypes);
+            }
+
+            if (upSys.AuthenticationTypeClaimTemplates != null)
+            {
+                CompareAuthenticationTypeClaims(sys.AuthenticationTypeClaimTemplates, upSys.AuthenticationTypeClaimTemplates);
+            }
+
+            if (upSys.Settings != null)
+            {
+                CompareGlobalSettings(sys.Settings, upSys.Settings);
+            }
+
+            if (upSys.Features != null)
+            {
+                CompareFeatures(sys.Features, upSys.Features);
+            }
+
+            if (upSys.TenantTemplates != null)
+            {
+                CompareTenantTemplates(sys.TenantTemplates, upSys.TenantTemplates);
+            }
+
+            if (upSys.DiagnosticsQueries != null)
+            {
+                CompareDiagnosticsQueries(sys.DiagnosticsQueries, upSys.DiagnosticsQueries);
+            }
+
+            if (upSys.DashboardWidgets != null)
+            {
+                CompareDashboardWidgets(sys.DashboardWidgets, upSys.DashboardWidgets);
+            }
+
+            if (upSys.DashboardWidgetLocales != null)
+            {
+                CompareDashboardWidgetLocales(sys.DashboardWidgetLocales, upSys.DashboardWidgetLocales);
+            }
+
+            if (upSys.Navigation != null)
+            {
+                CompareNavigation(sys.Navigation, upSys.Navigation);
+            }
+
+            if (upSys.TrustedModules != null)
+            {
+                CompareTrustedModules(sys.TrustedModules, upSys.TrustedModules);
+            }
+
+            if (upSys.HealthScripts != null)
+            {
+                CompareHealthScripts(sys.HealthScripts, upSys.HealthScripts);
+            }
+
+            if (upSys.AssetTemplates != null)
+            {
+                CompareAssetTemplates(sys.AssetTemplates, upSys.AssetTemplates);
+            }
+
+            if (upSys.ExternalOAuthServices != null)
+            {
+                CompareExternalOAuthServices(sys.ExternalOAuthServices, upSys.ExternalOAuthServices);
+            }
+
+            if (upSys.TemplateModules != null)
+            {
+                CompareTemplateModules(sys.TemplateModules, upSys.TemplateModules);
+            }
+        }
+
+        /// <summary>True when the markup carries at least one base section (used to detect a hand-edited file).</summary>
+        private static bool HasAnyBasicData(SystemTemplateMarkup markup)
+            => markup.PlugIns != null || markup.Constants != null || markup.Permissions != null
+               || markup.GlobalRoles != null || markup.AuthenticationTypes != null
+               || markup.AuthenticationTypeClaimTemplates != null || markup.Settings != null
+               || markup.Features != null || markup.TenantTemplates != null || markup.DiagnosticsQueries != null
+               || markup.DashboardWidgets != null || markup.DashboardWidgetLocales != null
+               || markup.Navigation != null || markup.TrustedModules != null || markup.HealthScripts != null
+               || markup.AssetTemplates != null || markup.ExternalOAuthServices != null
+               || markup.TemplateModules != null;
+
         public override object DescribeConfig(string fileType, IDictionary<string, int> filterDic, out string name)
         {
-            switch (fileType)
+            var baseType = ConfigExportProfiles.Split(fileType, out var profileName);
+            switch (baseType)
             {
                 case "sysCfg":
-                    var sys = DescribeSystem();
-                    name= $"System";
+                    var profiles = ProfileOptions.EffectiveProfiles();
+                    if (!string.IsNullOrWhiteSpace(profileName) && !profiles.ContainsKey(profileName))
+                    {
+                        // A misspelled profile would otherwise silently produce a full export under a name that
+                        // promises something else.
+                        LogEnvironment.LogEvent(
+                            $"Unknown config-export profile '{profileName}' was requested; falling back to '{ConfigExportProfiles.Full}'.",
+                            LogSeverity.Warning);
+                        profileName = null;
+                    }
+
+                    var profile = ProfileOptions.Resolve(profileName);
+                    var sys = DescribeSystem(profile, profileName);
+                    // The profile belongs in the download name — otherwise three different exports all land in
+                    // the download folder as System.json.
+                    name = string.IsNullOrWhiteSpace(profileName) ? "System" : $"System_{profileName}";
                     return sys;
                 default:
                     throw new InvalidOperationException($"{fileType} not supported");
@@ -244,53 +392,69 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             }
         }
 
-        private SystemTemplateMarkup DescribeSystem()
+        /// <summary>
+        /// Builds the current (IST) markup. A profile restricts what is produced: with
+        /// <see cref="ConfigExportProfile.OmitBasicData"/> the base sections are not even read (they stay null,
+        /// and the file says so via <see cref="SystemTemplateMarkup.OmitBasicData"/>), and only the profile's
+        /// extension sections are described — which also keeps a Billing-only export from loading every help
+        /// resource just to throw it away.
+        /// </summary>
+        private SystemTemplateMarkup DescribeSystem(ConfigExportProfile profile = null, string profileName = null)
         {
             using (var h = new FullSecurityAccessHelper<TTrustConfig>(DbContext, new() { ShowAllTenants = true, HideGlobals = false }))
             {
-                DbContext.EnsureNavUniqueness();
-                SystemTemplateMarkup retVal = new SystemTemplateMarkup
-                {
-                    Permissions = DbContext.Permissions.Where(n => n.TenantId == null).AsEnumerable().Select(n =>
-                        SelectPermissionTemplateMarkup(n)).ToArray(),
-                    GlobalRoles = DbContext.GlobalRoles.Include(n => n.RolePermissions).ThenInclude(n => n.Permission)
-                        .AsEnumerable()
-                        .Select(r => SelectGlobalRoleTemplateMarkup(r)).ToArray(),
-                    AuthenticationTypes = DbContext.AuthenticationTypes.AsEnumerable().Select(n => SelectAuthenticationTypeTemplateMarkup(n)).ToArray(),
-                    AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.AsEnumerable().Select(n => SelectAuthenticationTypeClaimTemplateMarkup(n)).ToArray(),
-                    Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null).AsEnumerable()
-                        .Select(n => SelectConstTemplateMarkup(n)).ToArray(),
-                    PlugIns = DbContext.WebPlugins.Include(n => n.Parameters).Where(n => n.TenantId == null).AsEnumerable().Select(n => SelectPlugInTemplateMarkup(n)).ToArray(),
-                    Settings = DbContext.GlobalSettings.AsEnumerable().Select(n => SelectSettingTemplateMarkup(n))
-                        .ToArray(),
-                    TenantTemplates = DbContext.TenantTemplates.AsEnumerable().Select(n => SelectTenantTemplateDefinitionMarkup(n)).ToArray(),
-                    Features = DbContext.Features.AsEnumerable().Select(n => SelectSystemFeatureTemplateMarkup(n))
-                        .ToArray(),
-                    DiagnosticsQueries = DbContext.DiagnosticsQueries.Include(n => n.Parameters).AsEnumerable().Select(n => SelectDiagnosticsQueryTemplateMarkup(n)).ToArray(),
-                    DashboardWidgets = DbContext.Widgets.AsEnumerable().Select(n => SelectDashboardWidgetTemplateMarkup(n)).ToArray(),
-                    DashboardWidgetLocales = DbContext.WidgetLocales.AsEnumerable().Select(l => SelectDashboardWidgetLocaleTemplateMarkup(l))
-                        .ToArray(),
-                    Navigation = GetSortedNav(),
-                    TrustedModules = DbContext.TrustedFullAccessComponents.AsEnumerable().Select(n =>
-                        SelectTrustedModuleTemplateMarkup(n)
-                    ).ToArray(),
-                    HealthScripts = DbContext.HealthScripts.AsEnumerable().Select(n => SelectHealthScriptTemplateMarkup(n)).ToArray(),
-                    AssetTemplates = DbContext.AssetTemplates.Include(n => n.FeatureGrants).ThenInclude(n => n.Feature)
-                        .Include(n => n.Grants).ThenInclude(n => n.Permission)
-                        .Include(n => n.PathTemplates)
-                        .Include(n => n.RequiredFeature)
-                        .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
-                    ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).AsEnumerable()
-                        .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
-                    TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
-                        .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
-                        .Include(n => n.Scripts).AsEnumerable().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
-                };
-
-                retVal.Extensions = DescribeExtensions();
+                // Omitted base data is not read at all — the empty markup plus the OmitBasicData flag is what
+                // tells the receiving system that those sections are simply not claimed by this file.
+                var retVal = profile is { OmitBasicData: true } ? new SystemTemplateMarkup() : DescribeBasicData();
+                retVal.ExportProfile = profileName ?? ConfigExportProfiles.Full;
+                retVal.OmitBasicData = profile?.OmitBasicData ?? false;
+                retVal.Extensions = DescribeExtensions(profile);
 
                 return retVal;
             }
+        }
+
+        /// <summary>Reads every base (non-extension) section of the system configuration.</summary>
+        private SystemTemplateMarkup DescribeBasicData()
+        {
+            DbContext.EnsureNavUniqueness();
+            return new SystemTemplateMarkup
+            {
+                Permissions = DbContext.Permissions.Where(n => n.TenantId == null).AsEnumerable().Select(n =>
+                    SelectPermissionTemplateMarkup(n)).ToArray(),
+                GlobalRoles = DbContext.GlobalRoles.Include(n => n.RolePermissions).ThenInclude(n => n.Permission)
+                    .AsEnumerable()
+                    .Select(r => SelectGlobalRoleTemplateMarkup(r)).ToArray(),
+                AuthenticationTypes = DbContext.AuthenticationTypes.AsEnumerable().Select(n => SelectAuthenticationTypeTemplateMarkup(n)).ToArray(),
+                AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.AsEnumerable().Select(n => SelectAuthenticationTypeClaimTemplateMarkup(n)).ToArray(),
+                Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null).AsEnumerable()
+                    .Select(n => SelectConstTemplateMarkup(n)).ToArray(),
+                PlugIns = DbContext.WebPlugins.Include(n => n.Parameters).Where(n => n.TenantId == null).AsEnumerable().Select(n => SelectPlugInTemplateMarkup(n)).ToArray(),
+                Settings = DbContext.GlobalSettings.AsEnumerable().Select(n => SelectSettingTemplateMarkup(n))
+                    .ToArray(),
+                TenantTemplates = DbContext.TenantTemplates.AsEnumerable().Select(n => SelectTenantTemplateDefinitionMarkup(n)).ToArray(),
+                Features = DbContext.Features.AsEnumerable().Select(n => SelectSystemFeatureTemplateMarkup(n))
+                    .ToArray(),
+                DiagnosticsQueries = DbContext.DiagnosticsQueries.Include(n => n.Parameters).AsEnumerable().Select(n => SelectDiagnosticsQueryTemplateMarkup(n)).ToArray(),
+                DashboardWidgets = DbContext.Widgets.AsEnumerable().Select(n => SelectDashboardWidgetTemplateMarkup(n)).ToArray(),
+                DashboardWidgetLocales = DbContext.WidgetLocales.AsEnumerable().Select(l => SelectDashboardWidgetLocaleTemplateMarkup(l))
+                    .ToArray(),
+                Navigation = GetSortedNav(),
+                TrustedModules = DbContext.TrustedFullAccessComponents.AsEnumerable().Select(n =>
+                    SelectTrustedModuleTemplateMarkup(n)
+                ).ToArray(),
+                HealthScripts = DbContext.HealthScripts.AsEnumerable().Select(n => SelectHealthScriptTemplateMarkup(n)).ToArray(),
+                AssetTemplates = DbContext.AssetTemplates.Include(n => n.FeatureGrants).ThenInclude(n => n.Feature)
+                    .Include(n => n.Grants).ThenInclude(n => n.Permission)
+                    .Include(n => n.PathTemplates)
+                    .Include(n => n.RequiredFeature)
+                    .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
+                ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).AsEnumerable()
+                    .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
+                TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
+                    .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
+                    .Include(n => n.Scripts).AsEnumerable().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
+            };
         }
 
         protected virtual AssetTemplateMarkup SelectAssetTemplateMarkup(TAssetTemplate assetTemplateInst)

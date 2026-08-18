@@ -150,6 +150,23 @@ Eigener Storage (Azure/DMS): eine eigene `IHelpResourceStore`-Implementierung **
 `Help.Admin.Topics.View` / `.Write`, `Help.Admin.Resources.View` / `.Write` (`.Write` ⊇ `.View`).
 Admin-Seiten brauchen zusätzlich das Feature **`ITVAdminViews`**. Der Viewer (`/help`) ist anonym.
 
+## 5a. Hilfe im System-Config-Export (opt-in)
+
+Themen, Inhalte, Ordner und Ressourcen-Einträge können als eigene Sektion (`help`) im herunterladbaren
+System-Config mitreisen — damit lässt sich Dokumentation von einem System aufs andere bringen. Einschalten
+per WebPart (`…EntityFramework.HelpSystem.WebPartInit`, Option `ActivateHelpConfigExport: true`) oder
+`services.AddHelpConfigExtension()`. Zusammen mit einem Export-Profil ergibt das eine Datei, die **nur** die
+Hilfe enthält.
+
+**Die Dateien reisen mit** — als Base64 im JSON, vorbelegt bis 2 MB je Datei und 20 MB insgesamt
+(einstellbar über `Contents` in den WebPart-Optionen). Das gilt allerdings nur für die eingebaute
+EF-Blob-Referenz aus §4: liegt der Inhalt in einem eigenen `IHelpResourceStore`, reisen nur die Metadaten,
+und der Diff meldet gesammelt, welche Dateien deshalb fehlen. Beim Import bekommt jede Datei einen **neuen**
+`FileIdentifier` (die Kennung gehört dem jeweiligen System); ein SHA-256 je Datei sorgt dafür, dass
+unveränderte Inhalte nicht neu geschrieben werden.
+
+Details und die Profil-Konfiguration: MLM-Leitfaden §27/§28.
+
 ## 6. Host-Page-Skripte (Monaco)
 
 Der Markdown-Editor nutzt BlazorMonaco; die AdminViews-WebPart registriert die Client-Skripte bereits

@@ -7,12 +7,14 @@
 @using ITVComponents.WebCoreToolkit.Configuration
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.EFRepo.DataSync
 @using ITVComponents.EFRepo.DataSync.Models
 @using ITVComponents.Json
 
 @inject IAssemblyDiagnosticsAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IHierarchySettings<AssemblyDiagnosticsOptions> Options
+@inject Microsoft.Extensions.Options.IOptions<ConfigExportProfileOptions> ExportProfileOptions
 @inject ISnackbar Snackbar
 
 <PageTitle>Assembly diagnostics</PageTitle>
@@ -115,17 +117,28 @@ else
                 @if (!string.IsNullOrEmpty(Options.Value.ConfigUploadModule))
                 {
                     <div class="mb-4">
-                        <FileDownload DownloadModule="@Options.Value.ConfigUploadModule"
-                                      FileIdentifier="@Options.Value.ConfigDownloadIdentifier"
-                                      DownloadReason="@Options.Value.ConfigDownloadReason"
-                                      ButtonText="Download configuration"
-                                      OnError="OnDownloadError" />
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudSelect T="string" @bind-Value="selectedProfile" Label="Export profile"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="max-width:320px;">
+                                @foreach (var p in exportProfiles)
+                                {
+                                    <MudSelectItem T="string" Value="@p.Key">
+                                        @(string.IsNullOrWhiteSpace(p.Value.Description) ? p.Key : $"{p.Key} — {p.Value.Description}")
+                                    </MudSelectItem>
+                                }
+                            </MudSelect>
+                            <FileDownload DownloadModule="@Options.Value.ConfigUploadModule"
+                                          FileIdentifier="@ComposedDownloadIdentifier"
+                                          DownloadReason="@Options.Value.ConfigDownloadReason"
+                                          ButtonText="Download configuration"
+                                          OnError="OnDownloadError" />
+                        </MudStack>
                     </div>
                 }
-                
+
                 <FileUpload UploadModule="@Options.Value.ConfigUploadModule"
                             UploadReason="@Options.Value.ConfigUploadReason"
-                            UploadHint="@Options.Value.ConfigDownloadIdentifier"
+                            UploadHint="@ConfigUploadHint"
                             Accept="@Options.Value.ConfigAccept"
                             Multiple="false"
                             ButtonText="Choose configuration file"
@@ -172,11 +185,32 @@ else
     private string? applyMessage;
     private bool applyingConfig;
 
+    private IReadOnlyDictionary<string, ConfigExportProfile> exportProfiles = new Dictionary<string, ConfigExportProfile>();
+    private string selectedProfile = ConfigExportProfiles.Full;
+
+    /// <summary>The plain file-type, with any profile suffix a configured identifier may already carry removed.</summary>
+    private string BaseConfigIdentifier
+        => ConfigExportProfiles.Split(Options.Value.ConfigDownloadIdentifier ?? string.Empty, out _);
+
+    /// <summary>The download carries the profile the user picked.</summary>
+    private string ComposedDownloadIdentifier
+        => ConfigExportProfiles.Compose(BaseConfigIdentifier, selectedProfile);
+
+    /// <summary>
+    /// The upload stays on the plain file-type — what gets compared is decided by the content of the uploaded
+    /// file, not by the profile that happens to be selected for the download.
+    /// </summary>
+    private string ConfigUploadHint
+        => !string.IsNullOrWhiteSpace(Options.Value.ConfigUploadIdentifier)
+            ? Options.Value.ConfigUploadIdentifier!
+            : BaseConfigIdentifier;
+
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
         hasView = Handler.HasPermission(currentUser, "AssemblyDiagnostics.View");
+        exportProfiles = ExportProfileOptions.Value.EffectiveProfiles();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

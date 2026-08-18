@@ -9,6 +9,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 {
     public class SystemTemplateMarkup
     {
+        /// <summary>
+        /// Name of the export profile that produced this file (<c>Full</c> when none was chosen). Purely a
+        /// provenance note for the diff dialog and the download name — what is actually compared is decided by
+        /// <see cref="OmitBasicData"/> and by which sections are present.
+        /// </summary>
+        public string ExportProfile { get; set; }
+
+        /// <summary>
+        /// True when the export deliberately left the base system data out (a Help-only or Billing-only export).
+        /// A compare then skips the base sections entirely instead of reading their absence as "delete
+        /// everything". This is an explicit statement of intent rather than something derived from missing data:
+        /// a serializer that writes empty arrays instead of nulls would silently defeat the derived variant, and
+        /// the result would be a deletion of the whole system configuration. Absent on older exports, where it
+        /// deserializes to false — exactly the previous behaviour.
+        /// </summary>
+        public bool OmitBasicData { get; set; }
+
         public SettingTemplateMarkup[] Settings { get; set; }
         
         public SystemFeatureTemplateMarkup[] Features { get; set; }

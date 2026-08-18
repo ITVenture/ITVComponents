@@ -17,7 +17,9 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Base toolkit only (SettingName / config conventions). The help system is GLOBAL (no tenant FK,
-         no Flat/Tree split) and standalone — it does NOT reference TenantSecurity. -->
+         no Flat/Tree split) and standalone — it does NOT reference TenantSecurity. EFRepo is needed for the
+         system-config export section (IConfigExtension), the same way Billing pulls it in. -->
+    <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
   </ItemGroup>
 </Project>

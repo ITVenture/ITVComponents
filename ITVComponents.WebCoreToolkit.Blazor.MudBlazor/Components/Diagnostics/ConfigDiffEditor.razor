@@ -49,14 +49,24 @@
                                 <tr>
                                     <td><MudCheckBox T="bool" @bind-Value="detail.Apply" Dense="true" Color="Color.Primary" /></td>
                                     <td>@(string.IsNullOrEmpty(detail.Name) ? detail.TargetProp : detail.Name)</td>
-                                    <td><div style="white-space:pre-wrap;word-break:break-word;" class="mud-text-secondary">@detail.CurrentValue</div></td>
+                                    <td><div style="white-space:pre-wrap;word-break:break-word;" class="mud-text-secondary">@(detail.DisplayCurrentValue ?? detail.CurrentValue)</div></td>
                                     <td>
-                                        <MudTextField T="string"
-                                                      @bind-Value="detail.NewValue"
-                                                      Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense"
-                                                      Lines="@(detail.MultilineContent ? 4 : 1)"
-                                                      AutoGrow="@detail.MultilineContent" />
+                                        @if (detail.DisplayValue is not null)
+                                        {
+                                            @* A summary stands in for a value that cannot be read or edited as text
+                                               (a base64 payload, a very large body). NewValue keeps the payload. *@
+                                            <div style="white-space:pre-wrap;word-break:break-word;">@detail.DisplayValue</div>
+                                        }
+                                        else
+                                        {
+                                            <MudTextField T="string"
+                                                          @bind-Value="detail.NewValue"
+                                                          Variant="Variant.Outlined"
+                                                          Margin="Margin.Dense"
+                                                          ReadOnly="@detail.ReadOnly"
+                                                          Lines="@(detail.MultilineContent ? 4 : 1)"
+                                                          AutoGrow="@detail.MultilineContent" />
+                                        }
                                     </td>
                                 </tr>
                             }

@@ -2256,6 +2256,164 @@ Betroffen ist nur, wer die **Klasse selbst** namentlich verwendet — dann das `
 
 ---
 
+## 27. Export-Profile für den System-Config + Schutz vor Teil-Importen (opt-in, kein Schema-Change)
+
+Der System-Config-Export (§17) war bisher alles-oder-nichts: ein Download, der jedes Mal die komplette
+Grundkonfiguration mitnahm — auch wenn man nur den Billing-Katalog oder (künftig) die Hilfe-Inhalte von einem
+System aufs andere bringen wollte. Neu gibt es **benannte Profile**, die entscheiden, welche Teile überhaupt
+erzeugt werden.
+
+### 27.1 Der Grund, warum das mehr ist als ein Filter
+
+`PerformCompareInternal` verglich die Basis-Sektionen **bedingungslos**. Eine Datei ohne Basisdaten hätte für
+jede Sektion „alles, was da ist, ist zu viel" ergeben — also Lösch-Einträge für Plugins, Permissions,
+GlobalRoles, Navigation und Settings, im Dialog **vorausgewählt**. Ein Teil-Export wäre damit beim Einspielen
+eine Löschbombe gewesen.
+
+Abgesichert wird das doppelt:
+
+- **`OmitBasicData` steht in der Datei.** Das ist eine Absichtserklärung, keine aus fehlenden Daten
+  abgeleitete Vermutung — ein Serializer, der leere Arrays statt `null` schreibt, würde die abgeleitete
+  Variante still aushebeln, und genau dann wäre der Schaden da.
+- **Jede Basis-Sektion hat jetzt einen Null-Guard.** Fehlt eine Sektion in der hochgeladenen Datei, wird sie
+  übersprungen statt gegen eine leere Menge verglichen. Bisher hatten diesen Schutz nur die beiden jüngsten
+  Sektionen (`ExternalOAuthServices`, `TemplateModules`); jetzt gilt er für alle. Das härtet nebenbei auch den
+  Import älterer Exportdateien.
+
+Für die Extension-Sektionen galt das schon immer: `CompareExtensions` läuft über die **hochgeladenen**
+Sektionen, fehlende bleiben unberührt.
+
+Enthält eine Datei trotz `OmitBasicData` Basisdaten (von Hand editiert), gewinnt das Flag — aber nicht still:
+das gibt einen Warn-Eintrag im Diff und eine Zeile im Log.
+
+### 27.2 Profile konfigurieren
+
+Profile kommen aus `ConfigExportProfileOptions` (neu in `ITVComponents.EFRepo.DataSync`), z.B. aus der
+`appsettings.json`:
+
+```json
+"ConfigExportProfiles": {
+  "Profiles": {
+    "Help":    { "ActiveExtensions": [ "help" ],    "OmitBasicData": true, "Description": "Nur Hilfe-Inhalte" },
+    "Billing": { "ActiveExtensions": [ "billing" ], "OmitBasicData": true, "Description": "Nur Abo-Katalog" }
+  }
+}
+```
+
+```csharp
+services.Configure<ConfigExportProfileOptions>(configuration.GetSection("ConfigExportProfiles"));
+```
+
+- `ActiveExtensions` benennt **Section-Keys** (der stabile Polymorphie-Diskriminator aus der Registrierung),
+  **nicht** Handler-Typnamen — die brechen beim Verschieben oder Umbenennen von Assemblies.
+- `ActiveExtensions: null` (weglassen) = **alle** registrierten Extensions, auch später hinzukommende.
+  Ein leeres Array = keine.
+- **Bewusst nicht** über GlobalSettings/Datenbank: die Profile braucht man gerade dann, wenn man die
+  Konfiguration eines Systems exportiert — eine Neuinstallation hätte noch keine Settings, aus denen sie zu
+  lesen wären.
+
+Eingebaut und immer vorhanden sind `Full` (alles, das bisherige Verhalten) und `BasicOnly` (Grunddaten ohne
+beigesteuerte Sektionen). **Wer nichts konfiguriert, bekommt genau das bisherige Verhalten** — nur eben mit
+einer Auswahlliste, die zwei Einträge hat.
+
+### 27.3 Was in der UI passiert
+
+`Util/AssemblyDiagnostics` → *Configuration exchange* hat neben dem Download-Knopf eine Auswahlliste mit den
+Profilen. Das gewählte Profil hängt am Dateibezeichner (`sysCfg@Help`), landet als Herkunftsvermerk in der
+Datei (`ExportProfile`) und im Dateinamen (`System_Help.json` statt dreimal `System.json`).
+
+**Der Upload bleibt auf dem nackten `sysCfg`** — was verglichen wird, entscheidet der Inhalt der Datei und
+nicht, was beim Download ausgewählt war. Bisher teilten sich Download und Upload denselben Options-Wert; wer
+`ConfigDownloadIdentifier` gesetzt hat, muss nichts tun (der Profil-Anteil wird für den Upload automatisch
+abgeschnitten), kann den Hinweis aber über den neuen `ConfigUploadIdentifier` explizit setzen.
+
+Ein unbekannter Profilname führt zu einem vollständigen Export **und einer Warnung im Log** — nicht zu einer
+stillen Teilmenge.
+
+---
+
+## 28. Hilfesystem im System-Config-Export (opt-in, kein Schema-Change)
+
+Der Hilfe-Baum samt Inhalten und die Ressourcen-Bibliothek reisen jetzt als eigene Sektion (`help`) im
+System-Config mit — Dokumentation lässt sich damit von der Entwicklungs- in die Produktivumgebung bringen,
+ohne sie abzutippen. Mechanik wie bei Billing (§17): `IConfigExtension`, typisiert-polymorphe Sektion, Apply
+über den generischen `SimpleDataApplyer`.
+
+**Einschalten** — eines von beidem:
+
+```json
+"…EntityFramework.HelpSystem.WebPartInit": { "ActivateHelpConfigExport": true }
+```
+
+oder direkt `services.AddHelpConfigExtension()` beim Startup. Voraussetzung ist wie bei Billing, dass der
+Context des Config-Handlers `IHelpSystemContext` implementiert und das Handler-Plugin den `IServiceProvider`
+im Konstruktor bekommt. Ist der Context ohne Hilfe-Tabellen, beschreibt und vergleicht die Sektion nichts —
+kein Crash.
+
+Zusammen mit den Profilen aus §27 ergibt das den eigentlich nützlichen Fall:
+
+```json
+"Help": { "ActiveExtensions": [ "help" ], "OmitBasicData": true }
+```
+
+→ eine Datei, die **nur** die Hilfe enthält und beim Einspielen die Systemkonfiguration nicht anfasst.
+
+**Was übertragen wird:** Themen (`Slug` als Schlüssel, Baum über `ParentSlug`), ihre Inhalte je Kultur
+(Titel + Markdown-Rumpf), die Ordner der Ressourcen-Bibliothek, die Ressourcen-Einträge selbst
+(Name, Beschreibung, Art, Ordner) — **und die Dateien samt Inhalt**.
+
+### 28.1 Die Inhalte der Ressourcen
+
+Die Bytes reisen **inline als Base64** mit. Das bläht sie um rund ein Drittel auf, und weil die Diff-Antwort
+durch den Browser zurückläuft, wandert jede geänderte Datei zweimal. Deshalb greifen Grenzen — und deshalb
+lohnt sich das Profil aus §27, das die Hilfe von den täglichen Konfigurations-Abgleichen trennt:
+
+```json
+"…EntityFramework.HelpSystem.WebPartInit": {
+  "ActivateHelpConfigExport": true,
+  "Contents": { "IncludeResourceContents": true, "MaxFileBytes": 2097152, "MaxTotalBytes": 20971520 }
+}
+```
+
+Vorbelegt sind 2 MB je Datei und 20 MB insgesamt; `IncludeResourceContents` steht auf `true` (wer die
+Hilfe-Sektion einschaltet, will die Bilder dabeihaben). Was über einer Grenze liegt, wird **gemeldet, nicht
+still weggelassen**: der Diff bekommt einen gesammelten Eintrag mit Datei und Grund.
+
+Drei Dinge, die man dazu wissen sollte:
+
+- **Nur der eingebaute EF-Blob-Store.** Erkannt wird das nicht an der Registrierung, sondern daran, ob der
+  Inhalt in `HelpResourceBlob` liegt. Wer einen eigenen `IHelpResourceStore` (Azure, DMS) betreibt, bekommt
+  Metadaten plus die Meldung, welche Dateien deshalb fehlen — kein Crash, keine halbe Ressource.
+- **Der `FileIdentifier` wird beim Import neu vergeben.** Er ist eine opake Kennung des jeweiligen Systems;
+  die aus der Datei wird bewusst verworfen, damit es keine Kollision mit einem bestehenden Blob gibt.
+- **SHA-256 entscheidet über das Schreiben.** Ein Blob mit gleichem Hash wird nicht angefasst; der Hash steht
+  je Datei im Export. Er spart nicht die Übertragung, aber das unnötige Neuschreiben — und hält den Dialog
+  frei von Rauschen.
+
+Gelöschte Ressourcen räumen ihre Blobs mit ab (die Kennung ist kein Fremdschlüssel, sonst blieben Waisen).
+
+### 28.2 Anzeige im Diff-Dialog: `ChangeDetail` trennt Anzeige und Nutzlast
+
+Damit ein Base64-Block den Vergleichsdialog nicht unbrauchbar macht, hat `ChangeDetail` drei neue,
+optionale Felder: **`DisplayValue`** und **`DisplayCurrentValue`** (was der Dialog anstelle des Rohwerts
+zeigt) sowie **`ReadOnly`**. `NewValue` bleibt die Nutzlast, die angewendet wird — der `SimpleDataApplyer` ist
+unverändert. Eine Datei erscheint damit als `logo.png · 412 KB · image/png · sha256 3f9a1b2c…` statt als
+Zeichenkolonne, und das Feld ist gesperrt: **ein Tastendruck in einem Base64-Feld würde die Datei zerstören.**
+
+Alle drei Felder sind `null`/`false`-vorbelegt, bestehende Extensions verhalten sich unverändert. Wer eigene
+`IConfigExtension`s schreibt, kann sie ohne Vertragsänderung nutzen — `MakeDetail(...)` liefert das
+`ChangeDetail`, die Felder werden danach gesetzt. Für lange Markdown-Rümpfe ist derselbe Weg offen.
+
+**Ordner werden angelegt, aber nie geändert oder gelöscht.** Sie tragen nur Name und Elternteil — über einen
+Pfad-Schlüssel sind „umbenannt" und „verschoben" nicht von „ein anderer Ordner" zu unterscheiden, und ein
+Löschen würde fremde Ressourcen still an die Wurzel schieben. Da Ordner reine Ordnung sind (eine Ressource
+wird immer über ihren flachen, global eindeutigen Namen angesprochen), ist das die harmlose Seite.
+
+**Reihenfolge ist eingebaut:** Themen werden von der Wurzel abwärts angelegt und von den Blättern aufwärts
+gelöscht, Ordner von flach nach tief — sonst scheitert der Elternteil-Verweis bzw. der Fremdschlüssel.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -2293,3 +2451,6 @@ Betroffen ist nur, wer die **Klasse selbst** namentlich verwendet — dann das `
 | 29 | **Anonym ladbare Plugins** (§24) | **Pflicht:** Spalte ``WebPlugins.AllowAnonymous bit NOT NULL DEFAULT 0`` **manuell** anlegen (SQL in §24.1) — **nicht** via ``dotnet ef migrations add`` (Snapshot-Drift, s. §20). Sonst schlägt jede Plugin-Query mit *„Invalid column name 'AllowAnonymous'"* fehl. Danach je Plugin setzen, das **vor** der Anmeldung greifen soll — allen voran die Zusatzangaben-Module aus §23, sonst fehlt ihr Reiter im anonymen Onboarding. Nur für **globale** Plugins wirksam (Mandanten-Zeilen liefern immer ``false``). Greift nur im Anonym-Fall; für angemeldete Benutzer entscheidet weiter die Berechtigung. Neue ``VerifyUserPermissions``-Überladung mit ``out bool isUserAuthenticated`` (additiv) |
 | 30 | **Blazor-Dashboard** (§25) | **Pflicht:** vier Spalten **manuell** anlegen (SQL in §25.1) — `Widgets.InitiallyActive bit NOT NULL DEFAULT 0`, `Widgets.SortOrder int NOT NULL DEFAULT 0`, `UserWidgets.ColSpan int NOT NULL DEFAULT 0`, `UserWidgets.ParamValues nvarchar(max) NULL`; **nicht** via `dotnet ef migrations add` (Snapshot-Drift, s. §20). Sonst schlägt jede Widget-Query mit *„Invalid column name 'InitiallyActive'"* fehl. Neu: Fläche `<DashboardHost>` + fertige Seite `/Dashboard`, Daten über `IDiagnosticsQueryService` **ohne** HTTP-Umweg. Standard-Sammlung über **Initially active** + **Sort order** im Widget-Editor; wer noch keine eigenen Widgets hat sieht sie ungespeichert, beim ersten Bearbeiten wird sie kopiert. **Template-Bruch:** gerendert wird mit **Scriban**, `{{ ->Key }}` und `{{ $expr }}`/`{{ !$expr }}` aus `processMessage` funktionieren **nicht** mehr (Tabelle in §25.4); Modell ist `Rows`/`Row`/`Count`/`Params`/`Title`. `InputConfig` hat eine neue, neutrale Form (§25.5) — alte Kendo-Configs werden ignoriert statt zu brechen, `MaskedText` wird Textfeld. Parameter-Eingaben werden neu mitgespeichert und sind später änderbar. `/DBW` schleift `ColSpan`/`ParamValues` mit; eigene Kopien dieser Endpunkte müssen das auch (§25.6). **Mobil** (§25.7): Spaltenzahl folgt dem Viewport (Xs = 1, Sm = Hälfte), gespeicherter `ColSpan` bleibt die Absicht des Benutzers; **Umsortieren per Ziehen geht auf Touch nicht** (HTML5-Drag-Ereignisse) → dafür „nach vorn/nach hinten" im Kachel-Menü |
 | 31 | **Fortlaufender Aufgaben-Dialog** (§26) | Kein Schema-Change, opt-in. `UserTaskDialog` kann mit `Continuous=true` (und leerer `TokenId` = „nächste Aufgabe dieser Instanz") einen mehrstufigen Vorgang in **einem** Dialog durcharbeiten; wartet zwischen zwei Benutzer-Schritten auf automatische Aktivitäten (`WaitTimeout`, Standard 30 s). `IWorkflowTaskHandler` hat ein neues Member `FindNextAsync` — **eigene Implementierungen des Interfaces brechen**. Welche Schritte geführt werden, sagt das **Modell**: neue Knotenfelder `RunsInAssistant` (Schalter) und `EndsAssistant` (CScript, beim Abschluss nach dem Übernehmen der Ergebniswerte ausgewertet), beide im Editor-Reiter *General*; Ergebnisse in `UserTaskDescriptor.RunsInAssistant` bzw. `UserTaskCompletionResult.EndsAssistant` (Ctor additiv erweitert). Der Dialog-Parameter `Continuous` ist deshalb **`bool?`** (null = Modell entscheidet) — ein Assistent, den man zwischendurch schließt, kommt aus der Arbeitsliste heraus als Assistent zurück. Bestehende Definitionen unberührt. **Empfohlen:** `EntityWriteTrackerInterceptorOptionsLoader<WorkflowContext>` über den vorhandenen Options-Loader legen (§26.2), sonst wartet der Dialog im 3-s-Takt statt auf Weckruf. **Umzug:** `EntityChangeSignal<TContext>` → `ITVComponents.WebCoreToolkit.EntityFramework.Caching` (Vertrag/Registrierung/Verhalten unverändert, nur `using` anpassen, wenn die Klasse namentlich verwendet wird). **Neu, optional:** Sammelfenster je Thema für den Weckruf (`EntitySignalDebounceSettings`, §26.3) — über `ActivationSettings.EntityChangeSignal`, `services.Configure` oder den GlobalSettings-Eintrag `EntityChangeSignal` (der gewinnt). Verzögert **nur** die aktive Benachrichtigung, nie den Zeitstempel; vorbelegt ist einzig `WorkflowProgress` mit 250 ms, `Security`/`Navigation` melden wie bisher sofort |
+| 32 | **Export-Profile für den System-Config** (§27) | Kein Schema-Change, opt-in. Ohne Konfiguration unverändert (eingebaut sind `Full` und `BasicOnly`). Profile über `services.Configure<ConfigExportProfileOptions>(…)` — **nicht** über GlobalSettings, die Profile werden gebraucht, bevor eine Neuinstallation Settings hat. `ActiveExtensions` benennt **Section-Keys**, nicht Handler-Typen; weggelassen = alle registrierten. Der Download trägt das Profil im Bezeichner (`sysCfg@Help`), der **Upload bleibt auf `sysCfg`** (neuer, optionaler `ConfigUploadIdentifier`; ohne ihn wird der Profil-Anteil automatisch abgeschnitten). **Wichtigster Teil ist die Absicherung:** die Basis-Sektionen des Vergleichs sind jetzt alle null-geschützt, und ein Teil-Export erklärt seine Absicht per `OmitBasicData` **in der Datei** — sonst käme eine Datei ohne Grunddaten als vorausgewählter Löschlauf über Plugins, Permissions, Rollen, Navigation und Settings aus dem Diff. Ältere Exportdateien profitieren mit |
+| 33 | **Hilfesystem im Config-Export** (§28) | Kein Schema-Change, opt-in, standardmässig aus. Einschalten per WebPart-Flag `HelpConfigExportPartOptions.ActivateHelpConfigExport = true` (WebPart `…EntityFramework.HelpSystem.WebPartInit`) oder `services.AddHelpConfigExtension()`. Voraussetzung wie bei Billing: Context implementiert `IHelpSystemContext` **und** das Config-Handler-Plugin bekommt den `IServiceProvider` in den Ctor — sonst bleibt die Sektion still wirkungslos (kein Crash). Übertragen werden Themen (Schlüssel `Slug`), Inhalte je Kultur, Ordner, Ressourcen-Einträge **und die Dateien samt Inhalt** (Base64 inline, vorbelegt 2 MB je Datei / 20 MB gesamt, einstellbar über `Contents` in den WebPart-Optionen). **Nur aus dem eingebauten EF-Blob-Store** — bei eigenem `IHelpResourceStore` reisen Metadaten, und der Diff meldet gesammelt, welche Dateien deshalb fehlen. Beim Import wird der `FileIdentifier` **neu vergeben**; SHA-256 je Datei verhindert, dass unveränderte Blobs neu geschrieben werden. Ordner werden nur angelegt, nie geändert oder gelöscht (bewusst, s. §28). Neue ProjectReference `HelpSystem → EFRepo` |
+| 34 | **`ChangeDetail`: Anzeige ≠ Nutzlast** (§28.2) | Kein Breaking Change, rein additiv: `DisplayValue`, `DisplayCurrentValue`, `ReadOnly`. Ist `DisplayValue` gesetzt, zeigt der Diff-Dialog diese Zusammenfassung statt des Rohwerts (und kein Eingabefeld); `NewValue` bleibt die Nutzlast, `SimpleDataApplyer` unverändert. Nötig für Base64-Inhalte — **ohne `ReadOnly` zerstört ein Tastendruck im Feld die Datei**. Bestehende Extensions und Dialoge verhalten sich unverändert (alles null/false vorbelegt); eigene `IConfigExtension`s können die Felder ohne Vertragsänderung am Ergebnis von `MakeDetail(...)` setzen |
