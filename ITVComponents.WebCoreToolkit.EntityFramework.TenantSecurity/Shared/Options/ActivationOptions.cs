@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.SettingsExtensions;
+using ITVComponents.WebCoreToolkit.Caching;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options
 {
@@ -71,6 +72,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Opt
         public int CookieLengthThreshold { get; set; } = 2048;
         public bool UseDefaultSecurityAccessProvider { get; set; } = true;
         public bool UseEntityTracker { get; set; }
+
+        /// <summary>
+        /// Wie lange Aenderungs-Meldungen je Thema gesammelt werden, bevor der Weckruf ergeht. Null
+        /// (Vorgabe) = jede Meldung geht sofort raus.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Nur der aktive Weckruf wird gesammelt - der Zeitstempel bleibt synchron, die puffernden
+        /// Verbraucher (Navigation, Berechtigungen, Fremdschluessel-Beschriftungen) sehen eine Aenderung
+        /// also weiterhin sofort, wenn sie das naechste Mal nachsehen.
+        /// </para>
+        /// <para>
+        /// Sinnvoll je Thema statt pauschal: <c>Security</c> soll sofort ziehen, waehrend eine
+        /// Fortschritts-Meldung ruhig ein Viertel einer Sekunde warten darf. Beispiel:
+        /// <c>{"DefaultMilliseconds": 0, "Topics": {"WorkflowProgress": 250}}</c>.
+        /// </para>
+        /// </remarks>
+        public EntitySignalDebounceSettings EntityChangeSignal { get; set; }
 
         /// <summary>
         /// When set, an authorization check for a permission that does not yet exist materializes that permission

@@ -10,6 +10,7 @@ using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
+using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.DIIntegration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Health;
@@ -208,6 +209,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             {
                 services.AddSingleton(typeof(IEntityWriteTracker<>), typeof(EntityWriteTracker<>));
                 init?.UseEntityChangeSignal(services);
+                if (partActivation.EntityChangeSignal != null)
+                {
+                    // Die Sammelfenster gelten prozessweit je Thema und haengen deshalb NICHT am Kontext -
+                    // so kommen sie ohne Kenntnis des konkreten Security-Kontexts hierher. Was in den
+                    // GlobalSettings steht, gewinnt spaeter dagegen (siehe EntityChangeSignal).
+                    EntitySignalDebounceSettings debounce = partActivation.EntityChangeSignal;
+                    services.Configure<EntitySignalDebounceSettings>(o =>
+                    {
+                        o.DefaultMilliseconds = debounce.DefaultMilliseconds;
+                        // Der Nachlade-Zyklus gehoert dem Host und wird nie aus der Datenbank uebernommen -
+                        // ein Eintrag mit 0 wuerde sich sonst selbst aussperren.
+                        o.RefreshSeconds = debounce.RefreshSeconds;
+                        if (debounce.Topics == null)
+                        {
+                            return;
+                        }
+
+                        foreach (KeyValuePair<string, int> topic in debounce.Topics)
+                        {
+                            o.Topics[topic.Key] = topic.Value;
+                        }
+                    });
+                }
             }
         }
 

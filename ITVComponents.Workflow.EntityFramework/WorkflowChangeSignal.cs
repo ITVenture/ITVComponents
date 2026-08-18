@@ -53,7 +53,23 @@ namespace ITVComponents.Workflow.EntityFramework
             services.AddEntityChangeSignal();
             services.Configure<EntitySignalOptions<WorkflowContext>>(o =>
                 o.Add(WorkflowChangeTopics.Progress, typeof(TokenRow), typeof(WorkflowInstanceRow)));
+
+            // Ein Sammelfenster als Vorgabe: der Fortschritt einer Instanz ist nicht eilig, und ein Runner,
+            // der einen Schwung Instanzen vortreibt, wuerde sonst jeden wartenden Empfaenger ebenso oft
+            // aufwecken, wie er Zeilen anfasst. Ein Viertel einer Sekunde bemerkt niemand.
+            // Nur, wenn der Host dazu nichts gesagt hat - seine Angabe gilt.
+            services.Configure<EntitySignalDebounceSettings>(o =>
+            {
+                if (!o.Topics.ContainsKey(WorkflowChangeTopics.Progress))
+                {
+                    o.Topics[WorkflowChangeTopics.Progress] = DefaultProgressDebounceMilliseconds;
+                }
+            });
+
             return services;
         }
+
+        /// <summary>Das voreingestellte Sammelfenster fuer Fortschritts-Meldungen, in Millisekunden.</summary>
+        public const int DefaultProgressDebounceMilliseconds = 250;
     }
 }
