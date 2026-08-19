@@ -121,6 +121,49 @@ select * from @vld", new SqlParameter("@name", name),
             });
 
             ConfigureChildTenantPermissionMethod(bld);
+            ConfigureRoleTreeMethods(bld);
+        }
+
+        /// <summary>
+        /// Die Zugriffe auf den Rollen-Baum, die sich nicht ueber einen blossen Objekt-Namen ausdruecken
+        /// lassen und deshalb je Datenbank eine eigene Fassung brauchen.
+        /// </summary>
+        public static void ConfigureRoleTreeMethods(IContextModelBuilderOptions bld)
+        {
+            // Der Baum nach UNTEN. T-SQL ruft die Prozedur; eine Datenbank ohne
+            // ergebnisliefernde Prozeduren setzt hier eine Funktion ein.
+            bld.ConfigureMethod<Func<DbContext, string, bool, string, IEnumerable<DownwardsUserRoleView<string>>>>(
+                GlobalDbObjectNaming.DownwardsTenantUserRolesMethod,
+                (c, userId, userIdIsLabels, viewpointTenant) =>
+                    c.Set<DownwardsUserRoleView<string>>()
+                        .FromSqlInterpolated(
+                            $"EXEC [{GlobalDbObjectNaming.DownwardsRoleTreeProcName}] {userId}, {userIdIsLabels}, {viewpointTenant}")
+                        .ToList());
+
+            // Je Benutzer die naechstgelegenen Zeilen des Baums nach oben, gesucht ueber Kennzeichen.
+            //
+            // Ein Durchlauf statt zweier: die fruehere Form (Mindest-Level ermitteln, dann erneut
+            // verknuepfen) rief die Baum-Funktion ZWEIMAL auf. RANK() OVER (PARTITION BY UserId ORDER BY
+            // ParentLevel) waehlt die naechstgelegenen Zeilen je Benutzer in einem Durchgang - RANK und
+            // nicht ROW_NUMBER, damit alle Gleichstaende auf der kleinsten Ebene erhalten bleiben, genau
+            // wie beim frueheren MIN(ParentLevel) samt Gleichheits-Verknuepfung. Halbiert die Arbeit der
+            // Funktion und den Speicherbedarf der Abfrage.
+            //
+            // Liefert bewusst IQueryable und materialisiert NICHT: der Aufrufer haengt einen Join an, und
+            // der gehoert in dieselbe Abfrage. Ein Array hier wuerde den Zugriff wieder in zwei
+            // Datenbankrunden zerlegen.
+            bld.ConfigureMethod<Func<DbContext, string, string, int, IQueryable<UpwardsRoleUserView<string>>>>(
+                GlobalDbObjectNaming.ClosestUpwardsRoleTreeByLabelsMethod,
+                (c, labelsJson, forTenant, currentTenant) =>
+                    c.Set<UpwardsRoleUserView<string>>().FromSqlInterpolated(
+                        $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
+FROM (
+    SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId],
+           RANK() OVER (PARTITION BY [UserId] ORDER BY [ParentLevel]) AS [__rnk]
+    FROM [dbo].[GetUpwardsRoleTreeForLabels]({labelsJson}, {forTenant})
+    WHERE [OutermostLeafTenantId] = {currentTenant}
+) AS [x]
+WHERE [x].[__rnk] = 1"));
         }
 
         public static void ConfigureChildTenantPermissionMethod(IContextModelBuilderOptions bld)

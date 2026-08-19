@@ -1850,22 +1850,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             currentTenantId = currentTenant;
 
-            // One recursive-tree pass instead of two: the previous phase1(min level)/phase2/final(re-join) shape
-            // invoked the tree TVF twice. RANK() OVER (PARTITION BY UserId ORDER BY ParentLevel) selects each
-            // user's closest rows (minimum ParentLevel) in a single pass — RANK, not ROW_NUMBER, so all ties at
-            // the minimum level are kept, exactly matching the old MIN(ParentLevel)+equi-join. Halves the TVF work
-            // and the memory grant. Verified against the previous two-pass query: identical rows for every
-            // user/tenant. The projection/return shape is unchanged, so callers compose exactly as before.
-            var labelsJson = JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping);
-            var closest = ((DbContext)sc).Set<UpwardsRoleUserView<TUserId>>().FromSqlInterpolated(
-                $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
-FROM (
-    SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId],
-           RANK() OVER (PARTITION BY [UserId] ORDER BY [ParentLevel]) AS [__rnk]
-    FROM [dbo].[GetUpwardsRoleTreeForLabels]({labelsJson}, {forTenant})
-    WHERE [OutermostLeafTenantId] = {currentTenant}
-) AS [x]
-WHERE [x].[__rnk] = 1");
+            // Je Benutzer die naechstgelegenen Zeilen (kleinstes ParentLevel) - in EINEM Baum-Durchlauf
+            // statt in zweien. Wie das ausgedrueckt wird, entscheidet der Provider; hier steht bewusst
+            // kein SQL mehr, sonst laesst sich diese Klasse auf keiner zweiten Datenbank betreiben.
+            //
+            // Das Ergebnis bleibt eine offene Abfrage: der Join unten gehoert in dieselbe
+            // Datenbankrunde, und genau das war der Sinn der Zusammenfassung auf einen Durchlauf.
+            var closest = sc.GetClosestUpwardsTenantUserRoles(userLabels, forTenant, currentTenant);
 
             return from t in closest
                 join tn in sc.TenantUsers on t.TenantUserId equals tn.TenantUserId

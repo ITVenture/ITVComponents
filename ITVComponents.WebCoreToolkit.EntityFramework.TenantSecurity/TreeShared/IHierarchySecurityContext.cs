@@ -102,6 +102,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         public IQueryable<UpwardsRoleUserView<TUserId>> GetUpwardsTenantUserRoles(string[] userLabels, int? leafTenantId) =>
             GetUpwardsTenantUserLabelsRoles(JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), leafTenantId);
 
+        /// <summary>
+        /// Je Benutzer die <b>naechstgelegenen</b> Zeilen des Rollen-Baums nach oben, gesucht ueber
+        /// Kennzeichen und eingeschraenkt auf ein Blatt.
+        /// </summary>
+        /// <param name="userLabels">die Kennzeichen der gesuchten Benutzer</param>
+        /// <param name="forTenant">der Mandant, aus dessen Sicht gerechnet wird, oder null</param>
+        /// <param name="leafTenantId">das Blatt, auf das eingeschraenkt wird</param>
+        /// <returns>eine <b>weiterkomponierbare</b> Abfrage; nie null</returns>
+        /// <remarks>
+        /// <para>
+        /// Steht hier und nicht als SQL beim Aufrufer, weil sich der Zugriff je Datenbank unterscheidet:
+        /// die Auswahl der naechstgelegenen Zeilen ist eine Fensterfunktion ueber eine Tabellenfunktion,
+        /// und beides schreibt sich nicht ueberall gleich. Die Umsetzung liegt beim Provider
+        /// (<see cref="TreeShared.Helpers.GlobalDbObjectNaming.ClosestUpwardsRoleTreeByLabelsMethod"/>).
+        /// </para>
+        /// <para>
+        /// <b>Das Ergebnis darf nicht materialisiert sein.</b> Der Aufrufer haengt einen Join an, und der
+        /// gehoert in dieselbe Abfrage - sonst zerfaellt der Zugriff in zwei Datenbankrunden.
+        /// </para>
+        /// </remarks>
+        public IQueryable<UpwardsRoleUserView<TUserId>> GetClosestUpwardsTenantUserRoles(string[] userLabels,
+            string forTenant, int leafTenantId);
+
         public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType, string leafTenant);
 
         public IQueryable<UpwardsTenantView> GetAccessibleUpwardsTenants(string[] userLabels, string authenticationType, int leafTenantId);

@@ -17,6 +17,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared;
+// Nur DIESER Typ, nicht der ganze Namespace: TreeShared.Helpers enthaelt ein zweites
+// ToolkitPermission, und ein Namespace-using machte jeden Gebrauch davon mehrdeutig.
+using GlobalDbObjectNaming = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.GlobalDbObjectNaming;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
@@ -932,12 +935,48 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             return tmp;
         }
 
+        /// <inheritdoc/>
+        public IQueryable<UpwardsRoleUserView<string>> GetClosestUpwardsTenantUserRoles(string[] userLabels,
+            string forTenant, int leafTenantId)
+        {
+            var mth = modelBuilderOptions
+                .GetMethod<Func<DbContext, string, string, int, IQueryable<UpwardsRoleUserView<string>>>>(
+                    GlobalDbObjectNaming.ClosestUpwardsRoleTreeByLabelsMethod);
+            if (mth == null)
+            {
+                throw new InvalidOperationException(
+                    $"{GlobalDbObjectNaming.ClosestUpwardsRoleTreeByLabelsMethod} was not implemented for this Database-Type");
+            }
+
+            // Die Kennzeichen werden HIER zu JSON gemacht und nicht beim Provider: das Format ist eine
+            // Zusage dieses Vertrags (dieselbe wie bei GetUpwardsTenantUserLabelsRoles), nicht eine
+            // Eigenheit der Datenbank.
+            return mth(this, JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), forTenant,
+                leafTenantId);
+        }
+
+        /// <summary>
+        /// Der Rollen-Baum nach UNTEN fuer einen Benutzer.
+        /// </summary>
+        /// <remarks>
+        /// Ueber das Methoden-Verzeichnis und nicht als SQL an dieser Stelle: der Zugriff sieht je
+        /// Datenbank anders aus. T-SQL ruft eine Prozedur (<c>EXEC</c>), PostgreSQL kennt keine
+        /// Prozedur, die eine Ergebnismenge liefert, und braucht dort eine Funktion
+        /// (<c>SELECT * FROM …</c>). Dasselbe Muster wie bei
+        /// <see cref="GlobalDbObjectNaming.ChildTenantsWithProc"/>.
+        /// </remarks>
         public IEnumerable<DownwardsUserRoleView<string>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels, string viewpointTenant)
         {
-            return
-                Set<DownwardsUserRoleView<string>>()
-                    .FromSqlInterpolated(
-                        $"EXEC [GetDownwardsRoleTreeProc] {userId}, {userIdIsLabels}, {viewpointTenant}").ToList(); //sql(() => GetDownwardsTenantUserRoles(userId, userIdIsLabels, viewpointTenant));
+            var mth = modelBuilderOptions
+                .GetMethod<Func<DbContext, string, bool, string, IEnumerable<DownwardsUserRoleView<string>>>>(
+                    GlobalDbObjectNaming.DownwardsTenantUserRolesMethod);
+            if (mth == null)
+            {
+                throw new InvalidOperationException(
+                    $"{GlobalDbObjectNaming.DownwardsTenantUserRolesMethod} was not implemented for this Database-Type");
+            }
+
+            return mth(this, userId, userIdIsLabels, viewpointTenant);
         }
 
         [ExpressionPropertyRedirect("CurrentTenantTree")]

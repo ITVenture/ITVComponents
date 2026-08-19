@@ -324,9 +324,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             return false;
         }
 
+        /// <summary>
+        /// Raeumt das System-Protokoll bis zum angegebenen Zeitpunkt ab.
+        /// </summary>
+        /// <remarks>
+        /// Ueber die Menge und nicht ueber handgeschriebenes SQL. Die frueher hier stehende Anweisung
+        /// nannte die Tabelle <c>Systemlog</c> - unquotiert und mit falscher Schreibweise. Auf SQL Server
+        /// faellt das nicht auf; eine Datenbank, die Bezeichner unterscheidet oder unquotierte Namen auf
+        /// Kleinschreibung faltet, findet die Tabelle schlicht nicht, und zwar erst zur Laufzeit im
+        /// Aufraeumlauf. <c>ExecuteDeleteAsync</c> laesst EF den Namen bilden - dasselbe Verfahren, das
+        /// <see cref="CleanupOutdatedCookies"/> direkt darunter ohnehin schon benutzt.
+        /// </remarks>
         public static async Task CleanupSystemLog(this ICoreSystemContext context, DateTime minLogTime)
         {
-            context.Database.ExecuteSqlInterpolated($"delete from Systemlog where EventTime < {minLogTime}");
+            await context.SystemLog.Where(n => n.EventTime < minLogTime).ExecuteDeleteAsync();
         }
 
         public static async Task CleanupOutdatedCookies(this ICoreSystemContext context)
