@@ -208,6 +208,11 @@ der eigentliche Wert — der Umzug wird dadurch überhaupt erst abschätzbar.
 
 ### Phase 2 — PostgreSQL-Umsetzung
 
+> **Stand 19.08.2026: 2.1–2.6 sind gebaut und gegen eine echte PostgreSQL-Instanz belegt.** Was unten
+> als Schätzung steht, ist damit erledigt; die Abweichungen zur Schätzung stehen im Abschnitt
+> „Was der Lauf ergeben hat" weiter unten. Offen ist allein **2.7**, und zwar aus einem Grund, der
+> nichts mit der Übersetzung zu tun hat — siehe dort.
+
 Der SQL-Block umfasst **526 Zeilen für 17 Objekte**, im Schnitt ~31 Zeilen; die beiden dicksten sind je
 61 Zeilen (`GetDownwardsRoleTreeProc`, `GetDownwardsRoleTreeByVpIdProc`).
 
@@ -221,6 +226,54 @@ Der SQL-Block umfasst **526 Zeilen für 17 Objekte**, im Schnitt ~31 Zeilen; die
 | 2.6 | **Zyklensicherung als Ersatz für `OPTION (MAXRECURSION)`** — Entwurf + Umsetzung in jeder rekursiven CTE | 1–2 |
 | 2.7 | Migrationsprojekt + Initialmigration + Objekt-Deploy-Migrationen | 1 |
 | | **Summe Phase 2** | **11.5–16.5** |
+
+### Was der Lauf ergeben hat
+
+**Es sind 5 Views, nicht 7.** `UpwardsRoleTree` und `DownwardsRoleTree` stehen in der T-SQL-Fassung in
+einem `if (false)`-Block, und die zugehörigen Entitäten hängen per `ToView(null)` an gar nichts. Toter
+Code, der nicht mitübersetzt wurde — mitzuportieren hiesse, ihn auf einem zweiten Provider am Leben zu
+erhalten.
+
+**Die Zyklensicherung (2.6) ist eine Wächter-Funktion, nicht die `CYCLE`-Klausel.** Das war die
+inhaltlich wichtigste Entscheidung der Phase. `CYCLE` (ab PG 14) bricht die Rekursion **still** ab und
+liefert ein Teilergebnis. Bei einer Rechte-Abfrage ist das die schlechtere Sorte Fehler: jemand
+arbeitet mit zu wenig Rechten weiter, ohne dass es auffällt. SQL Server bricht bei 100 Ebenen mit
+Fehler ab, und genau diese Zusage wurde nachgebaut — die Funktion wirft (`ERRCODE 54001`) und nennt
+zusätzlich das Objekt, in dem der Zyklus auftrat. Nachgewiesen für einen Zyklus in der
+Mandanten-Hierarchie *und* für einen Ring aus Rollen-Rollen innerhalb eines Mandanten.
+
+**Die Spaltennamen richten sich nach dem Modell, nicht nach der Vorlage.** Zwei Stellen, an denen die
+T-SQL-Fassung anders schreibt als die Modellklasse: `DownwardsUserRoleView.ViewPointTenantId` (grosses
+P; die Vorlage schreibt `ViewpointTenantId`) und `UserAccessTree.DirectAssign` (Vorlage:
+`directAssign`). Auf SQL Server gleichgültig, auf PostgreSQL der Unterschied zwischen „EF findet die
+Spalte" und „EF findet sie nicht".
+
+**Belegt statt behauptet.** Wegwerf-Container `postgres:17`, ein Schema mit den zehn berührten
+Tabellen, Hierarchie T1→T2→T3, und ein kleines Programm, das das SQL aus `ConfigureViews` **selbst**
+herauszieht — also kein Test gegen eine Abschrift. Ergebnis: alle 30 Anweisungen deployen fehlerfrei,
+32 inhaltliche Prüfungen grün (Erwartungswerte von Hand aus der T-SQL-Vorlage hergeleitet), 48
+Spaltennamen stimmen exakt. Damit ist ein guter Teil von 3.1 vorweggenommen; es fehlen die
+Gleichheitstests gegen SQL Server (3.2).
+
+**2.7 hing an etwas, das gar nichts mit der Übersetzung zu tun hatte.** Für *keinen* Identity-Kontext
+der Bibliothek liess sich eine Migration erzeugen — `ModelValidator.ValidateNonNullPrimaryKeys` brach
+mit „The entity type 'IdentityPasskeyData' requires a primary key" ab, auf SQL Server genauso. Ursache
+war `TableNamesFromProperties` in ITVComponents.EFRepo: die Konvention lief mit `FlattenHierarchy` über
+alle DbSet-Eigenschaften und holte damit einen von .NET 10 **ausdrücklich ausgeschlossenen** Typ
+zurück ins Modell. Behoben; Einzelheiten und was der Host dazu tun muss stehen in
+`Migration-Future_10-MLM-Passkeys.md`.
+
+**Berechnete Spalten brauchen auf PostgreSQL `stored: true`.** Ohne den Schalter baut Npgsql daraus
+nicht still etwas anderes, sondern verweigert schon das Erzeugen der Migration: „Virtual (non-stored)
+generated columns are only supported on PostgreSQL 18 and up". Auf SQL Server steht das Gegenstück
+(`persisted`) im Ausdruck selbst — die Spalten sind dort ebenfalls persistiert, und das ist so
+gewollt, weil die Eindeutigkeits-Indizes darauf sitzen. `ConfigureComputedColumn` hat dafür jetzt eine
+Überladung mit `stored`. In der Datenbank angekommen sind alle sechs als `GENERATED ALWAYS … STORED`
+(`is_generated = ALWAYS`) nachgeprüft.
+
+**2.7 ist damit fertig:** Initialmigration erzeugt (75 Tabellen), als Skript ausgegeben, gegen eine
+frische PostgreSQL-Datenbank eingespielt — und die Baum-Objekte anschliessend fehlerfrei auf dieses
+echte Schema gelegt, nicht nur auf den Test-Aufbau.
 
 ### Phase 3 — Absicherung
 
