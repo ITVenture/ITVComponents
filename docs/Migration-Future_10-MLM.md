@@ -2890,10 +2890,44 @@ Vorgänge.
 **Im Ein-Mandanten-Betrieb ändert sich nichts:** dort trägt alles `NULL`, Ursprung und Aktivierung fallen
 zusammen, und die Regel greift von selbst nicht.
 
-### 37.5 Migration — **manuell, nicht via `dotnet ef migrations add`**
+### 37.5 Migration
 
-Wie in §20 und §24: der Snapshot driftet und schleppte fremde Änderungen mit. Reihenfolge einhalten —
-**erst umziehen, dann die alten Spalten fallen lassen**, sonst ist der Lauf-Zustand weg.
+**Der Regelweg ist die mitgelieferte Migration** — wie in §29 und aus demselben Grund: der
+`WorkflowContext` hat gepflegte Migrationsprojekte, und der Snapshot ist geprüft (die erzeugte Migration
+berührt ausschliesslich `WorkflowStartTriggers` und die neue Tabelle, keine Fremd-Änderungen).
+
+```
+dotnet ef database update -p ITVComponents.Workflow.EntityFramework.SqlServer   -s <euer Host>
+dotnet ef database update -p ITVComponents.Workflow.EntityFramework.PostgreSql  -s <euer Host>
+```
+
+Migration: `20260819131232_TriggerActivations` (SQL Server) bzw. `20260819131244_TriggerActivations`
+(PostgreSQL).
+
+**Diese Migration bewegt Daten, nicht nur Schema.** Sie legt die Tabelle an, zieht für jeden bestehenden
+Auslöser seinen Lauf-Zustand in genau eine Aktivierung um und lässt **erst danach** die alten Spalten
+fallen. Das ist keine Kosmetik: `LastRunUtc` muss mitkommen, sonst gilt hinterher jeder Plan als „noch
+nie gelaufen" und jedes Muster mit `t`-Kennzeichen läuft beim ersten Poll los. Auch das `Down` holt den
+Stand zurück, bevor die Tabelle fällt.
+
+> **Nicht neu scaffolden.** Beide Migrationen sind von Hand nachbearbeitet. Das Gerüst hatte zwei Dinge
+> falsch: es deutete `LeaseOwner` → `RequiredPermission` und `LastInstanceId` → `RequiredFeature` als
+> **Umbenennung** (gleicher Typ, gleiche Tabelle — für den Vergleich zweier Schemata nicht
+> unterscheidbar), womit Runner-Kennungen als Berechtigungsnamen und alte Instanz-Ids als Feature-Namen
+> in der Tabelle stünden; und es liess den Datenumzug ganz weg, weil es die Absicht dahinter nicht kennt.
+> Ein `migrations add` auf denselben Stand erzeugt wieder diese Fassung.
+
+Auf PostgreSQL wird der eindeutige Index bewusst als rohes SQL angelegt: er braucht
+`NULLS NOT DISTINCT`. PostgreSQL behandelt `NULL`s im eindeutigen Index standardmässig als
+**verschieden** — ohne den Zusatz wäre der Schutz für öffentliche Auslöser (Besitzer `NULL`) und für den
+mandantenfreien Betrieb stillschweigend wirkungslos. Auf SQL Server zählen `NULL`s dort als gleich, dafür
+darf der Index **keinen Filter** bekommen (sonst hängt der Server von selbst ein
+`WHERE ... IS NOT NULL` an und nimmt ausgerechnet die öffentlichen Zeilen von der Prüfung aus).
+
+#### Gleichwertige Handarbeit
+
+Für Installationen, die kein `database update` fahren. Reihenfolge einhalten — **erst umziehen, dann die
+alten Spalten fallen lassen**, sonst ist der Lauf-Zustand weg.
 
 ```sql
 -- 1) Neue Spalten am Auslöser (denormalisiert aus der Definition bzw. dem Start-Knoten)
@@ -2931,12 +2965,14 @@ GO
 -- Der eindeutige Index über die fachliche Identität.
 -- OHNE gefilterten Index: SQL Server hängt sonst von selbst ein "WHERE ... IS NOT NULL" an und nähme
 -- ausgerechnet die öffentlichen Auslöser von der Prüfung aus - also genau den Fall, um den es geht.
-CREATE UNIQUE INDEX IX_WfActivations_Identity
+-- Die Index-NAMEN sind exakt die der Migration. Wer sie anders wählt, bekommt eine Datenbank, die zwar
+-- funktioniert, in der eine spätere Migration ihren Index aber nicht wiederfindet.
+CREATE UNIQUE INDEX IX_WorkflowStartTriggerActivations_OwnerTenantId_DefinitionId_NodeId_Kind_TenantId
     ON WorkflowStartTriggerActivations (OwnerTenantId, DefinitionId, NodeId, Kind, TenantId);
 GO
 
 -- Der Aufgriff des Runners.
-CREATE INDEX IX_WfActivations_Due
+CREATE INDEX IX_WorkflowStartTriggerActivations_Enabled_NextDueUtc
     ON WorkflowStartTriggerActivations (Enabled, NextDueUtc);
 GO
 
@@ -2973,12 +3009,14 @@ GO
 eindeutigen Index der Definitionen):
 
 ```sql
-CREATE UNIQUE INDEX "IX_WfActivations_Identity"
+-- Der Name ist auf 63 Zeichen gekürzt, samt Tilde - genau so vergibt ihn das Migrations-Gerüst, und
+-- genau so muss er bleiben, damit beide Wege dieselbe Datenbank ergeben.
+CREATE UNIQUE INDEX "IX_WorkflowStartTriggerActivations_OwnerTenantId_DefinitionId_~"
     ON "WorkflowStartTriggerActivations"
     ("OwnerTenantId", "DefinitionId", "NodeId", "Kind", "TenantId") NULLS NOT DISTINCT;
 ```
 
-Der Index-Name in Schritt 4 kann bei euch abweichen — vorher nachsehen
+Der Name des in Schritt 4 fallengelassenen Index kann bei euch abweichen — vorher nachsehen
 (`sp_helpindex 'WorkflowStartTriggers'`).
 
 ### 37.6 Prüfen nach dem Deployment
@@ -3041,4 +3079,4 @@ Der Index-Name in Schritt 4 kann bei euch abweichen — vorher nachsehen
 | 41 | **Post-Hook für Aufgaben-Masken** (§34, MLM-Antrag) | Kein Schema-Change, opt-in, **nicht breaking**: `IUserTaskView.PostResolveActivityAsync(UserTaskCompletionResult)` ist eine **Default-Interface-Methode** — bestehende Masken merken nichts. Gerufen nach dem Abschluss am einen Abschlussweg und **vor** dem Umhängen im geführten Ablauf. **Merke: das Ergebnis auswerten** — bei `AlreadyCompleted` hat jemand anderes abgeschlossen, dann darf die Maske nicht auch noch schreiben. Ein Fehlschlag hält nichts auf, wird dem Benutzer aber angezeigt und bleibt stehen, bis er ihn wegklickt |
 | 42 | **Muster-Designer + strengere Muster-Prüfung** (§35) | Kein Schema-Change. Neu `ITVComponents.Scheduling.SchedulePattern` (zerlegen/zusammensetzen) und ein Kalender-Knopf am Zeitplan-Feld mit Termin-Vorschau. **Achtung, Verhaltensänderung:** der Muster-Regex ist nicht verankert, deshalb wurde ein Muster mit vertauschten Teilen bisher still verkürzt gelesen (und der Plan lief zu einer anderen Zeit als angezeigt). Zerlegung und `ScheduleEvaluator.TryValidate` verankern jetzt selbst — ein solches Muster **meldet der Validator künftig als Fehler**, was eine bestehende Definition beim nächsten Speichern als fehlerhaft markieren kann |
 | 43 | **Anhänge am Vorgang** (§36) | **Pflicht-Migration:** `WorkflowAttachments` (beide Provider) — zwei Tabellen (Beschreibung mit FK+Index, Blobs ohne FK). `IWorkflowTaskHandler` bekommt **vier** weitere Member (`ListAttachmentsAsync`, `AddAttachmentAsync`, `OpenAttachmentAsync`, `DeleteAttachmentAsync`) — **eigene Implementierungen brechen**. Grösse über `WorkflowViewsOptions.MaxAttachmentBytes` (10 MB; **0 schaltet Anhänge ab**). **Merke: NICHT über den `IFileHandler`** — dessen Vertrag gibt keine Datei-Kennung zurück, mit der sich ein Anhang später lesen liesse; stattdessen `IWorkflowAttachmentStore` mit eingebauter Datenbank-Ablage, austauschbar wie beim Hilfesystem. Löschen nur den eigenen Anhang |
-| 44 | **Zentrale Abläufe per Aktivierung** (§37) | **Pflicht-Migration:** neue Tabelle `WorkflowStartTriggerActivations` + 7 Spalten an `WorkflowStartTriggers`, **Datenumzug des Lauf-Zustands** (`NextDueUtc`/`LastRunUtc`/`LastInstanceId`/Lease ziehen von der Auslöser- auf die Aktivierungs-Zeile), erst danach die alten Spalten fallen lassen. SQL in §37.5 — **manuell**, nicht via `migrations add`. `IWorkflowStore` bekommt 6 neue Member und ändert 2 Signaturen (`FindMessageTriggers`, `ClaimDueScheduleTriggers`) — **eigene Store-Implementierungen brechen**. **Verhaltensänderung (§37.4): Nachrichten tragen jetzt einen Ursprungs-Mandanten**, und nur der lässt etwas anlaufen; ohne Ursprung feuert nur, was `AllowTenantlessStart` erlaubt. Wer aus Host-Code ohne Mandanten-Kontext sendet, startet danach nichts mehr (wird protokolliert). Das schliesst eine Flanke, die es schon vorher gab: eine mandantenlose Nachricht eröffnete bei hundert Mandanten hundert Vorgänge. **Merke: die Aktivierung hängt an der fachlichen Identität, NICHT am `TriggerKey`** — der wird bei jedem Speichern der Definition neu vergeben. Feature/Permission an der Definition (nur Sysadmin) gaten die Verwendung; das **Feature wird bei jedem Feuern** nachgeprüft (`IWorkflowTenantFeatureGate`, ohne Verdrahtung erlaubt es alles), die Permission nur beim Anhaken und beim Start von Hand. Fehlt das Feature: überspringen + protokollieren, Fälligkeit trotzdem fortschreiben, **nicht** abhaken. Ein-Mandanten-Betrieb unberührt |
+| 44 | **Zentrale Abläufe per Aktivierung** (§37) | **Pflicht-Migration:** neue Tabelle `WorkflowStartTriggerActivations` + 7 Spalten an `WorkflowStartTriggers`, **Datenumzug des Lauf-Zustands** (`NextDueUtc`/`LastRunUtc`/`LastInstanceId`/Lease ziehen von der Auslöser- auf die Aktivierungs-Zeile), erst danach die alten Spalten fallen lassen. **Regelweg ist die mitgelieferte Migration `TriggerActivations` (beide Provider) — sie bewegt Daten, nicht nur Schema; Handarbeit-SQL gleichwertig in §37.5.** Nicht neu scaffolden: beide Migrationen sind nachbearbeitet (das Gerüst deutete `LeaseOwner`/`LastInstanceId` als Umbenennung nach `RequiredPermission`/`RequiredFeature` und liess den Datenumzug weg). `IWorkflowStore` bekommt 6 neue Member und ändert 2 Signaturen (`FindMessageTriggers`, `ClaimDueScheduleTriggers`) — **eigene Store-Implementierungen brechen**. **Verhaltensänderung (§37.4): Nachrichten tragen jetzt einen Ursprungs-Mandanten**, und nur der lässt etwas anlaufen; ohne Ursprung feuert nur, was `AllowTenantlessStart` erlaubt. Wer aus Host-Code ohne Mandanten-Kontext sendet, startet danach nichts mehr (wird protokolliert). Das schliesst eine Flanke, die es schon vorher gab: eine mandantenlose Nachricht eröffnete bei hundert Mandanten hundert Vorgänge. **Merke: die Aktivierung hängt an der fachlichen Identität, NICHT am `TriggerKey`** — der wird bei jedem Speichern der Definition neu vergeben. Feature/Permission an der Definition (nur Sysadmin) gaten die Verwendung; das **Feature wird bei jedem Feuern** nachgeprüft (`IWorkflowTenantFeatureGate`, ohne Verdrahtung erlaubt es alles), die Permission nur beim Anhaken und beim Start von Hand. Fehlt das Feature: überspringen + protokollieren, Fälligkeit trotzdem fortschreiben, **nicht** abhaken. Ein-Mandanten-Betrieb unberührt |

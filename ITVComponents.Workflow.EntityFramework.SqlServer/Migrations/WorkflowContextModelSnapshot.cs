@@ -468,25 +468,25 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.ToTable("Outbox");
                 });
 
-            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerRow", b =>
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerActivationRow", b =>
                 {
-                    b.Property<int>("TriggerKey")
+                    b.Property<int>("ActivationKey")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TriggerKey"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ActivationKey"));
 
-                    b.Property<bool>("AdoptCorrelationKey")
-                        .HasColumnType("bit");
+                    b.Property<string>("ActivatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ActivatedUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("DefinitionId")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<int>("DefinitionKey")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DefinitionVersion")
-                        .HasColumnType("int");
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
 
                     b.Property<int>("Kind")
                         .HasColumnType("int");
@@ -503,16 +503,85 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<DateTime?>("LeaseUntilUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("Mode")
-                        .HasColumnType("int");
-
                     b.Property<DateTime?>("NextDueUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("NodeId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("OwnerTenantId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("PatternOverride")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("VariablesJsonOverride")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("ActivationKey");
+
+                    b.HasIndex("Enabled", "NextDueUtc");
+
+                    b.HasIndex("OwnerTenantId", "DefinitionId", "NodeId", "Kind", "TenantId")
+                        .IsUnique();
+
+                    b.ToTable("WorkflowStartTriggerActivations");
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerRow", b =>
+                {
+                    b.Property<int>("TriggerKey")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TriggerKey"));
+
+                    b.Property<bool>("AdoptCorrelationKey")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowLocalActivation")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowOwnVariables")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowReschedule")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowTenantlessStart")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("DefinitionId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("DefinitionKey")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
 
                     b.Property<string>("NodeId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Pattern")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequiredFeature")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequiredPermission")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SignalName")
@@ -530,8 +599,6 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.HasKey("TriggerKey");
 
                     b.HasIndex("DefinitionKey");
-
-                    b.HasIndex("Kind", "NextDueUtc");
 
                     b.HasIndex("Kind", "SignalName");
 
