@@ -55,6 +55,21 @@ namespace ITVComponents.EFRepo.Options
             configurators.Add(new ComputedColumnConfigurator<T, TProperty>(customSql, propertyAccess));
         }
 
+        /// <summary>
+        /// Wie <see cref="ConfigureComputedColumn{T,TProperty}(Expression{Func{T,TProperty}},string)"/>, legt aber
+        /// zusaetzlich fest, ob die Spalte gespeichert wird.
+        /// </summary>
+        /// <remarks>
+        /// Fuer PostgreSQL ist <paramref name="stored"/> = <c>true</c> Pflicht: unterhalb von Version 18 gibt es
+        /// dort nur gespeicherte berechnete Spalten, und Npgsql bricht schon das Erzeugen der Migration ab, statt
+        /// still etwas anderes zu bauen. Auf SQL Server bleibt die Ueberladung ohne Schalter richtig - dort steht
+        /// <c>persisted</c> im Ausdruck selbst.
+        /// </remarks>
+        public void ConfigureComputedColumn<T, TProperty>(Expression<Func<T, TProperty>> propertyAccess, string customSql, bool stored) where T : class
+        {
+            configurators.Add(new ComputedColumnConfigurator<T, TProperty>(customSql, propertyAccess, stored));
+        }
+
         public void AddCustomConfigurator(IEntityConfigurator customConfigurator)
         {
             configurators.Add(customConfigurator);
