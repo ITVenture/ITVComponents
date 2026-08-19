@@ -119,6 +119,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
             // muss auf 50px vor allem SCHNELL lesbar sein.
             NodeKind.EventGateway => ("⚡", 18),
             NodeKind.BoundaryTimer => ("🔔", 15),
+            // Der Umschlag am Schritt: dieselbe Aussage wie beim Wartepunkt (eine Nachricht trifft ein),
+            // nur klebt dieser am Rand eines Schritts, an dem gerade gearbeitet wird. Neben der Glocke
+            // der Frist ist er auch auf 44px sofort auseinanderzuhalten.
+            NodeKind.BoundaryMessage => ("✉", 16),
             // Der Ruecklauf-Pfeil fuer beides: der Pfad, der einen Schritt zurueknimmt, und der
             // Ausloeser, der ihn anstoesst. Dass der eine am Schritt klebt und der andere im Fluss
             // steht, sagt schon die Position - dasselbe Zeichen macht den Zusammenhang lesbar.
@@ -135,7 +139,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         /// breiter als der Knoten selbst.
         /// </summary>
         public bool LabelBelow => Shape is NodeShape.Ellipse or NodeShape.Diamond
-                                  || Kind is NodeKind.BoundaryTimer or NodeKind.Compensation;
+                                  || Kind is NodeKind.BoundaryTimer or NodeKind.BoundaryMessage
+                                      or NodeKind.Compensation;
     }
 
     /// <summary>
@@ -323,6 +328,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                     // ihn. Dieselbe Lesart wie in BPMN, wo das nicht unterbrechende Boundary-Event
                     // gestrichelt gezeichnet wird.
                     DashedOutline = node is BoundaryTimerNode { Interrupting: false }
+                                            or BoundaryMessageNode { Interrupting: false }
                 };
                 nodes.Add(laid);
                 // Ein Knoten ohne Id bleibt aus der Nachschlagetabelle heraus: Kanten koennen ihn nicht
@@ -915,21 +921,33 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
         private static void DockBoundaryTimers(WorkflowDefinition definition,
             IReadOnlyDictionary<string, LaidOutNode> byId)
         {
+            // Fristen und Nachrichten-Empfaenge teilen sich die untere KANTE ihres Schritts und deshalb
+            // auch den Zaehler: zwei getrennte Laeufe legten den ersten Empfang genau auf die erste
+            // Frist. Beide sind "was passiert, WAEHREND hier gearbeitet wird" - dass sie nebeneinander
+            // aufreihen, ist die richtige Aussage.
             var perHost = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (BoundaryTimerNode timer in definition.Nodes.OfType<BoundaryTimerNode>())
+            foreach (WorkflowNode attached in definition.Nodes
+                         .Where(n => n is BoundaryTimerNode or BoundaryMessageNode))
             {
-                if (timer.Id == null || timer.AttachedToNodeId == null
-                    || !byId.TryGetValue(timer.Id, out LaidOutNode? laid)
-                    || !byId.TryGetValue(timer.AttachedToNodeId, out LaidOutNode? host))
+                string? hostId = attached switch
+                {
+                    BoundaryTimerNode timer => timer.AttachedToNodeId,
+                    BoundaryMessageNode message => message.AttachedToNodeId,
+                    _ => null
+                };
+
+                if (attached.Id == null || hostId == null
+                    || !byId.TryGetValue(attached.Id, out LaidOutNode? laid)
+                    || !byId.TryGetValue(hostId, out LaidOutNode? host))
                 {
                     continue;
                 }
 
-                int index = perHost.TryGetValue(timer.AttachedToNodeId, out int n) ? n : 0;
-                perHost[timer.AttachedToNodeId] = index + 1;
+                int index = perHost.TryGetValue(hostId, out int n) ? n : 0;
+                perHost[hostId] = index + 1;
 
                 // Von der rechten unteren Ecke nach links: der erste sitzt eingerueckt, jeder weitere
-                // eine Timerbreite daneben.
+                // eine Knotenbreite daneben.
                 double step = laid.Width + 6;
                 laid.X = host.X + host.Width - laid.Width - 12 - (index * step);
                 laid.Y = host.Y + host.Height - (laid.Height / 2);
@@ -987,6 +1005,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.Compensation:
                     // Wie der Fristen-Timer: er klebt am Rand seines Schritts.
                     return (44, 32);
+                case NodeKind.BoundaryMessage:
                 case NodeKind.BoundaryTimer:
                     // Klein, weil er am Rand seines Schritts klebt und ihn nicht verdecken soll - aber
                     // breiter als hoch, damit die Grundform ein kurzes Sechseck bleibt (bei gleicher
@@ -1037,6 +1056,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Graph
                 case NodeKind.Wait:
                 case NodeKind.Timer:
                 case NodeKind.BoundaryTimer:
+                case NodeKind.BoundaryMessage:
                 case NodeKind.Compensation:
                 // Sechseck wie die uebrigen Wartepunkte, und aus demselben Grund: der Zweig PARKT hier,
                 // bis die Ruecknahme durch ist, und laeuft danach weiter. Bewusst KEIN Kreis - der

@@ -59,21 +59,45 @@
                                         InheritLabel="(as defined by the workflow)"
                                         HelperText="How urgently the background workers pick this instance up. Leave empty to use the workflow's own default." />
 
-                @if (form.Fields.Count == 0)
+                @if (form.Fields.Count == 0 && scheduleValues.Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Class="mt-3">
                         This workflow declares no start form. It is started without values — add fields on the
                         start node in the designer if it needs input.
                     </MudAlert>
                 }
-                else
+                else if (form.Fields.Count > 0)
                 {
                     <MudDivider Class="my-3" />
+                    @* Payload = die Vorbelegung. Deklarierte Felder, fuer die der Zeitplan einen festen
+                       Wert kennt, stehen damit schon ausgefuellt da - der Benutzer sieht, womit ein
+                       zeitgesteuerter Lauf starten wuerde, und kann es aendern. *@
                     <UserTaskFieldsForm @ref="fields"
                                         Fields="form.Fields"
+                                        Payload="form.ScheduleDefaults.Count == 0 ? null : declaredDefaults"
                                         AllowReadOnly="false"
                                         TranslateText="Translate"
                                         ResetKey="@form.DefinitionId" />
+                }
+
+                @if (scheduleValues.Count > 0)
+                {
+                    @* Die festen Werte des Zeitplans. Sie stehen hier, damit ein Start von Hand nicht
+                       anders losläuft als der zeitgesteuerte - und zwar SICHTBAR und aenderbar: wer von
+                       Hand startet, tut das meist gerade, um etwas anders zu machen. *@
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.subtitle2">From the schedule</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        A scheduled run starts with these values. They are pre-filled here so a manual start
+                        behaves the same — change them if this run should differ.
+                    </MudText>
+                    @foreach (string key in scheduleValues.Keys.ToList())
+                    {
+                        string name = key;
+                        <MudTextField T="string" Value="@scheduleValues[name]" Label="@name"
+                                      Margin="Margin.Dense" Class="mt-2"
+                                      ValueChanged="@(v => scheduleValues[name] = v)" />
+                    }
                 }
 
                 @if (form.StrictSignature)
@@ -123,6 +147,22 @@
     private bool formLoading;
     private bool starting;
 
+    /// <summary>
+    /// Die festen Werte des Zeitplans, wie sie in der Maske stehen - als Text, weil sie hier bearbeitbar
+    /// sind. Leer, wenn die Definition keinen Zeitplan hat.
+    /// </summary>
+    /// <remarks>
+    /// Ein Feld, das der Start-Knoten OHNEHIN deklariert, kommt hier nicht noch einmal: es steht schon in
+    /// der Maske, und zweimal dieselbe Angabe waere eine Einladung, sie widerspruechlich auszufuellen.
+    /// </remarks>
+    private Dictionary<string, string?> scheduleValues = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Die Zeitplan-Werte, fuer die es ein deklariertes Feld GIBT - sie gehen als Vorbelegung in die
+    /// Maske statt in die Liste darunter.
+    /// </summary>
+    private Dictionary<string, object> declaredDefaults = new(StringComparer.Ordinal);
+
     private string? Description => Translate(form?.Description);
 
     protected override async Task OnInitializedAsync()
@@ -162,7 +202,27 @@
             if (form is null)
             {
                 error = "This workflow could not be loaded. It may have been removed in the meantime.";
+                return;
             }
+
+            // Nur die Zeitplan-Werte, fuer die es KEIN deklariertes Feld gibt - der Rest gehoert in die
+            // Maske und wird dort vorbelegt.
+            var declared = new HashSet<string>(
+                form.Fields.Where(f => !string.IsNullOrWhiteSpace(f.Name)).Select(f => f.Name),
+                StringComparer.OrdinalIgnoreCase);
+            scheduleValues = form.ScheduleDefaults
+                .Where(p => !declared.Contains(p.Key))
+                .ToDictionary(p => p.Key, p => p.Value?.ToString(), StringComparer.OrdinalIgnoreCase);
+
+            // Und umgekehrt: was deklariert IST, geht als Vorbelegung in die Maske. Der Feldname muss
+            // dabei so geschrieben sein wie im Feld, nicht wie im Zeitplan - die Maske sucht ihn exakt.
+            declaredDefaults = form.ScheduleDefaults
+                .Where(p => declared.Contains(p.Key) && p.Value is not null)
+                .ToDictionary(
+                    p => form.Fields.First(f =>
+                        string.Equals(f.Name, p.Key, StringComparison.OrdinalIgnoreCase)).Name,
+                    p => p.Value!,
+                    StringComparer.Ordinal);
         }
         finally
         {
@@ -186,6 +246,18 @@
             if (fields is null || !fields.TryGetResult(out variables))
             {
                 return;
+            }
+        }
+
+        // Die Zeitplan-Werte dazu - NACH der Maske, aber ohne zu ueberschreiben: was der Benutzer in ein
+        // deklariertes Feld getippt hat, ist die spezifischere Angabe. (Ueberschneiden koennen sie sich
+        // ohnehin nicht, die Maske filtert sie beim Laden heraus - der Vorrang steht hier trotzdem, damit
+        // er nicht vom Filter abhaengt.)
+        foreach (KeyValuePair<string, string?> pair in scheduleValues)
+        {
+            if (!variables.ContainsKey(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+            {
+                variables[pair.Key] = pair.Value;
             }
         }
 

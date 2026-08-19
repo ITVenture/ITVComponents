@@ -163,6 +163,44 @@ namespace ITVComponents.Workflow.Instances
         public WorkflowStatus Status { get; set; } = WorkflowStatus.Running;
 
         /// <summary>
+        /// Bei <see cref="WorkflowStatus.Faulted"/>: der <b>Fehler-Code</b> - ein kurzer, stabiler
+        /// Schluessel der FehlerART, oder null. Er ist es, den ein aufrufender Prozess auswertet.
+        /// </summary>
+        /// <remarks>
+        /// Neben <see cref="FaultMessage"/> und nicht statt ihrer: die Meldung ist fuer Menschen, der Code
+        /// fuer den Ablauf. Ein Aufrufer, der nach der Meldung verzweigt, muesste sie parsen - und haenge
+        /// damit an einer Formulierung, die jederzeit jemand umschreibt oder uebersetzt.
+        /// </remarks>
+        public string FaultCode { get; set; }
+
+        /// <summary>
+        /// Ist diese Instanz <b>angehalten</b>? Dann wird sie von keinem Runner mehr vorangetrieben - sie
+        /// bleibt stehen, wo sie steht, bis jemand sie fortsetzt.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Bewusst ein EIGENES Feld und kein weiterer <see cref="WorkflowStatus"/>: der Status beschreibt
+        /// den Lebenszyklus (laeuft, wartet, fertig, gescheitert, abgebrochen), und er wird an vielen
+        /// Stellen des Vortriebs auf <see cref="WorkflowStatus.Running"/> zurueckgesetzt - ein
+        /// Status-Wert waere dort stillschweigend wieder aufgehoben. Das Anhalten ist eine Aussage
+        /// DARUEBER, nicht ein Teil davon.
+        /// </para>
+        /// <para>
+        /// <b>Was weiterhin geschieht:</b> Nachrichten und Signale kommen an, Tokens werden dadurch
+        /// aktiv, Fristen bleiben gesetzt. Nur ausgefuehrt wird nichts. Andernfalls gingen genau die
+        /// Ereignisse verloren, die waehrend der Pause eintreffen - und das ist der Zeitraum, in dem man
+        /// sie am wenigsten verlieren will.
+        /// </para>
+        /// </remarks>
+        public bool Suspended { get; set; }
+
+        /// <summary>
+        /// Warum diese Instanz angehalten wurde, oder null. Steht im Klartext daneben, weil ein
+        /// angehaltener Vorgang sonst wie ein haengender aussieht.
+        /// </summary>
+        public string SuspendedReason { get; set; }
+
+        /// <summary>
         /// Die Dringlichkeit dieser Instanz in der Hintergrund-Abarbeitung - <b>kleinere Zahl =
         /// wichtiger</b> (siehe <see cref="WorkflowPriority"/>). Die Ausfuehrungsschicht reicht den Wert
         /// unveraendert an ihren Task-Processor durch; dessen gewichtete Auswahl laesst hoeher

@@ -25,6 +25,47 @@ namespace ITVComponents.Workflow
         Faulted
     }
 
+    /// <summary>
+    /// Wie das <b>Umtragen</b> einer Benutzer-Aufgabe ausgegangen ist
+    /// (<see cref="WorkflowEngine.ReassignUserTask"/>).
+    /// </summary>
+    /// <remarks>
+    /// Vier Ausgaenge und nicht ein <c>bool</c>, weil drei davon voellig unterschiedliche Antworten der
+    /// Oberflaeche verlangen: "gibt es nicht mehr" ist etwas anderes als "inzwischen erledigt" und beides
+    /// etwas anderes als "war schon so". Ein gemeinsames false liesse den Benutzer im Unklaren, warum sein
+    /// Klick nichts bewirkt hat.
+    /// </remarks>
+    public enum UserTaskAssignmentStatus
+    {
+        /// <summary>Die Instanz oder das Token gibt es nicht.</summary>
+        NotFound,
+
+        /// <summary>
+        /// Das Token steht nicht (mehr) auf einer offenen Aufgabe - erledigt, weitergelaufen oder es war
+        /// nie eine. Das Gegenstueck zu <see cref="UserTaskCompletionStatus.AlreadyCompleted"/>.
+        /// </summary>
+        NotATask,
+
+        /// <summary>
+        /// Der gewuenschte Zustaendige ist bereits eingetragen. Kein Fehler, aber auch nichts geschehen -
+        /// insbesondere wurde <b>nicht</b> committet und nichts protokolliert.
+        /// </summary>
+        Unchanged,
+
+        /// <summary>Die Aufgabe wurde umgetragen.</summary>
+        Reassigned,
+
+        /// <summary>
+        /// Das Umtragen ist gescheitert, obwohl die Aufgabe offen war - in der Praxis: der Commit kam
+        /// gegen dauerhafte Versionskonflikte nicht durch. Der Grund steht im Log.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst von <see cref="Unchanged"/> getrennt: beide haben nichts geaendert, aber das eine ist
+        /// der harmlose Normalfall und das andere ein Fehler, den die Oberflaeche melden muss.
+        /// </remarks>
+        Failed
+    }
+
     /// <summary>Das Ergebnis von <see cref="WorkflowEngine.CompleteUserTask"/>.</summary>
     public class UserTaskCompletionResult
     {

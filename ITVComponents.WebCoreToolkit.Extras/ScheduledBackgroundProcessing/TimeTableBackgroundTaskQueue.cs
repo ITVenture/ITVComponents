@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ITVComponents.ParallelProcessing.TaskSchedulers;
+using ITVComponents.Scheduling;
 using ITVComponents.WebCoreToolkit.BackgroundProcessing;
 
 namespace ITVComponents.WebCoreToolkit.Extras.ScheduledBackgroundProcessing

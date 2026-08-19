@@ -2,7 +2,7 @@
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
-using ITVComponents.ParallelProcessing.TaskSchedulers;
+using ITVComponents.Scheduling;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;

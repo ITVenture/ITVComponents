@@ -103,6 +103,102 @@ namespace ITVComponents.Workflow.EntityFramework
             row.DefinitionJson = WorkflowJson.Serialize(definition);
             ctx.SaveChanges();
             definition.Key = row.DefinitionKey;
+
+            SyncTriggers(ctx, definition);
+        }
+
+        /// <summary>
+        /// Baut die Ausloeser dieser Definition neu auf - und zwar aus ihrer HOECHSTEN Version.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Nur die hoechste Version loest aus. Sonst horchte jede jemals gespeicherte Fassung weiter mit,
+        /// und eine eingehende Nachricht startete so viele Instanzen, wie es Versionen gibt.
+        /// </para>
+        /// <para>
+        /// Der <b>Stand</b> eines unveraendert gebliebenen Zeitplans wird uebernommen (naechste
+        /// Faelligkeit, letzter Lauf). Ohne das finge jedes Speichern der Definition - auch eine Aenderung
+        /// an ganz anderer Stelle - den Zeitplan von vorn an, und ein Muster mit "sofort"-Kennzeichen
+        /// liefe bei jedem Speichern erneut los. Als "unveraendert" gilt derselbe Knoten mit demselben
+        /// Muster; wer das Muster aendert, meint einen anderen Plan und bekommt einen frischen Anlauf.
+        /// </para>
+        /// </remarks>
+        private static void SyncTriggers(WorkflowContext ctx, WorkflowDefinition definition)
+        {
+            // Ohne Query-Filter und ausdruecklich auf den Mandanten der Definition - wie beim Schreiben
+            // der Definition selbst: der gerade aktive Kontext darf nicht entscheiden, welche Zeilen
+            // aufgeraeumt werden.
+            // Max ueber ein NULLABLE int: das ist die uebersetzbare Form von "hoechste Version, und wenn
+            // es keine gibt, meine eigene". DefaultIfEmpty(wert) laesst sich nicht nach SQL uebersetzen -
+            // und weil dieser Weg in JEDEM Speichern einer Definition steckt, faellt so etwas nicht an
+            // einer Stelle auf, sondern ueberall zugleich.
+            int? highest = ctx.WorkflowDefinitions.IgnoreQueryFilters()
+                .Where(d => d.Id == definition.Id && d.TenantId == definition.TenantId)
+                .Max(d => (int?)d.Version);
+            int highestVersion = highest ?? definition.Version;
+
+            WorkflowDefinition newest = definition;
+            if (highestVersion != definition.Version)
+            {
+                WorkflowDefinitionRow newestRow = ctx.WorkflowDefinitions.IgnoreQueryFilters()
+                    .FirstOrDefault(d => d.Id == definition.Id && d.TenantId == definition.TenantId
+                                         && d.Version == highestVersion);
+                newest = Materialize(newestRow);
+                if (newest == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Die Ausloeser der Definition '{definition.Id}' konnten nicht aufgebaut werden: "
+                        + $"Version {highestVersion} ist nicht lesbar. Die Ausloeser bleiben, wie sie sind.",
+                        LogSeverity.Error);
+                    return;
+                }
+            }
+
+            List<WorkflowStartTriggerRow> existing = ctx.WorkflowStartTriggers
+                .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id)
+                .ToList();
+            var keptKeys = new HashSet<int>();
+
+            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest, DateTime.UtcNow))
+            {
+                WorkflowStartTriggerRow target = existing.FirstOrDefault(
+                    t => t.NodeId == fresh.NodeId && t.Kind == (int)fresh.Kind && t.Pattern == fresh.Pattern
+                         && !keptKeys.Contains(t.TriggerKey));
+                if (target == null)
+                {
+                    target = new WorkflowStartTriggerRow
+                    {
+                        NextDueUtc = fresh.NextDueUtc,
+                        LastRunUtc = fresh.LastRunUtc,
+                        LastInstanceId = fresh.LastInstanceId
+                    };
+                    ctx.WorkflowStartTriggers.Add(target);
+                }
+
+                target.DefinitionKey = fresh.DefinitionKey;
+                target.DefinitionId = fresh.DefinitionId;
+                target.DefinitionVersion = fresh.DefinitionVersion;
+                target.TenantId = fresh.TenantId;
+                target.NodeId = fresh.NodeId;
+                target.Kind = (int)fresh.Kind;
+                target.SignalName = fresh.SignalName;
+                target.Mode = (int)fresh.Mode;
+                target.AdoptCorrelationKey = fresh.AdoptCorrelationKey;
+                target.Pattern = fresh.Pattern;
+                target.VariablesJson = fresh.VariablesJson;
+                target.SkipWhilePreviousRuns = fresh.SkipWhilePreviousRuns;
+                if (target.TriggerKey != 0)
+                {
+                    keptKeys.Add(target.TriggerKey);
+                }
+            }
+
+            foreach (WorkflowStartTriggerRow stale in existing.Where(t => !keptKeys.Contains(t.TriggerKey)))
+            {
+                ctx.WorkflowStartTriggers.Remove(stale);
+            }
+
+            ctx.SaveChanges();
         }
 
         /// <inheritdoc/>
@@ -257,9 +353,12 @@ namespace ITVComponents.Workflow.EntityFramework
             row.DefinitionId = instance.DefinitionId;
             row.DefinitionVersion = instance.DefinitionVersion;
             row.Status = (int)instance.Status;
+            row.Suspended = instance.Suspended;
+            row.SuspendedReason = instance.SuspendedReason;
             row.Priority = instance.Priority;
             row.CorrelationKey = instance.CorrelationKey;
             row.FaultMessage = instance.FaultMessage;
+            row.FaultCode = instance.FaultCode;
             row.ParentInstanceId = instance.ParentInstanceId;
             row.ParentTokenId = instance.ParentTokenId;
             row.RootInstanceId = instance.EffectiveRootInstanceId;
@@ -475,8 +574,11 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             using WorkflowContext ctx = contextFactory();
             int waiting = (int)TokenStatus.Waiting;
+            // Angehaltene Instanzen bleiben aussen vor - ihre Timer werden zwar faellig, aber niemand
+            // soll sie deswegen vorantreiben. Beim Fortsetzen sind sie ueberfaellig und kommen dran.
             List<string> ids = ctx.Tokens
-                .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc)
+                .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
+                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId && i.Suspended))
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
@@ -519,7 +621,9 @@ namespace ITVComponents.Workflow.EntityFramework
                             && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
                 .GroupBy(t => t.InstanceId)
                 .Select(g => new { InstanceId = g.Key, Due = g.Min(t => t.DueUtc) })
-                .Join(ctx.WorkflowInstances, x => x.InstanceId, r => r.Id,
+                // Der Join auf die Instanz stand hier ohnehin (fuer die Dringlichkeit) - die
+                // Angehalten-Bedingung kostet daher nichts extra.
+                .Join(ctx.WorkflowInstances.Where(r => !r.Suspended), x => x.InstanceId, r => r.Id,
                     (x, r) => new { x.InstanceId, x.Due, r.Priority })
                 .OrderBy(x => x.Priority)
                 .ThenBy(x => x.Due)
@@ -565,6 +669,171 @@ namespace ITVComponents.Workflow.EntityFramework
         }
 
         /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
+        {
+            if (string.IsNullOrEmpty(signalName))
+            {
+                return new List<WorkflowStartTrigger>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int message = (int)WorkflowStartTriggerKind.Message;
+            // Ohne Query-Filter: eine Nachricht kommt von aussen und traegt keinen Mandanten-Kontext mit.
+            // WELCHER Mandant gemeint ist, steht am Ausloeser - und die Instanz entsteht spaeter
+            // ausdruecklich in dessen Kontext.
+            return ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
+                .Where(t => t.Kind == message && t.SignalName == signalName)
+                .ToList()
+                .Select(ToTrigger)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
+            TimeSpan lease, int maxTriggers)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            if (maxTriggers <= 0)
+            {
+                return new List<WorkflowStartTrigger>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int schedule = (int)WorkflowStartTriggerKind.Schedule;
+            DateTime until = nowUtc.Add(lease);
+            string claim = owner + "#" + Guid.NewGuid().ToString("N");
+
+            // Dasselbe zweistufige Verfahren wie beim Timer-Anspruch: auswaehlen, stempeln, das
+            // Gestempelte zurueckholen. Die Bedingung steht im Update ein zweites Mal - genau darin liegt
+            // der Ausschluss gegen einen zweiten Runner, der zwischen Auswahl und Update dazwischenfunkt.
+            // Hier ist er nicht nur eine Optimierung: es gibt noch keine Instanz, deren Version die
+            // doppelte Anlage verhindern koennte.
+            List<int> candidates = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
+                .Where(t => t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc <= nowUtc
+                            && (t.LeaseUntilUtc == null || t.LeaseUntilUtc <= nowUtc))
+                .OrderBy(t => t.NextDueUtc)
+                .Take(maxTriggers)
+                .Select(t => t.TriggerKey)
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                return new List<WorkflowStartTrigger>();
+            }
+
+            _ = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
+                .Where(t => candidates.Contains(t.TriggerKey)
+                            && t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc <= nowUtc
+                            && (t.LeaseUntilUtc == null || t.LeaseUntilUtc <= nowUtc))
+                .ExecuteUpdate(s => s
+                    .SetProperty(t => t.LeaseOwner, claim)
+                    .SetProperty(t => t.LeaseUntilUtc, until));
+
+            return ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
+                .Where(t => t.LeaseOwner == claim)
+                .ToList()
+                .Select(ToTrigger)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+            string lastInstanceId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            WorkflowStartTriggerRow row = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
+                .FirstOrDefault(t => t.TriggerKey == triggerKey);
+            if (row == null)
+            {
+                // Kein Fehler: waehrend der Lauf lief, kann die Definition neu gespeichert und der
+                // Ausloeser dabei ersetzt worden sein. Stillschweigen darf es trotzdem nicht - sonst
+                // sucht man spaeter, warum ein Zeitplan seinen Stand nicht fortgeschrieben hat.
+                LogEnvironment.LogEvent(
+                    $"UpdateScheduleTrigger: Ausloeser '{triggerKey}' existiert nicht mehr - vermutlich "
+                    + "wurde die Definition zwischenzeitlich gespeichert. Nichts fortgeschrieben.",
+                    LogSeverity.Report);
+                return;
+            }
+
+            row.NextDueUtc = nextDueUtc;
+            if (lastRunUtc != null)
+            {
+                row.LastRunUtc = lastRunUtc;
+                row.LastInstanceId = lastInstanceId;
+            }
+
+            // Den Anspruch freigeben: der Lauf ist vorbei. Ohne das bliebe der Ausloeser bis zum Ablauf
+            // der Frist gesperrt - bei einem Minutentakt waere das jeder zweite Termin.
+            row.LeaseOwner = null;
+            row.LeaseUntilUtc = null;
+            ctx.SaveChanges();
+        }
+
+        /// <inheritdoc/>
+        public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
+        {
+            using WorkflowContext ctx = contextFactory();
+            int schedule = (int)WorkflowStartTriggerKind.Schedule;
+            return ctx.WorkflowStartTriggers.IgnoreQueryFilters()
+                .Where(t => t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc > nowUtc)
+                .Min(t => t.NextDueUtc);
+        }
+
+        /// <inheritdoc/>
+        public bool HasRunningInstance(int definitionKey, string correlationKey)
+        {
+            if (correlationKey == null)
+            {
+                return false;
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int running = (int)WorkflowStatus.Running;
+            int waiting = (int)WorkflowStatus.Waiting;
+            return ctx.WorkflowInstances.AsNoTracking().IgnoreQueryFilters()
+                .Any(i => i.DefinitionKey == definitionKey && i.CorrelationKey == correlationKey
+                          && (i.Status == running || i.Status == waiting));
+        }
+
+        /// <summary>Uebersetzt eine Ausloeser-Zeile in das store-neutrale Modell.</summary>
+        private static WorkflowStartTrigger ToTrigger(WorkflowStartTriggerRow row)
+            => new WorkflowStartTrigger
+            {
+                TriggerKey = row.TriggerKey,
+                DefinitionKey = row.DefinitionKey,
+                DefinitionId = row.DefinitionId,
+                DefinitionVersion = row.DefinitionVersion,
+                TenantId = row.TenantId,
+                NodeId = row.NodeId,
+                Kind = (WorkflowStartTriggerKind)row.Kind,
+                SignalName = row.SignalName,
+                Mode = (MessageStartMode)row.Mode,
+                AdoptCorrelationKey = row.AdoptCorrelationKey,
+                Pattern = row.Pattern,
+                VariablesJson = row.VariablesJson,
+                SkipWhilePreviousRuns = row.SkipWhilePreviousRuns,
+                NextDueUtc = AsUtc(row.NextDueUtc),
+                LastRunUtc = AsUtc(row.LastRunUtc),
+                LastInstanceId = row.LastInstanceId
+            };
+
+        /// <summary>
+        /// Kennzeichnet einen aus der Datenbank gelesenen Zeitpunkt ausdruecklich als UTC.
+        /// </summary>
+        /// <remarks>
+        /// Die Datenbank speichert Zeitpunkte ohne Zeitzone (<c>datetime2</c>), und EF gibt sie mit
+        /// <see cref="DateTimeKind.Unspecified"/> zurueck. Fuer den Vergleich ist das egal - nicht aber
+        /// fuer den naechsten, der auf einem solchen Wert <c>ToUniversalTime()</c> aufruft: der liest ihn
+        /// dann als ORTSZEIT und verschiebt ihn um die Zonendifferenz. Ein Feld, dessen Name auf Utc
+        /// endet, soll auch einen Wert liefern, der das von sich sagt.
+        /// </remarks>
+        private static DateTime? AsUtc(DateTime? value)
+            => value == null ? null : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+
+        /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets)
         {
             List<string> targetList = (targets ?? Enumerable.Empty<string>()).Distinct().ToList();
@@ -577,7 +846,8 @@ namespace ITVComponents.Workflow.EntityFramework
             int waitingForTarget = (int)TokenStatus.WaitingForTarget;
             List<string> ids = ctx.Tokens
                 .Where(t => t.Status == waitingForTarget
-                            && t.WaitingTarget != null && targetList.Contains(t.WaitingTarget))
+                            && t.WaitingTarget != null && targetList.Contains(t.WaitingTarget)
+                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId && i.Suspended))
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
@@ -591,7 +861,7 @@ namespace ITVComponents.Workflow.EntityFramework
             int running = (int)WorkflowStatus.Running;
             // Die Sortierung nach Dringlichkeit macht LoadInstances fuer alle Abfragen gemeinsam.
             List<string> ids = ctx.WorkflowInstances
-                .Where(r => r.Status == running)
+                .Where(r => r.Status == running && !r.Suspended)
                 .Select(r => r.Id)
                 .ToList();
             return LoadInstances(ctx, ids);
@@ -845,9 +1115,12 @@ namespace ITVComponents.Workflow.EntityFramework
                 DefinitionVersion = row.DefinitionVersion,
                 TenantId = row.TenantId,
                 Status = (WorkflowStatus)row.Status,
+                Suspended = row.Suspended,
+                SuspendedReason = row.SuspendedReason,
                 Priority = row.Priority,
                 CorrelationKey = row.CorrelationKey,
                 FaultMessage = row.FaultMessage,
+                FaultCode = row.FaultCode,
                 ParentInstanceId = row.ParentInstanceId,
                 ParentTokenId = row.ParentTokenId,
                 RootInstanceId = row.RootInstanceId,

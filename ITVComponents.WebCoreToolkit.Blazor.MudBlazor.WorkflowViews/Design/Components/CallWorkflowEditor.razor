@@ -69,10 +69,17 @@
                     </MudTooltip>
                 </MudStack>
                 <MudTextField @bind-Value="Node.ErrorVariable" Label="Error message → variable" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.ErrorCodeVariable" Label="Error code → variable" Margin="Margin.Dense" />
                 <MudTextField @bind-Value="Node.AttemptVariable" Label="Attempt count → variable" Margin="Margin.Dense" />
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">
                     The single other outgoing flow is the success path. With an attempt variable, an error flow that
                     loops back retries the sub-workflow (a fresh child per attempt).
+                </MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+                    <b>Branch on the code, not on the message.</b> The code is the short, stable key of the
+                    failure kind that an activity inside the sub-workflow reported
+                    (<code>Fail(message, code)</code>) — the message is for people and may be reworded or
+                    translated at any time. It stays empty when the child crashed or was cancelled.
                 </MudText>
             }
         </MudTabPanel>

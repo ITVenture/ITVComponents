@@ -11,8 +11,11 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow;
+using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options;
 using ITVComponents.Workflow.EntityFramework;
+using ITVComponents.Workflow.EntityFramework.Abstractions;
 using ITVComponents.Workflow.Instances;
+using Microsoft.Extensions.Options;
 using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -102,6 +105,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                     TaskKey = x.Token.TaskKey!,
                     Title = x.Token.TaskTitle,
                     AssignedTo = x.Token.AssignedTo,
+                    RequiredPermission = x.Token.TaskPermission,
                     CreatedUtc = x.Token.TaskCreatedUtc,
                     DueUtc = x.Token.TaskDueUtc,
                     ClaimedBy = x.Token.ClaimedBy,
@@ -169,6 +173,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                              TaskKey = t.TaskKey!,
                              Title = t.TaskTitle,
                              AssignedTo = t.AssignedTo,
+                             RequiredPermission = t.TaskPermission,
                              CreatedUtc = t.TaskCreatedUtc,
                              DueUtc = t.TaskDueUtc,
                              ClaimedBy = t.ClaimedBy,
@@ -262,6 +267,429 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         }
 
         /// <inheritdoc/>
+        public async Task<UserTaskAssignmentStatus> ReassignAsync(ClaimsPrincipal user, string instanceId,
+            string tokenId, string? newAssignee, string? reason = null, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            {
+                LogEnvironment.LogEvent(
+                    $"Reassign denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
+                    LogSeverity.Warning);
+                return UserTaskAssignmentStatus.NotFound;
+            }
+
+            string? me = UserName(user);
+            using WorkflowOperation op = BeginOperation(environment);
+
+            // Erst die Aufgabe im EIGENEN Mandanten finden: ohne sie ist jede weitere Frage gegenstandslos,
+            // und der Weg ueber OpenTasks ist zugleich die Tenant-Grenze.
+            var found = await OpenTasks(op.LeaseContext())
+                .Where(t => t.InstanceId == instanceId && t.TokenId == tokenId)
+                .Select(t => new { t.TaskPermission, t.AssignedTo })
+                .FirstOrDefaultAsync();
+            if (found == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Reassign: task '{instanceId}/{tokenId}' is not an open task of the current tenant.",
+                    LogSeverity.Report);
+                return UserTaskAssignmentStatus.NotFound;
+            }
+
+            if (!MayReassign(user, me, found.AssignedTo, found.TaskPermission))
+            {
+                // Wie beim Abschluss: fuer den Aufrufer nicht von "gibt es nicht" unterscheidbar, im Log
+                // aber sehr wohl - sonst sucht man den Grund in der Aufgabe statt in der Berechtigung.
+                LogEnvironment.LogEvent(
+                    $"Reassign denied: '{me}' may not reassign task '{instanceId}/{tokenId}' "
+                    + $"(currently assigned to '{found.AssignedTo ?? "(pool)"}').", LogSeverity.Warning);
+                return UserTaskAssignmentStatus.NotFound;
+            }
+
+            string? target = string.IsNullOrWhiteSpace(newAssignee) ? null : newAssignee.Trim();
+            UserTaskAssignmentStatus status = op.Engine.ReassignUserTask(instanceId, tokenId, target, me, reason);
+            if (status == UserTaskAssignmentStatus.Reassigned)
+            {
+                await ReleaseForeignClaimAsync(op, instanceId, tokenId, target);
+            }
+
+            return status;
+        }
+
+        /// <inheritdoc/>
+        public async Task<IReadOnlyList<WorkflowComment>> ListCommentsAsync(ClaimsPrincipal user,
+            string instanceId, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            {
+                return Array.Empty<WorkflowComment>();
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+            return await ctx.WorkflowComments.AsNoTracking()
+                .Where(c => c.InstanceId == instanceId && c.TenantId == tenant)
+                .OrderBy(c => c.CreatedUtc)
+                .ThenBy(c => c.CommentKey)
+                .Select(c => new WorkflowComment
+                {
+                    CommentKey = c.CommentKey,
+                    InstanceId = c.InstanceId,
+                    TokenId = c.TokenId,
+                    Author = c.Author,
+                    CreatedUtc = c.CreatedUtc,
+                    Text = c.Text
+                })
+                .ToListAsync();
+        }
+
+        /// <inheritdoc/>
+        public async Task<WorkflowComment?> AddCommentAsync(ClaimsPrincipal user, string instanceId,
+            string? tokenId, string text, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            {
+                LogEnvironment.LogEvent(
+                    $"Comment denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(text))
+            {
+                // Ein leerer Kommentar ist kein Fehler, aber auch nichts, was gespeichert gehoert - er
+                // stuende als leere Zeile im Faden und liesse jeden raten, was gemeint war.
+                return null;
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+
+            // Den Vorgang im EIGENEN Mandanten nachweisen, bevor geschrieben wird - sonst genuegte eine
+            // erratene Instanz-Id, um in einem fremden Vorgang zu schreiben.
+            bool exists = await ctx.WorkflowInstances.AsNoTracking()
+                .AnyAsync(i => i.Id == instanceId && i.TenantId == tenant);
+            if (!exists)
+            {
+                LogEnvironment.LogEvent(
+                    $"Comment denied: instance '{instanceId}' does not exist in the current tenant.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            var row = new WorkflowCommentRow
+            {
+                InstanceId = instanceId,
+                TokenId = string.IsNullOrWhiteSpace(tokenId) ? null : tokenId,
+                TenantId = tenant,
+                Author = UserName(user),
+                CreatedUtc = DateTime.UtcNow,
+                Text = text.Trim()
+            };
+            ctx.WorkflowComments.Add(row);
+            await ctx.SaveChangesAsync();
+
+            return new WorkflowComment
+            {
+                CommentKey = row.CommentKey,
+                InstanceId = row.InstanceId,
+                TokenId = row.TokenId,
+                Author = row.Author,
+                CreatedUtc = row.CreatedUtc,
+                Text = row.Text
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<IReadOnlyList<WorkflowAttachment>> ListAttachmentsAsync(ClaimsPrincipal user,
+            string instanceId, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            {
+                return Array.Empty<WorkflowAttachment>();
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+            // Nur die Beschreibung - der Inhalt liegt in einer anderen Tabelle und wird hier nicht
+            // angefasst. Genau dafuer sind die beiden getrennt.
+            return await ctx.WorkflowAttachments.AsNoTracking()
+                .Where(a => a.InstanceId == instanceId && a.TenantId == tenant)
+                .OrderBy(a => a.CreatedUtc)
+                .ThenBy(a => a.AttachmentKey)
+                .Select(a => new WorkflowAttachment
+                {
+                    AttachmentKey = a.AttachmentKey,
+                    InstanceId = a.InstanceId,
+                    FileName = a.FileName,
+                    ContentType = a.ContentType,
+                    SizeBytes = a.SizeBytes,
+                    Author = a.Author,
+                    CreatedUtc = a.CreatedUtc
+                })
+                .ToListAsync();
+        }
+
+        /// <inheritdoc/>
+        public async Task<WorkflowAttachment?> AddAttachmentAsync(ClaimsPrincipal user, string instanceId,
+            string? tokenId, string fileName, string? contentType, byte[] content,
+            string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            {
+                LogEnvironment.LogEvent(
+                    $"Attachment denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(instanceId) || content == null || content.Length == 0
+                || string.IsNullOrWhiteSpace(fileName))
+            {
+                return null;
+            }
+
+            long limit = MaxAttachmentBytes;
+            if (limit <= 0 || content.LongLength > limit)
+            {
+                // Die Grenze ist eine Aussage der Anlage, kein technischer Zufall - deshalb mit Zahl im
+                // Log, damit man sie wiederfindet, wenn ein Benutzer sich beschwert.
+                LogEnvironment.LogEvent(
+                    $"Attachment '{fileName}' ({content.LongLength} bytes) was rejected: the limit is "
+                    + $"{limit} bytes ({(limit <= 0 ? "attachments are switched off" : "configured")}).",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+
+            bool exists = await ctx.WorkflowInstances.AsNoTracking()
+                .AnyAsync(i => i.Id == instanceId && i.TenantId == tenant);
+            if (!exists)
+            {
+                LogEnvironment.LogEvent(
+                    $"Attachment denied: instance '{instanceId}' does not exist in the current tenant.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            // ERST den Inhalt ablegen, DANN die Beschreibung schreiben: andersherum entstuende bei einem
+            // Fehler eine Beschreibung ohne Datei - ein Anhang, den man sieht und nicht oeffnen kann.
+            // Umgekehrt bleibt schlimmstenfalls ein Inhalt liegen, den niemand sieht.
+            string identifier = await AttachmentStore(op)
+                .SaveAsync(content, contentType, fileName);
+
+            var row = new WorkflowAttachmentRow
+            {
+                InstanceId = instanceId,
+                TokenId = string.IsNullOrWhiteSpace(tokenId) ? null : tokenId,
+                TenantId = tenant,
+                FileName = fileName,
+                ContentType = contentType,
+                SizeBytes = content.LongLength,
+                Author = UserName(user),
+                CreatedUtc = DateTime.UtcNow,
+                FileIdentifier = identifier
+            };
+            ctx.WorkflowAttachments.Add(row);
+            await ctx.SaveChangesAsync();
+
+            return new WorkflowAttachment
+            {
+                AttachmentKey = row.AttachmentKey,
+                InstanceId = row.InstanceId,
+                FileName = row.FileName,
+                ContentType = row.ContentType,
+                SizeBytes = row.SizeBytes,
+                Author = row.Author,
+                CreatedUtc = row.CreatedUtc
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<WorkflowAttachmentDownload?> OpenAttachmentAsync(ClaimsPrincipal user,
+            string instanceId, int attachmentKey, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            {
+                return null;
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+
+            // Instanz UND Mandant muessen passen - eine erratene Schluesselzahl darf keine fremde Datei
+            // herausgeben.
+            var found = await ctx.WorkflowAttachments.AsNoTracking()
+                .Where(a => a.AttachmentKey == attachmentKey && a.InstanceId == instanceId
+                            && a.TenantId == tenant)
+                .Select(a => new { a.FileIdentifier, a.FileName, a.ContentType })
+                .FirstOrDefaultAsync();
+            if (found == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Attachment {attachmentKey} of instance '{instanceId}' was not found in the current "
+                    + "tenant.", LogSeverity.Report);
+                return null;
+            }
+
+            WorkflowAttachmentContent? content = await AttachmentStore(op).OpenAsync(found.FileIdentifier);
+            if (content == null)
+            {
+                return null;
+            }
+
+            return new WorkflowAttachmentDownload
+            {
+                Content = content.Content,
+                FileName = found.FileName ?? content.DownloadName ?? "download",
+                ContentType = found.ContentType ?? content.ContentType
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<bool> DeleteAttachmentAsync(ClaimsPrincipal user, string instanceId,
+            int attachmentKey, string? environment = null)
+        {
+            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            {
+                return false;
+            }
+
+            string? me = UserName(user);
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            string? tenant = CurrentTenant();
+
+            WorkflowAttachmentRow? row = await ctx.WorkflowAttachments
+                .FirstOrDefaultAsync(a => a.AttachmentKey == attachmentKey && a.InstanceId == instanceId
+                                          && a.TenantId == tenant);
+            if (row == null)
+            {
+                return false;
+            }
+
+            if (row.Author != me)
+            {
+                // Den eigenen Fehlgriff zu korrigieren ist etwas anderes, als fremde Belege aus einem
+                // Vorgang zu entfernen - dafuer gibt es hier bewusst keinen Weg.
+                LogEnvironment.LogEvent(
+                    $"Delete of attachment {attachmentKey} denied: '{me}' is not its author "
+                    + $"('{row.Author}').", LogSeverity.Warning);
+                return false;
+            }
+
+            string identifier = row.FileIdentifier;
+            ctx.WorkflowAttachments.Remove(row);
+            await ctx.SaveChangesAsync();
+
+            // Der Inhalt danach - er ist ab jetzt unerreichbar, und ein Fehler beim Aufraeumen soll das
+            // Entfernen nicht zurueckdrehen (der Store protokolliert ihn).
+            await AttachmentStore(op).DeleteAsync(identifier);
+            return true;
+        }
+
+        /// <summary>
+        /// Die Ablage fuer Anhaenge: die vom Host registrierte, sonst die eingebaute (Datenbank).
+        /// </summary>
+        /// <remarks>
+        /// Der Rueckfall ist Absicht - Anhaenge sollen ohne Einrichtung funktionieren. Wer sie woanders
+        /// haben will, registriert eine eigene Umsetzung, und hier aendert sich nichts.
+        /// </remarks>
+        private IWorkflowAttachmentStore AttachmentStore(WorkflowOperation op)
+            => services.GetService<IWorkflowAttachmentStore>()
+               ?? new EfWorkflowAttachmentStore(op.LeaseContext);
+
+        /// <summary>Die konfigurierte Obergrenze fuer einen Anhang (Standard 10 MB).</summary>
+        private long MaxAttachmentBytes
+            => services.GetService<IOptions<WorkflowViewsOptions>>()?.Value?.MaxAttachmentBytes
+               ?? 10 * 1024 * 1024;
+
+        /// <summary>
+        /// Der Mandant des laufenden Kontexts - dieselbe Quelle wie in <see cref="OpenTasks"/>, damit
+        /// Arbeitsliste und Kommentare nicht unterschiedlich abgrenzen.
+        /// </summary>
+        private string? CurrentTenant()
+            => services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+
+        /// <summary>
+        /// Darf dieser Benutzer diese Aufgabe umtragen? Zwei Wege: die Vertretungs-Berechtigung
+        /// (<see cref="WorkflowSecurity.AssignTasks"/>) oder die eigene Handreichung.
+        /// </summary>
+        /// <param name="user">der Benutzer</param>
+        /// <param name="me">sein Benutzername</param>
+        /// <param name="assignedTo">der aktuelle Zustaendige der Aufgabe (null = Pool)</param>
+        /// <param name="taskPermission">die Permission des Aufgaben-Knotens (null/leer = keine)</param>
+        /// <returns>true, wenn er umtragen darf</returns>
+        /// <remarks>
+        /// <para>
+        /// Der Vertretungs-Weg verlangt bewusst NICHT die fachliche Permission des Knotens: wer die
+        /// Aufgaben eines Erkrankten verteilt, muss sie nicht selbst erledigen duerfen. Er sieht dabei auch
+        /// nichts Fachliches - das Oeffnen der Maske haengt unveraendert an
+        /// <see cref="MayWorkOnAsync"/>.
+        /// </para>
+        /// <para>
+        /// Der eigene Weg deckt Abgeben, Zuruecklegen und Ansichnehmen ab. Er verlangt umgekehrt sehr wohl
+        /// die Knoten-Permission, denn er stuetzt sich genau darauf: wer die Aufgabe ohnehin erledigen
+        /// duerfte, darf sie auch weiterreichen. Eine Aufgabe, die bereits einem ANDEREN gehoert, ist
+        /// damit tabu - sie einem Dritten wegzunehmen ist eine organisatorische Handlung und braucht die
+        /// Berechtigung dafuer.
+        /// </para>
+        /// </remarks>
+        private bool MayReassign(ClaimsPrincipal user, string? me, string? assignedTo, string? taskPermission)
+        {
+            if (HasPermission(user, WorkflowSecurity.AssignTasks))
+            {
+                return true;
+            }
+
+            bool mayWorkOn = string.IsNullOrWhiteSpace(taskPermission)
+                             || services.VerifyUserPermissions(new[] { taskPermission });
+            bool mineOrPool = assignedTo == null || assignedTo == me;
+            return mayWorkOn && mineOrPool;
+        }
+
+        /// <summary>
+        /// Hebt die weiche Sperre auf, wenn sie nach dem Umtragen nicht mehr zum Zustaendigen passt.
+        /// </summary>
+        /// <param name="op">die laufende Operation</param>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="tokenId">die Aufgabe</param>
+        /// <param name="newAssignee">der neue Zustaendige (null = Pool)</param>
+        /// <remarks>
+        /// Die Sperre sagt "wird gerade bearbeitet". Nach einer Uebergabe stimmt das nicht mehr - die Liste
+        /// zeigte sonst den Vorgaenger als Bearbeiter einer Aufgabe, die ihm gar nicht mehr gehoert, und
+        /// der neue Zustaendige liesse sie aus Ruecksicht liegen. Bleibt der Zustaendige derselbe wie der
+        /// Inhaber der Sperre (jemand nimmt eine Pool-Aufgabe an sich, die er schon offen hat), bleibt sie
+        /// stehen.
+        /// <para>
+        /// Ein Direktschreiben auf die Zeile ist hier - anders als beim Zustaendigen - richtig: die weiche
+        /// Sperre gibt es NUR auf der Zeile, die Engine kennt sie nicht, und kein Instanz-Commit
+        /// ueberschreibt sie.
+        /// </para>
+        /// </remarks>
+        private static async Task ReleaseForeignClaimAsync(WorkflowOperation op, string instanceId,
+            string tokenId, string? newAssignee)
+        {
+            WorkflowContext ctx = op.LeaseContext();
+            TokenRow? row = await ctx.Tokens
+                .FirstOrDefaultAsync(t => t.InstanceId == instanceId && t.TokenId == tokenId);
+            if (row == null || row.ClaimedBy == null || row.ClaimedBy == newAssignee)
+            {
+                return;
+            }
+
+            row.ClaimedBy = null;
+            row.ClaimedUntil = null;
+            await ctx.SaveChangesAsync();
+        }
+
+        /// <inheritdoc/>
         public async Task<UserTaskCompletionResult> CompleteAsync(ClaimsPrincipal user, string instanceId,
             string tokenId, IDictionary<string, object>? result, string? environment = null)
         {
@@ -312,7 +740,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// </summary>
         private IQueryable<TokenRow> OpenTasks(WorkflowContext ctx)
         {
-            string? tenant = services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+            string? tenant = CurrentTenant();
             int waiting = (int)TokenStatus.Waiting;
             int running = (int)WorkflowStatus.Running;
             int instanceWaiting = (int)WorkflowStatus.Waiting;

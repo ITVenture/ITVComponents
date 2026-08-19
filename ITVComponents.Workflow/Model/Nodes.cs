@@ -73,6 +73,134 @@ namespace ITVComponents.Workflow.Model
         /// <see cref="UserActivityNode.Description"/>.
         /// </summary>
         public string FormDescription { get; set; }
+
+        /// <summary>
+        /// Optional: dieser Einstieg wird durch eine <b>eintreffende Nachricht</b> ausgeloest. Null
+        /// (Standard) = die Definition wird nur von Hand oder programmatisch gestartet.
+        /// </summary>
+        public MessageStartTrigger MessageStart { get; set; }
+
+        /// <summary>
+        /// Optional: dieser Einstieg wird nach einem <b>Zeitplan</b> ausgeloest. Null (Standard) = kein
+        /// zeitgesteuerter Start.
+        /// </summary>
+        public ScheduleStartTrigger ScheduleStart { get; set; }
+    }
+
+    /// <summary>
+    /// Wie ein Message-Start mit einer Instanz umgeht, die bereits laeuft.
+    /// </summary>
+    /// <remarks>
+    /// Es gibt die Wahl, weil beide Verhalten fachlich vorkommen: "jede Bestellung ist ein neuer Vorgang"
+    /// verlangt das eine, "die Mitteilung gehoert zum laufenden Fall, sonst eroeffne ihn" das andere. Der
+    /// Unterschied gehoert deshalb ins MODELL und nicht in eine globale Einstellung - sonst muesste eine
+    /// Anlage sich fuer alle ihre Prozesse gemeinsam entscheiden.
+    /// </remarks>
+    public enum MessageStartMode
+    {
+        /// <summary>
+        /// <b>Immer eine neue Instanz</b> (Standard). Wartende Empfangsknoten bleiben davon unberuehrt -
+        /// die erreicht dieselbe Nachricht wie bisher ueber ihre eigene Korrelation.
+        /// </summary>
+        /// <remarks>
+        /// Die vorhersagbare Vorgabe: was geschieht, steht im Modell und haengt nicht davon ab, ob
+        /// zufaellig gerade jemand wartet.
+        /// </remarks>
+        AlwaysStart,
+
+        /// <summary>
+        /// <b>Erst zustellen, sonst starten</b>: hat die Nachricht eine passend korrelierte wartende
+        /// Instanz erreicht, entsteht keine neue. Fuer "Vorgang fortsetzen oder eroeffnen".
+        /// </summary>
+        CorrelateOrStart,
+
+        /// <summary>
+        /// <b>Nur starten, wenn nichts laeuft</b>: existiert bereits eine laufende Instanz dieser
+        /// Definition mit demselben Korrelationsschluessel, wird die Nachricht verworfen. Der Riegel gegen
+        /// Doppelanlagen (zweimal geklickt, zweimal geliefert).
+        /// </summary>
+        /// <remarks>
+        /// Braucht zwingend einen Korrelationsschluessel - ohne ihn waere "dieselbe Sache" nicht
+        /// bestimmbar, und der Riegel liesse nach der ersten Instanz gar nichts mehr durch. Der Validator
+        /// meldet das.
+        /// </remarks>
+        StartIfNoneRunning
+    }
+
+    /// <summary>
+    /// Der Ausloeser "eine Nachricht dieses Namens trifft ein" an einem <see cref="StartNode"/>.
+    /// </summary>
+    /// <remarks>
+    /// Damit entsteht eine Instanz, ohne dass jemand sie startet - der Unterschied zum
+    /// <see cref="WaitNode"/>, der einen bereits LAUFENDEN Zweig weckt. Die Nutzdaten der Nachricht sind
+    /// die uebergebenen Startvariablen; wie sie in den Variablen-Stack fliessen, entscheidet wie immer
+    /// <see cref="StartNode.Inputs"/>.
+    /// </remarks>
+    public class MessageStartTrigger
+    {
+        /// <summary>Der Name der Nachricht, auf die dieser Einstieg horcht. Pflicht.</summary>
+        public string SignalName { get; set; }
+
+        /// <summary>Wie mit einer bereits laufenden Instanz umgegangen wird.</summary>
+        public MessageStartMode Mode { get; set; } = MessageStartMode.AlwaysStart;
+
+        /// <summary>
+        /// Ob der Korrelationsschluessel der Nachricht der <b>Korrelationsschluessel der neuen Instanz</b>
+        /// wird (Standard: ja). Damit findet eine spaetere Nachricht denselben Vorgang wieder.
+        /// </summary>
+        /// <remarks>
+        /// Abschaltbar, weil der Schluessel des Absenders nicht immer der fachliche Bezug des Prozesses
+        /// ist - wer den Vorgang unter einer Nummer fuehren will, die erst im Prozess entsteht, setzt sie
+        /// spaeter selbst und will sie hier nicht vorbelegt haben.
+        /// </remarks>
+        public bool AdoptCorrelationKey { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Der Ausloeser "es ist soweit" an einem <see cref="StartNode"/> - der zeitgesteuerte Start.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Der Zeitplan steht bewusst in der DEFINITION und nicht in einer Konfigurationsdatei daneben: sonst
+    /// waere im Prozessbild nicht zu sehen, dass dieser Prozess von selbst anlaeuft - und der Fachbereich
+    /// koennte es weder nachsehen noch aendern.
+    /// </para>
+    /// <para>
+    /// Gerechnet wird in <b>Ortszeit</b> ("jeden Tag um 8" meint acht Uhr vor Ort, auch nach der
+    /// Sommerzeit-Umstellung), gespeichert wird die Faelligkeit in UTC. Ein zeitgesteuerter Start gilt
+    /// fuer den Mandanten der Definition; oeffentliche Definitionen loesen NICHT von selbst aus.
+    /// </para>
+    /// </remarks>
+    public class ScheduleStartTrigger
+    {
+        /// <summary>
+        /// Das Zeitplan-Muster (siehe <c>ITVComponents.Scheduling.TimeTable</c>). Pflicht.
+        /// </summary>
+        /// <remarks>
+        /// Ein Maschinenformat - im Editor gehoert ein Zusammenbau davor, niemand tippt so etwas von Hand.
+        /// Traegt es das <c>t</c>-Kennzeichen, laeuft der Plan einmalig sofort an, sobald es ihn gibt
+        /// (fuer "soll beim Hochfahren durchlaufen").
+        /// </remarks>
+        public string Pattern { get; set; }
+
+        /// <summary>
+        /// Feste Startwerte fuer den zeitgesteuerten Lauf - es gibt ja niemanden, der ein Formular
+        /// ausfuellt. Sie werden wie uebergebene Startvariablen behandelt, also gegen
+        /// <see cref="StartNode.Inputs"/> aufgeloest.
+        /// </summary>
+        public Dictionary<string, object> Variables { get; set; } = new Dictionary<string, object>();
+
+        /// <summary>
+        /// <b>Ueberspringen, solange der vorige Lauf noch laeuft.</b> Standard false: der Termin ist der
+        /// Termin.
+        /// </summary>
+        /// <remarks>
+        /// Fuer lang laufende Auswertungen, die einander nicht ueberholen duerfen. Mit Bedacht einsetzen:
+        /// ein Prozess, der auf eine Benutzer-Aufgabe wartet, gilt als "laeuft noch" und legt den ganzen
+        /// Zeitplan still - das faellt oft erst auf, wenn wochenlang nichts passiert ist. Uebersprungene
+        /// Termine stehen deshalb im Protokoll.
+        /// </remarks>
+        public bool SkipWhilePreviousRuns { get; set; }
     }
 
     /// <summary>
@@ -226,6 +354,19 @@ namespace ITVComponents.Workflow.Model
         /// dann Aufgeben). Null/leer = nicht mitzaehlen.
         /// </summary>
         public string AttemptVariable { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Instanz-Variable, die den <b>Fehler-Code</b> erhaelt - den kurzen,
+        /// stabilen Schluessel der Fehlerart, den die Aktivitaet ueber
+        /// <c>WorkflowActivityContext.Fail(message, code)</c> gemeldet hat. Null/leer = nicht setzen.
+        /// </summary>
+        /// <remarks>
+        /// Der Unterschied zu <see cref="ErrorVariable"/> ist der Adressat: die Meldung ist fuer Menschen,
+        /// der Code fuer den PROZESS. Nach der Meldung zu verzweigen hiesse, sie zu parsen - und der
+        /// Ablauf haenge damit an einer Formulierung, die jederzeit jemand umschreibt oder uebersetzt.
+        /// Bleibt leer, wenn die Aktivitaet mit einer Exception gescheitert ist statt kontrolliert.
+        /// </remarks>
+        public string ErrorCodeVariable { get; set; }
     }
 
     /// <summary>
@@ -307,6 +448,19 @@ namespace ITVComponents.Workflow.Model
         /// Wiederholung); ohne ihn wird der Subworkflow nicht neu angelegt. Null/leer = nicht mitzaehlen.
         /// </summary>
         public string AttemptVariable { get; set; }
+
+        /// <summary>
+        /// Beim Fehler-Ausgang: Name der Eltern-Variable, die den <b>Fehler-Code</b> des Subworkflows
+        /// erhaelt. Null/leer = nicht setzen.
+        /// </summary>
+        /// <remarks>
+        /// <b>Damit kommt eine Fehlerart aus dem Subworkflow heraus.</b> Bisher erfuhr der Aufrufer nur
+        /// eine Meldung - er konnte also nicht unterscheiden, WORAN es gelegen hat, ohne den Text zu
+        /// parsen. Der Code stammt aus der Aktivitaet, die im Kind kontrolliert gescheitert ist
+        /// (<c>Fail(message, code)</c>), und reist ueber den Fault der Kind-Instanz herauf. Bleibt leer,
+        /// wenn das Kind an einer Exception gescheitert ist oder abgebrochen wurde.
+        /// </remarks>
+        public string ErrorCodeVariable { get; set; }
     }
 
     /// <summary>
@@ -1064,6 +1218,87 @@ namespace ITVComponents.Workflow.Model
         /// Diagramm-Teil ab.
         /// </remarks>
         public bool Collapsed { get; set; }
+    }
+
+    /// <summary>
+    /// Ein <b>Nachrichten-Empfang am Schritt</b> (BPMN: Boundary-Message-Event). Er haengt an einem
+    /// Schritt, an dem ein Token parkt, und feuert, wenn dort eine Nachricht eintrifft, waehrend
+    /// gearbeitet wird.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Das Gegenstueck zum <see cref="BoundaryTimerNode"/> - und die Antwort auf die Frage, die der nicht
+    /// beantworten kann: eine laufende Aufgabe liess sich bisher nur ueber eine <b>Frist</b> unterbrechen,
+    /// nicht durch ein Ereignis. "Der Kunde storniert, waehrend die Pruefung offen ist" war nicht
+    /// modellierbar - der Empfaenger haette am Wartepunkt stehen muessen, und genau das tut er nicht, er
+    /// arbeitet ja.
+    /// </para>
+    /// <para>
+    /// <b>Lebensdauer</b> wie beim Fristen-Timer: scharf, sobald das Haupt-Token an seinem Schritt
+    /// <b>parkt</b>; verlaesst es den Schritt, werden Empfang UND ein eventuell laufender Nebenpfad
+    /// verworfen. An einem Schritt, an dem nie geparkt wird, koennte er nie feuern - der Validator meldet
+    /// das (die Regel steht in <see cref="BoundaryTimerNode.CanHost"/>, sie gilt fuer beide).
+    /// </para>
+    /// <para>
+    /// <b>Nicht unterbrechend</b> (Standard) bleibt nach dem Feuern <b>scharf</b> und kann erneut
+    /// ausloesen - anders als der Timer, dessen Fristenliste einmal durchlaeuft. Das ist der Unterschied
+    /// zwischen "nach 24 Stunden erinnern" und "jedes Mal, wenn der Kunde nachfragt": eine Nachricht kann
+    /// beliebig oft kommen, und der Prozess soll nicht nach der ersten taub werden.
+    /// </para>
+    /// </remarks>
+    public class BoundaryMessageNode : WorkflowNode
+    {
+        /// <inheritdoc/>
+        public override NodeKind Kind => NodeKind.BoundaryMessage;
+
+        /// <summary>
+        /// Die Id des Schritts, an dem dieser Empfang haengt - dieselbe Regel wie beim Fristen-Timer
+        /// (<see cref="BoundaryTimerNode.CanHost"/>): nur dort, wo ein Token tatsaechlich parkt.
+        /// </summary>
+        public string AttachedToNodeId { get; set; }
+
+        /// <summary>Der Name der Nachricht, auf die dieser Empfang horcht. Pflicht.</summary>
+        public string SignalName { get; set; }
+
+        /// <summary>
+        /// Ob eine <b>gerichtete Nachricht</b> erwartet wird (Standard) oder ein <b>Rundruf</b> - dieselbe
+        /// Unterscheidung wie am gewoehnlichen Wartepunkt.
+        /// </summary>
+        public WaitKind WaitKind { get; set; } = WaitKind.Message;
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck fuer den <b>Korrelationsschluessel</b> dieses Empfangs - ausgewertet,
+        /// wenn der Schritt geparkt wird, und am Empfangs-Token abgelegt. Leer = es gilt der
+        /// Korrelationsschluessel der Instanz (oder ihre Id).
+        /// </summary>
+        /// <remarks>
+        /// Ausgewertet wird ueber den Variablen-Stand des HAUPT-Tokens: der Empfang gehoert zu dessen
+        /// Schritt, und der Schluessel soll auf das zeigen, woran gerade gearbeitet wird.
+        /// </remarks>
+        public string CorrelationExpression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="CorrelationExpression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes
+        /// Skript mit <c>return</c>.
+        /// </summary>
+        public ScriptMode CorrelationExpressionMode { get; set; } = ScriptMode.Expression;
+
+        /// <summary>
+        /// <b>Unterbrechend</b>: statt eines Nebenpfads nimmt das HAUPT-Token die ausgehende Kante - der
+        /// Schritt gilt damit als abgebrochen (eine wartende Benutzer-Aufgabe verschwindet aus der
+        /// Arbeitsliste). Fuer "Storno trifft ein -&gt; Pruefung abbrechen". Standard false.
+        /// </summary>
+        /// <remarks>
+        /// Unterbrechend feuert naturgemaess <b>einmal</b>: danach steht das Token woanders, und es gibt
+        /// nichts mehr, woran der Empfang haengen koennte.
+        /// </remarks>
+        public bool Interrupting { get; set; }
+
+        /// <summary>
+        /// Optionaler Variablenname, in dem die Nummer der Ausloesung landet (1 beim ersten Mal). Sie steht
+        /// im Scope des Nebenpfads - so kann die Reaktion "zum dritten Mal" anders ausfallen.
+        /// </summary>
+        public string CountVariable { get; set; }
     }
 
     /// <summary>

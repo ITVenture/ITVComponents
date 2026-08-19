@@ -425,16 +425,22 @@ window.itvWfEditor = window.itvWfEditor || (function () {
     }
 
     // --- Andocken per Ziehen ------------------------------------------------------------------------
-    // Ein Fristen-Timer und ein Rueckabwicklungs-Pfad haengen an einem Schritt. Man kann sie dorthin
-    // ZIEHEN - aus der Toolbox oder von ihrem bisherigen Schritt weg. WELCHE Schritte in Frage kommen,
-    // entscheidet die .NET-Seite (BoundaryTimerNode.CanHost bzw. CompensationNode.CanCompensate) und
-    // schreibt die zulaessigen Arten in data-wf-dock-target; hier steht nur die Geste.
+    // Ein Fristen-Timer, ein Nachrichten-Empfang und ein Rueckabwicklungs-Pfad haengen an einem Schritt.
+    // Man kann sie dorthin ZIEHEN - aus der Toolbox oder von ihrem bisherigen Schritt weg. WELCHE
+    // Schritte in Frage kommen, entscheidet die .NET-Seite (BoundaryTimerNode.CanHost bzw.
+    // CompensationNode.CanCompensate) und schreibt die zulaessigen Arten in data-wf-dock-target; hier
+    // steht nur die Geste.
     //
-    // Die beiden Mengen sind NICHT dieselbe: an einer schlichten Aktivitaet kann kein Timer haengen
-    // (sie parkt nie), ein Rueckabwicklungs-Pfad sehr wohl. Deshalb traegt das Attribut die Arten und
-    // ist nicht bloss gesetzt.
+    // Die Mengen sind NICHT dieselben: an einer schlichten Aktivitaet kann weder ein Timer noch ein
+    // Empfang haengen (sie parkt nie), ein Rueckabwicklungs-Pfad sehr wohl. Deshalb traegt das Attribut
+    // die Arten und ist nicht bloss gesetzt.
+    //
+    // ACHTUNG: Diese Liste ist die JS-Haelfte einer Aussage, deren andere Haelfte in C# steht
+    // (WorkflowEditor.CanAttach / AttachTo / AttachedHostOf). Eine neue andockbare Knotenart muss an
+    // BEIDEN Stellen stehen - fehlt sie hier, laesst sich der Knoten uebersetzen, zeichnen und
+    // konfigurieren, aber nicht mehr ziehen, und kein Build sagt etwas dazu.
 
-    const DOCK_KINDS = ['BoundaryTimer', 'Compensation'];
+    const DOCK_KINDS = ['BoundaryTimer', 'BoundaryMessage', 'Compensation'];
 
     function acceptsDock(g, kind) {
         const accepted = g.getAttribute('data-wf-dock-target') || '';

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.Scheduling;
 using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.Workflow.Validation
@@ -273,11 +274,17 @@ namespace ITVComponents.Workflow.Validation
                 if (n is StartNode startNode)
                 {
                     issues.AddRange(StartFormIssues(startNode));
+                    issues.AddRange(StartTriggerIssues(startNode));
                 }
 
                 if (n is BoundaryTimerNode boundary)
                 {
                     issues.AddRange(BoundaryTimerIssues(boundary, byId, flows, ends));
+                }
+
+                if (n is BoundaryMessageNode boundaryMessage)
+                {
+                    issues.AddRange(BoundaryMessageIssues(boundaryMessage, byId, flows, ends));
                 }
 
                 // Fehler-Ausgang (Aktivitaet ODER Subworkflow-Aufruf): die Fehler-Kante muss eine der
@@ -820,6 +827,67 @@ namespace ITVComponents.Workflow.Validation
             return issues;
         }
 
+        /// <summary>
+        /// Prueft einen Nachrichten-Empfang am Schritt - dieselben Fragen wie beim Fristen-Timer, nur dass
+        /// statt der Frist der Name der Nachricht zaehlt.
+        /// </summary>
+        private static List<ValidationIssue> BoundaryMessageIssues(BoundaryMessageNode boundary,
+            Dictionary<string, WorkflowNode> byId, List<SequenceFlow> flows, List<WorkflowNode> ends)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (string.IsNullOrWhiteSpace(boundary.AttachedToNodeId))
+            {
+                issues.Add(Error(boundary.Id,
+                    $"Boundary message '{Label(boundary)}' is not attached to a step."));
+            }
+            else if (!byId.TryGetValue(boundary.AttachedToNodeId, out WorkflowNode host))
+            {
+                issues.Add(Error(boundary.Id,
+                    $"Boundary message '{Label(boundary)}' is attached to unknown step "
+                    + $"'{boundary.AttachedToNodeId}'."));
+            }
+            else if (!BoundaryTimerNode.CanHost(host))
+            {
+                // Dieselbe Regel wie beim Timer, und bewusst dieselbe Quelle: empfangen kann nur, wo das
+                // Token stehen bleibt. Eine gewoehnliche Aktivitaet laeuft synchron durch - dort waere der
+                // Empfang eine stille Attrappe.
+                issues.Add(Warn(boundary.Id,
+                    $"Boundary message '{Label(boundary)}' is attached to '{Label(host)}', where the token "
+                    + "does not park - it can never fire. Attach it to a user task, a subworkflow call or an "
+                    + "activity with an execution target."));
+            }
+
+            if (string.IsNullOrWhiteSpace(boundary.SignalName))
+            {
+                issues.Add(Error(boundary.Id,
+                    $"Boundary message '{Label(boundary)}' has no message name - nothing would ever reach it."));
+            }
+
+            List<SequenceFlow> outgoing = flows.Where(f => f.SourceId == boundary.Id).ToList();
+            if (outgoing.Count > 1)
+            {
+                issues.Add(Error(boundary.Id,
+                    $"Boundary message '{Label(boundary)}' has {outgoing.Count} outgoing connections - it must "
+                    + "have exactly one (use a gateway on the side path to branch)."));
+            }
+
+            // Wie beim Timer: der Nebenpfad darf den Workflow nicht beenden - sein Token wird verworfen,
+            // sobald der Schritt weiterlaeuft.
+            if (outgoing.Count == 1 && ends.Count > 0)
+            {
+                var endIds = new HashSet<string>(ends.Select(e => e.Id), StringComparer.Ordinal);
+                if (Reaches(outgoing[0].TargetId, endIds, flows))
+                {
+                    issues.Add(Error(boundary.Id,
+                        $"The side path of boundary message '{Label(boundary)}' can reach the end node - a side "
+                        + "path must not end the workflow. Close it with a side-path end instead."));
+                }
+            }
+
+            return issues;
+        }
+
         /// <summary>Ist einer der Zielknoten von <paramref name="startId"/> aus erreichbar?</summary>
         private static bool Reaches(string startId, HashSet<string> targets, List<SequenceFlow> flows)
         {
@@ -858,6 +926,58 @@ namespace ITVComponents.Workflow.Validation
         /// Benutzer-Aufgabe (daher <see cref="FormFieldIssues"/>); dazu kommt, was nur beim Start gilt:
         /// eine strikte Signatur verschluckt jedes Feld, das nicht deklariert ist.
         /// </summary>
+        /// <summary>
+        /// Prueft die <b>Ausloeser</b> eines Einstiegs: den Nachrichten-Start und den Zeitplan.
+        /// </summary>
+        /// <remarks>
+        /// Beide fallen sonst erst im Betrieb auf, und zwar durch Nichts-Tun - der schlechteste Weg, einen
+        /// Tippfehler zu bemerken. Ein Zeitplan, der nie zutrifft, schweigt einfach; eine Nachricht ohne
+        /// Namen wird von keiner Zustellung je gefunden.
+        /// </remarks>
+        private static List<ValidationIssue> StartTriggerIssues(StartNode node)
+        {
+            var issues = new List<ValidationIssue>();
+
+            if (node.MessageStart != null)
+            {
+                if (string.IsNullOrWhiteSpace(node.MessageStart.SignalName))
+                {
+                    issues.Add(Error(node.Id,
+                        $"Start node '{Label(node)}' declares a message start without a message name - nothing "
+                        + "will ever trigger it."));
+                }
+
+                if (node.MessageStart.Mode == MessageStartMode.StartIfNoneRunning
+                    && !node.MessageStart.AdoptCorrelationKey)
+                {
+                    // Der Riegel fragt "laeuft schon eine MIT DIESEM Schluessel?". Wird der Schluessel
+                    // nicht uebernommen, hat keine Instanz je einen - die Antwort ist dann immer "nein",
+                    // und der Riegel ist ein Schalter, der nichts tut.
+                    issues.Add(Warn(node.Id,
+                        $"Start node '{Label(node)}' only starts when nothing is running, but does not adopt "
+                        + "the correlation key - the check can never find a running instance and will never "
+                        + "block anything."));
+                }
+            }
+
+            if (node.ScheduleStart == null)
+            {
+                return issues;
+            }
+
+            if (string.IsNullOrWhiteSpace(node.ScheduleStart.Pattern))
+            {
+                issues.Add(Error(node.Id,
+                    $"Start node '{Label(node)}' declares a schedule without a pattern - it will never run."));
+            }
+            else if (!ScheduleEvaluator.TryValidate(node.ScheduleStart.Pattern, out string error))
+            {
+                issues.Add(Error(node.Id, $"Start node '{Label(node)}' has an unusable schedule: {error}"));
+            }
+
+            return issues;
+        }
+
         private static List<ValidationIssue> StartFormIssues(StartNode node)
         {
             var issues = new List<ValidationIssue>();

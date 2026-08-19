@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
+using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 
@@ -29,6 +30,13 @@ namespace ITVComponents.Workflow.Stores
             new ConcurrentDictionary<(string, string), string>();
 
         private readonly ConcurrentDictionary<string, int> versions = new ConcurrentDictionary<string, int>();
+
+        /// <summary>Die materialisierten Ausloeser, nach ihrem technischen Schluessel.</summary>
+        private readonly ConcurrentDictionary<int, WorkflowStartTrigger> triggers =
+            new ConcurrentDictionary<int, WorkflowStartTrigger>();
+
+        /// <summary>Der Zaehler fuer die Ausloeser-Schluessel - wie bei den Definitionen.</summary>
+        private int nextTriggerKey;
 
         /// <summary>
         /// Der Zaehler fuer die technischen Kennungen. Auch die Ablage im Speicher vergibt sie - sonst
@@ -69,6 +77,61 @@ namespace ITVComponents.Workflow.Stores
             }
 
             definitions[key] = definition;
+            SyncTriggers(definition);
+        }
+
+        /// <summary>
+        /// Baut die Ausloeser dieser Definition neu auf - nur fuer die HOECHSTE Version, damit nicht jede
+        /// alte Fassung weiter mitfeuert.
+        /// </summary>
+        /// <remarks>
+        /// Der gespeicherte Stand (letzte Faelligkeit, letzter Lauf) eines gleich gebliebenen
+        /// Zeitplan-Ausloesers wird uebernommen: sonst finge jedes Speichern der Definition - auch eine
+        /// Aenderung an ganz anderer Stelle - den Zeitplan von vorne an, und ein Muster mit
+        /// "sofort"-Kennzeichen liefe bei jedem Speichern erneut los.
+        /// </remarks>
+        private void SyncTriggers(WorkflowDefinition definition)
+        {
+            int highest = definitions.Values
+                .Where(d => d.Id == definition.Id && d.TenantId == definition.TenantId)
+                .Select(d => d.Version)
+                .DefaultIfEmpty(definition.Version)
+                .Max();
+            WorkflowDefinition newest = highest == definition.Version
+                ? definition
+                : definitions.Values.First(d => d.Id == definition.Id && d.TenantId == definition.TenantId
+                                                && d.Version == highest);
+
+            var kept = new List<WorkflowStartTrigger>();
+            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest, DateTime.UtcNow))
+            {
+                WorkflowStartTrigger previous = triggers.Values.FirstOrDefault(
+                    t => t.TenantId == fresh.TenantId && t.DefinitionId == fresh.DefinitionId
+                         && t.NodeId == fresh.NodeId && t.Kind == fresh.Kind
+                         && t.Pattern == fresh.Pattern);
+                if (previous != null && fresh.Kind == WorkflowStartTriggerKind.Schedule)
+                {
+                    fresh.NextDueUtc = previous.NextDueUtc;
+                    fresh.LastRunUtc = previous.LastRunUtc;
+                    fresh.LastInstanceId = previous.LastInstanceId;
+                }
+
+                fresh.TriggerKey = previous?.TriggerKey ?? Interlocked.Increment(ref nextTriggerKey);
+                kept.Add(fresh);
+            }
+
+            foreach (WorkflowStartTrigger stale in triggers.Values
+                         .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id
+                                     && kept.All(k => k.TriggerKey != t.TriggerKey))
+                         .ToList())
+            {
+                triggers.TryRemove(stale.TriggerKey, out _);
+            }
+
+            foreach (WorkflowStartTrigger trigger in kept)
+            {
+                triggers[trigger.TriggerKey] = trigger;
+            }
         }
 
         /// <inheritdoc/>
@@ -183,7 +246,7 @@ namespace ITVComponents.Workflow.Stores
         public IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc)
         {
             return instances.Values
-                .Where(i => i.Status == WorkflowStatus.Waiting)
+                .Where(i => i.Status == WorkflowStatus.Waiting && !i.Suspended)
                 .Where(i => i.WaitingTokens.Any(t => t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc))
                 .OrderBy(i => i.Priority)
                 .ToList();
@@ -252,6 +315,75 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
+            => string.IsNullOrEmpty(signalName)
+                ? new List<WorkflowStartTrigger>()
+                : triggers.Values
+                    .Where(t => t.Kind == WorkflowStartTriggerKind.Message && t.SignalName == signalName)
+                    .ToList();
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
+            TimeSpan lease, int maxTriggers)
+        {
+            if (string.IsNullOrEmpty(owner))
+            {
+                throw new ArgumentNullException(nameof(owner));
+            }
+
+            // Die Ablage im Speicher kennt keine nebenlaeufigen Runner - der Anspruch waere hier ein
+            // Formalismus ohne Gegenueber. Die Auswahl ist dieselbe wie in der Datenbank, damit ein Test
+            // dasselbe sieht.
+            return maxTriggers <= 0
+                ? new List<WorkflowStartTrigger>()
+                : triggers.Values
+                    .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule && t.NextDueUtc != null
+                                && t.NextDueUtc <= nowUtc)
+                    .OrderBy(t => t.NextDueUtc)
+                    .Take(maxTriggers)
+                    .ToList();
+        }
+
+        /// <inheritdoc/>
+        public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+            string lastInstanceId)
+        {
+            if (!triggers.TryGetValue(triggerKey, out WorkflowStartTrigger trigger))
+            {
+                LogEnvironment.LogEvent(
+                    $"UpdateScheduleTrigger: trigger '{triggerKey}' no longer exists - the definition was "
+                    + "probably saved in the meantime. Nothing updated.", LogSeverity.Report);
+                return;
+            }
+
+            trigger.NextDueUtc = nextDueUtc;
+            if (lastRunUtc != null)
+            {
+                trigger.LastRunUtc = lastRunUtc;
+                trigger.LastInstanceId = lastInstanceId;
+            }
+        }
+
+        /// <inheritdoc/>
+        public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
+        {
+            var future = triggers.Values
+                .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule && t.NextDueUtc != null
+                            && t.NextDueUtc > nowUtc)
+                .Select(t => t.NextDueUtc.Value)
+                .ToList();
+            return future.Count == 0 ? (DateTime?)null : future.Min();
+        }
+
+        /// <inheritdoc/>
+        public bool HasRunningInstance(int definitionKey, string correlationKey)
+            => correlationKey != null
+               && instances.Values.Any(i => i.DefinitionKey == definitionKey
+                                            && i.CorrelationKey == correlationKey
+                                            && (i.Status == WorkflowStatus.Running
+                                                || i.Status == WorkflowStatus.Waiting));
+
+        /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindBranchesWaitingForTarget(IEnumerable<string> targets)
         {
             var targetSet = new HashSet<string>(targets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
@@ -263,6 +395,7 @@ namespace ITVComponents.Workflow.Stores
             // Rein am Token-Zustand orientiert (nicht am Instanz-Status): ein ziel-wartender Zweig kann neben
             // aktiven Geschwister-Zweigen bestehen, dann laeuft die Instanz noch.
             return instances.Values
+                .Where(i => !i.Suspended)
                 .Where(i => i.Tokens.Any(t => t.Status == TokenStatus.WaitingForTarget
                                               && t.WaitingTarget != null && targetSet.Contains(t.WaitingTarget)))
                 .ToList();
@@ -274,7 +407,7 @@ namespace ITVComponents.Workflow.Stores
             // Die dringendsten zuerst - dieselbe Zusage wie beim EF-Store, damit ein Test nicht auf einer
             // Reihenfolge fusst, die es nur hier gibt.
             return instances.Values
-                .Where(i => i.Status == WorkflowStatus.Running)
+                .Where(i => i.Status == WorkflowStatus.Running && !i.Suspended)
                 .OrderBy(i => i.Priority)
                 .ToList();
         }

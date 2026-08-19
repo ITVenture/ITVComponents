@@ -70,6 +70,9 @@
                 case BoundaryTimerNode boundary:
                     <BoundaryTimerConfigEditor Node="boundary" Def="Def" />
                     break;
+                case BoundaryMessageNode boundaryMessage:
+                    <BoundaryMessageConfigEditor Node="boundaryMessage" Def="Def" @ref="boundaryMessageEditor" />
+                    break;
                 case SidePathEndNode:
                     <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
                         Closes an escalation path: the token is consumed and nothing else happens — the
@@ -264,6 +267,7 @@
     private StartConfigEditor? startEditor;
     private SendMessageEditor? sendEditor;
     private WaitEditor? waitEditor;
+    private BoundaryMessageConfigEditor? boundaryMessageEditor;
 
     private string NodeTitle => Node is null
         ? "Node"
@@ -299,6 +303,13 @@
         {
             // Der Wartepunkt-Editor hat ein eigenes Monaco-Feld (Korrelation).
             await waitEditor.FlushAsync();
+            return;
+        }
+
+        if (Node is BoundaryMessageNode && boundaryMessageEditor is not null)
+        {
+            // Ebenso der Nachrichten-Empfang am Schritt.
+            await boundaryMessageEditor.FlushAsync();
             return;
         }
 

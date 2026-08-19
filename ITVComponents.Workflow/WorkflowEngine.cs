@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.Scheduling;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
@@ -590,6 +591,14 @@ namespace ITVComponents.Workflow
 
             foreach (Token token in waiting)
             {
+                // Ein Nachrichten-Empfang AM SCHRITT laeuft anders ab als ein Wartepunkt: er unterbricht
+                // den Schritt oder loest einen Nebenpfad aus, statt selbst weiterzuziehen.
+                if (definition.GetNode(token.NodeId) is BoundaryMessageNode boundary)
+                {
+                    FireBoundaryMessage(instance, definition, token, boundary, payloadVariables);
+                    continue;
+                }
+
                 // Die Payload landet im Scope des EMPFANGENDEN Zweigs - wartet das Token innerhalb einer
                 // parallelen Region, gehoert sie in dessen Zweig-Scope, nicht in den (eingefrorenen)
                 // Instanz-Scope. Ausserhalb einer Region ist das genau wie bisher.
@@ -773,7 +782,81 @@ namespace ITVComponents.Workflow
                 }
             }
 
-            return count;
+            return count + StartFromMessageTriggers(signalName, correlationKey, payloadVariables, count);
+        }
+
+        /// <summary>
+        /// Laesst eine eingetroffene Nachricht neue Instanzen <b>entstehen</b> - der Message-Start.
+        /// </summary>
+        /// <param name="signalName">der Name der Nachricht</param>
+        /// <param name="correlationKey">ihr Korrelationsschluessel, oder null</param>
+        /// <param name="payloadVariables">ihre Nutzdaten - die Startvariablen der neuen Instanz</param>
+        /// <param name="delivered">wie viele wartende Instanzen dieselbe Nachricht bereits erreicht hat</param>
+        /// <returns>die Anzahl der neu gestarteten Instanzen</returns>
+        /// <remarks>
+        /// <para>
+        /// Der Unterschied zum <see cref="WaitNode"/> ist der Kern der Sache: der weckt einen bereits
+        /// LAUFENDEN Zweig, hier entsteht der Vorgang ueberhaupt erst. Ohne diesen Weg musste der
+        /// Empfaenger beim Senden schon laufen - was bei "eine Bestellung trifft ein" niemand
+        /// sicherstellen kann.
+        /// </para>
+        /// <para>
+        /// Ein Fehlschlag bei EINEM Ausloeser bricht die uebrigen nicht ab: mehrere Definitionen duerfen
+        /// auf denselben Namen horchen, und eine fehlerhafte darunter darf die anderen nicht mitnehmen.
+        /// </para>
+        /// </remarks>
+        private int StartFromMessageTriggers(string signalName, string correlationKey,
+            IDictionary<string, object> payloadVariables, int delivered)
+        {
+            int started = 0;
+            foreach (WorkflowStartTrigger trigger in store.FindMessageTriggers(signalName))
+            {
+                if (trigger.Mode == MessageStartMode.CorrelateOrStart && delivered > 0)
+                {
+                    // Die Nachricht hat ihren Vorgang gefunden - dann ist sie zugestellt und nicht der
+                    // Anlass fuer einen neuen.
+                    continue;
+                }
+
+                if (trigger.Mode == MessageStartMode.StartIfNoneRunning
+                    && store.HasRunningInstance(trigger.DefinitionKey, correlationKey))
+                {
+                    // Der Riegel greift - und sagt es. Eine verworfene Nachricht, die nirgends steht,
+                    // waere von "nie angekommen" nicht zu unterscheiden.
+                    LogEnvironment.LogEvent(
+                        $"Message start of '{trigger.DefinitionId}' (node '{trigger.NodeId}') was skipped: an "
+                        + $"instance with correlation key '{correlationKey}' is already running.",
+                        LogSeverity.Report);
+                    continue;
+                }
+
+                try
+                {
+                    // Im Kontext des Mandanten, dem die Definition gehoert: eine Nachricht kommt von
+                    // aussen und bringt keinen mit. Ohne den Scope entstuende die Instanz mandantenlos -
+                    // und waere anschliessend in keiner Uebersicht zu sehen.
+                    using (WorkflowExecutionScope.UseTenant(trigger.TenantId))
+                    {
+                        // Ueber die fachliche Id und nicht ueber den technischen Schluessel: wurde
+                        // zwischenzeitlich eine neuere Fassung gespeichert, soll DIE anlaufen. Der
+                        // Ausloeser wird ohnehin nur fuer die hoechste Version gefuehrt.
+                        WorkflowInstance instance = CreateInstance(trigger.DefinitionId, payloadVariables,
+                            trigger.AdoptCorrelationKey ? correlationKey : null);
+                        instance.Log("StartedByMessage", trigger.NodeId, signalName);
+                        Advance(instance, LoadDefinition(instance));
+                        started++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Message '{signalName}' could not start definition '{trigger.DefinitionId}' "
+                        + $"(node '{trigger.NodeId}', tenant '{trigger.TenantId ?? "-"}'): "
+                        + $"{ex.OutlineException()}", LogSeverity.Error);
+                }
+            }
+
+            return started;
         }
 
         /// <summary>
@@ -814,7 +897,229 @@ namespace ITVComponents.Workflow
                 }
             }
 
-            return count;
+            // Auch ein Rundruf kann etwas ANLAUFEN lassen ("Tagesabschluss gestartet" eroeffnet den
+            // Abstimmungs-Prozess). Ohne Korrelationsschluessel: der Riegel StartIfNoneRunning greift
+            // dann bewusst nicht - ohne Unterscheidungsmerkmal waere er kein Schutz, sondern ein
+            // Ausschalter (siehe IWorkflowStore.HasRunningInstance).
+            return count + StartFromMessageTriggers(signalName, null, payloadVariables, count);
+        }
+
+        /// <summary>
+        /// Startet die Definitionen, deren <b>Zeitplan</b> faellig ist. Der Gegenpart zu
+        /// <see cref="TriggerDueTimers"/> - nur entsteht hier eine Instanz, statt dass eine wartende
+        /// weiterlaeuft.
+        /// </summary>
+        /// <param name="nowUtc">der aktuelle Zeitpunkt (UTC)</param>
+        /// <param name="owner">wer aufgreift (Runner-Kennung) - Grundlage des Anspruchs</param>
+        /// <param name="lease">wie lange der Anspruch gilt</param>
+        /// <param name="maxTriggers">Obergrenze je Aufruf</param>
+        /// <returns>die Anzahl der gestarteten Instanzen</returns>
+        /// <remarks>
+        /// Der Anspruch ist hier <b>nicht</b> nur eine Optimierung wie bei den Timern: es gibt noch keine
+        /// Instanz, deren versionsgeprueter Commit einen zweiten Runner ausbremsen koennte. Ohne ihn liefe
+        /// derselbe Mahnlauf in einem Verbund aus drei Knoten dreimal an.
+        /// </remarks>
+        public int TriggerDueStarts(DateTime nowUtc, string owner, TimeSpan lease, int maxTriggers = 50)
+        {
+            int started = 0;
+            foreach (WorkflowStartTrigger trigger in store.ClaimDueScheduleTriggers(nowUtc, owner, lease, maxTriggers))
+            {
+                if (RunScheduledStart(trigger, nowUtc))
+                {
+                    started++;
+                }
+            }
+
+            return started;
+        }
+
+        /// <summary>
+        /// Fuehrt EINEN faelligen Zeitplan aus und schreibt seinen Stand fort.
+        /// </summary>
+        /// <returns>true, wenn dabei eine Instanz entstanden ist</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Die naechste Faelligkeit wird IMMER fortgeschrieben</b> - auch wenn der Start scheitert oder
+        /// uebersprungen wird. Sonst bliebe der Ausloeser faellig und liefe im Takt des Runners in eine
+        /// Dauerschleife; aus einem einzelnen Fehler wuerde eine Last, die die Anlage lahmlegt.
+        /// </para>
+        /// <para>
+        /// Gerechnet wird ab <b>jetzt</b> und nicht ab der verpassten Faelligkeit. Das ist die Entscheidung
+        /// "einmal nachholen, nicht n-mal": war der Dienst drei Tage aus, laeuft der taegliche Auftrag
+        /// einmal nach und ist dann wieder im Takt - nicht dreimal hintereinander.
+        /// </para>
+        /// </remarks>
+        private bool RunScheduledStart(WorkflowStartTrigger trigger, DateTime nowUtc)
+        {
+            string instanceId = null;
+            DateTime? lastRun = null;
+            try
+            {
+                if (trigger.SkipWhilePreviousRuns && PreviousRunIsStillGoing(trigger))
+                {
+                    // Ausdruecklich protokolliert: ein Zeitplan, der wegen eines haengenden Vorgaengers
+                    // dauerhaft aussetzt, sieht von aussen aus wie einer, der nie eingerichtet wurde.
+                    LogEnvironment.LogEvent(
+                        $"Scheduled start of '{trigger.DefinitionId}' (node '{trigger.NodeId}') was skipped: "
+                        + $"the previous run '{trigger.LastInstanceId}' is still going.", LogSeverity.Report);
+                    return false;
+                }
+
+                using (WorkflowExecutionScope.UseTenant(trigger.TenantId))
+                {
+                    WorkflowInstance instance = CreateInstance(trigger.DefinitionId,
+                        WorkflowJson.DeserializeVariables(trigger.VariablesJson));
+                    instance.Log("StartedBySchedule", trigger.NodeId, trigger.Pattern);
+                    Advance(instance, LoadDefinition(instance));
+                    instanceId = instance.Id;
+                    lastRun = nowUtc;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Scheduled start of definition '{trigger.DefinitionId}' (node '{trigger.NodeId}', tenant "
+                    + $"'{trigger.TenantId ?? "-"}') failed: {ex.OutlineException()}", LogSeverity.Error);
+                return false;
+            }
+            finally
+            {
+                store.UpdateScheduleTrigger(trigger.TriggerKey, NextDue(trigger, nowUtc), lastRun, instanceId);
+            }
+        }
+
+        /// <summary>Laeuft die zuletzt von diesem Zeitplan gestartete Instanz noch?</summary>
+        private bool PreviousRunIsStillGoing(WorkflowStartTrigger trigger)
+        {
+            if (string.IsNullOrEmpty(trigger.LastInstanceId))
+            {
+                return false;
+            }
+
+            WorkflowInstance previous = store.GetInstance(trigger.LastInstanceId);
+            // Eine geloeschte Vorgaenger-Instanz haelt niemanden auf. Faulted zaehlt ebenfalls als
+            // beendet: sie laeuft nicht mehr, und den naechsten Termin deswegen ausfallen zu lassen,
+            // machte aus einem Fehler einen zweiten.
+            return previous != null
+                   && (previous.Status == WorkflowStatus.Running || previous.Status == WorkflowStatus.Waiting);
+        }
+
+        /// <summary>
+        /// Die naechste Faelligkeit dieses Zeitplans - ab jetzt gerechnet. Ein unlesbares Muster liefert
+        /// null: der Ausloeser bleibt bestehen und sichtbar, feuert aber nicht mehr, statt bei jedem Poll
+        /// erneut aufzulaufen.
+        /// </summary>
+        private static DateTime? NextDue(WorkflowStartTrigger trigger, DateTime nowUtc)
+        {
+            try
+            {
+                return ScheduleEvaluator.NextDueUtc(trigger.Pattern, nowUtc, nowUtc);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Der Zeitplan '{trigger.Pattern}' von '{trigger.DefinitionId}' (Knoten "
+                    + $"'{trigger.NodeId}') ist nicht lesbar - der Ausloeser feuert nicht mehr: "
+                    + $"{ex.OutlineException()}", LogSeverity.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// <b>Haelt eine Instanz an</b>: kein Runner treibt sie mehr voran. Sie bleibt stehen, wo sie
+        /// steht, bis <see cref="ResumeWorkflow"/> sie fortsetzt.
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="reason">warum - steht im Verlauf und neben dem Vorgang in der Uebersicht</param>
+        /// <param name="by">wer angehalten hat (fuer den Verlauf), oder null</param>
+        /// <returns>true, wenn die Instanz jetzt angehalten ist</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Was weiterlaeuft:</b> Nachrichten und Signale kommen an und machen Tokens aktiv, Fristen
+        /// bleiben gesetzt und werden faellig. Nur AUSGEFUEHRT wird nichts. Die umgekehrte Auslegung -
+        /// nichts mehr annehmen - klingt gruendlicher, verliert aber genau die Ereignisse, die waehrend
+        /// der Pause eintreffen; und das ist der Zeitraum, in dem man sie am wenigsten verlieren will.
+        /// </para>
+        /// <para>
+        /// Eine <b>beendete</b> Instanz laesst sich nicht anhalten: es gaebe nichts anzuhalten. Eine
+        /// <see cref="WorkflowStatus.Faulted"/> dagegen schon - sie haengt und ist damit genau der Fall,
+        /// in dem man sie aus dem Aufgriff nehmen will, bis jemand hingesehen hat.
+        /// </para>
+        /// </remarks>
+        public bool SuspendWorkflow(string instanceId, string reason = null, string by = null)
+            => SetSuspended(instanceId, true, reason, by);
+
+        /// <summary>
+        /// <b>Setzt eine angehaltene Instanz fort.</b> Was waehrend der Pause eingetroffen ist, laeuft
+        /// danach los - der naechste Aufgriff nimmt die Instanz wieder auf.
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="by">wer fortsetzt (fuer den Verlauf), oder null</param>
+        /// <returns>true, wenn die Instanz jetzt laeuft</returns>
+        public bool ResumeWorkflow(string instanceId, string by = null)
+            => SetSuspended(instanceId, false, null, by);
+
+        /// <summary>Der gemeinsame Weg von Anhalten und Fortsetzen.</summary>
+        /// <remarks>
+        /// Versionsgeprueft wie <c>SetPriority</c>: laeuft gerade ein Zweig, gewinnt dessen Commit, und der
+        /// Aufrufer muss es erneut versuchen. Ohne die Pruefung ueberschriebe das Anhalten den Fortschritt
+        /// des Zweigs, den es gerade anhalten will.
+        /// </remarks>
+        private bool SetSuspended(string instanceId, bool suspended, string reason, string by)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            WorkflowInstance instance = store.GetInstance(instanceId);
+            if (instance == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Workflow instance '{instanceId}' could not be {(suspended ? "suspended" : "resumed")}: "
+                    + "no such instance.", LogSeverity.Warning);
+                return false;
+            }
+
+            if (suspended && (instance.Status == WorkflowStatus.Completed
+                              || instance.Status == WorkflowStatus.Cancelled))
+            {
+                LogEnvironment.LogEvent(
+                    $"Workflow instance '{instanceId}' could not be suspended: it is already "
+                    + $"{instance.Status}. There is nothing left to hold up.", LogSeverity.Warning);
+                return false;
+            }
+
+            if (instance.Suspended == suspended)
+            {
+                return true; // Schon so - kein Fehler, aber auch nichts zu schreiben.
+            }
+
+            using (WorkflowExecutionScope.UseTenant(instance.TenantId))
+            {
+                instance.HistoryFilter = FilterFor(store.GetDefinition(instance.DefinitionKey));
+                instance.Suspended = suspended;
+                instance.SuspendedReason = suspended ? reason : null;
+                instance.Log(suspended ? "Suspended" : "Resumed", detail:
+                    string.Join(" ", new[]
+                    {
+                        string.IsNullOrWhiteSpace(by) ? null : $"by {by}",
+                        string.IsNullOrWhiteSpace(reason) ? null : reason
+                    }.Where(s => s != null)), severity: HistorySeverity.Warning);
+
+                if (!store.TryCommitInstance(instance, instance.Version))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Workflow instance '{instanceId}' could not be "
+                        + $"{(suspended ? "suspended" : "resumed")}: a concurrent commit won the race. Retry.",
+                        LogSeverity.Warning);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1063,6 +1368,9 @@ namespace ITVComponents.Workflow
             string previousFault = instance.FaultMessage;
             instance.Status = WorkflowStatus.Running;
             instance.FaultMessage = null;
+            // Der Code gehoert zum Fehler und geht mit ihm - sonst traegt eine wieder laufende Instanz
+            // noch die Fehlerart von vorhin, und ein aufrufender Prozess verzweigte danach.
+            instance.FaultCode = null;
 
             string detail = changed.Count == 0
                 ? $"retry after: {previousFault}"
@@ -1103,6 +1411,18 @@ namespace ITVComponents.Workflow
             {
                 LogEnvironment.LogEvent($"RunBranch: instance '{instanceId}' not found - skipped.",
                     LogSeverity.Warning);
+                return Array.Empty<string>();
+            }
+
+            if (instance.Suspended)
+            {
+                // Der zweite Riegel neben dem in Advance: ein Zweig-Auftrag kann laengst in der
+                // Warteschlange gestanden haben, als angehalten wurde. Die Abfragen des Stores liefern
+                // angehaltene Instanzen zwar nicht mehr - was schon eingereiht war, erreicht uns aber
+                // trotzdem.
+                LogEnvironment.LogEvent(
+                    $"RunBranch: instance '{instanceId}' is suspended - branch '{tokenId}' stays where it is.",
+                    LogSeverity.Report);
                 return Array.Empty<string>();
             }
 
@@ -1249,6 +1569,25 @@ namespace ITVComponents.Workflow
                 var ids = new List<string>();
                 foreach (Token token in waiting)
                 {
+                    // Nachrichten-Empfang am Schritt: Nebenpfad ausloesen (oder unterbrechen) statt selbst
+                    // weiterzuziehen - dieselbe Unterscheidung wie beim Fristen-Timer in ReactivateTimers.
+                    if (definition.GetNode(token.NodeId) is BoundaryMessageNode boundary)
+                    {
+                        string spawned = FireBoundaryMessage(fresh, definition, token, boundary,
+                            payloadVariables);
+                        if (fresh.Status == WorkflowStatus.Faulted)
+                        {
+                            return ids;
+                        }
+
+                        if (spawned != null)
+                        {
+                            ids.Add(spawned);
+                        }
+
+                        continue;
+                    }
+
                     // Payload in den Scope des empfangenden Zweigs (siehe SignalWorkflow).
                     ApplyPayload(Scope(fresh, token), payloadVariables);
                     fresh.Log("SignalReceived", token.NodeId, signalName);
@@ -1382,6 +1721,39 @@ namespace ITVComponents.Workflow
         private IReadOnlyList<string> ReactivateAndCommit(string instanceId, string opName,
             Func<WorkflowInstance, WorkflowDefinition, List<string>> reactivate)
         {
+            List<string> reactivated = null;
+            bool committed = MutateAndCommit(instanceId, opName, (fresh, definition) =>
+            {
+                reactivated = reactivate(fresh, definition);
+                // Committet wird, wenn ein Zweig aktiv geworden ist - ODER wenn die Instanz dabei gefaultet
+                // ist: der Fault ist das Ergebnis und will festgehalten werden, auch ohne aktiven Zweig.
+                return (reactivated != null && reactivated.Count != 0)
+                       || fresh.Status == WorkflowStatus.Faulted;
+            });
+
+            return committed && reactivated != null
+                ? reactivated
+                : (IReadOnlyList<string>)Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Faehrt eine Aenderung an einer Instanz unter optimistischer Nebenlaeufigkeit: laedt frisch,
+        /// wendet die Mutation an, committet mit Versionspruefung; bei Konflikt neu laden und erneut
+        /// anwenden.
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="opName">Name der Operation - er steht in jeder Meldung dieses Wegs</param>
+        /// <param name="mutate">die Aenderung; liefert false, wenn es nichts zu committen gibt</param>
+        /// <returns>true, wenn tatsaechlich committet wurde</returns>
+        /// <remarks>
+        /// Der Delegat kann <b>mehrfach</b> laufen - einmal je Versionskonflikt - und arbeitet dabei jedes
+        /// Mal auf einer frisch geladenen Instanz. Er muss deshalb jeden Ausgang neu bestimmen und darf
+        /// nichts ueber die Versuche hinweg aufaddieren. Aus demselben Grund darf auf diesem Weg keine
+        /// Aktivitaet ausgefuehrt werden: die Wiederholung wuerde sie ein zweites Mal ausloesen.
+        /// </remarks>
+        private bool MutateAndCommit(string instanceId, string opName,
+            Func<WorkflowInstance, WorkflowDefinition, bool> mutate)
+        {
             const int maxRetries = 100;
             for (int attempt = 0; ; attempt++)
             {
@@ -1390,23 +1762,19 @@ namespace ITVComponents.Workflow
                 {
                     LogEnvironment.LogEvent($"{opName}: instance '{instanceId}' not found - skipped.",
                         LogSeverity.Warning);
-                    return Array.Empty<string>();
+                    return false;
                 }
 
                 int baseVersion = fresh.Version;
                 WorkflowDefinition definition = LoadDefinition(fresh);
-                List<string> reactivated = reactivate(fresh, definition);
-
-                bool nothingToDo = (reactivated == null || reactivated.Count == 0)
-                                   && fresh.Status != WorkflowStatus.Faulted;
-                if (nothingToDo)
+                if (!mutate(fresh, definition))
                 {
-                    return Array.Empty<string>(); // kein Commit noetig.
+                    return false; // kein Commit noetig.
                 }
 
                 if (store.TryCommitInstance(fresh, baseVersion))
                 {
-                    return reactivated ?? (IReadOnlyList<string>)Array.Empty<string>();
+                    return true;
                 }
 
                 if (attempt >= maxRetries)
@@ -1414,7 +1782,7 @@ namespace ITVComponents.Workflow
                     LogEnvironment.LogEvent(
                         $"{opName}: giving up after {maxRetries} version conflicts for instance '{instanceId}'.",
                         LogSeverity.Error);
-                    return Array.Empty<string>();
+                    return false;
                 }
             }
         }
@@ -1425,6 +1793,19 @@ namespace ITVComponents.Workflow
                 || instance.Status == WorkflowStatus.Faulted
                 || instance.Status == WorkflowStatus.Cancelled)
             {
+                return;
+            }
+
+            if (instance.Suspended)
+            {
+                // Angehalten: der Zweig bleibt aktiv stehen, statt zu laufen. Genau deshalb duerfen
+                // Nachrichten weiterhin ankommen - sie machen ein Token aktiv, und das laeuft dann beim
+                // Fortsetzen los. Ohne diesen Riegel triebe ausgerechnet die Zustellung den angehaltenen
+                // Vorgang weiter (SignalInstance ruft anschliessend hierher).
+                LogEnvironment.LogEvent(
+                    $"Workflow instance '{instance.Id}' is suspended - not advanced"
+                    + (string.IsNullOrWhiteSpace(instance.SuspendedReason)
+                        ? "." : $" ({instance.SuspendedReason})."), LogSeverity.Report);
                 return;
             }
 
@@ -1507,7 +1888,11 @@ namespace ITVComponents.Workflow
             // Timer oder Handoff. Hier und nur hier werden die Fristen-Timer des Schritts scharf.
             if (token.Status is TokenStatus.Waiting or TokenStatus.WaitingForTarget)
             {
-                return ArmBoundaryTimers(instance, definition, token);
+                // Beide Sorten von Ereignissen am Schritt werden hier scharf. Die Reihenfolge ist
+                // unerheblich, der Kurzschluss dagegen nicht: hat schon das Stellen einer Frist die
+                // Instanz gefaultet, wird nichts weiter angelegt.
+                return ArmBoundaryTimers(instance, definition, token)
+                       && ArmBoundaryMessages(instance, definition, token);
             }
 
             return true;
@@ -2670,6 +3055,169 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Macht die <b>Nachrichten-Empfaenge</b> scharf, die an dem Schritt haengen, auf dem dieses Token
+        /// gerade geparkt ist - das Gegenstueck zu <see cref="ArmBoundaryTimers"/>.
+        /// </summary>
+        /// <returns>false, wenn die Instanz dabei auf Faulted gelaufen ist</returns>
+        /// <remarks>
+        /// Der Empfang bekommt ein <b>eigenes wartendes Token</b> mit Signalnamen und Korrelation. Damit
+        /// findet ihn die gewoehnliche Zustellung von selbst - es braucht keinen zweiten Suchweg neben
+        /// <c>FindWaitingForSignal</c>, und die Regeln, wen eine Nachricht erreicht
+        /// (<see cref="Accepts"/>), gelten unveraendert auch hier.
+        /// </remarks>
+        private bool ArmBoundaryMessages(WorkflowInstance instance, WorkflowDefinition definition,
+            Token owner)
+        {
+            foreach (BoundaryMessageNode boundary in definition.Nodes.OfType<BoundaryMessageNode>()
+                         .Where(b => b.AttachedToNodeId == owner.NodeId))
+            {
+                // Wie beim Timer: ein Schritt kann mehrfach erreicht oder mehrfach geparkt werden, je
+                // Empfang darf trotzdem nur EIN wartendes Token existieren - sonst feuerte eine Nachricht
+                // den Nebenpfad mehrfach.
+                bool alreadyArmed = instance.Tokens.Any(t => t.NodeId == boundary.Id
+                                                             && t.BoundaryOwnerTokenId == owner.Id
+                                                             && t.Status == TokenStatus.Waiting);
+                if (alreadyArmed)
+                {
+                    continue;
+                }
+
+                // Der Schluessel wird JETZT ausgewertet, ueber den Variablen-Stand des HAUPT-Tokens - wie
+                // beim gewoehnlichen Wartepunkt (ParkForSignal) und aus demselben Grund: nur hier ist er
+                // eindeutig. Ein Fehler faultet, statt einen tauben Empfang stehen zu lassen, den die
+                // Nachricht nie erreicht - das faende man erst, wenn der Storno ausbleibt.
+                string correlation = null;
+                if (!string.IsNullOrWhiteSpace(boundary.CorrelationExpression))
+                {
+                    try
+                    {
+                        object value = evaluator.Evaluate(boundary.CorrelationExpression,
+                            Scope(instance, owner), boundary.CorrelationExpressionMode);
+                        correlation = value?.ToString();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Correlation of boundary message '{boundary.Id}' in instance '{instance.Id}' "
+                            + $"could not be resolved: {ex.OutlineException()}", LogSeverity.Error);
+                        Fault(instance,
+                            $"Correlation of boundary message '{boundary.Id}' failed: {ex.Message}",
+                            boundary.Id);
+                        return false;
+                    }
+                }
+
+                instance.Tokens.Add(new Token
+                {
+                    NodeId = boundary.Id,
+                    Status = TokenStatus.Waiting,
+                    WaitingSignal = boundary.SignalName,
+                    WaitingKind = boundary.WaitKind,
+                    WaitingCorrelation = string.IsNullOrWhiteSpace(correlation) ? null : correlation,
+                    BoundaryOwnerTokenId = owner.Id,
+                    BoundaryIteration = 0
+                });
+
+                instance.Log("BoundaryMessageArmed", boundary.Id,
+                    $"{owner.NodeId} listening for '{boundary.SignalName}'", HistorySeverity.Verbose);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Loest einen <b>Nachrichten-Empfang am Schritt</b> aus: unterbricht den Schritt oder startet
+        /// einen Nebenpfad.
+        /// </summary>
+        /// <param name="instance">die Instanz</param>
+        /// <param name="definition">ihre Definition</param>
+        /// <param name="waitToken">das wartende Token des Empfangs</param>
+        /// <param name="boundary">der Empfangs-Knoten</param>
+        /// <param name="payloadVariables">die Nutzdaten der Nachricht</param>
+        /// <returns>die Id des dadurch aktiv gewordenen Tokens, oder null</returns>
+        /// <remarks>
+        /// Der wesentliche Unterschied zum Fristen-Timer steht am Ende: ein nicht unterbrechender Empfang
+        /// bleibt <b>scharf</b>. Eine Nachricht kann beliebig oft kommen ("der Kunde fragt wieder nach"),
+        /// und der Schritt soll nach der ersten nicht taub werden. Der Timer stellt sich dagegen auf seine
+        /// naechste Frist oder verstummt - dort ist die Liste endlich.
+        /// </remarks>
+        private string FireBoundaryMessage(WorkflowInstance instance, WorkflowDefinition definition,
+            Token waitToken, BoundaryMessageNode boundary, IDictionary<string, object> payloadVariables)
+        {
+            Token owner = instance.Tokens.FirstOrDefault(t => t.Id == waitToken.BoundaryOwnerTokenId);
+            bool ownerParked = owner is { Status: TokenStatus.Waiting or TokenStatus.WaitingForTarget };
+            if (!ownerParked)
+            {
+                // Das Haupt-Token ist inzwischen weitergelaufen - der Empfang ist gegenstandslos. Kein
+                // Fehler: Aufraeumer und Zustellung koennen sich ueberholen.
+                waitToken.Status = TokenStatus.Consumed;
+                ClearWait(waitToken);
+                return null;
+            }
+
+            IReadOnlyList<SequenceFlow> outgoing = definition.OutgoingFlows(boundary.Id);
+            if (outgoing.Count != 1)
+            {
+                Fault(instance,
+                    $"Boundary message '{boundary.Id}' must have exactly one outgoing flow, but has "
+                    + $"{outgoing.Count}.", boundary.Id);
+                return null;
+            }
+
+            int iteration = (waitToken.BoundaryIteration ?? 0) + 1;
+
+            if (boundary.Interrupting)
+            {
+                // Der Schritt wird abgebrochen: das Haupt-Token nimmt die Kante. Das Aufraeumen der
+                // Ereignisse am Schritt - auch dieses Empfangs-Tokens - erledigt MoveToken.
+                ClearUserTask(owner);
+                ClearWait(owner);
+                owner.WaitingTarget = null;
+                owner.WaitingForChildInstanceId = null;
+                owner.Status = TokenStatus.Active;
+
+                Dictionary<string, object> ownerScope = Scope(instance, owner);
+                // Die Nutzdaten gehoeren hier in den HAUPTFLUSS: er ist es, der weiterlaeuft, und der
+                // Grund des Abbruchs (Storno-Nummer, Begruendung) wird dort gebraucht.
+                ApplyPayload(ownerScope, payloadVariables);
+                if (!string.IsNullOrEmpty(boundary.CountVariable))
+                {
+                    ownerScope[boundary.CountVariable] = iteration;
+                }
+
+                instance.Log("BoundaryMessageInterrupted", boundary.Id,
+                    $"{owner.NodeId} by '{boundary.SignalName}'", HistorySeverity.Warning);
+                return MoveToken(instance, owner, outgoing[0]) ? owner.Id : null;
+            }
+
+            // Nicht unterbrechend: ein eigenes Token fuer den Nebenpfad mit einer KOPIE des Scopes - was
+            // dort geschrieben wird, fliesst nicht in den Hauptfluss zurueck (wie beim Fristen-Timer).
+            var side = new Token
+            {
+                NodeId = boundary.Id,
+                Status = TokenStatus.Active,
+                BoundaryOwnerTokenId = owner.Id,
+                Variables = CopyScope(Scope(instance, owner))
+                            ?? new Dictionary<string, object>(StringComparer.Ordinal)
+            };
+            ApplyPayload(side.Variables, payloadVariables);
+            if (!string.IsNullOrEmpty(boundary.CountVariable))
+            {
+                side.Variables[boundary.CountVariable] = iteration;
+            }
+
+            instance.Tokens.Add(side);
+
+            // Der Empfang bleibt SCHARF: Zaehler hoch, Wartezustand unveraendert. Genau hier liegt der
+            // Unterschied zum Timer - eine Nachricht kann wiederkommen, eine Frist verstreicht nur einmal.
+            waitToken.BoundaryIteration = iteration;
+
+            instance.Log("BoundaryMessageReceived", boundary.Id,
+                $"{owner.NodeId}, occurrence #{iteration}", HistorySeverity.Warning);
+            return MoveToken(instance, side, outgoing[0]) ? side.Id : null;
+        }
+
+        /// <summary>
         /// Verwirft alle Tokens, die zu einem Haupt-Token gehoeren: den wartenden Timer und einen eventuell
         /// laufenden Nebenpfad. Aufgerufen, sobald das Haupt-Token seinen Schritt verlaesst.
         /// </summary>
@@ -2968,6 +3516,109 @@ namespace ITVComponents.Workflow
             };
         }
 
+        /// <summary>
+        /// Traegt eine offene Benutzer-Aufgabe auf einen <b>anderen Zustaendigen</b> um - oder legt sie in
+        /// den Pool zurueck (<paramref name="newAssignee"/> null/leer).
+        /// </summary>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="tokenId">das wartende Token - die Aufgabe selbst</param>
+        /// <param name="newAssignee">der neue Zustaendige; null/leer legt die Aufgabe in den Pool</param>
+        /// <param name="changedBy">wer umtraegt (fuer den Verlauf); null = nicht vermerken</param>
+        /// <param name="reason">optionale Begruendung fuer den Verlauf ("Urlaubsvertretung")</param>
+        /// <returns>der Ausgang - vier unterscheidbare Faelle, siehe <see cref="UserTaskAssignmentStatus"/></returns>
+        /// <remarks>
+        /// <para>
+        /// Das ist die Antwort auf den haeufigsten Betriebsfall der Arbeitsliste: <c>Assignment</c> wird
+        /// EINMAL beim Parken ausgewertet und danach am Token festgeschrieben (die Liste ist eine
+        /// Datenbankabfrage und kann kein Skript auswerten). Ohne diesen Weg bliebe eine Aufgabe bei dem,
+        /// der erkrankt, kuendigt oder die Abteilung wechselt - und niemand koennte sie mehr erledigen.
+        /// </para>
+        /// <para>
+        /// Bewusst ueber die Engine und <b>nicht</b> als Update auf der Aufgaben-Zeile: <c>AssignedTo</c>
+        /// gehoert dem Token und wird bei jedem Speichern der Instanz aus ihm heraus geschrieben. Ein
+        /// Direktschreiben auf die Zeile ueberlebte den naechsten Commit des Zweigs nicht - im Unterschied
+        /// zur weichen Sperre (<c>ClaimedBy</c>), die es nur auf der Zeile gibt und deshalb dort geraeumt
+        /// werden darf.
+        /// </para>
+        /// <para>
+        /// Der Zweig wird dabei <b>nicht</b> bewegt: die Aufgabe bleibt stehen, wo sie steht, nur ihr
+        /// Zustaendiger wechselt. Fristen und Fristen-Timer laufen unveraendert weiter - ein Wechsel des
+        /// Bearbeiters ist kein Grund, die Uhr neu zu stellen.
+        /// </para>
+        /// </remarks>
+        public UserTaskAssignmentStatus ReassignUserTask(string instanceId, string tokenId,
+            string newAssignee, string changedBy = null, string reason = null)
+        {
+            if (instanceId == null)
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            if (tokenId == null)
+            {
+                throw new ArgumentNullException(nameof(tokenId));
+            }
+
+            // Leer und null sind dasselbe: Pool. Ein Leerstring waere ein Benutzername, den niemand hat -
+            // die Aufgabe verschwaende damit aus JEDER Arbeitsliste, ohne dass es nach einem Fehler aussieht.
+            string target = string.IsNullOrWhiteSpace(newAssignee) ? null : newAssignee.Trim();
+
+            UserTaskAssignmentStatus outcome = UserTaskAssignmentStatus.NotFound;
+            bool committed = MutateAndCommit(instanceId, "ReassignUserTask", (fresh, _) =>
+            {
+                // Der Delegat kann bei einem Versionskonflikt erneut laufen - der Ausgang wird deshalb je
+                // Versuch neu bestimmt, nicht akkumuliert.
+                outcome = UserTaskAssignmentStatus.NotFound;
+                Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
+                if (token == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"ReassignUserTask: token '{tokenId}' does not exist in instance '{instanceId}'.",
+                        LogSeverity.Warning);
+                    return false;
+                }
+
+                if (token.Status != TokenStatus.Waiting || token.TaskKey == null)
+                {
+                    // Derselbe Wettlauf wie beim Abschluss, nur von der anderen Seite: waehrend der eine
+                    // umtraegt, erledigt der andere. Kein Fehler - aber der Aufrufer muss es sagen koennen.
+                    outcome = UserTaskAssignmentStatus.NotATask;
+                    LogEnvironment.LogEvent(
+                        $"ReassignUserTask: task '{instanceId}/{tokenId}' is no longer open - nothing " +
+                        "reassigned.", LogSeverity.Report);
+                    return false;
+                }
+
+                string previous = token.AssignedTo;
+                if (string.Equals(previous, target, StringComparison.Ordinal))
+                {
+                    outcome = UserTaskAssignmentStatus.Unchanged;
+                    return false;
+                }
+
+                token.AssignedTo = target;
+                // Der Verlauf ist der EINZIGE Nachweis, wer eine Aufgabe wem gegeben hat - das Token traegt
+                // nur seinen aktuellen Zustaendigen. Ohne diesen Eintrag waere eine Vertretung im Nachhinein
+                // nicht mehr nachvollziehbar, und genau danach wird gefragt, wenn etwas liegengeblieben ist.
+                fresh.Log("UserTaskReassigned", token.NodeId,
+                    $"{previous ?? "(pool)"} -> {target ?? "(pool)"}"
+                    + (string.IsNullOrWhiteSpace(changedBy) ? null : $" by {changedBy}")
+                    + (string.IsNullOrWhiteSpace(reason) ? null : $": {reason}"));
+                outcome = UserTaskAssignmentStatus.Reassigned;
+                return true;
+            });
+
+            if (outcome == UserTaskAssignmentStatus.Reassigned && !committed)
+            {
+                // Der Delegat war erfolgreich, der Commit nicht (MutateAndCommit hat den Grund
+                // protokolliert). Ohne diese Korrektur meldete die Oberflaeche einen Erfolg, den es in der
+                // Datenbank nicht gibt - der Bearbeiter wartete dann auf eine Aufgabe, die er nie bekommt.
+                outcome = UserTaskAssignmentStatus.Failed;
+            }
+
+            return outcome;
+        }
+
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             AutomatedActivityNode node, IActivityScope activityScope)
         {
@@ -3037,7 +3688,7 @@ namespace ITVComponents.Workflow
             if (context.Failed)
             {
                 return HandleActivityFailure(instance, definition, token, node, context.FailureMessage,
-                    applyOutputs: true, outputs);
+                    applyOutputs: true, outputs, context.FailureCode);
             }
 
             // Erfolg: Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
@@ -3492,11 +4143,14 @@ namespace ITVComponents.Workflow
         /// bewegt.
         /// </summary>
         private bool HandleActivityFailure(WorkflowInstance instance, WorkflowDefinition definition, Token token,
-            AutomatedActivityNode node, string message, bool applyOutputs, IDictionary<string, object> outputs)
+            AutomatedActivityNode node, string message, bool applyOutputs, IDictionary<string, object> outputs,
+            string code = null)
         {
             if (string.IsNullOrEmpty(node.ErrorFlowId))
             {
-                Fault(instance, $"Activity '{node.ActivityRef}' failed: {message}", node.Id);
+                // Ohne Fehler-Ausgang faultet die Instanz - MIT dem Code. Damit reist die Fehlerart bis zu
+                // einem aufrufenden Prozess hinauf, der sie ueber seine eigene Fehlerkante auswerten kann.
+                Fault(instance, $"Activity '{node.ActivityRef}' failed: {message}", node.Id, code);
                 return false;
             }
 
@@ -3516,6 +4170,13 @@ namespace ITVComponents.Workflow
             if (!string.IsNullOrEmpty(node.ErrorVariable))
             {
                 scope[node.ErrorVariable] = message;
+            }
+
+            if (!string.IsNullOrEmpty(node.ErrorCodeVariable))
+            {
+                // Auch leer setzen (siehe HandleSubworkflowFailure): sonst bliebe beim zweiten Anlauf der
+                // Code des ersten stehen.
+                scope[node.ErrorCodeVariable] = code;
             }
 
             int attempts = 0;
@@ -4069,6 +4730,14 @@ namespace ITVComponents.Workflow
             if (!string.IsNullOrEmpty(node.ErrorVariable))
             {
                 scope[node.ErrorVariable] = child.FaultMessage ?? message;
+            }
+
+            if (!string.IsNullOrEmpty(node.ErrorCodeVariable))
+            {
+                // Die Fehlerart des Kindes - das, worauf der Aufrufer verzweigen kann. Auch dann setzen,
+                // wenn sie leer ist: sonst stuende beim zweiten Durchlauf noch der Code des ersten in der
+                // Variable, und die Verzweigung folgte einem Fehler, den es nicht mehr gibt.
+                scope[node.ErrorCodeVariable] = child.FaultCode;
             }
 
             if (!string.IsNullOrEmpty(node.AttemptVariable))
@@ -5003,11 +5672,24 @@ namespace ITVComponents.Workflow
             return null;
         }
 
-        private static void Fault(WorkflowInstance instance, string message, string nodeId = null)
+        /// <summary>
+        /// Setzt die Instanz auf <see cref="WorkflowStatus.Faulted"/>.
+        /// </summary>
+        /// <param name="instance">die Instanz</param>
+        /// <param name="message">die Meldung fuer Menschen</param>
+        /// <param name="nodeId">der Knoten, an dem es passiert ist</param>
+        /// <param name="code">
+        /// der Fehler-Code fuer den ABLAUF (Fehlerart), oder null. Ein aufrufender Prozess wertet ihn aus,
+        /// statt die Meldung zu parsen.
+        /// </param>
+        private static void Fault(WorkflowInstance instance, string message, string nodeId = null,
+            string code = null)
         {
             instance.Status = WorkflowStatus.Faulted;
             instance.FaultMessage = message;
-            instance.Log("Faulted", nodeId, message, HistorySeverity.Error);
+            instance.FaultCode = code;
+            instance.Log("Faulted", nodeId, string.IsNullOrWhiteSpace(code) ? message : $"[{code}] {message}",
+                HistorySeverity.Error);
         }
 
         private WorkflowDefinition LoadDefinition(WorkflowInstance instance)

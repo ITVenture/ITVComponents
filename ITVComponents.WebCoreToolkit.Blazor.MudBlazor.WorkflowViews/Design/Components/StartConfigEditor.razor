@@ -1,3 +1,4 @@
+@using ITVComponents.Scheduling
 @using ITVComponents.Workflow.Model
 @inject IDialogService DialogService
 
@@ -111,6 +112,150 @@
     <CScriptField @ref="descField" Language="json" Height="90" Value="@(Node.FormDescription ?? string.Empty)"
                   ValueChanged="@(v => Node.FormDescription = string.IsNullOrEmpty(v) ? null : v)" />
     </MudTabPanel>
+
+    @* Woraufhin dieser Einstieg von SELBST anlaeuft. Bewusst ein eigener Reiter neben Signatur und
+       Maske: die beiden beschreiben, WAS hineingeht - hier steht, WER den Prozess ueberhaupt startet. *@
+    <MudTabPanel Text="Triggers" Icon="@Icons.Material.Filled.Bolt">
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Without a trigger this workflow only starts when someone (or something) starts it — by hand, from
+        code or as a subworkflow. A trigger lets it start <b>by itself</b>. Triggers belong to the tenant of
+        the definition; public definitions deliberately never fire.
+    </MudText>
+
+    @* --- Nachricht --- *@
+    <MudSwitch T="bool" Value="@(Node.MessageStart is not null)" ValueChanged="ToggleMessageStart"
+               Color="Color.Primary" Size="Size.Small" Class="mt-3"
+               Label="Start when a message arrives" />
+
+    @if (Node.MessageStart is not null)
+    {
+        <div class="ml-6">
+            <MudTextField @bind-Value="Node.MessageStart.SignalName" Label="Message name"
+                          Margin="Margin.Dense" />
+
+            <MudSelect T="MessageStartMode" @bind-Value="Node.MessageStart.Mode" Label="When one is already running"
+                       Dense="true" Margin="Margin.Dense" Class="mt-2">
+                <MudSelectItem T="MessageStartMode" Value="MessageStartMode.AlwaysStart">Always start a new instance</MudSelectItem>
+                <MudSelectItem T="MessageStartMode" Value="MessageStartMode.CorrelateOrStart">Continue the waiting one, otherwise start</MudSelectItem>
+                <MudSelectItem T="MessageStartMode" Value="MessageStartMode.StartIfNoneRunning">Only start when none is running</MudSelectItem>
+            </MudSelect>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                @switch (Node.MessageStart.Mode)
+                {
+                    case MessageStartMode.CorrelateOrStart:
+                        <text>
+                            If the message reached a waiting instance with the same correlation key, no new one
+                            is created. For "continue the case, or open it".
+                        </text>
+                        break;
+                    case MessageStartMode.StartIfNoneRunning:
+                        <text>
+                            The message is dropped while an instance with the same correlation key is running —
+                            the bolt against duplicates (clicked twice, delivered twice).
+                        </text>
+                        break;
+                    default:
+                        <text>
+                            Every message opens a new case; waiting steps are untouched by it. The predictable
+                            default: what happens is in the model, not in the current state of the system.
+                        </text>
+                        break;
+                }
+            </MudText>
+
+            <MudSwitch T="bool" @bind-Value="Node.MessageStart.AdoptCorrelationKey" Color="Color.Primary"
+                       Size="Size.Small" Class="mt-2"
+                       Label="Adopt the correlation key of the message" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                So a later message finds this case again. Turn it off only if the business reference is
+                created inside the process.
+            </MudText>
+
+            @if (Node.MessageStart.Mode == MessageStartMode.StartIfNoneRunning
+                 && !Node.MessageStart.AdoptCorrelationKey)
+            {
+                @* Dasselbe, was der Validator meldet - nur hier, wo man es gerade verstellt hat. *@
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                    Without adopting the key no instance ever has one — the check can never find a running
+                    instance and will never block anything.
+                </MudAlert>
+            }
+        </div>
+    }
+
+    <MudDivider Class="my-4" />
+
+    @* --- Zeitplan --- *@
+    <MudSwitch T="bool" Value="@(Node.ScheduleStart is not null)" ValueChanged="ToggleScheduleStart"
+               Color="Color.Primary" Size="Size.Small"
+               Label="Start on a schedule" />
+
+    @if (Node.ScheduleStart is not null)
+    {
+        <div class="ml-6">
+            <MudTextField Value="@Node.ScheduleStart.Pattern" ValueChanged="@((string v) => SetPattern(v))"
+                          Label="Schedule pattern" Margin="Margin.Dense" Immediate="true"
+                          Error="@(PatternError is not null)" ErrorText="@PatternError"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.EditCalendar"
+                          OnAdornmentClick="OpenPatternDesigner"
+                          AdornmentAriaLabel="Build the schedule"
+                          HelperText="@("e.g. d20200101080001 = daily at 08:00, counted from 2020-01-01. A trailing t means: run once immediately. Use the calendar button to build it.")" />
+
+            @if (PatternPreview.Count > 0)
+            {
+                @* Die Vorschau ist der eigentliche Grund, warum das Feld benutzbar ist: das Muster ist ein
+                   Maschinenformat, und niemand liest daran ab, wann etwas laeuft. *@
+                <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">
+                    <MudText Typo="Typo.caption"><b>Next runs (local time):</b></MudText>
+                    @foreach (DateTime due in PatternPreview)
+                    {
+                        <MudText Typo="Typo.caption">@due.ToLocalTime().ToString("g")</MudText>
+                    }
+                </MudAlert>
+            }
+
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+                Computed in <b>local time</b> — "daily at 8" means eight o'clock on site, also after the
+                switch to summer time. Stored in UTC.
+            </MudText>
+
+            <MudSwitch T="bool" @bind-Value="Node.ScheduleStart.SkipWhilePreviousRuns" Color="Color.Primary"
+                       Size="Size.Small" Class="mt-3"
+                       Label="Skip while the previous run is still going" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Off by default: the date is the date. Use with care — a process waiting for a user task counts
+                as "still going" and stops the whole schedule; skipped dates are written to the log.
+            </MudText>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Start values</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                There is nobody to fill in a form — these values take the place of the start mask and are
+                resolved against the signature just like passed-in values.
+            </MudText>
+            <MudTable Items="@ScheduleVariableRows" Hover="true" Dense="true" Elevation="0"
+                      Breakpoint="Breakpoint.Sm" Class="mt-1" T="KeyValuePair<string, object>">
+                <ToolBarContent>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                               Color="Color.Primary" OnClick="AddScheduleVariable">Add value</MudButton>
+                    <MudSpacer />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Variable</MudTh>
+                    <MudTh>Value</MudTh>
+                    <MudTh Style="width:1%"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Variable">@context.Key</MudTd>
+                    <MudTd DataLabel="Value">@context.Value</MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => EditScheduleVariable(context.Key))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
+    }
+    </MudTabPanel>
   </MudTabs>
 }
 
@@ -122,6 +267,171 @@
     [Parameter] public WorkflowDefinition? Def { get; set; }
 
     private CScriptField? descField;
+
+    /// <summary>Die Fehlermeldung zum Zeitplan-Muster, oder null - laufend beim Tippen aktualisiert.</summary>
+    private string? PatternError;
+
+    /// <summary>Die naechsten Termine des Musters (UTC) - leer, wenn es keinen hergibt.</summary>
+    private List<DateTime> PatternPreview = new();
+
+    /// <summary>Wie viele Termine die Vorschau zeigt - genug, um den Rhythmus zu erkennen.</summary>
+    private const int PreviewCount = 3;
+
+    /// <summary>Die festen Startwerte als stabile Liste je Render (MudTable braucht IEnumerable&lt;T&gt;).</summary>
+    private List<KeyValuePair<string, object>> ScheduleVariableRows
+        => Node?.ScheduleStart?.Variables?.ToList() ?? new List<KeyValuePair<string, object>>();
+
+    protected override void OnParametersSet() => RefreshPattern();
+
+    /// <summary>
+    /// Schaltet den Nachrichten-Ausloeser an oder aus. Ausschalten wirft die Einstellungen weg - das ist
+    /// gewollt: ein Ausloeser, der "aus" ist, aber noch einen Namen traegt, waere beim naechsten Oeffnen
+    /// nicht von einem aktiven zu unterscheiden.
+    /// </summary>
+    private void ToggleMessageStart(bool on)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        Node.MessageStart = on ? new MessageStartTrigger() : null;
+    }
+
+    /// <summary>Schaltet den Zeitplan an oder aus (siehe <see cref="ToggleMessageStart"/>).</summary>
+    private void ToggleScheduleStart(bool on)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        Node.ScheduleStart = on ? new ScheduleStartTrigger() : null;
+        RefreshPattern();
+    }
+
+    private void SetPattern(string value)
+    {
+        if (Node?.ScheduleStart is null)
+        {
+            return;
+        }
+
+        Node.ScheduleStart.Pattern = value;
+        RefreshPattern();
+    }
+
+    /// <summary>
+    /// Oeffnet den Zusammenbau des Musters. Das Textfeld bleibt daneben bestehen: wer das Format kennt,
+    /// tippt schneller - und ein aus einer anderen Anlage kopiertes Muster laesst sich einfuegen, ohne es
+    /// erst nachzuklicken.
+    /// </summary>
+    private async Task OpenPatternDesigner()
+    {
+        if (Node?.ScheduleStart is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<SchedulePatternDialog>
+        {
+            { d => d.Pattern, Node.ScheduleStart.Pattern }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true
+        };
+        IDialogReference dialog = await DialogService.ShowAsync<SchedulePatternDialog>(
+            "Build the schedule", parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result is { Canceled: false, Data: string built } && !string.IsNullOrWhiteSpace(built))
+        {
+            SetPattern(built);
+        }
+    }
+
+    /// <summary>
+    /// Prueft das Muster und rechnet die Vorschau - beim Tippen, damit ein Tippfehler auffaellt, solange
+    /// man noch davorsitzt.
+    /// </summary>
+    /// <remarks>
+    /// Geprueft wird dasselbe wie im Validator, und zwar aus derselben Quelle: nicht nur, ob das Muster
+    /// lesbar ist, sondern ob es ueberhaupt je einen Termin ergibt. Ein Muster wie "31. Februar" ist
+    /// formal in Ordnung und schweigt trotzdem fuer immer.
+    /// </remarks>
+    private void RefreshPattern()
+    {
+        PatternError = null;
+        PatternPreview = new List<DateTime>();
+
+        string? pattern = Node?.ScheduleStart?.Pattern;
+        if (string.IsNullOrWhiteSpace(pattern))
+        {
+            return;
+        }
+
+        if (!ScheduleEvaluator.TryValidate(pattern, out string error))
+        {
+            PatternError = error;
+            return;
+        }
+
+        PatternPreview = ScheduleEvaluator.Preview(pattern, DateTime.UtcNow, PreviewCount).ToList();
+    }
+
+    private async Task AddScheduleVariable()
+    {
+        if (Node?.ScheduleStart is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters { { nameof(KeyValueEditDialog.IsNew), true } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<KeyValueEditDialog>(string.Empty, parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result?.Data is KeyValueEditDialog.Result r && !r.Delete && !string.IsNullOrWhiteSpace(r.Key))
+        {
+            Node.ScheduleStart.Variables[r.Key] = r.Value;
+        }
+    }
+
+    private async Task EditScheduleVariable(string key)
+    {
+        if (Node?.ScheduleStart is null
+            || !Node.ScheduleStart.Variables.TryGetValue(key, out object? current))
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(KeyValueEditDialog.Key), key },
+            { nameof(KeyValueEditDialog.Value), current?.ToString() ?? string.Empty },
+            { nameof(KeyValueEditDialog.IsNew), false }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        IDialogReference dialog = await DialogService.ShowAsync<KeyValueEditDialog>(string.Empty, parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result?.Data is not KeyValueEditDialog.Result r)
+        {
+            return;
+        }
+
+        if (r.Delete)
+        {
+            Node.ScheduleStart.Variables.Remove(r.OriginalKey ?? key);
+            return;
+        }
+
+        // Umbenennung: den alten Eintrag entfernen, bevor der neue gesetzt wird.
+        if (!string.IsNullOrEmpty(r.OriginalKey) && !string.Equals(r.OriginalKey, r.Key, StringComparison.Ordinal))
+        {
+            Node.ScheduleStart.Variables.Remove(r.OriginalKey);
+        }
+
+        Node.ScheduleStart.Variables[r.Key] = r.Value;
+    }
 
     /// <summary>
     /// Die Felder der Maske, die in der Signatur NICHT deklariert sind. Nur bei strikter Signatur

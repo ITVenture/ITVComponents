@@ -79,17 +79,33 @@ namespace ITVComponents.Workflow.Activities
         public string FailureMessage { get; private set; }
 
         /// <summary>
+        /// Bei <see cref="Failed"/>: der <b>Fehler-Code</b> - ein kurzer, stabiler Schluessel der
+        /// FehlerART ("CreditDenied", "AddressInvalid"), oder null.
+        /// </summary>
+        /// <remarks>
+        /// Der Unterschied zur Meldung ist der Adressat: die Meldung ist fuer Menschen, der Code fuer den
+        /// PROZESS. Nach einem Text zu verzweigen hiesse, ihn zu parsen - und damit haenge der Ablauf an
+        /// einer Formulierung, die jederzeit jemand umschreibt (oder uebersetzt).
+        /// </remarks>
+        public string FailureCode { get; private set; }
+
+        /// <summary>
         /// Meldet einen <b>kontrollierten</b> Fehler (fachliches Scheitern, kein Absturz), ohne eine
         /// Exception zu werfen: der aktuelle Knoten nimmt anschliessend seinen
         /// <see cref="AutomatedActivityNode.ErrorFlowId"/> (sofern gesetzt), und die zuvor in
         /// <see cref="Outputs"/> abgelegten Zwischenergebnisse (z.B. die Liste der fehlgeschlagenen
         /// Elemente) bleiben erhalten. Ohne Fehler-Ausgang faultet die Instanz.
         /// </summary>
-        /// <param name="message">die Fehlermeldung (fuer Anzeige/Verzweigung), oder null</param>
-        public void Fail(string message = null)
+        /// <param name="message">die Fehlermeldung fuer Menschen (Anzeige, Protokoll), oder null</param>
+        /// <param name="code">
+        /// der Fehler-Code fuer den PROZESS - ein kurzer, stabiler Schluessel der Fehlerart
+        /// ("CreditDenied"), oder null. Ueber ihn verzweigt der Graph, ohne die Meldung parsen zu muessen.
+        /// </param>
+        public void Fail(string message = null, string code = null)
         {
             Failed = true;
             FailureMessage = message;
+            FailureCode = code;
         }
     }
 

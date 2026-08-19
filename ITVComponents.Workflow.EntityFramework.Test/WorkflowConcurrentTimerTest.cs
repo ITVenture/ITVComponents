@@ -343,6 +343,23 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 => inner.CompleteOutgoingMessage(instanceId, messageId);
 
             public void ReleaseLocksOfOwner(string owner) => inner.ReleaseLocksOfOwner(owner);
+
+            // Die Ausloeser interessieren diesen Decorator nicht - er verstellt die Reaktivierung.
+            // Durchreichen statt werfen: was er nicht faelscht, soll sich normal verhalten.
+            public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
+                => inner.FindMessageTriggers(signalName);
+
+            public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime now, string o,
+                TimeSpan l, int m) => inner.ClaimDueScheduleTriggers(now, o, l, m);
+
+            public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+                string lastInstanceId)
+                => inner.UpdateScheduleTrigger(triggerKey, nextDueUtc, lastRunUtc, lastInstanceId);
+
+            public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
+
+            public bool HasRunningInstance(int definitionKey, string correlationKey)
+                => inner.HasRunningInstance(definitionKey, correlationKey);
         }
     }
 }

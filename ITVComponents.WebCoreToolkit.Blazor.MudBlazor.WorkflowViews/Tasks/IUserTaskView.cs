@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ITVComponents.Workflow;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks
 {
@@ -30,6 +31,85 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks
         /// <see cref="UserTaskViewResult.Incomplete"/>, wenn noch etwas fehlt.
         /// </returns>
         Task<UserTaskViewResult> ResolveActivityAsync();
+
+        /// <summary>
+        /// <b>Nachbereitung:</b> die Aufgabe ist abgeschlossen - jetzt darf die Maske ihre eigenen
+        /// Wirkungen festschreiben. Optional; ohne eigene Umsetzung passiert nichts.
+        /// </summary>
+        /// <param name="result">
+        /// wie der Abschluss ausgegangen ist. <b>Nicht ignorieren:</b> bei
+        /// <see cref="UserTaskCompletionStatus.AlreadyCompleted"/> hat ein anderer abgeschlossen, und die
+        /// Maske darf dann NICHT auch noch schreiben - sonst entstehen genau die Doubletten, gegen die
+        /// dieser Haken gedacht ist.
+        /// </param>
+        /// <returns>
+        /// <see cref="UserTaskPostResult.Ok"/>, oder <see cref="UserTaskPostResult.Failed"/> mit einer
+        /// Meldung fuer den Benutzer.
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Wofuer:</b> <see cref="ResolveActivityAsync"/> laeuft VOR dem Abschluss. Wer dort Fachdaten
+        /// schreibt, schreibt sie auch dann, wenn der Abschluss anschliessend scheitert (Versionskonflikt,
+        /// "war schon erledigt") oder der Benutzer den Dialog einfach schliesst - und muss die Doublette
+        /// danach selbst wieder einfangen. Hier passiert es erst, wenn feststeht, dass es etwas zu
+        /// begleiten gibt.
+        /// </para>
+        /// <para>
+        /// <b>Wofuer NICHT:</b> als Ersatz fuer eine eigene Aktivitaet im Prozess. Wenn ein spaeterer
+        /// Schritt die Daten liest oder eine Verzweigung von ihnen abhaengt, gehoert das Schreiben in den
+        /// Prozess - nur dort greifen dessen Wiederholung und Fehlerbehandlung. Dieser Haken ist fuer
+        /// Wirkungen, die am Abschluss haengen, nicht fuer Schritte, ueber die der Prozess nachdenkt.
+        /// </para>
+        /// <para>
+        /// <b>Ein Scheitern hier haelt nichts auf</b> - die Aufgabe bleibt erledigt und der Prozess laeuft
+        /// weiter; das ist nicht mehr rueckgaengig zu machen. Es wird dem Benutzer aber ausdruecklich
+        /// angezeigt ("abgeschlossen, aber X konnte nicht gespeichert werden"): sonst taeuscht man eine
+        /// sichtbare Doublette gegen eine unsichtbare Luecke ein, und das waere der schlechtere Fehler.
+        /// </para>
+        /// <para>
+        /// <b>Default-Methode und kein Pflichtpunkt:</b> der Vertrag wird beim Uebersetzen erzwungen - ein
+        /// weiterer Pflicht-Member braeche jede bestehende Maske, obwohl die weit ueberwiegende Mehrheit
+        /// ihn nie braucht.
+        /// </para>
+        /// </remarks>
+        Task<UserTaskPostResult> PostResolveActivityAsync(UserTaskCompletionResult result)
+            => Task.FromResult(UserTaskPostResult.Ok());
+    }
+
+    /// <summary>
+    /// Die Antwort einer Maske auf die Nachbereitung: durchgelaufen, oder gescheitert mit einer Meldung,
+    /// die der Benutzer sehen muss.
+    /// </summary>
+    /// <remarks>
+    /// Ein Ergebnistyp und keine Exception - aus demselben Grund wie bei
+    /// <see cref="UserTaskViewResult"/>: ein fachliches "hat nicht geklappt" ist kein Ausnahmefall,
+    /// sondern ein erwarteter Ausgang. Der Dialog faengt trotzdem zusaetzlich ab, was geworfen wird; eine
+    /// Maske kann immer werfen.
+    /// </remarks>
+    public sealed class UserTaskPostResult
+    {
+        private UserTaskPostResult(bool success, string? message)
+        {
+            Success = success;
+            Message = message;
+        }
+
+        /// <summary>Ob die Nachbereitung durchgelaufen ist.</summary>
+        public bool Success { get; }
+
+        /// <summary>
+        /// Bei einem Fehlschlag: was dem Benutzer zu sagen ist. Leer laesst den Dialog eine allgemeine
+        /// Meldung zeigen - aber schweigen tut er nicht.
+        /// </summary>
+        public string? Message { get; }
+
+        /// <summary>Alles erledigt.</summary>
+        public static UserTaskPostResult Ok() => new UserTaskPostResult(true, null);
+
+        /// <summary>Die Nachbereitung ist gescheitert - die Aufgabe bleibt trotzdem abgeschlossen.</summary>
+        /// <param name="message">was dem Benutzer zu sagen ist</param>
+        public static UserTaskPostResult Failed(string? message = null)
+            => new UserTaskPostResult(false, message);
     }
 
     /// <summary>

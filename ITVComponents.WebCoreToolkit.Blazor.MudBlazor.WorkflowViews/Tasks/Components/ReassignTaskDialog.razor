@@ -1,0 +1,209 @@
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
+@using Microsoft.Extensions.DependencyInjection
+
+@inject IWorkflowTaskHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<WorkflowTaskMessages> L
+@inject IServiceProvider Services
+
+@* Das Umtragen einer Aufgabe - Vertretung, Delegation, Zuruecklegen. Der Dialog fuehrt den Aufruf SELBST
+   aus und meldet den Ausgang: er wird von der Arbeitsliste wie vom Aufgaben-Mantel geoeffnet, und zwei
+   Abschriften der Ausgangs-Behandlung liefen beim naechsten Sonderfall auseinander. Nach aussen gibt er
+   nur zurueck, OB sich etwas geaendert hat - mehr braucht der Aufrufer nicht, um seine Liste neu zu laden. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            @(string.IsNullOrEmpty(CurrentAssignee)
+                ? L["ReassignFromPool"].Value
+                : string.Format(L["ReassignFrom"], CurrentAssignee))
+        </MudText>
+
+        @if (assigneeSource is null)
+        {
+            @* Ohne registrierte Benutzerquelle bleibt der Freitext. Das ist bewusst KEIN Fehler: das Modul
+               kennt das Identitaetsmodell des Hosts nicht. Der Hinweis sagt aber, dass der Name genau der
+               Anmeldename sein muss - sonst liegt die Aufgabe anschliessend bei niemandem. *@
+            <MudTextField T="string" Value="@userName" ValueChanged="OnNameTyped" Immediate="true"
+                          Label="@L["ReassignTarget"]" HelperText="@L["ReassignTargetHelp"]"
+                          Disabled="@toPool" />
+        }
+        else
+        {
+            <MudAutocomplete T="WorkflowAssignee" Value="picked" ValueChanged="OnPicked"
+                             SearchFunc="SearchAsync" ToStringFunc="DisplayOf"
+                             Label="@L["ReassignTarget"]" Disabled="@toPool"
+                             Clearable="true" ResetValueOnEmptyText="true" MinCharacters="0" />
+        }
+
+        <MudSwitch T="bool" Value="toPool" ValueChanged="OnPoolChanged" Color="Color.Primary"
+                   Size="Size.Small" Label="@L["ReassignToPool"]" Class="mt-2" />
+
+        <MudTextField T="string" @bind-Value="reason" Label="@L["ReassignReason"]" Lines="2"
+                      Class="mt-2" HelperText="@L["ReassignReasonHelp"]" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Close"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(busy || !CanSubmit)"
+                   OnClick="SubmitAsync">@L["ReassignSubmit"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die Instanz, zu der die Aufgabe gehoert.</summary>
+    [Parameter] public string InstanceId { get; set; } = "";
+
+    /// <summary>Die Aufgabe (das wartende Token).</summary>
+    [Parameter] public string TokenId { get; set; } = "";
+
+    /// <summary>Die Workflow-Umgebung (Store); null = Standard.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    /// <summary>Der aktuelle Zustaendige - null/leer heisst Pool.</summary>
+    [Parameter] public string? CurrentAssignee { get; set; }
+
+    /// <summary>
+    /// Die Permission der Aufgabe. Sie geht an die Benutzerquelle weiter, damit die Auswahl niemanden
+    /// anbietet, bei dem die Aufgabe anschliessend unsichtbar laege.
+    /// </summary>
+    [Parameter] public string? RequiredPermission { get; set; }
+
+    /// <summary>Wie viele Vorschlaege die Auswahl hoechstens zeigt.</summary>
+    private const int MaxSuggestions = 25;
+
+    private IWorkflowAssigneeSource? assigneeSource;
+    private ClaimsPrincipal? currentUser;
+    private WorkflowAssignee? picked;
+    private string? userName;
+    private string? reason;
+    private bool toPool;
+    private bool busy;
+
+    /// <summary>
+    /// Ob es etwas zu tun gibt: entweder in den Pool, oder ein Ziel, das nicht schon der aktuelle
+    /// Zustaendige ist. Ohne die zweite Bedingung waere der haeufigste Fehlklick ein Knopf, der bestaetigt
+    /// und nichts tut.
+    /// </summary>
+    private bool CanSubmit
+        => toPool
+           ? !string.IsNullOrEmpty(CurrentAssignee)
+           : !string.IsNullOrWhiteSpace(Target) && Target != CurrentAssignee;
+
+    /// <summary>Der gewaehlte Zustaendige - aus der Auswahl oder aus dem Freitext.</summary>
+    private string? Target => toPool ? null : (picked?.UserName ?? userName)?.Trim();
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+
+        // Optional: ohne Registrierung bleibt die Freitext-Eingabe. GetService und nicht GetRequiredService -
+        // ein fehlender Dienst ist hier der dokumentierte Normalfall, kein Konfigurationsfehler.
+        assigneeSource = Services.GetService<IWorkflowAssigneeSource>();
+    }
+
+    private static string DisplayOf(WorkflowAssignee? assignee)
+        => assignee is null
+            ? string.Empty
+            : string.IsNullOrWhiteSpace(assignee.DisplayName) ? assignee.UserName : assignee.DisplayName!;
+
+    private async Task<IEnumerable<WorkflowAssignee>> SearchAsync(string? term, CancellationToken ct)
+    {
+        if (assigneeSource is null)
+        {
+            return Array.Empty<WorkflowAssignee>();
+        }
+
+        try
+        {
+            return await assigneeSource.SearchAsync(term, RequiredPermission, MaxSuggestions, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Der Benutzer tippt weiter - die vorige Suche wird abgebrochen. Das ist der Normalfall einer
+            // Vorschlagsliste und keine Stoerung.
+            return Array.Empty<WorkflowAssignee>();
+        }
+        catch (Exception ex)
+        {
+            // Eine leere Liste ist die richtige ANZEIGE (der Dialog bleibt bedienbar, notfalls ueber den
+            // Pool-Schalter) - aber sie darf nicht so aussehen, als gaebe es einfach niemanden.
+            LogEnvironment.LogEvent(
+                $"ReassignTaskDialog: die Benutzerquelle konnte fuer '{term}' keine Vorschlaege liefern: "
+                + $"{ex.OutlineException()}", LogSeverity.Error);
+            Snackbar.Add(L["ReassignSearchFailed"], Severity.Warning);
+            return Array.Empty<WorkflowAssignee>();
+        }
+    }
+
+    private void OnPicked(WorkflowAssignee? value)
+    {
+        picked = value;
+        userName = value?.UserName;
+    }
+
+    private void OnNameTyped(string? value)
+    {
+        userName = value;
+        picked = null;
+    }
+
+    /// <summary>
+    /// Der Pool-Schalter raeumt die Auswahl mit ab: sonst stuende dort noch ein Name, waehrend die Aufgabe
+    /// an niemanden geht - und beim Zuruecknehmen des Schalters waere unklar, was nun gilt.
+    /// </summary>
+    private void OnPoolChanged(bool value)
+    {
+        toPool = value;
+        if (value)
+        {
+            picked = null;
+            userName = null;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (busy || currentUser is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            UserTaskAssignmentStatus status =
+                await Handler.ReassignAsync(currentUser, InstanceId, TokenId, Target, reason, Environment);
+            switch (status)
+            {
+                case UserTaskAssignmentStatus.Reassigned:
+                    Snackbar.Add(toPool
+                        ? L["ReassignedToPool"].Value
+                        : string.Format(L["Reassigned"], Target), Severity.Success);
+                    MudDialog.Close(DialogResult.Ok(true));
+                    return;
+                case UserTaskAssignmentStatus.Unchanged:
+                    // Kein Fehler - aber der Benutzer muss erfahren, dass sein Klick nichts bewirkt hat.
+                    Snackbar.Add(L["ReassignUnchanged"], Severity.Info);
+                    break;
+                case UserTaskAssignmentStatus.NotATask:
+                    Snackbar.Add(L["ReassignAlreadyDone"], Severity.Warning);
+                    MudDialog.Close(DialogResult.Ok(true)); // Die Liste stimmt nicht mehr - neu laden.
+                    return;
+                default:
+                    Snackbar.Add(L["ReassignFailed"], Severity.Error);
+                    break;
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Ok(false));
+}

@@ -1,0 +1,381 @@
+@using System.IO
+@using Microsoft.AspNetCore.Components.Forms
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
+@using Microsoft.Extensions.Options
+
+@inject IWorkflowTaskHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<WorkflowTaskMessages> L
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IOptions<WorkflowViewsOptions> Options
+@implements IAsyncDisposable
+
+@*
+    Der Gespraechsfaden eines VORGANGS - Rueckfragen, Vermerke, Begruendungen.
+
+    Gezeigt wird der ganze Faden und nicht nur, was an dieser einen Aufgabe entstand: wer gerade an einem
+    Schritt sitzt, will wissen, was vorher besprochen wurde, und das steht in aller Regel an einem
+    Schritt, den es nicht mehr gibt. Neu geschriebene Kommentare tragen deshalb nur nachrichtlich, aus
+    WELCHER Aufgabe heraus sie kamen.
+*@
+
+<MudExpansionPanel Text="@ThreadTitle" Dense="true" @bind-Expanded="expanded">
+    @if (loading)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+    }
+    else
+    {
+        @if (comments.Count == 0)
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@L["NoComments"]</MudText>
+        }
+        else
+        {
+            <MudList T="WorkflowComment" Dense="true" Gutters="false">
+                @foreach (WorkflowComment comment in comments)
+                {
+                    <MudListItem T="WorkflowComment">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @comment.Author — @comment.CreatedUtc.ToLocalTime().ToString("g")
+                        </MudText>
+                        @* Bewusst als Text und nicht als Markup: was hier steht, hat ein Benutzer
+                           getippt, und es landet in der Maske eines anderen. *@
+                        <MudText Typo="Typo.body2" Style="white-space:pre-wrap">@comment.Text</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        @if (attachments.Count > 0)
+        {
+            <MudDivider Class="my-2" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@L["Attachments"]</MudText>
+            <MudList T="WorkflowAttachment" Dense="true" Gutters="false">
+                @foreach (WorkflowAttachment file in attachments)
+                {
+                    <MudListItem T="WorkflowAttachment" Icon="@Icons.Material.Filled.AttachFile">
+                        <div class="d-flex align-center gap-2">
+                            <MudLink Typo="Typo.body2" Href="javascript:void(0)"
+                                     OnClick="@(() => DownloadAsync(file))">@file.FileName</MudLink>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @Sizes(file.SizeBytes) — @file.Author
+                            </MudText>
+                            @if (file.Author == me)
+                            {
+                                @* Nur der eigene Anhang: den eigenen Fehlgriff zu korrigieren ist etwas
+                                   anderes, als fremde Belege aus einem Vorgang zu entfernen. *@
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Title="@L["RemoveAttachment"]"
+                                               OnClick="@(() => DeleteAsync(file))" />
+                            }
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+
+        <MudTextField @bind-Value="draft" Label="@L["CommentPlaceholder"]" Lines="2" Margin="Margin.Dense"
+                      Class="mt-2" Immediate="true" />
+        <div class="d-flex align-center gap-2 mt-1">
+            <MudButton StartIcon="@Icons.Material.Filled.Send" Size="Size.Small" Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       Disabled="@(busy || string.IsNullOrWhiteSpace(draft))"
+                       OnClick="AddAsync">@L["AddComment"]</MudButton>
+
+            @if (AttachmentsEnabled)
+            {
+                @* Verstecktes InputFile + eigener Knopf, geoeffnet ueber die JS-Hilfe des Toolkits -
+                   dasselbe Muster wie SharedComponents/FileUpload.razor. Deren Komponente selbst laesst
+                   sich hier nicht verwenden: sie ist fest an den IFileServiceHandler gebunden, und
+                   dessen Vertrag gibt keine Datei-Kennung zurueck, mit der ein Anhang spaeter wieder zu
+                   lesen waere. *@
+                <InputFile id="@inputId" OnChange="OnFilePicked" style="display:none" />
+                <MudButton StartIcon="@Icons.Material.Filled.AttachFile" Size="Size.Small"
+                           Variant="Variant.Outlined" Disabled="@busy"
+                           OnClick="PickFileAsync">@L["AddAttachment"]</MudButton>
+            }
+        </div>
+    }
+</MudExpansionPanel>
+
+@code {
+    /// <summary>Der Vorgang, dessen Faden gezeigt wird.</summary>
+    [Parameter] public string InstanceId { get; set; } = "";
+
+    /// <summary>Die Aufgabe, aus der heraus geschrieben wird, oder null (aus dem Monitoring).</summary>
+    [Parameter] public string? TokenId { get; set; }
+
+    /// <summary>Die Workflow-Umgebung (Store); null = Standard.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    /// <summary>Ob der Bereich beim Oeffnen aufgeklappt ist.</summary>
+    /// <remarks>
+    /// Vorgabe zu: die Maske der Aufgabe ist das, weswegen jemand hier ist - der Faden ist die
+    /// Nebeninformation. Steht schon etwas drin, klappt er von selbst auf (siehe <see cref="LoadAsync"/>).
+    /// </remarks>
+    [Parameter] public bool Expanded { get; set; }
+
+    private ClaimsPrincipal? currentUser;
+    private List<WorkflowComment> comments = new();
+    private List<WorkflowAttachment> attachments = new();
+    private string? draft;
+    private bool loading = true;
+    private bool busy;
+    private bool expanded;
+    private string? me;
+
+    /// <summary>Die Kennung des versteckten Eingabefeldes - je Bereich eigen (mehrere je Seite moeglich).</summary>
+    private readonly string inputId = "wfatt_" + Guid.NewGuid().ToString("N");
+
+    private IJSObjectReference? module;
+
+    /// <summary>
+    /// Ob Anhaenge angeboten werden. Eine Obergrenze von 0 oder kleiner schaltet sie ab - dann erscheint
+    /// auch kein Knopf, statt einen anzubieten, der jedes Mal abgelehnt wird.
+    /// </summary>
+    private bool AttachmentsEnabled
+        => (Options?.Value?.MaxAttachmentBytes ?? 0) > 0;
+
+    private string ThreadTitle
+    {
+        get
+        {
+            int count = comments.Count + attachments.Count;
+            return count == 0 ? L["Comments"] : $"{L["Comments"]} ({count})";
+        }
+    }
+
+    /// <summary>Die Groesse lesbar - "1,2 MB" sagt mehr als 1258291.</summary>
+    private static string Sizes(long bytes)
+        => bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+            _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        expanded = Expanded;
+        AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        me = currentUser?.Identity?.Name;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (currentUser is null || string.IsNullOrEmpty(InstanceId))
+        {
+            loading = false;
+            return;
+        }
+
+        try
+        {
+            comments = (await Handler.ListCommentsAsync(currentUser, InstanceId, Environment)).ToList();
+            attachments = (await Handler.ListAttachmentsAsync(currentUser, InstanceId, Environment)).ToList();
+            // Steht schon etwas im Faden, aufklappen: ein zugeklappter Bereich mit einer Rueckfrage darin
+            // ist genau so gut wie keine Rueckfrage.
+            expanded |= comments.Count > 0 || attachments.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            // Der Faden ist Beiwerk - er darf die Aufgabe nicht unbenutzbar machen. Stillschweigen darf
+            // er trotzdem nicht, sonst sieht ein leerer Faden aus wie "es gibt nichts".
+            LogEnvironment.LogEvent(
+                $"WorkflowCommentThread: die Kommentare des Vorgangs '{InstanceId}' konnten nicht geladen "
+                + $"werden: {ex.OutlineException()}", LogSeverity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    /// <summary>Laedt die JS-Hilfe des Toolkits (Dateiauswahl oeffnen, Datenstrom speichern).</summary>
+    private async Task<IJSObjectReference> ModuleAsync()
+        => module ??= await JS.InvokeAsync<IJSObjectReference>("import",
+            "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/file-transfer.js");
+
+    /// <summary>Oeffnet die native Dateiauswahl ueber das versteckte Eingabefeld.</summary>
+    private async Task PickFileAsync()
+    {
+        IJSObjectReference js = await ModuleAsync();
+        await js.InvokeVoidAsync("clickInput", inputId);
+    }
+
+    private async Task OnFilePicked(InputFileChangeEventArgs e)
+        => await UploadAsync(e.FileCount > 0 ? e.File : null);
+
+    /// <summary>
+    /// Nimmt eine Datei entgegen. Die Groessenpruefung passiert AUCH hier - der Handler prueft sie
+    /// ohnehin, aber eine Datei erst vollstaendig einzulesen, um sie dann abzulehnen, waere unnoetig.
+    /// </summary>
+    private async Task UploadAsync(IBrowserFile? file)
+    {
+        if (busy || file is null || currentUser is null)
+        {
+            return;
+        }
+
+        long limit = Options?.Value?.MaxAttachmentBytes ?? 0;
+        if (limit <= 0)
+        {
+            return;
+        }
+
+        if (file.Size > limit)
+        {
+            Snackbar.Add(string.Format(L["AttachmentTooLarge"], Sizes(limit)), Severity.Warning);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            byte[] content;
+            await using (Stream stream = file.OpenReadStream(limit))
+            await using (var buffer = new MemoryStream())
+            {
+                await stream.CopyToAsync(buffer);
+                content = buffer.ToArray();
+            }
+
+            WorkflowAttachment? added = await Handler.AddAttachmentAsync(currentUser, InstanceId, TokenId,
+                file.Name, file.ContentType, content, Environment);
+            if (added is not null)
+            {
+                attachments.Add(added);
+            }
+            else
+            {
+                // Der Handler hat abgelehnt (Berechtigung, Grenze, Vorgang weg) und es protokolliert -
+                // der Benutzer darf trotzdem nicht ratlos vor einem unveraenderten Bereich stehen.
+                Snackbar.Add(L["AttachmentFailed"], Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent(
+                $"WorkflowCommentThread: die Datei '{file.Name}' konnte nicht an den Vorgang "
+                + $"'{InstanceId}' gehaengt werden: {ex.OutlineException()}", LogSeverity.Error);
+            Snackbar.Add(L["AttachmentFailed"], Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Reicht den Anhang an den Browser weiter. Ueber einen Datenstrom und nicht ueber eine
+    /// Base64-Zeichenkette im Markup: die stuende sonst in voller Laenge in der Seite.
+    /// </summary>
+    private async Task DownloadAsync(WorkflowAttachment file)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using WorkflowAttachmentDownload? download = await Handler.OpenAttachmentAsync(currentUser,
+                InstanceId, file.AttachmentKey, Environment);
+            if (download is null)
+            {
+                Snackbar.Add(L["AttachmentGone"], Severity.Warning);
+                return;
+            }
+
+            IJSObjectReference js = await ModuleAsync();
+            using var reference = new DotNetStreamReference(download.Content, leaveOpen: true);
+            await js.InvokeVoidAsync("downloadFromStream", download.FileName, download.ContentType,
+                reference);
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent(
+                $"WorkflowCommentThread: der Anhang {file.AttachmentKey} des Vorgangs '{InstanceId}' "
+                + $"konnte nicht ausgeliefert werden: {ex.OutlineException()}", LogSeverity.Error);
+            Snackbar.Add(L["AttachmentFailed"], Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Gibt den JS-Modulverweis frei. Beim Abbau eines Circuits ist die Gegenseite womoeglich schon weg -
+    /// das ist kein Fehler, sondern der Normalfall beim Schliessen des Browsers.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit ist weg - nichts mehr freizugeben.
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent(
+                $"WorkflowCommentThread: der JS-Modulverweis konnte nicht freigegeben werden: "
+                + $"{ex.OutlineException()}", LogSeverity.Warning);
+        }
+    }
+
+    private async Task DeleteAsync(WorkflowAttachment file)
+    {
+        if (busy || currentUser is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            if (await Handler.DeleteAttachmentAsync(currentUser, InstanceId, file.AttachmentKey, Environment))
+            {
+                attachments.Remove(file);
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        if (busy || currentUser is null || string.IsNullOrWhiteSpace(draft))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            WorkflowComment? written =
+                await Handler.AddCommentAsync(currentUser, InstanceId, TokenId, draft!, Environment);
+            if (written is not null)
+            {
+                comments.Add(written);
+                draft = null;
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

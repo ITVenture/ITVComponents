@@ -61,6 +61,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// verloren. Der Dialog warnt deshalb.
         /// </summary>
         public bool StrictSignature { get; init; }
+
+        /// <summary>
+        /// Die festen Startwerte des <b>Zeitplans</b> (<see cref="ScheduleStartTrigger.Variables"/>), die
+        /// ein zeitgesteuerter Lauf mitbekommt. Leer, wenn die Definition keinen Zeitplan hat.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Sie stehen hier, damit ein Start <b>von Hand</b> nicht anders losläuft als der zeitgesteuerte.
+        /// Genau das war die Falle: ein zeitgesteuerter Einstieg hat meist keine Felder (es fuellt ja
+        /// niemand ein Formular aus), der Dialog zeigte also gar nichts - und der Prozess startete ohne
+        /// Werte, die er braucht. Je nach Signatur laeuft er dann anders oder faultet.
+        /// </para>
+        /// <para>
+        /// Der Dialog belegt damit die passenden <see cref="Fields"/> vor und zeigt die uebrigen als
+        /// eigene Zeilen: sichtbar und aenderbar. Wer von Hand startet, soll sehen, womit - und es
+        /// anpassen koennen, denn genau deshalb startet er von Hand.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyDictionary<string, object?> ScheduleDefaults { get; init; }
+            = new Dictionary<string, object?>();
     }
 
     /// <summary>Was der Start-Dialog abschickt.</summary>

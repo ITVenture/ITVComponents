@@ -178,4 +178,85 @@
   <data name="ProcessKeepsRunning" xml:space="preserve">
     <value>Il processo continua. Appena ci sarà di nuovo qualcosa per Lei, lo troverà in «I miei compiti».</value>
   </data>
+  <data name="Reassign" xml:space="preserve">
+    <value>Riassegna</value>
+  </data>
+  <data name="ReassignFrom" xml:space="preserve">
+    <value>Questo compito è attualmente assegnato a {0}.</value>
+  </data>
+  <data name="ReassignFromPool" xml:space="preserve">
+    <value>Questo compito si trova attualmente nel pool - non è assegnato a nessuno.</value>
+  </data>
+  <data name="ReassignTarget" xml:space="preserve">
+    <value>Nuovo responsabile</value>
+  </data>
+  <data name="ReassignTargetHelp" xml:space="preserve">
+    <value>Inserisca il nome utente esattamente come la persona accede - altrimenti il compito non comparirà a nessuno.</value>
+  </data>
+  <data name="ReassignToPool" xml:space="preserve">
+    <value>Rimetti nel pool</value>
+  </data>
+  <data name="ReassignReason" xml:space="preserve">
+    <value>Motivo (facoltativo)</value>
+  </data>
+  <data name="ReassignReasonHelp" xml:space="preserve">
+    <value>Finisce nella cronologia del processo - è lì che si guarda se in seguito occorre sapere chi ha passato il compito.</value>
+  </data>
+  <data name="ReassignSubmit" xml:space="preserve">
+    <value>Riassegna</value>
+  </data>
+  <data name="Reassigned" xml:space="preserve">
+    <value>Compito assegnato a {0}.</value>
+  </data>
+  <data name="ReassignedToPool" xml:space="preserve">
+    <value>Compito rimesso nel pool.</value>
+  </data>
+  <data name="ReassignUnchanged" xml:space="preserve">
+    <value>È già il responsabile attuale - non è stato modificato nulla.</value>
+  </data>
+  <data name="ReassignAlreadyDone" xml:space="preserve">
+    <value>Questo compito non è più aperto - nel frattempo qualcuno lo ha completato.</value>
+  </data>
+  <data name="ReassignFailed" xml:space="preserve">
+    <value>Non è stato possibile riassegnare il compito. Il motivo si trova nel registro di sistema.</value>
+  </data>
+  <data name="ReassignSearchFailed" xml:space="preserve">
+    <value>L'elenco degli utenti non è attualmente disponibile - il compito si può comunque rimettere nel pool.</value>
+  </data>
+  <data name="Comments" xml:space="preserve">
+    <value>Commenti</value>
+  </data>
+  <data name="NoComments" xml:space="preserve">
+    <value>Non ci sono ancora commenti su questo processo.</value>
+  </data>
+  <data name="CommentPlaceholder" xml:space="preserve">
+    <value>Scrivi un commento</value>
+  </data>
+  <data name="AddComment" xml:space="preserve">
+    <value>Aggiungi</value>
+  </data>
+  <data name="PostResolveFailed" xml:space="preserve">
+    <value>Il compito è stato completato, ma l'elaborazione successiva di questa maschera non è andata a buon fine. Vedere il registro di sistema.</value>
+  </data>
+  <data name="PostResolveFailedWith" xml:space="preserve">
+    <value>Il compito è stato completato, ma l'elaborazione successiva di questa maschera non è andata a buon fine: {0}</value>
+  </data>
+  <data name="Attachments" xml:space="preserve">
+    <value>Allegati</value>
+  </data>
+  <data name="AddAttachment" xml:space="preserve">
+    <value>Allega file</value>
+  </data>
+  <data name="RemoveAttachment" xml:space="preserve">
+    <value>Rimuovi</value>
+  </data>
+  <data name="AttachmentTooLarge" xml:space="preserve">
+    <value>Il file è troppo grande. Sono ammessi al massimo {0}.</value>
+  </data>
+  <data name="AttachmentFailed" xml:space="preserve">
+    <value>Non è stato possibile allegare il file. Vedere il registro di sistema.</value>
+  </data>
+  <data name="AttachmentGone" xml:space="preserve">
+    <value>Questo allegato non è più disponibile.</value>
+  </data>
 </root>

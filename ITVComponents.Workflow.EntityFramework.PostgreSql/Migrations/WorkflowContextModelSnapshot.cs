@@ -17,7 +17,7 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -182,6 +182,67 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.ToTable("Tokens");
                 });
 
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowAttachmentBlobRow", b =>
+                {
+                    b.Property<string>("FileIdentifier")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("Content")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DownloadName")
+                        .HasColumnType("text");
+
+                    b.HasKey("FileIdentifier");
+
+                    b.ToTable("WorkflowAttachmentBlobs");
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowAttachmentRow", b =>
+                {
+                    b.Property<int>("AttachmentKey")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AttachmentKey"));
+
+                    b.Property<string>("Author")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileIdentifier")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenId")
+                        .HasColumnType("text");
+
+                    b.HasKey("AttachmentKey");
+
+                    b.HasIndex("InstanceId", "CreatedUtc");
+
+                    b.ToTable("WorkflowAttachments");
+                });
+
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowBranchLockRow", b =>
                 {
                     b.Property<string>("InstanceId")
@@ -201,6 +262,39 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.HasIndex("Owner");
 
                     b.ToTable("BranchLocks");
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowCommentRow", b =>
+                {
+                    b.Property<int>("CommentKey")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CommentKey"));
+
+                    b.Property<string>("Author")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenId")
+                        .HasColumnType("text");
+
+                    b.HasKey("CommentKey");
+
+                    b.HasIndex("InstanceId", "CreatedUtc");
+
+                    b.ToTable("WorkflowComments");
                 });
 
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", b =>
@@ -260,6 +354,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<int>("DefinitionVersion")
                         .HasColumnType("integer");
 
+                    b.Property<string>("FaultCode")
+                        .HasColumnType("text");
+
                     b.Property<string>("FaultMessage")
                         .HasColumnType("text");
 
@@ -279,6 +376,12 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("Suspended")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("SuspendedReason")
+                        .HasColumnType("text");
 
                     b.Property<string>("TenantId")
                         .HasColumnType("text");
@@ -307,7 +410,7 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.HasIndex("Status", "Priority");
+                    b.HasIndex("Status", "Suspended", "Priority");
 
                     b.ToTable("WorkflowInstances");
                 });
@@ -365,12 +468,109 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.ToTable("Outbox");
                 });
 
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerRow", b =>
+                {
+                    b.Property<int>("TriggerKey")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TriggerKey"));
+
+                    b.Property<bool>("AdoptCorrelationKey")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DefinitionId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DefinitionKey")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastInstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastRunUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LeaseUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextDueUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NodeId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Pattern")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SignalName")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("SkipWhilePreviousRuns")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("VariablesJson")
+                        .HasColumnType("text");
+
+                    b.HasKey("TriggerKey");
+
+                    b.HasIndex("DefinitionKey");
+
+                    b.HasIndex("Kind", "NextDueUtc");
+
+                    b.HasIndex("Kind", "SignalName");
+
+                    b.HasIndex("TenantId", "DefinitionId");
+
+                    b.ToTable("WorkflowStartTriggers");
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowAttachmentRow", b =>
+                {
+                    b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowInstanceRow", null)
+                        .WithMany()
+                        .HasForeignKey("InstanceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowCommentRow", b =>
+                {
+                    b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowInstanceRow", null)
+                        .WithMany()
+                        .HasForeignKey("InstanceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowInstanceRow", b =>
                 {
                     b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", null)
                         .WithMany()
                         .HasForeignKey("DefinitionKey")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerRow", b =>
+                {
+                    b.HasOne("ITVComponents.Workflow.EntityFramework.WorkflowDefinitionRow", null)
+                        .WithMany()
+                        .HasForeignKey("DefinitionKey")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

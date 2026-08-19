@@ -53,6 +53,12 @@ namespace ITVComponents.Workflow.Model
         /// </summary>
         BoundaryTimer,
 
+        /// <summary>
+        /// Ein <b>Nachrichten-Empfang, der an einem Schritt haengt</b>: er unterbricht den Schritt oder
+        /// loest einen Nebenpfad aus, wenn eine Nachricht eintrifft, waehrend dort gearbeitet wird.
+        /// </summary>
+        BoundaryMessage,
+
         /// <summary>Endpunkt eines <b>Nebenpfads</b>: verbraucht das Token, ohne den Workflow zu beenden.</summary>
         SidePathEnd,
 
@@ -112,6 +118,7 @@ namespace ITVComponents.Workflow.Model
     [JsonDerivedType(typeof(InclusiveGatewayNode), "or")]
     [JsonDerivedType(typeof(CallWorkflowNode), "call")]
     [JsonDerivedType(typeof(BoundaryTimerNode), "boundarytimer")]
+    [JsonDerivedType(typeof(BoundaryMessageNode), "boundarymessage")]
     [JsonDerivedType(typeof(SidePathEndNode), "sidepathend")]
     [JsonDerivedType(typeof(TerminateEndNode), "terminateend")]
     [JsonDerivedType(typeof(EventGatewayNode), "eventgateway")]

@@ -16,6 +16,7 @@
 @inject IStringLocalizer<WorkflowTaskMessages> L
 @inject IOptions<WorkflowTaskViewConfiguration> ViewRegistry
 @inject IServiceProvider Services
+@inject IDialogService DialogService
 
 @* Der MANTEL der Aufgabe. Er gehoert genau einmal hierher, weil der teure Teil nicht das Anzeigen ist,
    sondern der Abschluss: Ergebnis-Mapping, weiche Sperre, Doppel-Klick, Versionskonflikt und "war schon
@@ -84,10 +85,25 @@
                     <GenericTaskForm @ref="form" />
                 }
             </CascadingValue>
+
+            @* Der Gespraechsfaden des VORGANGS - unter der Maske, weil er die Nebeninformation ist. Der
+               @key sorgt dafuer, dass er beim Wechsel der Aufgabe im gefuehrten Ablauf neu aufgebaut
+               wird: sonst zeigte er weiter den Stand von vorhin. *@
+            <MudExpansionPanels Elevation="0" Class="mt-3">
+                <WorkflowCommentThread InstanceId="@InstanceId" TokenId="@currentTokenId"
+                                       Environment="@Environment" @key="@($"c-{currentTokenId}")" />
+            </MudExpansionPanels>
         }
     </DialogContent>
     <DialogActions>
         <DialogMaximizeToggle NormalMaxWidth="MaxWidth.ExtraLarge" />
+        @if (CanReassign)
+        {
+            @* Bewusst am Mantel und nicht in der Maske: "das ist nicht meine Aufgabe" faellt genau dann
+               auf, wenn man sie offen hat. *@
+            <MudIconButton Icon="@Icons.Material.Filled.PersonAddAlt" Disabled="@busy"
+                           Title="@L["Reassign"]" OnClick="ReassignAsync" />
+        }
         <MudSpacer />
         @if (taskContext is not null && !waiting && !handedOn)
         {
@@ -175,6 +191,9 @@
     /// </summary>
     private TaskCompletionSource? progressPulse;
 
+    /// <summary>Ob dieser Benutzer FREMDE Aufgaben umtragen darf (die Vertretung).</summary>
+    private bool mayAssignForeign;
+
     private bool loading = true;
     private bool busy;
     private bool claimed;
@@ -197,6 +216,7 @@
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
+        mayAssignForeign = Handler.HasPermission(currentUser, WorkflowSecurity.AssignTasks);
 
         SubscribeToProgress();
 
@@ -436,9 +456,17 @@
     /// damit ab. Fuer die generische und eine eigene Maske derselbe Weg - der Mantel weiss nicht, was
     /// im Inhalt steht, und muss es auch nicht.
     /// </summary>
+    /// <summary>
+    /// Die gerade gezeigte Maske - eigene Komponente oder generische. Die EINE Aufloesung dafuer: sie
+    /// wird beim Erledigen gebraucht und bei der Nachbereitung, und zwei Abschriften liefen beim naechsten
+    /// Masken-Typ auseinander.
+    /// </summary>
+    private IUserTaskView? CurrentView()
+        => customView is null ? form : dynamicView?.Instance as IUserTaskView;
+
     private async Task CompleteFromViewAsync()
     {
-        IUserTaskView? view = customView is null ? form : dynamicView?.Instance as IUserTaskView;
+        IUserTaskView? view = CurrentView();
         if (view is null)
         {
             // Kann ueber die Registrierung nicht passieren (RegisterTaskView verlangt den Vertrag
@@ -510,6 +538,12 @@
 
             claimed = false; // Mit dem Abschluss ist die Sperre gegenstandslos (der Store raeumt sie ab).
 
+            // Die Nachbereitung der Maske - JETZT, wo feststeht, was der Abschluss bewirkt hat, und noch
+            // VOR dem Umhaengen auf die naechste Aufgabe (danach zeigt der Mantel auf eine andere Maske
+            // oder auf gar keine). Der Ausgang geht mit: bei "war schon erledigt" hat jemand anderes
+            // abgeschlossen, und die Maske darf dann nicht auch noch schreiben.
+            await RunPostResolveAsync(completion);
+
             // Weiter geht es nur nach einem ECHTEN Abschluss. Nach "war schon erledigt" hat dieser Benutzer
             // den Zweig nicht bewegt, und ein Fault braucht Aufmerksamkeit statt des naechsten Schritts -
             // in beiden Faellen waere ein Weiterspringen eine Behauptung ueber einen Vorgang, die nicht
@@ -536,6 +570,109 @@
         {
             busy = false;
         }
+    }
+
+    /// <summary>
+    /// Ob der Umtragen-Knopf erscheint - dasselbe Praedikat wie in der Arbeitsliste und im Handler. Die
+    /// fachliche Permission ist bereits erfuellt: ohne sie haette <c>GetTaskAsync</c> die Aufgabe gar nicht
+    /// geliefert.
+    /// </summary>
+    private bool CanReassign
+        => taskContext is not null && !waiting && !handedOn && !completed
+           && (mayAssignForeign
+               || string.IsNullOrEmpty(taskContext.Descriptor.AssignedTo)
+               || taskContext.Descriptor.AssignedTo == currentUser?.Identity?.Name);
+
+    /// <summary>
+    /// Traegt die offene Aufgabe um. Danach schliesst der Dialog: der Vorgang liegt jetzt woanders, und
+    /// ihn weiter offen zu halten hiesse, eine Maske zu zeigen, deren Aufgabe einem anderen gehoert.
+    /// </summary>
+    /// <remarks>
+    /// Das gilt auch fuer den Fall, dass jemand eine Pool-Aufgabe AN SICH genommen hat - dann ist das
+    /// Schliessen zwar streng genommen zu viel, aber die Aufgabe steht unmittelbar danach in seiner
+    /// Arbeitsliste. Die Alternative waere eine Sonderbehandlung, die davon abhinge, was im Unter-Dialog
+    /// gewaehlt wurde; sie waere im gefuehrten Ablauf (der Mantel haengt sich auf die naechste Aufgabe um)
+    /// deutlich fehleranfaelliger als dieser eine, immer gleiche Ausgang.
+    /// </remarks>
+    private async Task ReassignAsync()
+    {
+        if (taskContext is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<ReassignTaskDialog>
+        {
+            { d => d.InstanceId, InstanceId },
+            { d => d.TokenId, currentTokenId },
+            { d => d.Environment, Environment },
+            { d => d.CurrentAssignee, taskContext.Descriptor.AssignedTo },
+            { d => d.RequiredPermission, taskContext.Descriptor.RequiredPermission }
+        };
+
+        IDialogReference dlg = await DialogService.ShowAsync<ReassignTaskDialog>(L["Reassign"], parameters,
+            EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            await CloseAsync();
+        }
+    }
+
+    /// <summary>
+    /// Ruft die Nachbereitung der Maske und macht ein Scheitern SICHTBAR.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Das Sichtbarmachen ist der Kern: die Aufgabe ist erledigt und der Prozess laeuft weiter - daran
+    /// aendert ein Fehler hier nichts mehr. Er ist damit eine Tatsache, mit der der Benutzer etwas tun
+    /// muss ("abgeschlossen, aber X konnte nicht gespeichert werden"). Geschluckt taeuschte man eine
+    /// sichtbare Doublette gegen eine unsichtbare Luecke ein.
+    /// </para>
+    /// <para>
+    /// Die Meldung bleibt deshalb stehen, bis sie jemand wegklickt - eine Einblendung, die nach vier
+    /// Sekunden verschwindet, waere fuer eine Tatsache, die niemand mehr rueckgaengig machen kann, die
+    /// falsche Form.
+    /// </para>
+    /// </remarks>
+    private async Task RunPostResolveAsync(UserTaskCompletionResult completion)
+    {
+        IUserTaskView? view = CurrentView();
+        if (view is null)
+        {
+            return;
+        }
+
+        UserTaskPostResult result;
+        try
+        {
+            result = await view.PostResolveActivityAsync(completion);
+        }
+        catch (Exception ex)
+        {
+            // Eine Maske kann immer werfen - das ist derselbe Fall wie ein gemeldeter Fehlschlag und wird
+            // genauso behandelt: der Benutzer erfaehrt es, der Abschluss bleibt bestehen.
+            LogEnvironment.LogEvent(
+                $"UserTaskDialog: die Nachbereitung der Maske fuer Aufgabe '{taskContext?.TaskKey}' "
+                + $"(Instanz '{InstanceId}', Token '{currentTokenId}') ist gescheitert: "
+                + $"{ex.OutlineException()}", LogSeverity.Error);
+            result = UserTaskPostResult.Failed(ex.Message);
+        }
+
+        if (result is null || result.Success)
+        {
+            return;
+        }
+
+        LogEnvironment.LogEvent(
+            $"UserTaskDialog: die Nachbereitung der Maske fuer Aufgabe '{taskContext?.TaskKey}' "
+            + $"(Instanz '{InstanceId}', Token '{currentTokenId}') meldet einen Fehlschlag: "
+            + $"{result.Message ?? "(ohne Meldung)"}. Die Aufgabe bleibt abgeschlossen.", LogSeverity.Error);
+
+        Snackbar.Add(string.IsNullOrWhiteSpace(result.Message)
+                ? L["PostResolveFailed"].Value
+                : string.Format(L["PostResolveFailedWith"], result.Message),
+            Severity.Error, config => config.RequireInteraction = true);
     }
 
     private async Task CloseAsync()

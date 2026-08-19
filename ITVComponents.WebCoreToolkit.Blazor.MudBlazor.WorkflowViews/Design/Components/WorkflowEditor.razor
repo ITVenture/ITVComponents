@@ -237,6 +237,7 @@
         (NodeKind.SendMessage, "Send", "fa-solid fa-paper-plane", "Send — sends a message (correlated) or a broadcast and carries on; it does not wait. Delivered AFTER this branch is committed, so the receiver never runs on a state that is not in the database yet."),
         (NodeKind.Timer, "Timer", "fa-solid fa-clock", "Timer — parks the token until a due date/time (or after a delay) is reached."),
         (NodeKind.BoundaryTimer, "Deadline", "fa-solid fa-bell", "Deadline — hangs on a step where the token parks and triggers a side path (escalation) when the time is up. Does not hold up the main flow."),
+        (NodeKind.BoundaryMessage, "On message", "fa-solid fa-envelope-open-text", "On message — hangs on a step where the token parks and fires when a message arrives WHILE the step is being worked on (\"the order is cancelled during the review\"). Interrupting abandons the step; otherwise it runs a side path and stays armed for the next message."),
         (NodeKind.ExclusiveGateway, "XOR", "fa-solid fa-code-branch", "Exclusive gateway (XOR) — takes exactly one outgoing path based on conditions."),
         (NodeKind.ParallelGateway, "AND", "fa-solid fa-arrows-split-up-and-left", "Parallel gateway (AND) — splits into all branches, or joins them back together."),
         (NodeKind.InclusiveGateway, "OR", "fa-solid fa-arrows-split-up-and-left", "Inclusive gateway (OR) — splits into ALL branches whose condition holds (1 to n); the matching join waits for exactly those. Split and join must be a pair — every branch has to reach the join."),
@@ -579,7 +580,7 @@
     public void OnAttachedNodeDropped(string nodeId, string? hostNodeId, double x, double y)
     {
         WorkflowNode? node = def?.GetNode(nodeId);
-        if (node is not (BoundaryTimerNode or CompensationNode))
+        if (node is not (BoundaryTimerNode or BoundaryMessageNode or CompensationNode))
         {
             LogEnvironment.LogEvent(
                 $"Workflow-Editor: Ablegen ignoriert - '{nodeId}' haengt an keinem Schritt (mehr).",
@@ -622,6 +623,7 @@
     private static string? AttachedHostOf(WorkflowNode? node) => node switch
     {
         BoundaryTimerNode timer => timer.AttachedToNodeId,
+        BoundaryMessageNode message => message.AttachedToNodeId,
         CompensationNode handler => handler.AttachedToNodeId,
         _ => null
     };
@@ -634,6 +636,9 @@
             case BoundaryTimerNode timer:
                 timer.AttachedToNodeId = hostId;
                 break;
+            case BoundaryMessageNode message:
+                message.AttachedToNodeId = hostId;
+                break;
             case CompensationNode handler:
                 handler.AttachedToNodeId = hostId;
                 break;
@@ -644,6 +649,8 @@
     private static bool CanAttach(WorkflowNode? node, WorkflowNode? host) => node switch
     {
         BoundaryTimerNode => host is not null && BoundaryTimerNode.CanHost(host),
+        // Dieselbe Regel und bewusst dieselbe Quelle: empfangen kann nur, wo das Token parkt.
+        BoundaryMessageNode => host is not null && BoundaryTimerNode.CanHost(host),
         CompensationNode => host is not null && CompensationNode.CanCompensate(host),
         _ => false
     };
@@ -659,10 +666,14 @@
             return string.Empty;
         }
 
-        var kinds = new List<string>(2);
+        var kinds = new List<string>(3);
         if (BoundaryTimerNode.CanHost(host))
         {
+            // Frist und Nachrichten-Empfang teilen sich die Regel: beide brauchen einen Schritt, an dem
+            // das Token PARKT. Dass sie hier gemeinsam entschieden werden, ist deshalb kein Zufall,
+            // sondern die eine Quelle - zwei getrennte Abfragen liefen frueher oder spaeter auseinander.
             kinds.Add(nameof(NodeKind.BoundaryTimer));
+            kinds.Add(nameof(NodeKind.BoundaryMessage));
         }
 
         if (CompensationNode.CanCompensate(host))
@@ -880,6 +891,7 @@
             NodeKind.ExclusiveGateway => new ExclusiveGatewayNode(),
             NodeKind.ParallelGateway => new ParallelGatewayNode(),
             NodeKind.BoundaryTimer => new BoundaryTimerNode(),
+            NodeKind.BoundaryMessage => new BoundaryMessageNode(),
             NodeKind.SidePathEnd => new SidePathEndNode(),
             NodeKind.TerminateEnd => new TerminateEndNode(),
             NodeKind.EventGateway => new EventGatewayNode(),

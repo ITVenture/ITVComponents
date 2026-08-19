@@ -1,0 +1,134 @@
+@using ITVComponents.Workflow.Model
+
+@*
+    Tab-basierter Editor fuer einen Nachrichten-Empfang am Schritt. Reiter: General (Identitaet, an
+    welchem Schritt er haengt), Message (Name, Art, Korrelation), Behaviour (unterbrechend, Zaehl-Variable).
+
+    Er haengt - wie der Fristen-Timer - an einem Schritt, an dem ein Token PARKT, und feuert, wenn dort
+    eine Nachricht eintrifft. Das ist die Luecke, die eine Frist nicht schliessen kann: sie reagiert auf
+    ZEIT, nicht auf ein Ereignis.
+
+    KeepPanelsAlive, damit das Monaco-Feld (Korrelation) auch dann fuer FlushAsync erreichbar ist, wenn
+    sein Reiter nicht aktiv ist.
+*@
+
+@if (Node is not null)
+{
+  <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4"
+           KeepPanelsAlive="true" MinimumTabWidth="70px">
+    <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Info">
+        <MudTextField Value="@Node.Id" Label="Id" ReadOnly="true" Margin="Margin.Dense" />
+        <MudTextField @bind-Value="Node.Name" Label="Name" Margin="Margin.Dense" />
+        <MudText Typo="Typo.caption" Class="mt-1 mb-2">Kind: @Node.Kind</MudText>
+
+        <MudSelect T="string" Value="@Node.AttachedToNodeId" Label="Attached to" Margin="Margin.Dense"
+                   Dense="true" ValueChanged="@(v => Node.AttachedToNodeId = v)">
+            @foreach (WorkflowNode host in Hosts)
+            {
+                <MudSelectItem T="string" Value="@host.Id">@HostLabel(host)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Only steps where the token actually parks can receive a message: user tasks, subworkflow calls,
+            embedded sections and activities with an execution target. A plain activity runs straight
+            through — a listener there would never fire.
+        </MudText>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Message" Icon="@Icons.Material.Filled.Markunread">
+        <MudTextField @bind-Value="Node.SignalName" Label="Message name" Margin="Margin.Dense" />
+        <MudSelect T="WaitKind" @bind-Value="Node.WaitKind" Label="Kind" Dense="true"
+                   Margin="Margin.Dense" Class="mt-2">
+            <MudSelectItem T="WaitKind" Value="WaitKind.Message">Message — reaches only the matching step (correlated)</MudSelectItem>
+            <MudSelectItem T="WaitKind" Value="WaitKind.Signal">Signal — a broadcast reaches every listening step</MudSelectItem>
+        </MudSelect>
+
+        @if (Node.WaitKind == WaitKind.Message)
+        {
+            <MudText Typo="Typo.caption" Class="mt-3">Correlation (CScript)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Which case this listener belongs to — evaluated over the variables of the <b>step</b> when it
+                parks. Empty = the correlation key of the instance (or its id). A message only arrives if its
+                key matches.
+            </MudText>
+            <CScriptField @ref="correlationField" Height="160"
+                          Value="@Node.CorrelationExpression"
+                          ValueChanged="@(v => Node.CorrelationExpression = v)"
+                          Mode="Node.CorrelationExpressionMode"
+                          ModeChanged="@(m => Node.CorrelationExpressionMode = m)" />
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Behaviour" Icon="@Icons.Material.Filled.CallSplit">
+        <MudSwitch T="bool" @bind-Value="Node.Interrupting" Color="Color.Primary" Size="Size.Small"
+                   Label="Interrupting (abandon the step)" />
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            @if (Node.Interrupting)
+            {
+                <text>
+                    The <b>main</b> token takes the outgoing connection — the step counts as abandoned, and a
+                    waiting task disappears from the work list. For "the order is cancelled, stop the review".
+                    The payload of the message lands in the main flow, where the reason is needed.
+                </text>
+            }
+            else
+            {
+                <text>
+                    An <b>additional</b> token runs the side path with a copy of the variables; the main flow
+                    carries on untouched and nothing written on the side path flows back. For "note it and
+                    let the reviewer know".
+                </text>
+            }
+        </MudText>
+
+        @if (!Node.Interrupting)
+        {
+            @* Der Unterschied zum Fristen-Timer, der beim Modellieren zaehlt - deshalb steht er hier und
+               nicht in einer Fussnote. *@
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                This listener stays armed and fires <b>again</b> on every further message, as long as the step
+                is being worked on — a message can arrive any number of times. A deadline, by contrast, passes
+                once.
+            </MudAlert>
+        }
+
+        <MudTextField @bind-Value="Node.CountVariable" Label="Count variable" Margin="Margin.Dense"
+                      Class="mt-3"
+                      HelperText="@("Optional: receives the occurrence number (1 on the first). Available on the side path - so the third reminder can read differently.")" />
+    </MudTabPanel>
+  </MudTabs>
+}
+
+@code {
+    /// <summary>Der zu konfigurierende Nachrichten-Empfang.</summary>
+    [Parameter] public BoundaryMessageNode? Node { get; set; }
+
+    /// <summary>Die Definition - fuer die Auswahl des Schritts, an dem der Empfang haengt.</summary>
+    [Parameter] public WorkflowDefinition Def { get; set; } = default!;
+
+    private CScriptField? correlationField;
+
+    /// <summary>
+    /// Die Schritte, an denen ein Token parken kann. Bewusst dieselbe Quelle wie beim Fristen-Timer:
+    /// die Regel ist dieselbe, und zwei Auslegungen davon liefen frueher oder spaeter auseinander.
+    /// </summary>
+    private IEnumerable<WorkflowNode> Hosts
+        => (Def?.Nodes ?? new List<WorkflowNode>()).Where(BoundaryTimerNode.CanHost);
+
+    private static string HostLabel(WorkflowNode node)
+        => string.IsNullOrWhiteSpace(node.Name) ? $"{node.Kind} ({node.Id})" : $"{node.Name} ({node.Id})";
+
+    /// <summary>
+    /// Holt den Text des Monaco-Feldes (Korrelation) ins Modell. Monaco meldet seinen Wert erst beim
+    /// Verlassen - der Aufrufer (NodePropertiesDialog) ruft dies vor dem Schliessen.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        if (Node is null || correlationField is null)
+        {
+            return;
+        }
+
+        Node.CorrelationExpression = await correlationField.GetValueAsync();
+    }
+}

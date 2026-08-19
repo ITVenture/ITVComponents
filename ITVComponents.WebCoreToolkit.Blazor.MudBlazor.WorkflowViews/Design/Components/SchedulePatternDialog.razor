@@ -1,0 +1,271 @@
+@using System.Globalization
+@using ITVComponents.Scheduling
+
+@*
+    Der Zusammenbau eines Zeitplan-Musters. Er existiert, weil das Muster ein MASCHINENFORMAT ist -
+    "d20200101080001" tippt niemand von Hand und liest niemand ab.
+
+    Die Vorschau ist der eigentliche Beweis: sie zeigt, WANN der Plan laeuft, und zwar in Ortszeit. Ohne
+    sie waere jede Eingabe hier eine Behauptung, die sich erst im Betrieb ueberpruefen liesse.
+
+    Gerechnet und zerlegt wird ueber SchedulePattern/ScheduleEvaluator - dieselbe Quelle wie die
+    Auswertung zur Laufzeit. Ein eigener Parser hier haette frueher oder spaeter etwas anderes gemeint
+    als die Engine, und der Unterschied waere erst aufgefallen, wenn ein Auftrag zur falschen Zeit lief.
+*@
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="SchedulePeriod" Value="pattern.Period" ValueChanged="OnPeriodChanged"
+                           Label="Repeats" Dense="true" Margin="Margin.Dense">
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Once">Once</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Minute">Every n minutes</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Hour">Every n hours</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Day">Daily</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Week">Weekly</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Month">Monthly</MudSelectItem>
+                    <MudSelectItem T="SchedulePeriod" Value="SchedulePeriod.Year">Yearly</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int" Value="pattern.Occurrence" ValueChanged="OnOccurrenceChanged"
+                                 Label="@OccurrenceLabel" Min="1" Max="99" Margin="Margin.Dense" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudDatePicker Date="anchorDate" DateChanged="OnDateChanged" Label="Starting from"
+                               Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker Time="anchorTime" TimeChanged="OnTimeChanged" Label="At"
+                               Margin="Margin.Dense" />
+            </MudItem>
+
+            @if (pattern.Period == SchedulePeriod.Week)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">On these weekdays</MudText>
+                    <MudChipSet T="DayOfWeek" SelectedValues="pattern.WeekDays" SelectionMode="SelectionMode.MultiSelection"
+                                SelectedValuesChanged="OnWeekDaysChanged" CheckMark="true">
+                        @foreach (DayOfWeek day in WeekOrder)
+                        {
+                            <MudChip T="DayOfWeek" Value="@day" Size="Size.Small">@day.ToString().Substring(0, 3)</MudChip>
+                        }
+                    </MudChipSet>
+                </MudItem>
+            }
+
+            @if (pattern.Period is SchedulePeriod.Month or SchedulePeriod.Year)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">On these days of the month</MudText>
+                    <MudChipSet T="int" SelectedValues="pattern.DaysOfMonth" SelectionMode="SelectionMode.MultiSelection"
+                                SelectedValuesChanged="OnDaysOfMonthChanged" CheckMark="true">
+                        @for (int d = 1; d <= 31; d++)
+                        {
+                            int day = d;
+                            <MudChip T="int" Value="@day" Size="Size.Small">@day</MudChip>
+                        }
+                        @* Das, was Cron nicht kann - und deshalb ausdruecklich als eigene Auswahl. *@
+                        <MudChip T="int" Value="@(-1)" Size="Size.Small" Color="Color.Primary">last</MudChip>
+                    </MudChipSet>
+                </MudItem>
+            }
+
+            @if (pattern.Period == SchedulePeriod.Year)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">In these months</MudText>
+                    <MudChipSet T="int" SelectedValues="pattern.Months" SelectionMode="SelectionMode.MultiSelection"
+                                SelectedValuesChanged="OnMonthsChanged" CheckMark="true">
+                        @for (int mo = 1; mo <= 12; mo++)
+                        {
+                            int month = mo;
+                            <MudChip T="int" Value="@month" Size="Size.Small">
+                                @CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month)
+                            </MudChip>
+                        }
+                    </MudChipSet>
+                </MudItem>
+            }
+
+            <MudItem xs="12">
+                <MudSwitch T="bool" Value="pattern.RunFirstImmediately" ValueChanged="OnImmediateChanged"
+                           Color="Color.Primary" Size="Size.Small"
+                           Label="Run once immediately when the schedule is new" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Applies exactly once — as long as this schedule has never run. For "should go through
+                    when the service comes up".
+                </MudText>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudDivider Class="my-2" />
+                @if (error is not null)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">@error</MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true">
+                        <MudText Typo="Typo.caption"><b>Next runs (local time):</b></MudText>
+                        @foreach (DateTime due in preview)
+                        {
+                            <MudText Typo="Typo.caption">@due.ToLocalTime().ToString("g")</MudText>
+                        }
+                    </MudAlert>
+                }
+
+                @* Das Muster steht sichtbar da - wer es schon kennt, soll es nicht suchen muessen, und
+                   wer sich fragt, was der Designer daraus macht, sieht es. *@
+                <MudTextField Value="@current" Label="Pattern" ReadOnly="true" Margin="Margin.Dense"
+                              Class="mt-2" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(error is not null)"
+                   OnClick="Apply">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Das Muster, mit dem der Dialog aufgeht (leer = ein frischer Plan).</summary>
+    [Parameter] public string? Pattern { get; set; }
+
+    /// <summary>Wie viele Termine die Vorschau zeigt.</summary>
+    private const int PreviewCount = 5;
+
+    private static readonly DayOfWeek[] WeekOrder =
+    {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
+    };
+
+    private SchedulePattern pattern = new();
+    private DateTime? anchorDate;
+    private TimeSpan? anchorTime;
+    private string current = string.Empty;
+    private string? error;
+    private List<DateTime> preview = new();
+
+    private string OccurrenceLabel => pattern.Period switch
+    {
+        SchedulePeriod.Minute => "Every n minutes",
+        SchedulePeriod.Hour => "Every n hours",
+        SchedulePeriod.Week => "Every n weeks",
+        SchedulePeriod.Month => "Every n months",
+        SchedulePeriod.Year => "Every n years",
+        _ => "Every n days"
+    };
+
+    protected override void OnInitialized()
+    {
+        // Ein bestehendes Muster wird ZERLEGT statt verworfen - wer den Designer auf einem gepflegten
+        // Plan oeffnet, soll ihn vorfinden und nicht neu bauen muessen.
+        if (!string.IsNullOrWhiteSpace(Pattern)
+            && SchedulePattern.TryParse(Pattern!, out SchedulePattern parsed, out _))
+        {
+            pattern = parsed;
+        }
+        else
+        {
+            // Ein frischer Plan faengt zur naechsten vollen Stunde an - "jetzt" waere ein Termin, der
+            // schon vorbei ist, bis jemand auf Uebernehmen klickt.
+            DateTime start = DateTime.Now.Date.AddHours(DateTime.Now.Hour + 1);
+            pattern = new SchedulePattern { Period = SchedulePeriod.Day, FirstDate = start };
+        }
+
+        anchorDate = pattern.FirstDate.Date;
+        anchorTime = pattern.FirstDate.TimeOfDay;
+        Refresh();
+    }
+
+    private void OnPeriodChanged(SchedulePeriod value)
+    {
+        pattern.Period = value;
+        Refresh();
+    }
+
+    private void OnOccurrenceChanged(int value)
+    {
+        pattern.Occurrence = value;
+        Refresh();
+    }
+
+    private void OnDateChanged(DateTime? value)
+    {
+        anchorDate = value;
+        Refresh();
+    }
+
+    private void OnTimeChanged(TimeSpan? value)
+    {
+        anchorTime = value;
+        Refresh();
+    }
+
+    private void OnImmediateChanged(bool value)
+    {
+        pattern.RunFirstImmediately = value;
+        Refresh();
+    }
+
+    private void OnWeekDaysChanged(IReadOnlyCollection<DayOfWeek> values)
+    {
+        pattern.WeekDays = values.ToList();
+        Refresh();
+    }
+
+    private void OnDaysOfMonthChanged(IReadOnlyCollection<int> values)
+    {
+        pattern.DaysOfMonth = values.ToList();
+        Refresh();
+    }
+
+    private void OnMonthsChanged(IReadOnlyCollection<int> values)
+    {
+        pattern.Months = values.ToList();
+        Refresh();
+    }
+
+    /// <summary>
+    /// Baut das Muster neu, prueft es und rechnet die Vorschau - nach JEDER Eingabe.
+    /// </summary>
+    /// <remarks>
+    /// Zwei Pruefungen nacheinander, und beide werden gebraucht: die erste sagt, ob die Angaben
+    /// zusammenpassen (eine Woche ohne Wochentag), die zweite, ob daraus je ein Termin wird. Ein Muster
+    /// kann die erste bestehen und an der zweiten scheitern - der 30. Februar ist formal in Ordnung.
+    /// </remarks>
+    private void Refresh()
+    {
+        pattern.FirstDate = (anchorDate ?? DateTime.Today).Date + (anchorTime ?? TimeSpan.Zero);
+        preview = new List<DateTime>();
+
+        if (!pattern.IsConsistent(out string consistency))
+        {
+            error = consistency;
+            current = string.Empty;
+            return;
+        }
+
+        current = pattern.ToPattern();
+        if (!ScheduleEvaluator.TryValidate(current, out string validation))
+        {
+            error = validation;
+            return;
+        }
+
+        error = null;
+        preview = ScheduleEvaluator.Preview(current, DateTime.UtcNow, PreviewCount).ToList();
+    }
+
+    private void Apply() => MudDialog.Close(DialogResult.Ok(current));
+
+    private void Cancel() => MudDialog.Cancel();
+}

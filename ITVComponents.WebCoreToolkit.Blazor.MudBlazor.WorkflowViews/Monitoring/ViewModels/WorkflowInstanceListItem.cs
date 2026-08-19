@@ -20,6 +20,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public string Status { get; init; } = "";
 
         /// <summary>
+        /// Ob die Instanz <b>angehalten</b> ist. Neben dem Status und nicht darin: sie behaelt ihren
+        /// Status, wird aber nicht mehr vorangetrieben - ohne dieses Kennzeichen saehe sie in der
+        /// Uebersicht aus wie eine, die haengt.
+        /// </summary>
+        public bool Suspended { get; init; }
+
+        /// <summary>Warum angehalten wurde, oder null.</summary>
+        public string? SuspendedReason { get; init; }
+
+        /// <summary>
         /// Die Dringlichkeit der Instanz in der Hintergrund-Abarbeitung (kleinere Zahl = wichtiger).
         /// </summary>
         public int Priority { get; init; }

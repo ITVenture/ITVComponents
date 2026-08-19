@@ -4,16 +4,38 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using ITVComponents.DataAccess.Extensions;
 
-namespace ITVComponents.ParallelProcessing.TaskSchedulers
+namespace ITVComponents.Scheduling
 {
+    /// <summary>
+    /// Ein <b>Zeitplan</b> aus einem Muster-String: liefert zu einem letzten Ausfuehrungszeitpunkt den
+    /// naechsten faelligen. Rechnet in <b>Ortszeit</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Lag bis 2026-08-18 in <c>ITVComponents.ParallelProcessing.TaskSchedulers</c> und ist von dort
+    /// hierher gezogen, weil ausser dem Aufgaben-Verteiler inzwischen auch der Web-Hintergrunddienst und
+    /// die Workflow-Ausloeser sie brauchen - keiner davon soll deswegen auf ParallelProcessing verweisen
+    /// muessen. Die Rechenlogik ist beim Umzug <b>unveraendert</b> geblieben; einzig die
+    /// <c>ForEach</c>-Erweiterung aus DataAccess ist einer gewoehnlichen Schleife gewichen, damit das
+    /// Kernpaket nicht auf den Datenzugriff verweisen muss.
+    /// </para>
+    /// <para>
+    /// <b>Ortszeit ist Absicht:</b> "jeden Tag um 8" meint acht Uhr vor Ort, auch nach der Umstellung auf
+    /// Sommerzeit. Wer die Faelligkeit speichert, rechnet sie beim Ablegen nach UTC um - nicht vorher.
+    /// </para>
+    /// </remarks>
     public class TimeTable
     {
         /// <summary>
         /// the Regex pattern that is used to analyze the period string
         /// </summary>
-        private const string TimePatternRegex =
+        /// <remarks>
+        /// <b>internal</b> statt private, damit <see cref="SchedulePattern"/> dasselbe Muster zerlegt, das
+        /// hier ausgewertet wird. Ein zweiter Regex daneben waere die sichere Variante, dass Zusammenbau
+        /// und Auswertung eines Tages auseinanderlaufen - und zwar still.
+        /// </remarks>
+        internal const string TimePatternRegex =
             @"(?<period>[odwmyhis])(?<firstDate>\d{8})(?<times>\d{4}(\;[\d\*]{4})*)(?<weekDays>(?:mon|tue|wed|thu|fri|sat|sun)*)(?<daysOfMonth>(?:01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|-1)*)(?<months>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)*)(?<occurrence>\d{2})(?<desiredModulus>\.\d{2})?(?<firstRunImmediate>t)?";
 
         /// <summary>
@@ -80,6 +102,21 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
             this.pattern = pattern;
             ParsePattern();
         }
+
+        /// <summary>
+        /// Traegt das Muster das <c>t</c>-Kennzeichen "der erste Lauf sofort"?
+        /// </summary>
+        /// <remarks>
+        /// Reine Auskunft ueber das MUSTER - im Unterschied zum inneren Merker, den
+        /// <see cref="GetNextExecutionTime(DateTime)"/> beim ersten Aufruf verbraucht. Wer den Zeitplan
+        /// nicht als lebendes Objekt haelt, sondern ihn je Auswertung neu aus der Datenbank baut, braucht
+        /// genau diese Unterscheidung: sonst antwortet jeder frisch gebaute Zeitplan "jetzt sofort" und
+        /// feuert in Dauerschleife.
+        /// </remarks>
+        public bool RunsImmediately { get; private set; }
+
+        /// <summary>Das Muster, aus dem dieser Zeitplan gebaut wurde.</summary>
+        public string Pattern => pattern;
 
         /// <summary>
         /// Gets the next execution time based on the last execution of the configured plan
@@ -502,6 +539,7 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
                 unitModulus = int.Parse(m.Groups["occurrence"].Value);
                 desiredUnitModulus = 0;
                 immediate = m.Groups["firstRunImmediate"].Success;
+                RunsImmediately = immediate;
                 if (m.Groups["desiredModulus"].Success)
                 {
                     desiredUnitModulus = int.Parse(m.Groups["desiredModulus"].Value.Substring(1));
@@ -598,10 +636,16 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers
         {
             string[] times = configuredTimes.Split(';');
             List<string> supportedTimes = new List<string>();
-            (from t in times
-                       let a = from v in allTimes where IsFit(v, t) select v
-                       where a.Count() != 0
-                       select a.ToArray()).ForEach(supportedTimes.AddRange);
+            // Frueher die ForEach-Erweiterung aus ITVComponents.DataAccess - eine gewoehnliche Schleife
+            // tut dasselbe und erspart dem Kernpaket den Verweis auf den Datenzugriff.
+            foreach (string[] matching in from t in times
+                                          let a = from v in allTimes where IsFit(v, t) select v
+                                          where a.Count() != 0
+                                          select a.ToArray())
+            {
+                supportedTimes.AddRange(matching);
+            }
+
             return supportedTimes.Distinct().OrderBy(n => n).ToArray();
         }
 

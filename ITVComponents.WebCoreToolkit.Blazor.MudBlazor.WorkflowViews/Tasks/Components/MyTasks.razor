@@ -124,6 +124,12 @@
                                              Color="Color.Info" />
                                 </MudTooltip>
                             }
+                            @if (CanReassign(context.Item))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PersonAddAlt" Size="Size.Small"
+                                               Title="@L["Reassign"]"
+                                               OnClick="@(() => ReassignTask(context.Item))" />
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
                                            Title="@L["Edit"]" OnClick="@(() => OpenTask(context.Item))" />
                         </CellTemplate>
@@ -156,6 +162,12 @@
     private bool overdueOnly;
     private bool deepLinkHandled;
     private string? pickedEnvironment;
+
+    /// <summary>
+    /// Ob dieser Benutzer FREMDE Aufgaben umtragen darf (die Vertretung). Einmal beim Aufbau geholt - die
+    /// Antwort haengt am Benutzer, nicht an der Zeile.
+    /// </summary>
+    private bool mayAssignForeign;
 
     /// <summary>Schmales Geraet (sm und kleiner) - gesetzt vom MudHidden-Messpunkt oben.</summary>
     private bool narrow;
@@ -227,6 +239,7 @@
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
+        mayAssignForeign = Handler.HasPermission(currentUser, WorkflowSecurity.AssignTasks);
         taskKeys = await Handler.ListTaskKeysAsync(currentUser, Env);
     }
 
@@ -312,6 +325,40 @@
         => !string.IsNullOrEmpty(item.ClaimedBy)
            && item.ClaimedBy != currentUser?.Identity?.Name
            && item.ClaimedUntil is not null && item.ClaimedUntil > DateTime.UtcNow;
+
+    /// <summary>
+    /// Ob der Umtragen-Knopf an dieser Zeile erscheint - dasselbe Praedikat, das der Handler durchsetzt.
+    /// </summary>
+    /// <remarks>
+    /// Der dritte Teil der Handler-Regel ("darf die Aufgabe ueberhaupt bearbeiten") fehlt hier nicht,
+    /// sondern ist bereits erfuellt: die Liste zeigt ausschliesslich Aufgaben, deren Permission dieser
+    /// Benutzer hat. Was hier steht, darf er also auch erledigen - und damit weiterreichen.
+    /// </remarks>
+    private bool CanReassign(UserTaskListItem item)
+        => mayAssignForeign
+           || string.IsNullOrEmpty(item.AssignedTo)
+           || item.AssignedTo == currentUser?.Identity?.Name;
+
+    /// <summary>Oeffnet das Umtragen fuer eine Zeile und laedt die Liste neu, wenn sich etwas geaendert hat.</summary>
+    private async Task ReassignTask(UserTaskListItem item)
+    {
+        var parameters = new DialogParameters<ReassignTaskDialog>
+        {
+            { d => d.InstanceId, item.InstanceId },
+            { d => d.TokenId, item.TokenId },
+            { d => d.Environment, Env },
+            { d => d.CurrentAssignee, item.AssignedTo },
+            { d => d.RequiredPermission, item.RequiredPermission }
+        };
+
+        IDialogReference dlg = await DialogService.ShowAsync<ReassignTaskDialog>(L["Reassign"], parameters,
+            EditDialogDefaults.Detail);
+        DialogResult? result = await dlg.Result;
+        if (result is { Canceled: false, Data: true })
+        {
+            await ReloadGrid();
+        }
+    }
 
     private Task OpenTask(UserTaskListItem item)
         => OpenTask(item.InstanceId, item.TokenId, Translate(item.Title));

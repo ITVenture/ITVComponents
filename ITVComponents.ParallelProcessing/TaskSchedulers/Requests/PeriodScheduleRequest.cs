@@ -6,6 +6,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
+using ITVComponents.Scheduling;
 
 namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
 {

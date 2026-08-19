@@ -43,6 +43,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null);
 
         /// <summary>
+        /// <b>Haelt eine Instanz an</b> bzw. setzt sie fort (Operate). Angehalten wird sie von keinem
+        /// Runner mehr vorangetrieben - Nachrichten und Fristen erreichen sie aber weiterhin, sie laufen
+        /// nur nicht los.
+        /// </summary>
+        /// <param name="user">der aktuelle Benutzer</param>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="suspend">true = anhalten, false = fortsetzen</param>
+        /// <param name="reason">beim Anhalten: warum (steht im Verlauf und in der Uebersicht)</param>
+        /// <param name="environment">die Workflow-Umgebung (Store); null = Standard</param>
+        /// <returns>
+        /// false ohne Berechtigung, bei unbekannter oder bereits beendeter Instanz, oder wenn ein
+        /// gleichzeitig laufender Zweig das Rennen um den Commit gewonnen hat (dann wiederholen).
+        /// </returns>
+        Task<bool> SetSuspendedAsync(ClaimsPrincipal user, string instanceId, bool suspend,
+            string? reason = null, string? environment = null);
+
+        /// <summary>
         /// Setzt die Dringlichkeit einer Instanz neu (Operate) - kleinere Zahl = wichtiger. Der Griff fuer
         /// den Fall "dieser eine Hintergrund-Lauf ist jetzt doch eilig" (oder umgekehrt: "der darf warten,
         /// er blockiert gerade alles"). Liefert false ohne Berechtigung, bei unbekannter Instanz oder wenn

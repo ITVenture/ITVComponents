@@ -178,4 +178,85 @@
   <data name="ProcessKeepsRunning" xml:space="preserve">
     <value>Le processus se poursuit. Dès qu'une tâche vous concernera de nouveau, vous la trouverez sous « Mes tâches ».</value>
   </data>
+  <data name="Reassign" xml:space="preserve">
+    <value>Réaffecter</value>
+  </data>
+  <data name="ReassignFrom" xml:space="preserve">
+    <value>Cette tâche est actuellement attribuée à {0}.</value>
+  </data>
+  <data name="ReassignFromPool" xml:space="preserve">
+    <value>Cette tâche se trouve actuellement dans le pool - elle n'est attribuée à personne.</value>
+  </data>
+  <data name="ReassignTarget" xml:space="preserve">
+    <value>Nouveau responsable</value>
+  </data>
+  <data name="ReassignTargetHelp" xml:space="preserve">
+    <value>Saisissez le nom d'utilisateur exactement tel que la personne se connecte - sinon la tâche n'apparaîtra chez personne.</value>
+  </data>
+  <data name="ReassignToPool" xml:space="preserve">
+    <value>Remettre dans le pool</value>
+  </data>
+  <data name="ReassignReason" xml:space="preserve">
+    <value>Motif (facultatif)</value>
+  </data>
+  <data name="ReassignReasonHelp" xml:space="preserve">
+    <value>Enregistré dans l'historique du processus - c'est là qu'on regarde s'il faut savoir plus tard qui a transmis la tâche.</value>
+  </data>
+  <data name="ReassignSubmit" xml:space="preserve">
+    <value>Réaffecter</value>
+  </data>
+  <data name="Reassigned" xml:space="preserve">
+    <value>Tâche attribuée à {0}.</value>
+  </data>
+  <data name="ReassignedToPool" xml:space="preserve">
+    <value>Tâche remise dans le pool.</value>
+  </data>
+  <data name="ReassignUnchanged" xml:space="preserve">
+    <value>C'est déjà le responsable actuel - rien n'a été modifié.</value>
+  </data>
+  <data name="ReassignAlreadyDone" xml:space="preserve">
+    <value>Cette tâche n'est plus ouverte - quelqu'un l'a terminée entre-temps.</value>
+  </data>
+  <data name="ReassignFailed" xml:space="preserve">
+    <value>La tâche n'a pas pu être réaffectée. Le motif figure dans le journal système.</value>
+  </data>
+  <data name="ReassignSearchFailed" xml:space="preserve">
+    <value>La liste des utilisateurs n'est pas disponible actuellement - vous pouvez toutefois remettre la tâche dans le pool.</value>
+  </data>
+  <data name="Comments" xml:space="preserve">
+    <value>Commentaires</value>
+  </data>
+  <data name="NoComments" xml:space="preserve">
+    <value>Aucun commentaire sur ce dossier pour l'instant.</value>
+  </data>
+  <data name="CommentPlaceholder" xml:space="preserve">
+    <value>Écrire un commentaire</value>
+  </data>
+  <data name="AddComment" xml:space="preserve">
+    <value>Ajouter</value>
+  </data>
+  <data name="PostResolveFailed" xml:space="preserve">
+    <value>La tâche a été terminée, mais le traitement complémentaire de ce formulaire n'a pas abouti. Voir le journal système.</value>
+  </data>
+  <data name="PostResolveFailedWith" xml:space="preserve">
+    <value>La tâche a été terminée, mais le traitement complémentaire de ce formulaire n'a pas abouti : {0}</value>
+  </data>
+  <data name="Attachments" xml:space="preserve">
+    <value>Pièces jointes</value>
+  </data>
+  <data name="AddAttachment" xml:space="preserve">
+    <value>Joindre un fichier</value>
+  </data>
+  <data name="RemoveAttachment" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="AttachmentTooLarge" xml:space="preserve">
+    <value>Le fichier est trop volumineux. {0} au maximum.</value>
+  </data>
+  <data name="AttachmentFailed" xml:space="preserve">
+    <value>Le fichier n'a pas pu être joint. Voir le journal système.</value>
+  </data>
+  <data name="AttachmentGone" xml:space="preserve">
+    <value>Cette pièce jointe n'est plus disponible.</value>
+  </data>
 </root>

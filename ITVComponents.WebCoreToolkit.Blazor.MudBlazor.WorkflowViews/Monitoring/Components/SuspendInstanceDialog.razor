@@ -1,0 +1,37 @@
+@*
+    Die Rueckfrage vor dem Anhalten: WARUM. Ein angehaltener Vorgang ohne Begruendung ist von einem
+    haengenden nicht zu unterscheiden - und genau danach sucht der Naechste, der die Uebersicht ansieht.
+    Deshalb eine eigene kleine Maske statt eines stillen Klicks.
+
+    Der Grund ist trotzdem nicht erzwungen: wer in Eile etwas aus dem Verkehr ziehen muss, soll nicht an
+    einem Pflichtfeld haengenbleiben.
+*@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-2">
+            The instance stops where it is. Messages and deadlines still reach it — they simply do not run
+            until it is resumed.
+        </MudText>
+        <MudTextField @bind-Value="reason" Label="Reason" Margin="Margin.Dense" Lines="2" AutoFocus="true"
+                      HelperText="@("Shown in the overview and written to the history.")" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="Confirm">Suspend</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string? reason;
+
+    /// <summary>
+    /// Bestaetigt mit dem Grund. Bewusst mit Leerstring statt null, wenn nichts eingegeben wurde: der
+    /// Aufrufer unterscheidet daran "abgebrochen" (null) von "ohne Begruendung angehalten".
+    /// </summary>
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(reason ?? string.Empty));
+
+    private void Cancel() => MudDialog.Cancel();
+}

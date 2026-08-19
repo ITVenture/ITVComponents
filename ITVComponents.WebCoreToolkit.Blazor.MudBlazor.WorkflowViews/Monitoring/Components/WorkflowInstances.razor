@@ -69,7 +69,22 @@
                 <Columns>
                     <PropertyColumn Property="x => x.DefinitionId" Title="Definition" />
                     <PropertyColumn Property="x => x.DefinitionVersion" Title="Ver" />
-                    <PropertyColumn Property="x => x.Status" Title="Status" />
+                    <PropertyColumn Property="x => x.Status" Title="Status">
+                        <CellTemplate>
+                            <MudText Typo="Typo.body2">@context.Item.Status</MudText>
+                            @if (context.Item.Suspended)
+                            {
+                                @* Angehalten steht NEBEN dem Status, nicht darin: die Instanz behaelt
+                                   ihren Status und wird nur nicht mehr vorangetrieben. Ohne dieses
+                                   Kennzeichen saehe sie aus wie eine, die haengt - und genau danach
+                                   wuerde jemand suchen. *@
+                                <MudTooltip Text="@(context.Item.SuspendedReason ?? "Suspended")">
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning"
+                                             Icon="@Icons.Material.Filled.PauseCircle">suspended</MudChip>
+                                </MudTooltip>
+                            }
+                        </CellTemplate>
+                    </PropertyColumn>
                     @* PropertyColumn (nicht TemplateColumn) mit eigener Zelle: nur so traegt die
                        Sortier-Anforderung den Spaltennamen "Priority", den der Handler kennt. Angezeigt
                        wird der Name statt der Zahl - "Low" liest sich richtig herum, "3" nicht. *@
@@ -91,6 +106,22 @@
                                         <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small"
                                                        Color="Color.Warning" Title="Correct data and retry"
                                                        OnClick="@(() => OpenRetry(context.Item))" />
+                                    </Permitted>
+                                </SecureView>
+                            }
+                            @* Anhalten/Fortsetzen nur, solange es etwas anzuhalten gibt. Bei einer
+                               beendeten Instanz lehnt die Engine ohnehin ab - der Knopf wuerde nur zum
+                               Ausprobieren einladen. *@
+                            @if (CanSuspend(context.Item))
+                            {
+                                <SecureView RequiredPermissions="Workflow.Operate">
+                                    <Permitted>
+                                        <MudIconButton Size="Size.Small" Color="Color.Warning"
+                                                       Icon="@(context.Item.Suspended
+                                                                 ? Icons.Material.Filled.PlayCircle
+                                                                 : Icons.Material.Filled.PauseCircle)"
+                                                       Title="@(context.Item.Suspended ? "Resume" : "Suspend")"
+                                                       OnClick="@(() => ToggleSuspend(context.Item))" />
                                     </Permitted>
                                 </SecureView>
                             }
@@ -122,6 +153,60 @@
 
     /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
     private string? Env => Environment ?? pickedEnvironment;
+
+    /// <summary>
+    /// Laesst sich diese Instanz anhalten bzw. fortsetzen? Nur solange sie nicht beendet ist - dasselbe
+    /// Praedikat, das die Engine durchsetzt.
+    /// </summary>
+    /// <remarks>
+    /// <b>Faulted zaehlt dazu.</b> Eine gescheiterte Instanz ist nicht beendet, sondern haengt - und ist
+    /// damit genau der Fall, in dem man sie aus dem Aufgriff nehmen will, bis jemand hingesehen hat.
+    /// </remarks>
+    private static bool CanSuspend(WorkflowInstanceListItem item)
+        => item.Status != nameof(WorkflowStatus.Completed)
+           && item.Status != nameof(WorkflowStatus.Cancelled);
+
+    /// <summary>Haelt die Instanz an bzw. setzt sie fort und laedt die Liste neu.</summary>
+    private async Task ToggleSuspend(WorkflowInstanceListItem item)
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        string? reason = null;
+        if (!item.Suspended)
+        {
+            // Nach dem Grund fragen, nicht stillschweigend anhalten: ein angehaltener Vorgang ohne
+            // Begruendung ist von einem haengenden nicht zu unterscheiden, und genau danach sucht der
+            // Naechste. Abbrechen im Dialog haelt nichts an.
+            IDialogReference dlg = await DialogService.ShowAsync<SuspendInstanceDialog>(
+                $"Suspend {item.Id}", new DialogParameters(), EditDialogDefaults.Detail);
+            DialogResult? answer = await dlg.Result;
+            if (answer is not { Canceled: false, Data: string given })
+            {
+                return;
+            }
+
+            reason = string.IsNullOrWhiteSpace(given) ? null : given;
+        }
+
+        bool ok = await Handler.SetSuspendedAsync(currentUser, item.Id, !item.Suspended, reason, Env);
+        if (ok)
+        {
+            Snackbar.Add(item.Suspended ? $"Instance {item.Id} resumed." : $"Instance {item.Id} suspended.",
+                Severity.Success);
+            await ReloadGrid();
+            return;
+        }
+
+        // Der haeufigste Grund ist ein gleichzeitig laufender Zweig, der das Rennen um den Commit
+        // gewonnen hat - das ist kein Fehler, sondern ein "gleich nochmal".
+        Snackbar.Add(
+            $"Instance {item.Id} could not be {(item.Suspended ? "resumed" : "suspended")}. "
+            + "It may have finished, or a branch committed at the same moment - please try again.",
+            Severity.Warning);
+    }
 
     protected override async Task OnInitializedAsync()
     {

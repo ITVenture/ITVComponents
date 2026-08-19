@@ -152,6 +152,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
+        public Task<bool> SetSuspendedAsync(ClaimsPrincipal user, string instanceId, bool suspend,
+            string? reason = null, string? environment = null)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                LogEnvironment.LogEvent(
+                    $"{(suspend ? "Suspend" : "Resume")} der Instanz '{instanceId}': Berechtigung "
+                    + $"'{WorkflowSecurity.Operate}' abgelehnt.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            // Wie der Abbruch eine reine Store-Operation: es laeuft nichts, was koordiniert werden muesste.
+            using WorkflowOperation op = BeginOperation(environment);
+            return Task.FromResult(suspend
+                ? op.Engine.SuspendWorkflow(instanceId, reason, UserName(user))
+                : op.Engine.ResumeWorkflow(instanceId, UserName(user)));
+        }
+
+        /// <inheritdoc/>
         public Task<bool> SetPriorityAsync(ClaimsPrincipal user, string instanceId, int priority,
             string? environment = null)
         {
@@ -420,7 +439,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                          ?? (IReadOnlyList<UserTaskField>)Array.Empty<UserTaskField>(),
                 HasSignature = start?.Inputs is { Count: > 0 },
                 StrictSignature = start != null && start.Inputs is { Count: > 0 }
-                                  && start.ScopeMode == ActivityScopeMode.Replace
+                                  && start.ScopeMode == ActivityScopeMode.Replace,
+                // Die festen Werte des Zeitplans - damit ein Start von Hand nicht anders losläuft als der
+                // zeitgesteuerte. Bewusst von ALLEN Start-Knoten eingesammelt und nicht nur von dem, der
+                // die Maske stellt: aeltere Definitionen koennen mehrere haben, und ein Wert, der dann
+                // unter den Tisch fiele, waere genau die stille Abweichung, die hier verhindert werden soll.
+                ScheduleDefaults = starts
+                    .Where(s => s.ScheduleStart?.Variables is { Count: > 0 })
+                    .SelectMany(s => s.ScheduleStart.Variables)
+                    .GroupBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => (object?)g.First().Value, StringComparer.OrdinalIgnoreCase)
             });
         }
 
@@ -622,12 +650,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 DefinitionId = row.DefinitionId,
                 DefinitionVersion = row.DefinitionVersion,
                 Status = ((WorkflowStatus)row.Status).ToString(),
+                Suspended = row.Suspended,
+                SuspendedReason = row.SuspendedReason,
                 Priority = row.Priority,
                 CorrelationKey = row.CorrelationKey,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc
             };
         }
+
+        /// <summary>Der Anmeldename des Benutzers - er steht im Verlauf, wenn jemand eingreift.</summary>
+        private static string? UserName(ClaimsPrincipal user) => user?.Identity?.Name;
 
         private static IQueryable<WorkflowInstanceRow> Sort(IQueryable<WorkflowInstanceRow> q, string? column,
             bool descending)

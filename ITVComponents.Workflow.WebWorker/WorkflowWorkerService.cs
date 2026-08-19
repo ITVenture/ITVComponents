@@ -246,6 +246,13 @@ namespace ITVComponents.Workflow.WebWorker
                         (inst.Priority, seq++));
                 }
 
+                // Faellige Zeitplaene: hier entsteht eine Instanz. Sie kann nicht in die Arbeitsschlange
+                // gehen wie die uebrigen Punkte - die verweisen auf eine bestehende Instanz, und die gibt
+                // es hier erst nach dem Start. Der Start selbst laeuft deshalb gleich hier, mit demselben
+                // Owner wie die Zweig-Sperren.
+                int startedBySchedule = engine.TriggerDueStarts(DateTime.UtcNow, lockOwner, opt.TimerLease,
+                    opt.MaxTimerBatch);
+
                 if (spec.HostTargets.Count > 0)
                 {
                     foreach (WorkflowInstance inst in store.FindBranchesWaitingForTarget(spec.HostTargets).ToList())
@@ -261,7 +268,10 @@ namespace ITVComponents.Workflow.WebWorker
                         (child.Priority, seq++));
                 }
 
-                bool any = work.Count > 0;
+                // Ein zeitgesteuerter Start ist Arbeit, auch wenn er nichts in die Schlange gelegt hat:
+                // sonst legte sich der Antrieb gleich wieder schlafen, obwohl gerade eine Instanz
+                // angelaufen ist, deren erste Zweige noch aufzunehmen sind.
+                bool any = work.Count > 0 || startedBySchedule > 0;
                 const int maxSteps = 100000;
                 int steps = 0;
                 while (work.Count > 0 && !ct.IsCancellationRequested)
@@ -320,8 +330,21 @@ namespace ITVComponents.Workflow.WebWorker
                     }
                 }
 
-                DateTime? nextTimer = any ? null : store.PeekNextTimerDueUtc(DateTime.UtcNow);
-                return (any, nextTimer);
+                // Der naechste Weckzeitpunkt ist der FRUEHERE von beiden - ein Timer und ein Zeitplan sind
+                // gleichermassen Grund aufzuwachen. Nur den Timer zu betrachten hiesse, ueber einen
+                // faelligen Zeitplan hinwegzuschlafen, bis zufaellig etwas anderes den Antrieb weckt.
+                DateTime? nextWake = null;
+                if (!any)
+                {
+                    DateTime nowUtc = DateTime.UtcNow;
+                    DateTime? nextTimer = store.PeekNextTimerDueUtc(nowUtc);
+                    DateTime? nextSchedule = store.PeekNextScheduleDueUtc(nowUtc);
+                    nextWake = nextTimer == null || nextSchedule == null
+                        ? nextTimer ?? nextSchedule
+                        : (nextTimer < nextSchedule ? nextTimer : nextSchedule);
+                }
+
+                return (any, nextWake);
             }
             finally
             {

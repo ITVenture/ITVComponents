@@ -178,4 +178,85 @@
   <data name="ProcessKeepsRunning" xml:space="preserve">
     <value>Der Vorgang läuft weiter. Sobald wieder etwas für Sie ansteht, finden Sie es unter „Meine Aufgaben".</value>
   </data>
+  <data name="Reassign" xml:space="preserve">
+    <value>Zuweisen</value>
+  </data>
+  <data name="ReassignFrom" xml:space="preserve">
+    <value>Diese Aufgabe liegt derzeit bei {0}.</value>
+  </data>
+  <data name="ReassignFromPool" xml:space="preserve">
+    <value>Diese Aufgabe liegt derzeit im Pool - sie ist niemandem zugewiesen.</value>
+  </data>
+  <data name="ReassignTarget" xml:space="preserve">
+    <value>Neuer Zuständiger</value>
+  </data>
+  <data name="ReassignTargetHelp" xml:space="preserve">
+    <value>Den Benutzernamen genau so eingeben, wie sich die Person anmeldet - sonst erscheint die Aufgabe bei niemandem.</value>
+  </data>
+  <data name="ReassignToPool" xml:space="preserve">
+    <value>In den Pool zurücklegen</value>
+  </data>
+  <data name="ReassignReason" xml:space="preserve">
+    <value>Begründung (optional)</value>
+  </data>
+  <data name="ReassignReasonHelp" xml:space="preserve">
+    <value>Geht in den Verlauf des Vorgangs - dort schaut man nach, wenn später zu klären ist, wer die Aufgabe weitergegeben hat.</value>
+  </data>
+  <data name="ReassignSubmit" xml:space="preserve">
+    <value>Zuweisen</value>
+  </data>
+  <data name="Reassigned" xml:space="preserve">
+    <value>Aufgabe an {0} zugewiesen.</value>
+  </data>
+  <data name="ReassignedToPool" xml:space="preserve">
+    <value>Aufgabe in den Pool zurückgelegt.</value>
+  </data>
+  <data name="ReassignUnchanged" xml:space="preserve">
+    <value>Das ist bereits der aktuelle Zuständige - es wurde nichts geändert.</value>
+  </data>
+  <data name="ReassignAlreadyDone" xml:space="preserve">
+    <value>Diese Aufgabe ist nicht mehr offen - jemand hat sie inzwischen erledigt.</value>
+  </data>
+  <data name="ReassignFailed" xml:space="preserve">
+    <value>Die Aufgabe konnte nicht umgetragen werden. Der Grund steht im Systemprotokoll.</value>
+  </data>
+  <data name="ReassignSearchFailed" xml:space="preserve">
+    <value>Die Benutzerliste ist derzeit nicht verfügbar - die Aufgabe lässt sich trotzdem in den Pool zurücklegen.</value>
+  </data>
+  <data name="Comments" xml:space="preserve">
+    <value>Kommentare</value>
+  </data>
+  <data name="NoComments" xml:space="preserve">
+    <value>Zu diesem Vorgang gibt es noch keine Kommentare.</value>
+  </data>
+  <data name="CommentPlaceholder" xml:space="preserve">
+    <value>Kommentar schreiben</value>
+  </data>
+  <data name="AddComment" xml:space="preserve">
+    <value>Hinzufügen</value>
+  </data>
+  <data name="PostResolveFailed" xml:space="preserve">
+    <value>Die Aufgabe wurde abgeschlossen, die Nachbereitung dieser Maske ist aber nicht durchgelaufen. Siehe Systemprotokoll.</value>
+  </data>
+  <data name="PostResolveFailedWith" xml:space="preserve">
+    <value>Die Aufgabe wurde abgeschlossen, die Nachbereitung dieser Maske ist aber nicht durchgelaufen: {0}</value>
+  </data>
+  <data name="Attachments" xml:space="preserve">
+    <value>Anhänge</value>
+  </data>
+  <data name="AddAttachment" xml:space="preserve">
+    <value>Datei anhängen</value>
+  </data>
+  <data name="RemoveAttachment" xml:space="preserve">
+    <value>Entfernen</value>
+  </data>
+  <data name="AttachmentTooLarge" xml:space="preserve">
+    <value>Die Datei ist zu gross. Erlaubt sind höchstens {0}.</value>
+  </data>
+  <data name="AttachmentFailed" xml:space="preserve">
+    <value>Die Datei konnte nicht angehängt werden. Siehe Systemprotokoll.</value>
+  </data>
+  <data name="AttachmentGone" xml:space="preserve">
+    <value>Diesen Anhang gibt es nicht mehr.</value>
+  </data>
 </root>

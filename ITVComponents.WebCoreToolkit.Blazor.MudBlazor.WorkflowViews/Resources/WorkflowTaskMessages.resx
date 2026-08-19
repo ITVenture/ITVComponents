@@ -178,4 +178,85 @@
   <data name="ProcessKeepsRunning" xml:space="preserve">
     <value>The process keeps running. As soon as something is up to you again, you will find it under "My tasks".</value>
   </data>
+  <data name="Reassign" xml:space="preserve">
+    <value>Reassign</value>
+  </data>
+  <data name="ReassignFrom" xml:space="preserve">
+    <value>This task is currently assigned to {0}.</value>
+  </data>
+  <data name="ReassignFromPool" xml:space="preserve">
+    <value>This task is currently in the pool - nobody is assigned to it.</value>
+  </data>
+  <data name="ReassignTarget" xml:space="preserve">
+    <value>New assignee</value>
+  </data>
+  <data name="ReassignTargetHelp" xml:space="preserve">
+    <value>Enter the user name exactly as the person signs in - otherwise the task will not show up for anybody.</value>
+  </data>
+  <data name="ReassignToPool" xml:space="preserve">
+    <value>Put back into the pool</value>
+  </data>
+  <data name="ReassignReason" xml:space="preserve">
+    <value>Reason (optional)</value>
+  </data>
+  <data name="ReassignReasonHelp" xml:space="preserve">
+    <value>Goes into the process history - that is where you look when you need to know later who handed the task on.</value>
+  </data>
+  <data name="ReassignSubmit" xml:space="preserve">
+    <value>Reassign</value>
+  </data>
+  <data name="Reassigned" xml:space="preserve">
+    <value>Task assigned to {0}.</value>
+  </data>
+  <data name="ReassignedToPool" xml:space="preserve">
+    <value>Task put back into the pool.</value>
+  </data>
+  <data name="ReassignUnchanged" xml:space="preserve">
+    <value>That is already the current assignee - nothing was changed.</value>
+  </data>
+  <data name="ReassignAlreadyDone" xml:space="preserve">
+    <value>This task is no longer open - somebody has completed it in the meantime.</value>
+  </data>
+  <data name="ReassignFailed" xml:space="preserve">
+    <value>The task could not be reassigned. The reason is in the system log.</value>
+  </data>
+  <data name="ReassignSearchFailed" xml:space="preserve">
+    <value>The list of users is currently unavailable - you can still put the task back into the pool.</value>
+  </data>
+  <data name="Comments" xml:space="preserve">
+    <value>Comments</value>
+  </data>
+  <data name="NoComments" xml:space="preserve">
+    <value>No comments on this case yet.</value>
+  </data>
+  <data name="CommentPlaceholder" xml:space="preserve">
+    <value>Write a comment</value>
+  </data>
+  <data name="AddComment" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="PostResolveFailed" xml:space="preserve">
+    <value>The task was completed, but the follow-up work of this form did not go through. See the system log.</value>
+  </data>
+  <data name="PostResolveFailedWith" xml:space="preserve">
+    <value>The task was completed, but the follow-up work of this form did not go through: {0}</value>
+  </data>
+  <data name="Attachments" xml:space="preserve">
+    <value>Attachments</value>
+  </data>
+  <data name="AddAttachment" xml:space="preserve">
+    <value>Attach file</value>
+  </data>
+  <data name="RemoveAttachment" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="AttachmentTooLarge" xml:space="preserve">
+    <value>The file is too large. At most {0} are allowed.</value>
+  </data>
+  <data name="AttachmentFailed" xml:space="preserve">
+    <value>The file could not be attached. See the system log.</value>
+  </data>
+  <data name="AttachmentGone" xml:space="preserve">
+    <value>This attachment is no longer available.</value>
+  </data>
 </root>

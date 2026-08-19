@@ -81,6 +81,94 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         Task ReleaseClaimAsync(ClaimsPrincipal user, string instanceId, string tokenId, string? environment = null);
 
         /// <summary>
+        /// Traegt die Aufgabe auf einen anderen Zustaendigen um - oder legt sie in den Pool zurueck
+        /// (<paramref name="newAssignee"/> null/leer).
+        /// </summary>
+        /// <param name="user">der aktuelle Benutzer</param>
+        /// <param name="instanceId">die Instanz</param>
+        /// <param name="tokenId">die Aufgabe</param>
+        /// <param name="newAssignee">der neue Zustaendige; null/leer = zurueck in den Pool</param>
+        /// <param name="reason">optionale Begruendung, die in den Verlauf der Instanz geht</param>
+        /// <param name="environment">die Workflow-Umgebung (Store); null = die Standard-Umgebung</param>
+        /// <returns>der Ausgang - die Oberflaeche muss "war schon so" von "inzwischen erledigt" trennen</returns>
+        /// <remarks>
+        /// <para>
+        /// Wer das darf, haengt davon ab, WESSEN Aufgabe es ist. Mit
+        /// <see cref="WorkflowSecurity.AssignTasks"/> jede offene Aufgabe des Mandanten - das ist der
+        /// Vertretungsfall, und er verlangt bewusst nicht die fachliche Permission des Knotens (wer
+        /// verteilt, muss nicht selbst erledigen duerfen). Ohne sie nur, was ohnehin in der eigenen Hand
+        /// liegt: die eigene Aufgabe abgeben oder zuruecklegen und eine Pool-Aufgabe an sich nehmen.
+        /// </para>
+        /// <para>
+        /// Eine bestehende weiche Sperre wird dabei aufgehoben, sobald die Aufgabe jemand anderem gehoert -
+        /// sonst behauptete die Liste weiter, der Vorgaenger arbeite gerade daran.
+        /// </para>
+        /// </remarks>
+        Task<UserTaskAssignmentStatus> ReassignAsync(ClaimsPrincipal user, string instanceId, string tokenId,
+            string? newAssignee, string? reason = null, string? environment = null);
+
+        /// <summary>
+        /// Die Kommentare eines Vorgangs, aelteste zuerst. Leer ohne Berechtigung oder wenn es den Vorgang
+        /// im eigenen Mandanten nicht gibt.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst der ganze Faden des VORGANGS und nicht nur die Kommentare dieser einen Aufgabe: wer
+        /// gerade an einem Schritt sitzt, will wissen, was vorher besprochen wurde - und das steht in aller
+        /// Regel an einem Schritt, den es nicht mehr gibt.
+        /// </remarks>
+        Task<IReadOnlyList<WorkflowComment>> ListCommentsAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null);
+
+        /// <summary>
+        /// Schreibt einen Kommentar an den Vorgang.
+        /// </summary>
+        /// <param name="user">der aktuelle Benutzer - er wird als Verfasser vermerkt</param>
+        /// <param name="instanceId">der Vorgang</param>
+        /// <param name="tokenId">die Aufgabe, bei der er entsteht, oder null</param>
+        /// <param name="text">der Text; leer wird nicht gespeichert</param>
+        /// <param name="environment">die Workflow-Umgebung (Store); null = Standard</param>
+        /// <returns>der geschriebene Kommentar, oder null (keine Berechtigung, leerer Text, Vorgang weg)</returns>
+        Task<WorkflowComment?> AddCommentAsync(ClaimsPrincipal user, string instanceId, string? tokenId,
+            string text, string? environment = null);
+
+        /// <summary>Die Anhaenge eines Vorgangs (ohne Inhalt), aelteste zuerst.</summary>
+        Task<IReadOnlyList<WorkflowAttachment>> ListAttachmentsAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null);
+
+        /// <summary>
+        /// Haengt eine Datei an den Vorgang.
+        /// </summary>
+        /// <param name="user">der aktuelle Benutzer - er wird als Hochladender vermerkt</param>
+        /// <param name="instanceId">der Vorgang</param>
+        /// <param name="tokenId">die Aufgabe, bei der es geschieht, oder null</param>
+        /// <param name="fileName">der Dateiname</param>
+        /// <param name="contentType">der Inhaltstyp, oder null</param>
+        /// <param name="content">die Bytes</param>
+        /// <param name="environment">die Workflow-Umgebung (Store); null = Standard</param>
+        /// <returns>die Beschreibung des Anhangs, oder null (keine Berechtigung, zu gross, Vorgang weg)</returns>
+        Task<WorkflowAttachment?> AddAttachmentAsync(ClaimsPrincipal user, string instanceId, string? tokenId,
+            string fileName, string? contentType, byte[] content, string? environment = null);
+
+        /// <summary>
+        /// Oeffnet einen Anhang zum Herunterladen. Null, wenn es ihn nicht (mehr) gibt oder der Benutzer
+        /// ihn nicht sehen darf.
+        /// </summary>
+        /// <remarks>
+        /// Der Aufrufer ist fuer das Schliessen des Datenstroms zustaendig - er haelt bis dahin Speicher
+        /// bzw. eine Datenbankressource.
+        /// </remarks>
+        Task<WorkflowAttachmentDownload?> OpenAttachmentAsync(ClaimsPrincipal user, string instanceId,
+            int attachmentKey, string? environment = null);
+
+        /// <summary>
+        /// Entfernt einen Anhang - <b>nur der eigene</b>. Fremde Anhaenge zu entfernen ist eine andere
+        /// Handlung als seinen Fehlgriff zu korrigieren, und dafuer gibt es hier bewusst keinen Weg.
+        /// </summary>
+        /// <returns>true, wenn er entfernt wurde</returns>
+        Task<bool> DeleteAttachmentAsync(ClaimsPrincipal user, string instanceId, int attachmentKey,
+            string? environment = null);
+
+        /// <summary>
         /// Schliesst die Aufgabe mit dem Ergebnis der Maske ab. Der Ausgang unterscheidet "erledigt" von
         /// "war schon erledigt" - der zweite Klick darf nicht wie ein Erfolg aussehen.
         /// </summary>

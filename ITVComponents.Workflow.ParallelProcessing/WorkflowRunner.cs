@@ -331,6 +331,13 @@ namespace ITVComponents.Workflow.ParallelProcessing
                     priority: Band(instance.Priority)));
             }
 
+            // Faellige ZEITPLAENE: hier entsteht eine Instanz, statt dass eine wartende weiterlaeuft.
+            // Bewusst im Poll und nicht als Zweig-Task - es gibt noch keine Instanz, die man einreihen
+            // koennte. Der Anspruch im Store ist deshalb auch mehr als eine Optimierung: ohne ihn liefe
+            // derselbe Zeitplan in einem Verbund aus drei Runnern dreimal an (den Timern nimmt diese
+            // Sorge der versionsgeprueffte Commit ab - einem Start nimmt sie ihm niemand).
+            engine.TriggerDueStarts(DateTime.UtcNow, owner, timerLease, maxTimerBatch);
+
             // Liegen gebliebene Nachrichten nachholen. Im Regelfall ist hier nichts - der Sender stellt
             // selbst zu, sobald er festgeschrieben ist. Was hier auftaucht, hat einen Absturz zwischen
             // Commit und Zustellung ueberlebt; ohne diesen Lauf bliebe es fuer immer liegen.

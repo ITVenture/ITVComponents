@@ -44,6 +44,16 @@ namespace ITVComponents.Workflow.EntityFramework
         public int Status { get; set; }
 
         /// <summary>
+        /// Ob die Instanz <b>angehalten</b> ist: kein Runner greift sie auf. Eigene Spalte statt eines
+        /// weiteren Status-Werts - der Status traegt den Lebenszyklus, und der wird im Vortrieb staendig
+        /// auf "laeuft" zurueckgesetzt.
+        /// </summary>
+        public bool Suspended { get; set; }
+
+        /// <summary>Warum angehalten wurde, oder null.</summary>
+        public string SuspendedReason { get; set; }
+
+        /// <summary>
         /// Die Dringlichkeit der Instanz (<b>kleinere Zahl = wichtiger</b>, siehe
         /// <c>WorkflowPriority</c>). Eigene Spalte statt Teil des JSON, weil der Aufgriff faelliger
         /// Instanzen danach sortiert - aus einem JSON-Blob liesse sich das nicht ordnen.
@@ -74,6 +84,12 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Fehlermeldung bei Faulted, oder null.</summary>
         public string FaultMessage { get; set; }
+
+        /// <summary>
+        /// Der Fehler-Code bei Faulted (Fehlerart), oder null - das, worauf ein aufrufender Prozess
+        /// verzweigt, statt die Meldung zu parsen.
+        /// </summary>
+        public string FaultCode { get; set; }
 
         /// <summary>Bei einem Subworkflow: die aufrufende (Eltern-)Instanz; sonst null (indiziert).</summary>
         public string ParentInstanceId { get; set; }
@@ -357,6 +373,191 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
+    /// Die <b>Beschreibung</b> eines Anhangs an einem Vorgang - Name, Groesse, wer und wann. Der Inhalt
+    /// liegt beim <c>IWorkflowAttachmentStore</c> und wird ueber <see cref="FileIdentifier"/> gefunden.
+    /// </summary>
+    /// <remarks>
+    /// Die Trennung ist der Punkt: eine Liste von Anhaengen zeigt Namen und Groessen, und die soll nicht
+    /// die Dateien selbst aus der Datenbank ziehen. Ausserdem laesst sich die Ablage so austauschen, ohne
+    /// dass die Beschreibung wandert.
+    /// </remarks>
+    public class WorkflowAttachmentRow
+    {
+        /// <summary>Der technische Schluessel dieser Zeile.</summary>
+        public int AttachmentKey { get; set; }
+
+        /// <summary>Der Vorgang, an dem der Anhang haengt.</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>Die Aufgabe, bei der er entstanden ist, oder null - nur nachrichtlich.</summary>
+        public string TokenId { get; set; }
+
+        /// <summary>Der Mandant des Vorgangs (denormalisiert, wie bei den Kommentaren).</summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Der Dateiname, wie ihn der Hochladende kannte.</summary>
+        public string FileName { get; set; }
+
+        /// <summary>Der Inhaltstyp, oder null.</summary>
+        public string ContentType { get; set; }
+
+        /// <summary>Die Groesse in Bytes - fuer die Anzeige, ohne die Datei zu laden.</summary>
+        public long SizeBytes { get; set; }
+
+        /// <summary>Wer hochgeladen hat.</summary>
+        public string Author { get; set; }
+
+        /// <summary>Wann (UTC).</summary>
+        public DateTime CreatedUtc { get; set; }
+
+        /// <summary>Die Kennung, unter der die Ablage den Inhalt fuehrt.</summary>
+        public string FileIdentifier { get; set; }
+    }
+
+    /// <summary>
+    /// Der <b>Inhalt</b> eines Anhangs in der eingebauten Ablage.
+    /// </summary>
+    /// <remarks>
+    /// Eigene Tabelle und nicht eine Spalte an der Beschreibung: so laedt eine Liste von Anhaengen
+    /// garantiert keine Bytes mit, auch wenn jemand die Projektion vergisst. Wer eine andere Ablage
+    /// registriert, laesst diese Tabelle schlicht leer.
+    /// </remarks>
+    public class WorkflowAttachmentBlobRow
+    {
+        /// <summary>Die Kennung (Primaerschluessel) - was die Beschreibung als Verweis traegt.</summary>
+        public string FileIdentifier { get; set; }
+
+        /// <summary>Der Inhaltstyp, oder null.</summary>
+        public string ContentType { get; set; }
+
+        /// <summary>Der vorgeschlagene Dateiname, oder null.</summary>
+        public string DownloadName { get; set; }
+
+        /// <summary>Die Bytes.</summary>
+        public byte[] Content { get; set; }
+    }
+
+    /// <summary>
+    /// Ein <b>Kommentar</b> an einem Vorgang - die Rueckfrage, der Vermerk, die Begruendung.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Er haengt am VORGANG und nur nachrichtlich an der Aufgabe, bei der er entstanden ist. Das ist der
+    /// Punkt: eine Aufgabe verschwindet mit ihrem Abschluss, der Gespraechsfaden soll aber bleiben - wer
+    /// spaeter fragt, warum so entschieden wurde, sucht am Vorgang und nicht an einem Schritt, den es
+    /// nicht mehr gibt.
+    /// </para>
+    /// <para>
+    /// Die Engine kennt Kommentare <b>nicht</b> - genau wie die weiche Sperre. Ein Kommentar ist kein
+    /// Prozess-Zustand: kein Ablauf haengt von ihm ab, keine Bedingung liest ihn. Waere er Teil der
+    /// Instanz, reiste er durch jeden Zweig-Commit und muesste bei jedem Versionskonflikt mit
+    /// zusammengefuehrt werden - fuer etwas, das niemand auswertet.
+    /// </para>
+    /// </remarks>
+    public class WorkflowCommentRow
+    {
+        /// <summary>Der technische Schluessel dieser Zeile (von der Datenbank vergeben).</summary>
+        public int CommentKey { get; set; }
+
+        /// <summary>Der Vorgang, zu dem der Kommentar gehoert.</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>
+        /// Die Aufgabe, bei der er entstanden ist, oder null (aus dem Monitoring heraus geschrieben).
+        /// Nur nachrichtlich - der Kommentar bleibt sichtbar, wenn die Aufgabe laengst erledigt ist.
+        /// </summary>
+        public string TokenId { get; set; }
+
+        /// <summary>
+        /// Der Mandant des Vorgangs - <b>denormalisiert</b>, damit die Anzeige ohne Join filtern kann
+        /// (dieselbe Ueberlegung wie bei der Outbox und den Ausloesern).
+        /// </summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Wer den Kommentar geschrieben hat.</summary>
+        public string Author { get; set; }
+
+        /// <summary>Wann (UTC).</summary>
+        public DateTime CreatedUtc { get; set; }
+
+        /// <summary>Der Text.</summary>
+        public string Text { get; set; }
+    }
+
+    /// <summary>
+    /// Ein <b>Ausloeser</b>: die abfragbare Form dessen, was ein Start-Knoten ueber seinen Einstieg
+    /// deklariert hat ("horcht auf diese Nachricht", "laeuft nach diesem Zeitplan").
+    /// </summary>
+    /// <remarks>
+    /// Die Wahrheit steht in der Definition; diese Zeile wird beim Speichern daraus neu aufgebaut. Sie
+    /// existiert, weil die beiden Fragen dahinter nur als Abfrage zu beantworten sind: bei jeder
+    /// eintreffenden Nachricht saemtliche Definitions-JSONs auszupacken, waere eine Last, die mit der Zahl
+    /// der Prozesse waechst - und "welcher Zeitplan ist jetzt faellig?" liesse sich gar nicht indizieren.
+    /// </remarks>
+    public class WorkflowStartTriggerRow
+    {
+        /// <summary>Der technische Schluessel dieser Zeile (von der Datenbank vergeben).</summary>
+        public int TriggerKey { get; set; }
+
+        /// <summary>Die Definition, die gestartet wird - ihr technischer Schluessel.</summary>
+        public int DefinitionKey { get; set; }
+
+        /// <summary>Die fachliche Id der Definition - denormalisiert fuer Meldungen und Diagnose.</summary>
+        public string DefinitionId { get; set; }
+
+        /// <summary>Die Version der Definition, aus der dieser Ausloeser stammt.</summary>
+        public int DefinitionVersion { get; set; }
+
+        /// <summary>
+        /// Der Mandant der Definition. <b>Denormalisiert</b> - aus demselben Grund wie bei der Outbox: der
+        /// Aufgriff laeuft mandantenuebergreifend und soll die Zeile ohne Join finden.
+        /// </summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Der Start-Knoten, an dem der Ausloeser deklariert ist.</summary>
+        public string NodeId { get; set; }
+
+        /// <summary>Woraufhin er feuert (siehe <c>WorkflowStartTriggerKind</c>).</summary>
+        public int Kind { get; set; }
+
+        /// <summary>Bei einem Nachrichten-Ausloeser: der Name der Nachricht.</summary>
+        public string SignalName { get; set; }
+
+        /// <summary>Bei einem Nachrichten-Ausloeser: der Umgang mit laufenden Instanzen.</summary>
+        public int Mode { get; set; }
+
+        /// <summary>Bei einem Nachrichten-Ausloeser: Korrelationsschluessel der Nachricht uebernehmen?</summary>
+        public bool AdoptCorrelationKey { get; set; }
+
+        /// <summary>Bei einem Zeitplan: das Muster.</summary>
+        public string Pattern { get; set; }
+
+        /// <summary>Bei einem Zeitplan: die festen Startwerte als JSON, oder null.</summary>
+        public string VariablesJson { get; set; }
+
+        /// <summary>Bei einem Zeitplan: ueberspringen, solange der vorige Lauf laeuft.</summary>
+        public bool SkipWhilePreviousRuns { get; set; }
+
+        /// <summary>Bei einem Zeitplan: die naechste Faelligkeit (UTC), oder null.</summary>
+        public DateTime? NextDueUtc { get; set; }
+
+        /// <summary>Bei einem Zeitplan: wann zuletzt gestartet wurde (UTC), oder null.</summary>
+        public DateTime? LastRunUtc { get; set; }
+
+        /// <summary>Bei einem Zeitplan: die zuletzt gestartete Instanz, oder null.</summary>
+        public string LastInstanceId { get; set; }
+
+        /// <summary>
+        /// Wer diesen faelligen Zeitplan gerade aufgegriffen hat, in der Form <c>owner#aufruf-guid</c> -
+        /// dasselbe Verfahren wie beim Timer-Anspruch.
+        /// </summary>
+        public string LeaseOwner { get; set; }
+
+        /// <summary>Bis wann der Anspruch gilt (UTC).</summary>
+        public DateTime? LeaseUntilUtc { get; set; }
+    }
+
+    /// <summary>
     /// Eine <b>vorgemerkte, noch nicht zugestellte Nachricht</b> - geschrieben im selben Commit wie der
     /// Zweig, der sie ausgeloest hat.
     /// </summary>
@@ -568,6 +769,18 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die vorgemerkten, noch nicht zugestellten Nachrichten.</summary>
         public DbSet<WorkflowOutboxRow> Outbox { get; set; }
 
+        /// <summary>Die Ausloeser der Definitionen (Nachricht bzw. Zeitplan).</summary>
+        public DbSet<WorkflowStartTriggerRow> WorkflowStartTriggers { get; set; }
+
+        /// <summary>Die Kommentare an den Vorgaengen.</summary>
+        public DbSet<WorkflowCommentRow> WorkflowComments { get; set; }
+
+        /// <summary>Die Beschreibungen der Anhaenge.</summary>
+        public DbSet<WorkflowAttachmentRow> WorkflowAttachments { get; set; }
+
+        /// <summary>Die Inhalte der Anhaenge in der eingebauten Ablage.</summary>
+        public DbSet<WorkflowAttachmentBlobRow> WorkflowAttachmentBlobs { get; set; }
+
         /// <inheritdoc/>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -581,8 +794,10 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasIndex(n => n.TenantId);
                 e.HasIndex(n => n.ParentInstanceId);   // Kinder einer Instanz (Abbruch-Kaskade, Baum-Treiber)
                 e.HasIndex(n => n.RootInstanceId);      // aggregierte Prozessbaum-Ansicht
-                // "die dringendsten der lauffaehigen zuerst" - die Sortierung des Aufgriffs.
-                e.HasIndex(n => new { n.Status, n.Priority });
+                // "die dringendsten der lauffaehigen zuerst" - die Sortierung des Aufgriffs. Angehalten
+                // steht mit drin, weil JEDE Aufgriffs-Abfrage danach filtert: ohne die Spalte im Index
+                // liest der Aufgriff die angehaltenen Zeilen erst und wirft sie dann weg.
+                e.HasIndex(n => new { n.Status, n.Suspended, n.Priority });
                 e.HasIndex(n => n.DefinitionKey);
                 // Echter Fremdschluessel: eine Instanz ohne ihre Definition ist nicht ausfuehrbar. Kein
                 // Kaskaden-Loeschen - eine Definition, an der noch Instanzen haengen, soll sich NICHT
@@ -660,6 +875,57 @@ namespace ITVComponents.Workflow.EntityFramework
                 // indizieren, nicht nach der Instanz.
                 e.HasIndex(n => n.ClaimedUntil);
                 e.HasIndex(n => n.CreatedUtc);
+            });
+
+            modelBuilder.Entity<WorkflowAttachmentRow>(e =>
+            {
+                e.HasKey(n => n.AttachmentKey);
+                // "die Anhaenge dieses Vorgangs, aelteste zuerst" - dieselbe Abfrage wie beim Faden.
+                e.HasIndex(n => new { n.InstanceId, n.CreatedUtc });
+                e.HasOne<WorkflowInstanceRow>()
+                    .WithMany()
+                    .HasForeignKey(n => n.InstanceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<WorkflowAttachmentBlobRow>(e =>
+            {
+                e.HasKey(n => n.FileIdentifier);
+                // BEWUSST kein Fremdschluessel auf die Beschreibung: die Ablage ist austauschbar, und der
+                // eingebaute Blob-Speicher soll nicht die einzige moegliche Umsetzung zementieren. Das
+                // Aufraeumen erledigt der Store beim Loeschen des Anhangs.
+            });
+
+            modelBuilder.Entity<WorkflowCommentRow>(e =>
+            {
+                e.HasKey(n => n.CommentKey);
+                // DER Abfrage-Index: "der Faden dieses Vorgangs, neueste zuletzt".
+                e.HasIndex(n => new { n.InstanceId, n.CreatedUtc });
+                // Echter Fremdschluessel MIT Kaskade: ein Kommentar ohne seinen Vorgang ist nichts, was
+                // jemand noch lesen wollte - er waere Muell, den niemand mehr zuordnen kann.
+                e.HasOne<WorkflowInstanceRow>()
+                    .WithMany()
+                    .HasForeignKey(n => n.InstanceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<WorkflowStartTriggerRow>(e =>
+            {
+                e.HasKey(n => n.TriggerKey);
+                // DER Abfrage-Index der Zustellung: "wer horcht auf diesen Namen?". Die Art steht mit
+                // drin, weil auf demselben Weg auch die Zeitplaene liegen - ohne sie liefe jede Nachricht
+                // ueber alle Ausloeser.
+                e.HasIndex(n => new { n.Kind, n.SignalName });
+                // Der Aufgriff des Runners: faellige Zeitplaene, aelteste zuerst.
+                e.HasIndex(n => new { n.Kind, n.NextDueUtc });
+                // Der Neuaufbau beim Speichern einer Definition raeumt ueber diese beiden Spalten auf.
+                e.HasIndex(n => new { n.TenantId, n.DefinitionId });
+                // Echter Fremdschluessel MIT Kaskade - anders als bei der Instanz: ein Ausloeser ohne
+                // seine Definition ist kein Verlust, sondern Muell, der sonst weiter feuern wuerde.
+                e.HasOne<WorkflowDefinitionRow>()
+                    .WithMany()
+                    .HasForeignKey(n => n.DefinitionKey)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<WorkflowBranchLockRow>(e =>

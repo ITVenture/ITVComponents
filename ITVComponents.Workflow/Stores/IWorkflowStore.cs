@@ -179,6 +179,66 @@ namespace ITVComponents.Workflow.Stores
         DateTime? PeekNextTimerDueUtc(DateTime nowUtc);
 
         /// <summary>
+        /// Die <b>Nachrichten-Ausloeser</b> dieses Namens: welche Definitionen sollen anlaufen, wenn eine
+        /// Nachricht so heisst? Liefert nie null.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst eine eigene Abfrage und nicht ein Durchsuchen der Definitionen: die Zustellung laeuft
+        /// bei JEDER Nachricht durch diesen Weg, und jedes Mal saemtliche Definitions-JSONs auszupacken,
+        /// waere eine Last, die mit der Zahl der Prozesse waechst.
+        /// </remarks>
+        /// <param name="signalName">der Name der eingetroffenen Nachricht</param>
+        IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName);
+
+        /// <summary>
+        /// Greift faellige <b>Zeitplan-Ausloeser</b> auf und beansprucht sie fuer diesen Aufrufer -
+        /// dasselbe Muster wie <see cref="ClaimDueTimers"/>.
+        /// </summary>
+        /// <param name="nowUtc">der aktuelle Zeitpunkt (UTC)</param>
+        /// <param name="owner">wer aufgreift (Runner-Kennung)</param>
+        /// <param name="lease">wie lange der Anspruch gilt</param>
+        /// <param name="maxTriggers">Obergrenze je Aufruf</param>
+        /// <returns>die aufgegriffenen Ausloeser; nie null</returns>
+        /// <remarks>
+        /// Der Anspruch ist hier <b>mehr</b> als eine Optimierung. Bei den Timern verhindert er nur
+        /// doppelte Arbeit - die Zusicherung traegt dort der versionsgepruefte Commit. Ein Start hat
+        /// nichts dergleichen: es gibt noch keine Instanz, deren Version jemanden ausbremsen koennte.
+        /// Ohne Anspruch liefe derselbe Zeitplan in einem Verbund aus drei Knoten dreimal an.
+        /// </remarks>
+        IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner, TimeSpan lease,
+            int maxTriggers);
+
+        /// <summary>
+        /// Schreibt den Stand eines Zeitplan-Ausloesers fort und gibt seinen Anspruch frei.
+        /// </summary>
+        /// <param name="triggerKey">der Ausloeser</param>
+        /// <param name="nextDueUtc">die naechste Faelligkeit, oder null (kein weiterer Termin)</param>
+        /// <param name="lastRunUtc">der Zeitpunkt dieses Laufs, oder null (nicht ausgefuehrt)</param>
+        /// <param name="lastInstanceId">die gestartete Instanz, oder null</param>
+        void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+            string lastInstanceId);
+
+        /// <summary>
+        /// Die frueheste noch nicht faellige Zeitplan-Faelligkeit (&gt; nowUtc), oder null. Das Gegenstueck
+        /// zu <see cref="PeekNextTimerDueUtc"/>, damit ein Runner auch fuer Zeitplaene gezielt schlafen
+        /// kann statt blind zu pollen.
+        /// </summary>
+        DateTime? PeekNextScheduleDueUtc(DateTime nowUtc);
+
+        /// <summary>
+        /// Laeuft (oder wartet) bereits eine Instanz dieser Definition mit diesem Korrelationsschluessel?
+        /// Die Frage hinter <see cref="Model.MessageStartMode.StartIfNoneRunning"/>.
+        /// </summary>
+        /// <param name="definitionKey">die Definition (technischer Schluessel)</param>
+        /// <param name="correlationKey">der Korrelationsschluessel; null liefert immer false</param>
+        /// <remarks>
+        /// Ohne Schluessel ausdruecklich false und nicht "irgendeine laeuft": ein Riegel, der ohne
+        /// Unterscheidungsmerkmal nach der ersten Instanz alles Weitere verwirft, waere kein Schutz mehr,
+        /// sondern ein Ausschalter.
+        /// </remarks>
+        bool HasRunningInstance(int definitionKey, string correlationKey);
+
+        /// <summary>
         /// Findet Instanzen mit einem Zweig, der auf eines der angegebenen Ausfuehrungs-Ziele wartet
         /// (Token-Status <see cref="TokenStatus.WaitingForTarget"/> mit passendem
         /// <see cref="Token.WaitingTarget"/>). Damit nimmt ein Runner die Zweige auf, die auf genau die von

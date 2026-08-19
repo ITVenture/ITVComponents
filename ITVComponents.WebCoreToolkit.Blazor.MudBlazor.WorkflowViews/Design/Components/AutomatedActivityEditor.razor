@@ -202,10 +202,17 @@
                     </MudTooltip>
                 </MudStack>
                 <MudTextField @bind-Value="Node.ErrorVariable" Label="Error message → variable" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="Node.ErrorCodeVariable" Label="Error code → variable" Margin="Margin.Dense" />
                 <MudTextField @bind-Value="Node.AttemptVariable" Label="Attempt count → variable" Margin="Margin.Dense" />
                 <MudText Typo="Typo.caption" Class="mud-text-secondary">
                     The single other outgoing flow is the success path. The attempt counter increments per failure
                     and resets on success — branch on it for retries.
+                </MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+                    <b>Branch on the code, not on the message.</b> The activity reports it via
+                    <code>Fail(message, code)</code> — a short, stable key of the failure kind
+                    ("CreditDenied"). The message is for people and may be reworded or translated. A crashed
+                    activity leaves the code empty; it did not claim a kind.
                 </MudText>
             }
         </MudTabPanel>

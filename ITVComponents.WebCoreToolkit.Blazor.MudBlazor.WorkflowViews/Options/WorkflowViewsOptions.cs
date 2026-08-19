@@ -33,6 +33,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
         public bool ConfigureViews { get; set; }
 
         /// <summary>
+        /// Die Obergrenze fuer einen <b>Anhang</b> in Bytes. Standard 10 MB; 0 oder kleiner schaltet
+        /// Anhaenge ganz ab (dann erscheint auch kein Knopf dafuer).
+        /// </summary>
+        /// <remarks>
+        /// Die Grenze steht hier und nicht in der Ablage: sie ist eine Aussage darueber, was in DIESER
+        /// Anlage zumutbar ist, und nicht darueber, was die Ablage technisch koennte. Die eingebaute
+        /// Ablage legt die Bytes in der Datenbank ab - wer regelmaessig grosse Dateien erwartet, hebt
+        /// nicht diese Zahl an, sondern registriert eine eigene <c>IWorkflowAttachmentStore</c>-Umsetzung.
+        /// </remarks>
+        public long MaxAttachmentBytes { get; set; } = 10 * 1024 * 1024;
+
+        /// <summary>
         /// Wie ein Operator-Signal zugestellt wird. Standard <see cref="WorkflowSignalDelivery.Inline"/>
         /// (Web-Only). Fuer getrennte Deployments (Engine/Runner im Backend) auf
         /// <see cref="WorkflowSignalDelivery.Runner"/> stellen - dann reaktiviert das Web nur store-only,
