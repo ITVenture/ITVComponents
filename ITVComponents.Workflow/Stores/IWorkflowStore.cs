@@ -188,7 +188,23 @@ namespace ITVComponents.Workflow.Stores
         /// waere eine Last, die mit der Zahl der Prozesse waechst.
         /// </remarks>
         /// <param name="signalName">der Name der eingetroffenen Nachricht</param>
-        IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName);
+        /// <param name="originTenantId">
+        /// der Mandant, aus dem die Nachricht stammt, oder null (kein Ursprung bekannt bzw. bewusst
+        /// mandantenfrei)
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// Der <b>Ursprungs-Mandant entscheidet</b>: es springen die Aktivierungen dieses Mandanten an.
+        /// Ist kein Ursprung bekannt, springt nur an, was
+        /// <see cref="WorkflowStartTrigger.AllowTenantlessStart"/> ausdruecklich erlaubt - sonst
+        /// eroeffnete eine einzige namenlose Nachricht in jedem Mandanten einen Vorgang.
+        /// </para>
+        /// <para>
+        /// In einem Ein-Mandanten-Host faellt beides zusammen (alles traegt null) und die Regel wirkt
+        /// nicht - dort ist der Ursprung immer "der eine Mandant".
+        /// </para>
+        /// </remarks>
+        WorkflowMessageTriggerLookup FindMessageTriggers(string signalName, string originTenantId);
 
         /// <summary>
         /// Greift faellige <b>Zeitplan-Ausloeser</b> auf und beansprucht sie fuer diesen Aufrufer -
@@ -205,18 +221,69 @@ namespace ITVComponents.Workflow.Stores
         /// nichts dergleichen: es gibt noch keine Instanz, deren Version jemanden ausbremsen koennte.
         /// Ohne Anspruch liefe derselbe Zeitplan in einem Verbund aus drei Knoten dreimal an.
         /// </remarks>
-        IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner, TimeSpan lease,
-            int maxTriggers);
+        IReadOnlyList<WorkflowStartTriggerMatch> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
+            TimeSpan lease, int maxTriggers);
 
         /// <summary>
-        /// Schreibt den Stand eines Zeitplan-Ausloesers fort und gibt seinen Anspruch frei.
+        /// Schreibt den Stand einer Zeitplan-<b>Aktivierung</b> fort und gibt ihren Anspruch frei.
         /// </summary>
-        /// <param name="triggerKey">der Ausloeser</param>
+        /// <param name="activationKey">die Aktivierung</param>
         /// <param name="nextDueUtc">die naechste Faelligkeit, oder null (kein weiterer Termin)</param>
         /// <param name="lastRunUtc">der Zeitpunkt dieses Laufs, oder null (nicht ausgefuehrt)</param>
         /// <param name="lastInstanceId">die gestartete Instanz, oder null</param>
-        void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+        /// <remarks>
+        /// Der Stand haengt an der Aktivierung und nicht am Ausloeser: fahren drei Mandanten denselben
+        /// zentralen Zeitplan, hat jeder seinen eigenen letzten Lauf und seinen eigenen naechsten Termin.
+        /// </remarks>
+        void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
             string lastInstanceId);
+
+        /// <summary>
+        /// Loest die fachliche Identitaet einer Definition in ihren <b>technischen Schluessel</b> auf -
+        /// exakt beim genannten Besitzer, ohne die "eigene schlaegt oeffentliche"-Regel von
+        /// <see cref="GetDefinition(string, int?, string)"/>.
+        /// </summary>
+        /// <param name="ownerTenantId">der Mandant der Definition; null = die oeffentliche</param>
+        /// <param name="definitionId">die fachliche Id</param>
+        /// <param name="version">die Version, oder null fuer die hoechste</param>
+        /// <returns>der Schluessel, oder null</returns>
+        /// <remarks>
+        /// Der Weg fuer alles, was auf eine BESTIMMTE Definition zeigt und trotzdem ihrer neuesten Fassung
+        /// folgen soll - allen voran der Start aus einem Ausloeser. Ueber den Namen allein waere er
+        /// zweideutig, sobald ein Mandant eine eigene Fassung gleichen Namens anlegt: die wuerde die
+        /// zentrale ueberdecken, und der Zeitplan startete still den falschen Prozess.
+        /// </remarks>
+        int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null);
+
+        /// <summary>
+        /// Die Ausloeser, die dieser Mandant <b>uebernehmen</b> kann - oeffentliche Definitionen, deren
+        /// Start-Knoten das ausdruecklich erlaubt. Ohne Beruecksichtigung von Feature und Berechtigung:
+        /// die entscheidet der Mantel, der den Benutzer kennt.
+        /// </summary>
+        /// <param name="tenantId">der fragende Mandant</param>
+        /// <returns>die uebernehmbaren Ausloeser; nie null</returns>
+        IReadOnlyList<WorkflowStartTrigger> FindActivatableTriggers(string tenantId);
+
+        /// <summary>
+        /// Die Aktivierungen dieses Mandanten - auch die abgehakten (<c>Enabled == false</c>) und die
+        /// verwaisten, damit die Uebersicht beide zeigen kann.
+        /// </summary>
+        /// <param name="tenantId">der Mandant</param>
+        /// <returns>seine Aktivierungen; nie null</returns>
+        IReadOnlyList<WorkflowStartTriggerActivation> GetActivations(string tenantId);
+
+        /// <summary>
+        /// Legt eine Aktivierung an oder aendert sie - erkannt an ihrer fachlichen Identitaet
+        /// (Besitzer + Definition + Knoten + Art + Mandant), nicht an <c>ActivationKey</c>.
+        /// </summary>
+        /// <param name="activation">die Aktivierung; ihr <c>ActivationKey</c> wird nachgetragen</param>
+        /// <remarks>
+        /// Der Lauf-Zustand einer <b>bestehenden</b> Zeile bleibt dabei unangetastet. Das ist der Grund,
+        /// warum Abhaken nicht loescht: haekelt jemand ein halbes Jahr spaeter wieder an, soll der
+        /// Zeitplan da weitermachen, wo er war - und nicht ein "sofort"-Kennzeichen ein zweites Mal
+        /// ausloesen.
+        /// </remarks>
+        void SaveActivation(WorkflowStartTriggerActivation activation);
 
         /// <summary>
         /// Die frueheste noch nicht faellige Zeitplan-Faelligkeit (&gt; nowUtc), oder null. Das Gegenstueck

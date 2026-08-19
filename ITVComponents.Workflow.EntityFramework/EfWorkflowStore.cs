@@ -157,21 +157,29 @@ namespace ITVComponents.Workflow.EntityFramework
             List<WorkflowStartTriggerRow> existing = ctx.WorkflowStartTriggers
                 .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id)
                 .ToList();
-            var keptKeys = new HashSet<int>();
 
-            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest, DateTime.UtcNow))
+            // Die Aktivierungen dieser Definition - ueber die fachliche Identitaet, nicht ueber
+            // TriggerKey: der ist gleich ein anderer.
+            List<WorkflowStartTriggerActivationRow> activations = ctx.WorkflowStartTriggerActivations
+                .Where(a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.Id)
+                .ToList();
+
+            var keptKeys = new HashSet<int>();
+            var now = DateTime.UtcNow;
+
+            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest))
             {
+                // Wiedererkannt ueber Knoten und Art - NICHT mehr zusaetzlich ueber das Muster. Das
+                // Muster gehoert jetzt in den Vergleich, der den Lauf-Zustand zuruecksetzt, und nicht in
+                // die Identitaet: sonst waere ein umgeschriebener Zeitplan ein anderer AUSLOESER, und
+                // saemtliche Uebernahmen der Mandanten haetten ihn verloren.
                 WorkflowStartTriggerRow target = existing.FirstOrDefault(
-                    t => t.NodeId == fresh.NodeId && t.Kind == (int)fresh.Kind && t.Pattern == fresh.Pattern
+                    t => t.NodeId == fresh.NodeId && t.Kind == (int)fresh.Kind
                          && !keptKeys.Contains(t.TriggerKey));
+                string previousPattern = target?.Pattern;
                 if (target == null)
                 {
-                    target = new WorkflowStartTriggerRow
-                    {
-                        NextDueUtc = fresh.NextDueUtc,
-                        LastRunUtc = fresh.LastRunUtc,
-                        LastInstanceId = fresh.LastInstanceId
-                    };
+                    target = new WorkflowStartTriggerRow();
                     ctx.WorkflowStartTriggers.Add(target);
                 }
 
@@ -179,26 +187,124 @@ namespace ITVComponents.Workflow.EntityFramework
                 target.DefinitionId = fresh.DefinitionId;
                 target.DefinitionVersion = fresh.DefinitionVersion;
                 target.TenantId = fresh.TenantId;
+                target.IsPublic = fresh.IsPublic;
                 target.NodeId = fresh.NodeId;
                 target.Kind = (int)fresh.Kind;
+                target.RequiredFeature = fresh.RequiredFeature;
+                target.RequiredPermission = fresh.RequiredPermission;
+                target.AllowLocalActivation = fresh.AllowLocalActivation;
                 target.SignalName = fresh.SignalName;
                 target.Mode = (int)fresh.Mode;
                 target.AdoptCorrelationKey = fresh.AdoptCorrelationKey;
+                target.AllowTenantlessStart = fresh.AllowTenantlessStart;
                 target.Pattern = fresh.Pattern;
                 target.VariablesJson = fresh.VariablesJson;
                 target.SkipWhilePreviousRuns = fresh.SkipWhilePreviousRuns;
+                target.AllowReschedule = fresh.AllowReschedule;
+                target.AllowOwnVariables = fresh.AllowOwnVariables;
                 if (target.TriggerKey != 0)
                 {
                     keptKeys.Add(target.TriggerKey);
                 }
+
+                SyncActivations(ctx, fresh, activations, previousPattern, now);
             }
 
             foreach (WorkflowStartTriggerRow stale in existing.Where(t => !keptKeys.Contains(t.TriggerKey)))
             {
+                WarnAboutOrphans(stale, activations);
                 ctx.WorkflowStartTriggers.Remove(stale);
             }
 
             ctx.SaveChanges();
+        }
+
+        /// <summary>
+        /// Zieht die Aktivierungen eines eben aufgebauten Ausloesers nach: legt fuer eine
+        /// mandanteneigene Definition die eine Aktivierung an, und setzt den Lauf-Zustand zurueck, wenn
+        /// sich das <b>zentrale Muster</b> geaendert hat.
+        /// </summary>
+        /// <remarks>
+        /// Der Reset ist die Fortschreibung einer bewussten Entscheidung von frueher: ein umgeschriebener
+        /// Zeitplan ist ein ANDERER Plan, und sein erster Lauf gehoert ihm - sonst greift ein
+        /// "sofort"-Kennzeichen nie, weil "schon mal gelaufen" aus der Zeit davor stammt. Betroffen sind
+        /// nur die Aktivierungen, die auch wirklich auf dem zentralen Muster laufen; wer ein eigenes
+        /// setzen darf und gesetzt hat, bleibt unberuehrt.
+        /// </remarks>
+        private static void SyncActivations(WorkflowContext ctx, WorkflowStartTrigger fresh,
+            List<WorkflowStartTriggerActivationRow> activations, string previousPattern, DateTime nowUtc)
+        {
+            List<WorkflowStartTriggerActivationRow> mine = activations
+                .Where(a => a.NodeId == fresh.NodeId && a.Kind == (int)fresh.Kind)
+                .ToList();
+
+            // Ueber IsPublic und nicht ueber "TenantId ist null": im Ein-Mandanten-Betrieb traegt alles
+            // null, und dort MUSS die Aktivierung entstehen - sonst laeuft danach kein Zeitplan mehr.
+            if (!fresh.IsPublic && mine.All(a => a.TenantId != fresh.TenantId))
+            {
+                var own = new WorkflowStartTriggerActivationRow
+                {
+                    OwnerTenantId = fresh.TenantId,
+                    DefinitionId = fresh.DefinitionId,
+                    NodeId = fresh.NodeId,
+                    Kind = (int)fresh.Kind,
+                    TenantId = fresh.TenantId,
+                    Enabled = true,
+                    NextDueUtc = fresh.Kind != WorkflowStartTriggerKind.Schedule
+                        ? null
+                        : WorkflowStartTriggerFactory.FirstDueUtc(fresh.Pattern, nowUtc,
+                            $"'{fresh.DefinitionId}', Knoten '{fresh.NodeId}'"),
+                    ActivatedBy = "(automatisch)",
+                    ActivatedUtc = nowUtc
+                };
+                ctx.WorkflowStartTriggerActivations.Add(own);
+                activations.Add(own);
+                return;
+            }
+
+            if (fresh.Kind != WorkflowStartTriggerKind.Schedule || previousPattern == fresh.Pattern)
+            {
+                return;
+            }
+
+            foreach (WorkflowStartTriggerActivationRow activation in mine)
+            {
+                bool followsOwnPattern = fresh.AllowReschedule
+                                         && !string.IsNullOrWhiteSpace(activation.PatternOverride);
+                if (followsOwnPattern)
+                {
+                    continue;
+                }
+
+                activation.LastRunUtc = null;
+                activation.LastInstanceId = null;
+                activation.NextDueUtc = WorkflowStartTriggerFactory.FirstDueUtc(fresh.Pattern, nowUtc,
+                    $"'{fresh.DefinitionId}', Knoten '{fresh.NodeId}', Mandant "
+                    + $"'{activation.TenantId ?? "-"}'");
+            }
+        }
+
+        /// <summary>
+        /// Sagt, welche Uebernahmen durch das Wegfallen eines Ausloesers ins Leere laufen. Die Zeilen
+        /// bleiben - die Zustimmung soll erhalten sein, falls der Knoten zurueckkommt -, aber ein
+        /// Zeitplan, der ab jetzt schweigt, darf das nicht unbemerkt tun.
+        /// </summary>
+        private static void WarnAboutOrphans(WorkflowStartTriggerRow stale,
+            List<WorkflowStartTriggerActivationRow> activations)
+        {
+            var affected = activations
+                .Where(a => a.NodeId == stale.NodeId && a.Kind == stale.Kind && a.Enabled)
+                .Select(a => a.TenantId ?? "-")
+                .ToList();
+            if (affected.Count == 0)
+            {
+                return;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Der Ausloeser '{stale.DefinitionId}' (Knoten '{stale.NodeId}', Art {stale.Kind}) ist mit "
+                + $"dem Speichern der Definition weggefallen. {affected.Count} aktive Uebernahme(n) laufen "
+                + $"ab jetzt ins Leere: {string.Join(", ", affected)}.", LogSeverity.Warning);
         }
 
         /// <inheritdoc/>
@@ -395,7 +501,10 @@ namespace ITVComponents.Workflow.EntityFramework
                         : WorkflowJson.SerializeVariables(message.Payload),
                     WaitingTokenId = message.WaitingTokenId,
                     ReachedVariable = message.ReachedVariable,
-                    TenantId = row.TenantId,
+                    // Der Ursprung der Nachricht - im Regelfall der Mandant der sendenden Instanz. Er
+                    // muss die Vormerkung ueberleben: der Nachhol-Lauf kann in einem anderen Prozess
+                    // stattfinden, und dort waere der Absender nicht mehr zu ermitteln.
+                    TenantId = message.OriginTenantId ?? row.TenantId,
                     CreatedUtc = message.CreatedUtc,
                     Attempts = message.Attempts
                 });
@@ -669,27 +778,69 @@ namespace ITVComponents.Workflow.EntityFramework
         }
 
         /// <inheritdoc/>
-        public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
+        public WorkflowMessageTriggerLookup FindMessageTriggers(string signalName, string originTenantId)
         {
+            var result = new WorkflowMessageTriggerLookup();
             if (string.IsNullOrEmpty(signalName))
             {
-                return new List<WorkflowStartTrigger>();
+                return result;
             }
 
             using WorkflowContext ctx = contextFactory();
             int message = (int)WorkflowStartTriggerKind.Message;
-            // Ohne Query-Filter: eine Nachricht kommt von aussen und traegt keinen Mandanten-Kontext mit.
-            // WELCHER Mandant gemeint ist, steht am Ausloeser - und die Instanz entsteht spaeter
-            // ausdruecklich in dessen Kontext.
-            return ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
+            // Ohne Query-Filter: eine Nachricht kommt von aussen. WELCHE Mandanten sie anlaufen laesst,
+            // entscheidet der Ursprung - nicht der gerade aktive Kontext.
+            List<WorkflowStartTriggerRow> rows = ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
                 .Where(t => t.Kind == message && t.SignalName == signalName)
-                .ToList()
-                .Select(ToTrigger)
                 .ToList();
+            if (rows.Count == 0)
+            {
+                return result;
+            }
+
+            var definitionIds = rows.Select(t => t.DefinitionId).Distinct().ToList();
+            List<WorkflowStartTriggerActivationRow> activations = ctx.WorkflowStartTriggerActivations
+                .AsNoTracking().IgnoreQueryFilters()
+                .Where(a => a.Enabled && a.Kind == message && definitionIds.Contains(a.DefinitionId))
+                .ToList();
+
+            var matches = new List<WorkflowStartTriggerMatch>();
+            var suppressed = new List<string>();
+            foreach (WorkflowStartTriggerRow row in rows)
+            {
+                WorkflowStartTrigger trigger = ToTrigger(row);
+
+                // Die Regel in einer Zeile: der Ursprung entscheidet; ohne Ursprung springt nur an, was
+                // es ausdruecklich erlaubt. Im Ein-Mandanten-Betrieb traegt alles null, dort faellt
+                // beides zusammen und die Regel wirkt nicht.
+                List<WorkflowStartTriggerActivationRow> relevant = activations
+                    .Where(a => a.OwnerTenantId == row.TenantId && a.DefinitionId == row.DefinitionId
+                                && a.NodeId == row.NodeId
+                                && (a.TenantId == originTenantId
+                                    || (originTenantId == null && row.AllowTenantlessStart)))
+                    .ToList();
+
+                if (relevant.Count == 0)
+                {
+                    suppressed.Add($"'{row.DefinitionId}' (Knoten '{row.NodeId}', Besitzer "
+                                   + $"'{row.TenantId ?? "<oeffentlich>"}')");
+                    continue;
+                }
+
+                matches.AddRange(relevant.Select(a => new WorkflowStartTriggerMatch
+                {
+                    Trigger = trigger,
+                    Activation = ToActivation(a)
+                }));
+            }
+
+            result.Matches = matches;
+            result.SuppressedByTenant = suppressed;
+            return result;
         }
 
         /// <inheritdoc/>
-        public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
+        public IReadOnlyList<WorkflowStartTriggerMatch> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
             TimeSpan lease, int maxTriggers)
         {
             if (string.IsNullOrEmpty(owner))
@@ -699,7 +850,7 @@ namespace ITVComponents.Workflow.EntityFramework
 
             if (maxTriggers <= 0)
             {
-                return new List<WorkflowStartTrigger>();
+                return new List<WorkflowStartTriggerMatch>();
             }
 
             using WorkflowContext ctx = contextFactory();
@@ -712,48 +863,100 @@ namespace ITVComponents.Workflow.EntityFramework
             // der Ausschluss gegen einen zweiten Runner, der zwischen Auswahl und Update dazwischenfunkt.
             // Hier ist er nicht nur eine Optimierung: es gibt noch keine Instanz, deren Version die
             // doppelte Anlage verhindern koennte.
-            List<int> candidates = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
-                .Where(t => t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc <= nowUtc
-                            && (t.LeaseUntilUtc == null || t.LeaseUntilUtc <= nowUtc))
-                .OrderBy(t => t.NextDueUtc)
+            //
+            // Gestempelt wird die AKTIVIERUNG: fahren drei Mandanten denselben zentralen Zeitplan, sind
+            // das drei unabhaengige Laeufe, die einander nicht ausbremsen duerfen.
+            List<int> candidates = ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .Where(a => a.Enabled && a.Kind == schedule && a.NextDueUtc != null && a.NextDueUtc <= nowUtc
+                            && (a.LeaseUntilUtc == null || a.LeaseUntilUtc <= nowUtc))
+                .OrderBy(a => a.NextDueUtc)
                 .Take(maxTriggers)
-                .Select(t => t.TriggerKey)
+                .Select(a => a.ActivationKey)
                 .ToList();
             if (candidates.Count == 0)
             {
-                return new List<WorkflowStartTrigger>();
+                return new List<WorkflowStartTriggerMatch>();
             }
 
-            _ = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
-                .Where(t => candidates.Contains(t.TriggerKey)
-                            && t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc <= nowUtc
-                            && (t.LeaseUntilUtc == null || t.LeaseUntilUtc <= nowUtc))
+            _ = ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .Where(a => candidates.Contains(a.ActivationKey)
+                            && a.Enabled && a.Kind == schedule && a.NextDueUtc != null && a.NextDueUtc <= nowUtc
+                            && (a.LeaseUntilUtc == null || a.LeaseUntilUtc <= nowUtc))
                 .ExecuteUpdate(s => s
-                    .SetProperty(t => t.LeaseOwner, claim)
-                    .SetProperty(t => t.LeaseUntilUtc, until));
+                    .SetProperty(a => a.LeaseOwner, claim)
+                    .SetProperty(a => a.LeaseUntilUtc, until));
 
-            return ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
-                .Where(t => t.LeaseOwner == claim)
-                .ToList()
-                .Select(ToTrigger)
+            List<WorkflowStartTriggerActivationRow> claimed = ctx.WorkflowStartTriggerActivations
+                .AsNoTracking().IgnoreQueryFilters()
+                .Where(a => a.LeaseOwner == claim)
                 .ToList();
+            if (claimed.Count == 0)
+            {
+                return new List<WorkflowStartTriggerMatch>();
+            }
+
+            var definitionIds = claimed.Select(a => a.DefinitionId).Distinct().ToList();
+            List<WorkflowStartTriggerRow> triggerRows = ctx.WorkflowStartTriggers.AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(t => t.Kind == schedule && definitionIds.Contains(t.DefinitionId))
+                .ToList();
+
+            var result = new List<WorkflowStartTriggerMatch>();
+            foreach (WorkflowStartTriggerActivationRow activation in claimed)
+            {
+                WorkflowStartTriggerRow trigger = triggerRows.FirstOrDefault(
+                    t => t.TenantId == activation.OwnerTenantId && t.DefinitionId == activation.DefinitionId
+                         && t.NodeId == activation.NodeId);
+                if (trigger == null)
+                {
+                    // Verwaist: der Knoten wurde umbenannt oder entfernt. Gemeldet wurde das beim
+                    // Speichern; hier den Anspruch aufloesen und die Faelligkeit abraeumen, sonst laeuft
+                    // die Zeile bei jedem Poll erneut auf.
+                    ReleaseOrphanedActivation(activation.ActivationKey);
+                    continue;
+                }
+
+                result.Add(new WorkflowStartTriggerMatch
+                {
+                    Trigger = ToTrigger(trigger),
+                    Activation = ToActivation(activation)
+                });
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Nimmt einer verwaisten Aktivierung Anspruch und Faelligkeit - sonst waere sie bei jedem Poll
+        /// wieder faellig und liefe in eine Dauerschleife. Die Zeile selbst bleibt: die Zustimmung soll
+        /// erhalten sein, falls der Knoten zurueckkommt.
+        /// </summary>
+        private void ReleaseOrphanedActivation(int activationKey)
+        {
+            using WorkflowContext ctx = contextFactory();
+            _ = ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .Where(a => a.ActivationKey == activationKey)
+                .ExecuteUpdate(s => s
+                    .SetProperty(a => a.LeaseOwner, (string)null)
+                    .SetProperty(a => a.LeaseUntilUtc, (DateTime?)null)
+                    .SetProperty(a => a.NextDueUtc, (DateTime?)null));
         }
 
         /// <inheritdoc/>
-        public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+        public void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
             string lastInstanceId)
         {
             using WorkflowContext ctx = contextFactory();
-            WorkflowStartTriggerRow row = ctx.WorkflowStartTriggers.IgnoreQueryFilters()
-                .FirstOrDefault(t => t.TriggerKey == triggerKey);
+            WorkflowStartTriggerActivationRow row = ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .FirstOrDefault(a => a.ActivationKey == activationKey);
             if (row == null)
             {
-                // Kein Fehler: waehrend der Lauf lief, kann die Definition neu gespeichert und der
-                // Ausloeser dabei ersetzt worden sein. Stillschweigen darf es trotzdem nicht - sonst
-                // sucht man spaeter, warum ein Zeitplan seinen Stand nicht fortgeschrieben hat.
+                // Kein Fehler: waehrend der Lauf lief, kann die Uebernahme zurueckgenommen worden sein.
+                // Stillschweigen darf es trotzdem nicht - sonst sucht man spaeter, warum ein Zeitplan
+                // seinen Stand nicht fortgeschrieben hat.
                 LogEnvironment.LogEvent(
-                    $"UpdateScheduleTrigger: Ausloeser '{triggerKey}' existiert nicht mehr - vermutlich "
-                    + "wurde die Definition zwischenzeitlich gespeichert. Nichts fortgeschrieben.",
+                    $"UpdateScheduleActivation: Aktivierung '{activationKey}' existiert nicht mehr - "
+                    + "vermutlich wurde sie zwischenzeitlich entfernt. Nichts fortgeschrieben.",
                     LogSeverity.Report);
                 return;
             }
@@ -765,7 +968,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 row.LastInstanceId = lastInstanceId;
             }
 
-            // Den Anspruch freigeben: der Lauf ist vorbei. Ohne das bliebe der Ausloeser bis zum Ablauf
+            // Den Anspruch freigeben: der Lauf ist vorbei. Ohne das bliebe die Aktivierung bis zum Ablauf
             // der Frist gesperrt - bei einem Minutentakt waere das jeder zweite Termin.
             row.LeaseOwner = null;
             row.LeaseUntilUtc = null;
@@ -773,13 +976,108 @@ namespace ITVComponents.Workflow.EntityFramework
         }
 
         /// <inheritdoc/>
+        public int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null)
+        {
+            if (string.IsNullOrEmpty(definitionId))
+            {
+                return null;
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            // Ohne Query-Filter und AUSDRUECKLICH auf den genannten Besitzer: hier soll gerade NICHT die
+            // "eigene schlaegt oeffentliche"-Regel greifen. Wer diesen Weg nimmt, weiss, wessen
+            // Definition er meint.
+            IQueryable<WorkflowDefinitionRow> q = ctx.WorkflowDefinitions.AsNoTracking().IgnoreQueryFilters()
+                .Where(d => d.Id == definitionId && d.TenantId == ownerTenantId);
+            if (version.HasValue)
+            {
+                q = q.Where(d => d.Version == version.Value);
+            }
+
+            return q.OrderByDescending(d => d.Version)
+                .Select(d => (int?)d.DefinitionKey)
+                .FirstOrDefault();
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> FindActivatableTriggers(string tenantId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            // IsPublic und nicht "TenantId ist null": im Ein-Mandanten-Betrieb traegt alles null, und
+            // dort gibt es nichts zu uebernehmen.
+            return ctx.WorkflowStartTriggers.AsNoTracking().IgnoreQueryFilters()
+                .Where(t => t.IsPublic && t.AllowLocalActivation)
+                .ToList()
+                .Select(ToTrigger)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTriggerActivation> GetActivations(string tenantId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            return ctx.WorkflowStartTriggerActivations.AsNoTracking().IgnoreQueryFilters()
+                .Where(a => a.TenantId == tenantId)
+                .ToList()
+                .Select(ToActivation)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public void SaveActivation(WorkflowStartTriggerActivation activation)
+        {
+            if (activation == null)
+            {
+                throw new ArgumentNullException(nameof(activation));
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            int kind = (int)activation.Kind;
+            WorkflowStartTriggerActivationRow row = ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .FirstOrDefault(a => a.OwnerTenantId == activation.OwnerTenantId
+                                     && a.DefinitionId == activation.DefinitionId
+                                     && a.NodeId == activation.NodeId && a.Kind == kind
+                                     && a.TenantId == activation.TenantId);
+            if (row == null)
+            {
+                row = new WorkflowStartTriggerActivationRow
+                {
+                    OwnerTenantId = activation.OwnerTenantId,
+                    DefinitionId = activation.DefinitionId,
+                    NodeId = activation.NodeId,
+                    Kind = kind,
+                    TenantId = activation.TenantId,
+                    ActivatedUtc = activation.ActivatedUtc == default
+                        ? DateTime.UtcNow
+                        : activation.ActivatedUtc
+                };
+                ctx.WorkflowStartTriggerActivations.Add(row);
+                row.NextDueUtc = activation.NextDueUtc;
+            }
+            else if (activation.NextDueUtc != null)
+            {
+                // Der Lauf-Zustand einer BESTEHENDEN Zeile bleibt sonst unangetastet - genau deshalb
+                // loescht Abhaken nicht: wer ein halbes Jahr spaeter wieder anhaekelt, soll da
+                // weitermachen, wo er war, statt ein "sofort"-Kennzeichen ein zweites Mal auszuloesen.
+                row.NextDueUtc = activation.NextDueUtc;
+            }
+
+            row.Enabled = activation.Enabled;
+            row.PatternOverride = activation.PatternOverride;
+            row.VariablesJsonOverride = activation.VariablesJsonOverride;
+            row.ActivatedBy = activation.ActivatedBy ?? row.ActivatedBy;
+            ctx.SaveChanges();
+            activation.ActivationKey = row.ActivationKey;
+        }
+
+        /// <inheritdoc/>
         public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
         {
             using WorkflowContext ctx = contextFactory();
             int schedule = (int)WorkflowStartTriggerKind.Schedule;
-            return ctx.WorkflowStartTriggers.IgnoreQueryFilters()
-                .Where(t => t.Kind == schedule && t.NextDueUtc != null && t.NextDueUtc > nowUtc)
-                .Min(t => t.NextDueUtc);
+            return ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters()
+                .Where(a => a.Enabled && a.Kind == schedule && a.NextDueUtc != null && a.NextDueUtc > nowUtc)
+                .Min(a => a.NextDueUtc);
         }
 
         /// <inheritdoc/>
@@ -807,17 +1105,43 @@ namespace ITVComponents.Workflow.EntityFramework
                 DefinitionId = row.DefinitionId,
                 DefinitionVersion = row.DefinitionVersion,
                 TenantId = row.TenantId,
+                IsPublic = row.IsPublic,
                 NodeId = row.NodeId,
                 Kind = (WorkflowStartTriggerKind)row.Kind,
+                RequiredFeature = row.RequiredFeature,
+                RequiredPermission = row.RequiredPermission,
+                AllowLocalActivation = row.AllowLocalActivation,
                 SignalName = row.SignalName,
                 Mode = (MessageStartMode)row.Mode,
                 AdoptCorrelationKey = row.AdoptCorrelationKey,
+                AllowTenantlessStart = row.AllowTenantlessStart,
                 Pattern = row.Pattern,
                 VariablesJson = row.VariablesJson,
                 SkipWhilePreviousRuns = row.SkipWhilePreviousRuns,
+                AllowReschedule = row.AllowReschedule,
+                AllowOwnVariables = row.AllowOwnVariables
+            };
+
+        /// <summary>Uebersetzt eine Aktivierungs-Zeile in das store-neutrale Modell.</summary>
+        private static WorkflowStartTriggerActivation ToActivation(WorkflowStartTriggerActivationRow row)
+            => new WorkflowStartTriggerActivation
+            {
+                ActivationKey = row.ActivationKey,
+                OwnerTenantId = row.OwnerTenantId,
+                DefinitionId = row.DefinitionId,
+                NodeId = row.NodeId,
+                Kind = (WorkflowStartTriggerKind)row.Kind,
+                TenantId = row.TenantId,
+                Enabled = row.Enabled,
+                PatternOverride = row.PatternOverride,
+                VariablesJsonOverride = row.VariablesJsonOverride,
                 NextDueUtc = AsUtc(row.NextDueUtc),
                 LastRunUtc = AsUtc(row.LastRunUtc),
-                LastInstanceId = row.LastInstanceId
+                LastInstanceId = row.LastInstanceId,
+                ClaimedBy = row.LeaseOwner,
+                ClaimedUntil = AsUtc(row.LeaseUntilUtc),
+                ActivatedBy = row.ActivatedBy,
+                ActivatedUtc = AsUtc(row.ActivatedUtc) ?? row.ActivatedUtc
             };
 
         /// <summary>
@@ -980,6 +1304,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 : WorkflowJson.DeserializeVariables(row.PayloadJson),
             WaitingTokenId = row.WaitingTokenId,
             ReachedVariable = row.ReachedVariable,
+            OriginTenantId = row.TenantId,
             CreatedUtc = row.CreatedUtc,
             Attempts = row.Attempts
         };

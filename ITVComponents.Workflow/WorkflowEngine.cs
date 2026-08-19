@@ -67,9 +67,15 @@ namespace ITVComponents.Workflow
         /// <see cref="WorkflowHistoryFilter.Default"/>. Eine Definition kann die Mindest-Stufe einzeln
         /// uebersteuern (<see cref="WorkflowDefinition.MinHistorySeverity"/>).
         /// </param>
+        /// <param name="featureGate">
+        /// Beantwortet, ob ein Feature fuer einen Mandanten aktiv ist - die einzige Bedingung, die auch
+        /// ohne Benutzer gilt und deshalb bei jedem zeitgesteuerten Start geprueft wird (siehe
+        /// <see cref="WorkflowDefinition.RequiredFeature"/>). Null = <see cref="AlwaysEnabledFeatureGate"/>,
+        /// also das Verhalten vor Einfuehrung der Bedingung.
+        /// </param>
         public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
             IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null,
-            IWorkflowHistoryFilter historyFilter = null)
+            IWorkflowHistoryFilter historyFilter = null, IWorkflowTenantFeatureGate featureGate = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
@@ -77,6 +83,7 @@ namespace ITVComponents.Workflow
             this.hostTargets = new HashSet<string>(
                 hostTargets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
             HistoryFilter = historyFilter;
+            FeatureGate = featureGate ?? AlwaysEnabledFeatureGate.Instance;
             Runtime = new WorkflowRuntimeContext();
         }
 
@@ -85,6 +92,12 @@ namespace ITVComponents.Workflow
         /// <see cref="WorkflowHistoryFilter.Default"/>.
         /// </summary>
         public IWorkflowHistoryFilter HistoryFilter { get; set; }
+
+        /// <summary>
+        /// Das Feature-Gate dieser Engine (siehe Konstruktor). Nie null - ohne Verdrahtung erlaubt es
+        /// alles.
+        /// </summary>
+        public IWorkflowTenantFeatureGate FeatureGate { get; set; }
 
         /// <summary>
         /// Die Ausfuehrungs-Ziele, die diese Engine/dieser Host bedient (siehe Konstruktor). Der Runner
@@ -120,6 +133,40 @@ namespace ITVComponents.Workflow
         {
             WorkflowDefinition definition = store.GetDefinition(definitionId)
                 ?? throw new InvalidOperationException($"No definition found for '{definitionId}'.");
+
+            return CreateInstance(definition, initialVariables, correlationKey, priority);
+        }
+
+        /// <summary>
+        /// Legt eine neue Instanz an - ueber die <b>technische</b> Kennung der Definition. Der Weg fuer
+        /// jeden Aufrufer, der die Definition bereits in der Hand hatte.
+        /// </summary>
+        /// <remarks>
+        /// Der Unterschied zur Ueberladung mit dem Namen ist keine Bequemlichkeit: die Aufloesung ueber
+        /// den Namen entscheidet am <b>gerade aktiven Mandanten</b>, und die eigene Definition eines
+        /// Mandanten schlaegt dabei die oeffentliche gleichen Namens. Wer erst nachsieht (Berechtigung,
+        /// Maske, Auslöser) und dann startet, bekommt sonst zwei unabhaengige Aufloesungen desselben
+        /// Namens - und im Zweifel startet er etwas anderes, als er geprueft hat.
+        /// </remarks>
+        /// <param name="definitionKey">die technische Kennung der Definition</param>
+        /// <param name="initialVariables">Startvariablen, oder null</param>
+        /// <param name="correlationKey">optionaler Korrelationsschluessel fuer Signale</param>
+        /// <param name="priority">die Dringlichkeit, oder null fuer die Vorgabe der Definition</param>
+        public WorkflowInstance CreateInstance(int definitionKey,
+            IDictionary<string, object> initialVariables = null, string correlationKey = null,
+            int? priority = null)
+        {
+            WorkflowDefinition definition = store.GetDefinition(definitionKey)
+                ?? throw new InvalidOperationException($"No definition found for key {definitionKey}.");
+
+            return CreateInstance(definition, initialVariables, correlationKey, priority);
+        }
+
+        /// <summary>Das Anlegen selbst - beide Wege muenden hier, damit sie nie auseinanderlaufen.</summary>
+        private WorkflowInstance CreateInstance(WorkflowDefinition definition,
+            IDictionary<string, object> initialVariables, string correlationKey, int? priority)
+        {
+            string definitionId = definition.Id;
 
             // Eine als fehlerhaft markierte Definition wird gar nicht erst instanziiert - sonst entstuende
             // eine Instanz, die sofort (oder am ersten fehlerhaften Knoten) faultet. Das Flag setzt der
@@ -215,6 +262,20 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Startet eine neue Instanz ueber die <b>technische</b> Kennung der Definition und treibt sie
+        /// sequenziell voran. Siehe <see cref="CreateInstance(int, IDictionary{string, object}, string, int?)"/>
+        /// dazu, warum es diesen Weg neben dem ueber den Namen gibt.
+        /// </summary>
+        public WorkflowInstance StartWorkflow(int definitionKey,
+            IDictionary<string, object> initialVariables = null, string correlationKey = null,
+            int? priority = null)
+        {
+            WorkflowInstance instance = CreateInstance(definitionKey, initialVariables, correlationKey, priority);
+            Advance(instance, LoadDefinition(instance));
+            return instance;
+        }
+
+        /// <summary>
         /// Setzt die Dringlichkeit einer laufenden Instanz neu (kleinere Zahl = wichtiger, siehe
         /// <see cref="WorkflowPriority"/>). Wirkt auf die noch nicht eingereihten Zweige: der naechste
         /// Poll des Runners nimmt sie mit der neuen Stufe auf. Bereits in der Warteschlange stehende
@@ -240,7 +301,11 @@ namespace ITVComponents.Workflow
             int previous = instance.Priority;
             using (WorkflowExecutionScope.UseTenant(instance.TenantId))
             {
-                instance.HistoryFilter = FilterFor(store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion));
+                // Ueber die technische Kennung, nicht ueber Name+Version: die Instanz haelt den Verweis
+                // auf GENAU ihre Definition. Ueber den Namen entschiede der gerade aktive Mandant, und
+                // eine spaeter angelegte eigene Fassung gleichen Namens ueberdeckte die oeffentliche -
+                // die Instanz bekaeme den Protokoll-Filter eines fremden Graphen.
+                instance.HistoryFilter = FilterFor(store.GetDefinition(instance.DefinitionKey));
                 instance.Priority = priority;
                 instance.Log("PriorityChanged", detail:
                     $"{WorkflowPriority.Name(previous)} -> {WorkflowPriority.Name(priority)}");
@@ -359,9 +424,33 @@ namespace ITVComponents.Workflow
             }
 
             message.InstanceId = box.Instance.Id;
+            // Der Ursprung wird HIER festgehalten und nicht erst beim Zustellen: die kann in einem
+            // anderen Prozess nachgeholt werden, und dort ist der sendende Mandant nicht mehr zu
+            // ermitteln. Eine bereits gesetzte Angabe gewinnt - der Aufrufer wusste es genauer.
+            message.OriginTenantId ??= box.Instance.TenantId;
             box.Instance.OutgoingMessages.Add(message);
             box.Pending.Add(message);
             return true;
+        }
+
+        /// <summary>
+        /// Der Mandant, aus dem eine von aussen abgeschickte Nachricht <b>stammt</b>: der ausdruecklich
+        /// genannte, sonst der des laufenden Vortriebs.
+        /// </summary>
+        /// <remarks>
+        /// Im Web setzt niemand den Ausfuehrungs-Kontext (<see cref="WorkflowExecutionScope.HasTenant"/>
+        /// ist dort false) - dort gibt ihn die aufrufende Fassade ausdruecklich mit, denn der Kern kennt
+        /// die Anfrage nicht. Bleibt beides leer, hat die Nachricht keinen Ursprung, und es laeuft nur
+        /// an, was das ausdruecklich erlaubt.
+        /// </remarks>
+        private static string OriginTenant(string explicitTenantId)
+        {
+            if (explicitTenantId != null)
+            {
+                return explicitTenantId;
+            }
+
+            return WorkflowExecutionScope.HasTenant ? WorkflowExecutionScope.CurrentTenant : null;
         }
 
         /// <summary>
@@ -462,12 +551,16 @@ namespace ITVComponents.Workflow
             int reached;
             try
             {
+                // Der Ursprung kommt aus der VORMERKUNG, nicht aus dem gerade laufenden Kontext: dieser
+                // Weg holt Zustellungen auch in einem fremden Prozess nach, und dort waere der sendende
+                // Mandant sonst nicht mehr zu ermitteln.
                 reached = message.Broadcast
-                    ? BroadcastSignalNow(message.SignalName, message.Payload)
+                    ? BroadcastSignalNow(message.SignalName, message.Payload, message.OriginTenantId)
                     : message.TargetInstanceId != null
                         ? SignalInstance(message.TargetInstanceId, message.SignalName, message.Payload,
                             message.CorrelationKey, broadcast: false) ? 1 : 0
-                        : DeliverSignalNow(message.SignalName, message.CorrelationKey, message.Payload);
+                        : DeliverSignalNow(message.SignalName, message.CorrelationKey, message.Payload,
+                            message.OriginTenantId);
             }
             catch (Exception ex)
             {
@@ -740,8 +833,13 @@ namespace ITVComponents.Workflow
         /// den Namen wartete - eine offene Flanke: zwei Vorgaenge desselben Musters weckten einander.
         /// Wer wirklich alle meint, sagt es jetzt mit <see cref="BroadcastSignal"/>.
         /// </remarks>
+        /// <param name="originTenantId">
+        /// der Mandant, aus dem die Nachricht stammt, oder null (dann gilt der laufende Vortrieb, sonst
+        /// kein Ursprung). Entscheidet, welche Definitionen sie <b>anlaufen</b> laesst - nicht, wer sie
+        /// empfaengt.
+        /// </param>
         public int DeliverSignal(string signalName, string correlationKey = null,
-            IDictionary<string, object> payloadVariables = null)
+            IDictionary<string, object> payloadVariables = null, string originTenantId = null)
         {
             if (correlationKey == null)
             {
@@ -749,20 +847,22 @@ namespace ITVComponents.Workflow
                     $"Signal '{signalName}' was delivered without a correlation key - it reaches broadcast " +
                     "wait points only. Pass a key to address a message wait, or call BroadcastSignal to say " +
                     "so explicitly.", LogSeverity.Report);
-                return BroadcastSignal(signalName, payloadVariables);
+                return BroadcastSignal(signalName, payloadVariables, originTenantId);
             }
 
             if (Defer(new OutgoingMessage
                 {
                     SignalName = signalName,
                     CorrelationKey = correlationKey,
-                    Payload = Copy(payloadVariables)
+                    Payload = Copy(payloadVariables),
+                    OriginTenantId = originTenantId
                 }))
             {
                 return 0;
             }
 
-            return DeliverSignalNow(signalName, correlationKey, payloadVariables);
+            return DeliverSignalNow(signalName, correlationKey, payloadVariables,
+                OriginTenant(originTenantId));
         }
 
         /// <summary>
@@ -770,7 +870,7 @@ namespace ITVComponents.Workflow
         /// im Puffer laendete: eine Schleife, die sich als „niemand hat gewartet" tarnt.
         /// </summary>
         private int DeliverSignalNow(string signalName, string correlationKey,
-            IDictionary<string, object> payloadVariables)
+            IDictionary<string, object> payloadVariables, string originTenantId)
         {
             int count = 0;
             foreach (WorkflowInstance instance in store.FindWaitingForSignal(signalName, correlationKey).ToList())
@@ -782,7 +882,8 @@ namespace ITVComponents.Workflow
                 }
             }
 
-            return count + StartFromMessageTriggers(signalName, correlationKey, payloadVariables, count);
+            return count + StartFromMessageTriggers(signalName, correlationKey, payloadVariables, count,
+                originTenantId);
         }
 
         /// <summary>
@@ -806,11 +907,29 @@ namespace ITVComponents.Workflow
         /// </para>
         /// </remarks>
         private int StartFromMessageTriggers(string signalName, string correlationKey,
-            IDictionary<string, object> payloadVariables, int delivered)
+            IDictionary<string, object> payloadVariables, int delivered, string originTenantId)
         {
-            int started = 0;
-            foreach (WorkflowStartTrigger trigger in store.FindMessageTriggers(signalName))
+            WorkflowMessageTriggerLookup lookup = store.FindMessageTriggers(signalName, originTenantId);
+
+            // Was auf den Namen horcht, aber wegen des Ursprungs nicht anspringt, wird GENANNT. Sonst ist
+            // "die Nachricht kam aus dem falschen Mandanten" von "auf den Namen horcht niemand" nicht zu
+            // unterscheiden - und genau daran sucht man sich sonst fest.
+            if (lookup.SuppressedByTenant.Count != 0)
             {
+                LogEnvironment.LogEvent(
+                    $"Die Nachricht '{signalName}' (Ursprung '{originTenantId ?? "<ohne Mandant>"}') laesst "
+                    + $"{lookup.SuppressedByTenant.Count} Einstieg(e) NICHT anlaufen, weil sie einem anderen "
+                    + $"Mandanten gehoeren: {string.Join(", ", lookup.SuppressedByTenant)}. Wer sie meint, "
+                    + "gibt den Ursprungs-Mandanten mit; wer wirklich alle meint, setzt am Start-Knoten "
+                    + "'AllowTenantlessStart'.", LogSeverity.Report);
+            }
+
+            int started = 0;
+            foreach (WorkflowStartTriggerMatch match in lookup.Matches)
+            {
+                WorkflowStartTrigger trigger = match.Trigger;
+                string tenantId = match.TenantId;
+
                 if (trigger.Mode == MessageStartMode.CorrelateOrStart && delivered > 0)
                 {
                     // Die Nachricht hat ihren Vorgang gefunden - dann ist sie zugestellt und nicht der
@@ -830,17 +949,41 @@ namespace ITVComponents.Workflow
                     continue;
                 }
 
+                // Dieselbe Bedingung wie beim Zeitplan: das Feature haengt am Mandanten und gilt auch
+                // ohne Benutzer. Eine Nachricht darf nicht anlaufen lassen, was der Mandant nicht (mehr)
+                // haben darf.
+                if (!FeatureGate.AllowsFeature(tenantId, trigger.RequiredFeature))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Nachrichten-Start von '{trigger.DefinitionId}' (Knoten '{trigger.NodeId}') faellt "
+                        + $"aus: Mandant '{tenantId ?? "-"}' hat das Feature '{trigger.RequiredFeature}' "
+                        + "nicht (mehr) aktiv.", LogSeverity.Report);
+                    continue;
+                }
+
                 try
                 {
-                    // Im Kontext des Mandanten, dem die Definition gehoert: eine Nachricht kommt von
-                    // aussen und bringt keinen mit. Ohne den Scope entstuende die Instanz mandantenlos -
-                    // und waere anschliessend in keiner Uebersicht zu sehen.
-                    using (WorkflowExecutionScope.UseTenant(trigger.TenantId))
+                    // Im Kontext des Mandanten, der den Einstieg FAEHRT - nicht dem der Definition: bei
+                    // einer zentral gepflegten Definition sind das verschiedene. Ohne den Scope entstuende
+                    // die Instanz mandantenlos und waere anschliessend in keiner Uebersicht zu sehen.
+                    using (WorkflowExecutionScope.UseTenant(tenantId))
                     {
-                        // Ueber die fachliche Id und nicht ueber den technischen Schluessel: wurde
-                        // zwischenzeitlich eine neuere Fassung gespeichert, soll DIE anlaufen. Der
-                        // Ausloeser wird ohnehin nur fuer die hoechste Version gefuehrt.
-                        WorkflowInstance instance = CreateInstance(trigger.DefinitionId, payloadVariables,
+                        // Aufgeloest beim BESITZER der Definition und ueber den Schluessel gestartet.
+                        // Ueber den Namen entschiede der eben gesetzte Scope mit - und die eigene Fassung
+                        // des fahrenden Mandanten ueberdeckte die zentrale. Ohne Version, damit eine
+                        // zwischenzeitlich gespeicherte neuere Fassung anlaeuft.
+                        int? definitionKey = store.ResolveDefinitionKey(trigger.TenantId, trigger.DefinitionId);
+                        if (definitionKey == null)
+                        {
+                            LogEnvironment.LogEvent(
+                                $"Nachricht '{signalName}': die Definition '{trigger.DefinitionId}' des "
+                                + $"Besitzers '{trigger.TenantId ?? "<oeffentlich>"}' gibt es nicht mehr - "
+                                + $"die Aktivierung von '{tenantId ?? "-"}' laeuft ins Leere.",
+                                LogSeverity.Error);
+                            continue;
+                        }
+
+                        WorkflowInstance instance = CreateInstance(definitionKey.Value, payloadVariables,
                             trigger.AdoptCorrelationKey ? correlationKey : null);
                         instance.Log("StartedByMessage", trigger.NodeId, signalName);
                         Advance(instance, LoadDefinition(instance));
@@ -851,7 +994,7 @@ namespace ITVComponents.Workflow
                 {
                     LogEnvironment.LogEvent(
                         $"Message '{signalName}' could not start definition '{trigger.DefinitionId}' "
-                        + $"(node '{trigger.NodeId}', tenant '{trigger.TenantId ?? "-"}'): "
+                        + $"(node '{trigger.NodeId}', tenant '{tenantId ?? "-"}'): "
                         + $"{ex.OutlineException()}", LogSeverity.Error);
                 }
             }
@@ -870,23 +1013,34 @@ namespace ITVComponents.Workflow
         /// alle Empfaenger: ein Rundruf kann tausende Instanzen treffen, und eine davon, die gerade
         /// anderweitig committet, darf nicht die restlichen mitreissen.
         /// </remarks>
-        public int BroadcastSignal(string signalName, IDictionary<string, object> payloadVariables = null)
+        /// <param name="signalName">der Signalname</param>
+        /// <param name="payloadVariables">optionale Variablen</param>
+        /// <param name="originTenantId">
+        /// der Mandant, aus dem der Rundruf stammt, oder null. <b>Ein Rundruf ist nicht automatisch
+        /// mandantenlos</b>: kommt er aus der Instanz eines Mandanten, laesst er auch nur dort etwas
+        /// anlaufen. Erst wenn hier (und im Vortrieb) nichts steht, greift die Regel um
+        /// <c>AllowTenantlessStart</c>.
+        /// </param>
+        public int BroadcastSignal(string signalName, IDictionary<string, object> payloadVariables = null,
+            string originTenantId = null)
         {
             if (Defer(new OutgoingMessage
                 {
                     SignalName = signalName,
                     Broadcast = true,
-                    Payload = Copy(payloadVariables)
+                    Payload = Copy(payloadVariables),
+                    OriginTenantId = originTenantId
                 }))
             {
                 return 0;
             }
 
-            return BroadcastSignalNow(signalName, payloadVariables);
+            return BroadcastSignalNow(signalName, payloadVariables, OriginTenant(originTenantId));
         }
 
         /// <summary>Der Rundruf selbst - ohne den Puffer (siehe <see cref="DeliverSignalNow"/>).</summary>
-        private int BroadcastSignalNow(string signalName, IDictionary<string, object> payloadVariables)
+        private int BroadcastSignalNow(string signalName, IDictionary<string, object> payloadVariables,
+            string originTenantId)
         {
             int count = 0;
             foreach (WorkflowInstance instance in store.FindWaitingForBroadcast(signalName).ToList())
@@ -901,7 +1055,7 @@ namespace ITVComponents.Workflow
             // Abstimmungs-Prozess). Ohne Korrelationsschluessel: der Riegel StartIfNoneRunning greift
             // dann bewusst nicht - ohne Unterscheidungsmerkmal waere er kein Schutz, sondern ein
             // Ausschalter (siehe IWorkflowStore.HasRunningInstance).
-            return count + StartFromMessageTriggers(signalName, null, payloadVariables, count);
+            return count + StartFromMessageTriggers(signalName, null, payloadVariables, count, originTenantId);
         }
 
         /// <summary>
@@ -922,9 +1076,10 @@ namespace ITVComponents.Workflow
         public int TriggerDueStarts(DateTime nowUtc, string owner, TimeSpan lease, int maxTriggers = 50)
         {
             int started = 0;
-            foreach (WorkflowStartTrigger trigger in store.ClaimDueScheduleTriggers(nowUtc, owner, lease, maxTriggers))
+            foreach (WorkflowStartTriggerMatch due in store.ClaimDueScheduleTriggers(nowUtc, owner, lease,
+                         maxTriggers))
             {
-                if (RunScheduledStart(trigger, nowUtc))
+                if (RunScheduledStart(due, nowUtc))
                 {
                     started++;
                 }
@@ -949,27 +1104,70 @@ namespace ITVComponents.Workflow
         /// einmal nach und ist dann wieder im Takt - nicht dreimal hintereinander.
         /// </para>
         /// </remarks>
-        private bool RunScheduledStart(WorkflowStartTrigger trigger, DateTime nowUtc)
+        private bool RunScheduledStart(WorkflowStartTriggerMatch due, DateTime nowUtc)
         {
+            WorkflowStartTrigger trigger = due.Trigger;
+            WorkflowStartTriggerActivation activation = due.Activation;
             string instanceId = null;
             DateTime? lastRun = null;
             try
             {
-                if (trigger.SkipWhilePreviousRuns && PreviousRunIsStillGoing(trigger))
+                // Eine Einstellung, die der Mandant einmal setzen durfte und jetzt nicht mehr: sie wird
+                // ignoriert (siehe WorkflowStartTriggerMatch.Effective*), und das gehoert gesagt. Von
+                // aussen sieht es sonst aus, als haette sich der Termin grundlos verschoben.
+                if (due.HasIgnoredOverride)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Der Mandant '{Where(due)}' hat eine eigene Einstellung fuer den Zeitplan von "
+                        + $"'{trigger.DefinitionId}' (Knoten '{trigger.NodeId}'), darf sie aber nicht mehr "
+                        + "setzen - es gilt wieder die zentrale Vorgabe.", LogSeverity.Warning);
+                }
+
+                // Das Feature ist die einzige Bedingung, die auch OHNE Benutzer gilt - und deshalb die
+                // einzige, die hier ueberhaupt pruefbar ist. Ohne sie liefe ein zentral gepflegter
+                // Zahlungslauf beim Mandanten weiter, dessen Abonnement letzten Monat ausgelaufen ist.
+                if (!FeatureGate.AllowsFeature(activation.TenantId, trigger.RequiredFeature))
+                {
+                    // Nur aussetzen, NICHT abhaken: nach einem kurzen Aussetzer soll der Plan von selbst
+                    // weiterlaufen. Muesste ihn jemand von Hand wieder anhaken, merkte das niemand.
+                    LogEnvironment.LogEvent(
+                        $"Zeitgesteuerter Start von '{trigger.DefinitionId}' (Knoten '{trigger.NodeId}') "
+                        + $"faellt aus: Mandant '{activation.TenantId ?? "-"}' hat das Feature "
+                        + $"'{trigger.RequiredFeature}' nicht (mehr) aktiv. Der Zeitplan bleibt bestehen "
+                        + "und laeuft weiter, sobald das Feature wieder da ist.", LogSeverity.Report);
+                    return false;
+                }
+
+                if (trigger.SkipWhilePreviousRuns && PreviousRunIsStillGoing(activation))
                 {
                     // Ausdruecklich protokolliert: ein Zeitplan, der wegen eines haengenden Vorgaengers
                     // dauerhaft aussetzt, sieht von aussen aus wie einer, der nie eingerichtet wurde.
                     LogEnvironment.LogEvent(
                         $"Scheduled start of '{trigger.DefinitionId}' (node '{trigger.NodeId}') was skipped: "
-                        + $"the previous run '{trigger.LastInstanceId}' is still going.", LogSeverity.Report);
+                        + $"the previous run '{activation.LastInstanceId}' is still going.", LogSeverity.Report);
                     return false;
                 }
 
-                using (WorkflowExecutionScope.UseTenant(trigger.TenantId))
+                // Die Definition wird beim BESITZER aufgeloest, nicht im Mandanten, der sie faehrt. Sonst
+                // wuerde unter dem gleich gesetzten Scope die eigene Fassung des fahrenden Mandanten die
+                // zentrale ueberdecken - und der Zeitplan startete still einen anderen Prozess als den,
+                // den der Mandant uebernommen hat. Ohne Version, damit eine neuere Fassung anlaeuft.
+                int? definitionKey = store.ResolveDefinitionKey(trigger.TenantId, trigger.DefinitionId);
+                if (definitionKey == null)
                 {
-                    WorkflowInstance instance = CreateInstance(trigger.DefinitionId,
-                        WorkflowJson.DeserializeVariables(trigger.VariablesJson));
-                    instance.Log("StartedBySchedule", trigger.NodeId, trigger.Pattern);
+                    LogEnvironment.LogEvent(
+                        $"Zeitgesteuerter Start faellt aus: die Definition '{trigger.DefinitionId}' des "
+                        + $"Besitzers '{trigger.TenantId ?? "<oeffentlich>"}' gibt es nicht mehr. Die "
+                        + $"Aktivierung von '{activation.TenantId ?? "-"}' laeuft ins Leere.",
+                        LogSeverity.Error);
+                    return false;
+                }
+
+                using (WorkflowExecutionScope.UseTenant(activation.TenantId))
+                {
+                    WorkflowInstance instance = CreateInstance(definitionKey.Value,
+                        WorkflowJson.DeserializeVariables(due.EffectiveVariablesJson));
+                    instance.Log("StartedBySchedule", trigger.NodeId, due.EffectivePattern);
                     Advance(instance, LoadDefinition(instance));
                     instanceId = instance.Id;
                     lastRun = nowUtc;
@@ -981,24 +1179,31 @@ namespace ITVComponents.Workflow
             {
                 LogEnvironment.LogEvent(
                     $"Scheduled start of definition '{trigger.DefinitionId}' (node '{trigger.NodeId}', tenant "
-                    + $"'{trigger.TenantId ?? "-"}') failed: {ex.OutlineException()}", LogSeverity.Error);
+                    + $"'{activation.TenantId ?? "-"}') failed: {ex.OutlineException()}", LogSeverity.Error);
                 return false;
             }
             finally
             {
-                store.UpdateScheduleTrigger(trigger.TriggerKey, NextDue(trigger, nowUtc), lastRun, instanceId);
+                store.UpdateScheduleActivation(activation.ActivationKey, NextDue(due, nowUtc), lastRun,
+                    instanceId);
             }
         }
 
-        /// <summary>Laeuft die zuletzt von diesem Zeitplan gestartete Instanz noch?</summary>
-        private bool PreviousRunIsStillGoing(WorkflowStartTrigger trigger)
+        /// <summary>Wie ein Zeitplan-Lauf in einer Meldung heisst.</summary>
+        private static string Where(WorkflowStartTriggerMatch due)
         {
-            if (string.IsNullOrEmpty(trigger.LastInstanceId))
+            return due.Activation?.TenantId ?? "-";
+        }
+
+        /// <summary>Laeuft die zuletzt von dieser Aktivierung gestartete Instanz noch?</summary>
+        private bool PreviousRunIsStillGoing(WorkflowStartTriggerActivation activation)
+        {
+            if (string.IsNullOrEmpty(activation.LastInstanceId))
             {
                 return false;
             }
 
-            WorkflowInstance previous = store.GetInstance(trigger.LastInstanceId);
+            WorkflowInstance previous = store.GetInstance(activation.LastInstanceId);
             // Eine geloeschte Vorgaenger-Instanz haelt niemanden auf. Faulted zaehlt ebenfalls als
             // beendet: sie laeuft nicht mehr, und den naechsten Termin deswegen ausfallen zu lassen,
             // machte aus einem Fehler einen zweiten.
@@ -1007,22 +1212,23 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
-        /// Die naechste Faelligkeit dieses Zeitplans - ab jetzt gerechnet. Ein unlesbares Muster liefert
-        /// null: der Ausloeser bleibt bestehen und sichtbar, feuert aber nicht mehr, statt bei jedem Poll
-        /// erneut aufzulaufen.
+        /// Die naechste Faelligkeit dieses Zeitplans - ab jetzt gerechnet, auf dem WIRKSAMEN Muster. Ein
+        /// unlesbares Muster liefert null: die Aktivierung bleibt bestehen und sichtbar, feuert aber nicht
+        /// mehr, statt bei jedem Poll erneut aufzulaufen.
         /// </summary>
-        private static DateTime? NextDue(WorkflowStartTrigger trigger, DateTime nowUtc)
+        private static DateTime? NextDue(WorkflowStartTriggerMatch due, DateTime nowUtc)
         {
+            string pattern = due.EffectivePattern;
             try
             {
-                return ScheduleEvaluator.NextDueUtc(trigger.Pattern, nowUtc, nowUtc);
+                return ScheduleEvaluator.NextDueUtc(pattern, nowUtc, nowUtc);
             }
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Der Zeitplan '{trigger.Pattern}' von '{trigger.DefinitionId}' (Knoten "
-                    + $"'{trigger.NodeId}') ist nicht lesbar - der Ausloeser feuert nicht mehr: "
-                    + $"{ex.OutlineException()}", LogSeverity.Error);
+                    $"Der Zeitplan '{pattern}' von '{due.Trigger.DefinitionId}' (Knoten "
+                    + $"'{due.Trigger.NodeId}', Mandant '{Where(due)}') ist nicht lesbar - er feuert nicht "
+                    + $"mehr: {ex.OutlineException()}", LogSeverity.Error);
                 return null;
             }
         }
@@ -2124,6 +2330,9 @@ namespace ITVComponents.Workflow
                 // Kein laufender Vortrieb (etwa ein Einzelschritt aus einem Test): dann sofort - das
                 // Zurueckstellen soll nichts verschlucken, wenn es niemanden gibt, der es spaeter tut.
                 pending.InstanceId = instance.Id;
+                // Denselben Ursprung setzen, den Defer gesetzt haette - sonst haengt es am Zufall des
+                // Aufrufwegs, ob eine gesendete Nachricht bei ihrem Mandanten etwas anlaufen laesst.
+                pending.OriginTenantId ??= instance.TenantId;
                 DeliverNow(pending);
                 return node.WaitForDelivery || MoveAlongSingleOutgoing(instance, definition, token);
             }
@@ -4603,6 +4812,12 @@ namespace ITVComponents.Workflow
                     return false;
                 }
 
+                // Die EINE Beziehung auf eine Definition, die absichtlich ueber den NAMEN laeuft und nicht
+                // ueber die technische Kennung - bitte nicht "aufraeumen": ein Aufruf ist ein Verweis
+                // zwischen Definitionen und soll pro Mandant aufgeloest werden. Genau so ueberdeckt ein
+                // Mandant einen zentral gepflegten Teilprozess mit seiner eigenen Fassung. Alles, was
+                // dagegen auf EINE bestimmte Definition zeigt (eine laufende Instanz, ein Auslöser, eine
+                // geprüfte Startanforderung), traegt den Key.
                 WorkflowDefinition subDef = store.GetDefinition(node.SubDefinitionId, node.SubDefinitionVersion);
                 if (subDef == null)
                 {

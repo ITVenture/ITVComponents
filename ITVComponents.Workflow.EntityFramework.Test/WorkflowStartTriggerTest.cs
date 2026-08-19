@@ -4,6 +4,7 @@ using System.Linq;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -50,23 +51,97 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             EfWorkflowStore store = NewStore();
             store.SaveDefinition(WithMessageStart("m", "OrderReceived", MessageStartMode.AlwaysStart));
 
-            IReadOnlyList<WorkflowStartTrigger> found = store.FindMessageTriggers("OrderReceived");
+            IReadOnlyList<WorkflowStartTriggerMatch> found = MessageMatches(store, "OrderReceived");
             Assert.AreEqual(1, found.Count, "the message trigger must be findable by its name.");
-            Assert.AreEqual("m", found[0].DefinitionId);
-            Assert.AreEqual("s", found[0].NodeId);
+            Assert.AreEqual("m", found[0].Trigger.DefinitionId);
+            Assert.AreEqual("s", found[0].Trigger.NodeId);
+            Assert.IsNotNull(found[0].Activation,
+                "a tenant-owned definition gets its one activation by itself - nobody ticks a box for it.");
         }
 
         [TestMethod]
-        public void SaveDefinition_PublicDefinition_GetsNoTrigger()
+        public void SaveDefinition_PublicDefinition_GetsATriggerButNoActivation()
         {
-            // Eine oeffentliche Definition gehoert allen - "fuer alle einmal starten" waere eine voellig
-            // andere Zusage als die, die ein Ausloeser macht.
+            // Eine oeffentliche Definition DEKLARIERT ihren Einstieg wie jede andere - sie feuert nur
+            // fuer niemanden, solange ihn kein Mandant uebernommen hat. Der Ausloeser ist die
+            // Deklaration, die Aktivierung ist die Zusage.
             EfWorkflowStore store = NewStore();
             WorkflowDefinition definition = WithMessageStart("pub", "OrderReceived", MessageStartMode.AlwaysStart);
             definition.IsPublic = true;
             store.SaveDefinition(definition);
 
-            Assert.AreEqual(0, store.FindMessageTriggers("OrderReceived").Count);
+            using (var ctx = new WorkflowContext(options))
+            {
+                Assert.AreEqual(1, ctx.WorkflowStartTriggers.Count(),
+                    "the declaration exists - it is what a tenant later ticks.");
+                Assert.AreEqual(0, ctx.WorkflowStartTriggerActivations.Count(),
+                    "nobody has taken it over yet.");
+            }
+
+            Assert.AreEqual(0, MessageMatches(store, "OrderReceived").Count,
+                "without an activation there is no tenant to start for.");
+        }
+
+        [TestMethod]
+        public void PublicDefinition_AfterActivation_StartsForThatTenant()
+        {
+            // Der Kern von LocalActivation: derselbe zentrale Einstieg, aber er laeuft im Mandanten, der
+            // ihn sich geholt hat - nicht im (nicht vorhandenen) Mandanten der Definition.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithMessageStart("pub", "OrderReceived", MessageStartMode.AlwaysStart);
+            definition.IsPublic = true;
+            ((StartNode)definition.Nodes.First(n => n is StartNode)).MessageStart.AllowLocalActivation = true;
+            store.SaveDefinition(definition);
+
+            store.SaveActivation(new WorkflowStartTriggerActivation
+            {
+                OwnerTenantId = null,
+                DefinitionId = "pub",
+                NodeId = "s",
+                Kind = WorkflowStartTriggerKind.Message,
+                TenantId = "acme",
+                Enabled = true,
+                ActivatedBy = "tester"
+            });
+
+            IReadOnlyList<WorkflowStartTriggerMatch> forAcme =
+                store.FindMessageTriggers("OrderReceived", "acme").Matches;
+            Assert.AreEqual(1, forAcme.Count, "the tenant that took it over gets it.");
+            Assert.AreEqual("acme", forAcme[0].TenantId, "and it runs in HIS tenant, not the definition's.");
+
+            WorkflowMessageTriggerLookup forBeta = store.FindMessageTriggers("OrderReceived", "beta");
+            Assert.AreEqual(0, forBeta.Matches.Count, "a tenant who did not take it over gets nothing.");
+            Assert.AreEqual(1, forBeta.SuppressedByTenant.Count,
+                "and that must be visible - otherwise it is indistinguishable from 'nobody listens'.");
+        }
+
+        [TestMethod]
+        public void Message_WithoutOrigin_DoesNotStartForeignTenants()
+        {
+            // Die Flanke, die es auch vor LocalActivation schon gab: EINE mandantenlose Nachricht liess
+            // bei hundert Mandanten hundert Vorgaenge entstehen.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithMessageStart("m", "OrderReceived", MessageStartMode.AlwaysStart);
+            definition.TenantId = "acme";
+            store.SaveDefinition(definition);
+
+            Assert.AreEqual(0, store.FindMessageTriggers("OrderReceived", null).Matches.Count,
+                "no origin means no start - unless the node says otherwise.");
+            Assert.AreEqual(1, store.FindMessageTriggers("OrderReceived", "acme").Matches.Count,
+                "the owning tenant's own message still starts it.");
+        }
+
+        [TestMethod]
+        public void Message_WithoutOrigin_StartsWhenTheNodeAllowsIt()
+        {
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithMessageStart("m", "OrderReceived", MessageStartMode.AlwaysStart);
+            definition.TenantId = "acme";
+            ((StartNode)definition.Nodes.First(n => n is StartNode)).MessageStart.AllowTenantlessStart = true;
+            store.SaveDefinition(definition);
+
+            Assert.AreEqual(1, store.FindMessageTriggers("OrderReceived", null).Matches.Count,
+                "'AllowTenantlessStart' is exactly the deliberate exception.");
         }
 
         [TestMethod]
@@ -81,9 +156,42 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             v2.Version = 2;
             store.SaveDefinition(v2);
 
-            IReadOnlyList<WorkflowStartTrigger> found = store.FindMessageTriggers("OrderReceived");
+            IReadOnlyList<WorkflowStartTriggerMatch> found = MessageMatches(store, "OrderReceived");
             Assert.AreEqual(1, found.Count, "only one trigger may survive - the newest.");
-            Assert.AreEqual(2, found[0].DefinitionVersion);
+            Assert.AreEqual(2, found[0].Trigger.DefinitionVersion);
+        }
+
+        [TestMethod]
+        public void SaveDefinition_NewVersion_KeepsTheActivation()
+        {
+            // DIE Falle des Umbaus: die Ausloeser-Zeilen werden bei jedem Speichern weggeraeumt und neu
+            // eingefuegt, ihr TriggerKey ist danach ein anderer. Haenge die Aktivierung daran, verloere
+            // jeder Mandant seine Uebernahme bei der ersten Korrektur an der zentralen Definition - und
+            // zwar lautlos: der Zeitplan liefe einfach nicht mehr.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition v1 = WithSchedule("s1", DailyAtEight);
+            store.SaveDefinition(v1);
+
+            int keyBefore;
+            using (var ctx = new WorkflowContext(options))
+            {
+                keyBefore = ctx.WorkflowStartTriggers.Single().TriggerKey;
+            }
+
+            WorkflowDefinition v2 = WithSchedule("s1", DailyAtEight);
+            v2.Version = 2;
+            store.SaveDefinition(v2);
+
+            using (var ctx = new WorkflowContext(options))
+            {
+                Assert.AreEqual(1, ctx.WorkflowStartTriggerActivations.Count(),
+                    "the activation survives - it hangs on the definition's identity, not on a row number.");
+                Assert.AreEqual(2, ctx.WorkflowStartTriggers.Single().DefinitionVersion,
+                    "precondition: the trigger really was rebuilt for the new version.");
+            }
+
+            Assert.IsNotNull(SingleScheduleTrigger(store),
+                $"the schedule must still be claimable (trigger key before the save was {keyBefore}).");
         }
 
         [TestMethod]
@@ -100,10 +208,31 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             again.Version = 2;
             store.SaveDefinition(again);
 
-            WorkflowStartTrigger trigger = SingleScheduleTrigger(store);
+            WorkflowStartTriggerActivation trigger = SingleScheduleTrigger(store);
             Assert.AreEqual(marker.ToString("O"), trigger.NextDueUtc?.ToString("O"),
                 "the due date of an unchanged schedule must survive a save.");
             Assert.AreEqual("old-instance", trigger.LastInstanceId);
+        }
+
+        [TestMethod]
+        public void SaveDefinition_ChangedSchedule_StartsOver()
+        {
+            // Die Kehrseite: ein umgeschriebener Zeitplan ist ein ANDERER Plan, und sein erster Lauf
+            // gehoert ihm. Sonst greift ein "sofort"-Kennzeichen nie, weil "schon mal gelaufen" aus der
+            // Zeit davor stammt.
+            EfWorkflowStore store = NewStore();
+            store.SaveDefinition(WithSchedule("s1", DailyAtEight));
+            DateTime marker = DateTime.UtcNow.AddDays(-1);
+            SetTriggerState(marker, marker.AddDays(-1), "old-instance");
+
+            WorkflowDefinition changed = WithSchedule("s1", "d20200101090001");
+            changed.Version = 2;
+            store.SaveDefinition(changed);
+
+            using var ctx = new WorkflowContext(options);
+            WorkflowStartTriggerActivationRow after = ctx.WorkflowStartTriggerActivations.Single();
+            Assert.IsNull(after.LastRunUtc, "a rewritten schedule gets a fresh run.");
+            Assert.IsNull(after.LastInstanceId);
         }
 
         // --- Message-Start --------------------------------------------------------------------------
@@ -198,7 +327,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             Assert.AreEqual(1, started);
             WorkflowInstance instance = SingleInstance(store, "s1");
-            WorkflowStartTrigger after = SingleScheduleTrigger(store);
+            WorkflowStartTriggerActivation after = SingleScheduleTrigger(store);
             Assert.AreEqual(instance.Id, after.LastInstanceId);
             Assert.IsNotNull(after.LastRunUtc, "the run must be recorded - the pattern's 'immediately' hangs on it.");
             Assert.IsTrue(after.NextDueUtc > nowUtc,
@@ -225,9 +354,9 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             store.SaveDefinition(WithSchedule("s1", DailyAtEight));
             DateTime nowUtc = MakeDue();
 
-            IReadOnlyList<WorkflowStartTrigger> first =
+            IReadOnlyList<WorkflowStartTriggerMatch> first =
                 store.ClaimDueScheduleTriggers(nowUtc, "runner-a", TimeSpan.FromMinutes(5), 10);
-            IReadOnlyList<WorkflowStartTrigger> second =
+            IReadOnlyList<WorkflowStartTriggerMatch> second =
                 store.ClaimDueScheduleTriggers(nowUtc, "runner-b", TimeSpan.FromMinutes(5), 10);
 
             Assert.AreEqual(1, first.Count);
@@ -283,6 +412,57 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 "even a failed start must move the schedule forward.");
         }
 
+        // --- Feature-Gate ---------------------------------------------------------------------------
+
+        [TestMethod]
+        public void Schedule_WithoutTheFeature_SkipsButKeepsTicking()
+        {
+            // Der Fall, um den es bei der ganzen Konstruktion geht: ein zentral gepflegter Zahlungslauf
+            // darf nicht weiterlaufen, nachdem das Abonnement des Mandanten ausgelaufen ist. Das Feature
+            // haengt am Mandanten und ist deshalb die EINZIGE Bedingung, die auch ohne Benutzer gilt.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithSchedule("s1", DailyAtEight);
+            definition.RequiredFeature = "ITVPayrun";
+            store.SaveDefinition(definition);
+
+            var engine = new WorkflowEngine(store, new ActivityRegistry(),
+                featureGate: new DenyingFeatureGate());
+            DateTime nowUtc = MakeDue();
+
+            int started = engine.TriggerDueStarts(nowUtc, "runner-a", TimeSpan.FromMinutes(5));
+
+            Assert.AreEqual(0, started, "without the feature nothing may start.");
+            Assert.AreEqual(0, InstancesOf(store, "s1").Count);
+            Assert.IsTrue(SingleScheduleTrigger(store).NextDueUtc > nowUtc,
+                "the schedule keeps ticking - it must resume by itself once the feature is back.");
+
+            using var ctx = new WorkflowContext(options);
+            Assert.IsTrue(ctx.WorkflowStartTriggerActivations.Single().Enabled,
+                "skipping must NOT untick the box - after a short lapse nobody would notice they have to "
+                + "tick it again.");
+        }
+
+        [TestMethod]
+        public void Schedule_WithTheFeature_Starts()
+        {
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithSchedule("s1", DailyAtEight);
+            definition.RequiredFeature = "ITVPayrun";
+            store.SaveDefinition(definition);
+
+            WorkflowEngine engine = EngineOver(store);   // Vorgabe-Gate: erlaubt alles
+            DateTime nowUtc = MakeDue();
+
+            Assert.AreEqual(1, engine.TriggerDueStarts(nowUtc, "runner-a", TimeSpan.FromMinutes(5)),
+                "an unwired host must behave exactly as before the feature condition existed.");
+        }
+
+        /// <summary>Ein Gate, das alles verweigert - der abgelaufene Mandant.</summary>
+        private sealed class DenyingFeatureGate : IWorkflowTenantFeatureGate
+        {
+            public bool IsEnabled(string tenantId, string featureName) => false;
+        }
+
         // --- Aufbau ---------------------------------------------------------------------------------
 
         private EfWorkflowStore NewStore() => new EfWorkflowStore(() => new WorkflowContext(options));
@@ -290,12 +470,16 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private static WorkflowEngine EngineOver(EfWorkflowStore store)
             => new WorkflowEngine(store, new ActivityRegistry());
 
-        /// <summary>Macht den (einzigen) Zeitplan faellig und liefert den passenden "Jetzt".</summary>
+        /// <summary>
+        /// Macht den (einzigen) Zeitplan faellig und liefert den passenden "Jetzt". Die Faelligkeit steht
+        /// jetzt an der AKTIVIERUNG - der Ausloeser traegt keinen Lauf-Zustand mehr.
+        /// </summary>
         private DateTime MakeDue()
         {
             DateTime nowUtc = DateTime.UtcNow;
             using var ctx = new WorkflowContext(options);
-            foreach (WorkflowStartTriggerRow row in ctx.WorkflowStartTriggers.ToList())
+            foreach (WorkflowStartTriggerActivationRow row in
+                     ctx.WorkflowStartTriggerActivations.ToList())
             {
                 row.NextDueUtc = nowUtc.AddMinutes(-1);
                 row.LeaseOwner = null;
@@ -309,16 +493,23 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private void SetTriggerState(DateTime nextDue, DateTime lastRun, string lastInstanceId)
         {
             using var ctx = new WorkflowContext(options);
-            WorkflowStartTriggerRow row = ctx.WorkflowStartTriggers.Single();
+            WorkflowStartTriggerActivationRow row = ctx.WorkflowStartTriggerActivations.Single();
             row.NextDueUtc = nextDue;
             row.LastRunUtc = lastRun;
             row.LastInstanceId = lastInstanceId;
             ctx.SaveChanges();
         }
 
-        private WorkflowStartTrigger SingleScheduleTrigger(EfWorkflowStore store)
+        /// <summary>Der Lauf-Zustand des einzigen Zeitplans - er haengt an seiner Aktivierung.</summary>
+        private WorkflowStartTriggerActivation SingleScheduleTrigger(EfWorkflowStore store)
             => store.ClaimDueScheduleTriggers(DateTime.UtcNow.AddYears(100), "probe", TimeSpan.Zero, 10)
-                .Single(t => t.Kind == WorkflowStartTriggerKind.Schedule);
+                .Single(m => m.Trigger.Kind == WorkflowStartTriggerKind.Schedule)
+                .Activation;
+
+        /// <summary>Die Nachrichten-Ausloeser, die auf diesen Namen anspringen (ohne Ursprungs-Mandant).</summary>
+        private static IReadOnlyList<WorkflowStartTriggerMatch> MessageMatches(EfWorkflowStore store,
+            string signalName)
+            => store.FindMessageTriggers(signalName, null).Matches;
 
         private List<WorkflowInstance> InstancesOf(EfWorkflowStore store, string definitionId)
         {

@@ -1,0 +1,185 @@
+@page "/Workflow/Central"
+@page "/Workflow/env/{Environment}/Central"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Central workflows</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Central workflows</MudText>
+<MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
+    Processes that are maintained centrally and that you can run for your own organisation. Tick one and
+    it starts on its schedule — in your tenant, with your data.
+</MudText>
+
+@* Anhaken ist eine Betriebshandlung: derselbe Aspekt wie Signal senden oder abbrechen. Was darüber
+   hinaus je Zeile gilt, entscheidet das Feature und die Berechtigung der jeweiligen Definition - und
+   zwar im Handler, nicht hier: die Liste zeigt nur, was er durchgelassen hat. *@
+<SecureView RequiredPermissions="Workflow.Operate" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (items is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (items.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Nothing on offer. Either no central process is marked as available, or none of them is
+                covered by your subscription.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                      T="CentralWorkflowItem" Elevation="1">
+                <HeaderContent>
+                    <MudTh Style="width:1%"></MudTh>
+                    <MudTh>Process</MudTh>
+                    <MudTh>Schedule</MudTh>
+                    <MudTh>Next run</MudTh>
+                    <MudTh>Last run</MudTh>
+                    <MudTh Style="width:1%"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudSwitch T="bool" Value="@context.Enabled" Color="Color.Primary" Size="Size.Small"
+                                   Disabled="@context.Orphaned"
+                                   ValueChanged="@((bool v) => ToggleAsync(context, v))" />
+                    </MudTd>
+                    <MudTd DataLabel="Process">
+                        <MudText Typo="Typo.body2">@(context.Name ?? context.DefinitionId)</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.DefinitionId</MudText>
+                        @if (context.Orphaned)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-0 mt-1">
+                                Trigger no longer exists
+                            </MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Schedule">
+                        <MudText Typo="Typo.body2">@(context.Pattern ?? "—")</MudText>
+                        @if (!string.IsNullOrWhiteSpace(context.PatternOverride)
+                             && context.MayReschedule)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                yours — central: @context.CentralPattern
+                            </MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Next run">@Show(context.NextDueUtc)</MudTd>
+                    <MudTd DataLabel="Last run">@Show(context.LastRunUtc)</MudTd>
+                    <MudTd>
+                        @if (context.MayReschedule && !context.Orphaned)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.EditCalendar" Size="Size.Small"
+                                           Title="Use my own schedule"
+                                           OnClick="@(() => EditPatternAsync(context))" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            @if (items.Any(i => i.Orphaned))
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                    One of the processes you took over no longer has a trigger — its start step was renamed
+                    or removed centrally. It will not run until it comes back. Your choice is kept, so it
+                    resumes by itself if it does.
+                </MudAlert>
+            }
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission for central workflows.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    /// <summary>Die Workflow-Umgebung (mehrere Stores/Datenbanken), oder null für die Vorgabe.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    private List<CentralWorkflowItem>? items;
+    private ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = (await AuthState.GetAuthenticationStateAsync()).User;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        items = (await Handler.ListCentralWorkflowsAsync(currentUser, Environment)).ToList();
+    }
+
+    /// <summary>Anhaken bzw. abhaken.</summary>
+    private async Task ToggleAsync(CentralWorkflowItem item, bool enabled)
+    {
+        bool ok = await Handler.SetCentralWorkflowActivationAsync(currentUser!,
+            new CentralWorkflowActivationRequest
+            {
+                DefinitionId = item.DefinitionId,
+                NodeId = item.NodeId,
+                Enabled = enabled,
+                PatternOverride = item.PatternOverride
+            }, Environment);
+
+        // Ein stilles Nichts wäre hier das Schlimmste: der Schalter spränge zurück und niemand wüsste
+        // warum. Der Grund steht im Log, der Hinweis muss auf den Schirm.
+        if (!ok)
+        {
+            Snackbar.Add("Could not change that — see the log for the reason.", Severity.Warning);
+        }
+
+        await ReloadAsync();
+    }
+
+    /// <summary>Ein eigenes Muster setzen - nur wo der Start-Knoten es freigegeben hat.</summary>
+    private async Task EditPatternAsync(CentralWorkflowItem item)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(SchedulePatternDialog.Pattern), item.PatternOverride ?? item.CentralPattern }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await DialogService.ShowAsync<SchedulePatternDialog>(
+            "My schedule", parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result is null || result.Canceled)
+        {
+            return;
+        }
+
+        string? chosen = result.Data as string;
+        bool ok = await Handler.SetCentralWorkflowActivationAsync(currentUser!,
+            new CentralWorkflowActivationRequest
+            {
+                DefinitionId = item.DefinitionId,
+                NodeId = item.NodeId,
+                Enabled = item.Enabled,
+                // Leer = zurück zur zentralen Vorgabe. Das ist der Weg, den eigenen Termin wieder
+                // loszuwerden, ohne den Ablauf abgeben zu müssen.
+                PatternOverride = string.IsNullOrWhiteSpace(chosen) ? null : chosen
+            }, Environment);
+
+        if (!ok)
+        {
+            Snackbar.Add("Could not change that — see the log for the reason.", Severity.Warning);
+        }
+
+        await ReloadAsync();
+    }
+
+    /// <summary>Ein UTC-Zeitpunkt in Ortszeit, oder ein Gedankenstrich.</summary>
+    private static string Show(DateTime? utc)
+        => utc is null ? "—" : utc.Value.ToLocalTime().ToString("g");
+}

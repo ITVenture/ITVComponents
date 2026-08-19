@@ -538,23 +538,97 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Bei einem Zeitplan: ueberspringen, solange der vorige Lauf laeuft.</summary>
         public bool SkipWhilePreviousRuns { get; set; }
 
-        /// <summary>Bei einem Zeitplan: die naechste Faelligkeit (UTC), oder null.</summary>
+        /// <summary>Ob die Definition oeffentlich ist - siehe <c>WorkflowStartTrigger.IsPublic</c>.</summary>
+        public bool IsPublic { get; set; }
+
+        /// <summary>Das Feature, das der fahrende Mandant braucht (denormalisiert), oder null.</summary>
+        public string RequiredFeature { get; set; }
+
+        /// <summary>Die Berechtigung zum Uebernehmen/Starten (denormalisiert), oder null.</summary>
+        public string RequiredPermission { get; set; }
+
+        /// <summary>Ob ein Mandant diesen Einstieg fuer sich uebernehmen darf.</summary>
+        public bool AllowLocalActivation { get; set; }
+
+        /// <summary>Bei einer Nachricht: springt sie auch ohne Ursprungs-Mandanten an?</summary>
+        public bool AllowTenantlessStart { get; set; }
+
+        /// <summary>Bei einem Zeitplan: darf der Mandant ein eigenes Muster setzen?</summary>
+        public bool AllowReschedule { get; set; }
+
+        /// <summary>Bei einem Zeitplan: darf der Mandant eigene Startwerte setzen?</summary>
+        public bool AllowOwnVariables { get; set; }
+    }
+
+    /// <summary>
+    /// Die <b>Aktivierung</b> eines Ausloesers durch einen Mandanten - seine Zustimmung samt Lauf-Zustand.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sie verweist ueber die <b>fachliche</b> Identitaet des Ausloesers
+    /// (<see cref="OwnerTenantId"/> + <see cref="DefinitionId"/> + <see cref="NodeId"/> +
+    /// <see cref="Kind"/>) und nicht ueber dessen <c>TriggerKey</c>: der wird bei jedem Speichern der
+    /// Definition neu vergeben, weil die Ausloeser-Zeilen dabei weggeraeumt und neu aufgebaut werden.
+    /// Ein Verweis darauf haenge nach der ersten Korrektur im Leeren - lautlos.
+    /// </para>
+    /// <para>
+    /// Bewusst <b>ohne</b> Mandanten-Filter, wie <see cref="WorkflowBranchLockRow"/> und
+    /// <see cref="WorkflowOutboxRow"/>: der Runner greift mandantenuebergreifend auf und muss die Zeilen
+    /// aller Mandanten sehen.
+    /// </para>
+    /// </remarks>
+    public class WorkflowStartTriggerActivationRow
+    {
+        /// <summary>Der technische Schluessel dieser Zeile (von der Datenbank vergeben).</summary>
+        public int ActivationKey { get; set; }
+
+        /// <summary>Der Mandant der DEFINITION (null = oeffentlich).</summary>
+        public string OwnerTenantId { get; set; }
+
+        /// <summary>Die fachliche Id der Definition.</summary>
+        public string DefinitionId { get; set; }
+
+        /// <summary>Der Start-Knoten.</summary>
+        public string NodeId { get; set; }
+
+        /// <summary>Die Art des Ausloesers (siehe <c>WorkflowStartTriggerKind</c>).</summary>
+        public int Kind { get; set; }
+
+        /// <summary>Der Mandant, der den Ausloeser fuer sich fahren laesst.</summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Ob die Aktivierung gilt. Abhaken setzt false und loescht die Zeile nicht.</summary>
+        public bool Enabled { get; set; }
+
+        /// <summary>Das eigene Muster dieses Mandanten, oder null.</summary>
+        public string PatternOverride { get; set; }
+
+        /// <summary>Die eigenen Startwerte dieses Mandanten als JSON, oder null.</summary>
+        public string VariablesJsonOverride { get; set; }
+
+        /// <summary>Die naechste Faelligkeit (UTC), oder null.</summary>
         public DateTime? NextDueUtc { get; set; }
 
-        /// <summary>Bei einem Zeitplan: wann zuletzt gestartet wurde (UTC), oder null.</summary>
+        /// <summary>Wann zuletzt gestartet wurde (UTC), oder null.</summary>
         public DateTime? LastRunUtc { get; set; }
 
-        /// <summary>Bei einem Zeitplan: die zuletzt gestartete Instanz, oder null.</summary>
+        /// <summary>Die zuletzt gestartete Instanz, oder null.</summary>
         public string LastInstanceId { get; set; }
 
         /// <summary>
-        /// Wer diesen faelligen Zeitplan gerade aufgegriffen hat, in der Form <c>owner#aufruf-guid</c> -
+        /// Wer diese faellige Aktivierung gerade aufgegriffen hat, in der Form <c>owner#aufruf-guid</c> -
         /// dasselbe Verfahren wie beim Timer-Anspruch.
         /// </summary>
         public string LeaseOwner { get; set; }
 
         /// <summary>Bis wann der Anspruch gilt (UTC).</summary>
         public DateTime? LeaseUntilUtc { get; set; }
+
+        /// <summary>Wer aktiviert hat.</summary>
+        public string ActivatedBy { get; set; }
+
+        /// <summary>Wann aktiviert wurde (UTC).</summary>
+        public DateTime ActivatedUtc { get; set; }
     }
 
     /// <summary>
@@ -769,8 +843,11 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die vorgemerkten, noch nicht zugestellten Nachrichten.</summary>
         public DbSet<WorkflowOutboxRow> Outbox { get; set; }
 
-        /// <summary>Die Ausloeser der Definitionen (Nachricht bzw. Zeitplan).</summary>
+        /// <summary>Die Ausloeser der Definitionen (Nachricht bzw. Zeitplan) - die Deklaration.</summary>
         public DbSet<WorkflowStartTriggerRow> WorkflowStartTriggers { get; set; }
+
+        /// <summary>Die Aktivierungen der Ausloeser je Mandant - Zustimmung und Lauf-Zustand.</summary>
+        public DbSet<WorkflowStartTriggerActivationRow> WorkflowStartTriggerActivations { get; set; }
 
         /// <summary>Die Kommentare an den Vorgaengen.</summary>
         public DbSet<WorkflowCommentRow> WorkflowComments { get; set; }
@@ -916,9 +993,8 @@ namespace ITVComponents.Workflow.EntityFramework
                 // drin, weil auf demselben Weg auch die Zeitplaene liegen - ohne sie liefe jede Nachricht
                 // ueber alle Ausloeser.
                 e.HasIndex(n => new { n.Kind, n.SignalName });
-                // Der Aufgriff des Runners: faellige Zeitplaene, aelteste zuerst.
-                e.HasIndex(n => new { n.Kind, n.NextDueUtc });
-                // Der Neuaufbau beim Speichern einer Definition raeumt ueber diese beiden Spalten auf.
+                // Der Neuaufbau beim Speichern einer Definition raeumt ueber diese beiden Spalten auf -
+                // und die Aktivierungen finden ihren Ausloeser darueber.
                 e.HasIndex(n => new { n.TenantId, n.DefinitionId });
                 // Echter Fremdschluessel MIT Kaskade - anders als bei der Instanz: ein Ausloeser ohne
                 // seine Definition ist kein Verlust, sondern Muell, der sonst weiter feuern wuerde.
@@ -926,6 +1002,33 @@ namespace ITVComponents.Workflow.EntityFramework
                     .WithMany()
                     .HasForeignKey(n => n.DefinitionKey)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<WorkflowStartTriggerActivationRow>(e =>
+            {
+                e.HasKey(n => n.ActivationKey);
+                // Die fachliche Identitaet - und zwar EINDEUTIG: ein Mandant kann denselben Ausloeser
+                // nicht zweimal uebernehmen. Sie ist zugleich der Weg, auf dem der Aufgriff seinen
+                // Ausloeser findet.
+                //
+                // Dieselben zwei Fallen wie beim eindeutigen Index der Definitionen - hier sogar mit
+                // ZWEI nullable Spalten (oeffentlicher Besitzer, mandantenfreier Betrieb):
+                // 1) HasFilter(null) ist Pflicht. SQL Server haengt sonst von selbst ein
+                //    "WHERE ... IS NOT NULL" an und nimmt ausgerechnet die oeffentlichen Ausloeser von
+                //    der Pruefung aus - also genau den Fall, um den es hier ueberhaupt geht.
+                // 2) PostgreSQL behandelt NULLs im eindeutigen Index standardmaessig als VERSCHIEDEN;
+                //    dort setzt die Migration NULLS NOT DISTINCT, sonst ist der Schutz still wirkungslos.
+                e.HasIndex(n => new
+                {
+                    n.OwnerTenantId, n.DefinitionId, n.NodeId, n.Kind, n.TenantId
+                }).IsUnique().HasFilter(null);
+                // Der Aufgriff des Runners: faellige Aktivierungen, aelteste zuerst. Nachrichten-
+                // Aktivierungen tragen keine Faelligkeit und fallen von selbst heraus.
+                e.HasIndex(n => new { n.Enabled, n.NextDueUtc });
+                // KEIN Fremdschluessel auf die Definition: die Aktivierung ueberlebt bewusst auch die
+                // Version, aus der ihr Ausloeser stammte - sie gehoert der Definition als Ganzem, nicht
+                // einer ihrer Fassungen. Und keinen auf den Ausloeser, weil dessen Zeile bei jedem
+                // Speichern eine andere ist.
             });
 
             modelBuilder.Entity<WorkflowBranchLockRow>(e =>

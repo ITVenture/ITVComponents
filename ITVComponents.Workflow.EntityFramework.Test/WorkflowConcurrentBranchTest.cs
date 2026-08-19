@@ -403,15 +403,27 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             // Die Ausloeser interessieren diesen Decorator nicht - er verstellt das Commit-Verhalten.
             // Durchreichen statt werfen: was er nicht faelscht, soll sich normal verhalten.
-            public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
-                => inner.FindMessageTriggers(signalName);
+            public WorkflowMessageTriggerLookup FindMessageTriggers(string signalName, string originTenantId)
+                => inner.FindMessageTriggers(signalName, originTenantId);
 
-            public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime now, string o,
+            public IReadOnlyList<WorkflowStartTriggerMatch> ClaimDueScheduleTriggers(DateTime now, string o,
                 TimeSpan l, int m) => inner.ClaimDueScheduleTriggers(now, o, l, m);
 
-            public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
-                string lastInstanceId)
-                => inner.UpdateScheduleTrigger(triggerKey, nextDueUtc, lastRunUtc, lastInstanceId);
+            public void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc,
+                DateTime? lastRunUtc, string lastInstanceId)
+                => inner.UpdateScheduleActivation(activationKey, nextDueUtc, lastRunUtc, lastInstanceId);
+
+            public int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null)
+                => inner.ResolveDefinitionKey(ownerTenantId, definitionId, version);
+
+            public IReadOnlyList<WorkflowStartTrigger> FindActivatableTriggers(string tenantId)
+                => inner.FindActivatableTriggers(tenantId);
+
+            public IReadOnlyList<WorkflowStartTriggerActivation> GetActivations(string tenantId)
+                => inner.GetActivations(tenantId);
+
+            public void SaveActivation(WorkflowStartTriggerActivation activation)
+                => inner.SaveActivation(activation);
 
             public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
 
@@ -489,15 +501,27 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             // Die Ausloeser interessieren diesen Decorator nicht - er verstellt das Commit-Verhalten.
             // Durchreichen statt werfen: was er nicht faelscht, soll sich normal verhalten.
-            public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
-                => inner.FindMessageTriggers(signalName);
+            public WorkflowMessageTriggerLookup FindMessageTriggers(string signalName, string originTenantId)
+                => inner.FindMessageTriggers(signalName, originTenantId);
 
-            public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime now, string o,
+            public IReadOnlyList<WorkflowStartTriggerMatch> ClaimDueScheduleTriggers(DateTime now, string o,
                 TimeSpan l, int m) => inner.ClaimDueScheduleTriggers(now, o, l, m);
 
-            public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
-                string lastInstanceId)
-                => inner.UpdateScheduleTrigger(triggerKey, nextDueUtc, lastRunUtc, lastInstanceId);
+            public void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc,
+                DateTime? lastRunUtc, string lastInstanceId)
+                => inner.UpdateScheduleActivation(activationKey, nextDueUtc, lastRunUtc, lastInstanceId);
+
+            public int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null)
+                => inner.ResolveDefinitionKey(ownerTenantId, definitionId, version);
+
+            public IReadOnlyList<WorkflowStartTrigger> FindActivatableTriggers(string tenantId)
+                => inner.FindActivatableTriggers(tenantId);
+
+            public IReadOnlyList<WorkflowStartTriggerActivation> GetActivations(string tenantId)
+                => inner.GetActivations(tenantId);
+
+            public void SaveActivation(WorkflowStartTriggerActivation activation)
+                => inner.SaveActivation(activation);
 
             public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
 

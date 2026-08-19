@@ -2788,6 +2788,210 @@ zementieren.
 
 ---
 
+## 37. Zentrale Abläufe, die ein Mandant für sich aktiviert — **Pflicht-Migration (1 Tabelle + Datenumzug)**
+
+Bisher gehörte ein Auslöser dem Mandanten seiner Definition, und öffentliche Definitionen lösten
+bewusst gar nicht aus. Jetzt gibt es die **Aktivierung**: ein zentral gepflegter Zeitplan (das Beispiel
+ist ein Zahlungslauf zum Monatsende) wird einmal modelliert, und jeder Mandant hakt ihn für sich an.
+
+**Der Kern ist ein Schnitt: der Lauf-Zustand gehört zur Aktivierung, nicht zum Zeitplan.** Fahren drei
+Mandanten denselben zentralen Plan, hat jeder seinen eigenen letzten Lauf und seinen eigenen nächsten
+Termin — eine gemeinsame Zeile kann das nicht tragen. `NextDueUtc`, `LastRunUtc`, `LastInstanceId` und
+der Anspruch ziehen deshalb von `WorkflowStartTriggers` nach `WorkflowStartTriggerActivations` um.
+
+### 37.1 Warum die Aktivierung nicht am `TriggerKey` hängt
+
+Die Auslöser-Zeilen sind **abgeleitete** Daten: bei jedem Speichern einer Definition werden sie
+weggeräumt und neu eingefügt. Der `TriggerKey` ist danach ein anderer. Eine Aktivierung, die darauf
+zeigte, hinge nach der ersten Korrektur an der zentralen Definition im Leeren — und zwar **ohne
+Fehlermeldung**: die Verknüpfung fände nichts, der Zeitplan liefe einfach nicht mehr. Bei einem
+Monatslauf fällt das frühestens vier Wochen später auf.
+
+Sie hängt deshalb an der fachlichen Identität: `(OwnerTenantId, DefinitionId, NodeId, Kind)` plus dem
+aktivierenden `TenantId`. `OwnerTenantId` gehört zwingend dazu — eine öffentliche und eine
+mandanteneigene Definition dürfen dieselbe fachliche Id tragen.
+
+### 37.2 Was ihr am Modell einstellt
+
+Am **Start-Knoten** (im Designer):
+
+| Feld | Bedeutung |
+|---|---|
+| `AllowLocalActivation` | Ist dieser Einstieg zur Übernahme gedacht? Ohne das Kennzeichen erscheint er in keiner Auswahl. |
+| `AllowReschedule` | Darf der Mandant ein eigenes Muster setzen („ich will ihn, aber am 25.")? |
+| `AllowOwnVariables` | Darf er eigene Startwerte setzen? |
+| `AllowTenantlessStart` | Nur Nachrichten-Start — siehe 37.4. |
+
+An der **Definition** (nur Sysadmin):
+
+| Feld | Bedeutung |
+|---|---|
+| `RequiredFeature` | Welches Feature der Mandant aktiviert haben muss, um sie zu verwenden. |
+| `RequiredPermission` | Welche Berechtigung ein Benutzer zum Übernehmen und Starten von Hand braucht. |
+
+**Die beiden werden unterschiedlich oft geprüft, und das ist der Punkt:** die Permission hängt an einem
+Benutzer, und der Runner hat keinen — sie gatet also das Anhaken und den Start von Hand. Das Feature
+hängt am Mandanten und wird **bei jedem Feuern** nachgeprüft. Ohne das liefe der Zahlungslauf beim
+Mandanten weiter, dessen Abonnement letzten Monat ausgelaufen ist.
+
+Fehlt das Feature beim Feuern, wird **übersprungen und protokolliert, die Fälligkeit aber trotzdem
+fortgeschrieben** — die Aktivierung bleibt angehakt. Nach einem kurzen Aussetzer läuft der Plan von
+selbst weiter; müsste ihn jemand von Hand wieder anhaken, merkte das niemand.
+
+Verdrahtet wird das über `IWorkflowTenantFeatureGate` am `WorkflowEngine`-Konstruktor. **Ohne
+Verdrahtung erlaubt das Gate alles** — das Verhalten ist dann exakt wie vorher.
+
+### 37.3 Was sich am Speichern ändert
+
+- Eine **mandanteneigene** Definition bekommt ihre eine Aktivierung automatisch. Für euch ändert sich
+  dadurch nichts.
+- Eine **öffentliche** Definition bekommt jetzt sehr wohl Auslöser-Zeilen (vorher gar keine). Sie feuert
+  trotzdem für niemanden, solange kein Mandant angehakt hat: der Auslöser ist die Deklaration, die
+  Aktivierung ist die Zusage.
+- Wird ein Start-Knoten umbenannt oder entfernt, bleibt die Aktivierung als **Waise** stehen und wird nie
+  aufgegriffen. Sie wird nicht gelöscht (die Zustimmung soll erhalten sein, falls der Knoten
+  zurückkommt), aber das Speichern **protokolliert mit Warnung**, welche Übernahmen ab jetzt ins Leere
+  laufen.
+- Ändert sich das **zentrale Muster**, wird der Lauf-Zustand der betroffenen Aktivierungen zurückgesetzt
+  (ein umgeschriebener Zeitplan ist ein anderer Plan, und sein erster Lauf gehört ihm). Wer ein eigenes
+  Muster setzen darf und gesetzt hat, bleibt unberührt.
+
+### 37.4 Nachrichten tragen jetzt einen Ursprungs-Mandanten — **Verhaltensänderung**
+
+Das ist der Teil, der bestehende Installationen betreffen kann. **Bisher kannte eine Nachricht überhaupt
+keinen Mandanten:** `DeliverSignal` nahm Name, Korrelationsschlüssel und Nutzdaten, und der Start lief
+anschliessend im Mandanten der jeweiligen Definition. Haben hundert Mandanten je ihre eigene Definition
+auf `OrderReceived`, eröffnete **eine** mandantenlose Nachricht hundert Vorgänge. Diese Flanke gab es
+schon vorher — sie wird jetzt geschlossen.
+
+Neue Regel:
+
+- **Ursprungs-Mandant gesetzt** → es feuern nur die Auslöser bzw. Aktivierungen *dieses* Mandanten.
+- **Kein Ursprungs-Mandant** → es feuert nur, was `AllowTenantlessStart` am Start-Knoten ausdrücklich
+  erlaubt.
+
+Der Ursprung wird aufgelöst: ausdrücklich übergebener Wert → Mandant der sendenden Instanz (die Outbox
+führt ihn bereits) → `WorkflowExecutionScope`. **Aus dem Web setzt niemand den Ausführungs-Kontext** —
+dort füllt ihn die Fassade aus dem Mandanten der Anfrage.
+
+`AllowTenantlessStart` hat **nichts** mit `BroadcastSignal` zu tun: ein Rundruf aus der Instanz eines
+Mandanten trägt sehr wohl einen Ursprung und löst nur dort aus. Es geht ausschliesslich um das *Fehlen*
+des Ursprungs.
+
+**Prüft euren Host-Code:** wer heute `DeliverSignal`/`BroadcastSignal` ohne Mandanten-Kontext aufruft und
+sich darauf verlässt, dass etwas anläuft, startet danach nichts mehr. Der Fall wird ausdrücklich
+protokolliert (mit den Namen der Auslöser, die nur an dieser Regel gescheitert sind) — er geht also nicht
+als „auf den Namen hört halt niemand" durch. Abhilfe: den Ursprung mitgeben (`originTenantId`, neuer
+optionaler Parameter) oder das Kennzeichen setzen.
+
+Die Zustellung an **wartende** Instanzen ist unverändert. Es geht ausschliesslich um das Entstehen neuer
+Vorgänge.
+
+**Im Ein-Mandanten-Betrieb ändert sich nichts:** dort trägt alles `NULL`, Ursprung und Aktivierung fallen
+zusammen, und die Regel greift von selbst nicht.
+
+### 37.5 Migration — **manuell, nicht via `dotnet ef migrations add`**
+
+Wie in §20 und §24: der Snapshot driftet und schleppte fremde Änderungen mit. Reihenfolge einhalten —
+**erst umziehen, dann die alten Spalten fallen lassen**, sonst ist der Lauf-Zustand weg.
+
+```sql
+-- 1) Neue Spalten am Auslöser (denormalisiert aus der Definition bzw. dem Start-Knoten)
+ALTER TABLE WorkflowStartTriggers ADD IsPublic bit NOT NULL DEFAULT 0;
+ALTER TABLE WorkflowStartTriggers ADD RequiredFeature nvarchar(max) NULL;
+ALTER TABLE WorkflowStartTriggers ADD RequiredPermission nvarchar(max) NULL;
+ALTER TABLE WorkflowStartTriggers ADD AllowLocalActivation bit NOT NULL DEFAULT 0;
+ALTER TABLE WorkflowStartTriggers ADD AllowTenantlessStart bit NOT NULL DEFAULT 0;
+ALTER TABLE WorkflowStartTriggers ADD AllowReschedule bit NOT NULL DEFAULT 0;
+ALTER TABLE WorkflowStartTriggers ADD AllowOwnVariables bit NOT NULL DEFAULT 0;
+GO
+
+-- 2) Die Aktivierungstabelle
+CREATE TABLE WorkflowStartTriggerActivations (
+    ActivationKey         int IDENTITY(1,1) NOT NULL,
+    OwnerTenantId         nvarchar(450) NULL,
+    DefinitionId          nvarchar(450) NULL,
+    NodeId                nvarchar(450) NULL,
+    Kind                  int NOT NULL,
+    TenantId              nvarchar(450) NULL,
+    Enabled               bit NOT NULL,
+    PatternOverride       nvarchar(max) NULL,
+    VariablesJsonOverride nvarchar(max) NULL,
+    NextDueUtc            datetime2 NULL,
+    LastRunUtc            datetime2 NULL,
+    LastInstanceId        nvarchar(max) NULL,
+    LeaseOwner            nvarchar(max) NULL,
+    LeaseUntilUtc         datetime2 NULL,
+    ActivatedBy           nvarchar(max) NULL,
+    ActivatedUtc          datetime2 NOT NULL,
+    CONSTRAINT PK_WorkflowStartTriggerActivations PRIMARY KEY (ActivationKey)
+);
+GO
+
+-- Der eindeutige Index über die fachliche Identität.
+-- OHNE gefilterten Index: SQL Server hängt sonst von selbst ein "WHERE ... IS NOT NULL" an und nähme
+-- ausgerechnet die öffentlichen Auslöser von der Prüfung aus - also genau den Fall, um den es geht.
+CREATE UNIQUE INDEX IX_WfActivations_Identity
+    ON WorkflowStartTriggerActivations (OwnerTenantId, DefinitionId, NodeId, Kind, TenantId);
+GO
+
+-- Der Aufgriff des Runners.
+CREATE INDEX IX_WfActivations_Due
+    ON WorkflowStartTriggerActivations (Enabled, NextDueUtc);
+GO
+
+-- 3) Datenumzug: für JEDEN bestehenden Auslöser genau EINE Aktivierung, Lauf-Zustand 1:1.
+--    LastRunUtc MUSS mit - sonst greift bei jedem laufenden Zeitplan mit "sofort"-Kennzeichen
+--    das "noch nie gelaufen" ein zweites Mal, und alles läuft beim ersten Poll sofort los.
+INSERT INTO WorkflowStartTriggerActivations
+    (OwnerTenantId, DefinitionId, NodeId, Kind, TenantId, Enabled,
+     NextDueUtc, LastRunUtc, LastInstanceId, LeaseOwner, LeaseUntilUtc, ActivatedBy, ActivatedUtc)
+SELECT t.TenantId, t.DefinitionId, t.NodeId, t.Kind, t.TenantId, 1,
+       t.NextDueUtc, t.LastRunUtc, t.LastInstanceId, t.LeaseOwner, t.LeaseUntilUtc,
+       '(migriert)', SYSUTCDATETIME()
+FROM WorkflowStartTriggers t;
+GO
+
+-- 4) ERST JETZT die alten Spalten und den alten Index fallen lassen.
+DROP INDEX IX_WorkflowStartTriggers_Kind_NextDueUtc ON WorkflowStartTriggers;
+ALTER TABLE WorkflowStartTriggers DROP COLUMN NextDueUtc, LastRunUtc, LastInstanceId,
+                                              LeaseOwner, LeaseUntilUtc;
+GO
+
+-- 5) IsPublic für bestehende Zeilen aus der Definition nachziehen.
+--    Bis PRE185 bekamen öffentliche Definitionen gar keine Auslöser - es sollte also nichts zu tun
+--    geben. Der Abgleich steht hier, damit man sich darauf nicht verlassen muss.
+UPDATE t SET t.IsPublic = 1
+FROM WorkflowStartTriggers t
+JOIN WorkflowDefinitions d ON d.DefinitionKey = t.DefinitionKey
+WHERE d.TenantId IS NULL;
+GO
+```
+
+**PostgreSQL:** identisch, aber der eindeutige Index braucht `NULLS NOT DISTINCT` — sonst gelten die
+`NULL`-Werte als verschieden und der Schutz ist stillschweigend wirkungslos (dieselbe Falle wie beim
+eindeutigen Index der Definitionen):
+
+```sql
+CREATE UNIQUE INDEX "IX_WfActivations_Identity"
+    ON "WorkflowStartTriggerActivations"
+    ("OwnerTenantId", "DefinitionId", "NodeId", "Kind", "TenantId") NULLS NOT DISTINCT;
+```
+
+Der Index-Name in Schritt 4 kann bei euch abweichen — vorher nachsehen
+(`sp_helpindex 'WorkflowStartTriggers'`).
+
+### 37.6 Prüfen nach dem Deployment
+
+1. `SELECT COUNT(*) FROM WorkflowStartTriggerActivations` == `SELECT COUNT(*) FROM WorkflowStartTriggers`
+   (vor dem Umbau gemessen).
+2. Ein bestehender Zeitplan läuft zu seinem gewohnten Termin — **nicht** sofort beim ersten Poll. Läuft
+   er sofort, ist `LastRunUtc` beim Umzug nicht mitgekommen.
+3. Im Log nach `laesst … Einstieg(e) NICHT anlaufen` suchen: das sind die Host-Aufrufe aus 37.4, die
+   ihren Ursprungs-Mandanten noch nicht mitgeben.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -2837,3 +3041,4 @@ zementieren.
 | 41 | **Post-Hook für Aufgaben-Masken** (§34, MLM-Antrag) | Kein Schema-Change, opt-in, **nicht breaking**: `IUserTaskView.PostResolveActivityAsync(UserTaskCompletionResult)` ist eine **Default-Interface-Methode** — bestehende Masken merken nichts. Gerufen nach dem Abschluss am einen Abschlussweg und **vor** dem Umhängen im geführten Ablauf. **Merke: das Ergebnis auswerten** — bei `AlreadyCompleted` hat jemand anderes abgeschlossen, dann darf die Maske nicht auch noch schreiben. Ein Fehlschlag hält nichts auf, wird dem Benutzer aber angezeigt und bleibt stehen, bis er ihn wegklickt |
 | 42 | **Muster-Designer + strengere Muster-Prüfung** (§35) | Kein Schema-Change. Neu `ITVComponents.Scheduling.SchedulePattern` (zerlegen/zusammensetzen) und ein Kalender-Knopf am Zeitplan-Feld mit Termin-Vorschau. **Achtung, Verhaltensänderung:** der Muster-Regex ist nicht verankert, deshalb wurde ein Muster mit vertauschten Teilen bisher still verkürzt gelesen (und der Plan lief zu einer anderen Zeit als angezeigt). Zerlegung und `ScheduleEvaluator.TryValidate` verankern jetzt selbst — ein solches Muster **meldet der Validator künftig als Fehler**, was eine bestehende Definition beim nächsten Speichern als fehlerhaft markieren kann |
 | 43 | **Anhänge am Vorgang** (§36) | **Pflicht-Migration:** `WorkflowAttachments` (beide Provider) — zwei Tabellen (Beschreibung mit FK+Index, Blobs ohne FK). `IWorkflowTaskHandler` bekommt **vier** weitere Member (`ListAttachmentsAsync`, `AddAttachmentAsync`, `OpenAttachmentAsync`, `DeleteAttachmentAsync`) — **eigene Implementierungen brechen**. Grösse über `WorkflowViewsOptions.MaxAttachmentBytes` (10 MB; **0 schaltet Anhänge ab**). **Merke: NICHT über den `IFileHandler`** — dessen Vertrag gibt keine Datei-Kennung zurück, mit der sich ein Anhang später lesen liesse; stattdessen `IWorkflowAttachmentStore` mit eingebauter Datenbank-Ablage, austauschbar wie beim Hilfesystem. Löschen nur den eigenen Anhang |
+| 44 | **Zentrale Abläufe per Aktivierung** (§37) | **Pflicht-Migration:** neue Tabelle `WorkflowStartTriggerActivations` + 7 Spalten an `WorkflowStartTriggers`, **Datenumzug des Lauf-Zustands** (`NextDueUtc`/`LastRunUtc`/`LastInstanceId`/Lease ziehen von der Auslöser- auf die Aktivierungs-Zeile), erst danach die alten Spalten fallen lassen. SQL in §37.5 — **manuell**, nicht via `migrations add`. `IWorkflowStore` bekommt 6 neue Member und ändert 2 Signaturen (`FindMessageTriggers`, `ClaimDueScheduleTriggers`) — **eigene Store-Implementierungen brechen**. **Verhaltensänderung (§37.4): Nachrichten tragen jetzt einen Ursprungs-Mandanten**, und nur der lässt etwas anlaufen; ohne Ursprung feuert nur, was `AllowTenantlessStart` erlaubt. Wer aus Host-Code ohne Mandanten-Kontext sendet, startet danach nichts mehr (wird protokolliert). Das schliesst eine Flanke, die es schon vorher gab: eine mandantenlose Nachricht eröffnete bei hundert Mandanten hundert Vorgänge. **Merke: die Aktivierung hängt an der fachlichen Identität, NICHT am `TriggerKey`** — der wird bei jedem Speichern der Definition neu vergeben. Feature/Permission an der Definition (nur Sysadmin) gaten die Verwendung; das **Feature wird bei jedem Feuern** nachgeprüft (`IWorkflowTenantFeatureGate`, ohne Verdrahtung erlaubt es alles), die Permission nur beim Anhaken und beim Start von Hand. Fehlt das Feature: überspringen + protokollieren, Fälligkeit trotzdem fortschreiben, **nicht** abhaken. Ein-Mandanten-Betrieb unberührt |

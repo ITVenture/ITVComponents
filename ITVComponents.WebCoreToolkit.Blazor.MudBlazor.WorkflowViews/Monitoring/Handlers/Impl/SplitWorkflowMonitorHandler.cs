@@ -40,14 +40,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <inheritdoc/>
-        protected override WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
+        protected override WorkflowInstance StartInstanceCore(WorkflowOperation op, int definitionKey,
             IDictionary<string, object> variables, string? correlationKey, int? priority)
         {
             // Store-only: die Instanz entsteht mit AKTIVEN Start-Tokens, wird hier aber NICHT voran
             // getrieben. Den ersten Zweig nimmt der Runner beim naechsten Poll auf und fuehrt ihn dort aus,
             // wo die Plugins liegen - im Web-Prozess koennte er nur den EINEN Tenant der Anfrage treiben.
             // Genau hier zaehlt die Prioritaet: sie entscheidet, wie schnell der Runner das tut.
-            return op.Engine.CreateInstance(definitionId, variables, correlationKey, priority);
+            return op.Engine.CreateInstance(definitionKey, variables, correlationKey, priority);
         }
 
         /// <inheritdoc/>

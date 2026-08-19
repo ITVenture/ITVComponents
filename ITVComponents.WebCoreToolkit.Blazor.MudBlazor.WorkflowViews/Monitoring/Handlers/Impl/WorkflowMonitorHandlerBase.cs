@@ -17,6 +17,7 @@ using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Serialization;
+using ITVComponents.Workflow.Stores;
 using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -381,6 +382,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                     continue;
                 }
 
+                if (!MayUse(def))
+                {
+                    // Dasselbe Praedikat, das der Start gleich noch einmal anlegt (MayStart). Wer das
+                    // verlangte Feature oder die verlangte Berechtigung nicht hat, soll die Definition
+                    // gar nicht erst in der Auswahl sehen.
+                    continue;
+                }
+
                 result.Add(new WorkflowStartableDefinition
                 {
                     Id = row.Id,
@@ -493,7 +502,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 // zusaetzlichen Store-Lesezugriff; ein Start ist selten und die Alternative waere, sich auf
                 // die Oberflaeche zu verlassen.
                 WorkflowDefinition? def = op.Store.GetDefinition(request.DefinitionId);
-                if (def != null && !MayStart(def))
+                if (def == null)
+                {
+                    // Frueher lief dieser Fall in den Start hinein und starb dort an einer Exception. Der
+                    // Grund gehoert hierher, wo er noch bekannt ist.
+                    LogEnvironment.LogEvent(
+                        $"Start abgelehnt: Definition '{request.DefinitionId}' existiert nicht (Umgebung " +
+                        $"'{environment ?? "<default>"}', Tenant '{tenant ?? "<none>"}').", LogSeverity.Warning);
+                    return Task.FromResult(WorkflowStartResult.Failed("This workflow does not exist."));
+                }
+
+                if (!MayStart(def))
                 {
                     LogEnvironment.LogEvent(
                         $"Start der Definition '{request.DefinitionId}' (Tenant " +
@@ -503,7 +522,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                         "This workflow does not belong to your tenant."));
                 }
 
-                WorkflowInstance instance = StartInstanceCore(op, request.DefinitionId,
+                // Ueber den KEY der eben geprueften Definition, nicht noch einmal ueber den Namen. Sonst
+                // stuenden hier zwei unabhaengige Aufloesungen desselben Namens: geprueft wuerde die eine,
+                // gestartet die andere - es genuegte, dass zwischen beiden Lesezugriffen eine
+                // mandanteneigene Fassung gleichen Namens entsteht, denn die schlaegt die oeffentliche.
+                WorkflowInstance instance = StartInstanceCore(op, def.Key,
                     request.Variables ?? new Dictionary<string, object>(),
                     string.IsNullOrWhiteSpace(request.CorrelationKey) ? null : request.CorrelationKey,
                     request.Priority);
@@ -549,7 +572,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// wird im Web-Prozess bis zum ersten Wartepunkt advanced, store-only bleibt es bei den aktiven
         /// Start-Tokens, die der Runner aufnimmt. Ausnahmen der Engine reicht die Basis nach oben durch.
         /// </summary>
-        protected abstract WorkflowInstance StartInstanceCore(WorkflowOperation op, string definitionId,
+        /// <remarks>
+        /// Bewusst die <b>technische</b> Kennung: der Aufrufer hat die Definition bereits aufgeloest und
+        /// geprueft, und der Start soll genau die nehmen - nicht das, was der Name im Augenblick des
+        /// Starts gerade bedeutet.
+        /// </remarks>
+        protected abstract WorkflowInstance StartInstanceCore(WorkflowOperation op, int definitionKey,
             IDictionary<string, object> variables, string? correlationKey, int? priority);
 
         /// <summary>
@@ -584,7 +612,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         {
             try
             {
-                return op.Store.GetDefinition(instance.DefinitionId, instance.DefinitionVersion);
+                // Ueber die technische Kennung: die Instanz verweist auf GENAU ihre Definition. Ueber
+                // Name+Version entschiede der aktive Mandant mit, und die Maske zeigte im Zweifel die
+                // Knotennamen eines anderen Graphen.
+                return op.Store.GetDefinition(instance.DefinitionKey);
             }
             catch (Exception ex)
             {
@@ -619,9 +650,224 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// Darf der aktuelle Tenant diese Definition starten? Tenant-lose Definitionen sind oeffentlich
         /// (dieselbe Regel wie im Query-Filter der Definitionen) und im Kontext jedes Tenants startbar.
         /// </summary>
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<CentralWorkflowItem>> ListCentralWorkflowsAsync(ClaimsPrincipal user,
+            string? environment = null)
+        {
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                return Task.FromResult<IReadOnlyList<CentralWorkflowItem>>(
+                    Array.Empty<CentralWorkflowItem>());
+            }
+
+            string? tenant = CurrentTenant();
+            using WorkflowOperation op = BeginOperation(environment);
+
+            IReadOnlyList<WorkflowStartTrigger> offered = op.Store.FindActivatableTriggers(tenant);
+            IReadOnlyList<WorkflowStartTriggerActivation> mine = op.Store.GetActivations(tenant);
+
+            var result = new List<CentralWorkflowItem>();
+            foreach (WorkflowStartTrigger trigger in offered
+                         .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule))
+            {
+                // Feature und Berechtigung der Definition - was der Mandant nicht verwenden darf, steht
+                // ihm auch nicht zum Anhaken. Beides steht denormalisiert am Ausloeser, damit die Liste
+                // nicht je Zeile ein Definitions-JSON auspacken muss.
+                if (!MayUseGate(trigger.RequiredFeature, trigger.RequiredPermission))
+                {
+                    continue;
+                }
+
+                WorkflowStartTriggerActivation? activation = mine.FirstOrDefault(
+                    a => a.OwnerTenantId == trigger.TenantId && a.DefinitionId == trigger.DefinitionId
+                         && a.NodeId == trigger.NodeId && a.Kind == trigger.Kind);
+
+                bool ownPattern = trigger.AllowReschedule
+                                  && !string.IsNullOrWhiteSpace(activation?.PatternOverride);
+                result.Add(new CentralWorkflowItem
+                {
+                    DefinitionId = trigger.DefinitionId,
+                    NodeId = trigger.NodeId,
+                    Name = DefinitionName(op, trigger),
+                    Pattern = ownPattern ? activation!.PatternOverride : trigger.Pattern,
+                    CentralPattern = trigger.Pattern,
+                    Enabled = activation?.Enabled == true,
+                    MayReschedule = trigger.AllowReschedule,
+                    PatternOverride = activation?.PatternOverride,
+                    NextDueUtc = activation?.NextDueUtc,
+                    LastRunUtc = activation?.LastRunUtc,
+                    LastInstanceId = activation?.LastInstanceId
+                });
+            }
+
+            // Die Waisen: uebernommen, aber der Ausloeser dazu ist weggefallen. Sie erscheinen bewusst
+            // mit - eine Uebernahme, die ab jetzt schweigt, darf nicht einfach aus der Liste
+            // verschwinden.
+            foreach (WorkflowStartTriggerActivation orphan in mine.Where(a =>
+                         a.Kind == WorkflowStartTriggerKind.Schedule
+                         && offered.All(t => t.DefinitionId != a.DefinitionId || t.NodeId != a.NodeId)))
+            {
+                result.Add(new CentralWorkflowItem
+                {
+                    DefinitionId = orphan.DefinitionId,
+                    NodeId = orphan.NodeId,
+                    Enabled = orphan.Enabled,
+                    LastRunUtc = orphan.LastRunUtc,
+                    LastInstanceId = orphan.LastInstanceId,
+                    Orphaned = true
+                });
+            }
+
+            return Task.FromResult<IReadOnlyList<CentralWorkflowItem>>(
+                result.OrderBy(r => r.Name ?? r.DefinitionId).ToList());
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> SetCentralWorkflowActivationAsync(ClaimsPrincipal user,
+            CentralWorkflowActivationRequest request, string? environment = null)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                LogEnvironment.LogEvent(
+                    $"Uebernahme von '{request.DefinitionId}' abgelehnt: '{WorkflowSecurity.Operate}' fehlt.",
+                    LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            string? tenant = CurrentTenant();
+            using WorkflowOperation op = BeginOperation(environment);
+
+            // Nicht der Oberflaeche glauben: sie liefert zwar nur erlaubte Zeilen, aber das Erraten einer
+            // Definition-Id darf nicht genuegen, um einen zentralen Ablauf scharf zu schalten.
+            WorkflowStartTrigger? trigger = op.Store.FindActivatableTriggers(tenant).FirstOrDefault(
+                t => t.Kind == WorkflowStartTriggerKind.Schedule
+                     && t.DefinitionId == request.DefinitionId && t.NodeId == request.NodeId);
+            if (trigger == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Uebernahme abgelehnt: '{request.DefinitionId}' (Knoten '{request.NodeId}') wird dem "
+                    + $"Mandanten '{tenant ?? "<none>"}' gar nicht angeboten.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            if (!MayUseGate(trigger.RequiredFeature, trigger.RequiredPermission))
+            {
+                LogEnvironment.LogEvent(
+                    $"Uebernahme von '{request.DefinitionId}' abgelehnt: Feature "
+                    + $"'{trigger.RequiredFeature ?? "-"}' bzw. Berechtigung "
+                    + $"'{trigger.RequiredPermission ?? "-"}' fehlt.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            string? ownPattern = request.PatternOverride;
+            if (!string.IsNullOrWhiteSpace(ownPattern) && !trigger.AllowReschedule)
+            {
+                // Verworfen statt uebernommen - und gesagt: sonst stellt jemand einen Termin ein, sieht
+                // ihn nirgends wieder und sucht beim Runner.
+                LogEnvironment.LogEvent(
+                    $"Eigenes Muster fuer '{request.DefinitionId}' (Knoten '{request.NodeId}') verworfen: "
+                    + "der Start-Knoten erlaubt es nicht. Es gilt die zentrale Vorgabe.",
+                    LogSeverity.Warning);
+                ownPattern = null;
+            }
+
+            var activation = new WorkflowStartTriggerActivation
+            {
+                OwnerTenantId = trigger.TenantId,
+                DefinitionId = trigger.DefinitionId,
+                NodeId = trigger.NodeId,
+                Kind = trigger.Kind,
+                TenantId = tenant,
+                Enabled = request.Enabled,
+                PatternOverride = ownPattern,
+                ActivatedBy = user?.Identity?.Name,
+                ActivatedUtc = DateTime.UtcNow
+            };
+
+            // Die erste Faelligkeit nur beim ANHAKEN setzen - und nur, wenn es noch keine gibt: der Store
+            // laesst den Lauf-Zustand einer bestehenden Zeile sonst unangetastet. Genau deshalb loescht
+            // das Abhaken nicht, sondern deaktiviert.
+            if (request.Enabled)
+            {
+                string effective = ownPattern ?? trigger.Pattern;
+                bool known = op.Store.GetActivations(tenant).Any(
+                    a => a.OwnerTenantId == trigger.TenantId && a.DefinitionId == trigger.DefinitionId
+                         && a.NodeId == trigger.NodeId && a.Kind == trigger.Kind);
+                if (!known)
+                {
+                    activation.NextDueUtc = WorkflowStartTriggerFactory.FirstDueUtc(effective,
+                        DateTime.UtcNow,
+                        $"'{trigger.DefinitionId}', Knoten '{trigger.NodeId}', Mandant '{tenant ?? "-"}'");
+                }
+            }
+
+            op.Store.SaveActivation(activation);
+            LogEnvironment.LogEvent(
+                $"Zentraler Ablauf '{trigger.DefinitionId}' (Knoten '{trigger.NodeId}') wurde von "
+                + $"'{user?.Identity?.Name ?? "?"}' fuer Mandant '{tenant ?? "<none>"}' "
+                + $"{(request.Enabled ? "uebernommen" : "abgegeben")}.", LogSeverity.Report);
+            return Task.FromResult(true);
+        }
+
+        /// <summary>Der Anzeigename der Definition eines Ausloesers, oder null.</summary>
+        private static string? DefinitionName(WorkflowOperation op, WorkflowStartTrigger trigger)
+        {
+            try
+            {
+                // Ueber den Schluessel des Ausloesers - er zeigt auf GENAU die Fassung, aus der er stammt.
+                return op.Store.GetDefinition(trigger.DefinitionKey)?.Name;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Konnte den Namen der Definition '{trigger.DefinitionId}' nicht lesen: "
+                    + $"{ex.OutlineException()}", LogSeverity.Warning);
+                return null;
+            }
+        }
+
+        /// <summary>Feature-/Berechtigungs-Pruefung ueber die denormalisierten Namen am Ausloeser.</summary>
+        private bool MayUseGate(string? requiredFeature, string? requiredPermission)
+        {
+            if (!string.IsNullOrWhiteSpace(requiredFeature)
+                && !services.VerifyActivatedFeatures(new[] { requiredFeature }, out _))
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(requiredPermission)
+                   || services.VerifyUserPermissions(new[] { requiredPermission });
+        }
+
         private bool MayStart(WorkflowDefinition definition)
-            => string.IsNullOrEmpty(definition.TenantId)
-               || string.Equals(definition.TenantId, CurrentTenant(), StringComparison.OrdinalIgnoreCase);
+            => (string.IsNullOrEmpty(definition.TenantId)
+                || string.Equals(definition.TenantId, CurrentTenant(), StringComparison.OrdinalIgnoreCase))
+               && MayUse(definition);
+
+        /// <summary>
+        /// Ob Mandant und Benutzer die Definition ueberhaupt <b>verwenden</b> duerfen: das verlangte
+        /// Feature muss beim Mandanten aktiv und die verlangte Berechtigung beim Benutzer vorhanden sein.
+        /// Beides leer = jeder darf.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Bewusst <b>ein</b> Praedikat fuer alle drei Wege - Liste, Start-Maske, Start. Getrennte
+        /// Fassungen sind genau die, bei denen man den Knopf sieht und beim Klick abgewiesen wird.
+        /// </para>
+        /// <para>
+        /// Das Feature wird hier UND bei jedem zeitgesteuerten Lauf geprueft (dort ueber
+        /// <c>IWorkflowTenantFeatureGate</c>) - es haengt am Mandanten und gilt auch ohne Benutzer. Die
+        /// Berechtigung kann nur hier geprueft werden: ein Zeitplan hat niemanden, den man fragen
+        /// koennte.
+        /// </para>
+        /// </remarks>
+        private bool MayUse(WorkflowDefinition definition)
+            => MayUseGate(definition.RequiredFeature, definition.RequiredPermission);
 
         /// <summary>
         /// Liest eine Definition aus der Zeile. Fehlerhaftes/aelteres JSON darf die Startauswahl nicht

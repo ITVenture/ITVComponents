@@ -39,6 +39,16 @@ namespace ITVComponents.Workflow.Stores
         private int nextTriggerKey;
 
         /// <summary>
+        /// Die Aktivierungen, nach ihrem technischen Schluessel. Sie ueberdauern das Neuaufbauen der
+        /// Ausloeser - deshalb eine eigene Ablage und keine Liste am Ausloeser.
+        /// </summary>
+        private readonly ConcurrentDictionary<int, WorkflowStartTriggerActivation> activations =
+            new ConcurrentDictionary<int, WorkflowStartTriggerActivation>();
+
+        /// <summary>Der Zaehler fuer die Aktivierungs-Schluessel.</summary>
+        private int nextActivationKey;
+
+        /// <summary>
         /// Der Zaehler fuer die technischen Kennungen. Auch die Ablage im Speicher vergibt sie - sonst
         /// verhielte sie sich anders als eine echte Ablage, und ein Test wuerde beweisen, was im Betrieb
         /// nicht gilt.
@@ -85,10 +95,16 @@ namespace ITVComponents.Workflow.Stores
         /// alte Fassung weiter mitfeuert.
         /// </summary>
         /// <remarks>
-        /// Der gespeicherte Stand (letzte Faelligkeit, letzter Lauf) eines gleich gebliebenen
-        /// Zeitplan-Ausloesers wird uebernommen: sonst finge jedes Speichern der Definition - auch eine
-        /// Aenderung an ganz anderer Stelle - den Zeitplan von vorne an, und ein Muster mit
-        /// "sofort"-Kennzeichen liefe bei jedem Speichern erneut los.
+        /// <para>
+        /// Die <b>Aktivierungen</b> bleiben dabei stehen: sie haengen an der fachlichen Identitaet des
+        /// Ausloesers, nicht an seiner Zeilennummer, und ueberdauern deshalb jedes Speichern. Genau
+        /// deshalb liegt der Lauf-Zustand bei ihnen und nicht hier - sonst finge jedes Speichern der
+        /// Definition, auch eine Aenderung an ganz anderer Stelle, den Zeitplan von vorne an.
+        /// </para>
+        /// <para>
+        /// Eine <b>mandanteneigene</b> Definition bekommt ihre eine Aktivierung von selbst: fuer sie ist
+        /// "wer faehrt das?" keine Frage. Eine oeffentliche bekommt keine - dort ist es eine.
+        /// </para>
         /// </remarks>
         private void SyncTriggers(WorkflowDefinition definition)
         {
@@ -103,21 +119,24 @@ namespace ITVComponents.Workflow.Stores
                                                 && d.Version == highest);
 
             var kept = new List<WorkflowStartTrigger>();
-            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest, DateTime.UtcNow))
+            foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest))
             {
                 WorkflowStartTrigger previous = triggers.Values.FirstOrDefault(
                     t => t.TenantId == fresh.TenantId && t.DefinitionId == fresh.DefinitionId
-                         && t.NodeId == fresh.NodeId && t.Kind == fresh.Kind
-                         && t.Pattern == fresh.Pattern);
-                if (previous != null && fresh.Kind == WorkflowStartTriggerKind.Schedule)
-                {
-                    fresh.NextDueUtc = previous.NextDueUtc;
-                    fresh.LastRunUtc = previous.LastRunUtc;
-                    fresh.LastInstanceId = previous.LastInstanceId;
-                }
+                         && t.NodeId == fresh.NodeId && t.Kind == fresh.Kind);
 
                 fresh.TriggerKey = previous?.TriggerKey ?? Interlocked.Increment(ref nextTriggerKey);
                 kept.Add(fresh);
+
+                if (fresh.Kind == WorkflowStartTriggerKind.Schedule
+                    && previous != null && previous.Pattern != fresh.Pattern)
+                {
+                    // Ein umgeschriebener Zeitplan ist ein ANDERER Plan, und sein erster Lauf gehoert
+                    // ihm - sonst greift ein "sofort"-Kennzeichen nie, weil "schon mal gelaufen" aus der
+                    // Zeit davor stammt. Betroffen sind nur die, die auch wirklich auf dem zentralen
+                    // Muster laufen.
+                    ResetActivationsAfterPatternChange(fresh);
+                }
             }
 
             foreach (WorkflowStartTrigger stale in triggers.Values
@@ -125,13 +144,115 @@ namespace ITVComponents.Workflow.Stores
                                      && kept.All(k => k.TriggerKey != t.TriggerKey))
                          .ToList())
             {
+                WarnAboutOrphans(stale);
                 triggers.TryRemove(stale.TriggerKey, out _);
             }
 
             foreach (WorkflowStartTrigger trigger in kept)
             {
                 triggers[trigger.TriggerKey] = trigger;
+                EnsureOwnActivation(trigger);
             }
+        }
+
+        /// <summary>
+        /// Legt fuer eine <b>mandanteneigene</b> Definition die Aktivierung ihres eigenen Mandanten an,
+        /// falls es sie noch nicht gibt. Fuer eine oeffentliche geschieht nichts - dort entscheidet der
+        /// Mandant selbst.
+        /// </summary>
+        private void EnsureOwnActivation(WorkflowStartTrigger trigger)
+        {
+            // Ueber IsPublic und NICHT ueber "TenantId ist null": in einem Ein-Mandanten-Host traegt
+            // alles null, und dort muss die Aktivierung sehr wohl entstehen - sonst laeuft nach diesem
+            // Umbau gar kein Zeitplan mehr.
+            if (trigger.IsPublic)
+            {
+                return; // Oeffentlich: wer sie faehrt, entscheidet der Mandant selbst.
+            }
+
+            if (FindActivation(trigger, trigger.TenantId) != null)
+            {
+                return;
+            }
+
+            SaveActivation(new WorkflowStartTriggerActivation
+            {
+                OwnerTenantId = trigger.TenantId,
+                DefinitionId = trigger.DefinitionId,
+                NodeId = trigger.NodeId,
+                Kind = trigger.Kind,
+                TenantId = trigger.TenantId,
+                Enabled = true,
+                NextDueUtc = trigger.Kind != WorkflowStartTriggerKind.Schedule
+                    ? null
+                    : WorkflowStartTriggerFactory.FirstDueUtc(trigger.Pattern, DateTime.UtcNow,
+                        $"'{trigger.DefinitionId}', Knoten '{trigger.NodeId}'"),
+                ActivatedBy = "(automatisch)",
+                ActivatedUtc = DateTime.UtcNow
+            });
+        }
+
+        /// <summary>Setzt den Lauf-Zustand der Aktivierungen zurueck, die dem zentralen Muster folgen.</summary>
+        private void ResetActivationsAfterPatternChange(WorkflowStartTrigger trigger)
+        {
+            foreach (WorkflowStartTriggerActivation activation in ActivationsOf(trigger))
+            {
+                bool followsOwnPattern = trigger.AllowReschedule
+                                         && !string.IsNullOrWhiteSpace(activation.PatternOverride);
+                if (followsOwnPattern)
+                {
+                    continue;
+                }
+
+                activation.LastRunUtc = null;
+                activation.LastInstanceId = null;
+                activation.NextDueUtc = WorkflowStartTriggerFactory.FirstDueUtc(trigger.Pattern,
+                    DateTime.UtcNow,
+                    $"'{trigger.DefinitionId}', Knoten '{trigger.NodeId}', Mandant "
+                    + $"'{activation.TenantId ?? "-"}'");
+            }
+        }
+
+        /// <summary>
+        /// Sagt, welche Aktivierungen durch das Wegfallen eines Ausloesers ins Leere laufen. Sie werden
+        /// NICHT geloescht - die Zustimmung bleibt, falls der Knoten zurueckkommt -, aber ein Zeitplan,
+        /// der ab jetzt schweigt, darf das nicht unbemerkt tun.
+        /// </summary>
+        private void WarnAboutOrphans(WorkflowStartTrigger stale)
+        {
+            var affected = ActivationsOf(stale).Where(a => a.Enabled).Select(a => a.TenantId ?? "-").ToList();
+            if (affected.Count == 0)
+            {
+                return;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Der Ausloeser '{stale.DefinitionId}' (Knoten '{stale.NodeId}', {stale.Kind}) ist mit dem "
+                + $"Speichern der Definition weggefallen. {affected.Count} aktive Uebernahme(n) laufen ab "
+                + $"jetzt ins Leere: {string.Join(", ", affected)}.", LogSeverity.Warning);
+        }
+
+        /// <summary>Die Aktivierungen eines Ausloesers - ueber seine fachliche Identitaet.</summary>
+        private List<WorkflowStartTriggerActivation> ActivationsOf(WorkflowStartTrigger trigger)
+        {
+            return activations.Values
+                .Where(a => a.OwnerTenantId == trigger.TenantId && a.DefinitionId == trigger.DefinitionId
+                            && a.NodeId == trigger.NodeId && a.Kind == trigger.Kind)
+                .ToList();
+        }
+
+        /// <summary>Die Aktivierung eines Ausloesers fuer EINEN Mandanten, oder null.</summary>
+        private WorkflowStartTriggerActivation FindActivation(WorkflowStartTrigger trigger, string tenantId)
+        {
+            return ActivationsOf(trigger).FirstOrDefault(a => a.TenantId == tenantId);
+        }
+
+        /// <summary>Der Ausloeser zu einer Aktivierung, oder null (verwaist).</summary>
+        private WorkflowStartTrigger TriggerOf(WorkflowStartTriggerActivation activation)
+        {
+            return triggers.Values.FirstOrDefault(
+                t => t.TenantId == activation.OwnerTenantId && t.DefinitionId == activation.DefinitionId
+                     && t.NodeId == activation.NodeId && t.Kind == activation.Kind);
         }
 
         /// <inheritdoc/>
@@ -315,15 +436,50 @@ namespace ITVComponents.Workflow.Stores
         }
 
         /// <inheritdoc/>
-        public IReadOnlyList<WorkflowStartTrigger> FindMessageTriggers(string signalName)
-            => string.IsNullOrEmpty(signalName)
-                ? new List<WorkflowStartTrigger>()
-                : triggers.Values
-                    .Where(t => t.Kind == WorkflowStartTriggerKind.Message && t.SignalName == signalName)
+        public WorkflowMessageTriggerLookup FindMessageTriggers(string signalName, string originTenantId)
+        {
+            var result = new WorkflowMessageTriggerLookup();
+            if (string.IsNullOrEmpty(signalName))
+            {
+                return result;
+            }
+
+            var matches = new List<WorkflowStartTriggerMatch>();
+            var suppressed = new List<string>();
+
+            foreach (WorkflowStartTrigger trigger in triggers.Values
+                         .Where(t => t.Kind == WorkflowStartTriggerKind.Message && t.SignalName == signalName))
+            {
+                // Der Ursprung entscheidet. Ohne Ursprung springt nur an, was das ausdruecklich erlaubt -
+                // sonst eroeffnete eine einzige namenlose Nachricht in jedem Mandanten einen Vorgang.
+                // Im Ein-Mandanten-Betrieb traegt alles null und die Regel faellt von selbst zusammen.
+                var relevant = ActivationsOf(trigger)
+                    .Where(a => a.Enabled
+                                && (a.TenantId == originTenantId
+                                    || (originTenantId == null && trigger.AllowTenantlessStart)))
                     .ToList();
 
+                if (relevant.Count == 0)
+                {
+                    suppressed.Add($"'{trigger.DefinitionId}' (Knoten '{trigger.NodeId}', Besitzer "
+                                   + $"'{trigger.TenantId ?? "<oeffentlich>"}')");
+                    continue;
+                }
+
+                matches.AddRange(relevant.Select(a => new WorkflowStartTriggerMatch
+                {
+                    Trigger = trigger,
+                    Activation = a
+                }));
+            }
+
+            result.Matches = matches;
+            result.SuppressedByTenant = suppressed;
+            return result;
+        }
+
         /// <inheritdoc/>
-        public IReadOnlyList<WorkflowStartTrigger> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
+        public IReadOnlyList<WorkflowStartTriggerMatch> ClaimDueScheduleTriggers(DateTime nowUtc, string owner,
             TimeSpan lease, int maxTriggers)
         {
             if (string.IsNullOrEmpty(owner))
@@ -334,25 +490,91 @@ namespace ITVComponents.Workflow.Stores
             // Die Ablage im Speicher kennt keine nebenlaeufigen Runner - der Anspruch waere hier ein
             // Formalismus ohne Gegenueber. Die Auswahl ist dieselbe wie in der Datenbank, damit ein Test
             // dasselbe sieht.
-            return maxTriggers <= 0
-                ? new List<WorkflowStartTrigger>()
-                : triggers.Values
-                    .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule && t.NextDueUtc != null
-                                && t.NextDueUtc <= nowUtc)
-                    .OrderBy(t => t.NextDueUtc)
-                    .Take(maxTriggers)
-                    .ToList();
+            if (maxTriggers <= 0)
+            {
+                return new List<WorkflowStartTriggerMatch>();
+            }
+
+            return activations.Values
+                .Where(a => a.Enabled && a.Kind == WorkflowStartTriggerKind.Schedule
+                            && a.NextDueUtc != null && a.NextDueUtc <= nowUtc)
+                .OrderBy(a => a.NextDueUtc)
+                .Select(a => new WorkflowStartTriggerMatch { Trigger = TriggerOf(a), Activation = a })
+                // Verwaiste Aktivierungen finden keinen Ausloeser - sie feuern nie. Gemeldet wurden sie,
+                // als der Ausloeser wegfiel; hier still zu ueberspringen ist deshalb in Ordnung.
+                .Where(m => m.Trigger != null)
+                .Take(maxTriggers)
+                .ToList();
         }
 
         /// <inheritdoc/>
-        public void UpdateScheduleTrigger(int triggerKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
+        public int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null)
+        {
+            IEnumerable<WorkflowDefinition> candidates = definitions.Values
+                .Where(d => d.Id == definitionId && d.TenantId == ownerTenantId);
+            if (version.HasValue)
+            {
+                candidates = candidates.Where(d => d.Version == version.Value);
+            }
+
+            WorkflowDefinition found = candidates.OrderByDescending(d => d.Version).FirstOrDefault();
+            return found?.Key;
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTrigger> FindActivatableTriggers(string tenantId)
+            => triggers.Values
+                .Where(t => t.IsPublic && t.AllowLocalActivation)
+                .ToList();
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowStartTriggerActivation> GetActivations(string tenantId)
+            => activations.Values.Where(a => a.TenantId == tenantId).ToList();
+
+        /// <inheritdoc/>
+        public void SaveActivation(WorkflowStartTriggerActivation activation)
+        {
+            if (activation == null)
+            {
+                throw new ArgumentNullException(nameof(activation));
+            }
+
+            WorkflowStartTriggerActivation existing = activations.Values.FirstOrDefault(
+                a => a.OwnerTenantId == activation.OwnerTenantId
+                     && a.DefinitionId == activation.DefinitionId && a.NodeId == activation.NodeId
+                     && a.Kind == activation.Kind && a.TenantId == activation.TenantId);
+
+            if (existing == null)
+            {
+                activation.ActivationKey = Interlocked.Increment(ref nextActivationKey);
+                activations[activation.ActivationKey] = activation;
+                return;
+            }
+
+            // Der Lauf-Zustand der bestehenden Zeile bleibt: haekelt jemand ein halbes Jahr spaeter
+            // wieder an, soll der Zeitplan da weitermachen, wo er war - und nicht ein
+            // "sofort"-Kennzeichen ein zweites Mal ausloesen.
+            existing.Enabled = activation.Enabled;
+            existing.PatternOverride = activation.PatternOverride;
+            existing.VariablesJsonOverride = activation.VariablesJsonOverride;
+            if (activation.NextDueUtc != null)
+            {
+                existing.NextDueUtc = activation.NextDueUtc;
+            }
+
+            existing.ActivatedBy = activation.ActivatedBy ?? existing.ActivatedBy;
+            activation.ActivationKey = existing.ActivationKey;
+        }
+
+        /// <inheritdoc/>
+        public void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc, DateTime? lastRunUtc,
             string lastInstanceId)
         {
-            if (!triggers.TryGetValue(triggerKey, out WorkflowStartTrigger trigger))
+            if (!activations.TryGetValue(activationKey, out WorkflowStartTriggerActivation trigger))
             {
                 LogEnvironment.LogEvent(
-                    $"UpdateScheduleTrigger: trigger '{triggerKey}' no longer exists - the definition was "
-                    + "probably saved in the meantime. Nothing updated.", LogSeverity.Report);
+                    $"UpdateScheduleActivation: activation '{activationKey}' no longer exists - it was "
+                    + "probably removed in the meantime. Nothing updated.", LogSeverity.Report);
                 return;
             }
 
@@ -367,10 +589,10 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
         {
-            var future = triggers.Values
-                .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule && t.NextDueUtc != null
-                            && t.NextDueUtc > nowUtc)
-                .Select(t => t.NextDueUtc.Value)
+            var future = activations.Values
+                .Where(a => a.Enabled && a.Kind == WorkflowStartTriggerKind.Schedule && a.NextDueUtc != null
+                            && a.NextDueUtc > nowUtc)
+                .Select(a => a.NextDueUtc.Value)
                 .ToList();
             return future.Count == 0 ? (DateTime?)null : future.Min();
         }

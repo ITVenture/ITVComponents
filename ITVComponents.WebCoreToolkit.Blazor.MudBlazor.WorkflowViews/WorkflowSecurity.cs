@@ -9,6 +9,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews
         /// <summary>Feature, das den gesamten Workflow-Bereich freischaltet (pro Mandant aktiviert).</summary>
         public const string Feature = "ITVWorkflow";
 
+        /// <summary>
+        /// Die Systemverwalter-Berechtigung. Sie gatet das, was eine Aussage ueber <b>alle</b> Mandanten
+        /// ist: welches Feature und welche Berechtigung eine oeffentliche Definition verlangt.
+        /// </summary>
+        /// <remarks>
+        /// Als Name wiederholt und nicht ueber <c>ToolkitPermission.Sysadmin</c> bezogen: der liegt im
+        /// TenantSecurity-Paket, und dieses Ansichten-Paket soll sich dafuer keine Abhaengigkeit auf die
+        /// Mandanten-Persistenz einhandeln. Die Berechtigung ist ein <b>Name</b> - genau deshalb steht
+        /// sie in Vertraegen ueberall als Zeichenkette.
+        /// </remarks>
+        public const string Sysadmin = "Sysadmin";
+
         /// <summary>Aspekt: laufende Instanzen ansehen (read-only).</summary>
         public const string Monitor = "Workflow.Monitor";
 

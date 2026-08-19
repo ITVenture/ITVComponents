@@ -7,7 +7,7 @@
 <MudText Typo="Typo.h5" GutterBottom="true">Workflow</MudText>
 
 @* Das Feature schaltet den Bereich frei; die Kacheln erscheinen je nach Aspekt-Berechtigung. *@
-<SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design,Workflow.Tasks" RequiredFeatures="ITVWorkflow">
+<SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design,Workflow.Tasks,Workflow.Operate" RequiredFeatures="ITVWorkflow">
     <Permitted>
         <MudStack Spacing="3">
             <SecureView RequiredPermissions="Workflow.Tasks">
@@ -29,6 +29,18 @@
                            bleibt damit im Tenant. Ein fuehrender Slash zielt auf den Root und ergibt 404. *@
                         <MudButton Href="Workflow/Instances" Variant="Variant.Filled" Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Monitor">Instanzen</MudButton>
+                    </MudPaper>
+                </Permitted>
+            </SecureView>
+            <SecureView RequiredPermissions="Workflow.Operate">
+                <Permitted>
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h6">Zentrale Abläufe</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Zentral gepflegte Prozesse für den eigenen Mandanten übernehmen.
+                        </MudText>
+                        <MudButton Href="Workflow/Central" Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.EventRepeat">Zentrale Abläufe</MudButton>
                     </MudPaper>
                 </Permitted>
             </SecureView>

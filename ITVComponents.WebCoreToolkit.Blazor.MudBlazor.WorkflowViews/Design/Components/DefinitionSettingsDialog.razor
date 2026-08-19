@@ -52,6 +52,34 @@
                 </MudText>
             }
 
+            @* Wer die Definition VERWENDEN darf. Nur fuer den Sysadmin bedienbar - es ist eine Aussage
+               ueber alle Mandanten, nicht ueber diesen einen. Wie bei der Sichtbarkeit gilt: lieber gar
+               kein Feld als eines, das beim Speichern still nichts tut. *@
+            @if (CanGate)
+            {
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle2">Who may use it</MudText>
+
+                <MudTextField @bind-Value="Def.RequiredFeature" Label="Required feature"
+                              Margin="Margin.Dense" Clearable="true"
+                              HelperText="@("Empty = none required.")" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Hangs on the <b>tenant</b> and is therefore the one condition that is checked
+                    <b>on every run</b>, not just when somebody takes the workflow over — a scheduled run
+                    has no user. If the feature lapses, the schedule pauses and writes that to the log; it
+                    resumes by itself once the feature is back, and stays ticked in the meantime.
+                </MudText>
+
+                <MudTextField @bind-Value="Def.RequiredPermission" Label="Required permission"
+                              Margin="Margin.Dense" Clearable="true" Class="mt-3"
+                              HelperText="@("Empty = none required.")" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Hangs on a <b>user</b> and gates taking the workflow over and starting it by hand.
+                    It cannot be checked when a schedule fires — there is nobody to check. Taking the
+                    permission away from somebody therefore does <b>not</b> undo a takeover he set earlier.
+                </MudText>
+            }
+
             <MudDivider Class="my-4" />
 
             <MudSelect T="HistorySeverity?" Value="@Def.MinHistorySeverity" ValueChanged="OnSeverityChanged"
@@ -82,6 +110,13 @@
 
     /// <summary>Ob der Benutzer öffentliche Definitionen anlegen/ändern darf (Workflow.DesignPublic).</summary>
     [Parameter] public bool CanPublish { get; set; }
+
+    /// <summary>
+    /// Ob der Benutzer Feature und Berechtigung der Definition festlegen darf (Sysadmin). Bewusst
+    /// getrennt von <see cref="CanPublish"/>: eine öffentliche Definition zu <b>modellieren</b> ist eine
+    /// fachliche Handlung, festzulegen <b>wer sie bekommt</b> eine betriebliche.
+    /// </summary>
+    [Parameter] public bool CanGate { get; set; }
 
     /// <summary>
     /// Umschalten der Sichtbarkeit. „Öffentlich" heisst: kein Mandant — beides zugleich wäre ein

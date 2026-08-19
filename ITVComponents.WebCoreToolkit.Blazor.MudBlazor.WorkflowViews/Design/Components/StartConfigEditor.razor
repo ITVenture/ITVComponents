@@ -118,9 +118,16 @@
     <MudTabPanel Text="Triggers" Icon="@Icons.Material.Filled.Bolt">
     <MudText Typo="Typo.caption" Class="mud-text-secondary">
         Without a trigger this workflow only starts when someone (or something) starts it — by hand, from
-        code or as a subworkflow. A trigger lets it start <b>by itself</b>. Triggers belong to the tenant of
-        the definition; public definitions deliberately never fire.
+        code or as a subworkflow. A trigger lets it start <b>by itself</b>, for every tenant that runs it.
     </MudText>
+    @if (Def?.IsPublic == true)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+            This is a <b>public</b> definition. It does not fire for anybody on its own — a tenant has to
+            take it over first. Tick <i>May be taken over by a tenant</i> below to offer it; who is allowed
+            to take it is decided by the feature and permission in the definition settings.
+        </MudAlert>
+    }
 
     @* --- Nachricht --- *@
     <MudSwitch T="bool" Value="@(Node.MessageStart is not null)" ValueChanged="ToggleMessageStart"
@@ -180,6 +187,25 @@
                     instance and will never block anything.
                 </MudAlert>
             }
+
+            <MudSwitch T="bool" @bind-Value="Node.MessageStart.AllowTenantlessStart" Color="Color.Warning"
+                       Size="Size.Small" Class="mt-3"
+                       Label="Also start on a message without an origin tenant" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                A message carries the tenant it came from, and only that one starts anything. Without this
+                switch a message <b>without</b> an origin (a system message, host code with no context)
+                starts nothing at all — deliberately: otherwise one nameless message opens a case in every
+                single tenant listening for that name. Turn it on where you mean exactly that
+                ("year-end has begun, everywhere"). It has nothing to do with broadcast: a broadcast sent
+                from a tenant's instance does carry an origin.
+            </MudText>
+
+            @if (Def?.IsPublic == true)
+            {
+                <MudSwitch T="bool" @bind-Value="Node.MessageStart.AllowLocalActivation" Color="Color.Primary"
+                           Size="Size.Small" Class="mt-3"
+                           Label="May be taken over by a tenant" />
+            }
         </div>
     }
 
@@ -226,6 +252,44 @@
                 Off by default: the date is the date. Use with care — a process waiting for a user task counts
                 as "still going" and stops the whole schedule; skipped dates are written to the log.
             </MudText>
+
+            @if (Def?.IsPublic == true)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle2">Taking it over</MudText>
+
+                <MudSwitch T="bool" @bind-Value="Node.ScheduleStart.AllowLocalActivation" Color="Color.Primary"
+                           Size="Size.Small" Class="mt-2"
+                           Label="May be taken over by a tenant" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Offers this schedule under <i>Central workflows</i>, where a tenant ticks it to run it
+                    for himself. This answers a different question than the feature and permission in the
+                    definition settings: those say <b>who may</b>, this one says whether it is
+                    <b>meant to be taken over at all</b>.
+                </MudText>
+
+                @if (Node.ScheduleStart.AllowLocalActivation)
+                {
+                    <div class="ml-6">
+                        <MudSwitch T="bool" @bind-Value="Node.ScheduleStart.AllowReschedule" Color="Color.Primary"
+                                   Size="Size.Small" Class="mt-2"
+                                   Label="Let the tenant set his own pattern" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            For "I want it, but on the 25th instead of the last day". Off means the central
+                            pattern applies to everybody. Taking the permission back later leaves the
+                            tenant's pattern in place but stops honouring it — he goes back to the central
+                            one, and that is written to the log.
+                        </MudText>
+
+                        <MudSwitch T="bool" @bind-Value="Node.ScheduleStart.AllowOwnVariables" Color="Color.Primary"
+                                   Size="Size.Small" Class="mt-2"
+                                   Label="Let the tenant set his own start values" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Off means the fixed values above apply to everybody alike.
+                        </MudText>
+                    </div>
+                }
+            }
 
             <MudText Typo="Typo.subtitle2" Class="mt-4">Start values</MudText>
             <MudText Typo="Typo.caption" Class="mud-text-secondary">

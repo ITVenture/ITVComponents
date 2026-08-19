@@ -108,5 +108,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// </summary>
         Task<WorkflowStartResult> StartInstanceAsync(ClaimsPrincipal user, WorkflowStartRequest request,
             string? environment = null);
+
+        /// <summary>
+        /// Die <b>zentralen Ablaeufe</b>, die dieser Mandant uebernehmen kann - je Zeile, ob er es bereits
+        /// getan hat und wie weit der Lauf ist. Leer ohne <see cref="WorkflowSecurity.Operate"/>.
+        /// </summary>
+        /// <remarks>
+        /// Gefiltert nach Feature und Berechtigung der Definition: was ein Mandant nicht verwenden darf,
+        /// steht ihm auch nicht zum Anhaken.
+        /// </remarks>
+        Task<IReadOnlyList<CentralWorkflowItem>> ListCentralWorkflowsAsync(ClaimsPrincipal user,
+            string? environment = null);
+
+        /// <summary>
+        /// Uebernimmt einen zentralen Ablauf fuer den aktuellen Mandanten oder gibt ihn wieder ab.
+        /// </summary>
+        /// <remarks>
+        /// Abgeben heisst <b>deaktivieren</b>, nicht loeschen: sonst ginge die Historie verloren, und ein
+        /// Muster mit "sofort"-Kennzeichen liefe beim erneuten Anhaken ein zweites Mal sofort an.
+        /// </remarks>
+        Task<bool> SetCentralWorkflowActivationAsync(ClaimsPrincipal user, CentralWorkflowActivationRequest request,
+            string? environment = null);
     }
 }

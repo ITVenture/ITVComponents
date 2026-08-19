@@ -154,6 +154,33 @@ namespace ITVComponents.Workflow.Model
         /// spaeter selbst und will sie hier nicht vorbelegt haben.
         /// </remarks>
         public bool AdoptCorrelationKey { get; set; } = true;
+
+        /// <summary>
+        /// Ob ein Mandant diesen Einstieg <b>fuer sich uebernehmen</b> darf (siehe
+        /// <see cref="ScheduleStartTrigger.AllowLocalActivation"/>). Standard false.
+        /// </summary>
+        public bool AllowLocalActivation { get; set; }
+
+        /// <summary>
+        /// Ob dieser Einstieg auch auf eine Nachricht <b>ohne Ursprungs-Mandanten</b> anspringt.
+        /// Standard false.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Eine Nachricht traegt den Mandanten, aus dem sie stammt - die sendende Instanz, der
+        /// Ausfuehrungs-Kontext oder die Anfrage. Nur der loest aus. Fehlt er (Systemnachricht, Host-Code
+        /// ohne Kontext), loest ohne dieses Kennzeichen <b>nichts</b> aus, und das ist Absicht: sonst
+        /// eroeffnet eine einzige namenlose Nachricht in jedem Mandanten einen Vorgang, der auf den Namen
+        /// horcht - bei hundert Mandanten hundert Stueck.
+        /// </para>
+        /// <para>
+        /// Wer genau das will ("Jahresabschluss beginnt, und zwar ueberall"), sagt es hier ausdruecklich.
+        /// Es hat <b>nichts</b> mit <c>WorkflowEngine.BroadcastSignal</c> zu tun: ein Rundruf aus der
+        /// Instanz eines Mandanten traegt sehr wohl einen Ursprung und loest nur dort aus. Es geht
+        /// ausschliesslich um das FEHLEN des Ursprungs.
+        /// </para>
+        /// </remarks>
+        public bool AllowTenantlessStart { get; set; }
     }
 
     /// <summary>
@@ -167,8 +194,13 @@ namespace ITVComponents.Workflow.Model
     /// </para>
     /// <para>
     /// Gerechnet wird in <b>Ortszeit</b> ("jeden Tag um 8" meint acht Uhr vor Ort, auch nach der
-    /// Sommerzeit-Umstellung), gespeichert wird die Faelligkeit in UTC. Ein zeitgesteuerter Start gilt
-    /// fuer den Mandanten der Definition; oeffentliche Definitionen loesen NICHT von selbst aus.
+    /// Sommerzeit-Umstellung), gespeichert wird die Faelligkeit in UTC.
+    /// </para>
+    /// <para>
+    /// Ein zeitgesteuerter Start laeuft fuer jeden Mandanten, der ihn <b>aktiviert</b> hat. Bei einer
+    /// mandanteneigenen Definition ist das ihr eigener Mandant, und zwar von selbst. Bei einer
+    /// oeffentlichen ist es jeder, der ihn sich geholt hat - siehe <see cref="AllowLocalActivation"/>;
+    /// ohne dieses Kennzeichen laeuft eine oeffentliche Definition weiterhin fuer niemanden.
     /// </para>
     /// </remarks>
     public class ScheduleStartTrigger
@@ -201,6 +233,43 @@ namespace ITVComponents.Workflow.Model
         /// Termine stehen deshalb im Protokoll.
         /// </remarks>
         public bool SkipWhilePreviousRuns { get; set; }
+
+        /// <summary>
+        /// Ob ein Mandant diesen Zeitplan <b>fuer sich uebernehmen</b> darf - das Haekchen in der
+        /// Uebersicht der zentralen Ablaeufe. Standard false.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Beantwortet eine andere Frage als <see cref="WorkflowDefinition.RequiredFeature"/> und
+        /// <see cref="WorkflowDefinition.RequiredPermission"/>: die beiden sagen, <b>wer</b> darf, dieses
+        /// Kennzeichen sagt, ob es ueberhaupt <b>zur Uebernahme gedacht</b> ist. Ohne das Kennzeichen
+        /// taucht ein zentral gepflegter Prozess gar nicht erst in der Auswahl auf, auch wenn niemand
+        /// ein Feature verlangt hat.
+        /// </para>
+        /// <para>
+        /// An einer mandanteneigenen Definition ohne Wirkung - die hat ihre eine Aktivierung ohnehin.
+        /// </para>
+        /// </remarks>
+        public bool AllowLocalActivation { get; set; }
+
+        /// <summary>
+        /// Ob ein Mandant, der diesen Zeitplan uebernommen hat, ein <b>eigenes Muster</b> setzen darf
+        /// ("ich will ihn, aber am 25. statt am Letzten"). Standard false: es gilt das zentrale Muster.
+        /// </summary>
+        /// <remarks>
+        /// Wird die Freigabe spaeter zurueckgenommen, bleibt ein abweichendes Muster stehen, wird aber
+        /// nicht mehr beachtet - der Mandant laeuft ab der naechsten Faelligkeit wieder auf dem zentralen
+        /// Plan. Das steht im Protokoll, denn von aussen sieht es aus, als haette sich der Termin
+        /// grundlos verschoben.
+        /// </remarks>
+        public bool AllowReschedule { get; set; }
+
+        /// <summary>
+        /// Ob ein Mandant, der diesen Zeitplan uebernommen hat, <b>eigene Startwerte</b> setzen darf.
+        /// Standard false: es gelten die festen Werte aus <see cref="Variables"/> fuer alle gleich.
+        /// </summary>
+        /// <remarks>Zuruecknehmen wirkt wie bei <see cref="AllowReschedule"/>.</remarks>
+        public bool AllowOwnVariables { get; set; }
     }
 
     /// <summary>

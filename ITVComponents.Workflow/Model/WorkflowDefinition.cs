@@ -60,6 +60,41 @@ namespace ITVComponents.Workflow.Model
         public bool IsPublic { get; set; }
 
         /// <summary>
+        /// Das <b>Feature</b>, das ein Mandant aktiviert haben muss, um diese Definition zu verwenden -
+        /// sie zu sehen, sie zu uebernehmen und sie zu starten. Null/leer = keines verlangt.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Gedacht fuer oeffentliche Definitionen: der Betreiber pflegt einen Prozess zentral und
+        /// entscheidet ueber das Feature, wer ihn ueberhaupt bekommt. Setzen darf das nur ein Sysadmin -
+        /// es ist eine Aussage ueber alle Mandanten.
+        /// </para>
+        /// <para>
+        /// <b>Als Name, nicht als Schluessel</b>, aus demselben Grund wie bei <see cref="Key"/>: die
+        /// Definition ist exportierbar, und eine Zeilennummer zeigt in der Nachbaranlage auf etwas
+        /// anderes. Der Kern setzt den Namen nicht durch - das tut der Mantel, so wie bei
+        /// <see cref="Nodes.UserActivityNode.RequiredPermission"/>.
+        /// </para>
+        /// <para>
+        /// Das Feature ist die Bedingung, die <b>bei jedem Lauf</b> nachgeprueft wird, nicht nur beim
+        /// Uebernehmen: es haengt am Mandanten, nicht an einem Benutzer, und ein Zeitplan laeuft ohne
+        /// Benutzer. Faellt es weg, setzt der Zeitplan aus, bis es wieder da ist.
+        /// </para>
+        /// </remarks>
+        public string RequiredFeature { get; set; }
+
+        /// <summary>
+        /// Die <b>Berechtigung</b>, die ein Benutzer braucht, um diese Definition zu verwenden - sie zu
+        /// sehen, sie zu uebernehmen und sie von Hand zu starten. Null/leer = keine verlangt.
+        /// </summary>
+        /// <remarks>
+        /// Anders als <see cref="RequiredFeature"/> beim Feuern eines Zeitplans <b>nicht</b> pruefbar:
+        /// dort gibt es keinen Benutzer. Sie gatet deshalb das Uebernehmen und den Start von Hand.
+        /// Entzieht man sie jemandem, hebt das eine frueher gesetzte Uebernahme nicht auf.
+        /// </remarks>
+        public string RequiredPermission { get; set; }
+
+        /// <summary>
         /// Gesetzt, wenn die Definition Validierungsfehler hat und deshalb NICHT gestartet werden darf. So
         /// laesst sich eine fehlerhafte Definition speichern (Zwischenstand), ohne dass daraus versehentlich
         /// eine Instanz entsteht, die sofort faultet. Der Editor setzt das Flag beim Speichern (Fehler =

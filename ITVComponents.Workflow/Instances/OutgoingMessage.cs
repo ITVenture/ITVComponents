@@ -55,6 +55,22 @@ namespace ITVComponents.Workflow.Instances
         /// </summary>
         public string ReachedVariable { get; set; }
 
+        /// <summary>
+        /// Der Mandant, aus dem die Nachricht <b>stammt</b> - bei einer vorgemerkten Nachricht der der
+        /// sendenden Instanz. Null = kein Ursprung bekannt.
+        /// </summary>
+        /// <remarks>
+        /// Er entscheidet, welche Definitionen die Nachricht <b>anlaufen</b> laesst (siehe
+        /// <c>IWorkflowStore.FindMessageTriggers</c>) - nicht, wer sie empfaengt: die Zustellung an
+        /// wartende Instanzen laeuft unveraendert ueber Name und Korrelation. Ohne ihn eroeffnete eine
+        /// einzige Nachricht in jedem Mandanten, dessen Definition auf den Namen horcht, einen Vorgang.
+        /// <para>
+        /// Er muss die Vormerkung ueberleben: die Zustellung kann in einem anderen Prozess nachgeholt
+        /// werden, und dort ist der sendende Mandant sonst nicht mehr zu ermitteln.
+        /// </para>
+        /// </remarks>
+        public string OriginTenantId { get; set; }
+
         /// <summary>Wann die Nachricht vorgemerkt wurde (UTC).</summary>
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
