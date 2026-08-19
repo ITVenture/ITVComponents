@@ -23,6 +23,24 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Options
         public bool UserNameIsEmail { get; set; } = true;
         public bool UseLocalAccounts { get; set; } = true;
 
+        /// <summary>
+        /// Ob die Anmeldung per Passkey angeboten wird. Standard: <c>false</c>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Muss ausdruecklich eingeschaltet werden, weil es <b>nicht ableitbar</b> ist. Der EF-Benutzer-Speicher
+        /// setzt die Passkey-Methoden immer um, also meldet <c>UserManager.SupportsUserPasskey</c> auch dann
+        /// <c>true</c>, wenn der DbContext die Passkey-Entitaet gar nicht abbildet - und .NET 10 schliesst
+        /// sie standardmaessig aus. Ohne diesen Schalter zeigte die Kontoverwaltung also einen Abschnitt an,
+        /// der beim ersten Speichern in der Datenbank scheitert.
+        /// </para>
+        /// <para>
+        /// Wer ihn einschaltet, muss im eigenen <c>OnModelCreating</c> auch die Passkey-Entitaet abbilden -
+        /// die Kontexte der Bibliothek tun das bewusst nicht.
+        /// </para>
+        /// </remarks>
+        public bool UsePasskeys { get; set; }
+
         public UserRegistrationInfo RegistrationPage { get; set; } = new UserRegistrationInfo
         {
             AllowRegister = true,

@@ -1,8 +1,11 @@
 @using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
+@using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.IdentityPages.Handlers
 
 @inject IStringLocalizer<IdentityMessages> L
 @inject NavigationManager Nav
+@inject IPageHandlerProvider<PasskeyPageModel, IPasskeyHandler> PasskeyProvider
 
 @* Konto-Navigation: ab md eine Seitenspalte, darunter ein Aufklapp-Element.
 
@@ -31,16 +34,37 @@
 @code {
     private sealed record ManageNavItem(string Href, string Label, bool Exact);
 
-    private IReadOnlyList<ManageNavItem> Items => new[]
+    /// <summary>
+    /// Die Eintraege der Konto-Navigation. Passkeys stehen nur drin, wenn sie auch eingeschaltet sind.
+    /// </summary>
+    /// <remarks>
+    /// Derselbe Schalter wie auf der Anmeldeseite (<c>PasskeyProvider.Handler.UsePage</c>), damit beide
+    /// Stellen dieselbe Antwort geben. Ist er aus, gibt es die Seite zwar noch, sie meldet aber nur, dass
+    /// Passkeys nicht verfuegbar sind - und ein Navigationseintrag, der ausschliesslich dorthin fuehrt,
+    /// ist eine Einladung ins Leere.
+    /// </remarks>
+    private IReadOnlyList<ManageNavItem> Items
     {
-        new ManageNavItem("Account/Manage", L["Profile"], true),
-        new ManageNavItem("Account/Manage/Email", L["Email"], false),
-        new ManageNavItem("Account/Manage/ChangePassword", L["Password"], false),
-        new ManageNavItem("Account/Manage/ExternalLogins", L["External logins"], false),
-        new ManageNavItem("Account/Manage/Passkeys", L["Passkeys"], false),
-        new ManageNavItem("Account/Manage/TwoFactorAuthentication", L["Two-factor authentication"], false),
-        new ManageNavItem("Account/Manage/PersonalData", L["Personal data"], false)
-    };
+        get
+        {
+            var items = new List<ManageNavItem>
+            {
+                new ManageNavItem("Account/Manage", L["Profile"], true),
+                new ManageNavItem("Account/Manage/Email", L["Email"], false),
+                new ManageNavItem("Account/Manage/ChangePassword", L["Password"], false),
+                new ManageNavItem("Account/Manage/ExternalLogins", L["External logins"], false)
+            };
+
+            if (PasskeyProvider.Handler.UsePage)
+            {
+                items.Add(new ManageNavItem("Account/Manage/Passkeys", L["Passkeys"], false));
+            }
+
+            items.Add(new ManageNavItem("Account/Manage/TwoFactorAuthentication", L["Two-factor authentication"], false));
+            items.Add(new ManageNavItem("Account/Manage/PersonalData", L["Personal data"], false));
+            return items;
+        }
+    }
 
     private RenderFragment Links => @<MudNavMenu>
         @foreach (var item in Items)

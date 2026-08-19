@@ -63,7 +63,14 @@ public static class WebPartInit
         // MapMudBlazorIdentityPagesEndpoints endpoints — but ANCIP doesn't know about it, so we
         // wire it here. Generic variant when an IdentityUserType is configured; falls back to
         // PasskeyHandler (UsePage=false) when TUser can't be resolved.
+        //
+        // ZUSAETZLICH an IdentityUiOptions.UsePasskeys gebunden, und das laesst sich NICHT ableiten: der
+        // EF-Benutzer-Speicher setzt die Passkey-Methoden immer um, also meldet SupportsUserPasskey auch
+        // dann true, wenn der DbContext die Passkey-Entitaet nicht abbildet - und .NET 10 schliesst sie
+        // standardmaessig aus. Ohne den Schalter zeigte die Kontoverwaltung einen Abschnitt, der erst beim
+        // Speichern in der Datenbank scheitert. Wer ihn setzt, bildet die Entitaet auch selbst ab.
         if (options.RegisterPageHandlers
+            && options.UsePasskeys
             && !string.IsNullOrEmpty(options.IdentityUserType)
             && Type.GetType(options.IdentityUserType) is { } tuserType)
         {
