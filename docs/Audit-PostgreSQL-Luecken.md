@@ -284,6 +284,37 @@ echte Schema gelegt, nicht nur auf den Test-Aufbau.
 | 3.3 | Leitfaden-Abschnitt + Deployment-Anleitung | 0.5 |
 | | **Summe Phase 3** | **4–5** |
 
+#### 3.1 und 3.2 sind gelaufen — Ergebnis: 95 Zeilen, kein Unterschied
+
+Aufbau, falls es zu wiederholen ist:
+
+1. Je ein Programm zieht die Anweisungen aus `ConfigureViews` — auf beiden Seiten aus dem **echten
+   Code**, nicht aus einer Abschrift. Genau das ist der Punkt: sonst prüft man seine eigene Abschrift.
+2. Dieselbe Hierarchie beidseitig, in wortgleichen Fixtures: `T1 → {T2 → {T3, T5}, T4}`, alice an der
+   Wurzel, bob in der Mitte.
+3. Beide Seiten geben zeilenweise dasselbe Textformat aus (Nullwerte als `-`, `bit`/`boolean` als
+   `1`/`0`), dann ein reiner Textvergleich.
+
+Die erste Fassung der Hierarchie war zu brav — sie prüfte die Verrohrung, nicht die Semantik. Erst die
+Erweiterung berührt die Stellen, an denen eine Übersetzung tatsächlich abweichen kann:
+
+| Fall | Warum er zählt |
+|---|---|
+| Rolle innerhalb desselben Mandanten weitergegeben | Erst dadurch läuft die Rekursion in `GetEffectiveTenantUserRoles` überhaupt; vorher lieferte sie eine einzige Zeile und war damit nie geprüft. |
+| Berechtigung nur über diese interne Weitergabe erreichbar | Prüft die „diskrete Weitergabe" (siehe `ISSUE-MLM-PermissionSet-CrossTenant-Propagation.md`) — der Mandant erscheint nur, wenn die Kette vollständig trägt. |
+| Zwei Wege zu demselben Blatt auf derselben Ebene | Hier steht `RANK` und nicht `ROW_NUMBER`. Mit `ROW_NUMBER` wäre eine der beiden Zeilen verschwunden — und genau das zeigt der Vergleich. |
+| Benutzer in der Mitte statt an der Wurzel | Der Baum muss von dort aus rechnen, nicht von oben. |
+| Verzweigung statt Kette | Nachbarzweige dürfen sich nicht gegenseitig einsammeln. |
+
+**Eine Beobachtung am Rande, die kein Produktfehler ist:** `GetChildTenantsWithPermsProc` lässt sich
+auf SQL Server nicht per `INSERT … EXEC` abgreifen — die Prozedur macht intern selbst ein
+`INSERT … EXEC`, und T-SQL verbietet die Schachtelung. Das trifft nur einen Testaufbau, der das
+Ergebnis in eine Tabelle schreiben will; EF ruft die Prozedur über `FromSql`, dort tritt es nie auf.
+Auf PostgreSQL ist es eine Funktion und damit frei zusammensetzbar — einer der wenigen Punkte, an
+denen die PostgreSQL-Fassung mehr kann als das Original.
+
+Offen bleibt aus Phase 3 allein **3.3** (Leitfaden-Abschnitt + Deployment-Anleitung).
+
 ### Gesamt
 
 **19–27 Personentage** für „läuft auf PostgreSQL und liefert nachweislich dieselben Ergebnisse".
