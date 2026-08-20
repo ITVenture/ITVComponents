@@ -58,9 +58,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         private const string RecursionGuardFunction = "TreeRecursionGuard";
 
         /// <summary>
-        /// Die Tiefe, ab der die Rekursion abbricht. Entspricht der Vorgabe von SQL Server, das ohne
-        /// ausdrueckliches <c>OPTION (MAXRECURSION n)</c> bei 100 Ebenen mit Fehler 530 abbricht.
+        /// Die Anzahl REKURSIONSSCHRITTE, nach denen abgebrochen wird - dieselbe Zahl, die SQL Server ohne
+        /// ausdrueckliches <c>OPTION (MAXRECURSION n)</c> vorgibt.
         /// </summary>
+        /// <remarks>
+        /// <b>Schritte, nicht Ebenen.</b> Der Anker liefert bereits Ebene 1, ohne einen Rekursionsschritt
+        /// gebraucht zu haben; Ebene L entsteht also nach L-1 Schritten. Wer die Zahl direkt gegen die Ebene
+        /// prueft, bricht eine Ebene zu frueh ab - nachgemessen: SQL Server traegt eine Kette von 101
+        /// Mandanten und scheitert erst bei 102. Genau so lag die erste Fassung hier daneben, und der
+        /// Gleichheitstest hat es nicht gezeigt, weil seine Hierarchie drei Ebenen tief war.
+        /// </remarks>
         private const int MaxRecursionDepth = 100;
 
         /// <remarks>
@@ -339,8 +346,11 @@ WHERE x.""__rnk"" = 1"));
                  PARALLEL SAFE
                  AS $guard$
                  BEGIN
-                     IF p_level > {{MaxRecursionDepth}} THEN
-                         RAISE EXCEPTION 'Die hoechstzulaessige Rekursionstiefe ({{MaxRecursionDepth}}) wurde in % ueberschritten. Vermutlich enthaelt die Mandanten- oder Rollen-Hierarchie einen Zyklus.', p_context
+                     -- p_level ist die ERREICHTE EBENE, {{MaxRecursionDepth}} sind REKURSIONSSCHRITTE.
+                     -- Ebene 1 kommt vom Anker, ohne Schritt - deshalb p_level - 1. Ohne dieses Minus
+                     -- braeche PostgreSQL eine Ebene frueher ab als SQL Server (nachgemessen).
+                     IF p_level - 1 > {{MaxRecursionDepth}} THEN
+                         RAISE EXCEPTION 'Mehr als {{MaxRecursionDepth}} Rekursionsschritte in % - die Hierarchie ist tiefer als zulaessig oder enthaelt einen Zyklus. (Ebene %, der Anker zaehlt nicht als Schritt.)', p_context, p_level
                              USING ERRCODE = '54001';
                      END IF;
                      RETURN p_level;
