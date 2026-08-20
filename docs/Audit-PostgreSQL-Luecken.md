@@ -313,7 +313,17 @@ Ergebnis in eine Tabelle schreiben will; EF ruft die Prozedur über `FromSql`, d
 Auf PostgreSQL ist es eine Funktion und damit frei zusammensetzbar — einer der wenigen Punkte, an
 denen die PostgreSQL-Fassung mehr kann als das Original.
 
-Offen bleibt aus Phase 3 allein **3.3** (Leitfaden-Abschnitt + Deployment-Anleitung).
+#### 3.3 — erledigt
+
+`Migration-Future_10-MLM.md` §39 beschreibt den PostgreSQL-Weg für den Mandanten-Baum: was zu
+konfigurieren ist, in welcher Reihenfolge eingespielt wird, und die zwei Verhaltensunterschiede, die
+eigenen Code betreffen können (Zyklen-Abbruch mit `SQLSTATE 54001` statt Fehler 530; die
+Kind-Mandanten-Prozedur ist dort eine Funktion). Ausdrücklich als optional gekennzeichnet — wer bei
+SQL Server bleibt, ist nicht betroffen. §38 daneben deckt den Passkey-Bruch ab, der bei der
+Konventions-Korrektur mit herausgefallen ist.
+
+**Damit sind Phase 1, 2 und 3 abgeschlossen.** Offen bleibt allein die Performance-Parität, die von
+Anfang an nicht in der Schätzung stand.
 
 ### Gesamt
 
