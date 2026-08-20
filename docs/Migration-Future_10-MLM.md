@@ -3030,6 +3030,138 @@ Der Name des in Schritt 4 fallengelassenen Index kann bei euch abweichen — vor
 
 ---
 
+## 38. Passkeys sind ausdrücklich einzuschalten — **Pflicht, wenn ihr Passkeys benutzt**
+
+Betrifft euch direkt: **ohne Handeln verschwindet der Passkey-Abschnitt aus der Kontoverwaltung.**
+
+### 38.1 Was passiert ist
+
+.NET 10 hat `IdentityUserContext` ein `UserPasskeys`-DbSet hinzugefügt, den Entitätstyp dazu aber
+**ausdrücklich ausgeschlossen** — Passkeys sind seither opt-in. Die Konvention
+`TableNamesFromProperties` lief mit `FlattenHierarchy` über alle DbSet-Eigenschaften, also auch die
+geerbten, und hat den Ausschluss überstimmt. Der Typ landete unkonfiguriert im Modell, mit ihm seine
+`Data`-Eigenschaft als schlüssellose Entität:
+
+```
+The entity type 'IdentityPasskeyData' requires a primary key to be defined.
+  at ModelValidator.ValidateNonNullPrimaryKeys
+```
+
+Das ist der **Kern**-Validator — jeder Identity-Kontext der Bibliothek scheiterte daran, auf SQL Server
+genauso wie auf PostgreSQL, und zwar beim Bauen des Modells: also `dotnet ef` **und** die Laufzeit.
+Dass es bei euch lief, lag allein an eurem eigenen Passkey-Block im `ApplicationDbContext`, der die
+Entität nachträglich vollständig konfiguriert hat.
+
+Die Konvention respektiert jetzt ausdrückliche Ausschlüsse. Damit ist der Fehler weg — und der
+Passkey-Typ standardmässig nicht mehr im Modell, so wie .NET 10 es vorsieht.
+
+> Nur *absichtliche* Ausschlüsse (`Explicit`, `DataAnnotation`) werden übersprungen. Was blosse
+> Konvention ausgeschlossen hat, wird weiter benannt wie bisher — die Tabellennamen `Users`, `Roles`,
+> `UserClaims` kommen genau aus dieser Konvention und bleiben unverändert.
+
+### 38.2 Was ihr tun müsst
+
+**Erstens: den Passkey-Block behalten und prüfen, dass er vollständig ist.** Er ist ab jetzt die
+einzige Stelle, die den Typ ins Modell bringt. Er muss `IdentityUserPasskey<string>` registrieren,
+einen Schlüssel setzen — und **etwas über `Data` sagen**. Das ist die wahrscheinlichste
+Stolperstelle: ohne Aussage dazu ist `IdentityPasskeyData` wieder eine schlüssellose Entität, und die
+Validierung bricht mit derselben Meldung ab. Sinnvoll ist ein komplexer Typ bzw. eine JSON-Spalte,
+keine eigene Tabelle.
+
+Prüfbar **ohne Datenbank**:
+
+```
+dotnet ef dbcontext info --context ApplicationDbContext
+```
+
+Kommt eine Ausgabe mit `Provider name`, stimmt das Modell. Kommt
+`IdentityPasskeyData requires a primary key`, fehlt die Aussage über `Data`.
+
+**Zweitens: den Schalter setzen.** Neu in `IdentityUiOptions`, **Standard `false`**:
+
+```json
+{ "UsePasskeys": true }
+```
+
+Ohne ihn registriert das WebPart den Passkey-Handler nicht, und dann gilt: kein „Mit Passkey
+anmelden" auf der Anmeldeseite, kein Eintrag *Passkeys* in der Konto-Navigation, die Seite
+`Account/Manage/Passkeys` antwortet „nicht verfügbar", und die zugehörigen Endpunkte lehnen ab.
+
+### 38.3 Warum ein Schalter und keine Erkennung
+
+Naheliegend wäre `UserManager.SupportsUserPasskey` gewesen. Der Wert trägt hier aber nicht: der
+EF-Benutzer-Speicher setzt die Passkey-Methoden **unbedingt** um und meldet deshalb auch dann `true`,
+wenn der DbContext die Entität gar nicht abbildet. Er beantwortet „kann der Speicher das
+grundsätzlich", nicht „ist es hier eingerichtet" — und nur Letzteres entscheidet, ob das Speichern
+gelingt. Verlässlich wäre allein ein Blick ins Modell des konkreten DbContext, und den kennen die
+Identity-Seiten nicht; sie sehen `SignInManager` und `UserManager`. Also sagt es der Host.
+
+Ausführlich in `Migration-Future_10-MLM-Passkeys.md`.
+
+---
+
+## 39. PostgreSQL für die hierarchische Mandanten-Sicherheit (optional, kein Zwang)
+
+Bis jetzt gab es die Baum-Ausprägung (`CoreIdentityTree`) nur für SQL Server — 17 Datenbank-Objekte in
+reinem T-SQL. Ein Umzug auf PostgreSQL war damit blockiert, nicht bloss aufwendig. Das ist erledigt:
+die Ausprägung existiert jetzt auch für PostgreSQL, mit eigener Initialmigration.
+
+**Wer bei SQL Server bleibt, muss nichts tun.** Dieser Abschnitt ist für den Fall, dass ihr wechselt.
+
+### 39.1 Was zu konfigurieren ist
+
+Im WebPart `…TenantSecurity.PostgreSql` dieselben Angaben wie bisher auf SQL Server —
+`Identity = CoreIdentity`, `Strategy = Tree` —, dazu die Verbindungszeichenfolge. Der Fall
+`(CoreIdentity, Tree)` ist dort neu; vorher kannte die PostgreSQL-Fassung nur die flache Variante.
+
+### 39.2 Was beim Einspielen zu beachten ist
+
+1. Die Initialmigration legt das Schema an (75 Tabellen).
+2. Danach braucht es — wie auf SQL Server auch — eine Migration, die
+   `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` aufruft. Sie legt 5 Views, 10
+   Funktionen und den Rekursions-Wächter an und ist **wiederholbar**: alle Objekte werden vorher
+   weggeräumt.
+3. **Euer eigener `ApplicationDbContext` ist damit nicht erledigt.** Die Bibliothek bringt nur ihre
+   eigenen Migrationen mit; für euren Kontext braucht es einen PostgreSQL-Migrationsstand aus eurem
+   Repo.
+
+### 39.3 Zwei Verhaltensunterschiede, die ihr kennen solltet
+
+**Der Zyklen-Abbruch meldet sich anders.** SQL Server bricht eine Rekursion nach 100 Ebenen mit
+Fehler 530 ab. PostgreSQL kennt keine solche Grenze — dieselbe Abfrage liefe endlos. Nachgebaut wurde
+das mit einer Wächter-Funktion, bewusst **nicht** mit der `CYCLE`-Klausel: die bricht *still* ab und
+liefert ein Teilergebnis, und bei einer Rechte-Abfrage ist das die schlechtere Sorte Fehler — jemand
+arbeitet mit zu wenig Rechten weiter, und niemand merkt es. Die Meldung nennt zusätzlich das Objekt:
+
+```
+ERROR: Die hoechstzulaessige Rekursionstiefe (100) wurde in UpwardsTenantTree ueberschritten.
+       Vermutlich enthaelt die Mandanten- oder Rollen-Hierarchie einen Zyklus.   [SQLSTATE 54001]
+```
+
+Wer heute auf Fehler 530 prüft, muss das anpassen.
+
+**`GetChildTenantsWithPermsProc` ist dort eine Funktion, keine Prozedur** — PostgreSQL kennt keine
+Prozedur, die eine Ergebnismenge liefert. Für den Toolkit-Code ist das unsichtbar (der Zugriff läuft
+über das Methoden-Verzeichnis). Wer die Prozedur aus eigenem SQL aufruft, schreibt dort
+`select * from "GetChildTenantsWithPermsProc"(…)` statt `exec`. Nebenbei kann die PostgreSQL-Fassung
+dadurch mehr: sie lässt sich in eine Abfrage einbetten, was auf SQL Server am Verbot geschachtelter
+`INSERT … EXEC` scheitert.
+
+### 39.4 Was geprüft ist — und was nicht
+
+Geprüft: dieselbe Hierarchie auf beiden Providern, dieselben Abfragen, Ergebnisse **Zeile für Zeile**
+verglichen — 95 Zeilen, kein Unterschied. Darin enthalten sind die heiklen Fälle: mandanteninterne
+Weitergabe von Rollen, eine Berechtigung, die nur über diese Weitergabe erreichbar ist, Gleichstände
+auf derselben Ebene, ein Benutzer in der Mitte des Baums, Verzweigungen. Einzelheiten in
+`Audit-PostgreSQL-Luecken.md`.
+
+**Nicht geprüft: das Laufzeitverhalten unter Last.** Die T-SQL-Fassungen sind über Jahre getunt
+(`RESOURCE_SEMAPHORE`-Fix, Anker-Fix im Rollen-Baum, Ein-Durchlauf-`RANK`). Diese Arbeit ist nicht
+übertragbar — anderer Planer, andere Statistiken, andere Indexstrategie. Eine korrekt übersetzte
+Abfrage kann dort deutlich langsamer sein. Das ist eine eigene Aufgabe und **kein** erledigter Punkt.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3080,3 +3212,5 @@ Der Name des in Schritt 4 fallengelassenen Index kann bei euch abweichen — vor
 | 42 | **Muster-Designer + strengere Muster-Prüfung** (§35) | Kein Schema-Change. Neu `ITVComponents.Scheduling.SchedulePattern` (zerlegen/zusammensetzen) und ein Kalender-Knopf am Zeitplan-Feld mit Termin-Vorschau. **Achtung, Verhaltensänderung:** der Muster-Regex ist nicht verankert, deshalb wurde ein Muster mit vertauschten Teilen bisher still verkürzt gelesen (und der Plan lief zu einer anderen Zeit als angezeigt). Zerlegung und `ScheduleEvaluator.TryValidate` verankern jetzt selbst — ein solches Muster **meldet der Validator künftig als Fehler**, was eine bestehende Definition beim nächsten Speichern als fehlerhaft markieren kann |
 | 43 | **Anhänge am Vorgang** (§36) | **Pflicht-Migration:** `WorkflowAttachments` (beide Provider) — zwei Tabellen (Beschreibung mit FK+Index, Blobs ohne FK). `IWorkflowTaskHandler` bekommt **vier** weitere Member (`ListAttachmentsAsync`, `AddAttachmentAsync`, `OpenAttachmentAsync`, `DeleteAttachmentAsync`) — **eigene Implementierungen brechen**. Grösse über `WorkflowViewsOptions.MaxAttachmentBytes` (10 MB; **0 schaltet Anhänge ab**). **Merke: NICHT über den `IFileHandler`** — dessen Vertrag gibt keine Datei-Kennung zurück, mit der sich ein Anhang später lesen liesse; stattdessen `IWorkflowAttachmentStore` mit eingebauter Datenbank-Ablage, austauschbar wie beim Hilfesystem. Löschen nur den eigenen Anhang |
 | 44 | **Zentrale Abläufe per Aktivierung** (§37) | **Pflicht-Migration:** neue Tabelle `WorkflowStartTriggerActivations` + 7 Spalten an `WorkflowStartTriggers`, **Datenumzug des Lauf-Zustands** (`NextDueUtc`/`LastRunUtc`/`LastInstanceId`/Lease ziehen von der Auslöser- auf die Aktivierungs-Zeile), erst danach die alten Spalten fallen lassen. **Regelweg ist die mitgelieferte Migration `TriggerActivations` (beide Provider) — sie bewegt Daten, nicht nur Schema; Handarbeit-SQL gleichwertig in §37.5.** Nicht neu scaffolden: beide Migrationen sind nachbearbeitet (das Gerüst deutete `LeaseOwner`/`LastInstanceId` als Umbenennung nach `RequiredPermission`/`RequiredFeature` und liess den Datenumzug weg). `IWorkflowStore` bekommt 6 neue Member und ändert 2 Signaturen (`FindMessageTriggers`, `ClaimDueScheduleTriggers`) — **eigene Store-Implementierungen brechen**. **Verhaltensänderung (§37.4): Nachrichten tragen jetzt einen Ursprungs-Mandanten**, und nur der lässt etwas anlaufen; ohne Ursprung feuert nur, was `AllowTenantlessStart` erlaubt. Wer aus Host-Code ohne Mandanten-Kontext sendet, startet danach nichts mehr (wird protokolliert). Das schliesst eine Flanke, die es schon vorher gab: eine mandantenlose Nachricht eröffnete bei hundert Mandanten hundert Vorgänge. **Merke: die Aktivierung hängt an der fachlichen Identität, NICHT am `TriggerKey`** — der wird bei jedem Speichern der Definition neu vergeben. Feature/Permission an der Definition (nur Sysadmin) gaten die Verwendung; das **Feature wird bei jedem Feuern** nachgeprüft (`IWorkflowTenantFeatureGate`, ohne Verdrahtung erlaubt es alles), die Permission nur beim Anhaken und beim Start von Hand. Fehlt das Feature: überspringen + protokollieren, Fälligkeit trotzdem fortschreiben, **nicht** abhaken. Ein-Mandanten-Betrieb unberührt |
+| 45 | **Passkeys sind opt-in** (§38) | **Pflicht, wenn ihr Passkeys benutzt** — sonst verschwindet der Abschnitt aus der Kontoverwaltung. Zwei Dinge müssen zusammenkommen: euer eigener Passkey-Block im `ApplicationDbContext` (der **muss auch etwas über `Data` sagen**, sonst kommt `IdentityPasskeyData requires a primary key` zurück) **und** neu `IdentityUiOptions.UsePasskeys = true` (**Standard `false`**). Hintergrund: .NET 10 schliesst den Passkey-Typ ausdrücklich aus, und `TableNamesFromProperties` hat diesen Ausschluss bisher überstimmt — dadurch scheiterte **jeder** Identity-Kontext der Bibliothek beim Bauen des Modells, auf SQL Server genauso, in `dotnet ef` **und** zur Laufzeit. Kein Schema-Change. **Merke: `UserManager.SupportsUserPasskey` taugt nicht als Schalter** — der EF-Speicher meldet immer `true`, auch ohne abgebildete Entität. Prüfen mit `dotnet ef dbcontext info --context ApplicationDbContext` |
+| 46 | **PostgreSQL für den Mandanten-Baum** (§39, optional) | **Wer bei SQL Server bleibt, muss nichts tun.** Die Ausprägung `CoreIdentityTree` gibt es jetzt auch für PostgreSQL (Initialmigration + 5 Views + 10 Funktionen). Beim Wechsel: WebPart auf `Identity = CoreIdentity`, `Strategy = Tree`, dann Initialmigration und eine Migration mit `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (wiederholbar). **Euer eigener Kontext ist damit nicht erledigt** — dessen PostgreSQL-Migrationen kommen aus eurem Repo. Zwei Verhaltensunterschiede: der Zyklen-Abbruch meldet `SQLSTATE 54001` mit Klartext statt Fehler 530 (bewusst eine Ausnahme statt der still abbrechenden `CYCLE`-Klausel), und `GetChildTenantsWithPermsProc` ist dort eine **Funktion** — eigenes SQL ruft `select * from "…"(…)` statt `exec`. Geprüft: dieselbe Hierarchie beidseitig, 95 Zeilen Zeile-für-Zeile ohne Unterschied. **Nicht geprüft: Laufzeitverhalten unter Last** — die T-SQL-Tunings sind nicht übertragbar |
