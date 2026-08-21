@@ -59,7 +59,62 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
         }
 
-        private static BlazorContextUserProvider NewProvider(string baseUri, string uri, TenantSource source)
+        /// <summary>
+        /// Endpoints that render no Blazor component — the toolkit's own <c>/{tenant}/Diagnostics</c>,
+        /// <c>/ForeignKey</c> and <c>/DBW</c> are minimal-API <c>MapGet</c>s — leave the NavigationManager
+        /// uninitialized. Without the fallback the tenant from the URL was lost and scope resolution served
+        /// the user's default tenant instead (BUG-PRE186).
+        /// </summary>
+        [TestMethod]
+        public void Uninitialized_Navigation_Falls_Back_To_Request_Route_Values()
+        {
+            var provider = NewProvider(null, null, TenantSource.PathSegment, RequestWithTenant("TenantC"));
+
+            Assert.AreEqual("TenantC", provider.RouteData["tenant"]);
+        }
+
+        /// <summary>
+        /// The window the fallback must not disturb: plugin initialization at startup has no request at all.
+        /// </summary>
+        [TestMethod]
+        public void Uninitialized_Navigation_Without_Request_Yields_Empty()
+        {
+            var provider = NewProvider(null, null, TenantSource.PathSegment, new HttpContextAccessor());
+
+            Assert.AreEqual(0, provider.RouteData.Count);
+        }
+
+        [TestMethod]
+        public void Flat_Base_Falls_Back_To_Request_Route_Values()
+        {
+            var provider = NewProvider("https://app/", "https://app/Diagnostics/Q", TenantSource.PathSegment,
+                RequestWithTenant("TenantC"));
+
+            Assert.AreEqual("TenantC", provider.RouteData["tenant"]);
+        }
+
+        /// <summary>
+        /// Inside a live circuit the base URI is the correct source — the request's route values must not
+        /// overrule it (they are stale there, and the HttpContext is null anyway).
+        /// </summary>
+        [TestMethod]
+        public void Base_Segment_Wins_Over_Request_Route_Values()
+        {
+            var provider = NewProvider("https://app/TenantA/", "https://app/TenantA/users", TenantSource.PathSegment,
+                RequestWithTenant("TenantC"));
+
+            Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
+        }
+
+        private static IHttpContextAccessor RequestWithTenant(string tenant)
+        {
+            var ctx = new DefaultHttpContext();
+            ctx.Request.RouteValues["tenant"] = tenant;
+            return new HttpContextAccessor { HttpContext = ctx };
+        }
+
+        private static BlazorContextUserProvider NewProvider(string baseUri, string uri, TenantSource source,
+            IHttpContextAccessor httpContextAccessor = null)
         {
             var nav = new TestNavigationManager(baseUri, uri);
             var auth = new TestAuthenticationStateProvider(new ClaimsPrincipal(new ClaimsIdentity()));
@@ -68,12 +123,23 @@ namespace ITVComponents.WebCoreToolkit.Tests
                 RouteOverrideParam = "tenant",
                 TenantSource = source
             });
-            return new BlazorContextUserProvider(auth, nav, new EmptyServiceProvider(), options, new HttpContextAccessor());
+            return new BlazorContextUserProvider(auth, nav, new EmptyServiceProvider(), options,
+                httpContextAccessor ?? new HttpContextAccessor());
         }
 
         private sealed class TestNavigationManager : NavigationManager
         {
-            public TestNavigationManager(string baseUri, string uri) => Initialize(baseUri, uri);
+            /// <summary>
+            /// A null base URI leaves the manager uninitialized on purpose — that is the state a request
+            /// which renders no component finds it in, and <c>Uri</c>/<c>BaseUri</c> throw there.
+            /// </summary>
+            public TestNavigationManager(string baseUri, string uri)
+            {
+                if (baseUri != null)
+                {
+                    Initialize(baseUri, uri);
+                }
+            }
         }
 
         private sealed class TestAuthenticationStateProvider : AuthenticationStateProvider

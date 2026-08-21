@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.Security
@@ -65,6 +66,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         public IServiceProvider Services { get; }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// The tenant normally comes from the base URI, i.e. from the <c>&lt;base href&gt;</c> — which only
+        /// exists once Blazor renders. Endpoints that render no component (the toolkit's own
+        /// <c>/{tenant}/Diagnostics</c>, <c>/ForeignKey</c> and <c>/DBW</c> are minimal-API <c>MapGet</c>s)
+        /// have neither a base href nor an initialized NavigationManager, so this getter used to yield no
+        /// tenant at all for them: scope resolution found no route override, fell back to the user's default
+        /// tenant and served that tenant's data — silently, and under a URL that says otherwise.
+        /// <para>
+        /// Hence the fallback to the request's route values, the very source
+        /// <see cref="ITVComponents.WebCoreToolkit.Security.DefaultContextUserProvider"/> reads outside
+        /// Blazor. Same move the <see cref="User"/> getter already makes for the same gap. The base URI stays
+        /// first: inside a live circuit it is the correct source (and the HttpContext is null there anyway),
+        /// so per-tab behaviour is untouched — the HttpContext is strictly the fallback.
+        /// </para>
+        /// <para>
+        /// Deliberately only the route values, not the request's query: on a non-Blazor host these endpoints
+        /// see exactly those, and a <c>?tenant=</c> must not become an override channel that the same
+        /// endpoint would not have without Blazor.
+        /// </para>
+        /// </remarks>
         public IDictionary<string, object> RouteData
         {
             get
@@ -72,8 +93,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 // Outside a live circuit/request — e.g. plugin initialization at startup (UsePluginsInit),
                 // where a permission-scoped query forces scope resolution — the scoped NavigationManager is
                 // not yet initialized and throws ('…NavigationManager has not been initialized') on Uri/BaseUri.
-                // There is no route context to read in that window, so yield empty route data and let scope
-                // resolution fall back to its default (no route-based tenant override without a request).
+                // That window has no HttpContext either, so the fallback below yields nothing and scope
+                // resolution still lands on its default. A served request, however, does have one.
                 string uri, baseUri;
                 try
                 {
@@ -82,7 +103,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 }
                 catch (InvalidOperationException)
                 {
-                    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    return RequestRouteValues() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                 }
 
                 var result = ParseQuery(uri);
@@ -91,6 +112,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                     && !string.IsNullOrEmpty(opts.RouteOverrideParam))
                 {
                     var segment = ExtractFirstBaseSegment(baseUri);
+                    if (string.IsNullOrEmpty(segment)
+                        && RequestRouteValues() is { } routeValues
+                        && routeValues.TryGetValue(opts.RouteOverrideParam!, out var fromRoute))
+                    {
+                        // NavigationManager initialized but the base URI carries no tenant — a request that
+                        // renders nothing can land here too, depending on how the host wires Blazor.
+                        segment = fromRoute as string;
+                    }
+
                     if (!string.IsNullOrEmpty(segment))
                     {
                         result[opts.RouteOverrideParam!] = segment;
@@ -100,13 +130,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             }
         }
 
+        /// <summary>
+        /// The route values of the request being served, or <c>null</c> when there is no request (live
+        /// circuit, or the startup window before any request).
+        /// </summary>
+        private IDictionary<string, object>? RequestRouteValues()
+            => httpContextAccessor.HttpContext?.GetRouteData()?.Values;
+
         /// <inheritdoc/>
+        /// <remarks>
+        /// Same gap as in <see cref="RouteData"/>, same fallback: without a circuit there is no
+        /// NavigationManager URI, but a served request knows its path. Reached e.g. when request data is
+        /// conserved for background work started from one of the non-Blazor endpoints.
+        /// </remarks>
         public string RequestPath
         {
             get
             {
                 try { return new Uri(navigation.Uri).AbsolutePath; }
-                catch { return null; }
+                catch { return httpContextAccessor.HttpContext?.Request.Path.Value; }
             }
         }
 
