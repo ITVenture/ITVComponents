@@ -331,7 +331,9 @@ Anfang an nicht in der Schätzung stand.
 
 ### Was die Zahl kippen kann
 
-1. **Performance-Parität ist nicht enthalten.** Die T-SQL-Fassungen sind *getunt* — der
+1. **Performance-Parität ist nicht enthalten.** *(Inzwischen gemessen — siehe „Phase 4" am Ende:
+   die Befürchtung hat sich bestätigt, und zwar an einer anderen Stelle als vermutet.)* Die
+   T-SQL-Fassungen sind *getunt* — der
    `RESOURCE_SEMAPHORE`-Fix, der Anker-Fix im Rollen-Baum (~60×/~2×), der Ein-Durchlauf-`RANK()`.
    Diese Arbeit ist auf PostgreSQL **nicht übertragbar**: anderer Planer, andere Statistiken, andere
    Indexstrategie. Eine korrekt übersetzte Abfrage kann dort um Grössenordnungen langsamer sein. Das
@@ -352,3 +354,88 @@ Phase 1 lohnt sich **unabhängig davon, ob der Umzug kommt**: sie räumt T-SQL a
 ist auf SQL Server verifizierbar und macht Phase 2 erst schätzbar. Ich würde sie machen und danach
 entscheiden — nach Phase 1 ist die Unsicherheit in Phase 2 deutlich kleiner, weil dann feststeht,
 welche Objekte überhaupt noch gebraucht werden.
+
+## Phase 4 — Performance-Parität: gemessen (21.08.2026)
+
+Der Punkt, der oben als „nach oben offen" stand, ist jetzt keine Schätzung mehr, sondern eine Zahl.
+
+### Der Prüfstand
+
+10 000 Mandanten auf **beiden** Providern, wortgleich aufgebaut und nachgezählt (Mandanten 10 000,
+`UpwardsTenantTree` 509 950 Zeilen, 100 Rollen, je 5 000 Rausch-Zeilen bei Plugins, Diagnose-Abfragen
+und Kacheln). Die Form ist bewusst zweiteilig: **1..100 eine Kette** — Tiefe 1 bis 100, also exakt an
+der Rekursionsgrenze, nicht in ihrer Nähe — und **101..10000 ein breiter Baum**, dessen Eltern reihum
+die Kettenglieder 1..99 sind. Damit gibt es Geschwister auf jeder Ebene und die tiefste Ebene ist 100.
+
+Mit den echten Indizes aus der Initialmigration und mit frischen Statistiken auf beiden Seiten
+(`ANALYZE` / `sp_updatestats`) — ohne beides wären Zeitmessungen wertlos. Die Datenbankobjekte kommen
+wie schon in 3.1/3.2 aus `ConfigureViews` des jeweiligen Providers, also aus dem echten Code.
+
+### Die Zahlen
+
+| # | Messpunkt | Zeilen | PostgreSQL | SQL Server |
+|---|-----------|--------|------------|------------|
+| M0 | Baum vollständig materialisieren | 509 950 | **286 ms** | 1 950 ms |
+| M1 | `CurrentTenantTree` für T100 (Kettenende) | 100 | 280 ms | **< 1 ms** |
+| M2 | `CurrentTenantTree` für T199 (breiter Teil) | 100 | 272 ms | **< 1 ms** |
+| M3 | Diagnose-Abfragen sichtbar von T199 | 102 | 275 ms | **39 ms** |
+| M4 | Kacheln sichtbar von T199 | 102 | 275 ms | **38 ms** |
+| M5 | Plugin-Auflösung `DataSource` von T199 | 1 | 786 ms | **2 ms** |
+| M6 | Rollen-Baum nach **oben** (T100) | 1 | 296 ms | **3 ms** |
+| M7 | Rollen-Baum nach **unten** von der Wurzel | 100 | **4 703 ms** | 5 007 ms |
+| M8 | Kind-Mandanten mit Berechtigung, von der Wurzel | 5 | 5 087 ms | **4 839 ms** |
+| M9 | dasselbe aus der Mitte (bob/T50) | 2 | **3 647 ms** | 4 818 ms |
+
+Alle Zeilenzahlen stimmen auf beiden Seiten überein — gemessen wurde nachweislich dieselbe Arbeit.
+
+Vorbehalte, damit die Zahlen nicht mehr behaupten als sie tragen: je ein Lauf; PostgreSQL im
+Container, SQL Server auf LocalDB, also zwei verschiedene Umgebungen. Ein Faktor 2 ist damit Rauschen.
+Ein Faktor 300 nicht.
+
+### Der eine Befund, der alles erklärt
+
+**PostgreSQL schiebt einen Filter nicht in eine rekursive Sicht.** Der Plan von M1 sagt es wörtlich:
+
+```
+CTE Scan on r  (actual rows=100)
+  Filter: (("OutermostLeafTenantName")::text = 'T100'::text)
+  Rows Removed by Filter: 509850     <-- der ganze Baum wird gebaut und dann weggeworfen
+  temp written=2363                   <-- ~19 MB in temporäre Dateien, pro Aufruf
+```
+
+SQL Server zieht die Bedingung in den **Anker** der Rekursion und läuft eine einzige Kette von 100
+Zeilen hoch. PostgreSQL materialisiert erst alle 509 950 Zeilen und filtert danach. Das ist keine
+Frage der Definition — die beiden Sichten sind Zeile für Zeile dieselbe Abfrage. Eine rekursive CTE
+ist für den PostgreSQL-Planer eine Optimierungsgrenze.
+
+Drei Gegenproben, damit der Befund nicht auf die Umgebung geschoben wird:
+
+- **Es liegt an der Form, nicht an der Maschine.** Dieselbe Frage mit von Hand gefiltertem Anker —
+  also das, was eine Funktion mit Parameter tut — kostet auf demselben Container **0,2–1,3 ms** statt
+  270 ms. Der Plan wechselt dabei von „Seq Scan + Recursive Union über 509 950 Zeilen" auf „Index Scan
+  auf `IX_UniqueTenant` + 100 Nested-Loop-Schritte".
+- **Konfiguration heilt es nicht.** Mit `work_mem = 256MB` verschwindet der Überlauf in temporäre
+  Dateien, die Zeit bleibt bei 290 ms statt 303 ms. Die Kosten sind die 509 950 Zeilen selbst.
+- **PostgreSQLs Rekursion ist nicht langsam — im Gegenteil.** Denselben Baum baut sie in 286 ms, wozu
+  SQL Server 1 950 ms braucht. Der Rückstand entsteht ausschliesslich daraus, dass **jede** gefilterte
+  Abfrage diesen vollen Aufbau bezahlt.
+
+### Warum das die kritische Stelle ist
+
+`CurrentTenantTree` läuft bei **jedem** gefilterten Zugriff in einem Kind-Mandanten
+(`AspNetTreeSecurityContext`). Auf PostgreSQL kostet das bei 10 000 Mandanten 270 ms und rund
+19 MB temporäre Dateien — pro Aufruf. Dasselbe trifft die Plugin-Auflösung (M5 berührt die Sicht
+zweimal), Diagnose-Abfragen und Kacheln (M3/M4) und die Rollen-Funktionen, die die Sicht intern lesen
+(M6: `GetUpwardsRoleTreeForIdByLeafId` liest `UpwardsTenantTree` und filtert erst danach).
+
+Die Kosten hängen an der Grösse des **ganzen** Baums (Summe aller Tiefen), nicht an der Tiefe des
+abgefragten Mandanten. Sie wachsen also mit jedem neuen Mandanten — auch für Mandanten, die selbst
+flach sitzen.
+
+### Was ausdrücklich *nicht* das Problem ist
+
+M7/M8/M9 sind auf beiden Seiten gleich langsam (3,6–5,1 s). Der Rollen-Baum nach unten von der Wurzel
+über 10 000 Mandanten und „Kind-Mandanten mit Berechtigung" kosten auf SQL Server heute genauso viel.
+Das ist ein bestehender Zustand und kein Umzugsrisiko — aber einen eigenen Blick wert, falls MLM diese
+Wege häufig geht. Der ursprüngliche Verdacht, die Abwärtsrichtung sei das Umzugsrisiko, war damit
+falsch: das Risiko liegt in der Aufwärtsrichtung, die vorher unauffällig aussah.
