@@ -120,6 +120,53 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         /// <summary>
+        /// <b>Die Form, in der es in Produktion laeuft:</b> EIN Options-Provider fuer alle Kontexte.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Provider ist ein Plugin und lebt einmal im Prozess; sein <c>DbContextModelBuilderOptions</c>
+        /// samt <c>ExpressionFixVisitor</c> also auch. Der Visitor nimmt je Namen die <b>erste</b>
+        /// Registrierung - und die ist eine <c>MemberExpression</c> ueber eine <b>Konstante</b>: den
+        /// Kontext, der als erster durch <c>OnModelCreating</c> gelaufen ist. Dazu kommt, dass EF das
+        /// Modell einmal baut und danach wiederverwendet. Auf dem Papier haengt der Filter damit an
+        /// genau einer Kontext-Instanz.
+        /// </para>
+        /// <para>
+        /// Dass es trotzdem stimmt, liegt an EF Core: in einem Query-Filter ersetzt es eine
+        /// <c>DbContext</c>-Konstante durch einen Zugriff auf den <b>gerade laufenden</b> Kontext. Genau
+        /// diese Zusage prueft dieser Test - und haelt sie fest, damit ein EF-Wechsel sie nicht
+        /// stillschweigend zuruecknehmen kann. Die uebrigen Tests hier wuerden es nicht merken: sie geben
+        /// jedem Kontext seinen eigenen Provider und damit seine eigene Registrierung.
+        /// </para>
+        /// </remarks>
+        [TestMethod]
+        public void SharedOptionsProvider_FilterFollowsTheRunningContext_NotTheFirstOne()
+        {
+            var shared = new WorkflowFilterInitializer<WorkflowContext>();
+
+            WorkflowContext ContextFor(string tenant) => new WorkflowContext(
+                new SqliteTestOptionsLoader(connection), TestServices.ForTenant(tenant),
+                useTenantFilter: true, shared);
+
+            // acme ist als erster da und praegt damit die Registrierung im gemeinsamen Visitor.
+            var acme = new EfWorkflowStore(() => ContextFor("acme"));
+            acme.SaveDefinition(Definition("acmeflow", "acme"));
+            Assert.IsNotNull(acme.GetDefinition("acmeflow"), "the first context must see its own definition");
+
+            // beta kommt danach - mit demselben Provider, demselben Options-Objekt, demselben Modell.
+            var beta = new EfWorkflowStore(() => ContextFor("beta"));
+            beta.SaveDefinition(Definition("betaflow", "beta"));
+
+            Assert.IsNull(beta.GetDefinition("acmeflow"),
+                "the filter must evaluate on the RUNNING context - not on the one that registered first");
+            Assert.IsNotNull(beta.GetDefinition("betaflow"), "and beta must see its own");
+            Assert.IsNull(acme.GetDefinition("betaflow"), "the same in the other direction");
+
+            using WorkflowContext ctx = ContextFor("beta");
+            Assert.AreEqual("beta", ctx.CurrentTenant);
+        }
+
+        /// <summary>
         /// Der DI-Ctor leitet den Schalter aus <see cref="WorkflowContextOptions"/> auf den bool-Ctor um -
         /// ausdruecklich gesetzt wie ausgelassen. Ohne Options gilt der Standard <c>true</c>: der DI-Weg
         /// laeuft im Web, und dort ist "zu viel sehen" der teure Fehler.

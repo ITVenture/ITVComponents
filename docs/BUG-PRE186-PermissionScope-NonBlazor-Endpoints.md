@@ -286,8 +286,8 @@ HttpContext, der Rückfall läuft dort weiterhin ins leere Dictionary. Das ist a
 
 ### Was damit NICHT erledigt ist
 
-Die beiden Nebenbefunde unten stehen weiterhin offen — sie tragen diesen Fehler nicht, verdienen aber
-je eine eigene Entscheidung.
+Die beiden Nebenbefunde unten sind inzwischen **beide erledigt** — jeweils als eigene Arbeit, siehe
+die Nachträge dort.
 
 ## Nebenbefunde (nicht Teil dieses Reports)
 
@@ -298,6 +298,12 @@ Bei der Analyse mitgefunden, jeweils ohne Auswirkung auf **diesen** Fehler:
    `WorkflowInstanceRow` (strikt). Wer direkt über `db.Tokens` einsteigt, ist nur über den Join auf
    die Instanzen geschützt. Ob das Absicht ist, sollte einmal ausdrücklich entschieden und im
    Leitfaden festgehalten werden.
+
+   > **Erledigt.** `TokenRow` hat jetzt denselben strikten Filter wie die Instanz. Die Arbeit lag beim
+   > *Nicht*-Filtern: sechs Lesewege sind ausdrücklich ausgenommen — allen voran das Speichern (was es
+   > nicht findet, legt es **neu** an → Schlüsselverletzung) und das Laden einer Instanz (die
+   > Mandanten-Grenze zieht die Instanz; was an ihr hängt, gehört dazu). Dazu die Migration
+   > `TokenTenantBackfill` für die Vorgänge, die seit vor der Spalte parken. Leitfaden §41.
 2. **`ExpressionFixVisitor.RegisterExpression` ist „erster gewinnt"**
    (`if (!propertyReplacements.ContainsKey(name))`). Der über `ConfigureExpressionProperty(() => CurrentTenant)`
    registrierte Ausdruck ist eine `MemberExpression` über eine **Konstante** — die Kontext-Instanz,
@@ -306,3 +312,23 @@ Bei der Analyse mitgefunden, jeweils ohne Auswirkung auf **diesen** Fehler:
    liefert `"DEFAULT"`, solange der Kontext kein `ICustomModelIdProvider` implementiert) ist das eine
    latente Falle. Im Meldefall trägt sie nicht, weil EF Core Kontext-Referenzen in Query-Filtern auf
    die jeweils laufende Instanz umbindet — verlassen würde ich mich darauf ungern.
+
+   > **Erledigt, in zwei Teilen — und der Befund war genau richtig gelesen.**
+   >
+   > **Erstens: die Zusage ist jetzt geprüft statt angenommen.** Die vorhandenen Tests konnten sie gar
+   > nicht zeigen: sie geben jedem Kontext seinen **eigenen** Options-Provider, damit seine eigene
+   > Registrierung — die Produktionsform (ein Provider als Plugin, ein Options-Objekt, ein Modell für
+   > alle Kontexte) kam darin nie vor. Der neue Test
+   > `SharedOptionsProvider_FilterFollowsTheRunningContext_NotTheFirstOne` baut genau sie nach: ein
+   > geteilter Provider, `acme` registriert zuerst, `beta` fragt danach — und sieht seine eigenen Daten.
+   > EF bindet die Konstante also wirklich um. Jetzt hält ein Test das fest, statt dass es jemand
+   > wissen muss.
+   >
+   > **Zweitens: für alles ausser dem Kontext gilt die Zusage nicht** — und *das* ist die eigentliche
+   > Falle. Wer `() => someService.Tenant` registriert, bekommt keine Umbindung, sondern genau diese
+   > eine Instanz, dauerhaft, in jedem Filter, für jeden Benutzer; es übersetzt sauber und liefert
+   > Ergebnisse, nur eben die des Ersten. `RegisterExpression` prüft deshalb jetzt, dass der Ausdruck
+   > auf dem Kontext wurzelt (oder statisch ist), und wirft sonst mit Begründung. Ebenso wird ein
+   > **anderes** Member unter demselben Platzhalter-Namen nicht mehr still verworfen, sondern
+   > abgelehnt. „Erster gewinnt" bleibt — es trägt die mehrfache Konfiguration desselben
+   > Options-Objekts —, ist aber jetzt dokumentiert und abgesichert.
