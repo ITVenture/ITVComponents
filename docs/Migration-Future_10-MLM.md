@@ -3239,6 +3239,56 @@ das Blatt.
 
 ---
 
+## 41. Token-Zeilen sind jetzt mandantengefiltert — **Pflicht-Migration (`TokenTenantBackfill`)**
+
+Bisher hatten nur Definitionen und Instanzen einen Query-Filter. Die **Token-Zeilen** hatten keinen: wer
+über `db.Tokens` einstieg — eine Aufgaben-Ansicht, eine Diagnose-Abfrage, eigener Code — sah die Zeilen
+**aller** Mandanten. Geschützt war nur der Weg über den Store, weil dessen Suchläufe die gefundenen
+Instanzen am Ende durch den (gefilterten) Instanz-Zugriff laden.
+
+Das ist geschlossen: `TokenRow` hat denselben strikten Filter wie die Instanz.
+
+### 41.1 Was zu tun ist — **vor** dem ersten Start mit der neuen Fassung
+
+`dotnet ef database update` für den `WorkflowContext`; die Migration `TokenTenantBackfill` liegt für
+**beide Provider** bei. Sie ändert **kein Schema**, sondern trägt nach:
+
+```sql
+-- SQL Server
+UPDATE t SET t.TenantId = i.TenantId
+FROM Tokens t INNER JOIN WorkflowInstances i ON i.Id = t.InstanceId
+WHERE t.TenantId IS NULL AND i.TenantId IS NOT NULL;
+```
+
+**Warum das nicht optional ist.** Die Spalte `Tokens.TenantId` gibt es seit `UserTasks`; sie kam als
+`nullable` ohne Nachtrag, weil sie damals nur die Arbeitsliste bediente — dort fällt eine leere Zelle
+nicht auf. Geschrieben wird sie seither bei jedem Speichern einer Instanz, alle laufenden Vorgänge
+haben sie also längst. **Ausser den parkenden:** ein Vorgang, der seit damals auf eine Aufgabe, eine
+Nachricht oder eine Frist wartet, wurde in der Zwischenzeit nie gespeichert.
+
+Und hier kippt die Fehlerart. Bei Definitionen und Instanzen heisst ein Filterfehler „sieht zu viel".
+Bei Tokens heisst er **„sieht nichts"** — und ein Token, das niemand sieht, ist ein Vorgang, der stehen
+bleibt, ohne dass es jemandem auffällt.
+
+### 41.2 Was ihr sonst merkt
+
+Nichts, wenn ihr über den Store und die mitgelieferten Ansichten arbeitet. Zwei Punkte für eigenen Code:
+
+- **Eigene Diagnose-Abfragen oder Auswertungen über `db.Tokens`** liefern ab jetzt nur noch die Zeilen
+  des aktiven Mandanten. Das ist die Absicht — wer bewusst darüber hinaus lesen will (Betriebs-Sicht,
+  Support), setzt `IgnoreQueryFilters()` und trifft die Entscheidung damit sichtbar.
+- **Der Runner bleibt filterfrei.** Das war schon Bedingung und ist es jetzt umso mehr: sein Suchlauf
+  geht jedem `WorkflowExecutionScope` voraus. Wer einen eigenen Worker betreibt, prüft, dass dessen
+  Kontext über den options-only-Weg gebaut wird.
+
+Im Toolkit sind sechs Lesewege ausdrücklich vom Filter ausgenommen, jeder mit Begründung im Code:
+das Laden einer Instanz und ihrer Tokens (die Mandanten-Grenze zieht die Instanz — was an ihr hängt,
+gehört dazu), das Speichern (was es nicht findet, legt es neu an — und läuft in eine
+Schlüsselverletzung), sowie die Runner-Wege `PeekNextTimerDueUtc`, das Stempeln in `ClaimDueTimers`
+und `ReleaseLocksOfOwner` (ein Anspruch gehört einem Runner, nicht einem Mandanten).
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3292,3 +3342,4 @@ das Blatt.
 | 45 | **Passkeys sind opt-in** (§38) | **Pflicht, wenn ihr Passkeys benutzt** — sonst verschwindet der Abschnitt aus der Kontoverwaltung. Zwei Dinge müssen zusammenkommen: euer eigener Passkey-Block im `ApplicationDbContext` (der **muss auch etwas über `Data` sagen**, sonst kommt `IdentityPasskeyData requires a primary key` zurück) **und** neu `IdentityUiOptions.UsePasskeys = true` (**Standard `false`**). Hintergrund: .NET 10 schliesst den Passkey-Typ ausdrücklich aus, und `TableNamesFromProperties` hat diesen Ausschluss bisher überstimmt — dadurch scheiterte **jeder** Identity-Kontext der Bibliothek beim Bauen des Modells, auf SQL Server genauso, in `dotnet ef` **und** zur Laufzeit. Kein Schema-Change. **Merke: `UserManager.SupportsUserPasskey` taugt nicht als Schalter** — der EF-Speicher meldet immer `true`, auch ohne abgebildete Entität. Prüfen mit `dotnet ef dbcontext info --context ApplicationDbContext` |
 | 46 | **PostgreSQL für den Mandanten-Baum** (§39, optional) | **Wer bei SQL Server bleibt, muss nichts tun.** Die Ausprägung `CoreIdentityTree` gibt es jetzt auch für PostgreSQL (Initialmigration + 5 Views + 10 Funktionen). Beim Wechsel: WebPart auf `Identity = CoreIdentity`, `Strategy = Tree`, dann Initialmigration und eine Migration mit `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (wiederholbar). **Euer eigener Kontext ist damit nicht erledigt** — dessen PostgreSQL-Migrationen kommen aus eurem Repo. Zwei Verhaltensunterschiede: der Zyklen-Abbruch meldet `SQLSTATE 54001` mit Klartext statt Fehler 530 (bewusst eine Ausnahme statt der still abbrechenden `CYCLE`-Klausel), und `GetChildTenantsWithPermsProc` ist dort eine **Funktion** — eigenes SQL ruft `select * from "…"(…)` statt `exec`. Geprüft: dieselbe Hierarchie beidseitig, 95 Zeilen Zeile-für-Zeile ohne Unterschied. **Inzwischen auch das Laufzeitverhalten unter Last** — siehe §40, die dort gefundene Lücke ist geschlossen |
 | 47 | **Mandanten-Baum: Anker-Fix** (§40) | **Pflicht-Migration für BEIDE Provider:** eine Migration, die `ConfigureViews(migrationBuilder)` des jeweiligen Providers erneut ausführt (wiederholbar). Kein Schema-Change, keine Vertragsänderung — ohne sie bleiben schlicht die alten, langsamen Objekte stehen. Ein Filter auf ein Baum-Blatt kam bisher **nach** der Rekursion zum Zug; wo er aus einem **Join** stammt (Blickpunkt aus einer Tabellenvariablen in den beiden Rollenbaum-Prozeduren), baute **jede** der beiden Datenbanken den ganzen Baum. Bei 10 000 Mandanten: Rollen-Baum nach unten 5 007 → **166 ms** (SQL Server) bzw. 4 703 → **68 ms** (PostgreSQL), Kind-Mandanten mit Berechtigung 4 839 → **151 ms** bzw. 5 087 → **71 ms**; der Mandantenfilter auf PostgreSQL 280 → **1 ms**. Ergebnisse unverändert: alte gegen neue Fassung auf beiden Datenbanken und beiden Fixtures **null Unterschiede**, Gleichheitstest und Zyklen-Wächter unverändert. Einziger Preis: ein Durchlauf des ganzen Baums **ohne** Filter kostet auf PostgreSQL mehr (286 → 800 ms) — im Toolkit-Code kommt er nicht vor |
+| 48 | **Token-Zeilen mandantengefiltert** (§41) | **Pflicht-Migration `TokenTenantBackfill`** (beide Provider), **vor** dem ersten Start mit der neuen Fassung. Kein Schema-Change — sie trägt den denormalisierten Mandanten an Token-Zeilen nach, die ihn noch nicht haben. Betroffen sind Vorgänge, die seit vor der Migration `UserTasks` **parken**: die wurden seither nie gespeichert und tragen `NULL`. Ohne den Nachtrag verschluckt der neue Filter deren Tokens — und **die Fehlerart ist hier eine andere als sonst: nicht „sieht zu viel", sondern „sieht nichts", also ein Vorgang, der ohne Meldung stehen bleibt.** Für eigenen Code: `db.Tokens` liefert ab jetzt nur die Zeilen des aktiven Mandanten (bewusst; wer darüber hinaus lesen will, setzt `IgnoreQueryFilters()`). Der Runner muss filterfrei bleiben — sein Suchlauf geht jedem `WorkflowExecutionScope` voraus |

@@ -532,7 +532,15 @@ namespace ITVComponents.Workflow.EntityFramework
                 });
             }
 
-            List<TokenRow> existing = ctx.Tokens.Where(t => t.InstanceId == instance.Id).ToList();
+            // Ohne Query-Filter, und hier haengt mehr daran als Sichtbarkeit: was diese Abfrage nicht
+            // findet, legt die Schleife darunter als NEUE Zeile an - und laeuft beim Speichern in eine
+            // Schluesselverletzung. Die Mandanten-Grenze ist an dieser Stelle laengst gezogen (die
+            // Instanz kam durch ihren eigenen Filter); alles, was an ihr haengt, gehoert dazu.
+            //
+            // Das ist zugleich die Stelle, die den denormalisierten Tenant nachzieht (weiter unten
+            // tr.TenantId = row.TenantId) - eine Zeile mit noch leerem Tenant muss dafuer sichtbar sein.
+            List<TokenRow> existing = ctx.Tokens.IgnoreQueryFilters()
+                .Where(t => t.InstanceId == instance.Id).ToList();
             Dictionary<string, TokenRow> byTokenId = existing.ToDictionary(t => t.TokenId);
             var wanted = new HashSet<string>(StringComparer.Ordinal);
             foreach (Token token in instance.Tokens)
@@ -607,7 +615,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 return null;
             }
 
-            List<TokenRow> tokens = ctx.Tokens.Where(t => t.InstanceId == instanceId).ToList();
+            // Die Instanz kam durch ihren Filter - ab hier ist der Mandant entschieden, und die Instanz
+            // muss VOLLSTAENDIG geladen werden. Ein Token, das ein zweiter Filter unterschlaegt, ergibt
+            // eine Instanz, die anders weiterlaeuft als sie steht.
+            List<TokenRow> tokens = ctx.Tokens.IgnoreQueryFilters()
+                .Where(t => t.InstanceId == instanceId).ToList();
             List<HistoryEntryRow> history = ctx.HistoryEntries
                 .Where(h => h.InstanceId == instanceId).OrderBy(h => h.Seq).ToList();
             List<WorkflowOutboxRow> outbox = ctx.Outbox
@@ -747,7 +759,10 @@ namespace ITVComponents.Workflow.EntityFramework
             // 2. Stempeln. Die Bedingung steht hier ein zweites Mal - genau darin liegt der Ausschluss:
             //    zwischen Auswahl und Update kann ein anderer Runner dieselben Zeilen genommen haben,
             //    dann trifft dieses Update sie nicht mehr.
-            _ = ctx.Tokens
+            //    Ohne Query-Filter: der Anspruch ist Sache des Runners und nicht eines Mandanten. Die
+            //    Auswahl darueber begrenzt ohnehin schon, WAS gestempelt wird - der Filter koennte hier
+            //    nur noch einen Teil der ausgewaehlten Zeilen stillschweigend auslassen.
+            _ = ctx.Tokens.IgnoreQueryFilters()
                 .Where(t => candidates.Contains(t.InstanceId)
                             && t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
                             && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
@@ -757,7 +772,9 @@ namespace ITVComponents.Workflow.EntityFramework
 
             // 3. Was DIESER Aufruf bekommen hat - erkennbar an der Aufruf-Guid. Nur dessen Instanzen
             //    werden geladen; das ist die eigentliche Ersparnis gegenueber FindDueTimers.
-            List<string> ids = ctx.Tokens
+            //    Ebenfalls filterfrei: es soll genau das zurueckkommen, was Schritt 2 gestempelt hat.
+            //    Die Mandanten-Grenze zieht danach LoadInstances.
+            List<string> ids = ctx.Tokens.IgnoreQueryFilters()
                 .Where(t => t.TimerLeaseOwner == claim)
                 .Select(t => t.InstanceId)
                 .Distinct()
@@ -772,7 +789,12 @@ namespace ITVComponents.Workflow.EntityFramework
             int waiting = (int)TokenStatus.Waiting;
             // Frueheste kuenftige Timer-Faelligkeit (indizierter MIN-Query ueber die wartenden Timer-Token).
             // Min() ueber DateTime? liefert null, wenn kein passender Token existiert.
-            return ctx.Tokens
+            //
+            // Ohne Query-Filter: die Antwort steuert, wann der Runner das naechste Mal aufwacht - eine
+            // mandantenweise Antwort liesse ihn an den Terminen aller anderen vorbeischlafen. Anders als
+            // die uebrigen Suchlaeufe geht diese Zahl NICHT durch LoadInstances, wo die Mandanten-Grenze
+            // sonst gezogen wird.
+            return ctx.Tokens.IgnoreQueryFilters()
                 .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc > nowUtc)
                 .Min(t => t.DueUtc);
         }
@@ -1371,7 +1393,11 @@ namespace ITVComponents.Workflow.EntityFramework
             // gestarteter Runner soll die liegengebliebene Arbeit sofort aufholen koennen und nicht
             // erst vor seinen eigenen Leichen warten.
             string prefix = owner + "#";
-            ctx.Tokens
+            // Ohne Query-Filter, und das ist hier keine Formsache: der Anspruch gehoert einem RUNNER,
+            // nicht einem Mandanten. Ein halb aufgeraeumter Runner ist schlechter als ein gar nicht
+            // aufgeraeumter - die uebrigen Ansprueche blieben bis zum Ablauf der Frist liegen, und
+            // niemand bekaeme davon etwas zu sehen.
+            ctx.Tokens.IgnoreQueryFilters()
                 .Where(t => t.TimerLeaseOwner != null && t.TimerLeaseOwner.StartsWith(prefix))
                 .ExecuteUpdate(s => s
                     .SetProperty(t => t.TimerLeaseOwner, (string)null)
@@ -1396,9 +1422,12 @@ namespace ITVComponents.Workflow.EntityFramework
 
             // Erst die (tenant-gefilterten) Instanz-Zeilen, dann fuer genau diese in EINER Abfrage die
             // Token-Zeilen laden und gruppieren.
+            // HIER wird die Mandanten-Grenze gezogen - fuer alle Suchlaeufe, die vorher nur Kandidaten-Ids
+            // gesammelt haben. Die Token-Abfrage danach laeuft filterfrei: zu einer sichtbaren Instanz
+            // gehoeren ALLE ihre Tokens, sonst laeuft sie unvollstaendig weiter.
             List<WorkflowInstanceRow> rows = ctx.WorkflowInstances.Where(r => ids.Contains(r.Id)).ToList();
             List<string> foundIds = rows.Select(r => r.Id).ToList();
-            Dictionary<string, List<TokenRow>> tokensByInstance = ctx.Tokens
+            Dictionary<string, List<TokenRow>> tokensByInstance = ctx.Tokens.IgnoreQueryFilters()
                 .Where(t => foundIds.Contains(t.InstanceId))
                 .ToList()
                 .GroupBy(t => t.InstanceId)
