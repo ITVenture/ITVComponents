@@ -3134,11 +3134,14 @@ liefert ein Teilergebnis, und bei einer Rechte-Abfrage ist das die schlechtere S
 arbeitet mit zu wenig Rechten weiter, und niemand merkt es. Die Meldung nennt zusätzlich das Objekt:
 
 ```
-ERROR: Die hoechstzulaessige Rekursionstiefe (100) wurde in UpwardsTenantTree ueberschritten.
-       Vermutlich enthaelt die Mandanten- oder Rollen-Hierarchie einen Zyklus.   [SQLSTATE 54001]
+ERROR: Mehr als 100 Rekursionsschritte in UpwardsTenantTree - die Hierarchie ist tiefer als
+       zulaessig oder enthaelt einen Zyklus. (Ebene 102, der Anker zaehlt nicht als Schritt.)
+                                                                                [SQLSTATE 54001]
 ```
 
-Wer heute auf Fehler 530 prüft, muss das anpassen.
+Wer heute auf Fehler 530 prüft, muss das anpassen. Die Grenze liegt auf beiden Datenbanken an
+derselben Stelle (nachgemessen: eine Kette von 101 Mandanten trägt, 102 bricht ab) — gezählt werden
+Rekursions**schritte**, und der Anker liefert Ebene 1, ohne einen gebraucht zu haben.
 
 **`GetChildTenantsWithPermsProc` ist dort eine Funktion, keine Prozedur** — PostgreSQL kennt keine
 Prozedur, die eine Ergebnismenge liefert. Für den Toolkit-Code ist das unsichtbar (der Zugriff läuft
@@ -3155,10 +3158,22 @@ Weitergabe von Rollen, eine Berechtigung, die nur über diese Weitergabe erreich
 auf derselben Ebene, ein Benutzer in der Mitte des Baums, Verzweigungen. Einzelheiten in
 `Audit-PostgreSQL-Luecken.md`.
 
-**Nicht geprüft: das Laufzeitverhalten unter Last.** Die T-SQL-Fassungen sind über Jahre getunt
-(`RESOURCE_SEMAPHORE`-Fix, Anker-Fix im Rollen-Baum, Ein-Durchlauf-`RANK`). Diese Arbeit ist nicht
-übertragbar — anderer Planer, andere Statistiken, andere Indexstrategie. Eine korrekt übersetzte
-Abfrage kann dort deutlich langsamer sein. Das ist eine eigene Aufgabe und **kein** erledigter Punkt.
+**Inzwischen auch geprüft: das Laufzeitverhalten unter Last.** 10 000 Mandanten mit einer Kette bis
+Tiefe 100, beide Provider, zehn Messpunkte. Der Verdacht hat sich bestätigt — und hat einen konkreten
+Grund: PostgreSQL schiebt einen Filter nicht in eine rekursive Sicht. `UpwardsTenantTree` wurde bei
+jedem Zugriff komplett gebaut (509 950 Zeilen) und erst danach gefiltert; der Weg, den *jede* Anfrage
+in einem Kind-Mandanten geht, kostete dadurch 270 ms statt unter 1 ms.
+
+**Behoben.** Die Rekursion sitzt jetzt in einer Funktion mit dem Blatt als Parameter, die Sicht ist ein
+flacher `LATERAL`-Aufruf darauf — damit greift der Filter im Anker. Gemessen: 270 ms → 1 ms;
+Plugin-Auflösung 786 ms → 1,4 ms; der Rollen-Baum nach unten und die Kind-Mandanten-Abfrage nebenbei
+um Faktor 3 schneller und damit **vor** SQL Server. Der Preis ist ein Durchlauf ohne Filter (739 statt
+286 ms), den es im Toolkit-Code nicht gibt.
+
+**Für euch heisst das:** wenn ihr eine PostgreSQL-Datenbank schon aufgebaut habt, braucht es eine
+Migration, die `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` erneut ausführt —
+sonst bleibt die alte, langsame Sicht stehen. Schema unverändert, Ergebnisse unverändert (der
+Gleichheitstest gegen SQL Server läuft nach dem Umbau unverändert durch).
 
 ---
 

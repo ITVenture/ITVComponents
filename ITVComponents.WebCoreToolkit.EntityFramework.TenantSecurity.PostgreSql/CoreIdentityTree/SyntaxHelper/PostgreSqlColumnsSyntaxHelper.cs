@@ -58,6 +58,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         private const string RecursionGuardFunction = "TreeRecursionGuard";
 
         /// <summary>
+        /// Der Aufwaertsbaum fuer EIN Blatt, mit dem Blatt als Parameter. Wie der Waechter kein Objekt
+        /// aus <see cref="GlobalDbObjectNaming"/>: der geteilte Code kennt ihn nicht und ruft ihn nie -
+        /// er steht ausschliesslich unter
+        /// <see cref="GlobalDbObjectNaming.UpwardsTenantTreeView"/> und traegt dort die Rekursion.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Warum es diese Funktion gibt.</b> Eine rekursive CTE ist fuer den PostgreSQL-Planer eine
+        /// Optimierungsgrenze: ein <c>WHERE "OutermostLeafTenantName" = …</c> auf der Sicht wird
+        /// <b>nach</b> der Rekursion angewandt, nicht davor. Bei 10 000 Mandanten heisst das, dass jeder
+        /// gefilterte Zugriff erst den ganzen Baum baut (509 950 Zeilen, rund 19 MB in temporaere
+        /// Dateien) und dann 100 Zeilen davon behaelt - gemessen 270 ms, wo SQL Server unter 1 ms
+        /// bleibt, weil dessen Planer die Bedingung in den Anker zieht.
+        /// </para>
+        /// <para>
+        /// Mit dem Blatt als <b>Parameter</b> steht die Bedingung im Anker, und die Rekursion laeuft
+        /// genau eine Kette hoch. Dieselbe Frage kostet damit 0,2-1,3 ms statt 270 ms. Es ist derselbe
+        /// Gedanke wie beim Anker-Fix der T-SQL-Rollenbaum-Funktionen, nur eine Ebene tiefer.
+        /// </para>
+        /// <para>
+        /// <b>Mehr Arbeitsspeicher half nicht</b> (<c>work_mem = 256MB</c>: 290 ms statt 303 ms) - der
+        /// Ueberlauf verschwindet, die halbe Million Zeilen bleibt. Es ist die Form der Abfrage.
+        /// </para>
+        /// </remarks>
+        private const string UpwardsTenantTreeByLeafFunction = "GetUpwardsTenantTreeByLeafId";
+
+        /// <summary>
         /// Die Anzahl REKURSIONSSCHRITTE, nach denen abgebrochen wird - dieselbe Zahl, die SQL Server ohne
         /// ausdrueckliches <c>OPTION (MAXRECURSION n)</c> vorgibt.
         /// </summary>
@@ -259,6 +286,8 @@ WHERE x.""__rnk"" = 1"));
 
             migrationBuilder.Sql(RecursionGuard(schema));
 
+            // Traegt die Rekursion der Sicht darunter - muss deshalb vor ihr entstehen.
+            migrationBuilder.Sql(UpwardsTenantTreeByLeaf(schema));
             migrationBuilder.Sql(UpwardsTenantTreeView(schema));
             migrationBuilder.Sql(DownwardsTenantTreeView(schema));
             migrationBuilder.Sql(TenantAccessTreeDownView(schema));
@@ -316,6 +345,8 @@ WHERE x.""__rnk"" = 1"));
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.UpwardsRoleTreeForIdByLeafFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.UpwardsRoleTreeForLabelsByLeafFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.EffectiveTenantUserRolesFunction}""");
+            // Nach der Sicht, die darauf steht - die Reihenfolge ist hier nicht bloss Ordnung.
+            migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{UpwardsTenantTreeByLeafFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{RecursionGuardFunction}""");
         }
 
@@ -358,25 +389,72 @@ WHERE x.""__rnk"" = 1"));
                  $guard$
                  """;
 
+        /// <summary>
+        /// Der Aufwaertsbaum fuer ein Blatt, mit dem Blatt als Parameter. Rumpf der Sicht darueber.
+        /// </summary>
+        /// <remarks>
+        /// <c>ROWS</c> mit <see cref="MaxRecursionDepth"/> statt der Vorgabe (1000) ist keine Grenze, sondern eine
+        /// Schaetzung fuer den Planer: tiefer als der Waechter erlaubt kann das Ergebnis gar nicht
+        /// werden, und mit einer realistischen Zahl waehlt er in den umgebenden Abfragen den
+        /// Nested-Loop, den dieser Zugriff braucht.
+        /// </remarks>
+        private static string UpwardsTenantTreeByLeaf(string schema)
+            => $$"""
+                 CREATE FUNCTION "{{schema}}"."{{UpwardsTenantTreeByLeafFunction}}"(p_leaf integer)
+                 RETURNS TABLE("ParentTenantId" integer, "ParentTenantName" character varying(150), "ParentLevel" integer)
+                 LANGUAGE sql
+                 STABLE
+                 ROWS {{MaxRecursionDepth}}
+                 AS $upwards$
+                     WITH RECURSIVE r AS (
+                         SELECT t."TenantId" AS "ParentTenantId", t."TenantName" AS "ParentTenantName",
+                                1 AS "ParentLevel", t."ParentTenantId" AS "NextParent"
+                         FROM "{{schema}}"."Tenants" t
+                         WHERE t."TenantId" = p_leaf
+                         UNION ALL
+                         SELECT u."TenantId", u."TenantName",
+                                "{{schema}}"."{{RecursionGuardFunction}}"(r_2."ParentLevel" + 1, '{{GlobalDbObjectNaming.UpwardsTenantTreeView}}'),
+                                u."ParentTenantId"
+                         FROM "{{schema}}"."Tenants" AS u
+                         INNER JOIN r AS r_2 ON u."TenantId" = r_2."NextParent"
+                     )
+                     SELECT r_1."ParentTenantId", r_1."ParentTenantName", r_1."ParentLevel"
+                     FROM r AS r_1
+                 $upwards$
+                 """;
+
+        /// <summary>
+        /// Der Aufwaertsbaum als Sicht - Zeile fuer Zeile dasselbe Ergebnis wie die T-SQL-Fassung,
+        /// nur anders gebaut.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Warum hier kein <c>WITH RECURSIVE</c> mehr steht.</b> Die Rekursion sass frueher in der
+        /// Sicht selbst, ueber <b>alle</b> Mandanten. Weil eine rekursive CTE fuer den Planer eine
+        /// Optimierungsgrenze ist, kam ein Filter auf das Blatt erst danach zum Zug: jeder gefilterte
+        /// Zugriff baute den ganzen Baum und warf ihn wieder weg. Jetzt steht in der Sicht ein flacher
+        /// <c>LATERAL</c>-Aufruf; flache Sichten zieht PostgreSQL in die Abfrage hinein, der Filter
+        /// landet direkt am Scan von <c>Tenants</c>, und
+        /// <see cref="UpwardsTenantTreeByLeafFunction"/> laeuft nur noch fuer die getroffenen Zeilen.
+        /// </para>
+        /// <para>
+        /// <b>Der Preis, damit er nicht uebersehen wird:</b> ein Durchlauf OHNE Filter ruft die Funktion
+        /// je Mandant einmal und kostet dadurch mehr als vorher (bei 10 000 Mandanten gemessen 785 ms
+        /// statt 286 ms). Das ist bewusst so gewaehlt - die gefilterten Zugriffe sind der Normalfall und
+        /// laufen bei jeder Anfrage in einem Kind-Mandanten, der volle Durchlauf ist die Ausnahme.
+        /// </para>
+        /// <para>
+        /// Auf SQL Server bleibt die Sicht rekursiv: dessen Planer zieht die Bedingung von sich aus in
+        /// den Anker, dort waere der Umbau ohne Gewinn und mit dem Preis.
+        /// </para>
+        /// </remarks>
         private static string UpwardsTenantTreeView(string schema)
             => $$"""
                  CREATE VIEW "{{schema}}"."{{GlobalDbObjectNaming.UpwardsTenantTreeView}}" AS
-                 WITH RECURSIVE r AS (
-                     SELECT "TenantId" AS "OutermostLeafTenantId", "TenantName" AS "OutermostLeafTenantName",
-                            "TenantId" AS "ParentTenantId", "TenantName" AS "ParentTenantName", 1 AS "ParentLevel",
-                            "ParentTenantId" AS "NextParent"
-                     FROM "{{schema}}"."Tenants"
-                     UNION ALL
-                     SELECT r_2."OutermostLeafTenantId", r_2."OutermostLeafTenantName",
-                            u."TenantId", u."TenantName",
-                            "{{schema}}"."{{RecursionGuardFunction}}"(r_2."ParentLevel" + 1, '{{GlobalDbObjectNaming.UpwardsTenantTreeView}}'),
-                            u."ParentTenantId"
-                     FROM "{{schema}}"."Tenants" AS u
-                     INNER JOIN r AS r_2 ON u."TenantId" = r_2."NextParent"
-                 )
-                 SELECT r_1."OutermostLeafTenantId", r_1."OutermostLeafTenantName", r_1."ParentTenantId",
-                        r_1."ParentTenantName", r_1."ParentLevel"
-                 FROM r AS r_1
+                 SELECT l."TenantId" AS "OutermostLeafTenantId", l."TenantName" AS "OutermostLeafTenantName",
+                        r."ParentTenantId", r."ParentTenantName", r."ParentLevel"
+                 FROM "{{schema}}"."Tenants" l
+                 CROSS JOIN LATERAL "{{schema}}"."{{UpwardsTenantTreeByLeafFunction}}"(l."TenantId") r
                  """;
 
         private static string DownwardsTenantTreeView(string schema)

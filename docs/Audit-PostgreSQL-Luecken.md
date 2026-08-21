@@ -439,3 +439,57 @@ M7/M8/M9 sind auf beiden Seiten gleich langsam (3,6–5,1 s). Der Rollen-Baum na
 Das ist ein bestehender Zustand und kein Umzugsrisiko — aber einen eigenen Blick wert, falls MLM diese
 Wege häufig geht. Der ursprüngliche Verdacht, die Abwärtsrichtung sei das Umzugsrisiko, war damit
 falsch: das Risiko liegt in der Aufwärtsrichtung, die vorher unauffällig aussah.
+
+### Der Umbau: die Rekursion bekommt das Blatt als Parameter
+
+Behoben, und zwar **ohne eine einzige Zeile im geteilten Code** — die rund zwanzig Aufrufer der Sicht
+bleiben unverändert, ebenso die gesamte SQL-Server-Seite. Die Sicht selbst ist es, die anders gebaut
+wird:
+
+- Neu: die Funktion `GetUpwardsTenantTreeByLeafId(p_leaf)` trägt die Rekursion und filtert **im Anker**.
+- `UpwardsTenantTree` ist jetzt ein flacher `CROSS JOIN LATERAL` über `Tenants` auf diese Funktion.
+  Flache Sichten zieht PostgreSQL in die umgebende Abfrage hinein, der Filter auf
+  `OutermostLeafTenantName`/`-Id` landet dadurch direkt am Scan von `Tenants`, und die Funktion läuft
+  nur noch für die getroffenen Zeilen.
+
+Es ist derselbe Gedanke wie beim Anker-Fix der T-SQL-Rollenbaum-Funktionen (Migration
+`RedeployAnchoredUpwardsRoleTree`), eine Ebene tiefer angesetzt.
+
+| # | Messpunkt | PG vorher | **PG nachher** | SQL Server |
+|---|-----------|-----------|----------------|------------|
+| M0 | Baum vollständig materialisieren | 286 ms | 739 ms | 1 950 ms |
+| M1 | `CurrentTenantTree` T100 | 280 ms | **1,0 ms** | < 1 ms |
+| M2 | `CurrentTenantTree` T199 | 272 ms | **1,1 ms** | < 1 ms |
+| M3 | Diagnose-Abfragen von T199 | 275 ms | **0,9 ms** | 39 ms |
+| M4 | Kacheln von T199 | 275 ms | **0,9 ms** | 38 ms |
+| M5 | Plugin-Auflösung `DataSource` | 786 ms | **1,4 ms** | 2 ms |
+| M6 | Rollen-Baum nach oben | 296 ms | **4,8 ms** | 3 ms |
+| M7 | Rollen-Baum nach unten, Wurzel | 4 703 ms | **1 308 ms** | 5 007 ms |
+| M8 | Kind-Mandanten mit Berechtigung | 5 087 ms | **1 613 ms** | 4 839 ms |
+| M9 | dasselbe aus der Mitte | 3 647 ms | **1 611 ms** | 4 818 ms |
+
+Zwei Läufe, die Zahlen decken sich. Alle Zeilenzahlen unverändert.
+
+**Der Preis, damit ihn niemand übersieht:** ein Durchlauf **ohne** Filter ruft die Funktion je Mandant
+einmal und kostet dadurch mehr als vorher (M0: 739 statt 286 ms). Das ist eine bewusste Wahl — die
+gefilterten Zugriffe sind der Normalfall und laufen bei jeder Anfrage in einem Kind-Mandanten, der
+volle Durchlauf ist die Ausnahme. Im Toolkit gibt es ihn im aktiven Code nicht: alle Lesestellen
+filtern auf `OutermostLeafTenantId`/`-Name` (die beiden ungefilterten Joins in `DbPluginsSelector`
+stehen in einem auskommentierten Block). Und selbst mit dem Aufschlag bleibt PostgreSQL dort schneller
+als SQL Server (739 ms gegen 1 950 ms).
+
+**Mitgenommen, ohne dass es das Ziel war:** M7/M8/M9 — der Rollen-Baum nach unten und die
+Kind-Mandanten mit Berechtigung — sind um den Faktor 3 schneller geworden, weil die dortigen Funktionen
+die Sicht intern lesen. Damit liegt PostgreSQL auf diesen Wegen jetzt **vor** SQL Server.
+
+**Nachgewiesen, dass sich sonst nichts geändert hat:**
+
+- Der Gleichheitstest gegen SQL Server aus 3.1/3.2 läuft unverändert durch: 87 vergleichbare Zeilen
+  Zeichen für Zeichen identisch, dazu die fünf Kind-Mandanten-Abfragen mit denselben Ergebnissen
+  (`CTA` → T1/T3, `CTB` → T2, `CTC` → T2, `CTV` → T1/T3, `CTD` → T4).
+- Der Zyklen-Wächter sitzt jetzt in der Funktion statt in der Sicht und meldet sich unverändert: Kette
+  der Länge 101 trägt, 102 bricht ab — dieselbe Grenze wie SQL Server. Ein Mandanten-Ring wirft auf
+  allen drei Wegen (über die Sicht, über die Funktion, über den gefilterten Zugriff).
+
+**Für Konsumenten auf PostgreSQL:** eine Migration, die `ConfigureViews` erneut ausführt (idempotent,
+`DROP … IF EXISTS` + `CREATE`) — sonst bleibt die alte Sicht stehen. Schema unverändert.
