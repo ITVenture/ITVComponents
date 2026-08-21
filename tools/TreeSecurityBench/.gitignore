@@ -1,0 +1,8 @@
+# Entsteht bei jedem Lauf neu aus ConfigureViews - genau darum steht sie nicht im Repo:
+# eine eingecheckte Kopie waere wieder eine Abschrift, gegen die man dann prueft.
+objects.sql
+
+# Messergebnisse
+*_result.txt
+*_after.txt
+dump_*.txt
