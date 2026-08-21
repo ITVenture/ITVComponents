@@ -85,6 +85,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         private const string UpwardsTenantTreeByLeafFunction = "GetUpwardsTenantTreeByLeafId";
 
         /// <summary>
+        /// Das Gegenstueck nach unten: der Abwaertsbaum fuer einen Mandanten, mit ihm als Parameter.
+        /// Traegt die Rekursion unter <see cref="GlobalDbObjectNaming.DownwardsTenantTreeView"/>.
+        /// </summary>
+        private const string DownwardsTenantTreeByTopmostFunction = "GetDownwardsTenantTreeByTopmostId";
+
+        /// <summary>
         /// Die Anzahl REKURSIONSSCHRITTE, nach denen abgebrochen wird - dieselbe Zahl, die SQL Server ohne
         /// ausdrueckliches <c>OPTION (MAXRECURSION n)</c> vorgibt.
         /// </summary>
@@ -286,9 +292,10 @@ WHERE x.""__rnk"" = 1"));
 
             migrationBuilder.Sql(RecursionGuard(schema));
 
-            // Traegt die Rekursion der Sicht darunter - muss deshalb vor ihr entstehen.
+            // Tragen die Rekursion der Sichten darunter - muessen deshalb vor ihnen entstehen.
             migrationBuilder.Sql(UpwardsTenantTreeByLeaf(schema));
             migrationBuilder.Sql(UpwardsTenantTreeView(schema));
+            migrationBuilder.Sql(DownwardsTenantTreeByTopmost(schema));
             migrationBuilder.Sql(DownwardsTenantTreeView(schema));
             migrationBuilder.Sql(TenantAccessTreeDownView(schema));
             migrationBuilder.Sql(TenantAccessTreeUpView(schema));
@@ -345,8 +352,9 @@ WHERE x.""__rnk"" = 1"));
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.UpwardsRoleTreeForIdByLeafFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.UpwardsRoleTreeForLabelsByLeafFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{GlobalDbObjectNaming.EffectiveTenantUserRolesFunction}""");
-            // Nach der Sicht, die darauf steht - die Reihenfolge ist hier nicht bloss Ordnung.
+            // Nach den Sichten, die darauf stehen - die Reihenfolge ist hier nicht bloss Ordnung.
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{UpwardsTenantTreeByLeafFunction}""");
+            migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{DownwardsTenantTreeByTopmostFunction}""");
             migrationBuilder.Sql($@"DROP FUNCTION IF EXISTS ""{schema}"".""{RecursionGuardFunction}""");
         }
 
@@ -457,22 +465,54 @@ WHERE x.""__rnk"" = 1"));
                  CROSS JOIN LATERAL "{{schema}}"."{{UpwardsTenantTreeByLeafFunction}}"(l."TenantId") r
                  """;
 
+        /// <summary>
+        /// Der Abwaertsbaum fuer EINEN Mandanten, mit ihm als Parameter. Rumpf der Sicht darueber.
+        /// </summary>
+        private static string DownwardsTenantTreeByTopmost(string schema)
+            => $$"""
+                 CREATE FUNCTION "{{schema}}"."{{DownwardsTenantTreeByTopmostFunction}}"(p_topmost integer)
+                 RETURNS TABLE("ChildTenantId" integer, "ChildTenantName" character varying(150), "ChildLevel" integer)
+                 LANGUAGE sql
+                 STABLE
+                 AS $downwards$
+                     WITH RECURSIVE r AS (
+                         SELECT t."TenantId" AS "ChildTenantId", t."TenantName" AS "ChildTenantName", 1 AS "ChildLevel"
+                         FROM "{{schema}}"."Tenants" t
+                         WHERE t."TenantId" = p_topmost
+                         UNION ALL
+                         SELECT u."TenantId", u."TenantName",
+                                "{{schema}}"."{{RecursionGuardFunction}}"(r_2."ChildLevel" + 1, '{{GlobalDbObjectNaming.DownwardsTenantTreeView}}')
+                         FROM "{{schema}}"."Tenants" AS u
+                         INNER JOIN r AS r_2 ON r_2."ChildTenantId" = u."ParentTenantId"
+                     )
+                     SELECT r_1."ChildTenantId", r_1."ChildTenantName", r_1."ChildLevel"
+                     FROM r AS r_1
+                 $downwards$
+                 """;
+
+        /// <summary>
+        /// Der Abwaertsbaum als Sicht, nach demselben Muster wie
+        /// <see cref="UpwardsTenantTreeView"/> - und aus demselben Grund.
+        /// </summary>
+        /// <remarks>
+        /// Hier war der Filter sogar noch schlechter dran: er kommt in den Rollenbaum-Funktionen aus
+        /// einem <b>Join</b> und nicht aus einer Konstanten, und dann bauen <b>beide</b> Datenbanken den
+        /// ganzen Baum. Gemessen an 10 000 Mandanten: der Schritt, der die Kind-Mandanten des
+        /// Blickpunkts einsammelt, kostete auf PostgreSQL 1,4 s und auf SQL Server 2,5 s - fuer 10 000
+        /// Zeilen, die eine einzige Rekursion ab dem Blickpunkt liefert.
+        /// <para>
+        /// Kein <c>ROWS</c>-Zusatz wie beim Aufwaertsbaum: nach unten ist die Zeilenzahl nicht durch die
+        /// Rekursionstiefe begrenzt, sondern durch die Breite des Baums. Die Vorgabe (1000) trifft es
+        /// besser als jede Zahl, die hier stuende.
+        /// </para>
+        /// </remarks>
         private static string DownwardsTenantTreeView(string schema)
             => $$"""
                  CREATE VIEW "{{schema}}"."{{GlobalDbObjectNaming.DownwardsTenantTreeView}}" AS
-                 WITH RECURSIVE r AS (
-                     SELECT "TenantId" AS "TopmostTenantId", "TenantName" AS "TopmostTenantName",
-                            "TenantId" AS "ChildTenantId", "TenantName" AS "ChildTenantName", 1 AS "ChildLevel"
-                     FROM "{{schema}}"."Tenants"
-                     UNION ALL
-                     SELECT r."TopmostTenantId", r."TopmostTenantName",
-                            u."TenantId", u."TenantName",
-                            "{{schema}}"."{{RecursionGuardFunction}}"(r."ChildLevel" + 1, '{{GlobalDbObjectNaming.DownwardsTenantTreeView}}')
-                     FROM "{{schema}}"."Tenants" AS u
-                     INNER JOIN r ON r."ChildTenantId" = u."ParentTenantId"
-                 )
-                 SELECT r."TopmostTenantId", r."TopmostTenantName", r."ChildTenantId", r."ChildTenantName", r."ChildLevel"
-                 FROM r
+                 SELECT l."TenantId" AS "TopmostTenantId", l."TenantName" AS "TopmostTenantName",
+                        r."ChildTenantId", r."ChildTenantName", r."ChildLevel"
+                 FROM "{{schema}}"."Tenants" l
+                 CROSS JOIN LATERAL "{{schema}}"."{{DownwardsTenantTreeByTopmostFunction}}"(l."TenantId") r
                  """;
 
         private static string TenantAccessTreeDownView(string schema)
@@ -731,7 +771,10 @@ WHERE x.""__rnk"" = 1"));
                                     a."OutermostLeafTenantName" AS "ViewpointTenantName",
                                     d."ChildTenantId", d."ChildTenantName", d."ChildLevel", a."UserId", a."OutermostRoleId"
                              FROM "resultingUpTree" a
-                             INNER JOIN "{{schema}}"."{{GlobalDbObjectNaming.DownwardsTenantTreeView}}" d ON d."TopmostTenantId" = a."OutermostLeafTenantId"
+                             -- Anker-Fix: LATERAL auf die Funktion statt Join auf die Sicht. Der Blickpunkt
+                             -- kommt hier aus einem Join, und daraus zieht kein Planer die Bedingung in den
+                             -- Anker - beide Datenbanken bauten den ganzen Abwaertsbaum.
+                             CROSS JOIN LATERAL "{{schema}}"."{{DownwardsTenantTreeByTopmostFunction}}"(a."OutermostLeafTenantId") d
                          ),
                          r AS (
                              SELECT s."RoleId", s."RoleId" AS "ParentRoleId", s."TenantId", s."TenantId" AS "ParentTenantId",
@@ -749,12 +792,18 @@ WHERE x.""__rnk"" = 1"));
                              INNER JOIN "{{schema}}"."Tenants" ct ON ct."TenantId" = r_2."TenantId"
                              INNER JOIN "{{schema}}"."Tenants" pt ON pt."TenantId" = pr."TenantId" AND pr."TenantId" = r_2."nextparent"
                          )
-                         SELECT d."ViewPointTenantId", d."ViewpointTenantName", r."ParentTenantId", t."ParentTenantName",
-                                t."OutermostLeafTenantId", t."OutermostLeafTenantName", tu."TenantUserId", u."Id",
-                                r."RoleId", d."ChildLevel", t."ParentLevel"
-                         FROM "{{schema}}"."{{GlobalDbObjectNaming.UpwardsTenantTreeView}}" t
-                         INNER JOIN r ON r."TenantId" = t."OutermostLeafTenantId" AND r."ParentTenantId" = t."ParentTenantId"
-                         INNER JOIN "{{schema}}"."TenantUsers" tu ON tu."TenantId" = t."ParentTenantId"
+                         -- Ohne Join auf den Aufwaertsbaum: r geht je Rekursionsschritt genau eine
+                         -- Mandanten-Ebene hoch (pr."TenantId" = r_2."nextparent"), also IST r."level" der
+                         -- ParentLevel des Paares (r."TenantId", r."ParentTenantId"), und die beiden Namen
+                         -- stehen in "Tenants". Der Join holte nur diese drei Werte und kostete dafuer den
+                         -- ganzen Baum. Wortgleich zur T-SQL-Fassung geaendert.
+                         SELECT d."ViewPointTenantId", d."ViewpointTenantName", r."ParentTenantId", ptn."TenantName",
+                                r."TenantId", ctn."TenantName", tu."TenantUserId", u."Id",
+                                r."RoleId", d."ChildLevel", r."level"
+                         FROM r
+                         INNER JOIN "{{schema}}"."Tenants" ctn ON ctn."TenantId" = r."TenantId"
+                         INNER JOIN "{{schema}}"."Tenants" ptn ON ptn."TenantId" = r."ParentTenantId"
+                         INNER JOIN "{{schema}}"."TenantUsers" tu ON tu."TenantId" = r."ParentTenantId"
                          INNER JOIN "{{schema}}"."Users" u ON u."Id" = tu."UserId"
                          INNER JOIN "{{schema}}"."SecurityRoles" cr ON cr."TenantId" = r."TenantId" AND cr."RoleId" = r."RoleId"
                          INNER JOIN "{{schema}}"."SecurityRoles" pr ON pr."TenantId" = r."ParentTenantId" AND pr."RoleId" = r."ParentRoleId"
@@ -765,7 +814,7 @@ WHERE x.""__rnk"" = 1"));
                              LIMIT 1
                          ) tur
                          INNER JOIN "rawTree" d ON d."TopmostTenantId" = r."ParentTenantId"
-                             AND d."ChildTenantId" = t."OutermostLeafTenantId"
+                             AND d."ChildTenantId" = r."TenantId"
                              AND d."UserId" = u."Id"
                              AND d."TopmostRoleId" = pr."RoleId"
                      $fn$

@@ -117,5 +117,11 @@ nicht.
   jedem Zugriff komplett gebaut und danach gefiltert: 270 ms für den Weg, den jede Anfrage in einem
   Kind-Mandanten geht. Behoben, indem die Rekursion in eine Funktion mit dem Blatt als Parameter
   wanderte und die Sicht ein flacher `LATERAL`-Aufruf darauf wurde — 270 ms → 1 ms.
+- **Kommt der Filter aus einem Join, baut auch SQL Server den ganzen Baum.** In den beiden
+  Rollenbaum-Prozeduren steht der Blickpunkt in einer Tabellenvariablen — derselbe Filter als
+  Konstante kostete 65 ms, aus dem Join heraus 2 517 ms. Behoben auf beiden Providern; der
+  Rollen-Baum nach unten fiel von 5,0 s auf 166 ms (SQL Server) bzw. von 4,7 s auf 68 ms
+  (PostgreSQL). **Merke: bei einer Änderung, die BEIDE Seiten gleich betrifft, beweist der
+  Gleichheitstest nichts** — dafür braucht es alt gegen neu auf derselben Datenbank.
 
 Auswertung und Zahlen: `docs/Audit-PostgreSQL-Luecken.md`, Abschnitt „Phase 4".

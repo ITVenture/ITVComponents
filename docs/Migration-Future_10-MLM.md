@@ -3177,6 +3177,68 @@ Gleichheitstest gegen SQL Server läuft nach dem Umbau unverändert durch).
 
 ---
 
+## 40. Der Mandanten-Baum wird nicht mehr ganz gebaut — **Pflicht-Migration (`ConfigureViews`), beide Provider**
+
+Kein Schema-Change, keine Vertragsänderung, keine neue Einstellung. Was sich ändert, sind die
+Datenbank-Objekte des Mandanten-Baums — und zwar deutlich: bei 10 000 Mandanten fallen die beiden
+teuersten Wege von rund **5 Sekunden auf unter 200 ms**.
+
+### 40.1 Was zu tun ist
+
+Eine Migration, die `ConfigureViews(migrationBuilder)` des jeweiligen Providers erneut ausführt
+(`SqlColumnsSyntaxHelper` bzw. `PostgreSqlColumnsSyntaxHelper`). Sie ist wiederholbar — jedes Objekt
+wird vorher weggeräumt. Ohne sie bleiben die alten Objekte stehen und es ändert sich nichts.
+
+**Das gilt auch für SQL Server**, nicht nur für den PostgreSQL-Weg aus §39.
+
+### 40.2 Woran es lag
+
+Ein Filter auf ein Blatt des Baums kam bisher **nach** der Rekursion zum Zug. Bei 10 000 Mandanten
+heisst das: erst 509 950 Zeilen bauen, dann 100 davon behalten.
+
+Wo der Filter als **Konstante** dasteht, zieht SQL Server ihn von sich aus in den Anker der
+Rekursion; PostgreSQL nicht — für dessen Planer ist eine rekursive CTE eine Optimierungsgrenze.
+Wo er aus einem **Join** kommt — so in den beiden Rollenbaum-Prozeduren, wo der Blickpunkt aus einer
+Tabellenvariablen stammt —, gelingt es **keiner** der beiden Datenbanken.
+
+Drei Änderungen, auf beiden Providern dieselben:
+
+1. Der Aufwärtsbaum bekommt das Blatt als Parameter (auf PostgreSQL: Rekursion in eine Funktion, Sicht
+   als flacher `LATERAL`-Aufruf; auf SQL Server unnötig, der Planer kann es dort selbst).
+2. Der Abwärtsbaum ebenso, und die beiden Rollenbaum-Prozeduren rufen ihn mit dem Blickpunkt als
+   Parameter (`CROSS APPLY` bzw. `LATERAL`) statt die Sicht anzujoinen.
+3. Die Schlussabfrage der Rollenbaum-Prozeduren **liest den Aufwärtsbaum gar nicht mehr**: die
+   Rollen-Rekursion geht je Schritt genau eine Mandanten-Ebene hoch, ihr `level` *ist* der
+   `ParentLevel` des Paares — der Join holte nur diesen Wert und zwei Mandantennamen und kostete dafür
+   den ganzen Baum.
+
+### 40.3 Was ihr davon merkt
+
+| Weg | SQL Server vorher | nachher | PostgreSQL vorher | nachher |
+|---|---|---|---|---|
+| Mandantenfilter (läuft bei **jeder** Anfrage in einem Kind-Mandanten) | < 1 ms | < 1 ms | 280 ms | **1 ms** |
+| Plugin-Auflösung | 2 ms | 1 ms | 786 ms | **1,9 ms** |
+| Rollen-Baum nach unten, von der Wurzel | 5 007 ms | **166 ms** | 4 703 ms | **68 ms** |
+| Kind-Mandanten mit Berechtigung | 4 839 ms | **151 ms** | 5 087 ms | **71 ms** |
+| Baum vollständig durchlaufen (kommt im Code nicht vor) | 1 950 ms | 1 839 ms | 286 ms | 800 ms |
+
+Die letzte Zeile ist der Preis auf der PostgreSQL-Seite: ein Durchlauf **ohne** Filter ruft die
+Funktion je Mandant einmal. Im Toolkit-Code gibt es diesen Fall nicht — alle Lesestellen filtern auf
+das Blatt.
+
+### 40.4 Woraufhin das geprüft ist
+
+- Gleichheitstest beider Provider unverändert grün (87 Zeilen Zeichen für Zeichen, dazu die fünf
+  Kind-Mandanten-Abfragen).
+- **Alt gegen neu**, weil der Vergleich der Provider hier nichts beweist (beide Seiten sind gleich
+  geändert): die alte Fassung der Schlussabfrage von Hand nachgebaut und gegen die neue gestellt —
+  auf beiden Datenbanken, auf der kleinen Hierarchie **und** auf 10 000 Mandanten, jeweils **null
+  Unterschiede**.
+- Der Zyklen-Abbruch meldet sich unverändert, auch in der neuen Abwärts-Funktion: Kette 101 trägt,
+  102 bricht ab — auf beiden Datenbanken, in beiden Richtungen.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3228,4 +3290,5 @@ Gleichheitstest gegen SQL Server läuft nach dem Umbau unverändert durch).
 | 43 | **Anhänge am Vorgang** (§36) | **Pflicht-Migration:** `WorkflowAttachments` (beide Provider) — zwei Tabellen (Beschreibung mit FK+Index, Blobs ohne FK). `IWorkflowTaskHandler` bekommt **vier** weitere Member (`ListAttachmentsAsync`, `AddAttachmentAsync`, `OpenAttachmentAsync`, `DeleteAttachmentAsync`) — **eigene Implementierungen brechen**. Grösse über `WorkflowViewsOptions.MaxAttachmentBytes` (10 MB; **0 schaltet Anhänge ab**). **Merke: NICHT über den `IFileHandler`** — dessen Vertrag gibt keine Datei-Kennung zurück, mit der sich ein Anhang später lesen liesse; stattdessen `IWorkflowAttachmentStore` mit eingebauter Datenbank-Ablage, austauschbar wie beim Hilfesystem. Löschen nur den eigenen Anhang |
 | 44 | **Zentrale Abläufe per Aktivierung** (§37) | **Pflicht-Migration:** neue Tabelle `WorkflowStartTriggerActivations` + 7 Spalten an `WorkflowStartTriggers`, **Datenumzug des Lauf-Zustands** (`NextDueUtc`/`LastRunUtc`/`LastInstanceId`/Lease ziehen von der Auslöser- auf die Aktivierungs-Zeile), erst danach die alten Spalten fallen lassen. **Regelweg ist die mitgelieferte Migration `TriggerActivations` (beide Provider) — sie bewegt Daten, nicht nur Schema; Handarbeit-SQL gleichwertig in §37.5.** Nicht neu scaffolden: beide Migrationen sind nachbearbeitet (das Gerüst deutete `LeaseOwner`/`LastInstanceId` als Umbenennung nach `RequiredPermission`/`RequiredFeature` und liess den Datenumzug weg). `IWorkflowStore` bekommt 6 neue Member und ändert 2 Signaturen (`FindMessageTriggers`, `ClaimDueScheduleTriggers`) — **eigene Store-Implementierungen brechen**. **Verhaltensänderung (§37.4): Nachrichten tragen jetzt einen Ursprungs-Mandanten**, und nur der lässt etwas anlaufen; ohne Ursprung feuert nur, was `AllowTenantlessStart` erlaubt. Wer aus Host-Code ohne Mandanten-Kontext sendet, startet danach nichts mehr (wird protokolliert). Das schliesst eine Flanke, die es schon vorher gab: eine mandantenlose Nachricht eröffnete bei hundert Mandanten hundert Vorgänge. **Merke: die Aktivierung hängt an der fachlichen Identität, NICHT am `TriggerKey`** — der wird bei jedem Speichern der Definition neu vergeben. Feature/Permission an der Definition (nur Sysadmin) gaten die Verwendung; das **Feature wird bei jedem Feuern** nachgeprüft (`IWorkflowTenantFeatureGate`, ohne Verdrahtung erlaubt es alles), die Permission nur beim Anhaken und beim Start von Hand. Fehlt das Feature: überspringen + protokollieren, Fälligkeit trotzdem fortschreiben, **nicht** abhaken. Ein-Mandanten-Betrieb unberührt |
 | 45 | **Passkeys sind opt-in** (§38) | **Pflicht, wenn ihr Passkeys benutzt** — sonst verschwindet der Abschnitt aus der Kontoverwaltung. Zwei Dinge müssen zusammenkommen: euer eigener Passkey-Block im `ApplicationDbContext` (der **muss auch etwas über `Data` sagen**, sonst kommt `IdentityPasskeyData requires a primary key` zurück) **und** neu `IdentityUiOptions.UsePasskeys = true` (**Standard `false`**). Hintergrund: .NET 10 schliesst den Passkey-Typ ausdrücklich aus, und `TableNamesFromProperties` hat diesen Ausschluss bisher überstimmt — dadurch scheiterte **jeder** Identity-Kontext der Bibliothek beim Bauen des Modells, auf SQL Server genauso, in `dotnet ef` **und** zur Laufzeit. Kein Schema-Change. **Merke: `UserManager.SupportsUserPasskey` taugt nicht als Schalter** — der EF-Speicher meldet immer `true`, auch ohne abgebildete Entität. Prüfen mit `dotnet ef dbcontext info --context ApplicationDbContext` |
-| 46 | **PostgreSQL für den Mandanten-Baum** (§39, optional) | **Wer bei SQL Server bleibt, muss nichts tun.** Die Ausprägung `CoreIdentityTree` gibt es jetzt auch für PostgreSQL (Initialmigration + 5 Views + 10 Funktionen). Beim Wechsel: WebPart auf `Identity = CoreIdentity`, `Strategy = Tree`, dann Initialmigration und eine Migration mit `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (wiederholbar). **Euer eigener Kontext ist damit nicht erledigt** — dessen PostgreSQL-Migrationen kommen aus eurem Repo. Zwei Verhaltensunterschiede: der Zyklen-Abbruch meldet `SQLSTATE 54001` mit Klartext statt Fehler 530 (bewusst eine Ausnahme statt der still abbrechenden `CYCLE`-Klausel), und `GetChildTenantsWithPermsProc` ist dort eine **Funktion** — eigenes SQL ruft `select * from "…"(…)` statt `exec`. Geprüft: dieselbe Hierarchie beidseitig, 95 Zeilen Zeile-für-Zeile ohne Unterschied. **Nicht geprüft: Laufzeitverhalten unter Last** — die T-SQL-Tunings sind nicht übertragbar |
+| 46 | **PostgreSQL für den Mandanten-Baum** (§39, optional) | **Wer bei SQL Server bleibt, muss nichts tun.** Die Ausprägung `CoreIdentityTree` gibt es jetzt auch für PostgreSQL (Initialmigration + 5 Views + 10 Funktionen). Beim Wechsel: WebPart auf `Identity = CoreIdentity`, `Strategy = Tree`, dann Initialmigration und eine Migration mit `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (wiederholbar). **Euer eigener Kontext ist damit nicht erledigt** — dessen PostgreSQL-Migrationen kommen aus eurem Repo. Zwei Verhaltensunterschiede: der Zyklen-Abbruch meldet `SQLSTATE 54001` mit Klartext statt Fehler 530 (bewusst eine Ausnahme statt der still abbrechenden `CYCLE`-Klausel), und `GetChildTenantsWithPermsProc` ist dort eine **Funktion** — eigenes SQL ruft `select * from "…"(…)` statt `exec`. Geprüft: dieselbe Hierarchie beidseitig, 95 Zeilen Zeile-für-Zeile ohne Unterschied. **Inzwischen auch das Laufzeitverhalten unter Last** — siehe §40, die dort gefundene Lücke ist geschlossen |
+| 47 | **Mandanten-Baum: Anker-Fix** (§40) | **Pflicht-Migration für BEIDE Provider:** eine Migration, die `ConfigureViews(migrationBuilder)` des jeweiligen Providers erneut ausführt (wiederholbar). Kein Schema-Change, keine Vertragsänderung — ohne sie bleiben schlicht die alten, langsamen Objekte stehen. Ein Filter auf ein Baum-Blatt kam bisher **nach** der Rekursion zum Zug; wo er aus einem **Join** stammt (Blickpunkt aus einer Tabellenvariablen in den beiden Rollenbaum-Prozeduren), baute **jede** der beiden Datenbanken den ganzen Baum. Bei 10 000 Mandanten: Rollen-Baum nach unten 5 007 → **166 ms** (SQL Server) bzw. 4 703 → **68 ms** (PostgreSQL), Kind-Mandanten mit Berechtigung 4 839 → **151 ms** bzw. 5 087 → **71 ms**; der Mandantenfilter auf PostgreSQL 280 → **1 ms**. Ergebnisse unverändert: alte gegen neue Fassung auf beiden Datenbanken und beiden Fixtures **null Unterschiede**, Gleichheitstest und Zyklen-Wächter unverändert. Einziger Preis: ein Durchlauf des ganzen Baums **ohne** Filter kostet auf PostgreSQL mehr (286 → 800 ms) — im Toolkit-Code kommt er nicht vor |

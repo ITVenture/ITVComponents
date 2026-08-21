@@ -493,3 +493,52 @@ die Sicht intern lesen. Damit liegt PostgreSQL auf diesen Wegen jetzt **vor** SQ
 
 **Für Konsumenten auf PostgreSQL:** eine Migration, die `ConfigureViews` erneut ausführt (idempotent,
 `DROP … IF EXISTS` + `CREATE`) — sonst bleibt die alte Sicht stehen. Schema unverändert.
+
+### Zweite Runde: M7/M8/M9 — diesmal für beide Provider
+
+Die drei langsamen Wege blieben nach der ersten Runde bei 1,3–1,6 s (PostgreSQL) und 4,8–5,0 s
+(SQL Server). Aufgeschlüsselt zerfällt der Rollen-Baum nach unten in genau zwei Posten, und beide
+haben dieselbe Ursache wie oben — nur diesmal auf **beiden** Datenbanken:
+
+| Schritt | SQL Server | PostgreSQL |
+|---|---|---|
+| die Kind-Mandanten des Blickpunkts einsammeln | 2 517 ms | 1 447 ms |
+| die Schlussabfrage | 2 134 ms | (bereits behoben) |
+
+Der Grund: der Blickpunkt steht in einer Tabellenvariablen bzw. kommt aus einem Join. **Aus einem
+Join heraus zieht kein Planer die Bedingung in den Anker** — SQL Server so wenig wie PostgreSQL.
+Derselbe Filter als Konstante kostet 65 ms statt 2 517 ms.
+
+Drei Änderungen, auf beiden Providern dieselben und Zeile für Zeile aneinander angelehnt:
+
+1. **Der Abwärtsbaum bekommt den obersten Mandanten als Parameter.** Auf PostgreSQL nach demselben
+   Muster wie der Aufwärtsbaum (Funktion + `LATERAL`-Sicht), auf SQL Server als **Inline-TVF**
+   `GetDownwardsTenantTreeByTopmostId` — die Sicht dort bleibt unangetastet, weil ihr Planer eine
+   Konstante von sich aus in den Anker zieht.
+2. **Die beiden Rollenbaum-Prozeduren rufen ihn mit dem Blickpunkt als Parameter** (`CROSS APPLY`
+   bzw. `CROSS JOIN LATERAL`) statt die Sicht anzujoinen.
+3. **Die Schlussabfrage liest den Aufwärtsbaum gar nicht mehr.** Der Join holte von dort genau drei
+   Werte: zwei Mandantennamen und den `ParentLevel` des Paares (Kind-Mandant, Eltern-Mandant). Die
+   Rollen-Rekursion daneben geht aber je Schritt **genau eine Mandanten-Ebene** hoch
+   (`pr.TenantId = r_2.nextparent`) — ihr `level` *ist* dieser `ParentLevel`, und die Namen stehen in
+   `Tenants`. Der Join war ein Nachschlagen, das den ganzen Baum kostete.
+
+| # | Messpunkt | SQL Server vorher | nachher | PostgreSQL vorher | nachher |
+|---|---|---|---|---|---|
+| M7 | Rollen-Baum nach unten, Wurzel | 5 007 ms | **166 ms** | 4 703 ms | **68 ms** |
+| M8 | Kind-Mandanten mit Berechtigung | 4 839 ms | **151 ms** | 5 087 ms | **71 ms** |
+| M9 | dasselbe aus der Mitte | 4 818 ms | **97 ms** | 3 647 ms | **44 ms** |
+
+Alle übrigen Messpunkte unverändert; Zeilenzahlen überall gleich.
+
+**Wie das abgesichert ist — und warum der Provider-Vergleich hier nicht genügt.** Punkt 3 ist eine
+Änderung an der Semantik der Abfrage, nicht bloss an ihrer Form, und **beide** Seiten sind gleich
+geändert: ein gemeinsamer Denkfehler bliebe im Gleichheitstest unsichtbar. Deshalb zusätzlich die
+alte Fassung der Schlussabfrage von Hand nachgebaut und gegen die neue gestellt — auf beiden
+Datenbanken, auf der kleinen Hierarchie **und** auf den 10 000 Mandanten, von der Wurzel und aus der
+Mitte. Ergebnis überall: gleiche Zeilenzahl, **null Unterschiede**. Der Gleichheitstest beider
+Provider läuft unverändert durch, und der Zyklen-Wächter meldet sich an derselben Stelle wie vorher —
+auch in der neuen Abwärts-Funktion, in beiden Richtungen.
+
+**Für Konsumenten heisst das:** eine Migration, die `ConfigureViews` erneut ausführt — **auch auf SQL
+Server**, nicht nur auf PostgreSQL. Siehe `Migration-Future_10-MLM.md` §40.
