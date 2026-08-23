@@ -106,10 +106,104 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
         }
 
+        /// <summary>
+        /// The host bauart the fix from BUG-PRE186 did not reach: <c>UseTenantPathPrefix()</c> moves the
+        /// tenant segment from <c>Request.Path</c> to <c>PathBase</c> before routing runs, so the route
+        /// values cannot carry it — the request that renders nothing therefore still resolved to the user's
+        /// default tenant (BUG-PRE187). The middleware's stash is the source that does hold it.
+        /// </summary>
+        [TestMethod]
+        public void Uninitialized_Navigation_Falls_Back_To_Middleware_Tenant_Segment()
+        {
+            var provider = NewProvider(null, null, TenantSource.PathSegment, RequestBehindTenantPrefix("TenantD"));
+
+            Assert.AreEqual("TenantD", provider.RouteData["tenant"]);
+        }
+
+        [TestMethod]
+        public void Flat_Base_Falls_Back_To_Middleware_Tenant_Segment()
+        {
+            var provider = NewProvider("https://app/", "https://app/Diagnostics/Q", TenantSource.PathSegment,
+                RequestBehindTenantPrefix("TenantD"));
+
+            Assert.AreEqual("TenantD", provider.RouteData["tenant"]);
+        }
+
+        /// <summary>
+        /// Both sources present is not a real host shape (the middleware strips what the route would match),
+        /// but the order still has to be the documented one: the middleware validated its segment against the
+        /// user's eligible scopes, a stray route value did not.
+        /// </summary>
+        [TestMethod]
+        public void Middleware_Tenant_Segment_Wins_Over_Request_Route_Values()
+        {
+            var ctx = new DefaultHttpContext();
+            ctx.Request.RouteValues["tenant"] = "TenantC";
+            ctx.Items[TenantPathPrefixMiddleware.TenantSegmentItemKey] = "TenantD";
+            var provider = NewProvider(null, null, TenantSource.PathSegment,
+                new HttpContextAccessor { HttpContext = ctx });
+
+            Assert.AreEqual("TenantD", provider.RouteData["tenant"]);
+        }
+
+        /// <summary>
+        /// Inside a live circuit the base URI stays the source — same precedence the route-value fallback has.
+        /// </summary>
+        [TestMethod]
+        public void Base_Segment_Wins_Over_Middleware_Tenant_Segment()
+        {
+            var provider = NewProvider("https://app/TenantA/", "https://app/TenantA/users", TenantSource.PathSegment,
+                RequestBehindTenantPrefix("TenantD"));
+
+            Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
+        }
+
+        /// <summary>
+        /// Reading the tenant must not write it into the route values of the request being served.
+        /// </summary>
+        [TestMethod]
+        public void Reading_RouteData_Leaves_The_Requests_Route_Values_Alone()
+        {
+            var accessor = RequestBehindTenantPrefix("TenantD");
+            var provider = NewProvider(null, null, TenantSource.PathSegment, accessor);
+
+            _ = provider.RouteData;
+
+            Assert.IsFalse(accessor.HttpContext.Request.RouteValues.ContainsKey("tenant"));
+        }
+
+        /// <summary>
+        /// The path a caller requested is <c>PathBase + Path</c> once the middleware has moved the tenant
+        /// segment over; <c>Request.Path</c> alone would name a path that resolves to a different tenant when
+        /// replayed — e.g. by background work started from one of these endpoints.
+        /// </summary>
+        [TestMethod]
+        public void Request_Path_Fallback_Carries_The_Tenant_Prefix()
+        {
+            var provider = NewProvider(null, null, TenantSource.PathSegment, RequestBehindTenantPrefix("TenantD"));
+
+            Assert.AreEqual("/TenantD/diagnostics/Q", provider.RequestPath);
+        }
+
         private static IHttpContextAccessor RequestWithTenant(string tenant)
         {
             var ctx = new DefaultHttpContext();
             ctx.Request.RouteValues["tenant"] = tenant;
+            return new HttpContextAccessor { HttpContext = ctx };
+        }
+
+        /// <summary>
+        /// A request as <see cref="TenantPathPrefixMiddleware"/> leaves it: segment stashed in
+        /// <see cref="HttpContext.Items"/>, moved onto <c>PathBase</c>, gone from <c>Path</c> — and therefore
+        /// absent from the route values, which is the whole point of the case.
+        /// </summary>
+        private static IHttpContextAccessor RequestBehindTenantPrefix(string tenant)
+        {
+            var ctx = new DefaultHttpContext();
+            ctx.Items[TenantPathPrefixMiddleware.TenantSegmentItemKey] = tenant;
+            ctx.Request.PathBase = new PathString("/" + tenant);
+            ctx.Request.Path = new PathString("/diagnostics/Q");
+            ctx.Request.RouteValues["diagnosticsQueryName"] = "Q";
             return new HttpContextAccessor { HttpContext = ctx };
         }
 

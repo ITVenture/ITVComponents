@@ -74,16 +74,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         /// tenant at all for them: scope resolution found no route override, fell back to the user's default
         /// tenant and served that tenant's data — silently, and under a URL that says otherwise.
         /// <para>
-        /// Hence the fallback to the request's route values, the very source
+        /// Hence the fallback to the request, in two steps. First
+        /// <see cref="TenantPathPrefixMiddleware.TenantSegmentItemKey"/>: a host running
+        /// <c>UseTenantPathPrefix()</c> strips the tenant segment off <c>Request.Path</c> and appends it to
+        /// <c>PathBase</c> <em>before</em> routing, so the tenant can never reach the route values there —
+        /// not "mostly not", but never (BUG-PRE187). The middleware stashes the validated segment in
+        /// <see cref="HttpContext.Items"/>, which is where <see cref="TenantBaseHref"/> already reads it
+        /// from. Deliberately that stash and not the first segment of <c>PathBase</c>: the middleware
+        /// <em>appends</em>, so under a virtual directory the tenant would be the last segment, not the first.
+        /// Then the request's route values, the very source
         /// <see cref="ITVComponents.WebCoreToolkit.Security.DefaultContextUserProvider"/> reads outside
-        /// Blazor. Same move the <see cref="User"/> getter already makes for the same gap. The base URI stays
-        /// first: inside a live circuit it is the correct source (and the HttpContext is null there anyway),
-        /// so per-tab behaviour is untouched — the HttpContext is strictly the fallback.
+        /// Blazor — still right for hosts without that middleware. Same move the <see cref="User"/> getter
+        /// already makes for the same gap. The base URI stays first: inside a live circuit it is the correct
+        /// source (and the HttpContext is null there anyway), so per-tab behaviour is untouched — the
+        /// HttpContext is strictly the fallback.
         /// </para>
         /// <para>
-        /// Deliberately only the route values, not the request's query: on a non-Blazor host these endpoints
-        /// see exactly those, and a <c>?tenant=</c> must not become an override channel that the same
-        /// endpoint would not have without Blazor.
+        /// Deliberately no reading of the request's query: on a non-Blazor host these endpoints see exactly
+        /// the route values, and a <c>?tenant=</c> must not become an override channel that the same endpoint
+        /// would not have without Blazor. The middleware's value carries no such risk — it is only set after
+        /// the segment was validated against the user's eligible scopes (a foreign one 404s), and
+        /// <c>ResolvingPermissionScope</c> checks again anyway.
         /// </para>
         /// </remarks>
         public IDictionary<string, object> RouteData
@@ -103,7 +114,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 }
                 catch (InvalidOperationException)
                 {
-                    return RequestRouteValues() ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    return RequestValues();
                 }
 
                 var result = ParseQuery(uri);
@@ -112,13 +123,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                     && !string.IsNullOrEmpty(opts.RouteOverrideParam))
                 {
                     var segment = ExtractFirstBaseSegment(baseUri);
-                    if (string.IsNullOrEmpty(segment)
-                        && RequestRouteValues() is { } routeValues
-                        && routeValues.TryGetValue(opts.RouteOverrideParam!, out var fromRoute))
+                    if (string.IsNullOrEmpty(segment))
                     {
                         // NavigationManager initialized but the base URI carries no tenant — a request that
                         // renders nothing can land here too, depending on how the host wires Blazor.
-                        segment = fromRoute as string;
+                        segment = RequestTenantSegment() ?? RequestRouteValue(opts.RouteOverrideParam!);
                     }
 
                     if (!string.IsNullOrEmpty(segment))
@@ -131,24 +140,74 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         }
 
         /// <summary>
-        /// The route values of the request being served, or <c>null</c> when there is no request (live
-        /// circuit, or the startup window before any request).
+        /// What the request being served knows: its route values, with the tenant segment stashed by
+        /// <see cref="TenantPathPrefixMiddleware"/> laid over them. A copy, not the request's own
+        /// <c>RouteValueDictionary</c> — this getter's result is handed out to be read, and writing the
+        /// tenant into the live route values of the request would be a side effect of reading.
         /// </summary>
-        private IDictionary<string, object>? RequestRouteValues()
-            => httpContextAccessor.HttpContext?.GetRouteData()?.Values;
+        private IDictionary<string, object> RequestValues()
+        {
+            var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            var routeValues = httpContextAccessor.HttpContext?.GetRouteData()?.Values;
+            if (routeValues != null)
+            {
+                foreach (var pair in routeValues)
+                {
+                    result[pair.Key] = pair.Value;
+                }
+            }
+
+            var param = scopeOptions.Value.RouteOverrideParam;
+            if (!string.IsNullOrEmpty(param) && RequestTenantSegment() is { } segment)
+            {
+                result[param!] = segment;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// The tenant segment <see cref="TenantPathPrefixMiddleware"/> validated and stashed for the request
+        /// being served, or <c>null</c> when there is no request or the host does not run that middleware.
+        /// </summary>
+        private string? RequestTenantSegment()
+            => httpContextAccessor.HttpContext?.Items.TryGetValue(TenantPathPrefixMiddleware.TenantSegmentItemKey, out var value) == true
+                ? value as string
+                : null;
+
+        /// <summary>
+        /// A single route value of the request being served, or <c>null</c> when there is no request (live
+        /// circuit, or the startup window before any request) or the route does not carry that parameter.
+        /// </summary>
+        private string? RequestRouteValue(string key)
+            => httpContextAccessor.HttpContext?.GetRouteData()?.Values.TryGetValue(key, out var value) == true
+                ? value as string
+                : null;
 
         /// <inheritdoc/>
         /// <remarks>
         /// Same gap as in <see cref="RouteData"/>, same fallback: without a circuit there is no
         /// NavigationManager URI, but a served request knows its path. Reached e.g. when request data is
         /// conserved for background work started from one of the non-Blazor endpoints.
+        /// <para>
+        /// <c>PathBase</c> goes in front of <c>Path</c> on purpose. Under <c>UseTenantPathPrefix()</c> the
+        /// tenant segment has been moved from the one to the other before routing, and <c>Request.Path</c>
+        /// alone would report <c>/diagnostics/Q</c> for a caller who requested <c>/TenantA/diagnostics/Q</c> —
+        /// a path that no longer identifies what was asked for, and that resolves to a different tenant when
+        /// replayed. The circuit branch above has the whole path (the base href carries the prefix), so
+        /// joining the two here is also what keeps both branches answering the same question.
+        /// </para>
         /// </remarks>
         public string RequestPath
         {
             get
             {
                 try { return new Uri(navigation.Uri).AbsolutePath; }
-                catch { return httpContextAccessor.HttpContext?.Request.Path.Value; }
+                catch (InvalidOperationException)
+                {
+                    var request = httpContextAccessor.HttpContext?.Request;
+                    return request == null ? null : request.PathBase.Add(request.Path).Value;
+                }
             }
         }
 
