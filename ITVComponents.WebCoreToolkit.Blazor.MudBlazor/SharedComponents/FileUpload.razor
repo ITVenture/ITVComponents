@@ -14,10 +14,12 @@
 @using ITVComponents.WebCoreToolkit.ServiceShared.Options
 @using ITVComponents.WebCoreToolkit.ServiceShared.Service
 @using global::MudBlazor
+@using Microsoft.Extensions.Logging
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IFileServiceHandler FileService
 @inject AuthenticationStateProvider AuthState
+@inject ILogger<FileUpload> Logger
 
 <MudPaper Class="pa-4" Outlined="true">
     <InputFile id="@inputId" OnChange="OnFilesSelected" multiple="@Multiple" accept="@Accept" style="display:none" />
@@ -180,7 +182,18 @@
                     {
                         foreach (var d in response.DeferredDisposals)
                         {
-                            try { d.Dispose(); } catch { }
+                            try
+                            {
+                                d.Dispose();
+                            }
+                            catch (Exception ex)
+                            {
+                                // Wie beim Download: das Aufraeumen darf die Antwort nicht abbrechen,
+                                // aber ein zurueckbleibendes Handle darf nicht spurlos bleiben.
+                                Logger.LogError(ex,
+                                    "Konnte eine nachgelagerte Ressource der Upload-Antwort ({Module}/{Reason}) nicht freigeben.",
+                                    UploadModule, UploadReason);
+                            }
                         }
                     }
                 }
@@ -205,8 +218,16 @@
         if (module is not null)
         {
             try { await module.DisposeAsync(); }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { }
-            catch { }
+            catch (Microsoft.JSInterop.JSDisconnectedException ex)
+            {
+                // Erwarteter Normalfall: der Circuit ist vor dem Aufraeumen weg, das JS-Modul damit
+                // ohnehin. Nur vermerken, nicht als Fehler.
+                Logger.LogDebug(ex, "Circuit vor dem Freigeben des Upload-Moduls beendet.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Konnte das Upload-Modul nicht freigeben.");
+            }
         }
     }
 

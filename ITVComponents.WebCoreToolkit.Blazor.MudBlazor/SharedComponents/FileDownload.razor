@@ -74,8 +74,15 @@
                         {
                             d.Dispose();
                         }
-                        catch
+                        catch (Exception ex)
                         {
+                            // Das Aufraeumen darf den Download nicht abbrechen - er ist zu diesem
+                            // Zeitpunkt bereits beim Benutzer. Verschweigen darf man es trotzdem nicht:
+                            // genau hier bliebe ein Handle oder eine temporaere Datei zurueck, und nichts
+                            // anderes wuerde je davon berichten.
+                            Logger.LogError(ex,
+                                "Konnte eine nachgelagerte Ressource des Downloads {Module}/{Reason}/{File} nicht freigeben.",
+                                DownloadModule, DownloadReason, FileIdentifier);
                         }
                     }
                 }
@@ -104,8 +111,16 @@
         if (module is not null)
         {
             try { await module.DisposeAsync(); }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { }
-            catch { }
+            catch (Microsoft.JSInterop.JSDisconnectedException ex)
+            {
+                // Erwarteter Normalfall: der Circuit ist vor dem Aufraeumen weg, das JS-Modul damit
+                // ohnehin. Nur vermerken, nicht als Fehler.
+                Logger.LogDebug(ex, "Circuit vor dem Freigeben des Download-Moduls beendet.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Konnte das Download-Modul nicht freigeben.");
+            }
         }
     }
 }

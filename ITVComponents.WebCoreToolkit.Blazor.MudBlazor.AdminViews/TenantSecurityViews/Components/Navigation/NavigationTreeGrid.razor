@@ -1,7 +1,10 @@
+@using Microsoft.Extensions.Logging
+
 @inject INavigationAdminHandler Handler
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
+@inject ILogger<NavigationTreeGrid> Logger
 @implements IAsyncDisposable
 
 @* data-itv-dnd-into: dieses Grid ist hierarchisch, das mittlere Drittel einer Zeile bedeutet
@@ -132,8 +135,16 @@
                 await JS.InvokeVoidAsync("itvGridDnd.attach", hostEl, selfRef);
                 jsAttached = true;
             }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { /* circuit gone */ }
-            catch { /* swallow — grid stays usable without DnD */ }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+            catch (Exception ex)
+            {
+                // Nicht durchwerfen: das Gitter bleibt ohne Ziehen benutzbar, die Reihenfolge ist auch
+                // im Dialog zu pflegen. Ohne Log waere aber unklar, warum das Ziehen nichts tut.
+                Logger.LogError(ex,
+                    "The drag-and-drop helper could not be attached - the navigation grid stays usable without it.");
+                Snackbar.Add("Drag & drop could not be activated - use the sort order field instead.",
+                    Severity.Warning);
+            }
         }
     }
 
@@ -170,8 +181,12 @@
         if (jsAttached)
         {
             try { await JS.InvokeVoidAsync("itvGridDnd.detach", hostEl); }
-            catch (Microsoft.JSInterop.JSDisconnectedException) { }
-            catch { /* element gone */ }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { /* Kreis weg */ }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex,
+                    "The drag-and-drop helper could not be detached - the element was most likely gone already.");
+            }
         }
         selfRef?.Dispose();
     }
