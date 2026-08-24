@@ -1,4 +1,5 @@
 using System;
+using ITVComponents.Workflow.Stores;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels
 {
@@ -20,6 +21,20 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
         /// <summary>Der Anzeigename der Definition.</summary>
         public string? Name { get; set; }
+
+        /// <summary>
+        /// Woraufhin der Ablauf anlaeuft: nach einem Zeitplan oder auf eine Nachricht.
+        /// </summary>
+        /// <remarks>
+        /// Beide Arten stehen in derselben Liste - die Frage des Mandanten ist dieselbe ("laesst du das
+        /// fuer dich laufen?"), nur die Antwort auf "wann" ist eine andere. Was je Art gilt, entscheidet
+        /// diese Angabe: ein Zeitplan hat ein Muster und eine naechste Faelligkeit, eine Nachricht einen
+        /// Namen und beides nicht.
+        /// </remarks>
+        public WorkflowStartTriggerKind Kind { get; set; }
+
+        /// <summary>Bei einem Nachrichten-Einstieg: der Name der Nachricht, sonst null.</summary>
+        public string? SignalName { get; set; }
 
         /// <summary>Das <b>wirksame</b> Muster: das eigene, wo erlaubt und gesetzt, sonst das zentrale.</summary>
         public string? Pattern { get; set; }
@@ -60,6 +75,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
         /// <summary>Der Start-Knoten.</summary>
         public string NodeId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Welcher der Einstiege dieses Knotens gemeint ist.
+        /// </summary>
+        /// <remarks>
+        /// Gehoert zur Kennung, nicht zur Nutzlast: EIN Start-Knoten kann eine Nachricht UND einen
+        /// Zeitplan deklarieren. Ohne die Art traefe das Anhaken den, der zufaellig zuerst gefunden wird.
+        /// </remarks>
+        public WorkflowStartTriggerKind Kind { get; set; }
 
         /// <summary>Ob der Ablauf ab jetzt fuer diesen Mandanten laufen soll.</summary>
         public bool Enabled { get; set; }

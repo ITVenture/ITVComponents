@@ -3,18 +3,21 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
+@using ITVComponents.Workflow.Stores
+
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
-<PageTitle>Central workflows</PageTitle>
+@* Diese Ansicht steht an der Kante Betreiber/Kunde: der Mandant entscheidet hier ueber seinen eigenen
+   Betrieb. Deshalb lokalisiert - wie die Arbeitsliste, und aus demselben Grund. *@
 
-<MudText Typo="Typo.h5" GutterBottom="true">Central workflows</MudText>
-<MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
-    Processes that are maintained centrally and that you can run for your own organisation. Tick one and
-    it starts on its schedule — in your tenant, with your data.
-</MudText>
+<PageTitle>@L["CentralTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["CentralTitle"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">@L["CentralIntro"]</MudText>
 
 @* Anhaken ist eine Betriebshandlung: derselbe Aspekt wie Signal senden oder abbrechen. Was darüber
    hinaus je Zeile gilt, entscheidet das Feature und die Berechtigung der jeweiligen Definition - und
@@ -27,10 +30,7 @@
         }
         else if (items.Count == 0)
         {
-            <MudAlert Severity="Severity.Info" Dense="true">
-                Nothing on offer. Either no central process is marked as available, or none of them is
-                covered by your subscription.
-            </MudAlert>
+            <MudAlert Severity="Severity.Info" Dense="true">@L["CentralEmpty"]</MudAlert>
         }
         else
         {
@@ -38,10 +38,10 @@
                       T="CentralWorkflowItem" Elevation="1">
                 <HeaderContent>
                     <MudTh Style="width:1%"></MudTh>
-                    <MudTh>Process</MudTh>
-                    <MudTh>Schedule</MudTh>
-                    <MudTh>Next run</MudTh>
-                    <MudTh>Last run</MudTh>
+                    <MudTh>@L["CentralColumnProcess"]</MudTh>
+                    <MudTh>@L["CentralColumnRunsOn"]</MudTh>
+                    <MudTh>@L["CentralColumnNextRun"]</MudTh>
+                    <MudTh>@L["CentralColumnLastRun"]</MudTh>
                     <MudTh Style="width:1%"></MudTh>
                 </HeaderContent>
                 <RowTemplate>
@@ -50,33 +50,46 @@
                                    Disabled="@context.Orphaned"
                                    ValueChanged="@((bool v) => ToggleAsync(context, v))" />
                     </MudTd>
-                    <MudTd DataLabel="Process">
+                    <MudTd DataLabel="@L["CentralColumnProcess"]">
                         <MudText Typo="Typo.body2">@(context.Name ?? context.DefinitionId)</MudText>
                         <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.DefinitionId</MudText>
                         @if (context.Orphaned)
                         {
                             <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-0 mt-1">
-                                Trigger no longer exists
+                                @L["CentralOrphanChip"]
                             </MudChip>
                         }
                     </MudTd>
-                    <MudTd DataLabel="Schedule">
-                        <MudText Typo="Typo.body2">@(context.Pattern ?? "—")</MudText>
-                        @if (!string.IsNullOrWhiteSpace(context.PatternOverride)
-                             && context.MayReschedule)
+                    @* „Woraufhin" statt „Zeitplan": in derselben Spalte steht beim Zeitplan das Muster
+                       und bei einer Nachricht ihr Name. Zwei Tabellen waeren fuer je ein, zwei Zeilen
+                       mehr Geruest als Inhalt - und die Frage des Mandanten ist bei beiden dieselbe. *@
+                    <MudTd DataLabel="@L["CentralColumnRunsOn"]">
+                        @if (context.Kind == WorkflowStartTriggerKind.Message)
                         {
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                yours — central: @context.CentralPattern
+                            <MudText Typo="Typo.body2">
+                                <MudIcon Icon="@Icons.Material.Filled.Mail" Size="Size.Small" Class="mr-1" />
+                                @L["CentralOnMessage", context.SignalName ?? "—"]
                             </MudText>
                         }
+                        else
+                        {
+                            <MudText Typo="Typo.body2">@(context.Pattern ?? "—")</MudText>
+                            @if (!string.IsNullOrWhiteSpace(context.PatternOverride)
+                                 && context.MayReschedule)
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @L["CentralOwnPattern", context.CentralPattern ?? "—"]
+                                </MudText>
+                            }
+                        }
                     </MudTd>
-                    <MudTd DataLabel="Next run">@Show(context.NextDueUtc)</MudTd>
-                    <MudTd DataLabel="Last run">@Show(context.LastRunUtc)</MudTd>
+                    <MudTd DataLabel="@L["CentralColumnNextRun"]">@Show(context.NextDueUtc)</MudTd>
+                    <MudTd DataLabel="@L["CentralColumnLastRun"]">@Show(context.LastRunUtc)</MudTd>
                     <MudTd>
                         @if (context.MayReschedule && !context.Orphaned)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.EditCalendar" Size="Size.Small"
-                                           Title="Use my own schedule"
+                                           Title="@L["CentralOwnScheduleTitle"]"
                                            OnClick="@(() => EditPatternAsync(context))" />
                         }
                     </MudTd>
@@ -85,16 +98,12 @@
 
             @if (items.Any(i => i.Orphaned))
             {
-                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
-                    One of the processes you took over no longer has a trigger — its start step was renamed
-                    or removed centrally. It will not run until it comes back. Your choice is kept, so it
-                    resumes by itself if it does.
-                </MudAlert>
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@L["CentralOrphanHint"]</MudAlert>
             }
         }
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Warning">No permission for central workflows.</MudAlert>
+        <MudAlert Severity="Severity.Warning">@L["CentralNoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>
 
@@ -129,6 +138,8 @@
             {
                 DefinitionId = item.DefinitionId,
                 NodeId = item.NodeId,
+                // Die Art gehört mit: ein Start-Knoten kann eine Nachricht UND einen Zeitplan tragen.
+                Kind = item.Kind,
                 Enabled = enabled,
                 PatternOverride = item.PatternOverride
             }, Environment);
@@ -137,7 +148,7 @@
         // warum. Der Grund steht im Log, der Hinweis muss auf den Schirm.
         if (!ok)
         {
-            Snackbar.Add("Could not change that — see the log for the reason.", Severity.Warning);
+            Snackbar.Add(L["CentralChangeFailed"], Severity.Warning);
         }
 
         await ReloadAsync();
@@ -152,7 +163,7 @@
         };
         var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
         IDialogReference dialog = await DialogService.ShowAsync<SchedulePatternDialog>(
-            "My schedule", parameters, options);
+            L["CentralMyScheduleDialog"], parameters, options);
         DialogResult? result = await dialog.Result;
         if (result is null || result.Canceled)
         {
@@ -165,6 +176,7 @@
             {
                 DefinitionId = item.DefinitionId,
                 NodeId = item.NodeId,
+                Kind = item.Kind,
                 Enabled = item.Enabled,
                 // Leer = zurück zur zentralen Vorgabe. Das ist der Weg, den eigenen Termin wieder
                 // loszuwerden, ohne den Ablauf abgeben zu müssen.
@@ -173,7 +185,7 @@
 
         if (!ok)
         {
-            Snackbar.Add("Could not change that — see the log for the reason.", Severity.Warning);
+            Snackbar.Add(L["CentralChangeFailed"], Severity.Warning);
         }
 
         await ReloadAsync();

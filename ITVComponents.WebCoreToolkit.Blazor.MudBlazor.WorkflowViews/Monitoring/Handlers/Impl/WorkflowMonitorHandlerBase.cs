@@ -670,9 +670,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             IReadOnlyList<WorkflowStartTrigger> offered = op.Store.FindActivatableTriggers(tenant);
             IReadOnlyList<WorkflowStartTriggerActivation> mine = op.Store.GetActivations(tenant);
 
+            // Beide Arten. Der Nachrichten-Einstieg war hier lange ausgeblendet, weil eine eintreffende
+            // Nachricht in fuenfzig Mandanten je einen Vorgang eroeffnen konnte - genau das hat der
+            // Ursprungs-Mandant beseitigt: es feuern nur die Aktivierungen DIESES Mandanten. Das
+            // Fan-out gibt es nur noch ohne Ursprung, und dafuer steht AllowTenantlessStart am Knoten.
             var result = new List<CentralWorkflowItem>();
-            foreach (WorkflowStartTrigger trigger in offered
-                         .Where(t => t.Kind == WorkflowStartTriggerKind.Schedule))
+            foreach (WorkflowStartTrigger trigger in offered)
             {
                 // Feature und Berechtigung der Definition - was der Mandant nicht verwenden darf, steht
                 // ihm auch nicht zum Anhaken. Beides steht denormalisiert am Ausloeser, damit die Liste
@@ -686,18 +689,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                     a => a.OwnerTenantId == trigger.TenantId && a.DefinitionId == trigger.DefinitionId
                          && a.NodeId == trigger.NodeId && a.Kind == trigger.Kind);
 
-                bool ownPattern = trigger.AllowReschedule
+                bool isSchedule = trigger.Kind == WorkflowStartTriggerKind.Schedule;
+                bool ownPattern = isSchedule && trigger.AllowReschedule
                                   && !string.IsNullOrWhiteSpace(activation?.PatternOverride);
                 result.Add(new CentralWorkflowItem
                 {
                     DefinitionId = trigger.DefinitionId,
                     NodeId = trigger.NodeId,
                     Name = DefinitionName(op, trigger),
+                    Kind = trigger.Kind,
+                    SignalName = isSchedule ? null : trigger.SignalName,
                     Pattern = ownPattern ? activation!.PatternOverride : trigger.Pattern,
                     CentralPattern = trigger.Pattern,
                     Enabled = activation?.Enabled == true,
-                    MayReschedule = trigger.AllowReschedule,
-                    PatternOverride = activation?.PatternOverride,
+                    // Ein eigenes Muster gibt es nur beim Zeitplan - bei einer Nachricht gaebe es
+                    // nichts umzustellen, und der Stift daneben waere ein Knopf ohne Wirkung.
+                    MayReschedule = isSchedule && trigger.AllowReschedule,
+                    PatternOverride = isSchedule ? activation?.PatternOverride : null,
                     NextDueUtc = activation?.NextDueUtc,
                     LastRunUtc = activation?.LastRunUtc,
                     LastInstanceId = activation?.LastInstanceId
@@ -707,14 +715,20 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Die Waisen: uebernommen, aber der Ausloeser dazu ist weggefallen. Sie erscheinen bewusst
             // mit - eine Uebernahme, die ab jetzt schweigt, darf nicht einfach aus der Liste
             // verschwinden.
+            //
+            // Die Art gehoert in den Vergleich: EIN Start-Knoten kann beides deklarieren (eine Nachricht
+            // UND einen Zeitplan). Ohne sie hielte der noch vorhandene Zeitplan die Nachrichten-Uebernahme
+            // desselben Knotens faelschlich fuer lebendig - und die Waise verschwaende lautlos, also genau
+            // das, was dieser Block verhindern soll.
             foreach (WorkflowStartTriggerActivation orphan in mine.Where(a =>
-                         a.Kind == WorkflowStartTriggerKind.Schedule
-                         && offered.All(t => t.DefinitionId != a.DefinitionId || t.NodeId != a.NodeId)))
+                         offered.All(t => t.DefinitionId != a.DefinitionId || t.NodeId != a.NodeId
+                                          || t.Kind != a.Kind)))
             {
                 result.Add(new CentralWorkflowItem
                 {
                     DefinitionId = orphan.DefinitionId,
                     NodeId = orphan.NodeId,
+                    Kind = orphan.Kind,
                     Enabled = orphan.Enabled,
                     LastRunUtc = orphan.LastRunUtc,
                     LastInstanceId = orphan.LastInstanceId,
@@ -749,7 +763,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Nicht der Oberflaeche glauben: sie liefert zwar nur erlaubte Zeilen, aber das Erraten einer
             // Definition-Id darf nicht genuegen, um einen zentralen Ablauf scharf zu schalten.
             WorkflowStartTrigger? trigger = op.Store.FindActivatableTriggers(tenant).FirstOrDefault(
-                t => t.Kind == WorkflowStartTriggerKind.Schedule
+                t => t.Kind == request.Kind
                      && t.DefinitionId == request.DefinitionId && t.NodeId == request.NodeId);
             if (trigger == null)
             {
@@ -768,7 +782,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 return Task.FromResult(false);
             }
 
-            string? ownPattern = request.PatternOverride;
+            bool isSchedule = trigger.Kind == WorkflowStartTriggerKind.Schedule;
+            string? ownPattern = isSchedule ? request.PatternOverride : null;
+            if (!string.IsNullOrWhiteSpace(request.PatternOverride) && !isSchedule)
+            {
+                // Ein Muster an einem Nachrichten-Einstieg ergibt keinen Sinn - es gibt keinen Termin,
+                // den es verstellen koennte. Verworfen und gesagt, aus demselben Grund wie unten.
+                LogEnvironment.LogEvent(
+                    $"Eigenes Muster fuer '{request.DefinitionId}' (Knoten '{request.NodeId}') verworfen: "
+                    + "der Einstieg ist eine Nachricht und hat keinen Zeitplan.", LogSeverity.Warning);
+            }
+
             if (!string.IsNullOrWhiteSpace(ownPattern) && !trigger.AllowReschedule)
             {
                 // Verworfen statt uebernommen - und gesagt: sonst stellt jemand einen Termin ein, sieht
@@ -796,7 +820,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Die erste Faelligkeit nur beim ANHAKEN setzen - und nur, wenn es noch keine gibt: der Store
             // laesst den Lauf-Zustand einer bestehenden Zeile sonst unangetastet. Genau deshalb loescht
             // das Abhaken nicht, sondern deaktiviert.
-            if (request.Enabled)
+            //
+            // Nur beim Zeitplan: eine Nachrichten-Aktivierung hat keine Faelligkeit (NextDueUtc bleibt
+            // null), und das ist zugleich, was sie aus dem Aufgriff des Runners heraushaelt.
+            if (request.Enabled && isSchedule)
             {
                 string effective = ownPattern ?? trigger.Pattern;
                 bool known = op.Store.GetActivations(tenant).Any(
