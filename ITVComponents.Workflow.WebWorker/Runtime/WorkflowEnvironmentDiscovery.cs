@@ -78,7 +78,7 @@ namespace ITVComponents.Workflow.WebWorker.Runtime
                     WorkflowEnvironmentSettings? globalSettings =
                         sp.GetService<IHierarchySettings<WorkflowEnvironmentSettings>>()?.ValueOrDefault;
                     AddWorkerEnvironments(specs, tenantId: null, globalSettings);
-                    return specs;
+                    return specs.Count > 0 ? specs : DefaultSpecs();
                 }
 
                 tenants = tenantReader.ReadAllTenants();
@@ -101,7 +101,46 @@ namespace ITVComponents.Workflow.WebWorker.Runtime
                 AddWorkerEnvironments(specs, tenant.TenantName, settings);
             }
 
-            return Consolidate(specs);
+            return specs.Count > 0 ? Consolidate(specs) : DefaultSpecs();
+        }
+
+        /// <summary>
+        /// Die Beschreibung fuer den Fall, dass NIRGENDS eine Umgebung konfiguriert ist: genau ein
+        /// mandantenuebergreifender Deskriptor auf der Standard-Ablage.
+        /// </summary>
+        /// <returns>die eine Standard-Beschreibung</returns>
+        /// <remarks>
+        /// <para>
+        /// Das ist der Web-Only-Fall, und er ist der haeufigste: ein Prozess, eine Datenbank, keine
+        /// Ausfuehrungs-Ziele. Wer ihn faehrt, hat nichts zu konfigurieren - und musste bisher trotzdem
+        /// eine <c>Environments</c>-Sektion anlegen, nur damit der Worker ueberhaupt einen Deskriptor
+        /// bekam. Ohne sie tat er kommentarlos nichts, was wie ein kaputter Workflow aussieht und keiner
+        /// ist.
+        /// </para>
+        /// <para>
+        /// <b>Mandantenuebergreifend, nicht je Mandant</b> - aus demselben Grund wie bei
+        /// <see cref="Consolidate"/>: der Suchlauf des Runners geht jedem <c>WorkflowExecutionScope</c>
+        /// voraus und muss die Instanzen aller Mandanten finden. Den Mandanten setzt der Vortrieb je
+        /// Instanz.
+        /// </para>
+        /// </remarks>
+        private IReadOnlyList<DescriptorSpec> DefaultSpecs()
+        {
+            log.LogInformation(
+                "Workflow-Worker: keine Umgebung konfiguriert - es laeuft EIN mandantenuebergreifender "
+                + "Deskriptor auf der Standard-Ablage (Web-Only-Betrieb). Der Store kommt aus der "
+                + "IDbContextFactory<WorkflowContext>, sofern der Host eine registriert hat.");
+
+            return new[]
+            {
+                new DescriptorSpec(
+                    Key: string.Empty,
+                    EnvironmentName: null,
+                    TenantId: null,
+                    StorePluginName: null,
+                    HostTargets: Array.Empty<string>(),
+                    MaxLinger: opt.MaxPollInterval)
+            };
         }
 
         /// <summary>

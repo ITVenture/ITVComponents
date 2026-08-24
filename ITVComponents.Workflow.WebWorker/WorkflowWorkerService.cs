@@ -10,8 +10,10 @@ using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 using ITVComponents.Workflow.WebWorker.Runtime;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,6 +28,14 @@ namespace ITVComponents.Workflow.WebWorker
     /// </summary>
     public sealed class WorkflowWorkerService : BackgroundService, IWorkflowWorkerWake
     {
+        // Der Name, unter dem der WorkflowContext als scope-owned Dependency haengt. Nur fuer den
+        // Plugin-Weg gebraucht: nennt eine Umgebung keinen eigenen Store, aber es gibt auch keine
+        // Kontext-Fabrik, bleibt dieser Standardname der letzte Versuch. Dieselbe Aufloesung wie in
+        // WorkflowOperation - die DEFAULT-Namensaufloesung der Lease faende die Dependency NICHT.
+        private static readonly string ContextPluginName =
+            (Attribute.GetCustomAttribute(typeof(WorkflowContext), typeof(ScopedDependencyAttribute))
+                as ScopedDependencyAttribute)?.FriendlyName ?? typeof(WorkflowContext).Name;
+
         private readonly IServiceScopeFactory scopeFactory;
         private readonly WorkflowEnvironmentDiscovery discovery;
         private readonly WorkflowWorkerOptions opt;
@@ -187,12 +197,47 @@ namespace ITVComponents.Workflow.WebWorker
             }
 
             IActivityHost activityHost = sp.GetRequiredService<IActivityHost>();
-            IFreshInjectablePlugin<WorkflowContext> fresh = sp.GetRequiredService<IFreshInjectablePlugin<WorkflowContext>>();
             var leases = new List<IDisposable>();
+
+            // ►► Woher der Kontext des Runners kommt - und warum das keine Geschmacksfrage ist.
+            //
+            // Der Suchlauf des Runners MUSS mandantenuebergreifend sein: er laeuft VOR jedem
+            // WorkflowExecutionScope, und die Mandantengrenze zieht der Store danach an genau einer Stelle
+            // (EfWorkflowStore.LoadInstances). Ein Kontext MIT Filter wertet den Mandanten hier als null aus
+            // - das heisst nicht "kein Filter", sondern "TenantId IS NULL", und LoadInstances wirft dann
+            // JEDE Zeile weg, die einem Mandanten gehoert. Nicht nur die lauffaehigen: auch faellige Timer,
+            // Zeitplaene und Nachrichten, denn alle Aufgriffs-Wege sammeln nur Ids und laden ueber dieselbe
+            // Stelle. Der Worker liefe dann vollstaendig leer, ohne eine einzige Fehlermeldung.
+            //
+            // Deshalb ZUERST die Kontext-Fabrik (der options-only-Weg, auf dem gar keine Model-Optionen
+            // gesetzt werden - der einzige wirklich filterfreie). Nennt eine Umgebung ausdruecklich ein
+            // Store-Plugin, gilt dessen Name: im Mehr-Umgebungen-Betrieb zeigt jede Umgebung auf ihre
+            // eigene Ablage, und dann liegt es beim Host, dieses Plugin filterfrei zu bauen.
+            IDbContextFactory<WorkflowContext>? contextFactory =
+                string.IsNullOrEmpty(spec.StorePluginName) ? sp.GetService<IDbContextFactory<WorkflowContext>>() : null;
+            IFreshInjectablePlugin<WorkflowContext>? fresh = contextFactory == null
+                ? sp.GetService<IFreshInjectablePlugin<WorkflowContext>>()
+                : null;
+
+            if (contextFactory == null && fresh == null)
+            {
+                log.LogError(
+                    "Workflow worker: descriptor {Key} has neither an IDbContextFactory<WorkflowContext> nor an "
+                    + "IFreshInjectablePlugin<WorkflowContext> to build its store from - this descriptor cannot "
+                    + "run. Register the context factory (single-environment web setup) or name a store plugin "
+                    + "on the environment.", spec.Key);
+                return (false, null);
+            }
 
             WorkflowContext LeaseCtx()
             {
-                IPluginLease<WorkflowContext> lease = fresh.Lease(spec.StorePluginName);
+                if (contextFactory != null)
+                {
+                    // Der Store disposed den Kontext je Aufruf selbst - hier nichts zu sammeln.
+                    return contextFactory.CreateDbContext();
+                }
+
+                IPluginLease<WorkflowContext> lease = fresh!.Lease(spec.StorePluginName ?? ContextPluginName);
                 leases.Add(lease);
                 return lease.Value;
             }
@@ -203,9 +248,12 @@ namespace ITVComponents.Workflow.WebWorker
                 // ihn selbst; die Operation sammelt die Scopes und schliesst sie am Ende (Doppel-Dispose idempotent).
                 IWorkflowStore store = new EfWorkflowStore(LeaseCtx);
                 // Ist ein Protokoll-Filter registriert, gilt er fuer die hier angetriebenen Instanzen;
-                // sonst der prozessweite Standard (WorkflowHistoryFilter.Default).
+                // sonst der prozessweite Standard (WorkflowHistoryFilter.Default). Das Feature-Gate
+                // entscheidet bei jedem zeitgesteuerten und jedem nachrichten-getriebenen Start, ob der
+                // Mandant den Ablauf ueberhaupt (noch) haben darf - ohne Durchreichen bliebe es wirkungslos,
+                // und genau diese beiden Wege sind die einzigen, die es fragen.
                 var engine = new WorkflowEngine(store, activityHost, null, spec.HostTargets,
-                    sp.GetService<IWorkflowHistoryFilter>());
+                    sp.GetService<IWorkflowHistoryFilter>(), sp.GetService<IWorkflowTenantFeatureGate>());
 
                 // Deskriptor-spezifischer Lock-Owner: raeumt beim ersten Antrieb NUR die eigenen verwaisten
                 // Locks. Die Branch-Lock-Tabelle hat keinen TenantId (ReleaseLocksOfOwner ist global-by-Owner),
