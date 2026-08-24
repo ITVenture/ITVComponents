@@ -7,18 +7,17 @@
     einem Pflichtfeld haengenbleiben.
 *@
 
+@inject IStringLocalizer<WorkflowMonitorMessages> L
+
 <MudDialog>
     <DialogContent>
-        <MudText Typo="Typo.body2" Class="mb-2">
-            The instance stops where it is. Messages and deadlines still reach it — they simply do not run
-            until it is resumed.
-        </MudText>
-        <MudTextField @bind-Value="reason" Label="Reason" Margin="Margin.Dense" Lines="2" AutoFocus="true"
-                      HelperText="@("Shown in the overview and written to the history.")" />
+        <MudText Typo="Typo.body2" Class="mb-2">@L["SuspendIntro"]</MudText>
+        <MudTextField @bind-Value="reason" Label="@L["SuspendReason"]" Margin="Margin.Dense" Lines="2"
+                      AutoFocus="true" HelperText="@L["SuspendReasonHelp"].Value" />
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="Confirm">Suspend</MudButton>
+        <MudButton OnClick="Cancel">@L["Cancel"]</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="Confirm">@L["InstancesSuspend"]</MudButton>
     </DialogActions>
 </MudDialog>
 

@@ -3,14 +3,20 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
+
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
-<PageTitle>Workflow instances</PageTitle>
+@* Steht an der Kante Betreiber/Kunde und ist deshalb lokalisiert - wie die Arbeitsliste. Der Editor
+   bleibt bewusst aussen vor: er ist ein Modellierer-Werkzeug. *@
 
-<MudText Typo="Typo.h5" GutterBottom="true">Workflow instances</MudText>
+<PageTitle>@L["InstancesTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["InstancesTitle"]</MudText>
 
 <SecureView RequiredPermissions="Workflow.Monitor" RequiredFeatures="ITVWorkflow">
     <Permitted>
@@ -28,8 +34,8 @@
                          Hover="true"
                          Dense="true">
                 <ToolBarContent>
-                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="ReloadGrid" />
-                    <MudText Typo="Typo.h6">Instances</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="@L["Refresh"]" OnClick="ReloadGrid" />
+                    <MudText Typo="Typo.h6">@L["InstancesGridTitle"]</MudText>
                     @if (Environment is null)
                     {
                         <div class="ml-3">
@@ -47,19 +53,21 @@
                         <Permitted>
                             <MudButton StartIcon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
                                        Variant="Variant.Filled" Color="Color.Primary" Class="ml-3"
-                                       OnClick="OpenStart">New instance</MudButton>
+                                       OnClick="OpenStart">@L["InstancesNew"]</MudButton>
                         </Permitted>
                     </SecureView>
                     <MudSpacer />
-                    <MudSelect T="int?" @bind-Value="statusFilter" Label="Status" Clearable="true" Dense="true"
+                    <MudSelect T="int?" @bind-Value="statusFilter" Label="@L["InstancesStatus"]" Clearable="true" Dense="true"
                                Style="max-width:170px" Margin="Margin.Dense" OnClearButtonClick="ReloadGrid">
                         @foreach (var status in Enum.GetValues<WorkflowStatus>())
                         {
-                            <MudSelectItem T="int?" Value="@((int?)(int)status)">@status</MudSelectItem>
+                            <MudSelectItem T="int?" Value="@((int?)(int)status)">
+                                @WorkflowMonitorText.Status(L, status)
+                            </MudSelectItem>
                         }
                     </MudSelect>
                     <MudTextField @bind-Value="search"
-                                  Placeholder="Search id / definition / correlation…"
+                                  Placeholder="@L["InstancesSearchPlaceholder"]"
                                   Adornment="Adornment.Start"
                                   AdornmentIcon="@Icons.Material.Filled.Search"
                                   Class="mt-0 ml-2"
@@ -67,20 +75,20 @@
                                   OnDebounceIntervalElapsed="ReloadGrid" />
                 </ToolBarContent>
                 <Columns>
-                    <PropertyColumn Property="x => x.DefinitionId" Title="Definition" />
-                    <PropertyColumn Property="x => x.DefinitionVersion" Title="Ver" />
-                    <PropertyColumn Property="x => x.Status" Title="Status">
+                    <PropertyColumn Property="x => x.DefinitionId" Title="@L["InstancesColumnDefinition"]" />
+                    <PropertyColumn Property="x => x.DefinitionVersion" Title="@L["InstancesColumnVersion"]" />
+                    <PropertyColumn Property="x => x.Status" Title="@L["InstancesStatus"]">
                         <CellTemplate>
-                            <MudText Typo="Typo.body2">@context.Item.Status</MudText>
+                            <MudText Typo="Typo.body2">@WorkflowMonitorText.Status(L, context.Item.Status)</MudText>
                             @if (context.Item.Suspended)
                             {
                                 @* Angehalten steht NEBEN dem Status, nicht darin: die Instanz behaelt
                                    ihren Status und wird nur nicht mehr vorangetrieben. Ohne dieses
                                    Kennzeichen saehe sie aus wie eine, die haengt - und genau danach
                                    wuerde jemand suchen. *@
-                                <MudTooltip Text="@(context.Item.SuspendedReason ?? "Suspended")">
+                                <MudTooltip Text="@(context.Item.SuspendedReason ?? L["InstancesSuspended"])">
                                     <MudChip T="string" Size="Size.Small" Color="Color.Warning"
-                                             Icon="@Icons.Material.Filled.PauseCircle">suspended</MudChip>
+                                             Icon="@Icons.Material.Filled.PauseCircle">@L["InstancesSuspendedChip"]</MudChip>
                                 </MudTooltip>
                             }
                         </CellTemplate>
@@ -88,13 +96,13 @@
                     @* PropertyColumn (nicht TemplateColumn) mit eigener Zelle: nur so traegt die
                        Sortier-Anforderung den Spaltennamen "Priority", den der Handler kennt. Angezeigt
                        wird der Name statt der Zahl - "Low" liest sich richtig herum, "3" nicht. *@
-                    <PropertyColumn Property="x => x.Priority" Title="Priority">
+                    <PropertyColumn Property="x => x.Priority" Title="@L["InstancesColumnPriority"]">
                         <CellTemplate>
-                            <MudText Typo="Typo.body2">@WorkflowPriority.Name(context.Item.Priority)</MudText>
+                            <MudText Typo="Typo.body2">@WorkflowMonitorText.Priority(L, context.Item.Priority)</MudText>
                         </CellTemplate>
                     </PropertyColumn>
-                    <PropertyColumn Property="x => x.CorrelationKey" Title="Correlation" />
-                    <PropertyColumn Property="x => x.UpdatedUtc" Title="Updated (UTC)" />
+                    <PropertyColumn Property="x => x.CorrelationKey" Title="@L["InstancesColumnCorrelation"]" />
+                    <PropertyColumn Property="x => x.UpdatedUtc" Title="@L["InstancesColumnUpdated"]" />
                     <TemplateColumn T="WorkflowInstanceListItem" Title="" Sortable="false">
                         <CellTemplate>
                             @* Nur bei fehlgeschlagenen Instanzen - bei allen anderen gaebe es nichts zu
@@ -104,7 +112,7 @@
                                 <SecureView RequiredPermissions="Workflow.Operate">
                                     <Permitted>
                                         <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Size="Size.Small"
-                                                       Color="Color.Warning" Title="Correct data and retry"
+                                                       Color="Color.Warning" Title="@L["InstancesRetryTitle"]"
                                                        OnClick="@(() => OpenRetry(context.Item))" />
                                     </Permitted>
                                 </SecureView>
@@ -120,12 +128,12 @@
                                                        Icon="@(context.Item.Suspended
                                                                  ? Icons.Material.Filled.PlayCircle
                                                                  : Icons.Material.Filled.PauseCircle)"
-                                                       Title="@(context.Item.Suspended ? "Resume" : "Suspend")"
+                                                       Title="@(context.Item.Suspended ? L["InstancesResume"] : L["InstancesSuspend"])"
                                                        OnClick="@(() => ToggleSuspend(context.Item))" />
                                     </Permitted>
                                 </SecureView>
                             }
-                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="Details"
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Title="@L["InstancesDetails"]"
                                            OnClick="@(() => OpenDetail(context.Item))" />
                         </CellTemplate>
                     </TemplateColumn>
@@ -137,7 +145,7 @@
         }
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Warning">No permission to view workflow instances.</MudAlert>
+        <MudAlert Severity="Severity.Warning">@L["InstancesNoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>
 
@@ -181,7 +189,7 @@
             // Begruendung ist von einem haengenden nicht zu unterscheiden, und genau danach sucht der
             // Naechste. Abbrechen im Dialog haelt nichts an.
             IDialogReference dlg = await DialogService.ShowAsync<SuspendInstanceDialog>(
-                $"Suspend {item.Id}", new DialogParameters(), EditDialogDefaults.Detail);
+                L["InstancesSuspendDialogTitle", item.Id], new DialogParameters(), EditDialogDefaults.Detail);
             DialogResult? answer = await dlg.Result;
             if (answer is not { Canceled: false, Data: string given })
             {
@@ -194,17 +202,19 @@
         bool ok = await Handler.SetSuspendedAsync(currentUser, item.Id, !item.Suspended, reason, Env);
         if (ok)
         {
-            Snackbar.Add(item.Suspended ? $"Instance {item.Id} resumed." : $"Instance {item.Id} suspended.",
+            Snackbar.Add(
+                item.Suspended ? L["InstancesResumed", item.Id] : L["InstancesWasSuspended", item.Id],
                 Severity.Success);
             await ReloadGrid();
             return;
         }
 
         // Der haeufigste Grund ist ein gleichzeitig laufender Zweig, der das Rennen um den Commit
-        // gewonnen hat - das ist kein Fehler, sondern ein "gleich nochmal".
+        // gewonnen hat - das ist kein Fehler, sondern ein "gleich nochmal". Zwei getrennte Meldungen
+        // statt einer mit eingesetztem Verb: ein Satz, in den ein anderer Satz hineinmontiert wird,
+        // laesst sich nicht uebersetzen.
         Snackbar.Add(
-            $"Instance {item.Id} could not be {(item.Suspended ? "resumed" : "suspended")}. "
-            + "It may have finished, or a branch committed at the same moment - please try again.",
+            item.Suspended ? L["InstancesResumeFailed", item.Id] : L["InstancesSuspendFailed", item.Id],
             Severity.Warning);
     }
 
@@ -263,11 +273,11 @@
             { d => d.Environment, Env }
         };
         IDialogReference dlg = await DialogService.ShowAsync<StartWorkflowDialog>(
-            "Start a workflow", parameters, EditDialogDefaults.Detail);
+            L["StartDialogTitle"], parameters, EditDialogDefaults.Detail);
         DialogResult? result = await dlg.Result;
         if (result is { Canceled: false, Data: string instanceId })
         {
-            Snackbar.Add($"Instance {instanceId} started.", Severity.Success);
+            Snackbar.Add(L["InstancesStarted", instanceId], Severity.Success);
             await ReloadGrid();
         }
     }
@@ -284,11 +294,11 @@
             { d => d.Environment, Env }
         };
         IDialogReference dlg = await DialogService.ShowAsync<RetryWorkflowDialog>(
-            $"Retry {item.Id}", parameters, EditDialogDefaults.Detail);
+            L["RetryDialogTitle", item.Id], parameters, EditDialogDefaults.Detail);
         DialogResult? result = await dlg.Result;
         if (result is { Canceled: false, Data: true })
         {
-            Snackbar.Add($"Instance {item.Id} resumed.", Severity.Success);
+            Snackbar.Add(L["InstancesResumed", item.Id], Severity.Success);
             await ReloadGrid();
         }
     }
@@ -301,7 +311,7 @@
             { d => d.Environment, Env }
         };
         var dlg = await DialogService.ShowAsync<WorkflowInstanceDetailDialog>(
-            $"Instance {item.Id}", parameters, EditDialogDefaults.Detail);
+            L["DetailDialogTitle", item.Id], parameters, EditDialogDefaults.Detail);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: true })
         {

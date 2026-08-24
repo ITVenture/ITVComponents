@@ -1,7 +1,10 @@
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
+
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
 <MudDialog>
     <DialogContent>
@@ -12,14 +15,14 @@
         else
         {
             <MudTabs Elevation="0" Rounded="true" PanelClass="pa-4">
-                <MudTabPanel Text="Overview">
+                <MudTabPanel Text="@L["DetailTabOverview"]">
                     <MudSimpleTable Dense="true" Hover="true">
                         <tbody>
-                            <tr><td>Id</td><td>@instance.Id</td></tr>
-                            <tr><td>Definition</td><td>@instance.DefinitionId (v@instance.DefinitionVersion)</td></tr>
-                            <tr><td>Status</td><td>@instance.Status</td></tr>
+                            <tr><td>@L["DetailId"]</td><td>@instance.Id</td></tr>
+                            <tr><td>@L["InstancesColumnDefinition"]</td><td>@instance.DefinitionId (v@instance.DefinitionVersion)</td></tr>
+                            <tr><td>@L["InstancesStatus"]</td><td>@WorkflowMonitorText.Status(L, instance.Status)</td></tr>
                             <tr>
-                                <td>Priority</td>
+                                <td>@L["InstancesColumnPriority"]</td>
                                 <td>
                                     @* Nur solange die Instanz noch etwas vor sich hat - an einer
                                        beendeten Instanz aendert die Stufe nichts mehr. *@
@@ -33,30 +36,30 @@
                                                                         Class="mt-0" />
                                             </Permitted>
                                             <NotPermitted>
-                                                @WorkflowPriority.Name(instance.Priority)
+                                                @WorkflowMonitorText.Priority(L, instance.Priority)
                                             </NotPermitted>
                                         </SecureView>
                                     }
                                     else
                                     {
-                                        @WorkflowPriority.Name(instance.Priority)
+                                        @WorkflowMonitorText.Priority(L, instance.Priority)
                                     }
                                 </td>
                             </tr>
-                            <tr><td>Correlation</td><td>@instance.CorrelationKey</td></tr>
-                            <tr><td>Created (UTC)</td><td>@instance.CreatedUtc</td></tr>
-                            <tr><td>Updated (UTC)</td><td>@instance.UpdatedUtc</td></tr>
+                            <tr><td>@L["InstancesColumnCorrelation"]</td><td>@instance.CorrelationKey</td></tr>
+                            <tr><td>@L["DetailCreated"]</td><td>@instance.CreatedUtc</td></tr>
+                            <tr><td>@L["InstancesColumnUpdated"]</td><td>@instance.UpdatedUtc</td></tr>
                             @if (!string.IsNullOrEmpty(instance.FaultMessage))
                             {
-                                <tr><td>Fault</td><td>@instance.FaultMessage</td></tr>
+                                <tr><td>@L["DetailFault"]</td><td>@instance.FaultMessage</td></tr>
                             }
                         </tbody>
                     </MudSimpleTable>
                 </MudTabPanel>
-                <MudTabPanel Text="Graph">
+                <MudTabPanel Text="@L["DetailTabGraph"]">
                     @if (definition is null)
                     {
-                        <MudText Typo="Typo.body2">No definition available for this instance.</MudText>
+                        <MudText Typo="Typo.body2">@L["DetailNoDefinition"]</MudText>
                     }
                     else
                     {
@@ -64,11 +67,11 @@
                         {
                             <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
                                 @(faultedNodeIds.Length == 1
-                                    ? "The step marked in red failed."
-                                    : $"{faultedNodeIds.Length} steps marked in red failed.")
+                                    ? L["DetailOneStepFailed"]
+                                    : L["DetailManyStepsFailed", faultedNodeIds.Length])
                                 <SecureView RequiredPermissions="Workflow.Operate">
                                     <Permitted>
-                                        <span> Double-click a step to correct its data and retry.</span>
+                                        <span> @L["DetailDoubleClickHint"]</span>
                                     </Permitted>
                                 </SecureView>
                             </MudAlert>
@@ -79,18 +82,17 @@
                                        OnNodeActivated="OpenBranchCorrection" />
                     }
                 </MudTabPanel>
-                <MudTabPanel Text="@($"Variables ({instance.Variables.Count})")">
+                <MudTabPanel Text="@L["DetailTabVariables", instance.Variables.Count]">
                     @if (instance.Tokens.Any(t => t.Variables is not null))
                     {
                         @* Waehrend einer parallelen Region steht der Instanz-Stack auf dem Stand des Splits;
                            was die Zweige gerade rechnen, steht in deren Kopien (Reiter „Tokens"). *@
                         <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-                            A parallel region is open: these are the variables as of the split. What the branches
-                            computed so far is in their branch scopes (tab "Tokens") until the join merges them.
+                            @L["DetailParallelRegionHint"]
                         </MudAlert>
                     }
                     <MudSimpleTable Dense="true" Hover="true">
-                        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+                        <thead><tr><th>@L["DetailVarName"]</th><th>@L["DetailVarValue"]</th></tr></thead>
                         <tbody>
                             @foreach (var kv in instance.Variables)
                             {
@@ -99,25 +101,25 @@
                         </tbody>
                     </MudSimpleTable>
                 </MudTabPanel>
-                <MudTabPanel Text="@($"Tokens ({instance.Tokens.Count})")">
+                <MudTabPanel Text="@L["DetailTabTokens", instance.Tokens.Count]">
                     <MudSimpleTable Dense="true" Hover="true">
-                        <thead><tr><th>Node</th><th>Status</th><th>Waiting for</th><th>Branch scope</th></tr></thead>
+                        <thead><tr><th>@L["DetailTokenNode"]</th><th>@L["InstancesStatus"]</th><th>@L["DetailTokenWaitingFor"]</th><th>@L["DetailTokenBranchScope"]</th></tr></thead>
                         <tbody>
                             @foreach (var token in instance.Tokens)
                             {
                                 <tr>
                                     <td>@token.NodeId</td>
                                     <td>@token.Status</td>
-                                    <td>@(token.WaitingSignal ?? (token.DueUtc.HasValue ? $"timer {token.DueUtc:o}" : ""))</td>
+                                    <td>@(token.WaitingSignal ?? (token.DueUtc.HasValue ? L["DetailTokenTimer", token.DueUtc.Value.ToString("o")].Value : ""))</td>
                                     <td>@BranchScope(token)</td>
                                 </tr>
                             }
                         </tbody>
                     </MudSimpleTable>
                 </MudTabPanel>
-                <MudTabPanel Text="@($"History ({instance.History.Count})")">
+                <MudTabPanel Text="@L["DetailTabHistory", instance.History.Count]">
                     <MudSimpleTable Dense="true" Hover="true">
-                        <thead><tr><th>Severity</th><th>Time (UTC)</th><th>Event</th><th>Node</th><th>Detail</th></tr></thead>
+                        <thead><tr><th>@L["DetailHistorySeverity"]</th><th>@L["DetailHistoryTime"]</th><th>@L["DetailHistoryEvent"]</th><th>@L["DetailTokenNode"]</th><th>@L["DetailHistoryDetail"]</th></tr></thead>
                         <tbody>
                             @foreach (var entry in instance.History)
                             {
@@ -140,10 +142,10 @@
         {
             <SecureView RequiredPermissions="Workflow.Operate">
                 <Permitted>
-                    <MudTextField @bind-Value="signalName" Placeholder="Signal name" Margin="Margin.Dense"
+                    <MudTextField @bind-Value="signalName" Placeholder="@L["DetailSignalName"]" Margin="Margin.Dense"
                                   Class="mr-2" Style="max-width:200px" />
                     <MudButton Color="Color.Primary" OnClick="SendSignal"
-                               Disabled="@string.IsNullOrWhiteSpace(signalName)">Send signal</MudButton>
+                               Disabled="@string.IsNullOrWhiteSpace(signalName)">@L["DetailSendSignal"]</MudButton>
                 </Permitted>
             </SecureView>
         }
@@ -156,13 +158,13 @@
             <SecureView RequiredPermissions="Workflow.Operate">
                 <Permitted>
                     <MudButton Color="Color.Error" OnClick="Cancel">
-                        @(instance.Status == WorkflowStatus.Faulted ? "Give up and cancel" : "Cancel workflow")
+                        @(instance.Status == WorkflowStatus.Faulted ? L["DetailGiveUp"] : L["DetailCancelWorkflow"])
                     </MudButton>
                 </Permitted>
             </SecureView>
         }
         <MudSpacer />
-        <MudButton OnClick="Close">Close</MudButton>
+        <MudButton OnClick="Close">@L["Close"]</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -213,13 +215,12 @@
 
         if (await Handler.SetPriorityAsync(currentUser, InstanceId, priority.Value, Environment))
         {
-            Snackbar.Add($"Priority set to {WorkflowPriority.Name(priority.Value)}.", Severity.Success);
+            Snackbar.Add(L["DetailPrioritySet", WorkflowMonitorText.Priority(L, priority.Value)],
+                Severity.Success);
         }
         else
         {
-            Snackbar.Add(
-                "The priority could not be changed — a branch of this instance was being processed at the " +
-                "same time. Please try again.", Severity.Warning);
+            Snackbar.Add(L["DetailPriorityFailed"], Severity.Warning);
         }
 
         await LoadAsync();
@@ -287,11 +288,11 @@
             { d => d.FocusNodeId, nodeId }
         };
         IDialogReference dlg = await DialogService.ShowAsync<RetryWorkflowDialog>(
-            $"Retry {InstanceId}", parameters, EditDialogDefaults.Detail);
+            L["RetryDialogTitle", InstanceId], parameters, EditDialogDefaults.Detail);
         DialogResult? result = await dlg.Result;
         if (result is { Canceled: false, Data: true })
         {
-            Snackbar.Add("Instance resumed.", Severity.Success);
+            Snackbar.Add(L["DetailInstanceResumed"], Severity.Success);
             // Der Stand hat sich geaendert (inline ist der Schritt schon gelaufen) - neu laden statt
             // eine veraltete Ansicht stehen zu lassen.
             await LoadAsync();
@@ -309,12 +310,12 @@
         var ok = await Handler.SignalAsync(currentUser, InstanceId, signalName!, Environment);
         if (ok)
         {
-            Snackbar.Add("Signal delivered", Severity.Success);
+            Snackbar.Add(L["DetailSignalDelivered"], Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         else
         {
-            Snackbar.Add("No token was waiting for that signal (or no permission).", Severity.Warning);
+            Snackbar.Add(L["DetailSignalNotWaited"], Severity.Warning);
         }
     }
 
@@ -328,12 +329,12 @@
         var ok = await Handler.CancelAsync(currentUser, InstanceId, Environment);
         if (ok)
         {
-            Snackbar.Add("Workflow cancelled", Severity.Success);
+            Snackbar.Add(L["DetailCancelled"], Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         else
         {
-            Snackbar.Add("Could not cancel (or no permission).", Severity.Warning);
+            Snackbar.Add(L["DetailCancelFailed"], Severity.Warning);
         }
     }
 

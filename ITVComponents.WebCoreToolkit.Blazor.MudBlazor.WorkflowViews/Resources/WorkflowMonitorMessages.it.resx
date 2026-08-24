@@ -1,0 +1,466 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Cancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Chiudi</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Aggiorna</value>
+  </data>
+  <data name="StatusRunning" xml:space="preserve">
+    <value>In esecuzione</value>
+  </data>
+  <data name="StatusWaiting" xml:space="preserve">
+    <value>In attesa</value>
+  </data>
+  <data name="StatusCompleted" xml:space="preserve">
+    <value>Completato</value>
+  </data>
+  <data name="StatusFaulted" xml:space="preserve">
+    <value>Non riuscito</value>
+  </data>
+  <data name="StatusCancelled" xml:space="preserve">
+    <value>Annullato</value>
+  </data>
+  <data name="PriorityHighest" xml:space="preserve">
+    <value>Massima</value>
+  </data>
+  <data name="PriorityHigh" xml:space="preserve">
+    <value>Alta</value>
+  </data>
+  <data name="PriorityNormal" xml:space="preserve">
+    <value>Normale</value>
+  </data>
+  <data name="PriorityLow" xml:space="preserve">
+    <value>Bassa</value>
+  </data>
+  <data name="PriorityLowest" xml:space="preserve">
+    <value>Minima</value>
+  </data>
+  <data name="KindText" xml:space="preserve">
+    <value>Testo</value>
+  </data>
+  <data name="KindNumber" xml:space="preserve">
+    <value>Numero</value>
+  </data>
+  <data name="KindBoolean" xml:space="preserve">
+    <value>Sì/No</value>
+  </data>
+  <data name="KindDate" xml:space="preserve">
+    <value>Data</value>
+  </data>
+  <data name="HomeTitle" xml:space="preserve">
+    <value>Workflow</value>
+  </data>
+  <data name="HomeTasks" xml:space="preserve">
+    <value>Le mie attività</value>
+  </data>
+  <data name="HomeTasksText" xml:space="preserve">
+    <value>Visualizzare ed evadere le attività aperte.</value>
+  </data>
+  <data name="HomeTasksButton" xml:space="preserve">
+    <value>Attività</value>
+  </data>
+  <data name="HomeMonitoring" xml:space="preserve">
+    <value>Monitoraggio</value>
+  </data>
+  <data name="HomeMonitoringText" xml:space="preserve">
+    <value>Visualizzare i processi in corso e conclusi.</value>
+  </data>
+  <data name="HomeInstancesButton" xml:space="preserve">
+    <value>Processi</value>
+  </data>
+  <data name="HomeCentralText" xml:space="preserve">
+    <value>Adottare per la propria organizzazione processi gestiti centralmente.</value>
+  </data>
+  <data name="HomeDesign" xml:space="preserve">
+    <value>Progettazione</value>
+  </data>
+  <data name="HomeDesignText" xml:space="preserve">
+    <value>Visualizzare e modificare le definizioni di workflow.</value>
+  </data>
+  <data name="HomeDesignButton" xml:space="preserve">
+    <value>Definizioni</value>
+  </data>
+  <data name="HomeNoPermission" xml:space="preserve">
+    <value>Nessuna autorizzazione per l'area Workflow.</value>
+  </data>
+  <data name="CentralTitle" xml:space="preserve">
+    <value>Processi centrali</value>
+  </data>
+  <data name="CentralIntro" xml:space="preserve">
+    <value>Processi gestiti centralmente che potete far girare per la vostra organizzazione. Spuntatene uno e parte per voi — con i vostri dati.</value>
+  </data>
+  <data name="CentralEmpty" xml:space="preserve">
+    <value>Nessuna offerta. O nessun processo centrale è aperto all'adozione, oppure nessuno di essi è coperto dal vostro abbonamento.</value>
+  </data>
+  <data name="CentralColumnProcess" xml:space="preserve">
+    <value>Processo</value>
+  </data>
+  <data name="CentralColumnRunsOn" xml:space="preserve">
+    <value>Si avvia con</value>
+  </data>
+  <data name="CentralColumnNextRun" xml:space="preserve">
+    <value>Prossima esecuzione</value>
+  </data>
+  <data name="CentralColumnLastRun" xml:space="preserve">
+    <value>Ultima esecuzione</value>
+  </data>
+  <data name="CentralOnMessage" xml:space="preserve">
+    <value>messaggio: {0}</value>
+  </data>
+  <data name="CentralOwnPattern" xml:space="preserve">
+    <value>il vostro — centrale: {0}</value>
+  </data>
+  <data name="CentralOrphanChip" xml:space="preserve">
+    <value>L'attivatore non esiste più</value>
+  </data>
+  <data name="CentralOrphanHint" xml:space="preserve">
+    <value>Uno dei processi adottati non ha più un attivatore — il suo passo iniziale è stato rinominato o rimosso centralmente. Non verrà eseguito finché non ritorna. La vostra scelta resta valida: riprenderà da sé.</value>
+  </data>
+  <data name="CentralOwnScheduleTitle" xml:space="preserve">
+    <value>Usare la mia pianificazione</value>
+  </data>
+  <data name="CentralMyScheduleDialog" xml:space="preserve">
+    <value>La mia pianificazione</value>
+  </data>
+  <data name="CentralChangeFailed" xml:space="preserve">
+    <value>Non è stato possibile modificarlo — il motivo è nel registro.</value>
+  </data>
+  <data name="CentralNoPermission" xml:space="preserve">
+    <value>Nessuna autorizzazione per i processi centrali.</value>
+  </data>
+  <data name="InstancesTitle" xml:space="preserve">
+    <value>Processi di workflow</value>
+  </data>
+  <data name="InstancesGridTitle" xml:space="preserve">
+    <value>Processi</value>
+  </data>
+  <data name="InstancesNew" xml:space="preserve">
+    <value>Nuovo processo</value>
+  </data>
+  <data name="InstancesStatus" xml:space="preserve">
+    <value>Stato</value>
+  </data>
+  <data name="InstancesSearchPlaceholder" xml:space="preserve">
+    <value>Cerca identificativo / definizione / correlazione…</value>
+  </data>
+  <data name="InstancesColumnDefinition" xml:space="preserve">
+    <value>Definizione</value>
+  </data>
+  <data name="InstancesColumnVersion" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="InstancesColumnPriority" xml:space="preserve">
+    <value>Priorità</value>
+  </data>
+  <data name="InstancesColumnCorrelation" xml:space="preserve">
+    <value>Correlazione</value>
+  </data>
+  <data name="InstancesColumnUpdated" xml:space="preserve">
+    <value>Modificato (UTC)</value>
+  </data>
+  <data name="InstancesSuspended" xml:space="preserve">
+    <value>Sospeso</value>
+  </data>
+  <data name="InstancesSuspendedChip" xml:space="preserve">
+    <value>sospeso</value>
+  </data>
+  <data name="InstancesRetryTitle" xml:space="preserve">
+    <value>Correggere i dati e riprovare</value>
+  </data>
+  <data name="InstancesResume" xml:space="preserve">
+    <value>Riprendi</value>
+  </data>
+  <data name="InstancesSuspend" xml:space="preserve">
+    <value>Sospendi</value>
+  </data>
+  <data name="InstancesDetails" xml:space="preserve">
+    <value>Dettagli</value>
+  </data>
+  <data name="InstancesNoPermission" xml:space="preserve">
+    <value>Nessuna autorizzazione per visualizzare i processi di workflow.</value>
+  </data>
+  <data name="InstancesSuspendDialogTitle" xml:space="preserve">
+    <value>Sospendere {0}</value>
+  </data>
+  <data name="InstancesResumed" xml:space="preserve">
+    <value>Processo {0} ripreso.</value>
+  </data>
+  <data name="InstancesWasSuspended" xml:space="preserve">
+    <value>Processo {0} sospeso.</value>
+  </data>
+  <data name="InstancesResumeFailed" xml:space="preserve">
+    <value>Non è stato possibile riprendere il processo {0}. Forse è già concluso, oppure un ramo ha salvato nello stesso momento — riprovare.</value>
+  </data>
+  <data name="InstancesSuspendFailed" xml:space="preserve">
+    <value>Non è stato possibile sospendere il processo {0}. Forse è già concluso, oppure un ramo ha salvato nello stesso momento — riprovare.</value>
+  </data>
+  <data name="InstancesStarted" xml:space="preserve">
+    <value>Processo {0} avviato.</value>
+  </data>
+  <data name="SuspendIntro" xml:space="preserve">
+    <value>Il processo si ferma dov'è. Messaggi e scadenze continuano a raggiungerlo — semplicemente non vengono eseguiti finché non riprende.</value>
+  </data>
+  <data name="SuspendReason" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="SuspendReasonHelp" xml:space="preserve">
+    <value>Viene mostrato nella panoramica e scritto nella cronologia.</value>
+  </data>
+  <data name="DetailDialogTitle" xml:space="preserve">
+    <value>Processo {0}</value>
+  </data>
+  <data name="DetailTabOverview" xml:space="preserve">
+    <value>Panoramica</value>
+  </data>
+  <data name="DetailTabGraph" xml:space="preserve">
+    <value>Grafo</value>
+  </data>
+  <data name="DetailTabVariables" xml:space="preserve">
+    <value>Variabili ({0})</value>
+  </data>
+  <data name="DetailTabTokens" xml:space="preserve">
+    <value>Token ({0})</value>
+  </data>
+  <data name="DetailTabHistory" xml:space="preserve">
+    <value>Cronologia ({0})</value>
+  </data>
+  <data name="DetailId" xml:space="preserve">
+    <value>Identificativo</value>
+  </data>
+  <data name="DetailCreated" xml:space="preserve">
+    <value>Creato (UTC)</value>
+  </data>
+  <data name="DetailFault" xml:space="preserve">
+    <value>Errore</value>
+  </data>
+  <data name="DetailNoDefinition" xml:space="preserve">
+    <value>Nessuna definizione disponibile per questo processo.</value>
+  </data>
+  <data name="DetailOneStepFailed" xml:space="preserve">
+    <value>Il passo evidenziato in rosso non è riuscito.</value>
+  </data>
+  <data name="DetailManyStepsFailed" xml:space="preserve">
+    <value>{0} passi evidenziati in rosso non sono riusciti.</value>
+  </data>
+  <data name="DetailDoubleClickHint" xml:space="preserve">
+    <value>Doppio clic su un passo per correggerne i dati e riprovarlo.</value>
+  </data>
+  <data name="DetailParallelRegionHint" xml:space="preserve">
+    <value>È aperta una regione parallela: queste sono le variabili al momento della divisione. Ciò che i rami hanno calcolato finora si trova nelle loro copie (scheda «Token») finché la giunzione non le unisce.</value>
+  </data>
+  <data name="DetailVarName" xml:space="preserve">
+    <value>Nome</value>
+  </data>
+  <data name="DetailVarValue" xml:space="preserve">
+    <value>Valore</value>
+  </data>
+  <data name="DetailTokenNode" xml:space="preserve">
+    <value>Nodo</value>
+  </data>
+  <data name="DetailTokenWaitingFor" xml:space="preserve">
+    <value>In attesa di</value>
+  </data>
+  <data name="DetailTokenBranchScope" xml:space="preserve">
+    <value>Dati del ramo</value>
+  </data>
+  <data name="DetailTokenTimer" xml:space="preserve">
+    <value>scadenza {0}</value>
+  </data>
+  <data name="DetailHistorySeverity" xml:space="preserve">
+    <value>Livello</value>
+  </data>
+  <data name="DetailHistoryTime" xml:space="preserve">
+    <value>Ora (UTC)</value>
+  </data>
+  <data name="DetailHistoryEvent" xml:space="preserve">
+    <value>Evento</value>
+  </data>
+  <data name="DetailHistoryDetail" xml:space="preserve">
+    <value>Dettaglio</value>
+  </data>
+  <data name="DetailSignalName" xml:space="preserve">
+    <value>Nome del messaggio</value>
+  </data>
+  <data name="DetailSendSignal" xml:space="preserve">
+    <value>Invia messaggio</value>
+  </data>
+  <data name="DetailGiveUp" xml:space="preserve">
+    <value>Rinunciare e annullare</value>
+  </data>
+  <data name="DetailCancelWorkflow" xml:space="preserve">
+    <value>Annulla workflow</value>
+  </data>
+  <data name="DetailPrioritySet" xml:space="preserve">
+    <value>Priorità impostata su {0}.</value>
+  </data>
+  <data name="DetailPriorityFailed" xml:space="preserve">
+    <value>Non è stato possibile modificare la priorità — un ramo di questo processo era in elaborazione nello stesso momento. Riprovare.</value>
+  </data>
+  <data name="DetailInstanceResumed" xml:space="preserve">
+    <value>Processo ripreso.</value>
+  </data>
+  <data name="DetailSignalDelivered" xml:space="preserve">
+    <value>Messaggio recapitato</value>
+  </data>
+  <data name="DetailSignalNotWaited" xml:space="preserve">
+    <value>Nessun token era in attesa di questo messaggio (o nessuna autorizzazione).</value>
+  </data>
+  <data name="DetailCancelled" xml:space="preserve">
+    <value>Workflow annullato</value>
+  </data>
+  <data name="DetailCancelFailed" xml:space="preserve">
+    <value>Annullamento non possibile (o nessuna autorizzazione).</value>
+  </data>
+  <data name="StartDialogTitle" xml:space="preserve">
+    <value>Avviare un workflow</value>
+  </data>
+  <data name="StartNoneAvailable" xml:space="preserve">
+    <value>Qui non c'è alcun workflow che possiate avviare. Una definizione compare non appena ha un nodo iniziale e non è bloccata da errori di validazione.</value>
+  </data>
+  <data name="StartWorkflowLabel" xml:space="preserve">
+    <value>Workflow</value>
+  </data>
+  <data name="StartCorrelationLabel" xml:space="preserve">
+    <value>Chiave di correlazione (facoltativa)</value>
+  </data>
+  <data name="StartCorrelationHelp" xml:space="preserve">
+    <value>Il vostro riferimento — i messaggi successivi si rivolgono al processo tramite esso.</value>
+  </data>
+  <data name="StartPriorityLabel" xml:space="preserve">
+    <value>Priorità (facoltativa)</value>
+  </data>
+  <data name="StartPriorityInherit" xml:space="preserve">
+    <value>(come stabilito dal workflow)</value>
+  </data>
+  <data name="StartPriorityHelp" xml:space="preserve">
+    <value>Con quanta urgenza i processi in background prendono in carico questo processo. Lasciare vuoto per usare l'impostazione predefinita del workflow.</value>
+  </data>
+  <data name="StartNoForm" xml:space="preserve">
+    <value>Questo workflow non dichiara alcuna maschera iniziale. Viene avviato senza valori — aggiungete campi al nodo iniziale nel designer se servono immissioni.</value>
+  </data>
+  <data name="StartFromSchedule" xml:space="preserve">
+    <value>Dalla pianificazione</value>
+  </data>
+  <data name="StartFromScheduleHint" xml:space="preserve">
+    <value>Un'esecuzione pianificata parte con questi valori. Sono precompilati qui affinché un avvio manuale si comporti allo stesso modo — modificateli se questa esecuzione deve differire.</value>
+  </data>
+  <data name="StartStrictSignature" xml:space="preserve">
+    <value>Questo workflow ha una firma rigorosa: sopravvivono solo i parametri dichiarati sul suo nodo iniziale. I valori immessi qui che non vi sono dichiarati vengono scartati.</value>
+  </data>
+  <data name="StartAction" xml:space="preserve">
+    <value>Avvia</value>
+  </data>
+  <data name="StartLoadFailed" xml:space="preserve">
+    <value>Non è stato possibile caricare questo workflow. Forse è stato rimosso nel frattempo.</value>
+  </data>
+  <data name="StartFailed" xml:space="preserve">
+    <value>Non è stato possibile avviare il workflow.</value>
+  </data>
+  <data name="RetryDialogTitle" xml:space="preserve">
+    <value>Riprovare {0}</value>
+  </data>
+  <data name="RetryTitle" xml:space="preserve">
+    <value>Riprovare un workflow non riuscito</value>
+  </data>
+  <data name="RetryNoMessage" xml:space="preserve">
+    <value>Il processo non è riuscito senza un messaggio.</value>
+  </data>
+  <data name="RetryStepNoMessage" xml:space="preserve">
+    <value>Questo passo non è riuscito senza un messaggio.</value>
+  </data>
+  <data name="RetryManyBranches" xml:space="preserve">
+    <value>{0} dei {1} rami fermi non sono riusciti. Ogni ramo ha le proprie variabili — correggetele ramo per ramo; un solo tentativo li riprende tutti.</value>
+  </data>
+  <data name="RetryBranchNotFailed" xml:space="preserve">
+    <value>Questo ramo non è fallito — semplicemente non è arrivato il suo turno prima che il workflow si fermasse. Alla ripresa prosegue comunque; correggetene i dati solo se necessario.</value>
+  </data>
+  <data name="RetryDataHint" xml:space="preserve">
+    <value>Dati che questo ramo vedrà. Vuoto cancella la variabile; i valori composti (oggetti, elenchi) sono in sola lettura.</value>
+  </data>
+  <data name="RetryColumnVariable" xml:space="preserve">
+    <value>Variabile</value>
+  </data>
+  <data name="RetryWasValue" xml:space="preserve">
+    <value>prima: {0}</value>
+  </data>
+  <data name="RetryNewVariable" xml:space="preserve">
+    <value>nuova variabile</value>
+  </data>
+  <data name="RetryAllBranches" xml:space="preserve">
+    <value>Riprovare tutti i rami</value>
+  </data>
+  <data name="RetryAction" xml:space="preserve">
+    <value>Riprova</value>
+  </data>
+  <data name="RetryBranchFallback" xml:space="preserve">
+    <value>ramo</value>
+  </data>
+  <data name="RetryLoadFailed" xml:space="preserve">
+    <value>Non è stato possibile caricare questo processo.</value>
+  </data>
+  <data name="RetryFailed" xml:space="preserve">
+    <value>Non è stato possibile riprendere il processo.</value>
+  </data>
+</root>

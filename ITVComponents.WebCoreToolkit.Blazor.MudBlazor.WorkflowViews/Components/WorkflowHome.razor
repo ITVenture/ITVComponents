@@ -2,9 +2,14 @@
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-<PageTitle>Workflow</PageTitle>
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
-<MudText Typo="Typo.h5" GutterBottom="true">Workflow</MudText>
+@* Die Einstiegsseite des Moduls - sie fuehrt in alle vier Bereiche und wird deshalb wie diese
+   lokalisiert. Sie stand vorher hart auf Deutsch; ein franzoesischer Benutzer sah Deutsch. *@
+
+<PageTitle>@L["HomeTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["HomeTitle"]</MudText>
 
 @* Das Feature schaltet den Bereich frei; die Kacheln erscheinen je nach Aspekt-Berechtigung. *@
 <SecureView RequiredPermissions="Workflow.Monitor,Workflow.Design,Workflow.Tasks,Workflow.Operate" RequiredFeatures="ITVWorkflow">
@@ -13,50 +18,48 @@
             <SecureView RequiredPermissions="Workflow.Tasks">
                 <Permitted>
                     <MudPaper Class="pa-4">
-                        <MudText Typo="Typo.h6">Meine Aufgaben</MudText>
-                        <MudText Typo="Typo.body2" Class="mb-2">Offene Aufgaben ansehen und erledigen.</MudText>
+                        <MudText Typo="Typo.h6">@L["HomeTasks"]</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">@L["HomeTasksText"]</MudText>
                         <MudButton Href="Workflow/Tasks" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.AssignmentInd">Aufgaben</MudButton>
+                                   StartIcon="@Icons.Material.Filled.AssignmentInd">@L["HomeTasksButton"]</MudButton>
                     </MudPaper>
                 </Permitted>
             </SecureView>
             <SecureView RequiredPermissions="Workflow.Monitor">
                 <Permitted>
                     <MudPaper Class="pa-4">
-                        <MudText Typo="Typo.h6">Monitoring</MudText>
-                        <MudText Typo="Typo.body2" Class="mb-2">Laufende und beendete Instanzen ansehen.</MudText>
+                        <MudText Typo="Typo.h6">@L["HomeMonitoring"]</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">@L["HomeMonitoringText"]</MudText>
                         @* Relativ (ohne fuehrenden Slash): loest gegen <base href="/{tenant}/"> auf und
                            bleibt damit im Tenant. Ein fuehrender Slash zielt auf den Root und ergibt 404. *@
                         <MudButton Href="Workflow/Instances" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.Monitor">Instanzen</MudButton>
+                                   StartIcon="@Icons.Material.Filled.Monitor">@L["HomeInstancesButton"]</MudButton>
                     </MudPaper>
                 </Permitted>
             </SecureView>
             <SecureView RequiredPermissions="Workflow.Operate">
                 <Permitted>
                     <MudPaper Class="pa-4">
-                        <MudText Typo="Typo.h6">Zentrale Abläufe</MudText>
-                        <MudText Typo="Typo.body2" Class="mb-2">
-                            Zentral gepflegte Prozesse für den eigenen Mandanten übernehmen.
-                        </MudText>
+                        <MudText Typo="Typo.h6">@L["CentralTitle"]</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">@L["HomeCentralText"]</MudText>
                         <MudButton Href="Workflow/Central" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.EventRepeat">Zentrale Abläufe</MudButton>
+                                   StartIcon="@Icons.Material.Filled.EventRepeat">@L["CentralTitle"]</MudButton>
                     </MudPaper>
                 </Permitted>
             </SecureView>
             <SecureView RequiredPermissions="Workflow.Design">
                 <Permitted>
                     <MudPaper Class="pa-4">
-                        <MudText Typo="Typo.h6">Design</MudText>
-                        <MudText Typo="Typo.body2" Class="mb-2">Workflow-Definitionen ansehen (Editor folgt).</MudText>
+                        <MudText Typo="Typo.h6">@L["HomeDesign"]</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">@L["HomeDesignText"]</MudText>
                         <MudButton Href="Workflow/Definitions" Variant="Variant.Filled" Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.AccountTree">Definitionen</MudButton>
+                                   StartIcon="@Icons.Material.Filled.AccountTree">@L["HomeDesignButton"]</MudButton>
                     </MudPaper>
                 </Permitted>
             </SecureView>
         </MudStack>
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Warning">Keine Berechtigung fuer den Workflow-Bereich.</MudAlert>
+        <MudAlert Severity="Severity.Warning">@L["HomeNoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>

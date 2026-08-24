@@ -3,6 +3,7 @@
 
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
 @*
     Startet eine neue Instanz von Hand. Die Maske ist NICHT hier verdrahtet, sondern kommt aus der
@@ -15,7 +16,7 @@
     <TitleContent>
         <MudText Typo="Typo.h6">
             <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Class="mr-2" />
-            <span>Start a workflow</span>
+            <span>@L["StartDialogTitle"]</span>
         </MudText>
     </TitleContent>
     <DialogContent>
@@ -25,14 +26,11 @@
         }
         else if (definitions.Count == 0)
         {
-            <MudAlert Severity="Severity.Info">
-                There is no workflow you may start here. A definition appears once it has a start node and is
-                not disabled by validation errors.
-            </MudAlert>
+            <MudAlert Severity="Severity.Info">@L["StartNoneAvailable"]</MudAlert>
         }
         else
         {
-            <MudSelect T="string" Value="@definitionId" ValueChanged="OnDefinitionChanged" Label="Workflow"
+            <MudSelect T="string" Value="@definitionId" ValueChanged="OnDefinitionChanged" Label="@L["StartWorkflowLabel"]"
                        Dense="true" Margin="Margin.Dense">
                 @foreach (WorkflowStartableDefinition def in definitions)
                 {
@@ -51,20 +49,17 @@
                     <MudText Typo="Typo.body2" Class="mt-3">@Description</MudText>
                 }
 
-                <MudTextField @bind-Value="correlationKey" Label="Correlation key (optional)"
+                <MudTextField @bind-Value="correlationKey" Label="@L["StartCorrelationLabel"]"
                               Margin="Margin.Dense" Class="mt-3"
-                              HelperText="Your own reference — later signals address the instance by it." />
+                              HelperText="@L["StartCorrelationHelp"].Value" />
 
-                <WorkflowPrioritySelect @bind-Value="priority" Label="Priority (optional)" Class="mt-3"
-                                        InheritLabel="(as defined by the workflow)"
-                                        HelperText="How urgently the background workers pick this instance up. Leave empty to use the workflow's own default." />
+                <WorkflowPrioritySelect @bind-Value="priority" Label="@L["StartPriorityLabel"]" Class="mt-3"
+                                        InheritLabel="@L["StartPriorityInherit"]"
+                                        HelperText="@L["StartPriorityHelp"].Value" />
 
                 @if (form.Fields.Count == 0 && scheduleValues.Count == 0)
                 {
-                    <MudAlert Severity="Severity.Info" Class="mt-3">
-                        This workflow declares no start form. It is started without values — add fields on the
-                        start node in the designer if it needs input.
-                    </MudAlert>
+                    <MudAlert Severity="Severity.Info" Class="mt-3">@L["StartNoForm"]</MudAlert>
                 }
                 else if (form.Fields.Count > 0)
                 {
@@ -86,11 +81,8 @@
                        anders losläuft als der zeitgesteuerte - und zwar SICHTBAR und aenderbar: wer von
                        Hand startet, tut das meist gerade, um etwas anders zu machen. *@
                     <MudDivider Class="my-3" />
-                    <MudText Typo="Typo.subtitle2">From the schedule</MudText>
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        A scheduled run starts with these values. They are pre-filled here so a manual start
-                        behaves the same — change them if this run should differ.
-                    </MudText>
+                    <MudText Typo="Typo.subtitle2">@L["StartFromSchedule"]</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@L["StartFromScheduleHint"]</MudText>
                     @foreach (string key in scheduleValues.Keys.ToList())
                     {
                         string name = key;
@@ -104,10 +96,7 @@
                 {
                     @* Bei strikter Signatur ueberlebt nur, was in StartNode.Inputs steht - ein Feld, das
                        dort fehlt, ist nach dem Start weg. Das sieht man der Maske sonst nicht an. *@
-                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
-                        This workflow has a strict signature: only the parameters declared on its start node
-                        survive. Values entered here that are not declared there are dropped.
-                    </MudAlert>
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@L["StartStrictSignature"]</MudAlert>
                 }
             }
         }
@@ -120,9 +109,9 @@
     <DialogActions>
         <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
         <MudSpacer />
-        <MudButton OnClick="Cancel" Disabled="@starting">Cancel</MudButton>
+        <MudButton OnClick="Cancel" Disabled="@starting">@L["Cancel"]</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.PlayArrow"
-                   OnClick="Start" Disabled="@(starting || form is null)">Start</MudButton>
+                   OnClick="Start" Disabled="@(starting || form is null)">@L["StartAction"]</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -201,7 +190,7 @@
             form = await Handler.GetStartFormAsync(currentUser!, value!, Environment);
             if (form is null)
             {
-                error = "This workflow could not be loaded. It may have been removed in the meantime.";
+                error = L["StartLoadFailed"];
                 return;
             }
 
@@ -275,7 +264,7 @@
             WorkflowStartResult result = await Handler.StartInstanceAsync(currentUser!, request, Environment);
             if (!result.Started)
             {
-                error = result.Error ?? "The workflow could not be started.";
+                error = result.Error ?? L["StartFailed"];
                 return;
             }
 

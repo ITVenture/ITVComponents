@@ -1,5 +1,6 @@
 @inject IWorkflowMonitorHandler Handler
 @inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<WorkflowMonitorMessages> L
 
 @*
     Nimmt eine fehlgeschlagene Instanz an ihren Fehlerstellen wieder auf. Der Token steht beim Fault noch
@@ -16,7 +17,7 @@
     <TitleContent>
         <MudText Typo="Typo.h6">
             <MudIcon Icon="@Icons.Material.Filled.RestartAlt" Class="mr-2" />
-            <span>Retry failed workflow</span>
+            <span>@L["RetryTitle"]</span>
         </MudText>
     </TitleContent>
     <DialogContent>
@@ -27,7 +28,7 @@
         else if (!info.CanRetry)
         {
             <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
-                @(info.FaultMessage ?? "The instance failed without a message.")
+                @(info.FaultMessage ?? L["RetryNoMessage"].Value)
             </MudAlert>
             <MudAlert Severity="Severity.Warning">@info.Reason</MudAlert>
         }
@@ -36,8 +37,7 @@
             @if (branches.Count > 1)
             {
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                    @branches.Count(b => b.Source.Faulted) of @branches.Count stalled branches failed. Each branch has
-                    its own variables — correct them per branch; one retry resumes all of them.
+                    @L["RetryManyBranches", branches.Count(b => b.Source.Faulted), branches.Count]
                 </MudAlert>
             }
 
@@ -52,37 +52,31 @@
                         {
                             <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
                                 @(branch.Source.FaultMessage ?? info.FaultMessage
-                                  ?? "This step failed without a message.")
+                                  ?? L["RetryStepNoMessage"].Value)
                             </MudAlert>
                         }
                         else
                         {
                             @* Kein eigener Fehler: dieser Zweig kam nur nicht mehr dran. Er laeuft beim
                                Retry trotzdem weiter - das muss man ihm ansehen. *@
-                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                                This branch did not fail — it just did not get its turn before the workflow
-                                stopped. It continues on retry; correct its data only if you need to.
-                            </MudAlert>
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">@L["RetryBranchNotFailed"]</MudAlert>
                         }
 
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
-                            Data this branch will see. Empty clears the variable; composite values (objects,
-                            lists) are shown read-only.
-                        </MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">@L["RetryDataHint"]</MudText>
 
                         <MudTable Items="@branch.Rows" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm"
                                   RowsPerPageOptions="@(new[] { 10, 25, 50 })">
                             <HeaderContent>
-                                <MudTh Style="width:30%">Variable</MudTh>
-                                <MudTh>Value</MudTh>
+                                <MudTh Style="width:30%">@L["RetryColumnVariable"]</MudTh>
+                                <MudTh>@L["DetailVarValue"]</MudTh>
                                 <MudTh Style="width:1%"></MudTh>
                             </HeaderContent>
                             <RowTemplate>
-                                <MudTd DataLabel="Variable">
+                                <MudTd DataLabel="@L["RetryColumnVariable"]">
                                     <MudText Typo="Typo.body2">@context.Name</MudText>
                                     <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Kind</MudText>
                                 </MudTd>
-                                <MudTd DataLabel="Value">
+                                <MudTd DataLabel="@L["DetailVarValue"]">
                                     @if (context.Kind == WorkflowVariableKind.Complex)
                                     {
                                         <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Text</MudText>
@@ -110,7 +104,7 @@
                                     }
                                     else if (context.Changed)
                                     {
-                                        <MudTooltip Text="@($"was: {context.Original}")">
+                                        <MudTooltip Text="@L["RetryWasValue", context.Original ?? string.Empty].Value">
                                             <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                                      Color="Color.Warning" />
                                         </MudTooltip>
@@ -121,16 +115,16 @@
 
                         @* Der Fehler ist oft eine FEHLENDE Variable - dann muss man eine anlegen koennen. *@
                         <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-2">
-                            <MudTextField T="string" Value="@branch.NewName" Placeholder="new variable"
+                            <MudTextField T="string" Value="@branch.NewName" Placeholder="@L["RetryNewVariable"]"
                                           Margin="Margin.Dense" Style="max-width:200px"
                                           ValueChanged="@(v => branch.NewName = v)" />
                             <MudSelect T="WorkflowVariableKind" Value="@branch.NewKind" Dense="true"
                                        Margin="Margin.Dense" Style="max-width:150px"
                                        ValueChanged="@(k => branch.NewKind = k)">
-                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Text">Text</MudSelectItem>
-                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Number">Number</MudSelectItem>
-                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Boolean">Yes/No</MudSelectItem>
-                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.DateTime">Date</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Text">@L["KindText"]</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Number">@L["KindNumber"]</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.Boolean">@L["KindBoolean"]</MudSelectItem>
+                                <MudSelectItem T="WorkflowVariableKind" Value="WorkflowVariableKind.DateTime">@L["KindDate"]</MudSelectItem>
                             </MudSelect>
                             <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary"
                                            OnClick="@(() => AddVariable(branch))" />
@@ -148,10 +142,10 @@
     <DialogActions>
         <DialogMaximizeToggle NormalMaxWidth="MaxWidth.Medium" />
         <MudSpacer />
-        <MudButton OnClick="Cancel" Disabled="@retrying">Cancel</MudButton>
+        <MudButton OnClick="Cancel" Disabled="@retrying">@L["Cancel"]</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.RestartAlt"
                    OnClick="Retry" Disabled="@(retrying || info is null || !info.CanRetry)">
-            @(branches.Count > 1 ? "Retry all branches" : "Retry")
+            @(branches.Count > 1 ? L["RetryAllBranches"] : L["RetryAction"])
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -206,7 +200,7 @@
         info = await Handler.GetRetryInfoAsync(currentUser, InstanceId, Environment);
         if (info is null)
         {
-            error = "This instance could not be loaded.";
+            error = L["RetryLoadFailed"];
             return;
         }
 
@@ -228,7 +222,7 @@
     }
 
     private string BranchTitle(BranchRows branch)
-        => branch.Source.NodeName ?? branch.Source.NodeId ?? "branch";
+        => branch.Source.NodeName ?? branch.Source.NodeId ?? L["RetryBranchFallback"];
 
     private void AddVariable(BranchRows branch)
     {
@@ -278,7 +272,7 @@
             WorkflowRetryResult result = await Handler.RetryAsync(currentUser!, InstanceId, updates, Environment);
             if (!result.Resumed)
             {
-                error = result.Error ?? "The instance could not be resumed.";
+                error = result.Error ?? L["RetryFailed"];
                 return;
             }
 
