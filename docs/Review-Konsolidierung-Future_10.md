@@ -237,6 +237,66 @@ Schritt) findet der EF-Store, der In-Memory-Store nicht.
 
 ---
 
+## C2. Der Nachtrag: welcher Kontext für wen
+
+Nachgetragen 2026-08-24, aus der Anschluss-Untersuchung. Das ist der grösste Fund der Runde und die
+Ursache dafür, dass ein Host eine vollständige Infrastruktur gebaut hat, die niemand aufruft.
+
+### Die eine Regel
+
+**Der Runner braucht einen filterfreien Kontext. Die Ansichten brauchen einen gefilterten. Beide zeigen
+auf dieselbe Datenbank.**
+
+Der Grund steht in `EfWorkflowStore.LoadInstances:1581`:
+
+```csharp
+// HIER wird die Mandanten-Grenze gezogen - fuer alle Suchlaeufe, die vorher nur Kandidaten-Ids
+// gesammelt haben.
+List<WorkflowInstanceRow> rows = ctx.WorkflowInstances.Where(r => ids.Contains(r.Id)).ToList();
+```
+
+Die 33 `IgnoreQueryFilters` im Store sind keine 33 Einzelentscheidungen — sie sammeln Kandidaten-Ids,
+und die Mandantengrenze wird **einmal, zentral** gezogen. Läuft der Runner auf einem gefilterten
+Kontext, wertet der Mandant dort als `null` aus; das heisst `TenantId IS NULL`, und `LoadInstances`
+verwirft danach *jede* Zeile mit Mandant — nicht nur lauffähige Instanzen, sondern ebenso fällige Timer,
+Zeitpläne und Nachrichten. Der Runner liefe vollständig leer, ohne eine Meldung.
+
+> **Korrektur an einer früheren Empfehlung dieses Dokuments:** ich hatte vorgeschlagen, `FindRunnable`
+> und `FindChildInstances` „wie ihre 33 Geschwister" auf `IgnoreQueryFilters` zu ziehen. Das hätte
+> nichts gebracht — die Zeilen wären eine Ebene später trotzdem weggefiltert worden. Die Ursache lag
+> nicht bei den Suchläufen, sondern beim Kontext.
+
+### Wie ein Host das seit dem 27.07. verdrahtet
+
+| Weg | Kontext | Registrierung |
+|---|---|---|
+| Ansichten / Handler | Plugin, **tenant-gefiltert** | `IFreshInjectablePlugin<WorkflowContext>` + `WorkflowEngineFactory` |
+| Web-Worker (Runner) | `IDbContextFactory<WorkflowContext>`, **filterfrei** | `AddWorkflowWebWorker()` |
+
+**Nicht mehr nötig** (und seit dem 27.07. von der Bibliothek nicht mehr gezogen): ein DI-registrierter
+`IWorkflowStore`, eine DI-registrierte `WorkflowEngine`, ein eigener Hosted Service um den
+`WorkflowRunner` aus `ParallelProcessing`. `WorkflowOperation.Engine` baut die Engine pro Operation über
+die Factory mit dem frisch geleasten Store.
+
+Wer die drei trotzdem registriert, bekommt keinen Fehler — sie werden schlicht nicht aufgerufen. Genau
+das ist passiert: der Vertrag in `WorkflowViewsOptions.ConfigureViews` beschrieb bis heute den Stand vom
+24.07., drei Tage vor dem Umbau. Beide Doku-Stellen sind richtiggestellt.
+
+### Was am Worker dafür nötig war
+
+- Store aus der Kontext-Fabrik, wenn keine Umgebung ein Store-Plugin nennt (sonst leaste er den
+  gefilterten Kontext der Ansichten)
+- eine Standard-Umgebung, wenn gar keine konfiguriert ist — vorher tat der Worker ohne
+  `Environments`-Sektion kommentarlos nichts
+- `IWorkflowTenantFeatureGate` durchreichen: es wird nur an zwei Stellen gefragt
+  (`StartFromMessageTriggers:973`, `RunScheduledStart:1147`), beide worker-seitig, und der Worker
+  übergab keins — ein beendetes Abo hielt damit nichts auf
+
+Vier Tests (`WorkflowDefaultEnvironmentTest`) pinnen die Standard-Umgebung fest; der tragende ist
+`DescriptorNamesNoStorePlugin`.
+
+---
+
 ## D. Was ausdrücklich gesund ist
 
 Damit hier niemand sucht, wo nichts ist.
