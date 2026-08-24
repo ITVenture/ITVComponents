@@ -253,6 +253,14 @@ namespace ITVComponents.Workflow.WebWorker
                 int startedBySchedule = engine.TriggerDueStarts(DateTime.UtcNow, lockOwner, opt.TimerLease,
                     opt.MaxTimerBatch);
 
+                // Liegen gebliebene Nachrichten nachholen - derselbe Punkt, den der WorkflowRunner im
+                // ParallelProcessing-Betrieb faehrt. Im Regelfall ist hier nichts: der Sender stellt selbst
+                // zu, sobald er festgeschrieben ist. Was hier auftaucht, hat einen Absturz zwischen Commit
+                // und Zustellung ueberlebt - und wo NUR dieser Worker laeuft, gibt es sonst niemanden, der
+                // die Vormerkung je wieder anfasst. Sie bliebe fuer immer liegen, ohne dass etwas fehlt,
+                // das man suchen wuerde.
+                int deliveredMessages = engine.DeliverPendingMessages(lockOwner, opt.TimerLease);
+
                 if (spec.HostTargets.Count > 0)
                 {
                     foreach (WorkflowInstance inst in store.FindBranchesWaitingForTarget(spec.HostTargets).ToList())
@@ -270,8 +278,10 @@ namespace ITVComponents.Workflow.WebWorker
 
                 // Ein zeitgesteuerter Start ist Arbeit, auch wenn er nichts in die Schlange gelegt hat:
                 // sonst legte sich der Antrieb gleich wieder schlafen, obwohl gerade eine Instanz
-                // angelaufen ist, deren erste Zweige noch aufzunehmen sind.
-                bool any = work.Count > 0 || startedBySchedule > 0;
+                // angelaufen ist, deren erste Zweige noch aufzunehmen sind. Fuer eine nachgeholte
+                // Nachricht gilt dasselbe: sie weckt einen Empfaenger, der erst im naechsten Suchlauf
+                // als lauffaehig auftaucht.
+                bool any = work.Count > 0 || startedBySchedule > 0 || deliveredMessages > 0;
                 const int maxSteps = 100000;
                 int steps = 0;
                 while (work.Count > 0 && !ct.IsCancellationRequested)
