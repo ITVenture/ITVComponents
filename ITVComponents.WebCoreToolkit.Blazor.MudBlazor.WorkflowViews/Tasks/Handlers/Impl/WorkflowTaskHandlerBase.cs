@@ -15,6 +15,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.EntityFramework.Abstractions;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Runtime;
 using Microsoft.Extensions.Options;
 using ITVComponents.Workflow.WebWorker;
 using Microsoft.EntityFrameworkCore;
@@ -612,10 +613,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
         /// <summary>
         /// Der Mandant des laufenden Kontexts - dieselbe Quelle wie in <see cref="OpenTasks"/>, damit
-        /// Arbeitsliste und Kommentare nicht unterschiedlich abgrenzen.
+        /// Arbeitsliste und Kommentare nicht unterschiedlich abgrenzen, und ueber
+        /// <see cref="WorkflowTenant.Normalize"/> dieselbe Schreibweise wie
+        /// <c>WorkflowContext.CurrentTenant</c>.
         /// </summary>
         private string? CurrentTenant()
-            => services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+            => WorkflowTenant.Normalize(services.GetService<IPermissionScope>()?.PermissionPrefix);
 
         /// <summary>
         /// Darf dieser Benutzer diese Aufgabe umtragen? Zwei Wege: die Vertretungs-Berechtigung

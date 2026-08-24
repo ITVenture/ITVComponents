@@ -77,6 +77,40 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void TenantFromTheWeb_IsNormalized_AndFoundInAnyWriting()
+        {
+            // "Acme" aus der Route und "acme" aus der Monitor-Ansicht sind DERSELBE Mandant. Frueher
+            // schrieben die beiden Wege verschieden in dieselbe Spalte: der Start ueber die Monitor-
+            // Ansicht klein (die Handler riefen ToLower()), der gewoehnliche Web-Weg in der
+            // Schreibweise der Route. Unter SQL Server deckte die Collation das zu - unter PostgreSQL
+            // saehe der Mandant seine eigenen Definitionen nicht mehr.
+            //
+            // Ohne TenantId am Objekt: dann stempelt der Store mit dem Mandanten des Kontexts, und
+            // genau der ist der Weg, um den es hier geht.
+            StoreFor("Acme").SaveDefinition(new WorkflowDefinition
+            {
+                Id = "wf", Version = 1, Name = "wf"
+            });
+
+            using (WorkflowContext ctx = MakeContext("Acme"))
+            {
+                Assert.AreEqual("acme",
+                    ctx.WorkflowDefinitions.IgnoreQueryFilters().Single().TenantId,
+                    "what comes in from the web must be normalized on the way in - otherwise the same "
+                    + "tenant ends up in the column twice, in two writings.");
+            }
+
+            foreach (string writing in new[] { "Acme", "acme", "ACME" })
+            {
+                Assert.IsNotNull(StoreFor(writing).GetDefinition("wf"),
+                    $"'{writing}' is the same tenant and must see it.");
+            }
+
+            Assert.IsNull(StoreFor("beta").GetDefinition("wf"),
+                "and normalizing must not turn the filter into a sieve - beta still sees nothing.");
+        }
+
+        [TestMethod]
         public void PublicDefinitionsVisibleToAll_TenantOwnedOnlyToOwner()
         {
             var acme = StoreFor("acme");

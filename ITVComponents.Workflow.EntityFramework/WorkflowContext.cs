@@ -812,10 +812,17 @@ namespace ITVComponents.Workflow.EntityFramework
         /// null) - unabhaengig vom injizierten Benutzer-Kontext, den es im Dienst gar nicht gibt. Ist
         /// kein Scope aktiv (Web-Betrieb), gilt wie bisher der injizierte <see cref="IUserAwareContext"/>,
         /// und nur wenn der Filter eingeschaltet ist.
+        /// <para>
+        /// Der Web-Zweig laeuft durch <see cref="WorkflowTenant.Normalize"/>: der
+        /// <c>PermissionPrefix</c> traegt die Schreibweise, die in der Route steht, und ohne die
+        /// Normalisierung entstuenden zwei Schreibweisen in derselben Spalte - der Start ueber die
+        /// Monitor-Ansicht schreibt schon immer klein. Der Scope-Zweig bleibt unangetastet: dessen Wert
+        /// stammt aus der Ablage und ist dort die Wahrheit.
+        /// </para>
         /// </remarks>
         public string CurrentTenant => WorkflowExecutionScope.HasTenant
             ? WorkflowExecutionScope.CurrentTenant
-            : (UseTenantFilter ? scopeProvider?.PermissionPrefix : null);
+            : (UseTenantFilter ? WorkflowTenant.Normalize(scopeProvider?.PermissionPrefix) : null);
 
         public string? CurrentUserName => userProvider?.User?.Identity?.Name;
 

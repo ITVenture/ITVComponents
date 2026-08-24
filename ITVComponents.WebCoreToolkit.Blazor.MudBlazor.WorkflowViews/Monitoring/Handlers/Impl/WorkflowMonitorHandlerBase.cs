@@ -639,12 +639,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <summary>
-        /// Der Tenant der aktuellen Anfrage - nach derselben Konvention wie in der Aufgaben-Arbeitsliste
-        /// (<c>IPermissionScope.PermissionPrefix</c>, klein geschrieben). Null in einem Host ohne
-        /// Mandanten-Trennung.
+        /// Der Tenant der aktuellen Anfrage - ueber <see cref="WorkflowTenant.Normalize"/>, also nach
+        /// derselben Konvention wie die Aufgaben-Arbeitsliste UND wie <c>WorkflowContext.CurrentTenant</c>.
+        /// Null in einem Host ohne Mandanten-Trennung.
         /// </summary>
+        /// <remarks>
+        /// Frueher stand hier <c>ToLower()</c>, im Kontext dagegen der rohe <c>PermissionPrefix</c>: was
+        /// dieser Weg schrieb, verglich der andere anders. Unter SQL Server deckte die Collation das zu.
+        /// </remarks>
         private string? CurrentTenant()
-            => services.GetService<IPermissionScope>()?.PermissionPrefix?.ToLower();
+            => WorkflowTenant.Normalize(services.GetService<IPermissionScope>()?.PermissionPrefix);
 
         /// <summary>
         /// Darf der aktuelle Tenant diese Definition starten? Tenant-lose Definitionen sind oeffentlich
