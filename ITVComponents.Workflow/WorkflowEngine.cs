@@ -1620,6 +1620,10 @@ namespace ITVComponents.Workflow
                 return Array.Empty<string>();
             }
 
+            // Der Stand, auf dem DIESER Lauf aufsetzt. Er unterscheidet unten "ein anderer Lauf hat
+            // geschrieben" von "wir sehen unsere eigene Ausfuehrung".
+            int loadedVersion = instance.Version;
+
             if (instance.Suspended)
             {
                 // Der zweite Riegel neben dem in Advance: ein Zweig-Auftrag kann laengst in der
@@ -1670,6 +1674,34 @@ namespace ITVComponents.Workflow
                 }
 
                 int baseVersion = fresh.Version;
+
+                // Der Zweig-Check ein ZWEITES Mal, jetzt gegen den frischen Stand. Der Check oben gilt fuer
+                // den Stand beim Laden; zwischen Ausfuehrung und Commit kann ein anderer Lauf denselben
+                // Zweig verarbeitet und festgeschrieben haben - dann scheitert unser erster Commit an der
+                // Version, und der Retry laedt einen Stand, in dem dieser Token nicht mehr aktiv ist.
+                // OHNE diese Pruefung wuerde das Delta trotzdem angewendet: derselbe Schritt liefe ein
+                // zweites Mal, mit allem, was daran haengt - eine Nachricht ein zweites Mal gesendet, ein
+                // Folge-Zweig ein zweites Mal erzeugt, die Instanz ein zweites Mal beendet.
+                //
+                // Der Zweig-Lock des Runners deckt das NICHT ab: er schuetzt gegen GLEICHZEITIGE Zugriffe.
+                // Zwei Laeufe, die nacheinander an denselben Token geraten - weil beide ihre Arbeitsliste
+                // gelesen hatten, bevor der erste fertig war -, sehen ihn beide frei.
+                //
+                // NUR bei fortgeschriebener Version: hat seit unserem Laden niemand committet, kann der
+                // Token gar nicht von fremder Hand verbraucht worden sein - dann sehen wir unsere EIGENE
+                // Ausfuehrung. Das ist kein theoretischer Fall: ein Store, der beim Laden dieselbe
+                // Referenz statt einer Kopie liefert (der Speicher-Store), zeigt in 'fresh' genau das,
+                // was 'AdvanceBranch' eben in-memory getan hat. Ohne diese Bedingung verwuerfe der Lauf
+                // dort sein eigenes Ergebnis.
+                if (fresh.Version != loadedVersion
+                    && !fresh.Tokens.Any(t => t.Id == tokenId && t.Status == TokenStatus.Active))
+                {
+                    LogEnvironment.LogEvent(
+                        $"RunBranch: branch '{tokenId}' of instance '{instanceId}' was already processed by "
+                        + "another run while this one was executing - the result is discarded (the other run "
+                        + "wrote it).", LogSeverity.Report);
+                    return Array.Empty<string>();
+                }
 
                 // Nebenlaeufiger Schreibkonflikt: hat ein Geschwister-Zweig seit unserem Fork dieselbe Variable
                 // auf einen ANDEREN Wert gesetzt, ist das kein stiller last-writer, sondern ein Fehler (Entscheid:

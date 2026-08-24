@@ -115,6 +115,45 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         }
 
         [TestMethod]
+        public void RunBranch_BranchAlreadyProcessedByAnotherRun_DiscardsItsOwnResult()
+        {
+            // Die zweite Verteidigungslinie hinter dem Zweig-Lock. Der Lock schuetzt gegen GLEICHZEITIGE
+            // Zugriffe; zwei Laeufe, die NACHEINANDER an denselben Token geraten - weil beide ihre
+            // Arbeitsliste gelesen hatten, bevor der erste fertig war -, sehen ihn beide frei.
+            //
+            // Ohne die Pruefung gegen den frischen Stand wuerde das Delta beim Retry trotzdem angewendet:
+            // derselbe Schritt liefe ein zweites Mal, mit allem, was daran haengt - genau das Muster, mit
+            // dem eine gesendete Nachricht doppelt ankam.
+            EfWorkflowStore inner = NewStore();
+            WorkflowInstance instance = TwoActiveBranches(inner);
+
+            // Beim (erzwungenen) Konflikt spielt ein anderer Lauf denselben Zweig fertig: er verbraucht
+            // t2 und schreibt seinen Stand. Danach laedt der Retry genau diesen Stand.
+            var store = new ConflictInjectingStore(inner, conflictsToInject: 1, onConflict: () =>
+            {
+                WorkflowInstance byOther = inner.GetInstance(instance.Id);
+                byOther.Tokens.Single(t => t.Id == "t2").Status = TokenStatus.Consumed;
+                Assert.IsTrue(inner.TryCommitInstance(byOther, byOther.Version),
+                    "the competing run must get its commit through - it is the one that was first.");
+            });
+
+            IReadOnlyList<string> result = new WorkflowEngine(store,
+                    new ActivityRegistry().Register("setA", ctx => ctx.Variables["a"] = 1)
+                        .Register("setB", ctx => ctx.Variables["b"] = 2)
+                        .Register("after", ctx => ctx.Variables["after"] = 1))
+                .RunBranch(instance.Id, "t2");
+
+            Assert.AreEqual(0, result.Count,
+                "the branch was not ours to finish - nothing may be reported as newly spawned.");
+
+            WorkflowInstance final = inner.GetInstance(instance.Id);
+            Assert.IsFalse(final.Variables.ContainsKey("b"),
+                "our delta must be discarded entirely - otherwise the step's effects land a second time.");
+            Assert.AreEqual(TokenStatus.Consumed, final.Tokens.Single(t => t.Id == "t2").Status,
+                "and the state of the run that was first stands untouched.");
+        }
+
+        [TestMethod]
         public void RunBranch_ParallelBranches_HistoryFromBothBranchesMergesAsRows()
         {
             EfWorkflowStore store = NewStore();
@@ -352,15 +391,21 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             => new SequenceFlow { Id = $"{from}->{to}", SourceId = from, TargetId = to };
 
         /// <summary>Ein Store-Decorator, der die ersten n TryCommitInstance-Aufrufe als Konflikt meldet.</summary>
+        /// <remarks>
+        /// <paramref name="onConflict"/> laeuft, waehrend der Konflikt gemeldet wird - das ist der Ort, an
+        /// dem ein Test den KONKURRIERENDEN Lauf einspielt, der den Konflikt in Wahrheit verursacht haette.
+        /// </remarks>
         private sealed class ConflictInjectingStore : IWorkflowStore
         {
             private readonly IWorkflowStore inner;
+            private readonly Action onConflict;
             private int conflictsToInject;
 
-            public ConflictInjectingStore(IWorkflowStore inner, int conflictsToInject)
+            public ConflictInjectingStore(IWorkflowStore inner, int conflictsToInject, Action onConflict = null)
             {
                 this.inner = inner;
                 this.conflictsToInject = conflictsToInject;
+                this.onConflict = onConflict;
             }
 
             public bool TryCommitInstance(WorkflowInstance instance, int baseVersion)
@@ -368,6 +413,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 if (conflictsToInject > 0)
                 {
                     conflictsToInject--;
+                    onConflict?.Invoke();
                     return false; // Konflikt vortaeuschen: NICHT committen (Version bleibt unveraendert).
                 }
 
