@@ -121,7 +121,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                 // der Store trifft die Zeile darueber ausdruecklich filterfrei - ohne diesen Guard
                 // landete ein fremder Key auf der Definition seines Besitzers, samt neu gesetztem
                 // Mandanten.
-                if (!MayTouchDefinition(stored, "Speichern"))
+                if (!MayTouchDefinition(op, stored, "Speichern"))
                 {
                     return Task.FromResult(false);
                 }

@@ -49,7 +49,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
 
-            IQueryable<TokenRow> tokens = OpenTasks(ctx);
+            IQueryable<TokenRow> tokens = OpenTasks(op, ctx);
             IReadOnlyCollection<string> allowed = await AllowedPermissionsAsync(tokens);
             IQueryable<TokenRow> visible = RestrictToVisible(tokens, allowed);
 
@@ -121,7 +121,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            IQueryable<TokenRow> tokens = OpenTasks(op.LeaseContext());
+            IQueryable<TokenRow> tokens = OpenTasks(op, op.LeaseContext());
             IReadOnlyCollection<string> allowed = await AllowedPermissionsAsync(tokens);
             return await RestrictToVisible(tokens, allowed)
                 .Select(t => t.TaskKey!)
@@ -148,7 +148,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             // also nicht als Aufgabe erscheinen. Die Token-Id bleibt dabei dieselbe - ein Zyklus, der spaeter
             // WIEDER an derselben Aufgabe haelt, ist deshalb ein voellig regulaerer naechster Schritt und
             // darf nicht ueber die Id ausgeschlossen werden.
-            IQueryable<TokenRow> tokens = OpenTasks(ctx).Where(t => t.InstanceId == instanceId);
+            IQueryable<TokenRow> tokens = OpenTasks(op, ctx).Where(t => t.InstanceId == instanceId);
             IReadOnlyCollection<string> allowed = await AllowedPermissionsAsync(tokens);
 
             string? me = UserName(user);
@@ -276,7 +276,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             // Erst die Aufgabe im EIGENEN Mandanten finden: ohne sie ist jede weitere Frage gegenstandslos,
             // und der Weg ueber OpenTasks ist zugleich die Tenant-Grenze.
-            var found = await OpenTasks(op.LeaseContext())
+            var found = await OpenTasks(op, op.LeaseContext())
                 .Where(t => t.InstanceId == instanceId && t.TokenId == tokenId)
                 .Select(t => new { t.TaskPermission, t.AssignedTo })
                 .FirstOrDefaultAsync();
@@ -319,9 +319,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
-            return await ctx.WorkflowComments.AsNoTracking()
-                .Where(c => c.InstanceId == instanceId && c.TenantId == tenant)
+            return await op.TenantScope
+                .Restrict(ctx.WorkflowComments.AsNoTracking().Where(c => c.InstanceId == instanceId),
+                    c => c.TenantId)
                 .OrderBy(c => c.CreatedUtc)
                 .ThenBy(c => c.CommentKey)
                 .Select(c => new WorkflowComment
@@ -357,12 +357,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
-
             // Den Vorgang im EIGENEN Mandanten nachweisen, bevor geschrieben wird - sonst genuegte eine
             // erratene Instanz-Id, um in einem fremden Vorgang zu schreiben.
-            bool exists = await ctx.WorkflowInstances.AsNoTracking()
-                .AnyAsync(i => i.Id == instanceId && i.TenantId == tenant);
+            bool exists = await IsOwnInstanceAsync(op, ctx, instanceId);
             if (!exists)
             {
                 LogEnvironment.LogEvent(
@@ -375,7 +372,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             {
                 InstanceId = instanceId,
                 TokenId = string.IsNullOrWhiteSpace(tokenId) ? null : tokenId,
-                TenantId = tenant,
+                // Derselbe Mandant, mit dem oben gesucht wurde - Lese- und Schreibseite aus EINER Quelle.
+                TenantId = op.TenantScope.TenantId,
                 Author = UserName(user),
                 CreatedUtc = DateTime.UtcNow,
                 Text = text.Trim()
@@ -405,11 +403,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
             // Nur die Beschreibung - der Inhalt liegt in einer anderen Tabelle und wird hier nicht
             // angefasst. Genau dafuer sind die beiden getrennt.
-            return await ctx.WorkflowAttachments.AsNoTracking()
-                .Where(a => a.InstanceId == instanceId && a.TenantId == tenant)
+            return await op.TenantScope
+                .Restrict(ctx.WorkflowAttachments.AsNoTracking().Where(a => a.InstanceId == instanceId),
+                    a => a.TenantId)
                 .OrderBy(a => a.CreatedUtc)
                 .ThenBy(a => a.AttachmentKey)
                 .Select(a => new WorkflowAttachment
@@ -458,10 +456,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
-
-            bool exists = await ctx.WorkflowInstances.AsNoTracking()
-                .AnyAsync(i => i.Id == instanceId && i.TenantId == tenant);
+            bool exists = await IsOwnInstanceAsync(op, ctx, instanceId);
             if (!exists)
             {
                 LogEnvironment.LogEvent(
@@ -480,7 +475,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             {
                 InstanceId = instanceId,
                 TokenId = string.IsNullOrWhiteSpace(tokenId) ? null : tokenId,
-                TenantId = tenant,
+                // Derselbe Mandant, mit dem oben gesucht wurde - Lese- und Schreibseite aus EINER Quelle.
+                TenantId = op.TenantScope.TenantId,
                 FileName = fileName,
                 ContentType = contentType,
                 SizeBytes = content.LongLength,
@@ -514,13 +510,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
 
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
-
             // Instanz UND Mandant muessen passen - eine erratene Schluesselzahl darf keine fremde Datei
             // herausgeben.
-            var found = await ctx.WorkflowAttachments.AsNoTracking()
-                .Where(a => a.AttachmentKey == attachmentKey && a.InstanceId == instanceId
-                            && a.TenantId == tenant)
+            var found = await op.TenantScope
+                .Restrict(ctx.WorkflowAttachments.AsNoTracking()
+                    .Where(a => a.AttachmentKey == attachmentKey && a.InstanceId == instanceId),
+                    a => a.TenantId)
                 .Select(a => new { a.FileIdentifier, a.FileName, a.ContentType })
                 .FirstOrDefaultAsync();
             if (found == null)
@@ -557,11 +552,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             string? me = UserName(user);
             using WorkflowOperation op = BeginOperation(environment);
             WorkflowContext ctx = op.LeaseContext();
-            string? tenant = CurrentTenant();
-
-            WorkflowAttachmentRow? row = await ctx.WorkflowAttachments
-                .FirstOrDefaultAsync(a => a.AttachmentKey == attachmentKey && a.InstanceId == instanceId
-                                          && a.TenantId == tenant);
+            WorkflowAttachmentRow? row = await op.TenantScope
+                .Restrict(
+                    ctx.WorkflowAttachments.Where(a => a.AttachmentKey == attachmentKey
+                                                       && a.InstanceId == instanceId),
+                    a => a.TenantId)
+                .FirstOrDefaultAsync();
             if (row == null)
             {
                 return false;
@@ -716,17 +712,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// ueberhaupt greift, entscheidet die Registrierung des Kontexts im Host (der Weg ueber die
         /// DbContext-Factory ist bewusst filterfrei). Eine Arbeitsliste darf davon nicht abhaengen.
         /// </summary>
-        private IQueryable<TokenRow> OpenTasks(WorkflowContext ctx)
+        private IQueryable<TokenRow> OpenTasks(WorkflowOperation op, WorkflowContext ctx)
         {
-            string? tenant = CurrentTenant();
             int waiting = (int)TokenStatus.Waiting;
             int running = (int)WorkflowStatus.Running;
             int instanceWaiting = (int)WorkflowStatus.Waiting;
-            return ctx.Tokens.AsNoTracking()
-                .Where(t => t.Status == waiting && t.TaskKey != null && t.TenantId == tenant
-                            && ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId
-                                                             && (i.Status == running
-                                                                 || i.Status == instanceWaiting)));
+            return op.TenantScope.Restrict(
+                ctx.Tokens.AsNoTracking()
+                    .Where(t => t.Status == waiting && t.TaskKey != null
+                                && ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId
+                                                                 && (i.Status == running
+                                                                     || i.Status == instanceWaiting))),
+                t => t.TenantId);
         }
 
         /// <summary>
@@ -772,7 +769,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            var found = await OpenTasks(op.LeaseContext())
+            var found = await OpenTasks(op, op.LeaseContext())
                 .Where(t => t.InstanceId == instanceId && t.TokenId == tokenId)
                 .Select(t => new { t.TaskPermission })
                 .FirstOrDefaultAsync();

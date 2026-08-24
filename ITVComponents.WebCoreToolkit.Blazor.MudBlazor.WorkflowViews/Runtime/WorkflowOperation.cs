@@ -58,6 +58,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         private readonly List<IDisposable> leases = new();
         private EfWorkflowStore? store;
         private WorkflowEngine? engine;
+        private WorkflowTenantScope? tenantScope;
         private bool disposed;
 
         /// <summary>
@@ -88,6 +89,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
             IPluginLease<WorkflowContext> lease = freshContext.Lease(storeDependencyName ?? ContextPluginName);
             leases.Add(lease);
             return lease.Value;
+        }
+
+        /// <summary>
+        /// Die Mandanten-Entscheidung dieser Operation - einmal am Kontext abgelesen, dann festgehalten.
+        /// </summary>
+        /// <remarks>
+        /// Einmal, weil sie sich innerhalb einer Operation nicht aendern kann und jeder Aufruf sonst eine
+        /// weitere Lease zoege. Abgelesen und nicht konfiguriert: derselbe <c>ctx.CurrentTenant</c>
+        /// entscheidet hier ueber die Sicht und schreibt im Store den Mandanten der Zeilen - Lese- und
+        /// Schreibseite koennen damit nicht auseinanderlaufen.
+        /// </remarks>
+        public WorkflowTenantScope TenantScope
+        {
+            get
+            {
+                EnsureNotDisposed();
+                return tenantScope ??= WorkflowTenantScope.For(LeaseContext());
+            }
         }
 
         /// <summary>

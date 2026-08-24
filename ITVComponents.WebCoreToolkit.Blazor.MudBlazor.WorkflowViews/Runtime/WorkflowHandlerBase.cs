@@ -1,5 +1,8 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security;
@@ -9,6 +12,7 @@ using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Runtime;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
@@ -98,14 +102,26 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
             => Services.VerifyUserPermissions(permissions);
 
         /// <summary>
-        /// Der Mandant des laufenden Kontexts, in derselben Schreibweise wie
-        /// <c>WorkflowContext.CurrentTenant</c>.
+        /// Der Mandant des laufenden Kontexts - <b>fuer Definitionen und Ausloeser</b>, nicht fuer
+        /// Laufzeit-Zeilen.
         /// </summary>
-        /// <returns>der Mandant, oder null im Ein-Mandanten-Betrieb</returns>
+        /// <returns>der Mandant, oder null</returns>
         /// <remarks>
+        /// <para>
+        /// <b>Die Grenze zu <see cref="WorkflowTenantScope"/>:</b> bei Instanzen, Tokens, Kommentaren und
+        /// Anhaengen gilt "meiner ODER (im mandantenlosen Betrieb) keiner" - dafuer ist der Scope da, und
+        /// er beantwortet Liste und Guard aus derselben Quelle. Bei <b>Definitionen und Ausloesern</b> gilt
+        /// eine andere Regel: <c>TenantId == null</c> heisst dort nicht "gehoert niemandem", sondern
+        /// <i>oeffentlich</i> - sichtbar und startbar fuer alle Mandanten (so auch der Query-Filter:
+        /// eigener Mandant ODER null). Diese dritte Moeglichkeit laesst sich nicht in ein Praedikat
+        /// zwingen, das nur "meins" und "keins" kennt, und wer es versucht, laesst jeden oeffentlichen
+        /// Ablauf verschwinden.
+        /// </para>
+        /// <para>
         /// Ueber <see cref="WorkflowTenant.Normalize"/>: frueher stand an einer Stelle <c>ToLower()</c>, im
         /// Kontext dagegen der rohe <c>PermissionPrefix</c> - was der eine Weg schrieb, verglich der andere
         /// anders. Unter SQL Server deckte die Collation das zu.
+        /// </para>
         /// </remarks>
         protected string? CurrentTenant()
             => WorkflowTenant.Normalize(Services.GetService<IPermissionScope>()?.PermissionPrefix);
@@ -116,35 +132,38 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         protected static string? UserName(ClaimsPrincipal user) => user?.Identity?.Name;
 
         /// <summary>
-        /// Gehoert eine Zeile mit diesem Mandanten dem laufenden Kontext?
+        /// Gehoert eine Zeile mit diesem Mandanten in die Sicht dieser Operation?
         /// </summary>
-        /// <param name="tenantId">der Mandant der Zeile (null = mandantenlos/oeffentlich)</param>
+        /// <param name="op">die laufende Operation - sie traegt die Mandanten-Entscheidung</param>
+        /// <param name="tenantId">der Mandant der Zeile</param>
         /// <returns>true, wenn der laufende Kontext sie anfassen darf</returns>
         /// <remarks>
-        /// <b>Die eine Mandanten-Entscheidung fuer eingreifende Wege.</b> Ohne laufenden Mandanten ist der
-        /// Host im Ein-Mandanten-Betrieb: dann gibt es keine Trennung, die verletzt werden koennte.
-        /// <para>
-        /// Ausdruecklich geprueft und nicht dem Query-Filter ueberlassen: ob der greift, entscheidet die
-        /// Registrierung des Kontexts im Host, und der Weg ueber die DbContext-Factory ist bewusst
-        /// filterfrei. Ein Eingriff darf davon nicht abhaengen.
-        /// </para>
-        /// <para>
-        /// <b>Achtung, nicht dasselbe wie der Listen-Filter der Aufgaben:</b> <c>OpenTasks</c> uebersetzt
-        /// "kein Mandant" in <c>TenantId IS NULL</c>, diese Frage hier in "alles erlaubt". Das ist eine
-        /// offene Produktentscheidung und bewusst NICHT hier vereinheitlicht - ein Listen-Filter und ein
-        /// Eingriffs-Guard duerfen unterschiedlich streng sein, sie sollten es nur absichtlich tun.
-        /// </para>
+        /// <b>Dieselbe Quelle wie der Listen-Filter</b> (<see cref="WorkflowTenantScope"/>): was eine Liste
+        /// nicht zeigt, darf ein Eingriff nicht anfassen. Frueher waren das zwei getrennt getippte
+        /// Praedikate mit gegenlaeufiger Auslegung von "kein Mandant" - die Arbeitsliste zeigte nichts,
+        /// der Guard erlaubte alles. Das ist genau verkehrt herum und war nur deshalb moeglich, weil
+        /// niemand die beiden nebeneinander gelegt hat.
         /// </remarks>
-        protected bool OwnsTenant(string? tenantId)
-        {
-            string? tenant = CurrentTenant();
-            if (string.IsNullOrEmpty(tenant))
-            {
-                return true;
-            }
+        protected bool OwnsTenant(WorkflowOperation op, string? tenantId)
+            => op.TenantScope.Owns(tenantId);
 
-            return string.Equals(tenantId, tenant, StringComparison.OrdinalIgnoreCase);
-        }
+        /// <summary>
+        /// Gibt es diese Instanz in der Sicht dieser Operation?
+        /// </summary>
+        /// <param name="op">die laufende Operation</param>
+        /// <param name="ctx">der bereits geleaste Kontext</param>
+        /// <param name="instanceId">die Kennung der Instanz</param>
+        /// <returns>true, wenn sie existiert und dazugehoert</returns>
+        /// <remarks>
+        /// Der Nachweis vor jedem Schreiben an einem Vorgang, das nicht ueber den Store laeuft
+        /// (Kommentare, Anhaenge). Ohne ihn genuegte eine erratene Instanz-Id, um in einem fremden Vorgang
+        /// zu schreiben - der Fremdschluessel allein haelt das nicht auf, er kennt keine Mandanten.
+        /// </remarks>
+        protected static Task<bool> IsOwnInstanceAsync(WorkflowOperation op, WorkflowContext ctx,
+            string instanceId)
+            => op.TenantScope
+                .Restrict(ctx.WorkflowInstances.AsNoTracking().Where(i => i.Id == instanceId), i => i.TenantId)
+                .AnyAsync();
 
         /// <summary>
         /// Laedt eine Instanz und stellt sicher, dass sie dem laufenden Mandanten gehoert.
@@ -160,7 +179,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         /// <c>false</c> macht aus einem Angriffsversuch einen Tippfehler.
         /// </remarks>
         protected bool TryLoadOwnInstance(WorkflowOperation op, string instanceId, string operation,
-            out WorkflowInstance instance)
+            [MaybeNullWhen(false)] out WorkflowInstance instance)
         {
             instance = op.Store.GetInstance(instanceId);
             if (instance == null)
@@ -171,7 +190,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
                 return false;
             }
 
-            if (!OwnsTenant(instance.TenantId))
+            if (!OwnsTenant(op, instance.TenantId))
             {
                 LogEnvironment.LogEvent(
                     $"{operation} der Instanz '{instanceId}' abgelehnt: sie gehoert dem Mandanten "
@@ -187,6 +206,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         /// <summary>
         /// Darf der laufende Mandant diese bestehende Definition aendern?
         /// </summary>
+        /// <param name="op">die laufende Operation - sie traegt die Mandanten-Entscheidung</param>
         /// <param name="stored">die bereits gespeicherte Fassung (null = neu)</param>
         /// <param name="operation">der Name des Eingriffs - er steht so im Log</param>
         /// <returns>true, wenn der Eingriff weitergehen darf</returns>
@@ -204,9 +224,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         /// Aufrufer liegt. Genau der ist hier gemeint.
         /// </para>
         /// </remarks>
-        protected bool MayTouchDefinition(WorkflowDefinition stored, string operation)
+        protected bool MayTouchDefinition(WorkflowOperation op, WorkflowDefinition? stored, string operation)
         {
-            if (stored == null || stored.IsPublic || OwnsTenant(stored.TenantId))
+            if (stored == null || stored.IsPublic || OwnsTenant(op, stored.TenantId))
             {
                 return true;
             }
