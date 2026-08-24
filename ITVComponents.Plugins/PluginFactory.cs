@@ -459,7 +459,8 @@ namespace ITVComponents.Plugins
 
                         if (retVal == null)
                         {
-                            var param = new UnknownConstructorParameterEventArgs(uq.UniqueNameRaw, callingPluginRef);
+                            var param = new UnknownConstructorParameterEventArgs(uq.UniqueNameRaw,
+                                callingPluginRef, uq.UniqueName);
                             OnUnknownConstructorParameter(param);
                             if (param.Handled && param.Value != null)
                             {
@@ -1663,7 +1664,8 @@ namespace ITVComponents.Plugins
                 if (retVal == null)
                 {
                     UnknownConstructorParameterEventArgs e =
-                        new UnknownConstructorParameterEventArgs(name.UniqueNameRaw, callingType);
+                        new UnknownConstructorParameterEventArgs(name.UniqueNameRaw, callingType,
+                            name.UniqueName);
                     OnUnknownConstructorParameter(e);
                     if (e.Handled)
                     {
@@ -1914,7 +1916,25 @@ namespace ITVComponents.Plugins
         /// <summary>
         /// Gets the name of the Parameter-Name Name for this Request
         /// </summary>
+        /// <remarks>
+        /// Der Name, wie er in der Konfiguration STEHT - also gegebenenfalls noch als Ausdruck
+        /// (<c>$Name[CallingPlugin.UniqueName]</c>). Er ist der Schluessel, unter dem eine
+        /// Plugin-Definition abgelegt ist; was der Ausdruck fuer DIESEN Ladevorgang bedeutet, steht in
+        /// <see cref="ResolvedName"/>.
+        /// </remarks>
         public string RequestedName { get; private set; }
+
+        /// <summary>
+        /// Der aufgeloeste Name dieses Ladevorgangs - der Name, unter dem das Plugin danach in der
+        /// Factory steht. Bei einem Namen ohne Ausdruck derselbe wie <see cref="RequestedName"/>.
+        /// </summary>
+        /// <remarks>
+        /// Da, damit ein Behandler zwischen "der Vorgabe fuer alle" und "der Abweichung fuer genau
+        /// diesen" unterscheiden kann: eine Plugin-Definition <c>$SqlOptionsLoader4[CallingPlugin.UniqueName]</c>
+        /// wird fuer jeden Anforderer einmal geladen, und der Behandler sieht ohne diesen Wert nur den
+        /// gemeinsamen Ausdruck - also fuer alle dasselbe.
+        /// </remarks>
+        public string ResolvedName { get; private set; }
 
         /// <summary>
         /// Gets the Type of the PlugIn that is being constructed
@@ -1930,10 +1950,16 @@ namespace ITVComponents.Plugins
         /// Initializes a new instance of the UnkownConstructorParameterEventArgs class
         /// </summary>
         /// <param name="requestedName">the name of the requested value</param>
-        public UnknownConstructorParameterEventArgs(string requestedName, PluginRef constructedPluginType)
+        /// <param name="constructedPluginType">der Anforderer dieses Plugins</param>
+        /// <param name="resolvedName">
+        /// der aufgeloeste Name; null bedeutet "derselbe wie <paramref name="requestedName"/>"
+        /// </param>
+        public UnknownConstructorParameterEventArgs(string requestedName, PluginRef constructedPluginType,
+            string resolvedName = null)
             : this()
         {
             RequestedName = requestedName;
+            ResolvedName = resolvedName ?? requestedName;
             PluginType = constructedPluginType;
         }
 

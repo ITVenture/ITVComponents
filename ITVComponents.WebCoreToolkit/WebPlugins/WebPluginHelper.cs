@@ -219,14 +219,36 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                     var globalProvider = serviceProvider.GetService<IGlobalSettingsProvider>();
                     var tenantProvider = serviceProvider.GetService<IScopedSettingsProvider>();
 
-                    var preInitializationSequence = tenantObjects.GetBufferedValue(
-                        $"PreInitSequenceFor{args.RequestedName}", k =>
+                    // Eine Einstellung dieses Ladevorgangs - gepuffert JE NAME. Getrennte Puffer-Keys
+                    // sind hier nicht Kosmetik: puffert man unter EINEM Namen, bekommt der zweite
+                    // Kontext die Sequenz, die zufaellig der erste ausgelesen hat, und der Fehler
+                    // taucht erst im Zwei-Kontext-Betrieb auf.
+                    string SettingByName(string settingName)
+                        => tenantObjects.GetBufferedValue(settingName, k =>
                             tenantProvider?.GetJsonSetting(k, explicitUserScope)
                             ?? globalProvider?.GetJsonSetting(k), null);
-                    var postInitializationSequence = tenantObjects.GetBufferedValue(
-                        $"PostInitSequenceFor{args.RequestedName}", k =>
-                            tenantProvider?.GetJsonSetting(k, explicitUserScope)
-                            ?? globalProvider?.GetJsonSetting(k), null);
+
+                    // Spezifisch schlaegt generisch: die Abweichung fuer genau diesen Ladevorgang steht
+                    // unter dem aufgeloesten Namen, die Vorgabe fuer alle unter dem rohen.
+                    string InitSequenceSetting(string prefix, UnknownConstructorParameterEventArgs a)
+                    {
+                        string specific = SettingByName($"{prefix}{a.ResolvedName}");
+                        if (specific != null || a.ResolvedName == a.RequestedName)
+                        {
+                            return specific;
+                        }
+
+                        return SettingByName($"{prefix}{a.RequestedName}");
+                    }
+
+                    // Die Init-Sequenzen: erst unter dem AUFGELOESTEN Namen nachsehen, dann unter dem
+                    // rohen. Eine Plugin-Definition wie "$SqlOptionsLoader4[CallingPlugin.UniqueName]"
+                    // wird je Anforderer einmal geladen; unter dem rohen Namen steht die Sequenz, die
+                    // fuer die Mehrheit stimmt, unter dem aufgeloesten
+                    // ("PostInitSequenceForSqlOptionsLoader4WorkflowContext") die Abweichung fuer genau
+                    // einen. Ohne Ausdruck im Namen sind beide gleich und es bleibt bei EINER Abfrage.
+                    var preInitializationSequence = InitSequenceSetting("PreInitSequenceFor", args);
+                    var postInitializationSequence = InitSequenceSetting("PostInitSequenceFor", args);
                     var preInitSequence = DeserializeInitArray(preInitializationSequence);
                     var postInitSequence = DeserializeInitArray(postInitializationSequence);
                     WebPlugin plugin =
