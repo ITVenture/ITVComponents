@@ -742,8 +742,7 @@ namespace ITVComponents.Workflow
                 }
 
                 instance.Log("TimerElapsed", token.NodeId);
-                token.DueUtc = null;
-                token.WaitingSignal = null;
+                ClearWait(token);
                 token.Status = TokenStatus.Active;
                 MoveAlongSingleOutgoing(instance, definition, token);
             }
@@ -806,12 +805,31 @@ namespace ITVComponents.Workflow
                 : instance.CorrelationKey == correlationKey || instance.Id == correlationKey;
         }
 
-        /// <summary>Loescht alle Warte-Anker eines Tokens, das seinen Wartepunkt verlaesst.</summary>
+        /// <summary>Loescht ALLE Warte-Anker eines Tokens, das seinen Wartepunkt verlaesst.</summary>
+        /// <param name="token">das Token, das seinen Wartepunkt verlaesst</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Alle sechs, nicht eine Auswahl.</b> Ein Token hat je Wartepunkt nur einen Grund zu warten,
+        /// aber sechs Felder, die einen solchen Grund ausdruecken koennen. Wer beim Verlassen nur die
+        /// loescht, die der eigene Wartepunkt gesetzt hat, laesst die eines FRUEHEREN stehen - und die
+        /// werden weiterhin gelesen: <see cref="Accepts"/> entscheidet ueber
+        /// <c>WaitingCorrelation</c>/<c>WaitingKind</c>, ob eine eintreffende Nachricht diesem Token gilt.
+        /// Ein Token, das einmal auf eine Nachricht gewartet hat und spaeter an einem Ziel parkt, wuerde
+        /// sonst eine Nachricht annehmen, die ihm nicht mehr gilt.
+        /// </para>
+        /// <para>
+        /// Deshalb ist das auch der richtige Aufruf BEIM Parken: erst alles loeschen, dann den einen
+        /// Anker setzen, der jetzt gilt. Das ist billiger als je Wartepunkt zu ueberlegen, was der
+        /// vorherige hinterlassen haben koennte.
+        /// </para>
+        /// </remarks>
         private static void ClearWait(Token token)
         {
             token.WaitingSignal = null;
             token.WaitingCorrelation = null;
             token.WaitingKind = null;
+            token.WaitingTarget = null;
+            token.WaitingForChildInstanceId = null;
             token.DueUtc = null;
         }
 
@@ -1888,8 +1906,7 @@ namespace ITVComponents.Workflow
                     }
 
                     fresh.Log("TimerElapsed", token.NodeId);
-                    token.DueUtc = null;
-                    token.WaitingSignal = null;
+                    ClearWait(token);
                     token.Status = TokenStatus.Active;
                     if (!MoveAlongSingleOutgoing(fresh, definition, token))
                     {
@@ -1939,8 +1956,9 @@ namespace ITVComponents.Workflow
                 var ids = new List<string>();
                 foreach (Token token in parked)
                 {
+                    // Protokollieren VOR dem Loeschen - danach steht das Ziel nicht mehr im Token.
                     fresh.Log("TargetResumed", token.NodeId, token.WaitingTarget);
-                    token.WaitingTarget = null;
+                    ClearWait(token);
                     // NICHT bewegen: der Token steht auf dem Ziel-Aktivitaets-Knoten und wird dort ausgefuehrt.
                     token.Status = TokenStatus.Active;
                     ids.Add(token.Id);
@@ -2277,10 +2295,9 @@ namespace ITVComponents.Workflow
         /// </summary>
         private static bool ParkForTarget(WorkflowInstance instance, Token token, AutomatedActivityNode node)
         {
+            ClearWait(token);
             token.Status = TokenStatus.WaitingForTarget;
             token.WaitingTarget = node.ExecutionTarget;
-            token.WaitingSignal = null;
-            token.DueUtc = null;
             instance.Log("WaitingForTarget", node.Id, node.ExecutionTarget);
             LogEnvironment.LogEvent(
                 $"Branch of instance '{instance.Id}' parked at node '{node.Id}' for execution target " +
@@ -2374,9 +2391,8 @@ namespace ITVComponents.Workflow
                 // Geparkt ohne Signal, Timer oder Ziel: geweckt wird dieses Token ausschliesslich von der
                 // Zustellung seiner eigenen Nachricht (ResumeAfterDelivery) - oder vom Nachhol-Lauf,
                 // falls der Prozess dazwischen stirbt.
+                ClearWait(token);
                 token.Status = TokenStatus.Waiting;
-                token.WaitingSignal = null;
-                token.DueUtc = null;
                 instance.Log("AwaitingDelivery", node.Id, node.SignalName, HistorySeverity.Verbose);
                 return true;
             }
@@ -2829,10 +2845,8 @@ namespace ITVComponents.Workflow
                 }
             }
 
+            ClearWait(token);
             token.Status = TokenStatus.Waiting;
-            token.WaitingSignal = null;
-            token.WaitingTarget = null;
-            token.DueUtc = null;
             token.TaskKey = node.TaskKey;
             // Leer wird zu null normalisiert - sonst waere "" eine Permission, die NIEMAND hat, und die
             // Aufgabe verschwaende aus jeder Arbeitsliste, obwohl der Knoten "keine Permission noetig"
@@ -3218,10 +3232,7 @@ namespace ITVComponents.Workflow
                 // verschwindet damit aus der Arbeitsliste - sonst stuende sie dort weiter, obwohl der
                 // Prozess laengst woanders ist. Das Aufraeumen der Timer erledigt MoveToken.
                 ClearUserTask(owner);
-                owner.WaitingSignal = null;
-                owner.WaitingTarget = null;
-                owner.WaitingForChildInstanceId = null;
-                owner.DueUtc = null;
+                ClearWait(owner);
                 owner.Status = TokenStatus.Active;
 
                 Dictionary<string, object> ownerScope = Scope(instance, owner);
@@ -3413,8 +3424,6 @@ namespace ITVComponents.Workflow
                 // Ereignisse am Schritt - auch dieses Empfangs-Tokens - erledigt MoveToken.
                 ClearUserTask(owner);
                 ClearWait(owner);
-                owner.WaitingTarget = null;
-                owner.WaitingForChildInstanceId = null;
                 owner.Status = TokenStatus.Active;
 
                 Dictionary<string, object> ownerScope = Scope(instance, owner);
@@ -3502,10 +3511,7 @@ namespace ITVComponents.Workflow
                          .ToList())
             {
                 sibling.Status = TokenStatus.Consumed;
-                sibling.DueUtc = null;
-                sibling.WaitingSignal = null;
-                sibling.WaitingCorrelation = null;
-                sibling.WaitingKind = null;
+                ClearWait(sibling);
                 ClearUserTask(sibling);
                 KillBoundaryTokens(instance, sibling.Id);
             }
@@ -4942,7 +4948,7 @@ namespace ITVComponents.Workflow
             Dictionary<string, object> scope = Scope(instance, token);
             ApplyCallOutputs(instance, scope, node, child.Variables);
             ResetAttempts(scope, node.AttemptVariable);
-            token.WaitingForChildInstanceId = null;
+            ClearWait(token);
             token.Status = TokenStatus.Active;
             instance.Log("SubworkflowCompleted", node.Id, child.DefinitionId);
             return MoveAlongSuccessFlow(instance, definition, token, node.Id, node.ErrorFlowId);
@@ -4993,7 +4999,7 @@ namespace ITVComponents.Workflow
                 scope[node.AttemptVariable] = (current is int i ? i : 0) + 1;
             }
 
-            token.WaitingForChildInstanceId = null;
+            ClearWait(token);
             token.Status = TokenStatus.Active;
             parent.Log("SubworkflowError", node.Id, message, HistorySeverity.Warning);
             return MoveToken(parent, token, errorFlow);
