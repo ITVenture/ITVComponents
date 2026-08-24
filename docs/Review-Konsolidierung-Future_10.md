@@ -149,21 +149,55 @@ Nachricht annehmen, die ihm nicht mehr gilt.
 
 ---
 
-## B2. Offene Produktentscheidung: was heisst „kein Mandant"?
+## B2. Entschieden: was heisst „kein Mandant"?
 
-Dieselbe Frage wird an zwei Stellen gegenläufig beantwortet:
+**Erledigt 2026-08-25.** Der Befund war: dieselbe Frage — „geht mich diese Zeile etwas an?" — wurde an
+zwei Stellen gegenläufig beantwortet. `OpenTasks` las „kein Mandant" als `TenantId IS NULL` und zeigte
+in einer Anlage mit Mandanten **nichts**; der Guard las denselben Zustand als Ein-Mandanten-Betrieb und
+erlaubte **alles**. Die Arbeitsliste war leer, während Abbrechen, Anhalten und Signal auf jede geratene
+Instanz-Id gingen — genau verkehrt herum.
 
-| Ort | `CurrentTenant()` ist leer → |
-|---|---|
-| `OwnsTenant` (vormals `MayTouch`, Monitoring) | **alles erlaubt** — Ein-Mandanten-Host, es gibt keine Trennung |
-| `OpenTasks` und die Kommentar-/Anhang-Abfragen | **`TenantId IS NULL`** — es wird nichts angezeigt, was mit Mandant geschrieben wurde |
+### Die Regel
 
-Im selben Host laufen damit zwei Auslegungen nebeneinander. Das ist **bewusst nicht** mit dem
-gemeinsamen Guard vereinheitlicht worden: ein Listen-Filter und ein Eingriffs-Guard dürfen
-unterschiedlich streng sein — sie sollten es nur absichtlich tun, und welche Auslegung richtig ist, ist
-eine Produktentscheidung, keine Aufräumarbeit. Der Hinweis steht jetzt als Warnung an `OwnsTenant`.
+`WorkflowTenantScope` beantwortet die Frage einmal, in zwei Formen: `Restrict` für die Abfrage, `Owns`
+für den Guard.
 
-Nebenbei: `OwnsTenant` vergleicht `OrdinalIgnoreCase`, die EF-Wege vergleichen mit DB-Collation.
+| `ctx.UseTenantFilter` | `ctx.CurrentTenant` | Liste **und** Guard |
+|---|---|---|
+| `false` | (immer null) | `TenantId == null` |
+| `true` | `"kunde-a"` | `TenantId == "kunde-a"` |
+| `true` | `null` | **nichts** + Log (`IsUnresolved`) |
+
+Der dritte Zustand bekommt damit einen eigenen Namen: Mandantenbetrieb ohne ermittelbaren Mandanten ist
+ein **Verdrahtungsfehler**, kein Betriebszustand. Weder „alles" noch „die mandantenlosen" ist dort
+richtig, sondern nichts — hörbar.
+
+### Warum abgelesen und nicht konfiguriert
+
+Die Antwort kommt vom geleasten `WorkflowContext`, nicht aus einer Einstellung. Grund: **genau dieses
+`ctx.CurrentTenant` schreibt im Store auch den Mandanten der Zeilen**
+(`SaveInstance`: `instance.TenantId ?? ctx.CurrentTenant`). Lese- und Schreibseite haben damit eine
+gemeinsame Quelle und können nicht auseinanderlaufen. Ein eigener Schalter an der
+Umgebungs-Konfiguration könnte dem Kontext widersprechen — und der Widerspruch wäre still: Zeilen
+mandantenlos geschrieben, Ansicht mandantengebunden gesucht, niemand sieht etwas.
+
+Dass die Entscheidung **pro Umgebung** gilt, ergibt sich von selbst: jede leaset ihr eigenes
+Store-Plugin. Eine Anlage, in der jeder Mandant seine eigene Workflow-Datenbank hat, betreibt diese
+Ablagen mandantenlos; eine geteilte Ablage betreibt sie mandantengebunden. Beides nebeneinander im
+selben Prozess ist erlaubt.
+
+### Die Ausnahme, die bleiben muss
+
+**Definitionen und Auslöser sind nicht mitgezogen.** Dort heisst `TenantId == null` nicht „gehört
+niemandem", sondern *öffentlich* — sichtbar und startbar für alle Mandanten, so auch der Query-Filter
+(`TenantId == CurrentTenant || TenantId == null`). Diese dritte Möglichkeit lässt sich nicht in ein
+Prädikat zwingen, das nur „meins" und „keins" kennt; wer es versucht, lässt jeden öffentlichen Ablauf
+aus Designer und Startauswahl verschwinden. Die Grenze steht als Doku an `CurrentTenant()`.
+
+### Nebenbefund, mit behoben
+
+Die Handler fragten `IPermissionScope` **direkt** und ignorierten dabei `UseTenantFilter`. Für eine
+filterfreie Umgebung filterte die Ansicht also nach Mandant, während ihr eigener Kontext es nicht tat.
 
 ---
 
