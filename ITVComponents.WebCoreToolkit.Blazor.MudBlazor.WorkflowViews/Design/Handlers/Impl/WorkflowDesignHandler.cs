@@ -26,33 +26,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
     /// Listet ueber den EF-Kontext (Schluesselspalten Id+Version) und laedt/speichert einzelne
     /// Definitionen ueber den Store. Eine Engine wird hier nicht gebraucht.
     /// </summary>
-    internal sealed class WorkflowDesignHandler : IWorkflowDesignHandler
+    internal sealed class WorkflowDesignHandler : WorkflowHandlerBase, IWorkflowDesignHandler
     {
-        private readonly IServiceProvider services;
-        private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
         private readonly IFreshInjectablePlugin<IInjectableWorkflowActivityCatalog> freshCatalog;
 
         public WorkflowDesignHandler(IServiceProvider services,
             IFreshInjectablePlugin<WorkflowContext> freshContext,
             IFreshInjectablePlugin<IInjectableWorkflowActivityCatalog> freshCatalog)
+            : base(services, freshContext)
         {
-            this.services = services;
-            this.freshContext = freshContext;
             this.freshCatalog = freshCatalog;
         }
 
-        // Design-Operationen brauchen keine Engine -> keine Engine-Factory. Der Store richtet sich nach der
-        // (optional) gewaehlten Umgebung: deren WorkflowStorePluginName benennt die zu leasende
-        // WorkflowContext-Dependency; ohne Umgebung/Settings bleibt es der Standard-Store.
-        private WorkflowOperation BeginOperation(string? environment)
-            => new WorkflowOperation(freshContext,
-                storeDependencyName: WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
-
         /// <inheritdoc/>
-        public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
-        {
-            return services.VerifyUserPermissions(permissions);
-        }
+        /// <remarks>
+        /// Design-Operationen brauchen keine Engine - sie lesen und schreiben ausschliesslich ueber den
+        /// Store.
+        /// </remarks>
+        protected override bool NeedsEngine => false;
 
         /// <inheritdoc/>
         public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query,
@@ -89,7 +80,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         public Task<bool> SaveDefinitionAsync(ClaimsPrincipal user, WorkflowDefinition definition,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Design }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Design }))
             {
                 LogEnvironment.LogEvent(
                     "Speichern einer Workflow-Definition ohne Berechtigung 'Workflow.Design' abgelehnt.",
@@ -117,11 +108,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                     ? op.Store.GetDefinition(definition.Key)
                     : null;
                 bool touchesPublic = definition.IsPublic || (stored?.IsPublic ?? false);
-                if (touchesPublic && !services.VerifyUserPermissions(new[] { WorkflowSecurity.DesignPublic }))
+                if (touchesPublic && !Services.VerifyUserPermissions(new[] { WorkflowSecurity.DesignPublic }))
                 {
                     LogEnvironment.LogEvent(
                         $"Speichern der oeffentlichen Workflow-Definition '{definition.Id}' ohne "
                         + $"Berechtigung '{WorkflowSecurity.DesignPublic}' abgelehnt.", LogSeverity.Warning);
+                    return Task.FromResult(false);
+                }
+
+                // Und die zweite Frage, die der Public-Riegel NICHT beantwortet: gehoert die bestehende
+                // Zeile ueberhaupt diesem Mandanten? Der Schluessel kommt aus dem geposteten Modell, und
+                // der Store trifft die Zeile darueber ausdruecklich filterfrei - ohne diesen Guard
+                // landete ein fremder Key auf der Definition seines Besitzers, samt neu gesetztem
+                // Mandanten.
+                if (!MayTouchDefinition(stored, "Speichern"))
+                {
                     return Task.FromResult(false);
                 }
 
@@ -166,7 +167,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         private T WithCatalog<T>(string? environment, string? executionTarget,
             Func<IWorkflowActivityCatalog, T> query, T fallback)
         {
-            string? catalogName = WorkflowEnvironmentResolver.ActivityCatalogPluginName(services, environment, executionTarget);
+            string? catalogName = WorkflowEnvironmentResolver.ActivityCatalogPluginName(Services, environment, executionTarget);
             IPluginLease<IInjectableWorkflowActivityCatalog>? lease = null;
             try
             {

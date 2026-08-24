@@ -38,30 +38,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
     ///   uebernimmt ein (tenant-uebergreifender) Runner (getrennte Deployments / Multi-Tenant).</item>
     /// </list>
     /// </summary>
-    internal abstract class WorkflowMonitorHandlerBase : IWorkflowMonitorHandler
+    internal abstract class WorkflowMonitorHandlerBase : WorkflowHandlerBase, IWorkflowMonitorHandler
     {
-        private readonly IServiceProvider services;
-        private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
-
         protected WorkflowMonitorHandlerBase(IServiceProvider services,
             IFreshInjectablePlugin<WorkflowContext> freshContext)
+            : base(services, freshContext)
         {
-            this.services = services;
-            this.freshContext = freshContext;
-        }
-
-        /// <summary>
-        /// Oeffnet eine neue Operation. Die Engine-Factory wird optional aufgeloest - fehlt sie, wirft
-        /// erst ein tatsaechlicher Engine-Zugriff (Signal/Abbruch) mit erklaerender Meldung.
-        /// </summary>
-        protected WorkflowOperation BeginOperation(string? environment = null)
-            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>(),
-                WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
-
-        /// <inheritdoc/>
-        public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
-        {
-            return services.VerifyUserPermissions(permissions);
         }
 
         /// <inheritdoc/>
@@ -114,14 +96,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public async Task<bool> SignalAsync(ClaimsPrincipal user, string instanceId, string signalName,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 return false;
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
-            if (instance == null)
+            if (!TryLoadOwnInstance(op, instanceId, "Signal an", out WorkflowInstance instance))
             {
                 return false;
             }
@@ -132,7 +113,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 // Best-effort Wake: einen (evtl. im selben Prozess laufenden) Worker sofort auf diesen Tenant/
                 // diese Umgebung aufmerksam machen, statt ihn bis zum Max-Linger warten zu lassen. Fehlt der
                 // Worker (kein Split-/Worker-Betrieb), ist der Service nicht registriert -> stiller No-op.
-                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
+                Services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
             }
 
             return delivered;
@@ -141,7 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// <inheritdoc/>
         public Task<bool> CancelAsync(ClaimsPrincipal user, string instanceId, string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 return Task.FromResult(false);
             }
@@ -149,6 +130,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Abbruch ist in JEDEM Deployment eine reine Store-Operation (keine Aktivitaet laeuft) - daher
             // hier gemeinsam, unabhaengig von der Signal-Variante.
             using WorkflowOperation op = BeginOperation(environment);
+            if (!TryLoadOwnInstance(op, instanceId, "Abbruch", out _))
+            {
+                return Task.FromResult(false);
+            }
+
             return Task.FromResult(op.Engine.CancelWorkflow(instanceId));
         }
 
@@ -156,7 +142,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<bool> SetSuspendedAsync(ClaimsPrincipal user, string instanceId, bool suspend,
             string? reason = null, string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 LogEnvironment.LogEvent(
                     $"{(suspend ? "Suspend" : "Resume")} der Instanz '{instanceId}': Berechtigung "
@@ -166,6 +152,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
             // Wie der Abbruch eine reine Store-Operation: es laeuft nichts, was koordiniert werden muesste.
             using WorkflowOperation op = BeginOperation(environment);
+            if (!TryLoadOwnInstance(op, instanceId, suspend ? "Anhalten" : "Fortsetzen", out _))
+            {
+                return Task.FromResult(false);
+            }
+
             return Task.FromResult(suspend
                 ? op.Engine.SuspendWorkflow(instanceId, reason, UserName(user))
                 : op.Engine.ResumeWorkflow(instanceId, UserName(user)));
@@ -175,7 +166,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<bool> SetPriorityAsync(ClaimsPrincipal user, string instanceId, int priority,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 LogEnvironment.LogEvent(
                     $"Prioritaets-Aenderung an Instanz '{instanceId}' ohne Berechtigung " +
@@ -184,12 +175,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
-            if (instance == null || !MayTouch(instance))
+            if (!TryLoadOwnInstance(op, instanceId, "Prioritaets-Aenderung an", out _))
             {
-                LogEnvironment.LogEvent(
-                    $"Prioritaets-Aenderung an Instanz '{instanceId}' abgelehnt: nicht vorhanden oder " +
-                    "fremder Tenant.", LogSeverity.Warning);
                 return Task.FromResult(false);
             }
 
@@ -203,18 +190,14 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<WorkflowRetryInfo?> GetRetryInfoAsync(ClaimsPrincipal user, string instanceId,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 return Task.FromResult<WorkflowRetryInfo?>(null);
             }
 
             using WorkflowOperation op = BeginOperation(environment);
-            WorkflowInstance? instance = op.Store.GetInstance(instanceId);
-            if (instance == null || !MayTouch(instance))
+            if (!TryLoadOwnInstance(op, instanceId, "Retry-Info fuer", out WorkflowInstance instance))
             {
-                LogEnvironment.LogEvent(
-                    $"Retry-Info fuer Instanz '{instanceId}' abgelehnt: nicht vorhanden oder fremder Tenant.",
-                    LogSeverity.Warning);
                 return Task.FromResult<WorkflowRetryInfo?>(null);
             }
 
@@ -285,7 +268,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<WorkflowRetryResult> RetryAsync(ClaimsPrincipal user, string instanceId,
             IDictionary<string, IDictionary<string, object?>>? branchUpdates = null, string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 LogEnvironment.LogEvent(
                     $"Wiederaufnahme der Instanz '{instanceId}' ohne Berechtigung " +
@@ -297,12 +280,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             try
             {
                 using WorkflowOperation op = BeginOperation(environment);
-                WorkflowInstance? instance = op.Store.GetInstance(instanceId);
-                if (instance == null || !MayTouch(instance))
+                if (!TryLoadOwnInstance(op, instanceId, "Wiederaufnahme", out WorkflowInstance instance))
                 {
-                    LogEnvironment.LogEvent(
-                        $"Wiederaufnahme der Instanz '{instanceId}' abgelehnt: nicht vorhanden oder fremder " +
-                        "Tenant.", LogSeverity.Warning);
                     return Task.FromResult(WorkflowRetryResult.Failed("This instance does not exist."));
                 }
 
@@ -329,7 +308,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
                 // Weiter geht es wie ueberall: inline im Web-Prozess oder store-only durch den Runner.
                 ResumeAfterRetry(op, instanceId);
-                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
+                Services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
                 return Task.FromResult(WorkflowRetryResult.Ok());
             }
             catch (Exception ex)
@@ -347,7 +326,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public async Task<IReadOnlyList<WorkflowStartableDefinition>> ListStartableDefinitionsAsync(
             ClaimsPrincipal user, string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
             {
                 return Array.Empty<WorkflowStartableDefinition>();
             }
@@ -405,7 +384,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<WorkflowStartForm?> GetStartFormAsync(ClaimsPrincipal user, string definitionId,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
             {
                 return Task.FromResult<WorkflowStartForm?>(null);
             }
@@ -471,7 +450,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 return Task.FromResult(WorkflowStartResult.Failed("No definition was selected."));
             }
 
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Start }))
             {
                 LogEnvironment.LogEvent(
                     $"Start der Workflow-Definition '{request.DefinitionId}' ohne Berechtigung " +
@@ -545,7 +524,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 // Best-effort Wake wie beim Signal: einen (evtl. im selben Prozess laufenden) Worker sofort
                 // auf die frischen Start-Tokens aufmerksam machen, statt ihn bis zum Max-Linger warten zu
                 // lassen. Ohne Worker-Betrieb ist der Service nicht registriert -> stiller No-op.
-                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
+                Services.GetService<IWorkflowWorkerWake>()?.Poke(environment, instance.TenantId);
                 return Task.FromResult(WorkflowStartResult.Ok(instance.Id));
             }
             catch (Exception ex)
@@ -587,23 +566,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         protected abstract void ResumeAfterRetry(WorkflowOperation op, string instanceId);
 
         /// <summary>
-        /// Darf der aktuelle Tenant diese Instanz anfassen? Explizit geprueft und nicht dem Query-Filter
-        /// ueberlassen - ob der greift, entscheidet die Registrierung des Kontexts im Host. Ein Eingriff
-        /// darf davon nicht abhaengen, sonst genuegte das Erraten einer Instanz-Id.
-        /// </summary>
-        private bool MayTouch(WorkflowInstance instance)
-        {
-            string? tenant = CurrentTenant();
-            if (string.IsNullOrEmpty(tenant))
-            {
-                // Ein-Mandanten-Host: es gibt keine Trennung, die verletzt werden koennte.
-                return true;
-            }
-
-            return string.Equals(instance.TenantId, tenant, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
         /// Laedt die Definition einer Instanz. Sie wird nur fuer Anzeigenamen gebraucht - scheitert das,
         /// funktioniert die Maske mit den Knoten-Ids weiter, der Grund muss aber ins Log (eine nicht
         /// ladbare Definition ist selten harmlos).
@@ -639,18 +601,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <summary>
-        /// Der Tenant der aktuellen Anfrage - ueber <see cref="WorkflowTenant.Normalize"/>, also nach
-        /// derselben Konvention wie die Aufgaben-Arbeitsliste UND wie <c>WorkflowContext.CurrentTenant</c>.
-        /// Null in einem Host ohne Mandanten-Trennung.
-        /// </summary>
-        /// <remarks>
-        /// Frueher stand hier <c>ToLower()</c>, im Kontext dagegen der rohe <c>PermissionPrefix</c>: was
-        /// dieser Weg schrieb, verglich der andere anders. Unter SQL Server deckte die Collation das zu.
-        /// </remarks>
-        private string? CurrentTenant()
-            => WorkflowTenant.Normalize(services.GetService<IPermissionScope>()?.PermissionPrefix);
-
-        /// <summary>
         /// Darf der aktuelle Tenant diese Definition starten? Tenant-lose Definitionen sind oeffentlich
         /// (dieselbe Regel wie im Query-Filter der Definitionen) und im Kontext jedes Tenants startbar.
         /// </summary>
@@ -658,7 +608,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         public Task<IReadOnlyList<CentralWorkflowItem>> ListCentralWorkflowsAsync(ClaimsPrincipal user,
             string? environment = null)
         {
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 return Task.FromResult<IReadOnlyList<CentralWorkflowItem>>(
                     Array.Empty<CentralWorkflowItem>());
@@ -749,7 +699,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 throw new ArgumentNullException(nameof(request));
             }
 
-            if (!services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
             {
                 LogEnvironment.LogEvent(
                     $"Uebernahme von '{request.DefinitionId}' abgelehnt: '{WorkflowSecurity.Operate}' fehlt.",
@@ -866,13 +816,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         private bool MayUseGate(string? requiredFeature, string? requiredPermission)
         {
             if (!string.IsNullOrWhiteSpace(requiredFeature)
-                && !services.VerifyActivatedFeatures(new[] { requiredFeature }, out _))
+                && !Services.VerifyActivatedFeatures(new[] { requiredFeature }, out _))
             {
                 return false;
             }
 
             return string.IsNullOrWhiteSpace(requiredPermission)
-                   || services.VerifyUserPermissions(new[] { requiredPermission });
+                   || Services.VerifyUserPermissions(new[] { requiredPermission });
         }
 
         private bool MayStart(WorkflowDefinition definition)
@@ -937,8 +887,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <summary>Der Anmeldename des Benutzers - er steht im Verlauf, wenn jemand eingreift.</summary>
-        private static string? UserName(ClaimsPrincipal user) => user?.Identity?.Name;
-
         private static IQueryable<WorkflowInstanceRow> Sort(IQueryable<WorkflowInstanceRow> q, string? column,
             bool descending)
         {

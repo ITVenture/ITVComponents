@@ -29,21 +29,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
     /// zwischen den Varianten ist, ob der abgeschlossene Zweig <b>inline</b> weiterlaeuft oder ein Runner
     /// ihn aufnimmt.
     /// </summary>
-    internal abstract class WorkflowTaskHandlerBase : IWorkflowTaskHandler
+    internal abstract class WorkflowTaskHandlerBase : WorkflowHandlerBase, IWorkflowTaskHandler
     {
-        private readonly IServiceProvider services;
-        private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
-
         protected WorkflowTaskHandlerBase(IServiceProvider services,
             IFreshInjectablePlugin<WorkflowContext> freshContext)
+            : base(services, freshContext)
         {
-            this.services = services;
-            this.freshContext = freshContext;
         }
-
-        /// <inheritdoc/>
-        public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
-            => services.VerifyUserPermissions(permissions);
 
         /// <inheritdoc/>
         public async Task<PagedResult<UserTaskListItem>> ListTasksAsync(ClaimsPrincipal user,
@@ -603,22 +595,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// haben will, registriert eine eigene Umsetzung, und hier aendert sich nichts.
         /// </remarks>
         private IWorkflowAttachmentStore AttachmentStore(WorkflowOperation op)
-            => services.GetService<IWorkflowAttachmentStore>()
+            => Services.GetService<IWorkflowAttachmentStore>()
                ?? new EfWorkflowAttachmentStore(op.LeaseContext);
 
         /// <summary>Die konfigurierte Obergrenze fuer einen Anhang (Standard 10 MB).</summary>
         private long MaxAttachmentBytes
-            => services.GetService<IOptions<WorkflowViewsOptions>>()?.Value?.MaxAttachmentBytes
+            => Services.GetService<IOptions<WorkflowViewsOptions>>()?.Value?.MaxAttachmentBytes
                ?? 10 * 1024 * 1024;
-
-        /// <summary>
-        /// Der Mandant des laufenden Kontexts - dieselbe Quelle wie in <see cref="OpenTasks"/>, damit
-        /// Arbeitsliste und Kommentare nicht unterschiedlich abgrenzen, und ueber
-        /// <see cref="WorkflowTenant.Normalize"/> dieselbe Schreibweise wie
-        /// <c>WorkflowContext.CurrentTenant</c>.
-        /// </summary>
-        private string? CurrentTenant()
-            => WorkflowTenant.Normalize(services.GetService<IPermissionScope>()?.PermissionPrefix);
 
         /// <summary>
         /// Darf dieser Benutzer diese Aufgabe umtragen? Zwei Wege: die Vertretungs-Berechtigung
@@ -652,7 +635,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             }
 
             bool mayWorkOn = string.IsNullOrWhiteSpace(taskPermission)
-                             || services.VerifyUserPermissions(new[] { taskPermission });
+                             || Services.VerifyUserPermissions(new[] { taskPermission });
             bool mineOrPool = assignedTo == null || assignedTo == me;
             return mayWorkOn && mineOrPool;
         }
@@ -714,7 +697,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                 await AdvanceAsync(op, instanceId, completion.ActivatedTokenIds);
                 // Best-effort Wake des (evtl. im selben Prozess laufenden) Workers fuer diesen Tenant/diese
                 // Umgebung. Fehlt der Worker, ist der Service nicht registriert -> stiller No-op.
-                services.GetService<IWorkflowWorkerWake>()?.Poke(environment, op.Store.GetInstance(instanceId)?.TenantId);
+                Services.GetService<IWorkflowWorkerWake>()?.Poke(environment, op.Store.GetInstance(instanceId)?.TenantId);
             }
 
             return completion;
@@ -726,14 +709,6 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// </summary>
         protected abstract Task AdvanceAsync(WorkflowOperation op, string instanceId,
             IReadOnlyList<string> tokenIds);
-
-        /// <summary>
-        /// Oeffnet eine neue Operation (frischer Kontext, Engine ueber die Host-Factory). Der Store richtet
-        /// sich nach der (optional) gewaehlten Umgebung; ohne Umgebung/Settings der Standard-Store.
-        /// </summary>
-        protected WorkflowOperation BeginOperation(string? environment = null)
-            => new WorkflowOperation(freshContext, services.GetService<WorkflowEngineFactory>(),
-                WorkflowEnvironmentResolver.StoreDependencyName(services, environment));
 
         /// <summary>
         /// Alle offenen Aufgaben des aktuellen Tenants. Der Tenant wird <b>explizit</b> gefiltert und nicht
@@ -767,7 +742,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                 .Distinct()
                 .ToListAsync();
 
-            return required.Where(p => services.VerifyUserPermissions(new[] { p })).ToList();
+            return required.Where(p => Services.VerifyUserPermissions(new[] { p })).ToList();
         }
 
         /// <summary>
@@ -810,10 +785,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             }
 
             return string.IsNullOrWhiteSpace(found.TaskPermission)
-                   || services.VerifyUserPermissions(new[] { found.TaskPermission });
+                   || Services.VerifyUserPermissions(new[] { found.TaskPermission });
         }
-
-        private static string? UserName(ClaimsPrincipal user) => user?.Identity?.Name;
 
         private static IQueryable<UserTaskListItem> Sort(IQueryable<UserTaskListItem> q, string? column,
             bool descending)
