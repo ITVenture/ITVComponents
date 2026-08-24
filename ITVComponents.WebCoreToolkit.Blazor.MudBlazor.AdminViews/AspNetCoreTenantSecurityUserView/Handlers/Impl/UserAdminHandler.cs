@@ -145,6 +145,17 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
             tenantQuery = tenantQuery.Where(x => x.u.UserName!.Contains(s) || (x.u.Email != null && x.u.Email.Contains(s)));
         }
 
+        // Sortieren VOR dem Blaettern - und zwar immer. Ohne ORDER BY steht die Reihenfolge einer
+        // Seite der Datenbank frei: derselbe Benutzer kann auf Seite 1 und auf Seite 2 auftauchen,
+        // ein anderer auf keiner. Der sysadmin-Zweig oben macht das bereits richtig.
+        tenantQuery = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
+        {
+            ("email", false) => tenantQuery.OrderBy(x => x.u.Email),
+            ("email", true) => tenantQuery.OrderByDescending(x => x.u.Email),
+            ("username", true) => tenantQuery.OrderByDescending(x => x.u.UserName),
+            _ => tenantQuery.OrderBy(x => x.u.UserName)
+        };
+
         var totalTenant = await tenantQuery.CountAsync();
         var paged = await tenantQuery
             .Skip(query.Page * query.PageSize).Take(query.PageSize)

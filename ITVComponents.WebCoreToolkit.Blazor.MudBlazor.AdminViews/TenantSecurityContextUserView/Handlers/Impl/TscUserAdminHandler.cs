@@ -144,6 +144,14 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
             tenantQuery = tenantQuery.Where(x => x.u.UserName.Contains(s));
         }
 
+        // Sortieren VOR dem Blaettern - und zwar immer. Ohne ORDER BY steht die Reihenfolge einer Seite
+        // der Datenbank frei: derselbe Benutzer kann auf Seite 1 und auf Seite 2 auftauchen, ein anderer
+        // auf keiner. Nur nach dem Namen: dieses Modell hat kein weiteres sortierbares Feld (die
+        // Mail-Spalten blendet die Maske ueber SupportsEmail = false aus).
+        tenantQuery = query.SortDescending
+            ? tenantQuery.OrderByDescending(x => x.u.UserName)
+            : tenantQuery.OrderBy(x => x.u.UserName);
+
         var totalTenant = await tenantQuery.CountAsync();
         var paged = await tenantQuery
             .Skip(query.Page * query.PageSize).Take(query.PageSize)
