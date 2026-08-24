@@ -26,10 +26,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Options
     public sealed class WorkflowViewsOptions
     {
         /// <summary>
-        /// Schaltet die Registrierung der Views/Handler ein. Erwartet, dass der Host
-        /// <c>WorkflowContext</c> (als <c>IDbContextFactory</c>), einen <c>IWorkflowStore</c> und
-        /// eine <c>WorkflowEngine</c> registriert hat.
+        /// Schaltet die Registrierung der Views/Handler ein.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Erwartet im Host: eine <c>IFreshInjectablePlugin&lt;WorkflowContext&gt;</c>-Quelle (die
+        /// scope-owned <c>WorkflowContext</c>-Dependency, ueber die jede Operation ihren FRISCHEN Kontext
+        /// leaset) und - fuer Signal-/Abbruch-/Start-Operationen - eine <c>WorkflowEngineFactory</c>.
+        /// </para>
+        /// <para>
+        /// <b>Nicht mehr</b> ein DI-registrierter <c>IWorkflowStore</c> oder eine DI-registrierte
+        /// <c>WorkflowEngine</c>: die Handler bauen beides pro Operation selbst
+        /// (<c>WorkflowOperation.Store</c> / <c>.Engine</c>), damit kein Store und kein DbContext ueber
+        /// einen Blazor-Circuit geteilt wird. Ein Host, der die beiden trotzdem registriert, bekommt keinen
+        /// Fehler - sie werden von den Views schlicht nicht gezogen. Wer sie braucht, braucht sie fuer
+        /// etwas anderes (z.B. einen selbst gehosteten <c>WorkflowRunner</c> aus
+        /// <c>ITVComponents.Workflow.ParallelProcessing</c>).
+        /// </para>
+        /// </remarks>
         public bool ConfigureViews { get; set; }
 
         /// <summary>

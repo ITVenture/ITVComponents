@@ -24,7 +24,16 @@ namespace ITVComponents.Workflow.EntityFramework
         /// werten den aktiven Mandanten als <c>null</c> aus - sichtbar sind dann nur noch die
         /// mandantenlosen Zeilen (bei Definitionen: die oeffentlichen). Wirklich filterfrei ist allein der
         /// options-only-Weg (<c>IDbContextFactory&lt;WorkflowContext&gt;</c>), auf dem gar keine
-        /// Model-Optionen gesetzt werden - das ist der Weg fuer Runner und Inline-Ausfuehrung.
+        /// Model-Optionen gesetzt werden.
+        /// </para>
+        /// <para>
+        /// <b>Wer welchen Weg nimmt:</b> der <b>Runner</b> braucht den filterfreien - sein Suchlauf geht
+        /// jedem <c>WorkflowExecutionScope</c> voraus, und <c>EfWorkflowStore.LoadInstances</c> zieht die
+        /// Mandantengrenze zentral fuer alle Aufgriffs-Wege; mit Filter faende er nichts, was einem
+        /// Mandanten gehoert. <c>AddWorkflowWebWorker</c> nimmt deshalb von sich aus die Kontext-Fabrik.
+        /// Die <b>Ansichten</b> nehmen den umgekehrten Weg: sie leasen pro Operation ueber
+        /// <c>IFreshInjectablePlugin&lt;WorkflowContext&gt;</c>, und dort ist der Filter erwuenscht. Beide
+        /// Wege koennen (und sollen) im selben Prozess auf dieselbe Datenbank zeigen.
         /// </para>
         /// </remarks>
         public bool UseTenantFilter { get; set; } = true;
