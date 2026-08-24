@@ -363,12 +363,49 @@ namespace ITVComponents.Workflow.WebWorker
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// Ueber den Namen der Umgebung, nicht ueber den Schluessel: die Discovery fasst gleich
+        /// konfigurierte Mandanten zu EINEM Deskriptor zusammen, und bei widerspruechlicher Konfiguration
+        /// traegt derselbe Name mehrere Varianten mit je eigenem Schluessel. Ein Weckruf, der den
+        /// Schluessel raten muesste, ginge in beiden Faellen ins Leere - und ein nicht geweckter Vorgang
+        /// laeuft erst beim naechsten regulaeren Poll an, was aussieht wie "der Workflow startet nicht".
+        /// <para>
+        /// Der Mandant bleibt im Aufruf, weil ein tenant-gepinnter Deskriptor (Host ohne Zusammenfassung,
+        /// oder eine Umgebung, die nur ein Mandant traegt) weiterhin gezielt geweckt werden soll; er ist
+        /// aber kein Ausschluss-Kriterium - der gemeinsame Deskriptor faehrt diesen Mandanten mit.
+        /// </para>
+        /// </remarks>
         public void Poke(string? environmentName, string? tenantId)
         {
-            string key = tenantId == null ? (environmentName ?? string.Empty) : $"{environmentName}|{tenantId}";
-            if (live.TryGetValue(key, out WorkflowExecutionDescriptor? d))
+            string env = environmentName ?? string.Empty;
+            bool anyWoken = false;
+            foreach (WorkflowExecutionDescriptor d in live.Values)
             {
-                d.Poke();
+                string? candidate = d.Spec.EnvironmentName ?? string.Empty;
+                if (!string.Equals(candidate, env, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                // Ein gemeinsamer (tenant-freier) Deskriptor faehrt jeden Mandanten; ein gepinnter nur
+                // seinen eigenen.
+                if (d.Spec.TenantId == null || tenantId == null
+                    || string.Equals(d.Spec.TenantId, tenantId, StringComparison.Ordinal))
+                {
+                    d.Poke();
+                    anyWoken = true;
+                }
+            }
+
+            if (!anyWoken)
+            {
+                // Kein Deskriptor fuer diese Umgebung: sonst wartete der Aufrufer auf einen Vortrieb, den
+                // niemand macht. Kein Fehler (die Umgebung kann bewusst ohne Worker laufen), aber nichts,
+                // was stillschweigend verschwinden darf.
+                log.LogDebug(
+                    "Workflow worker: poke for environment {Environment} (tenant {Tenant}) matched no "
+                    + "descriptor - nothing is polling it in this process.",
+                    env.Length == 0 ? "(default)" : env, tenantId ?? "(none)");
             }
         }
 

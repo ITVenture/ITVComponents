@@ -14,5 +14,6 @@
     <ProjectReference Include="..\ITVComponents.Workflow\ITVComponents.Workflow.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
+    <ProjectReference Include="..\ITVComponents.Workflow.WebWorker\ITVComponents.Workflow.WebWorker.csproj" />
   </ItemGroup>
 </Project>

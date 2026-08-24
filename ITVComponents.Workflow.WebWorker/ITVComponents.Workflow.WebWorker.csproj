@@ -12,6 +12,12 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Die Zusammenfassung der Poll-Deskriptoren ist eine Entscheidung mit stillen Fehlern in beide
+         Richtungen (Doppelverarbeitung bzw. ein Mandant, der gar keinen Worker wollte) - sie gehoert
+         gepruft, ohne dafuer oeffentlich werden zu muessen. -->
+    <InternalsVisibleTo Include="ITVComponents.Workflow.Plugins.WebCoreToolkit.Test" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Workflow\ITVComponents.Workflow.csproj" />
     <ProjectReference Include="..\ITVComponents.Workflow.EntityFramework\ITVComponents.Workflow.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
