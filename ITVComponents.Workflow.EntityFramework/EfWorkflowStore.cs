@@ -84,6 +84,13 @@ namespace ITVComponents.Workflow.EntityFramework
                 : ctx.WorkflowDefinitions.IgnoreQueryFilters()
                     .FirstOrDefault(d => d.Id == definition.Id && d.Version == definition.Version
                                          && d.TenantId == definition.TenantId);
+            // Der Besitzer VOR dem Speichern. Er entscheidet, welche Ausloeser-Zeilen in den Neuaufbau
+            // gehoeren - und zwar nur bei einer BESTEHENDEN Zeile: bei einer neuen ist "null" nicht
+            // "war oeffentlich", sondern "gab es nicht". Der Unterschied ist wesentlich, sonst raeumte
+            // das Anlegen einer mandanteneigenen Definition die Ausloeser der oeffentlichen gleichen
+            // Namens ab.
+            bool tenantChanged = false;
+            string previousTenantId = null;
             if (row == null)
             {
                 row = new WorkflowDefinitionRow { Id = definition.Id, Version = definition.Version };
@@ -91,6 +98,21 @@ namespace ITVComponents.Workflow.EntityFramework
             }
             else
             {
+                previousTenantId = row.TenantId;
+                tenantChanged = previousTenantId != definition.TenantId;
+                if (row.Version != definition.Version)
+                {
+                    // Erlaubt (eine falsch gesetzte Versionsnummer soll korrigierbar sein), aber nie
+                    // still: dieselbe Zeile traegt danach eine andere Version, die vorige gibt es nicht
+                    // mehr. Wer eine NEUE Version wollte, muss den Schluessel loslassen - kommt er hier
+                    // mit, ist das der Weg, auf dem eine Fassung unbemerkt verschwindet.
+                    LogEnvironment.LogEvent(
+                        $"Definition '{definition.Id}': die bestehende Zeile (Schluessel {row.DefinitionKey}) "
+                        + $"wechselt von Version {row.Version} auf {definition.Version}. Es entsteht KEINE "
+                        + "zweite Fassung - war eine neue Version gemeint, muss die technische Kennung 0 sein.",
+                        LogSeverity.Warning);
+                }
+
                 // Beim Aktualisieren duerfen Name und Version mitwandern - die technische Kennung nicht.
                 // An ihr haengen die laufenden Instanzen.
                 row.Id = definition.Id;
@@ -104,7 +126,7 @@ namespace ITVComponents.Workflow.EntityFramework
             ctx.SaveChanges();
             definition.Key = row.DefinitionKey;
 
-            SyncTriggers(ctx, definition);
+            SyncTriggers(ctx, definition, tenantChanged, previousTenantId);
         }
 
         /// <summary>
@@ -122,8 +144,20 @@ namespace ITVComponents.Workflow.EntityFramework
         /// liefe bei jedem Speichern erneut los. Als "unveraendert" gilt derselbe Knoten mit demselben
         /// Muster; wer das Muster aendert, meint einen anderen Plan und bekommt einen frischen Anlauf.
         /// </para>
+        /// <para>
+        /// <paramref name="tenantChanged"/> deckt den einen Fall ab, in dem eine Definition den Besitzer
+        /// wechselt: die Sichtbarkeit wird umgestellt (mandanteneigen &lt;-&gt; oeffentlich). Dann gehoeren
+        /// auch die Zeilen des VORIGEN Besitzers in den Neuaufbau - siehe unten.
+        /// </para>
         /// </remarks>
-        private static void SyncTriggers(WorkflowContext ctx, WorkflowDefinition definition)
+        /// <param name="ctx">der Kontext</param>
+        /// <param name="definition">die eben gespeicherte Definition</param>
+        /// <param name="tenantChanged">ob die Definition gerade den Besitzer gewechselt hat</param>
+        /// <param name="previousTenantId">
+        /// der vorige Besitzer; nur aussagekraeftig, wenn <paramref name="tenantChanged"/> gilt
+        /// </param>
+        private static void SyncTriggers(WorkflowContext ctx, WorkflowDefinition definition,
+            bool tenantChanged, string previousTenantId)
         {
             // Ohne Query-Filter und ausdruecklich auf den Mandanten der Definition - wie beim Schreiben
             // der Definition selbst: der gerade aktive Kontext darf nicht entscheiden, welche Zeilen
@@ -154,15 +188,58 @@ namespace ITVComponents.Workflow.EntityFramework
                 }
             }
 
-            List<WorkflowStartTriggerRow> existing = ctx.WorkflowStartTriggers
-                .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id)
-                .ToList();
+            // Welche Ausloeser-Zeilen in den Neuaufbau gehoeren. Drei Bedingungen, weil eine nicht reicht:
+            //
+            // 1. die des jetzigen Besitzers - der Normalfall;
+            // 2. beim Wechsel der Sichtbarkeit auch die des VORIGEN. Ohne sie faenden sie sich nie
+            //    wieder in dieser Auswahl und wuerden damit nie mehr aktualisiert oder abgeraeumt: der
+            //    Zeitplan des alten Besitzers liefe fuer immer auf dem Muster von heute weiter, und
+            //    daneben entstuende eine zweite Zeile, ueber die alles ein zweites Mal feuert;
+            // 3. alles, was ueber den DefinitionKey auf DIESE Definition zeigt. Das ist der Fang fuer
+            //    Altbestand: eine Definition, die vor dieser Korrektur gewechselt hat, hat ihre alte
+            //    Zeile liegen lassen, und welcher Mandant das einmal war, steht nirgends mehr. Ueber den
+            //    Schluessel ist sie trotzdem eindeutig zuzuordnen - jede Zeile mit abweichendem Besitzer
+            //    ist per Definition eine Leiche, denn der Neuaufbau setzt ihn immer mit.
+            //
+            // Bewusst als getrennte Abfragen statt als eine mit ODER ueber gefangene Bedingungen: so
+            // haengt nichts davon ab, wie der Provider ein "konstantes" bool im Ausdrucksbaum uebersetzt.
+            // Zusammengefuehrt wird ueber den Schluessel - die Bedingungen ueberschneiden sich, und
+            // dieselbe Zeile zweimal in der Liste hiesse, sie zweimal zu bearbeiten.
+            var byKey = new Dictionary<int, WorkflowStartTriggerRow>();
+            void Collect(IEnumerable<WorkflowStartTriggerRow> rows)
+            {
+                foreach (WorkflowStartTriggerRow row in rows)
+                {
+                    byKey[row.TriggerKey] = row;
+                }
+            }
+
+            Collect(ctx.WorkflowStartTriggers
+                .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id));
+            if (tenantChanged)
+            {
+                Collect(ctx.WorkflowStartTriggers
+                    .Where(t => t.TenantId == previousTenantId && t.DefinitionId == definition.Id));
+            }
+
+            if (newest.Key != 0)
+            {
+                int newestKey = newest.Key;
+                Collect(ctx.WorkflowStartTriggers.Where(t => t.DefinitionKey == newestKey));
+            }
+
+            List<WorkflowStartTriggerRow> existing = byKey.Values.ToList();
 
             // Die Aktivierungen dieser Definition - ueber die fachliche Identitaet, nicht ueber
             // TriggerKey: der ist gleich ein anderer.
             List<WorkflowStartTriggerActivationRow> activations = ctx.WorkflowStartTriggerActivations
                 .Where(a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.Id)
                 .ToList();
+
+            if (tenantChanged)
+            {
+                activations.AddRange(RehomeActivations(ctx, definition, previousTenantId, activations));
+            }
 
             var keptKeys = new HashSet<int>();
             var now = DateTime.UtcNow;
@@ -217,6 +294,85 @@ namespace ITVComponents.Workflow.EntityFramework
             }
 
             ctx.SaveChanges();
+        }
+
+        /// <summary>
+        /// Zieht die Uebernahmen mit, wenn eine Definition den Besitzer wechselt - mandanteneigen wird
+        /// oeffentlich oder umgekehrt.
+        /// </summary>
+        /// <param name="ctx">der Kontext</param>
+        /// <param name="definition">die Definition in ihrem NEUEN Zustand</param>
+        /// <param name="previousTenantId">der vorige Besitzer</param>
+        /// <param name="existingAtNewOwner">
+        /// die Uebernahmen, die beim neuen Besitzer schon stehen - gegen sie wird auf Dubletten geprueft
+        /// </param>
+        /// <returns>die umgehaengten Zeilen (die entfernten sind nicht dabei)</returns>
+        /// <remarks>
+        /// <para>
+        /// Wird die Definition <b>oeffentlich</b>, bleiben alle Uebernahmen gueltig: wer sie bisher fuhr,
+        /// faehrt sie weiter - sie haengt ab jetzt nur an der oeffentlichen Fassung. Ohne das Umhaengen
+        /// findet sie weder der Aufgriff noch die Uebersicht wieder (beide suchen ueber
+        /// <c>OwnerTenantId</c>), und der Mandant bekaeme unter "Zentrale Workflows" einen Prozess zum
+        /// Anhaken angeboten, den er in Wahrheit schon faehrt. Hakt er an, laeuft er doppelt.
+        /// </para>
+        /// <para>
+        /// Wird sie <b>mandanteneigen</b>, gilt das nur noch fuer den neuen Besitzer. Die Uebernahmen der
+        /// anderen zeigen auf einen Prozess, den sie ab jetzt nicht mehr sehen duerfen - sie werden
+        /// entfernt, und das wird gemeldet: ein Zeitplan, der ab jetzt schweigt, darf das nicht still tun.
+        /// </para>
+        /// </remarks>
+        private static List<WorkflowStartTriggerActivationRow> RehomeActivations(WorkflowContext ctx,
+            WorkflowDefinition definition, string previousTenantId,
+            List<WorkflowStartTriggerActivationRow> existingAtNewOwner)
+        {
+            List<WorkflowStartTriggerActivationRow> previous = ctx.WorkflowStartTriggerActivations
+                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.Id)
+                .ToList();
+            var kept = new List<WorkflowStartTriggerActivationRow>();
+            foreach (WorkflowStartTriggerActivationRow activation in previous)
+            {
+                // Gross-/Kleinschreibung bewusst egal: hier steht Loeschen gegen Behalten, und ein
+                // Mandantenname, der sich nur in der Schreibweise unterscheidet, ist derselbe Mandant.
+                // Ein Fehlurteil kostete hier eine Uebernahme - unwiederbringlich.
+                bool belongsToNewOwner = definition.IsPublic
+                                         || string.Equals(activation.TenantId, definition.TenantId,
+                                             StringComparison.OrdinalIgnoreCase);
+                if (!belongsToNewOwner)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        + $"Mandanten '{activation.TenantId ?? "-"}' wurde entfernt: die Definition gehoert "
+                        + $"jetzt dem Mandanten '{definition.TenantId}' und steht ihm nicht mehr offen.",
+                        LogSeverity.Warning);
+                    ctx.WorkflowStartTriggerActivations.Remove(activation);
+                    continue;
+                }
+
+                // Steht beim neuen Besitzer schon eine Uebernahme fuer denselben Knoten und denselben
+                // fahrenden Mandanten, kann die alte nicht umgehaengt werden - die fachliche Identitaet
+                // ist eindeutig. Das passiert nur bei Altbestand aus der Zeit, als der Wechsel die alten
+                // Zeilen liegen liess; gemeldet wird es trotzdem, sonst verschwaende hier still ein
+                // Lauf-Zustand.
+                bool duplicate = existingAtNewOwner.Any(
+                    a => a.NodeId == activation.NodeId && a.Kind == activation.Kind
+                         && string.Equals(a.TenantId, activation.TenantId,
+                             StringComparison.OrdinalIgnoreCase));
+                if (duplicate)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        + $"Mandanten '{activation.TenantId ?? "-"}' konnte nicht mitgezogen werden: beim "
+                        + "neuen Besitzer steht dafuer bereits eine Zeile. Die aeltere wurde entfernt, es "
+                        + "gilt die bestehende.", LogSeverity.Warning);
+                    ctx.WorkflowStartTriggerActivations.Remove(activation);
+                    continue;
+                }
+
+                activation.OwnerTenantId = definition.TenantId;
+                kept.Add(activation);
+            }
+
+            return kept;
         }
 
         /// <summary>

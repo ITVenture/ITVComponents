@@ -463,6 +463,83 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public bool IsEnabled(string tenantId, string featureName) => false;
         }
 
+        // --- Der Wechsel der Sichtbarkeit -----------------------------------------------------------
+
+        [TestMethod]
+        public void TenantOwnedBecomesPublic_MovesTriggerAndActivationAlong()
+        {
+            // Der einzige Weg, auf dem eine Definition den Besitzer wechselt. Frueher wurden dabei die
+            // Zeilen des alten Besitzers ueber den NEUEN gesucht - also nicht gefunden: es entstand eine
+            // zweite Ausloeser-Zeile, die alte blieb liegen und wurde nie wieder angefasst.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithSchedule("wf", DailyAtEight);
+            definition.TenantId = "acme";
+            ((StartNode)definition.Nodes.First(n => n is StartNode)).ScheduleStart.AllowLocalActivation = true;
+            store.SaveDefinition(definition);
+
+            definition.IsPublic = true;
+            definition.TenantId = null;
+            store.SaveDefinition(definition);
+
+            using (var ctx = new WorkflowContext(options))
+            {
+                WorkflowStartTriggerRow trigger = ctx.WorkflowStartTriggers.IgnoreQueryFilters().Single();
+                Assert.IsNull(trigger.TenantId, "the trigger belongs to the definition - it has no owner now.");
+                Assert.IsTrue(trigger.IsPublic);
+
+                WorkflowStartTriggerActivationRow activation =
+                    ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters().Single();
+                Assert.IsNull(activation.OwnerTenantId,
+                    "the takeover hangs on the public definition now - the runner and the overview both "
+                    + "look it up through OwnerTenantId.");
+                Assert.AreEqual("acme", activation.TenantId, "and acme still runs it.");
+                Assert.IsTrue(activation.Enabled, "nobody unticked anything.");
+            }
+
+            Assert.AreEqual(1, store.FindActivatableTriggers("beta").Count,
+                "and it is on offer centrally - that is what public plus 'may be taken over' means.");
+        }
+
+        [TestMethod]
+        public void PublicBecomesTenantOwned_KeepsTheNewOwnerAndDropsTheOthers()
+        {
+            // Der Rueckweg. Die Uebernahme des kuenftigen Besitzers wird mitgezogen (samt Lauf-Zustand),
+            // die der anderen zeigt auf einen Prozess, den sie ab jetzt nicht mehr sehen duerfen.
+            EfWorkflowStore store = NewStore();
+            WorkflowDefinition definition = WithSchedule("wf", DailyAtEight);
+            definition.IsPublic = true;
+            ((StartNode)definition.Nodes.First(n => n is StartNode)).ScheduleStart.AllowLocalActivation = true;
+            store.SaveDefinition(definition);
+
+            foreach (string tenant in new[] { "acme", "beta" })
+            {
+                store.SaveActivation(new WorkflowStartTriggerActivation
+                {
+                    OwnerTenantId = null,
+                    DefinitionId = "wf",
+                    NodeId = "s",
+                    Kind = WorkflowStartTriggerKind.Schedule,
+                    TenantId = tenant,
+                    Enabled = true,
+                    ActivatedBy = "tester"
+                });
+            }
+
+            definition.IsPublic = false;
+            definition.TenantId = "acme";
+            store.SaveDefinition(definition);
+
+            using var ctx = new WorkflowContext(options);
+            Assert.AreEqual("acme", ctx.WorkflowStartTriggers.IgnoreQueryFilters().Single().TenantId,
+                "one trigger, and it belongs to acme - the public one must not linger beside it.");
+
+            WorkflowStartTriggerActivationRow kept =
+                ctx.WorkflowStartTriggerActivations.IgnoreQueryFilters().Single();
+            Assert.AreEqual("acme", kept.OwnerTenantId, "acme keeps running it, now as the owner.");
+            Assert.AreEqual("acme", kept.TenantId,
+                "and beta's takeover is gone - it pointed at a workflow beta may no longer see.");
+        }
+
         // --- Aufbau ---------------------------------------------------------------------------------
 
         private EfWorkflowStore NewStore() => new EfWorkflowStore(() => new WorkflowContext(options));

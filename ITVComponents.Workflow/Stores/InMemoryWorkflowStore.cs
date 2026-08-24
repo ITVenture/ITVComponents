@@ -75,6 +75,15 @@ namespace ITVComponents.Workflow.Stores
                 definition.TenantId = null;
             }
 
+            // Der Besitzer VOR dem Speichern. Er ist NICHT am abgelegten Objekt ablesbar: diese Ablage
+            // haelt dieselbe REFERENZ, die der Aufrufer bearbeitet hat, und dort steht laengst der neue
+            // Wert. Der Ablage-Schluessel dagegen wurde beim Ablegen gebildet und traegt den alten.
+            string previousStoreKey = definition.Key == 0
+                ? null
+                : definitions.FirstOrDefault(kv => kv.Value.Key == definition.Key).Key;
+            string previousTenantId = TenantOfKey(previousStoreKey);
+            bool tenantChanged = previousStoreKey != null && previousTenantId != definition.TenantId;
+
             string key = Key(definition.Id, definition.Version, definition.TenantId);
             if (definitions.TryGetValue(key, out WorkflowDefinition existing))
             {
@@ -86,8 +95,29 @@ namespace ITVComponents.Workflow.Stores
                 definition.Key = Interlocked.Increment(ref nextDefinitionKey);
             }
 
+            if (tenantChanged)
+            {
+                // Der Ablage-Schluessel traegt den Besitzer. Ohne das Entfernen bliebe die Definition
+                // unter dem alten Schluessel als zweite, konkurrierende Fassung stehen - mit derselben
+                // technischen Kennung, aber dem Besitzer von gestern.
+                definitions.TryRemove(previousStoreKey, out _);
+            }
+
             definitions[key] = definition;
-            SyncTriggers(definition);
+            SyncTriggers(definition, tenantChanged, previousTenantId);
+        }
+
+        /// <summary>Liest den Besitzer aus einem Ablage-Schluessel zurueck; null = oeffentlich.</summary>
+        private static string TenantOfKey(string storeKey)
+        {
+            if (storeKey == null)
+            {
+                return null;
+            }
+
+            int at = storeKey.LastIndexOf('#');
+            string tenant = at == -1 ? null : storeKey.Substring(at + 1);
+            return tenant == "<public>" ? null : tenant;
         }
 
         /// <summary>
@@ -105,9 +135,20 @@ namespace ITVComponents.Workflow.Stores
         /// Eine <b>mandanteneigene</b> Definition bekommt ihre eine Aktivierung von selbst: fuer sie ist
         /// "wer faehrt das?" keine Frage. Eine oeffentliche bekommt keine - dort ist es eine.
         /// </para>
+        /// <para>
+        /// <paramref name="tenantChanged"/> deckt den einen Fall ab, in dem eine Definition den Besitzer
+        /// wechselt: die Sichtbarkeit wird umgestellt (mandanteneigen &lt;-&gt; oeffentlich). Dann gehoeren
+        /// auch die Ausloeser des VORIGEN Besitzers in den Neuaufbau, sonst bleiben sie als zweite,
+        /// nie wieder angefasste Fassung liegen und feuern daneben weiter.
+        /// </para>
         /// </remarks>
-        private void SyncTriggers(WorkflowDefinition definition)
+        private void SyncTriggers(WorkflowDefinition definition, bool tenantChanged, string previousTenantId)
         {
+            if (tenantChanged)
+            {
+                RehomeActivations(definition, previousTenantId);
+            }
+
             int highest = definitions.Values
                 .Where(d => d.Id == definition.Id && d.TenantId == definition.TenantId)
                 .Select(d => d.Version)
@@ -118,11 +159,16 @@ namespace ITVComponents.Workflow.Stores
                 : definitions.Values.First(d => d.Id == definition.Id && d.TenantId == definition.TenantId
                                                 && d.Version == highest);
 
+            // Wessen Ausloeser in den Neuaufbau gehoeren: die des jetzigen Besitzers - und beim Wechsel
+            // auch die des vorigen, die sonst nie wieder in diese Auswahl kaemen.
+            bool Owned(string tenantId)
+                => tenantId == definition.TenantId || (tenantChanged && tenantId == previousTenantId);
+
             var kept = new List<WorkflowStartTrigger>();
             foreach (WorkflowStartTrigger fresh in WorkflowStartTriggerFactory.FromDefinition(newest))
             {
                 WorkflowStartTrigger previous = triggers.Values.FirstOrDefault(
-                    t => t.TenantId == fresh.TenantId && t.DefinitionId == fresh.DefinitionId
+                    t => Owned(t.TenantId) && t.DefinitionId == fresh.DefinitionId
                          && t.NodeId == fresh.NodeId && t.Kind == fresh.Kind);
 
                 fresh.TriggerKey = previous?.TriggerKey ?? Interlocked.Increment(ref nextTriggerKey);
@@ -140,7 +186,7 @@ namespace ITVComponents.Workflow.Stores
             }
 
             foreach (WorkflowStartTrigger stale in triggers.Values
-                         .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id
+                         .Where(t => Owned(t.TenantId) && t.DefinitionId == definition.Id
                                      && kept.All(k => k.TriggerKey != t.TriggerKey))
                          .ToList())
             {
@@ -190,6 +236,61 @@ namespace ITVComponents.Workflow.Stores
                 ActivatedBy = "(automatisch)",
                 ActivatedUtc = DateTime.UtcNow
             });
+        }
+
+        /// <summary>
+        /// Zieht die Uebernahmen mit, wenn eine Definition den Besitzer wechselt - mandanteneigen wird
+        /// oeffentlich oder umgekehrt. Gegenstueck zu <c>EfWorkflowStore.RehomeActivations</c>.
+        /// </summary>
+        /// <remarks>
+        /// Wird die Definition <b>oeffentlich</b>, bleiben alle Uebernahmen gueltig: wer sie bisher fuhr,
+        /// faehrt sie weiter, sie haengt ab jetzt nur an der oeffentlichen Fassung. Ohne das Umhaengen
+        /// findet sie niemand wieder (Aufgriff und Uebersicht suchen ueber <c>OwnerTenantId</c>), und der
+        /// Mandant bekaeme einen Prozess zum Anhaken angeboten, den er schon faehrt - danach liefe er
+        /// doppelt. Wird sie <b>mandanteneigen</b>, gilt das nur fuer den neuen Besitzer; die Uebernahmen
+        /// der anderen werden entfernt und gemeldet.
+        /// </remarks>
+        private void RehomeActivations(WorkflowDefinition definition, string previousTenantId)
+        {
+            List<WorkflowStartTriggerActivation> previous = activations.Values
+                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.Id)
+                .ToList();
+            foreach (WorkflowStartTriggerActivation activation in previous)
+            {
+                // Gross-/Kleinschreibung bewusst egal: hier steht Loeschen gegen Behalten, und ein
+                // Mandantenname, der sich nur in der Schreibweise unterscheidet, ist derselbe Mandant.
+                bool belongsToNewOwner = definition.IsPublic
+                                         || string.Equals(activation.TenantId, definition.TenantId,
+                                             StringComparison.OrdinalIgnoreCase);
+                if (!belongsToNewOwner)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        + $"Mandanten '{activation.TenantId ?? "-"}' wurde entfernt: die Definition gehoert "
+                        + $"jetzt dem Mandanten '{definition.TenantId}' und steht ihm nicht mehr offen.",
+                        LogSeverity.Warning);
+                    activations.TryRemove(activation.ActivationKey, out _);
+                    continue;
+                }
+
+                bool duplicate = activations.Values.Any(
+                    a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.Id
+                         && a.NodeId == activation.NodeId && a.Kind == activation.Kind
+                         && string.Equals(a.TenantId, activation.TenantId,
+                             StringComparison.OrdinalIgnoreCase));
+                if (duplicate)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        + $"Mandanten '{activation.TenantId ?? "-"}' konnte nicht mitgezogen werden: beim "
+                        + "neuen Besitzer steht dafuer bereits eine Zeile. Die aeltere wurde entfernt, es "
+                        + "gilt die bestehende.", LogSeverity.Warning);
+                    activations.TryRemove(activation.ActivationKey, out _);
+                    continue;
+                }
+
+                activation.OwnerTenantId = definition.TenantId;
+            }
         }
 
         /// <summary>Setzt den Lauf-Zustand der Aktivierungen zurueck, die dem zentralen Muster folgen.</summary>

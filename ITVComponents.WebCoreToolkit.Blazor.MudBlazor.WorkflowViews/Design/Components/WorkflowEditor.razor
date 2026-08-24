@@ -1178,10 +1178,17 @@
         def.DisabledForStart = hasErrors;
 
         var auth = await AuthState.GetAuthenticationStateAsync();
+        int previousKey = def.Key;
+        int previousVersion = def.Version;
         if (asNewVersion)
         {
             WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null, Environment);
             def.Version = (latest?.Version ?? def.Version) + 1;
+            // Eine neue Version ist eine neue ZEILE, und die technische Kennung gehört der alten.
+            // Bliebe sie stehen, fände die Ablage über sie die bestehende Zeile und schriebe ihr bloss
+            // die Versionsnummer um — die vorige Fassung wäre weg, und mit ihr die Zusicherung, dass
+            // die daran laufenden Instanzen auf ihrem Graphen bleiben.
+            def.Key = 0;
         }
 
         bool ok = await Handler.SaveDefinitionAsync(auth.User, def, Environment);
@@ -1210,6 +1217,11 @@
         }
         else
         {
+            // Nicht gespeichert: der Editor arbeitet mit der Definition weiter, mit der er gekommen ist.
+            // Bliebe der Schlüssel auf 0 und die Version erhöht, legte der nächste — gewöhnliche —
+            // Speicherversuch eine zweite Zeile an, statt die bestehende zu aktualisieren.
+            def.Key = previousKey;
+            def.Version = previousVersion;
             Snackbar.Add("Could not save (see log / permissions).", Severity.Error);
         }
     }
