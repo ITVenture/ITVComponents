@@ -3689,6 +3689,52 @@ der löscht.
 
 ---
 
+## 47. Die Fristen bedienen: Editor, Prüfung und die Mandanten-Ansicht (kein Schema-Change)
+
+### 47.1 Am Definitions-Editor
+
+Der Dialog **Workflow settings** hat einen Abschnitt **Retention**: die beiden Fristen, der Schalter
+„a tenant may set its own periods" und — erst wenn der Schalter an ist — die vier Grenzen. Vorher gäbe
+es nichts zu begrenzen, und vier Felder, die nachweislich nichts tun, sind schlechter als keine.
+
+### 47.2 Der Validator meldet, was die Regel verschweigt
+
+Neu geprüft wird beim Speichern einer Definition:
+
+| Befund | Grad | Warum |
+|---|---|---|
+| negative Frist | Fehler | wird verworfen, es gilt still die nächste Stufe der Kette |
+| Untergrenze > Obergrenze | Fehler | **keine** der beiden gilt dann — der Wunsch eines Mandanten steht unverändert |
+| Grenzen ohne `AllowTenantRetentionOverride` | Warnung | nicht falsch, nur wirkungslos |
+
+Der Grund für all das: **die Regel wirft an keiner dieser Stellen.** Zur Laufzeit ist ihr Verhalten
+richtig — aber schweigend richtig, und ohne diese Meldungen erfährt der Autor seinen Tippfehler nie.
+`0` ist ausdrücklich kein Befund: das ist die schärfste Einstellung, nicht die vergessene.
+
+### 47.3 Die Mandanten-Ansicht `/Workflow/Retention`
+
+Neue Seite (auch als `/Workflow/env/{Environment}/Retention`), lokalisiert in allen vier Sprachen,
+Berechtigung **`Workflow.Operate`** und Feature `ITVWorkflow` — dieselbe Kante wie die zentralen
+Abläufe. **Der Host muss den Menüeintrag selbst anlegen** (Navigation kommt aus eurer Datenbank).
+
+Sie zeigt je Definition die geltende Frist **und woher sie kommt** — eigene Einstellung, Vorgabe des
+Ablaufs, Vorgabe der Installation, oder „niemand hat eine Frist gesetzt". Die Frage an dieser Stelle
+lautet nie „wie viele Tage?", sondern „warum so viele, und darf ich das ändern?". Wurde ein Wunsch vom
+Rahmen **begrenzt**, steht das mit dem ursprünglich gewünschten Wert daneben.
+
+Wo die Definition keinen Widerspruch zulässt, ist der Knopf **deaktiviert** — einer, der beim Speichern
+still nichts täte, wäre schlimmer als keiner. Beide Felder im Dialog leeren = **Rücknahme**; dann gilt
+wieder die Vorgabe, und wer das wann getan hat, bleibt festgehalten.
+
+**Damit die angezeigte Frist die ist, nach der aufgeräumt wird:** `AddWorkflowWebWorker` registriert
+gesetzte `RetentionDefaults` jetzt zusätzlich als eigenen Singleton — die Ansicht kennt die
+Worker-Optionen nicht und müsste die letzte Stufe der Kette sonst raten. **Betreibt ihr die Oberfläche
+in einem eigenen Prozess ohne Worker**, registriert dort `WorkflowRetentionDefaults` selbst mit
+denselben Werten; sonst zeigt die Ansicht „niemand hat eine Frist gesetzt", während der Worker längst
+aufräumt.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3753,3 +3799,4 @@ der löscht.
 | 50 | **Aufbewahrungslauf + Archiv** (§46) | **Pflicht-Migration `InstanceEndedAndArchive`** (beide Provider): neue Spalte `WorkflowInstances.EndedUtc` + Index, **Nachtrag für den Altbestand** (`EndedUtc = UpdatedUtc` für alles schon Beendete) und die Tabelle `WorkflowArchivedInstances`. **Ohne den Nachtrag trägt jeder bestehende Vorgang `NULL` und fällt für immer aus der Aufbewahrung heraus.** `IWorkflowStore` bekommt **vier** neue Member (`ListEndedInstanceGroups`, `FindEndedInstances`, `ArchiveInstanceTree`, `GetArchivedInstance`) — **eigene Store-Implementierungen brechen**. **Von selbst passiert nichts:** ohne eingestellte Frist wird nichts archiviert, und den Lauf (`WorkflowRetentionRunner.Run`) muss jemand anstossen. **Merke: eine eigene Spalte fürs Ende, nicht `UpdatedUtc`** — ein gescheiterter Vorgang ist anhaltbar, und jedes Anhalten setzte die Uhr sonst still zurück; ein Wiederaufsatz nimmt das Ende dagegen ausdrücklich zurück. **Merke: der Prozessbaum geht als Ganzes, mit der Frist der Wurzel** — läuft irgendwo noch ein Subworkflow, passiert gar nichts (protokolliert, als `TreesRefused` gezählt). Das Archiv ist **flach** und hat seine eigene Ansicht (kein Union in der Live-Liste), ohne FK auf die Definition und mit ihrem Namen als Text. **Die Anhang-Bytes bleiben liegen** (eigene Frist); nicht zugestellte Outbox-Einträge und liegengebliebene Sperren gehen mit — mit Protokolleintrag, nicht stillschweigend |
 | 51 | **Eigene Frist für die Anhang-Inhalte** (§46.6) | **Pflicht-Migration `AttachmentRetention`** (beide Provider): `WorkflowAttachments.BytesPurgedUtc` (+ Index) und `WorkflowArchivedInstances.AttachmentCount`. **Kein Breaking Change für eigene Store-Implementierungen** — die drei Ablage-Methoden liegen bewusst nur auf `EfWorkflowStore`, nicht im `IWorkflowStore`-Vertrag: Anhänge gibt es allein in der Datenbank-Fassung. Der Lauf ist `WorkflowAttachmentRetentionRunner.RunAsync` (async, eigene Klasse — die Inhalte liegen hinter der austauschbaren `IWorkflowAttachmentStore`). **Merke: er greift auch bei noch AKTIVEN, beendeten Vorgängen** — sonst bisse eine kurze Anhang-Frist neben einer langen Aufbewahrungsfrist nie, und das ist der ganze Sinn zweier Fristen. **Die Beschreibung bleibt in jedem Fall** (Name, Grösse, wer, wann, samt `FileIdentifier`), weg sind nur die Bytes. **Merke: gelöscht wird zuerst, markiert danach** — andersherum bliebe bei einem Abbruch eine Datei liegen, die niemand mehr sucht. Scheitert das Löschen, bleibt der Vorgang unmarkiert, wird als `ProcessesFailed` gezählt und beim nächsten Lauf erneut versucht |
 | 52 | **Aufbewahrung einschalten** (§46.7) | Kein Schema-Change, **opt-in, per Vorgabe AUS**. Der `WorkflowWorkerService` hat einen vierten, sehr langsamen Zyklus für beide Läufe; er startet nur mit `WorkflowWorkerOptions.RetentionInterval > TimeSpan.Zero` (dazu optional `RetentionDefaults` als letzte Stufe der Kette und `MaxRetentionBatch`, Vorgabe 200). **Warum aus:** das ist der einzige Lauf im Worker, der Daten **löscht** — einen solchen mitlaufen zu lassen, weil ein Paket aktualisiert wurde, wäre die falsche Richtung. Ist er aus, sagt der Worker das **einmal im Log**, damit niemand vergeblich sucht, warum seine Fristen nichts bewirken. **Merke: er fährt je UMGEBUNG, nicht je Deskriptor** (mandantengebundene Deskriptoren täten sonst alle dieselbe Arbeit) und **immer filterfrei** — mit Mandantenfilter sähe er `TenantId IS NULL` und liefe leer, ohne Meldung. Der erste Lauf kommt nach dem Intervall, nicht beim Start |
+| 53 | **Fristen bedienen** (§47) | Kein Schema-Change. Definitions-Editor: Abschnitt **Retention** (die Grenzen erscheinen erst mit dem Schalter). Validator: negative Frist und `min > max` sind **Fehler**, Grenzen ohne Erlaubnis eine **Warnung** — der Grund ist, dass die Regel an all diesen Stellen nicht wirft, sondern schweigend das Richtige tut. Neue Seite **`/Workflow/Retention`** (`Workflow.Operate`, Feature `ITVWorkflow`, lokalisiert en/de/fr/it) — **der Menüeintrag kommt aus eurer Navigations-Tabelle, den legt ihr an**. Sie zeigt je Ablauf die geltende Frist **und ihre Herkunft**, den Rahmen, und ob ein Wunsch begrenzt wurde. `IWorkflowMonitorHandler` bekommt **zwei** neue Member (`ListRetentionSettingsAsync`, `SetRetentionObjectionAsync`) — **eigene Implementierungen des Interfaces brechen**. **Merke: `AddWorkflowWebWorker` registriert gesetzte `RetentionDefaults` jetzt auch als eigenen Singleton** — betreibt ihr die Oberfläche ohne Worker im selben Prozess, registriert sie dort selbst, sonst zeigt die Ansicht „niemand hat eine Frist gesetzt", während der Worker aufräumt |

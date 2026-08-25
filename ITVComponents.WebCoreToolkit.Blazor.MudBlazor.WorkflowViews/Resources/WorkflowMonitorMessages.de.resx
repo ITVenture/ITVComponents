@@ -463,4 +463,94 @@
   <data name="RetryFailed" xml:space="preserve">
     <value>Der Vorgang konnte nicht fortgesetzt werden.</value>
   </data>
+  <data name="RetentionTitle" xml:space="preserve">
+    <value>Aufbewahrung</value>
+  </data>
+  <data name="RetentionIntro" xml:space="preserve">
+    <value>Wie lange beendete Vorgänge aufbewahrt werden, bevor sie ins Archiv wandern, und wie lange die Inhalte ihrer Anhänge bleiben. Beides zählt ab dem Ende eines Vorgangs. Wo ein Ablauf es zulässt, können Sie eine eigene Frist setzen.</value>
+  </data>
+  <data name="RetentionEmpty" xml:space="preserve">
+    <value>Hier gibt es noch keine Abläufe.</value>
+  </data>
+  <data name="RetentionColumnProcess" xml:space="preserve">
+    <value>Ablauf</value>
+  </data>
+  <data name="RetentionColumnArchive" xml:space="preserve">
+    <value>Archivieren nach</value>
+  </data>
+  <data name="RetentionColumnAttachments" xml:space="preserve">
+    <value>Anhang-Inhalte</value>
+  </data>
+  <data name="RetentionColumnObjection" xml:space="preserve">
+    <value>Ihre Einstellung</value>
+  </data>
+  <data name="RetentionPublic" xml:space="preserve">
+    <value>zentral</value>
+  </data>
+  <data name="RetentionNever" xml:space="preserve">
+    <value>wird nicht aufgeräumt</value>
+  </data>
+  <data name="RetentionDays" xml:space="preserve">
+    <value>{0} Tage</value>
+  </data>
+  <data name="RetentionSourceTenant" xml:space="preserve">
+    <value>Ihre eigene Einstellung</value>
+  </data>
+  <data name="RetentionSourceDefinition" xml:space="preserve">
+    <value>vom Ablauf vorgegeben</value>
+  </data>
+  <data name="RetentionSourceGlobal" xml:space="preserve">
+    <value>Vorgabe dieser Installation</value>
+  </data>
+  <data name="RetentionSourceNone" xml:space="preserve">
+    <value>niemand hat eine Frist gesetzt</value>
+  </data>
+  <data name="RetentionLimited" xml:space="preserve">
+    <value>begrenzt — gewünscht waren {0} Tage</value>
+  </data>
+  <data name="RetentionMayNotObject" xml:space="preserve">
+    <value>dieser Ablauf lässt keine eigene Frist zu</value>
+  </data>
+  <data name="RetentionSetBy" xml:space="preserve">
+    <value>gesetzt von {0} am {1}</value>
+  </data>
+  <data name="RetentionFootnote" xml:space="preserve">
+    <value>Die Beschreibung eines Anhangs — Name, Grösse, wer und wann — bleibt in jedem Fall, auch wenn der Inhalt weg ist.</value>
+  </data>
+  <data name="RetentionFailed" xml:space="preserve">
+    <value>Die Frist konnte nicht gespeichert werden.</value>
+  </data>
+  <data name="RetentionDialogTitle" xml:space="preserve">
+    <value>Eigene Aufbewahrungsfrist</value>
+  </data>
+  <data name="RetentionDialogIntro" xml:space="preserve">
+    <value>Bleibt ein Feld leer, gilt die Frist des Ablaufs. 0 heisst „sofort nach dem Ende des Vorgangs".</value>
+  </data>
+  <data name="RetentionFieldArchive" xml:space="preserve">
+    <value>Archivieren nach (Tage)</value>
+  </data>
+  <data name="RetentionFieldAttachments" xml:space="preserve">
+    <value>Anhang-Inhalte entfernen nach (Tage)</value>
+  </data>
+  <data name="RetentionBoundsBoth" xml:space="preserve">
+    <value>Erlaubt: mindestens {0}, höchstens {1} Tage.</value>
+  </data>
+  <data name="RetentionBoundsMin" xml:space="preserve">
+    <value>Erlaubt: mindestens {0} Tage.</value>
+  </data>
+  <data name="RetentionBoundsMax" xml:space="preserve">
+    <value>Erlaubt: höchstens {0} Tage.</value>
+  </data>
+  <data name="RetentionInherit" xml:space="preserve">
+    <value>Leer = die Frist des Ablaufs gilt.</value>
+  </data>
+  <data name="RetentionWithdrawHint" xml:space="preserve">
+    <value>Beide Felder leeren nimmt Ihre Einstellung zurück — dann gilt wieder die Frist des Ablaufs. Es wird festgehalten, wer das wann getan hat.</value>
+  </data>
+  <data name="RetentionSave" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="RetentionCancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
 </root>

@@ -1,0 +1,172 @@
+@page "/Workflow/Retention"
+@page "/Workflow/env/{Environment}/Retention"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using ITVComponents.Workflow.Retention
+
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<WorkflowMonitorMessages> L
+
+@* Wie die zentralen Abläufe steht diese Ansicht an der Kante Betreiber/Kunde - hier entscheidet der
+   Mandant über seine eigenen Daten. Deshalb lokalisiert, und aus demselben Grund.
+
+   Die Spalten zeigen nicht nur die Frist, sondern WOHER sie kommt. Die Frage an dieser Stelle lautet
+   nie „wie viele Tage?", sondern „warum so viele, und darf ich das ändern?". *@
+
+<PageTitle>@L["RetentionTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["RetentionTitle"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">@L["RetentionIntro"]</MudText>
+
+<SecureView RequiredPermissions="Workflow.Operate" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (items is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (items.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">@L["RetentionEmpty"]</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@items" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                      T="RetentionSettingItem" Elevation="1">
+                <HeaderContent>
+                    <MudTh>@L["RetentionColumnProcess"]</MudTh>
+                    <MudTh>@L["RetentionColumnArchive"]</MudTh>
+                    <MudTh>@L["RetentionColumnAttachments"]</MudTh>
+                    <MudTh>@L["RetentionColumnObjection"]</MudTh>
+                    <MudTh Style="width:1%"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="@L["RetentionColumnProcess"]">
+                        <MudText Typo="Typo.body2">@(context.Name ?? context.DefinitionId)</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @context.DefinitionId
+                            @if (context.IsPublic)
+                            {
+                                <MudChip T="string" Size="Size.Small" Class="ml-2">@L["RetentionPublic"]</MudChip>
+                            }
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="@L["RetentionColumnArchive"]">@Value(context.Archive)</MudTd>
+                    <MudTd DataLabel="@L["RetentionColumnAttachments"]">@Value(context.Attachments)</MudTd>
+                    <MudTd DataLabel="@L["RetentionColumnObjection"]">
+                        @if (!context.MayObject)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @L["RetentionMayNotObject"]
+                            </MudText>
+                        }
+                        else if (!context.HasObjection)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">—</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2">
+                                @Days(context.MyRetentionDays) / @Days(context.MyAttachmentRetentionDays)
+                            </MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @L["RetentionSetBy", context.SetBy ?? "?", Show(context.SetUtc)]
+                            </MudText>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @* Kein Knopf, wo die Definition den Widerspruch nicht zulässt: einer, der beim
+                           Speichern still nichts täte, wäre schlimmer als keiner. *@
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       Disabled="@(!context.MayObject)"
+                                       OnClick="@(() => EditAsync(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-3">@L["RetentionFootnote"]</MudText>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["CentralNoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    /// <summary>Die Workflow-Umgebung (mehrere Stores/Datenbanken), oder null für die Vorgabe.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    private List<RetentionSettingItem>? items;
+    private ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = (await AuthState.GetAuthenticationStateAsync()).User;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (currentUser is null)
+        {
+            return;
+        }
+
+        items = (await Handler.ListRetentionSettingsAsync(currentUser, Environment)).ToList();
+    }
+
+    /// <summary>Eine geltende Frist samt Herkunft - und dem Hinweis, wenn sie begrenzt wurde.</summary>
+    private RenderFragment Value(RetentionValueItem value) =>@<text>
+        <MudText Typo="Typo.body2">@Days(value.Days)</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Source(value.Source)</MudText>
+        @if (value.WasLimited)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Warning">
+                @L["RetentionLimited", value.RequestedDays ?? 0]
+            </MudText>
+        }
+    </text>;
+
+    /// <summary>Tage, oder die Ansage, dass nicht aufgeräumt wird. Leer heisst hier NIE „null Tage".</summary>
+    private string Days(int? days) => days is null ? L["RetentionNever"] : L["RetentionDays", days.Value];
+
+    private string Source(RetentionSource source) => source switch
+    {
+        RetentionSource.Tenant => L["RetentionSourceTenant"],
+        RetentionSource.Definition => L["RetentionSourceDefinition"],
+        RetentionSource.Global => L["RetentionSourceGlobal"],
+        _ => L["RetentionSourceNone"]
+    };
+
+    private static string Show(DateTime? utc)
+        => utc is null ? "—" : utc.Value.ToLocalTime().ToString("g");
+
+    private async Task EditAsync(RetentionSettingItem item)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(RetentionObjectionDialog.Item), item }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        IDialogReference dialog = await DialogService.ShowAsync<RetentionObjectionDialog>(
+            L["RetentionDialogTitle"], parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not RetentionObjectionRequest request)
+        {
+            return;
+        }
+
+        bool ok = await Handler.SetRetentionObjectionAsync(currentUser!, request, Environment);
+
+        // Ein stilles Nichts wäre hier das Schlimmste: der Wert spränge zurück und niemand wüsste warum.
+        if (!ok)
+        {
+            Snackbar.Add(L["RetentionFailed"], Severity.Warning);
+        }
+
+        await ReloadAsync();
+    }
+}

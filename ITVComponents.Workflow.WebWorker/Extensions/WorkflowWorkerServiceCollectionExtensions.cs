@@ -50,6 +50,17 @@ namespace ITVComponents.Workflow.WebWorker.Extensions
             configure?.Invoke(opt);
 
             services.AddSingleton(opt);
+
+            // Die globalen Aufbewahrungs-Vorgaben auch fuer sich registrieren, wenn welche gesetzt sind.
+            // Sonst haette die Oberflaeche keine Chance, die geltende Frist RICHTIG anzuzeigen: sie
+            // kennt die Worker-Optionen nicht (und soll das Paket auch nicht referenzieren muessen),
+            // muesste die letzte Stufe der Kette also raten - und zeigte einem Mandanten eine Frist, die
+            // nicht die ist, nach der aufgeraeumt wird. Eine Quelle, zwei Leser.
+            if (opt.RetentionDefaults != null)
+            {
+                services.AddSingleton(opt.RetentionDefaults);
+            }
+
             services.AddSingleton<WorkflowEnvironmentDiscovery>();
             services.AddSingleton<WorkflowWorkerService>();
             services.AddSingleton<IWorkflowWorkerWake>(sp => sp.GetRequiredService<WorkflowWorkerService>());

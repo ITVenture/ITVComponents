@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Model;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
@@ -129,6 +130,30 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// Muster mit "sofort"-Kennzeichen liefe beim erneuten Anhaken ein zweites Mal sofort an.
         /// </remarks>
         Task<bool> SetCentralWorkflowActivationAsync(ClaimsPrincipal user, CentralWorkflowActivationRequest request,
+            string? environment = null);
+
+        /// <summary>
+        /// Die <b>Aufbewahrungsfristen</b>, wie sie fuer die Vorgaenge dieses Mandanten gelten - je
+        /// Definition eine Zeile, mit der Herkunft der Frist und dem, was er selbst daran stellen darf.
+        /// Leer ohne <see cref="WorkflowSecurity.Operate"/>.
+        /// </summary>
+        /// <remarks>
+        /// Die Herkunft gehoert dazu: „90 Tage" beantwortet nicht die Frage, die ein Mandant hier hat -
+        /// die lautet „warum 90, und kann ich das aendern?".
+        /// </remarks>
+        Task<IReadOnlyList<RetentionSettingItem>> ListRetentionSettingsAsync(ClaimsPrincipal user,
+            string? environment = null);
+
+        /// <summary>
+        /// Legt den Widerspruch dieses Mandanten gegen die Fristen einer Definition ein, aendert oder
+        /// nimmt ihn zurueck (beide Fristen null).
+        /// </summary>
+        /// <remarks>
+        /// Gilt nur, wenn die Definition es zulaesst - ein Widerspruch gegen eine, die es nicht tut, wird
+        /// <b>nicht abgelehnt</b>, er wirkt nur nicht: erlaubt sie es spaeter, ist der Wunsch noch da.
+        /// Liefert false, wenn es die Definition nicht gibt oder die Berechtigung fehlt.
+        /// </remarks>
+        Task<bool> SetRetentionObjectionAsync(ClaimsPrincipal user, RetentionObjectionRequest request,
             string? environment = null);
     }
 }

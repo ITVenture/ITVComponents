@@ -15,6 +15,7 @@ using ITVComponents.Workflow;
 using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
@@ -793,6 +794,134 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                 $"Zentraler Ablauf '{trigger.DefinitionId}' (Knoten '{trigger.NodeId}') wurde von "
                 + $"'{user?.Identity?.Name ?? "?"}' fuer Mandant '{tenant ?? "<none>"}' "
                 + $"{(request.Enabled ? "uebernommen" : "abgegeben")}.", LogSeverity.Report);
+            return Task.FromResult(true);
+        }
+
+        /// <inheritdoc/>
+        public Task<IReadOnlyList<RetentionSettingItem>> ListRetentionSettingsAsync(ClaimsPrincipal user,
+            string? environment = null)
+        {
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                return Task.FromResult<IReadOnlyList<RetentionSettingItem>>(
+                    Array.Empty<RetentionSettingItem>());
+            }
+
+            string? tenant = CurrentTenant();
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+
+            // MIT Query-Filter: der zieht hier genau die richtige Grenze (eigene Definitionen plus die
+            // oeffentlichen). Je fachlicher Identitaet nur die HOECHSTE Version - der Widerspruch gehoert
+            // der Definition als Ganzem, nicht einer ihrer Fassungen.
+            List<WorkflowDefinitionRow> newest = ctx.WorkflowDefinitions.AsNoTracking()
+                .ToList()
+                .GroupBy(d => new { d.TenantId, d.Id })
+                .Select(g => g.OrderByDescending(d => d.Version).First())
+                .ToList();
+
+            // Hier MUSS je Zeile das Definitions-JSON ausgepackt werden - anders als bei den Ausloesern,
+            // wo die Gate-Felder denormalisiert danebenstehen. Die Fristen liegen ausschliesslich im
+            // JSON (die Definitionszeile hat fuenf Spalten), und ohne sie gaebe es nichts anzuzeigen.
+            IReadOnlyList<WorkflowRetentionOverride> mine = op.Store.GetRetentionOverrides(tenant);
+            WorkflowRetentionDefaults? defaults = Services.GetService<WorkflowRetentionDefaults>();
+
+            var result = new List<RetentionSettingItem>();
+            foreach (WorkflowDefinitionRow row in newest)
+            {
+                WorkflowDefinition? definition =
+                    WorkflowJson.Deserialize<WorkflowDefinition>(row.DefinitionJson);
+                if (definition == null)
+                {
+                    // Eine Definition, die sich nicht lesen laesst, ist ein eigener Befund - nicht eine
+                    // Zeile, die kommentarlos fehlt.
+                    LogEnvironment.LogEvent(
+                        $"Aufbewahrungs-Uebersicht: Definition '{row.Id}' v{row.Version} liess sich nicht "
+                        + "lesen und fehlt in der Liste.", LogSeverity.Warning);
+                    continue;
+                }
+
+                WorkflowRetentionOverride? objection = mine.FirstOrDefault(
+                    o => o.OwnerTenantId == row.TenantId && o.DefinitionId == row.Id);
+
+                result.Add(new RetentionSettingItem
+                {
+                    DefinitionId = row.Id,
+                    Name = definition.Name,
+                    IsPublic = row.TenantId == null,
+                    MayObject = definition.AllowTenantRetentionOverride,
+                    Archive = RetentionValueItem.From(
+                        WorkflowRetentionPolicy.Archive(definition, objection, defaults)),
+                    Attachments = RetentionValueItem.From(
+                        WorkflowRetentionPolicy.Attachments(definition, objection, defaults)),
+                    MyRetentionDays = objection?.RetentionDays,
+                    MyAttachmentRetentionDays = objection?.AttachmentRetentionDays,
+                    MinRetentionDays = definition.MinTenantRetentionDays,
+                    MaxRetentionDays = definition.MaxTenantRetentionDays,
+                    MinAttachmentRetentionDays = definition.MinTenantAttachmentRetentionDays,
+                    MaxAttachmentRetentionDays = definition.MaxTenantAttachmentRetentionDays,
+                    SetBy = objection?.SetBy,
+                    SetUtc = objection?.SetUtc == default ? null : objection?.SetUtc
+                });
+            }
+
+            return Task.FromResult<IReadOnlyList<RetentionSettingItem>>(
+                result.OrderBy(r => r.Name ?? r.DefinitionId).ThenBy(r => r.IsPublic).ToList());
+        }
+
+        /// <inheritdoc/>
+        public Task<bool> SetRetentionObjectionAsync(ClaimsPrincipal user,
+            RetentionObjectionRequest request, string? environment = null)
+        {
+            if (request == null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Operate }))
+            {
+                LogEnvironment.LogEvent(
+                    $"Widerspruch gegen die Fristen von '{request.DefinitionId}' abgelehnt: "
+                    + $"'{WorkflowSecurity.Operate}' fehlt.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            string? tenant = CurrentTenant();
+            using WorkflowOperation op = BeginOperation(environment);
+
+            // Nicht der Oberflaeche glauben: der Besitzer wird hier bestimmt, nicht uebernommen - er ist
+            // Teil der Identitaet des Widerspruchs, und das Erraten einer Definition-Id darf nicht
+            // genuegen, um eine Frist an einer fremden Definition zu setzen.
+            string? owner = request.IsPublic ? null : tenant;
+            if (op.Store.ResolveDefinitionKey(owner, request.DefinitionId) == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Widerspruch abgelehnt: eine {(request.IsPublic ? "oeffentliche" : "eigene")} "
+                    + $"Definition '{request.DefinitionId}' gibt es fuer den Mandanten "
+                    + $"'{tenant ?? "<none>"}' nicht.", LogSeverity.Warning);
+                return Task.FromResult(false);
+            }
+
+            op.Store.SaveRetentionOverride(new WorkflowRetentionOverride
+            {
+                OwnerTenantId = owner,
+                DefinitionId = request.DefinitionId,
+                TenantId = tenant,
+                RetentionDays = request.RetentionDays,
+                AttachmentRetentionDays = request.AttachmentRetentionDays,
+                SetBy = user?.Identity?.Name,
+                SetUtc = DateTime.UtcNow
+            });
+
+            bool withdrawn = request.RetentionDays == null && request.AttachmentRetentionDays == null;
+            LogEnvironment.LogEvent(
+                $"Die Aufbewahrungsfrist zu '{request.DefinitionId}' wurde von "
+                + $"'{user?.Identity?.Name ?? "?"}' fuer Mandant '{tenant ?? "<none>"}' "
+                + (withdrawn
+                    ? "zurueckgenommen - es gilt wieder die Vorgabe."
+                    : $"auf {request.RetentionDays?.ToString() ?? "-"} bzw. "
+                      + $"{request.AttachmentRetentionDays?.ToString() ?? "-"} Tage gesetzt."),
+                LogSeverity.Report);
             return Task.FromResult(true);
         }
 

@@ -463,4 +463,94 @@
   <data name="RetryFailed" xml:space="preserve">
     <value>Le processus n'a pas pu être repris.</value>
   </data>
+  <data name="RetentionTitle" xml:space="preserve">
+    <value>Conservation</value>
+  </data>
+  <data name="RetentionIntro" xml:space="preserve">
+    <value>Combien de temps les processus terminés sont conservés avant de passer aux archives, et combien de temps le contenu de leurs pièces jointes reste. Les deux délais courent à partir de la fin du processus. Lorsqu'un flux l'autorise, vous pouvez définir votre propre délai.</value>
+  </data>
+  <data name="RetentionEmpty" xml:space="preserve">
+    <value>Il n'y a encore aucun flux ici.</value>
+  </data>
+  <data name="RetentionColumnProcess" xml:space="preserve">
+    <value>Flux</value>
+  </data>
+  <data name="RetentionColumnArchive" xml:space="preserve">
+    <value>Archiver après</value>
+  </data>
+  <data name="RetentionColumnAttachments" xml:space="preserve">
+    <value>Contenu des pièces jointes</value>
+  </data>
+  <data name="RetentionColumnObjection" xml:space="preserve">
+    <value>Votre réglage</value>
+  </data>
+  <data name="RetentionPublic" xml:space="preserve">
+    <value>central</value>
+  </data>
+  <data name="RetentionNever" xml:space="preserve">
+    <value>conservé sans limite</value>
+  </data>
+  <data name="RetentionDays" xml:space="preserve">
+    <value>{0} jours</value>
+  </data>
+  <data name="RetentionSourceTenant" xml:space="preserve">
+    <value>votre propre réglage</value>
+  </data>
+  <data name="RetentionSourceDefinition" xml:space="preserve">
+    <value>défini par le flux</value>
+  </data>
+  <data name="RetentionSourceGlobal" xml:space="preserve">
+    <value>valeur par défaut de cette installation</value>
+  </data>
+  <data name="RetentionSourceNone" xml:space="preserve">
+    <value>personne n'a défini de délai</value>
+  </data>
+  <data name="RetentionLimited" xml:space="preserve">
+    <value>limité — vous aviez demandé {0} jours</value>
+  </data>
+  <data name="RetentionMayNotObject" xml:space="preserve">
+    <value>ce flux n'autorise pas de délai propre</value>
+  </data>
+  <data name="RetentionSetBy" xml:space="preserve">
+    <value>défini par {0} le {1}</value>
+  </data>
+  <data name="RetentionFootnote" xml:space="preserve">
+    <value>La description d'une pièce jointe — nom, taille, par qui et quand — reste dans tous les cas, même une fois son contenu supprimé.</value>
+  </data>
+  <data name="RetentionFailed" xml:space="preserve">
+    <value>Le délai n'a pas pu être enregistré.</value>
+  </data>
+  <data name="RetentionDialogTitle" xml:space="preserve">
+    <value>Votre propre délai de conservation</value>
+  </data>
+  <data name="RetentionDialogIntro" xml:space="preserve">
+    <value>Si un champ reste vide, le délai du flux s'applique. 0 signifie « juste après la fin du processus ».</value>
+  </data>
+  <data name="RetentionFieldArchive" xml:space="preserve">
+    <value>Archiver après (jours)</value>
+  </data>
+  <data name="RetentionFieldAttachments" xml:space="preserve">
+    <value>Supprimer le contenu des pièces jointes après (jours)</value>
+  </data>
+  <data name="RetentionBoundsBoth" xml:space="preserve">
+    <value>Autorisé : au moins {0}, au plus {1} jours.</value>
+  </data>
+  <data name="RetentionBoundsMin" xml:space="preserve">
+    <value>Autorisé : au moins {0} jours.</value>
+  </data>
+  <data name="RetentionBoundsMax" xml:space="preserve">
+    <value>Autorisé : au plus {0} jours.</value>
+  </data>
+  <data name="RetentionInherit" xml:space="preserve">
+    <value>Vide = le délai du flux s'applique.</value>
+  </data>
+  <data name="RetentionWithdrawHint" xml:space="preserve">
+    <value>Vider les deux champs retire votre réglage — le délai du flux s'applique de nouveau. Qui l'a fait et quand est consigné.</value>
+  </data>
+  <data name="RetentionSave" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="RetentionCancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
 </root>

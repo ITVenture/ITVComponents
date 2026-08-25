@@ -463,4 +463,94 @@
   <data name="RetryFailed" xml:space="preserve">
     <value>Non è stato possibile riprendere il processo.</value>
   </data>
+  <data name="RetentionTitle" xml:space="preserve">
+    <value>Conservazione</value>
+  </data>
+  <data name="RetentionIntro" xml:space="preserve">
+    <value>Per quanto tempo i processi conclusi vengono conservati prima di passare all'archivio, e per quanto restano i contenuti dei loro allegati. Entrambi i termini decorrono dalla fine del processo. Dove un flusso lo consente, potete impostare un termine proprio.</value>
+  </data>
+  <data name="RetentionEmpty" xml:space="preserve">
+    <value>Qui non ci sono ancora flussi.</value>
+  </data>
+  <data name="RetentionColumnProcess" xml:space="preserve">
+    <value>Flusso</value>
+  </data>
+  <data name="RetentionColumnArchive" xml:space="preserve">
+    <value>Archiviare dopo</value>
+  </data>
+  <data name="RetentionColumnAttachments" xml:space="preserve">
+    <value>Contenuti degli allegati</value>
+  </data>
+  <data name="RetentionColumnObjection" xml:space="preserve">
+    <value>La vostra impostazione</value>
+  </data>
+  <data name="RetentionPublic" xml:space="preserve">
+    <value>centrale</value>
+  </data>
+  <data name="RetentionNever" xml:space="preserve">
+    <value>conservato senza limite</value>
+  </data>
+  <data name="RetentionDays" xml:space="preserve">
+    <value>{0} giorni</value>
+  </data>
+  <data name="RetentionSourceTenant" xml:space="preserve">
+    <value>la vostra impostazione</value>
+  </data>
+  <data name="RetentionSourceDefinition" xml:space="preserve">
+    <value>stabilito dal flusso</value>
+  </data>
+  <data name="RetentionSourceGlobal" xml:space="preserve">
+    <value>valore predefinito di questa installazione</value>
+  </data>
+  <data name="RetentionSourceNone" xml:space="preserve">
+    <value>nessuno ha stabilito un termine</value>
+  </data>
+  <data name="RetentionLimited" xml:space="preserve">
+    <value>limitato — avevate chiesto {0} giorni</value>
+  </data>
+  <data name="RetentionMayNotObject" xml:space="preserve">
+    <value>questo flusso non ammette un termine proprio</value>
+  </data>
+  <data name="RetentionSetBy" xml:space="preserve">
+    <value>impostato da {0} il {1}</value>
+  </data>
+  <data name="RetentionFootnote" xml:space="preserve">
+    <value>La descrizione di un allegato — nome, dimensione, chi e quando — resta in ogni caso, anche quando il contenuto non c'è più.</value>
+  </data>
+  <data name="RetentionFailed" xml:space="preserve">
+    <value>Non è stato possibile salvare il termine.</value>
+  </data>
+  <data name="RetentionDialogTitle" xml:space="preserve">
+    <value>Termine di conservazione proprio</value>
+  </data>
+  <data name="RetentionDialogIntro" xml:space="preserve">
+    <value>Se un campo resta vuoto vale il termine del flusso. 0 significa «subito dopo la fine del processo».</value>
+  </data>
+  <data name="RetentionFieldArchive" xml:space="preserve">
+    <value>Archiviare dopo (giorni)</value>
+  </data>
+  <data name="RetentionFieldAttachments" xml:space="preserve">
+    <value>Rimuovere i contenuti degli allegati dopo (giorni)</value>
+  </data>
+  <data name="RetentionBoundsBoth" xml:space="preserve">
+    <value>Ammesso: almeno {0}, al massimo {1} giorni.</value>
+  </data>
+  <data name="RetentionBoundsMin" xml:space="preserve">
+    <value>Ammesso: almeno {0} giorni.</value>
+  </data>
+  <data name="RetentionBoundsMax" xml:space="preserve">
+    <value>Ammesso: al massimo {0} giorni.</value>
+  </data>
+  <data name="RetentionInherit" xml:space="preserve">
+    <value>Vuoto = vale il termine del flusso.</value>
+  </data>
+  <data name="RetentionWithdrawHint" xml:space="preserve">
+    <value>Svuotare entrambi i campi ritira la vostra impostazione — vale di nuovo il termine del flusso. Viene registrato chi lo ha fatto e quando.</value>
+  </data>
+  <data name="RetentionSave" xml:space="preserve">
+    <value>Salva</value>
+  </data>
+  <data name="RetentionCancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
 </root>

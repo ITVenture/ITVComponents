@@ -463,4 +463,94 @@
   <data name="RetryFailed" xml:space="preserve">
     <value>The instance could not be resumed.</value>
   </data>
+  <data name="RetentionTitle" xml:space="preserve">
+    <value>Retention</value>
+  </data>
+  <data name="RetentionIntro" xml:space="preserve">
+    <value>How long finished processes are kept before they move to the archive, and how long the contents of their attachments stay. Both are counted from the moment a process ends. Where a workflow allows it, you can set your own period.</value>
+  </data>
+  <data name="RetentionEmpty" xml:space="preserve">
+    <value>There are no workflows here yet.</value>
+  </data>
+  <data name="RetentionColumnProcess" xml:space="preserve">
+    <value>Workflow</value>
+  </data>
+  <data name="RetentionColumnArchive" xml:space="preserve">
+    <value>Archive after</value>
+  </data>
+  <data name="RetentionColumnAttachments" xml:space="preserve">
+    <value>Attachment contents</value>
+  </data>
+  <data name="RetentionColumnObjection" xml:space="preserve">
+    <value>Your setting</value>
+  </data>
+  <data name="RetentionPublic" xml:space="preserve">
+    <value>central</value>
+  </data>
+  <data name="RetentionNever" xml:space="preserve">
+    <value>kept indefinitely</value>
+  </data>
+  <data name="RetentionDays" xml:space="preserve">
+    <value>{0} days</value>
+  </data>
+  <data name="RetentionSourceTenant" xml:space="preserve">
+    <value>your own setting</value>
+  </data>
+  <data name="RetentionSourceDefinition" xml:space="preserve">
+    <value>set by the workflow</value>
+  </data>
+  <data name="RetentionSourceGlobal" xml:space="preserve">
+    <value>default of this installation</value>
+  </data>
+  <data name="RetentionSourceNone" xml:space="preserve">
+    <value>nobody has set a period</value>
+  </data>
+  <data name="RetentionLimited" xml:space="preserve">
+    <value>limited — you asked for {0} days</value>
+  </data>
+  <data name="RetentionMayNotObject" xml:space="preserve">
+    <value>this workflow does not allow your own period</value>
+  </data>
+  <data name="RetentionSetBy" xml:space="preserve">
+    <value>set by {0} on {1}</value>
+  </data>
+  <data name="RetentionFootnote" xml:space="preserve">
+    <value>The description of an attachment — name, size, who and when — always stays, even once its contents are gone.</value>
+  </data>
+  <data name="RetentionFailed" xml:space="preserve">
+    <value>The period could not be saved.</value>
+  </data>
+  <data name="RetentionDialogTitle" xml:space="preserve">
+    <value>Your own retention period</value>
+  </data>
+  <data name="RetentionDialogIntro" xml:space="preserve">
+    <value>Leave a field empty and the workflow's own period applies. 0 means „right after the process ends".</value>
+  </data>
+  <data name="RetentionFieldArchive" xml:space="preserve">
+    <value>Archive after (days)</value>
+  </data>
+  <data name="RetentionFieldAttachments" xml:space="preserve">
+    <value>Drop attachment contents after (days)</value>
+  </data>
+  <data name="RetentionBoundsBoth" xml:space="preserve">
+    <value>Allowed: at least {0}, at most {1} days.</value>
+  </data>
+  <data name="RetentionBoundsMin" xml:space="preserve">
+    <value>Allowed: at least {0} days.</value>
+  </data>
+  <data name="RetentionBoundsMax" xml:space="preserve">
+    <value>Allowed: at most {0} days.</value>
+  </data>
+  <data name="RetentionInherit" xml:space="preserve">
+    <value>Empty = the workflow's period applies.</value>
+  </data>
+  <data name="RetentionWithdrawHint" xml:space="preserve">
+    <value>Clearing both fields withdraws your setting — the workflow's period applies again. It is recorded who did that, and when.</value>
+  </data>
+  <data name="RetentionSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="RetentionCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
 </root>

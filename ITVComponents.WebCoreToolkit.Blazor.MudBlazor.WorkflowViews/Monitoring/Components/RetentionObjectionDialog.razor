@@ -1,0 +1,95 @@
+@*
+    Der Widerspruch eines Mandanten gegen die Fristen einer Definition.
+
+    Der Dialog zeigt neben den Feldern immer den RAHMEN und die Vorgabe: ein Feld, in das man eine Zahl
+    tippt, die dann klammheimlich angehoben wird, ist die schlechteste Form dieser Einstellung. Was
+    ausserhalb des Rahmens liegt, wird begrenzt - und hier steht vorher, woran.
+*@
+
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels
+
+@inject IStringLocalizer<WorkflowMonitorMessages> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Schedule" Class="mr-2" />
+            <span>@L["RetentionDialogTitle"]</span>
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (Item is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-1">@(Item.Name ?? Item.DefinitionId)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@L["RetentionDialogIntro"]</MudText>
+
+            <MudNumericField T="int?" @bind-Value="retentionDays" Min="0" Clearable="true"
+                             Label="@L["RetentionFieldArchive"]" Margin="Margin.Dense" Class="mt-4"
+                             HelperText="@Bounds(Item.MinRetentionDays, Item.MaxRetentionDays)" />
+
+            <MudNumericField T="int?" @bind-Value="attachmentDays" Min="0" Clearable="true"
+                             Label="@L["RetentionFieldAttachments"]" Margin="Margin.Dense" Class="mt-3"
+                             HelperText="@Bounds(Item.MinAttachmentRetentionDays, Item.MaxAttachmentRetentionDays)" />
+
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
+                @L["RetentionWithdrawHint"]
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["RetentionCancel"]</MudButton>
+        <MudSpacer />
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@L["RetentionSave"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Die Zeile, um die es geht.</summary>
+    [Parameter] public RetentionSettingItem? Item { get; set; }
+
+    private int? retentionDays;
+    private int? attachmentDays;
+
+    protected override void OnInitialized()
+    {
+        retentionDays = Item?.MyRetentionDays;
+        attachmentDays = Item?.MyAttachmentRetentionDays;
+    }
+
+    /// <summary>
+    /// Der Rahmen als Hilfetext - oder der Hinweis, dass geerbt wird. Beides gehört an das Feld: leer
+    /// heisst nicht „null Tage", sondern „die Vorgabe gilt".
+    /// </summary>
+    private string Bounds(int? min, int? max)
+    {
+        if (min is >= 0 && max is >= 0)
+        {
+            return L["RetentionBoundsBoth", min!.Value, max!.Value];
+        }
+
+        if (min is >= 0)
+        {
+            return L["RetentionBoundsMin", min!.Value];
+        }
+
+        if (max is >= 0)
+        {
+            return L["RetentionBoundsMax", max!.Value];
+        }
+
+        return L["RetentionInherit"];
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Save()
+        => MudDialog.Close(DialogResult.Ok(new RetentionObjectionRequest
+        {
+            DefinitionId = Item?.DefinitionId ?? "",
+            IsPublic = Item?.IsPublic == true,
+            RetentionDays = retentionDays,
+            AttachmentRetentionDays = attachmentDays
+        }));
+}
