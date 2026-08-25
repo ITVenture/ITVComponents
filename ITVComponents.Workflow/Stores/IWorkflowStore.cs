@@ -326,6 +326,54 @@ namespace ITVComponents.Workflow.Stores
         void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride);
 
         /// <summary>
+        /// Die Gruppen beendeter <b>oberster</b> Vorgaenge - je Definition und Mandant eine, mit Anzahl
+        /// und aeltestem Endzeitpunkt. Der Einstieg des Aufbewahrungslaufs.
+        /// </summary>
+        /// <returns>die Gruppen; nie null</returns>
+        /// <remarks>
+        /// <b>Nur oberste Instanzen</b> (ohne Eltern): ein Prozessbaum wird als Ganzes aufbewahrt, und
+        /// die Frist ist die seiner Wurzel. Ein Kind einzeln zu betrachten hiesse, dass ein Elternteil
+        /// seine Kinder verlieren kann, waehrend es selbst noch dasteht.
+        /// <para>
+        /// Es sind wenige Zeilen (Definitionen mal Mandanten), und sie sind der Grund, warum der Lauf
+        /// nicht „alles vor einem Stichtag" fragen kann: der Stichtag ist je Gruppe ein anderer.
+        /// </para></remarks>
+        IReadOnlyList<WorkflowRetentionGroup> ListEndedInstanceGroups();
+
+        /// <summary>
+        /// Die faelligen obersten Vorgaenge einer Gruppe - beendet <b>vor</b> dem Stichtag, aelteste
+        /// zuerst.
+        /// </summary>
+        /// <param name="definitionKey">die Definitionszeile</param>
+        /// <param name="tenantId">der Mandant</param>
+        /// <param name="endedBeforeUtc">der Stichtag</param>
+        /// <param name="max">Obergrenze je Aufruf</param>
+        /// <returns>die Instanz-Ids; nie null</returns>
+        IReadOnlyList<string> FindEndedInstances(int definitionKey, string tenantId,
+            DateTime endedBeforeUtc, int max);
+
+        /// <summary>
+        /// Archiviert einen Vorgang samt seinem ganzen Prozessbaum und raeumt ihn aus den aktiven
+        /// Tabellen. Liefert, wie viele Instanzen dabei archiviert wurden.
+        /// </summary>
+        /// <param name="rootInstanceId">die oberste Instanz des Baums</param>
+        /// <param name="nowUtc">der Zeitpunkt, der als „archiviert am" festgehalten wird</param>
+        /// <returns>die Zahl der archivierten Instanzen; 0, wenn es die Instanz nicht (mehr) gibt</returns>
+        /// <remarks>
+        /// <b>In EINER Transaktion</b> - sonst bleiben bei einem Abbruch Kommentare und Anhaenge
+        /// zurueck, deren Vorgang es nicht mehr gibt, und niemand kann sie noch zuordnen.
+        /// <para>
+        /// <b>Ein noch laufender Vorgang wird nicht archiviert</b>, auch wenn er genannt wird: das
+        /// entscheidet nicht der Aufrufer, sondern der Status. Wer den Baum trotzdem loswerden will,
+        /// bricht ihn zuerst ab.
+        /// </para></remarks>
+        int ArchiveInstanceTree(string rootInstanceId, DateTime nowUtc);
+
+        /// <summary>Ein archivierter Vorgang, oder null.</summary>
+        /// <param name="instanceId">seine unveraenderte Id</param>
+        WorkflowArchivedInstance GetArchivedInstance(string instanceId);
+
+        /// <summary>
         /// Die frueheste noch nicht faellige Zeitplan-Faelligkeit (&gt; nowUtc), oder null. Das Gegenstueck
         /// zu <see cref="PeekNextTimerDueUtc"/>, damit ein Runner auch fuer Zeitplaene gezielt schlafen
         /// kann statt blind zu pollen.

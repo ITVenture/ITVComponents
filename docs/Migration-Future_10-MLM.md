@@ -3546,6 +3546,91 @@ Aufbewahrungslauf geht mandantenübergreifend.
 
 ---
 
+## 46. Der Aufbewahrungslauf und das Archiv — **Pflicht-Migration (1 Spalte + 1 Tabelle + Nachtrag)**
+
+Aus §45 wird jetzt etwas, das tatsächlich aufräumt. **Von selbst passiert weiterhin nichts:** ohne
+eingestellte Frist wird nichts archiviert, und den Lauf muss jemand anstossen.
+
+### 46.1 Was ihr tun müsst
+
+**Pflicht-Migration `InstanceEndedAndArchive`** (beide Provider). Sie bringt drei Dinge:
+
+1. **`WorkflowInstances.EndedUtc`** (nullable) plus den Index
+   `(DefinitionKey, TenantId, EndedUtc)`.
+2. **Den Nachtrag für den Altbestand** — `EndedUtc = UpdatedUtc` für alles, was schon beendet ist.
+   **Ohne ihn trägt jeder bestehende Vorgang `NULL` und fällt für immer aus der Aufbewahrung heraus**;
+   sie gälte stillschweigend nur für das, was ab jetzt endet.
+3. Die Tabelle **`WorkflowArchivedInstances`**.
+
+```
+dotnet ef database update --context WorkflowContext
+```
+
+**`IWorkflowStore` bekommt vier neue Member** — `ListEndedInstanceGroups`, `FindEndedInstances`,
+`ArchiveInstanceTree`, `GetArchivedInstance`. **Eigene Store-Implementierungen brechen.**
+
+### 46.2 Warum eine eigene Spalte für das Ende
+
+`UpdatedUtc` heisst „zuletzt geändert". Ein **gescheiterter Vorgang ist ausdrücklich anhaltbar** (§31),
+und jedes Anhalten oder Fortsetzen schriebe daran — die Aufbewahrungsuhr finge damit still von vorne an.
+Das fällt erst nach einem Jahr auf, und dann als „der räumt nicht auf".
+
+`EndedUtc` wird **einmal** gesetzt, beim Übergang in `Completed`/`Faulted`/`Cancelled`, und danach nie
+überschrieben. **Ein Wiederaufsatz nimmt es zurück** (`RetryFaulted`): ein Vorgang, der weiterläuft, hat
+nicht geendet.
+
+**Zum Nachtrag:** `UpdatedUtc` ist die beste verfügbare Näherung und nicht dasselbe. Wo seit dem Ende
+noch jemand angehalten hat, beginnt die Frist entsprechend später — zu spät aufzuräumen ist die richtige
+Richtung des Fehlers.
+
+### 46.3 Wie der Lauf arbeitet
+
+`WorkflowRetentionRunner.Run(nowUtc, maxPerGroup)` — ohne Uhr und ohne Konfigurations-Wissen, beides
+bringt der Aufrufer mit.
+
+Er fragt **nicht** „was ist älter als X": **X gibt es nicht.** Die Frist ergibt sich aus Definition
+*und* Mandant, ist also je Gruppe eine andere. Deshalb: erst die Gruppen (Definition mal Mandant, das
+sind wenige, mit Anzahl und ältestem Ende), je Gruppe die geltende Frist ausrechnen, und nur dort
+nachsehen, wo sie schon abgelaufen sein kann. Ist selbst der älteste Vorgang einer Gruppe zu jung, wird
+keine einzige Instanz gelesen.
+
+Das Ergebnis (`WorkflowRetentionResult`) trennt **„nichts zu tun" von „nicht gemacht"**: `TreesRefused`
+zählt die fälligen Bäume, die die Ablage nicht angefasst hat, `GroupsTruncated` die Gruppen, in denen
+die Obergrenze je Lauf erreicht wurde — **eine abgeschnittene Runde darf nicht aussehen wie eine
+vollständige**.
+
+### 46.4 Der Prozessbaum geht als Ganzes
+
+Einstiegspunkte sind nur **oberste** Instanzen, und es gilt die Frist der Wurzel; Kinder ziehen mit, in
+**einer** Transaktion. Für den Leser ist ein Prozessbaum ein Vorgang; ein Elternteil, dessen Kinder
+schon weg sind, wäre ein halber Datensatz. Der Preis ist ausdrücklich in Kauf genommen: **die Frist der
+Kind-Definition wird für mitgezogene Kinder nicht angewandt.**
+
+**Läuft irgendwo im Baum noch ein Subworkflow, passiert gar nichts** — kein halber Baum. Der Fall wird
+protokolliert und als `TreesRefused` gezählt.
+
+### 46.5 Was im Archiv steht
+
+Eine **flache** Zeile, kein Spiegel der aktiven Tabellen (der hiesse, dasselbe Schema zweimal zu
+pflegen). Spalten bekommt nur, wonach gefiltert wird: Mandant, Definition (Id, Version und **Name als
+Text**), Status, Beginn und Ende, Fehler-Code und -Meldung, Wurzel- und Eltern-Instanz.
+
+Alles Weitere liegt im `PayloadJson`: Verlauf, **Endstand der Variablen** (typtreu, als eingebetteter
+Text — als Objekt käme aus jeder Zahl ein `JsonElement` zurück), Token-Endzustände, **Kommentare** und
+die **Beschreibungen der Anhänge**.
+
+**Kein Fremdschlüssel auf die Definition**, deshalb auch ihr Name als Text: sonst wird das Archiv
+unlesbar, sobald jemand eine alte Definition aufräumt. **Nicht in die Live-Liste mischen** — sonst
+bräuchte jede Übersichts-Abfrage eine Union; das Archiv bekommt seine eigene Ansicht (§47, folgt).
+
+**Die Anhang-Bytes bleiben liegen, wo sie liegen** — sie haben ihre eigene Frist. Was mit dem Vorgang
+verschwindet, sind die Beschreibungs-Zeilen; ihr Inhalt steht im Archiv-JSON, **samt `FileIdentifier`**.
+
+**Nicht zugestellte Outbox-Einträge und liegengebliebene Zweig-Sperren** eines beendeten Vorgangs gehen
+mit ihm — aber **nicht stillschweigend**: beides wird mit Anzahl und Signalnamen protokolliert.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3607,3 +3692,4 @@ Aufbewahrungslauf geht mandantenübergreifend.
 | 47 | **Mandanten-Baum: Anker-Fix** (§40) | **Pflicht-Migration für BEIDE Provider:** eine Migration, die `ConfigureViews(migrationBuilder)` des jeweiligen Providers erneut ausführt (wiederholbar). Kein Schema-Change, keine Vertragsänderung — ohne sie bleiben schlicht die alten, langsamen Objekte stehen. Ein Filter auf ein Baum-Blatt kam bisher **nach** der Rekursion zum Zug; wo er aus einem **Join** stammt (Blickpunkt aus einer Tabellenvariablen in den beiden Rollenbaum-Prozeduren), baute **jede** der beiden Datenbanken den ganzen Baum. Bei 10 000 Mandanten: Rollen-Baum nach unten 5 007 → **166 ms** (SQL Server) bzw. 4 703 → **68 ms** (PostgreSQL), Kind-Mandanten mit Berechtigung 4 839 → **151 ms** bzw. 5 087 → **71 ms**; der Mandantenfilter auf PostgreSQL 280 → **1 ms**. Ergebnisse unverändert: alte gegen neue Fassung auf beiden Datenbanken und beiden Fixtures **null Unterschiede**, Gleichheitstest und Zyklen-Wächter unverändert. Einziger Preis: ein Durchlauf des ganzen Baums **ohne** Filter kostet auf PostgreSQL mehr (286 → 800 ms) — im Toolkit-Code kommt er nicht vor |
 | 48 | **Token-Zeilen mandantengefiltert** (§41) | **Pflicht-Migration `TokenTenantBackfill`** (beide Provider), **vor** dem ersten Start mit der neuen Fassung. Kein Schema-Change — sie trägt den denormalisierten Mandanten an Token-Zeilen nach, die ihn noch nicht haben. Betroffen sind Vorgänge, die seit vor der Migration `UserTasks` **parken**: die wurden seither nie gespeichert und tragen `NULL`. Ohne den Nachtrag verschluckt der neue Filter deren Tokens — und **die Fehlerart ist hier eine andere als sonst: nicht „sieht zu viel", sondern „sieht nichts", also ein Vorgang, der ohne Meldung stehen bleibt.** Für eigenen Code: `db.Tokens` liefert ab jetzt nur die Zeilen des aktiven Mandanten (bewusst; wer darüber hinaus lesen will, setzt `IgnoreQueryFilters()`). Der Runner muss filterfrei bleiben — sein Suchlauf geht jedem `WorkflowExecutionScope` voraus |
 | 49 | **Aufbewahrung: die Ablage** (§45) | **Pflicht-Migration `RetentionOverrides`** (beide Provider) — eine neue Tabelle `WorkflowRetentionOverrides`, kein Datenumzug, keine Änderung an bestehenden Tabellen. `IWorkflowStore` bekommt **drei** neue Member (`GetRetentionOverrides`, `GetRetentionOverridesForDefinition`, `SaveRetentionOverride`) — **eigene Store-Implementierungen brechen**. **Es wird noch nichts aufgeräumt:** hier kommen nur die Regel und die Ablage an; Aufbewahrungslauf, Archiv und Oberfläche folgen. **Sagt niemand etwas, wird nicht aufgeräumt** — wer nichts einstellt, verliert nichts. Die sieben neuen Felder an der Definition (`RetentionDays`, `AttachmentRetentionDays`, `AllowTenantRetentionOverride`, vier Grenzen) kosten **keine** Migration, sie liegen im `DefinitionJson`. **Merke: der Widerspruch hängt an Besitzer + `DefinitionId` + widersprechendem Mandanten, NICHT am `DefinitionKey`** (der wird je Version neu vergeben). **Merke: ohne `AllowTenantRetentionOverride` wirkt ein Widerspruch nicht — er wird aber trotzdem gespeichert** und wirkt, sobald die Definition ihn erlaubt. Eine Rücknahme (beide Fristen null) **löscht die Zeile nicht**; einen Lösch-Weg gibt es bewusst nicht. Für PostgreSQL trägt der eindeutige Index `NULLS NOT DISTINCT` — alle drei Spalten sind nullable |
+| 50 | **Aufbewahrungslauf + Archiv** (§46) | **Pflicht-Migration `InstanceEndedAndArchive`** (beide Provider): neue Spalte `WorkflowInstances.EndedUtc` + Index, **Nachtrag für den Altbestand** (`EndedUtc = UpdatedUtc` für alles schon Beendete) und die Tabelle `WorkflowArchivedInstances`. **Ohne den Nachtrag trägt jeder bestehende Vorgang `NULL` und fällt für immer aus der Aufbewahrung heraus.** `IWorkflowStore` bekommt **vier** neue Member (`ListEndedInstanceGroups`, `FindEndedInstances`, `ArchiveInstanceTree`, `GetArchivedInstance`) — **eigene Store-Implementierungen brechen**. **Von selbst passiert nichts:** ohne eingestellte Frist wird nichts archiviert, und den Lauf (`WorkflowRetentionRunner.Run`) muss jemand anstossen. **Merke: eine eigene Spalte fürs Ende, nicht `UpdatedUtc`** — ein gescheiterter Vorgang ist anhaltbar, und jedes Anhalten setzte die Uhr sonst still zurück; ein Wiederaufsatz nimmt das Ende dagegen ausdrücklich zurück. **Merke: der Prozessbaum geht als Ganzes, mit der Frist der Wurzel** — läuft irgendwo noch ein Subworkflow, passiert gar nichts (protokolliert, als `TreesRefused` gezählt). Das Archiv ist **flach** und hat seine eigene Ansicht (kein Union in der Live-Liste), ohne FK auf die Definition und mit ihrem Namen als Text. **Die Anhang-Bytes bleiben liegen** (eigene Frist); nicht zugestellte Outbox-Einträge und liegengebliebene Sperren gehen mit — mit Protokolleintrag, nicht stillschweigend |

@@ -117,6 +117,13 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Zeitpunkt der letzten Aenderung (UTC).</summary>
         public DateTime UpdatedUtc { get; set; }
+
+        /// <summary>
+        /// Wann der Vorgang geendet hat (UTC), oder null, solange er laeuft. <b>Die Grundlage der
+        /// Aufbewahrungsfrist</b> - und ausdruecklich nicht <see cref="UpdatedUtc"/>, das bei jedem
+        /// Anhalten eines gescheiterten Vorgangs neu geschrieben wuerde.
+        /// </summary>
+        public DateTime? EndedUtc { get; set; }
     }
 
     /// <summary>
@@ -632,6 +639,96 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
+    /// Ein <b>archivierter Vorgang</b>: was von einer Instanz bleibt, nachdem die Aufbewahrungsfrist
+    /// abgelaufen ist.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Flach und kein Spiegel der aktiven Tabellen.</b> Ein Spiegel hiesse, dasselbe Schema zweimal
+    /// zu pflegen - und jede Aenderung an den Instanzen zoege eine zweite nach sich, die niemand testet.
+    /// Spalten bekommt nur, wonach gefiltert wird; alles Weitere liegt in
+    /// <see cref="PayloadJson"/> (Verlauf, Endstand der Variablen, Token-Endzustaende, Kommentare,
+    /// Anhang-Beschreibungen).
+    /// </para>
+    /// <para>
+    /// <b>KEIN Fremdschluessel auf die Definition</b>, und ihr Name steht als Text da: sonst wird das
+    /// Archiv unlesbar, sobald jemand eine alte Definition aufraeumt. <see cref="DefinitionKey"/> ist
+    /// nur noch nachrichtlich.
+    /// </para>
+    /// <para>
+    /// <b>Nicht in die Live-Liste mischen</b> - sonst braeuchte jede Uebersichts-Abfrage eine Union.
+    /// Das Archiv hat seine eigene Ansicht.
+    /// </para>
+    /// <para>
+    /// Ohne Mandanten-Filter, wie die Aktivierungen und die Widersprueche: der Aufbewahrungslauf
+    /// schreibt hier mandantenuebergreifend.
+    /// </para>
+    /// </remarks>
+    public class WorkflowArchivedInstanceRow
+    {
+        /// <summary>Die Id des archivierten Vorgangs (Primaerschluessel, wie zu Lebzeiten).</summary>
+        public string InstanceId { get; set; }
+
+        /// <summary>Der Mandant, dem der Vorgang gehoerte.</summary>
+        public string TenantId { get; set; }
+
+        /// <summary>
+        /// Die Definitionszeile, mit der er lief - <b>nur nachrichtlich, ohne Fremdschluessel</b>.
+        /// </summary>
+        public int DefinitionKey { get; set; }
+
+        /// <summary>Die fachliche Id der Definition.</summary>
+        public string DefinitionId { get; set; }
+
+        /// <summary>Die Version der Definition.</summary>
+        public int DefinitionVersion { get; set; }
+
+        /// <summary>
+        /// Der Name der Definition <b>als Text</b>, wie er zum Zeitpunkt des Archivierens lautete. Er
+        /// steht nur im <c>DefinitionJson</c>; wird die Definition geloescht, waere er sonst weg.
+        /// </summary>
+        public string DefinitionName { get; set; }
+
+        /// <summary>Der Endstatus als Zahl (siehe <c>WorkflowStatus</c>).</summary>
+        public int Status { get; set; }
+
+        /// <summary>Wann der Vorgang begonnen hat (UTC).</summary>
+        public DateTime CreatedUtc { get; set; }
+
+        /// <summary>Wann er geendet hat (UTC) - der Zeitpunkt, ab dem die Frist lief.</summary>
+        public DateTime? EndedUtc { get; set; }
+
+        /// <summary>Der Fehler-Code, oder null.</summary>
+        public string FaultCode { get; set; }
+
+        /// <summary>Die Fehlermeldung, oder null.</summary>
+        public string FaultMessage { get; set; }
+
+        /// <summary>Die oberste Instanz seines Prozessbaums.</summary>
+        public string RootInstanceId { get; set; }
+
+        /// <summary>Die aufrufende Instanz, oder null.</summary>
+        public string ParentInstanceId { get; set; }
+
+        /// <summary>Wann archiviert wurde (UTC).</summary>
+        public DateTime ArchivedUtc { get; set; }
+
+        /// <summary>
+        /// Alles, wonach nicht gefiltert wird, als JSON: Verlauf, Endstand der Variablen,
+        /// Token-Endzustaende, Kommentare und die Beschreibungen der Anhaenge.
+        /// </summary>
+        public string PayloadJson { get; set; }
+
+        /// <summary>
+        /// Wann die <b>Inhalte</b> der Anhaenge weggefallen sind (UTC), oder null, solange sie noch da
+        /// sind. Die Anhang-Bytes haben ihre eigene Frist und bleiben liegen, wo sie liegen - die
+        /// Beschreibung im <see cref="PayloadJson"/> bleibt in jedem Fall, sonst koennte das Archiv
+        /// nicht einmal mehr sagen „hier war eine Datei".
+        /// </summary>
+        public DateTime? AttachmentsPurgedUtc { get; set; }
+    }
+
+    /// <summary>
     /// Der <b>Widerspruch eines Mandanten</b> gegen die Aufbewahrungsfristen einer Definition.
     /// </summary>
     /// <remarks>
@@ -906,6 +1003,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Widersprueche der Mandanten gegen die Aufbewahrungsfristen.</summary>
         public DbSet<WorkflowRetentionOverrideRow> WorkflowRetentionOverrides { get; set; }
 
+        /// <summary>Die archivierten Vorgaenge.</summary>
+        public DbSet<WorkflowArchivedInstanceRow> WorkflowArchivedInstances { get; set; }
+
         /// <summary>Die Kommentare an den Vorgaengen.</summary>
         public DbSet<WorkflowCommentRow> WorkflowComments { get; set; }
 
@@ -933,6 +1033,11 @@ namespace ITVComponents.Workflow.EntityFramework
                 // liest der Aufgriff die angehaltenen Zeilen erst und wirft sie dann weg.
                 e.HasIndex(n => new { n.Status, n.Suspended, n.Priority });
                 e.HasIndex(n => n.DefinitionKey);
+                // Der Aufbewahrungslauf: erst gruppiert er die beendeten Vorgaenge nach Definition und
+                // Mandant (denn erst daraus ergibt sich die geltende Frist), dann holt er je Gruppe die
+                // faelligen. Beide Abfragen bedient dieselbe Reihenfolge - deshalb EIN Index und nicht
+                // zwei.
+                e.HasIndex(n => new { n.DefinitionKey, n.TenantId, n.EndedUtc });
                 // Echter Fremdschluessel: eine Instanz ohne ihre Definition ist nicht ausfuehrbar. Kein
                 // Kaskaden-Loeschen - eine Definition, an der noch Instanzen haengen, soll sich NICHT
                 // nebenbei loeschen lassen.
@@ -1086,6 +1191,18 @@ namespace ITVComponents.Workflow.EntityFramework
                 // Version, aus der ihr Ausloeser stammte - sie gehoert der Definition als Ganzem, nicht
                 // einer ihrer Fassungen. Und keinen auf den Ausloeser, weil dessen Zeile bei jedem
                 // Speichern eine andere ist.
+            });
+
+            modelBuilder.Entity<WorkflowArchivedInstanceRow>(e =>
+            {
+                e.HasKey(n => n.InstanceId);
+                // "was hat dieser Mandant im Archiv, neueste zuerst" - die Abfrage der Archiv-Ansicht.
+                e.HasIndex(n => new { n.TenantId, n.EndedUtc });
+                // Der Prozessbaum bleibt lesbar: die Kinder eines archivierten Vorgangs.
+                e.HasIndex(n => n.RootInstanceId);
+                // Der Weg des spaeteren Anhang-Laufs: was ist noch nicht von seinen Bytes befreit.
+                e.HasIndex(n => new { n.AttachmentsPurgedUtc, n.EndedUtc });
+                // KEIN Fremdschluessel auf die Definition - siehe die Bemerkung an der Zeile.
             });
 
             modelBuilder.Entity<WorkflowRetentionOverrideRow>(e =>

@@ -482,6 +482,19 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             public void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride)
                 => inner.SaveRetentionOverride(retentionOverride);
 
+            public IReadOnlyList<WorkflowRetentionGroup> ListEndedInstanceGroups()
+                => inner.ListEndedInstanceGroups();
+
+            public IReadOnlyList<string> FindEndedInstances(int definitionKey, string tenantId,
+                DateTime endedBeforeUtc, int max)
+                => inner.FindEndedInstances(definitionKey, tenantId, endedBeforeUtc, max);
+
+            public int ArchiveInstanceTree(string rootInstanceId, DateTime nowUtc)
+                => inner.ArchiveInstanceTree(rootInstanceId, nowUtc);
+
+            public WorkflowArchivedInstance GetArchivedInstance(string instanceId)
+                => inner.GetArchivedInstance(instanceId);
+
             public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
 
             public bool HasRunningInstance(int definitionKey, string correlationKey)
@@ -589,6 +602,19 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             public void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride)
                 => inner.SaveRetentionOverride(retentionOverride);
+
+            public IReadOnlyList<WorkflowRetentionGroup> ListEndedInstanceGroups()
+                => inner.ListEndedInstanceGroups();
+
+            public IReadOnlyList<string> FindEndedInstances(int definitionKey, string tenantId,
+                DateTime endedBeforeUtc, int max)
+                => inner.FindEndedInstances(definitionKey, tenantId, endedBeforeUtc, max);
+
+            public int ArchiveInstanceTree(string rootInstanceId, DateTime nowUtc)
+                => inner.ArchiveInstanceTree(rootInstanceId, nowUtc);
+
+            public WorkflowArchivedInstance GetArchivedInstance(string instanceId)
+                => inner.GetArchivedInstance(instanceId);
 
             public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
 

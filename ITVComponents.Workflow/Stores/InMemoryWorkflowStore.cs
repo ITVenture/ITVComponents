@@ -7,6 +7,7 @@ using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Retention;
+using ITVComponents.Workflow.Serialization;
 
 namespace ITVComponents.Workflow.Stores
 {
@@ -57,6 +58,10 @@ namespace ITVComponents.Workflow.Stores
         private readonly ConcurrentDictionary<(string Owner, string DefinitionId, string Tenant),
             WorkflowRetentionOverride> retentionOverrides =
             new ConcurrentDictionary<(string, string, string), WorkflowRetentionOverride>();
+
+        /// <summary>Die archivierten Vorgaenge, nach ihrer unveraenderten Instanz-Id.</summary>
+        private readonly ConcurrentDictionary<string, WorkflowArchivedInstance> archivedInstances =
+            new ConcurrentDictionary<string, WorkflowArchivedInstance>();
 
         /// <summary>
         /// Der Zaehler fuer die technischen Kennungen. Auch die Ablage im Speicher vergibt sie - sonst
@@ -398,7 +403,10 @@ namespace ITVComponents.Workflow.Stores
                 throw new ArgumentNullException(nameof(instance));
             }
 
-            instance.UpdatedUtc = DateTime.UtcNow;
+            DateTime nowUtc = DateTime.UtcNow;
+            instance.UpdatedUtc = nowUtc;
+            // Der Endzeitpunkt gehoert an dieselbe Stelle: hier geht jede Aenderung durch, und nur hier.
+            instance.StampEnd(nowUtc);
             // Force-Write: Version fortschreiben (neu = 0, bestehend = +1).
             instance.Version = versions.AddOrUpdate(instance.Id, 0, (_, old) => old + 1);
             instances[instance.Id] = instance;
@@ -418,7 +426,10 @@ namespace ITVComponents.Workflow.Stores
                 return false;
             }
 
-            instance.UpdatedUtc = DateTime.UtcNow;
+            DateTime nowUtc = DateTime.UtcNow;
+            instance.UpdatedUtc = nowUtc;
+            // Der Endzeitpunkt gehoert an dieselbe Stelle: hier geht jede Aenderung durch, und nur hier.
+            instance.StampEnd(nowUtc);
             instance.Version = baseVersion + 1;
             instances[instance.Id] = instance;
             return true;
@@ -741,6 +752,125 @@ namespace ITVComponents.Workflow.Stores
             existing.SetBy = retentionOverride.SetBy;
             existing.SetUtc = retentionOverride.SetUtc;
         }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionGroup> ListEndedInstanceGroups()
+            => instances.Values
+                .Where(IsArchivableRoot)
+                .GroupBy(i => new { i.DefinitionKey, i.TenantId })
+                .Select(g => new WorkflowRetentionGroup
+                {
+                    DefinitionKey = g.Key.DefinitionKey,
+                    TenantId = g.Key.TenantId,
+                    Count = g.Count(),
+                    OldestEndedUtc = g.Min(i => i.EndedUtc.Value)
+                })
+                .ToList();
+
+        /// <inheritdoc/>
+        public IReadOnlyList<string> FindEndedInstances(int definitionKey, string tenantId,
+            DateTime endedBeforeUtc, int max)
+        {
+            if (max <= 0)
+            {
+                return new List<string>();
+            }
+
+            return instances.Values
+                .Where(i => IsArchivableRoot(i) && i.DefinitionKey == definitionKey
+                            && i.TenantId == tenantId && i.EndedUtc < endedBeforeUtc)
+                .OrderBy(i => i.EndedUtc)
+                .Take(max)
+                .Select(i => i.Id)
+                .ToList();
+        }
+
+        /// <summary>Eine beendete oberste Instanz - der Einstiegspunkt des Aufbewahrungslaufs.</summary>
+        private static bool IsArchivableRoot(WorkflowInstance instance)
+            => instance.ParentInstanceId == null && instance.Status.IsEnded() && instance.EndedUtc != null;
+
+        /// <inheritdoc/>
+        public int ArchiveInstanceTree(string rootInstanceId, DateTime nowUtc)
+        {
+            if (!instances.TryGetValue(rootInstanceId, out WorkflowInstance root))
+            {
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: instance '{rootInstanceId}' no longer exists - it was probably "
+                    + "archived or removed in the meantime. Nothing archived.", LogSeverity.Report);
+                return 0;
+            }
+
+            List<WorkflowInstance> tree = CollectTree(root);
+            WorkflowInstance stillRunning = tree.FirstOrDefault(i => !i.Status.IsEnded());
+            if (stillRunning != null)
+            {
+                // Kein halber Baum. Fuer den Leser ist ein Prozessbaum EIN Vorgang; ein Elternteil, dessen
+                // Kinder schon im Archiv stehen, waere ein halber Datensatz.
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: not archiving '{rootInstanceId}' - the sub-process "
+                    + $"'{stillRunning.Id}' is still {stillRunning.Status}. A process tree is archived as "
+                    + "a whole or not at all.", LogSeverity.Warning);
+                return 0;
+            }
+
+            foreach (WorkflowInstance instance in tree)
+            {
+                archivedInstances[instance.Id] = ToArchived(instance, nowUtc);
+                instances.TryRemove(instance.Id, out _);
+                versions.TryRemove(instance.Id, out _);
+            }
+
+            return tree.Count;
+        }
+
+        /// <summary>Die Instanz und alle ihre Nachfahren.</summary>
+        private List<WorkflowInstance> CollectTree(WorkflowInstance root)
+        {
+            var tree = new List<WorkflowInstance> { root };
+            for (int i = 0; i < tree.Count; i++)
+            {
+                string parentId = tree[i].Id;
+                tree.AddRange(instances.Values.Where(c => c.ParentInstanceId == parentId));
+            }
+
+            return tree;
+        }
+
+        /// <summary>
+        /// Die flache Archiv-Form einer Instanz. Diese Ablage kennt weder Kommentare noch Anhaenge -
+        /// die Listen bleiben leer, und das ist kein Verlust, sondern ihre Wahrheit.
+        /// </summary>
+        private WorkflowArchivedInstance ToArchived(WorkflowInstance instance, DateTime nowUtc)
+            => new WorkflowArchivedInstance
+            {
+                InstanceId = instance.Id,
+                TenantId = instance.TenantId,
+                DefinitionKey = instance.DefinitionKey,
+                DefinitionId = instance.DefinitionId,
+                DefinitionVersion = instance.DefinitionVersion,
+                DefinitionName = definitions.Values
+                    .FirstOrDefault(d => d.Key == instance.DefinitionKey)?.Name,
+                Status = instance.Status,
+                CreatedUtc = instance.CreatedUtc,
+                EndedUtc = instance.EndedUtc,
+                FaultCode = instance.FaultCode,
+                FaultMessage = instance.FaultMessage,
+                RootInstanceId = instance.EffectiveRootInstanceId,
+                ParentInstanceId = instance.ParentInstanceId,
+                ArchivedUtc = nowUtc,
+                PayloadJson = WorkflowJson.Serialize(new WorkflowArchivePayload
+                {
+                    VariablesJson = WorkflowJson.SerializeVariables(instance.Variables),
+                    Tokens = instance.Tokens?.ToList() ?? new List<Token>(),
+                    History = instance.History?.ToList() ?? new List<HistoryEntry>()
+                })
+            };
+
+        /// <inheritdoc/>
+        public WorkflowArchivedInstance GetArchivedInstance(string instanceId)
+            => instanceId != null && archivedInstances.TryGetValue(instanceId, out WorkflowArchivedInstance archived)
+                ? archived
+                : null;
 
         /// <inheritdoc/>
         public void UpdateScheduleActivation(int activationKey, DateTime? nextDueUtc, DateTime? lastRunUtc,

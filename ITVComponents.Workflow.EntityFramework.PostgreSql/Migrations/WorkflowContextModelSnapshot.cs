@@ -182,6 +182,67 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.ToTable("Tokens");
                 });
 
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowArchivedInstanceRow", b =>
+                {
+                    b.Property<string>("InstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ArchivedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("AttachmentsPurgedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DefinitionId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DefinitionKey")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DefinitionName")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DefinitionVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FaultCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FaultMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParentInstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RootInstanceId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("text");
+
+                    b.HasKey("InstanceId");
+
+                    b.HasIndex("RootInstanceId");
+
+                    b.HasIndex("AttachmentsPurgedUtc", "EndedUtc");
+
+                    b.HasIndex("TenantId", "EndedUtc");
+
+                    b.ToTable("WorkflowArchivedInstances");
+                });
+
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowAttachmentBlobRow", b =>
                 {
                     b.Property<string>("FileIdentifier")
@@ -354,6 +415,9 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.Property<int>("DefinitionVersion")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("EndedUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("FaultCode")
                         .HasColumnType("text");
 
@@ -409,6 +473,8 @@ namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("DefinitionKey", "TenantId", "EndedUtc");
 
                     b.HasIndex("Status", "Suspended", "Priority");
 

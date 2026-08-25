@@ -10,6 +10,7 @@ using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ITVComponents.Workflow.EntityFramework
 {
@@ -539,7 +540,10 @@ namespace ITVComponents.Workflow.EntityFramework
                 throw new ArgumentNullException(nameof(instance));
             }
 
-            instance.UpdatedUtc = DateTime.UtcNow;
+            DateTime nowUtc = DateTime.UtcNow;
+            instance.UpdatedUtc = nowUtc;
+            // Der Endzeitpunkt gehoert an dieselbe Stelle: hier geht jede Aenderung durch, und nur hier.
+            instance.StampEnd(nowUtc);
 
             using WorkflowContext ctx = contextFactory();
             // Instanz-Id ist global eindeutig (GUID) - der Lookup ignoriert bewusst die Query-Filter,
@@ -577,7 +581,10 @@ namespace ITVComponents.Workflow.EntityFramework
                 throw new ArgumentNullException(nameof(instance));
             }
 
-            instance.UpdatedUtc = DateTime.UtcNow;
+            DateTime nowUtc = DateTime.UtcNow;
+            instance.UpdatedUtc = nowUtc;
+            // Der Endzeitpunkt gehoert an dieselbe Stelle: hier geht jede Aenderung durch, und nur hier.
+            instance.StampEnd(nowUtc);
 
             using WorkflowContext ctx = contextFactory();
             WorkflowInstanceRow row = ctx.WorkflowInstances
@@ -628,6 +635,7 @@ namespace ITVComponents.Workflow.EntityFramework
             row.CallDepth = instance.CallDepth;
             row.CreatedUtc = instance.CreatedUtc;
             row.UpdatedUtc = instance.UpdatedUtc;
+            row.EndedUtc = instance.EndedUtc;
             row.DefinitionKey = instance.DefinitionKey;
             row.VariablesJson = WorkflowJson.SerializeVariables(instance.Variables);
             row.CompensationsJson = WorkflowJson.SerializeCompensations(instance.Compensations);
@@ -1328,6 +1336,254 @@ namespace ITVComponents.Workflow.EntityFramework
         }
 
         /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionGroup> ListEndedInstanceGroups()
+        {
+            using WorkflowContext ctx = contextFactory();
+            // Ohne Filter: der Aufbewahrungslauf geht mandantenuebergreifend, wie jeder Runner-Weg.
+            return ctx.WorkflowInstances.AsNoTracking().IgnoreQueryFilters()
+                .Where(r => r.EndedUtc != null && r.ParentInstanceId == null)
+                .GroupBy(r => new { r.DefinitionKey, r.TenantId })
+                .Select(g => new WorkflowRetentionGroup
+                {
+                    DefinitionKey = g.Key.DefinitionKey,
+                    TenantId = g.Key.TenantId,
+                    Count = g.Count(),
+                    OldestEndedUtc = g.Min(r => r.EndedUtc).Value
+                })
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<string> FindEndedInstances(int definitionKey, string tenantId,
+            DateTime endedBeforeUtc, int max)
+        {
+            if (max <= 0)
+            {
+                return new List<string>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            return ctx.WorkflowInstances.AsNoTracking().IgnoreQueryFilters()
+                .Where(r => r.DefinitionKey == definitionKey && r.TenantId == tenantId
+                            && r.ParentInstanceId == null && r.EndedUtc != null
+                            && r.EndedUtc < endedBeforeUtc)
+                .OrderBy(r => r.EndedUtc)
+                .Take(max)
+                .Select(r => r.Id)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public int ArchiveInstanceTree(string rootInstanceId, DateTime nowUtc)
+        {
+            if (string.IsNullOrEmpty(rootInstanceId))
+            {
+                throw new ArgumentNullException(nameof(rootInstanceId));
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            using IDbContextTransaction transaction = ctx.Database.BeginTransaction();
+
+            List<WorkflowInstanceRow> tree = CollectTreeRows(ctx, rootInstanceId);
+            if (tree.Count == 0)
+            {
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: instance '{rootInstanceId}' no longer exists - it was probably "
+                    + "archived or removed in the meantime. Nothing archived.", LogSeverity.Report);
+                return 0;
+            }
+
+            WorkflowInstanceRow stillRunning = tree.FirstOrDefault(r => !((WorkflowStatus)r.Status).IsEnded());
+            if (stillRunning != null)
+            {
+                // Kein halber Baum. Fuer den Leser ist ein Prozessbaum EIN Vorgang; ein Elternteil, dessen
+                // Kinder schon im Archiv stehen, waere ein halber Datensatz.
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: not archiving '{rootInstanceId}' - the sub-process "
+                    + $"'{stillRunning.Id}' is still {(WorkflowStatus)stillRunning.Status}. A process tree "
+                    + "is archived as a whole or not at all.", LogSeverity.Warning);
+                return 0;
+            }
+
+            var ids = tree.Select(r => r.Id).ToList();
+            List<TokenRow> tokens = ctx.Tokens.IgnoreQueryFilters()
+                .Where(t => ids.Contains(t.InstanceId)).ToList();
+            List<HistoryEntryRow> history = ctx.HistoryEntries
+                .Where(h => ids.Contains(h.InstanceId)).OrderBy(h => h.Seq).ToList();
+            List<WorkflowCommentRow> comments = ctx.WorkflowComments.IgnoreQueryFilters()
+                .Where(c => ids.Contains(c.InstanceId)).OrderBy(c => c.CreatedUtc).ToList();
+            List<WorkflowAttachmentRow> attachments = ctx.WorkflowAttachments.IgnoreQueryFilters()
+                .Where(a => ids.Contains(a.InstanceId)).OrderBy(a => a.CreatedUtc).ToList();
+            List<WorkflowOutboxRow> outbox = ctx.Outbox.IgnoreQueryFilters()
+                .Where(o => ids.Contains(o.InstanceId)).ToList();
+            List<WorkflowBranchLockRow> locks = ctx.BranchLocks
+                .Where(l => ids.Contains(l.InstanceId)).ToList();
+
+            // Die Namen der Definitionen in EINEM Zug - sie stehen nur im DefinitionJson, und im Archiv
+            // sollen sie als Text stehen. Ueber denselben Kontext wie alles andere: ein zweiter waere
+            // eine zweite Verbindung neben einer offenen Transaktion.
+            var definitionKeys = tree.Select(r => r.DefinitionKey).Distinct().ToList();
+            Dictionary<int, string> definitionNames = ctx.WorkflowDefinitions.AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(d => definitionKeys.Contains(d.DefinitionKey))
+                .ToList()
+                .ToDictionary(d => d.DefinitionKey, d => Materialize(d)?.Name);
+
+            if (outbox.Count != 0)
+            {
+                // Vorgemerkte Nachrichten an einem beendeten Vorgang sind nie zugestellt worden. Sie
+                // gehen mit ihm - aber nicht stillschweigend: wer spaeter fragt, warum ein Signal nie
+                // ankam, soll die Spur hier finden.
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: dropping {outbox.Count} undelivered outbox entries with the "
+                    + $"archived process tree '{rootInstanceId}' (signals: "
+                    + $"{string.Join(", ", outbox.Select(o => o.SignalName).Distinct())}).",
+                    LogSeverity.Warning);
+            }
+
+            if (locks.Count != 0)
+            {
+                // Eine Sperre an einem beendeten Vorgang ist der Rest eines abgestuerzten Runners.
+                LogEnvironment.LogEvent(
+                    $"ArchiveInstanceTree: releasing {locks.Count} branch locks left on the archived "
+                    + $"process tree '{rootInstanceId}' - they outlived their runner.", LogSeverity.Warning);
+            }
+
+            foreach (WorkflowInstanceRow row in tree)
+            {
+                ctx.WorkflowArchivedInstances.Add(ToArchivedRow(row, nowUtc,
+                    definitionNames.TryGetValue(row.DefinitionKey, out string name) ? name : null,
+                    tokens.Where(t => t.InstanceId == row.Id).ToList(),
+                    history.Where(h => h.InstanceId == row.Id).ToList(),
+                    comments.Where(c => c.InstanceId == row.Id).ToList(),
+                    attachments.Where(a => a.InstanceId == row.Id).ToList()));
+            }
+
+            // Tokens, Verlauf, Outbox und Sperren haengen NICHT per Fremdschluessel an der Instanz und
+            // muessen ausdruecklich mit. Kommentare und Anhang-Beschreibungen kaskadieren - ihre BYTES
+            // bleiben liegen, die haben ihre eigene Frist.
+            ctx.Tokens.RemoveRange(tokens);
+            ctx.HistoryEntries.RemoveRange(history);
+            ctx.Outbox.RemoveRange(outbox);
+            ctx.BranchLocks.RemoveRange(locks);
+            ctx.WorkflowInstances.RemoveRange(tree);
+            ctx.SaveChanges();
+            transaction.Commit();
+            return tree.Count;
+        }
+
+        /// <summary>Die Instanz-Zeile und alle ihre Nachfahren; leer, wenn es die Wurzel nicht gibt.</summary>
+        /// <remarks>
+        /// Schrittweise ueber <c>ParentInstanceId</c> statt ueber <c>RootInstanceId</c>: der Baum kann
+        /// tiefer als zwei Ebenen sein, und die Wurzel-Spalte traegt zwar die oberste Instanz, aber der
+        /// Aufruf hier bekommt nicht zwingend eine Wurzel genannt.
+        /// </remarks>
+        private static List<WorkflowInstanceRow> CollectTreeRows(WorkflowContext ctx, string rootInstanceId)
+        {
+            WorkflowInstanceRow root = ctx.WorkflowInstances.IgnoreQueryFilters()
+                .FirstOrDefault(r => r.Id == rootInstanceId);
+            if (root == null)
+            {
+                return new List<WorkflowInstanceRow>();
+            }
+
+            var tree = new List<WorkflowInstanceRow> { root };
+            var frontier = new List<string> { root.Id };
+            while (frontier.Count != 0)
+            {
+                List<WorkflowInstanceRow> children = ctx.WorkflowInstances.IgnoreQueryFilters()
+                    .Where(r => frontier.Contains(r.ParentInstanceId))
+                    .ToList();
+                tree.AddRange(children);
+                frontier = children.Select(r => r.Id).ToList();
+            }
+
+            return tree;
+        }
+
+        /// <summary>Baut die flache Archiv-Zeile aus der Instanz und allem, was an ihr hing.</summary>
+        private static WorkflowArchivedInstanceRow ToArchivedRow(WorkflowInstanceRow row, DateTime nowUtc,
+            string definitionName, List<TokenRow> tokens, List<HistoryEntryRow> history,
+            List<WorkflowCommentRow> comments, List<WorkflowAttachmentRow> attachments)
+            => new WorkflowArchivedInstanceRow
+            {
+                InstanceId = row.Id,
+                TenantId = row.TenantId,
+                DefinitionKey = row.DefinitionKey,
+                DefinitionId = row.DefinitionId,
+                DefinitionVersion = row.DefinitionVersion,
+                DefinitionName = definitionName,
+                Status = row.Status,
+                CreatedUtc = row.CreatedUtc,
+                EndedUtc = row.EndedUtc,
+                FaultCode = row.FaultCode,
+                FaultMessage = row.FaultMessage,
+                RootInstanceId = row.RootInstanceId,
+                ParentInstanceId = row.ParentInstanceId,
+                ArchivedUtc = nowUtc,
+                PayloadJson = WorkflowJson.Serialize(new WorkflowArchivePayload
+                {
+                    // Der Variablen-Stack kommt so, wie er in der Spalte stand - typtreu und ohne den
+                    // Umweg ueber Objekte, auf dem seine Typkennungen verloren gingen.
+                    VariablesJson = row.VariablesJson,
+                    Tokens = tokens.Select(ToToken).ToList(),
+                    History = history.Select(ToHistoryEntry).ToList(),
+                    Comments = comments.Select(c => new WorkflowArchivedComment
+                    {
+                        TokenId = c.TokenId,
+                        Author = c.Author,
+                        CreatedUtc = c.CreatedUtc,
+                        Text = c.Text
+                    }).ToList(),
+                    Attachments = attachments.Select(a => new WorkflowArchivedAttachment
+                    {
+                        TokenId = a.TokenId,
+                        FileName = a.FileName,
+                        ContentType = a.ContentType,
+                        SizeBytes = a.SizeBytes,
+                        Author = a.Author,
+                        CreatedUtc = a.CreatedUtc,
+                        FileIdentifier = a.FileIdentifier
+                    }).ToList()
+                })
+            };
+
+        /// <inheritdoc/>
+        public WorkflowArchivedInstance GetArchivedInstance(string instanceId)
+        {
+            if (string.IsNullOrEmpty(instanceId))
+            {
+                return null;
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            WorkflowArchivedInstanceRow row = ctx.WorkflowArchivedInstances.AsNoTracking()
+                .IgnoreQueryFilters()
+                .FirstOrDefault(a => a.InstanceId == instanceId);
+            return row == null
+                ? null
+                : new WorkflowArchivedInstance
+                {
+                    InstanceId = row.InstanceId,
+                    TenantId = row.TenantId,
+                    DefinitionKey = row.DefinitionKey,
+                    DefinitionId = row.DefinitionId,
+                    DefinitionVersion = row.DefinitionVersion,
+                    DefinitionName = row.DefinitionName,
+                    Status = (WorkflowStatus)row.Status,
+                    CreatedUtc = AsUtc(row.CreatedUtc) ?? row.CreatedUtc,
+                    EndedUtc = AsUtc(row.EndedUtc),
+                    FaultCode = row.FaultCode,
+                    FaultMessage = row.FaultMessage,
+                    RootInstanceId = row.RootInstanceId,
+                    ParentInstanceId = row.ParentInstanceId,
+                    ArchivedUtc = AsUtc(row.ArchivedUtc) ?? row.ArchivedUtc,
+                    PayloadJson = row.PayloadJson,
+                    AttachmentsPurgedUtc = AsUtc(row.AttachmentsPurgedUtc)
+                };
+        }
+
+        /// <inheritdoc/>
         public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
         {
             using WorkflowContext ctx = contextFactory();
@@ -1734,51 +1990,63 @@ namespace ITVComponents.Workflow.EntityFramework
                 Version = row.Version,
                 CreatedUtc = row.CreatedUtc,
                 UpdatedUtc = row.UpdatedUtc,
+                EndedUtc = AsUtc(row.EndedUtc),
                 DefinitionKey = row.DefinitionKey,
                 Variables = WorkflowJson.DeserializeVariables(row.VariablesJson),
                 Compensations = WorkflowJson.DeserializeCompensations(row.CompensationsJson),
                 OutgoingMessages = outboxRows.Select(ToMessage).ToList(),
-                Tokens = tokenRows.Select(t => new Token
-                {
-                    Id = t.TokenId,
-                    NodeId = t.NodeId,
-                    Status = (TokenStatus)t.Status,
-                    WaitingSignal = t.WaitingSignal,
-                    DueUtc = t.DueUtc,
-                    WaitingTarget = t.WaitingTarget,
-                    WaitingForChildInstanceId = t.WaitingForChildInstanceId,
-                    Variables = string.IsNullOrEmpty(t.VariablesJson)
-                        ? null
-                        : WorkflowJson.DeserializeVariables(t.VariablesJson),
-                    SplitTokenId = t.SplitTokenId,
-                    BoundaryOwnerTokenId = t.BoundaryOwnerTokenId,
-                    BoundaryIteration = t.BoundaryIteration,
-                    RaceTokenId = t.RaceTokenId,
-                    WaitingCorrelation = t.WaitingCorrelation,
-                    WaitingKind = (Model.WaitKind?)t.WaitingKind,
-                    ArrivedViaFlowId = t.ArrivedViaFlowId,
-                    SubProcessOwnerTokenId = t.SubProcessOwnerTokenId,
-                    SplitBranchCount = t.SplitBranchCount,
-                    CompensationOwnerTokenId = t.CompensationOwnerTokenId,
-                    TaskKey = t.TaskKey,
-                    TaskPermission = t.TaskPermission,
-                    AssignedTo = t.AssignedTo,
-                    TaskTitle = t.TaskTitle,
-                    TaskCreatedUtc = t.TaskCreatedUtc,
-                    TaskDueUtc = t.TaskDueUtc
-                }).ToList(),
-                History = historyRows
-                    .OrderBy(h => h.Seq)
-                    .Select(h => new HistoryEntry
-                    {
-                        TimestampUtc = h.TimestampUtc,
-                        NodeId = h.NodeId,
-                        Event = h.Event,
-                        Detail = h.Detail,
-                        Severity = (HistorySeverity)h.Severity
-                    }).ToList()
+                Tokens = tokenRows.Select(ToToken).ToList(),
+                History = historyRows.OrderBy(h => h.Seq).Select(ToHistoryEntry).ToList()
             };
         }
+
+        /// <summary>Uebersetzt eine Token-Zeile in ihr Domaenen-Gegenstueck.</summary>
+        /// <remarks>
+        /// Aus <see cref="ToInstance"/> herausgezogen, als das Archiv denselben Weg brauchte. Zweimal
+        /// getippt waere die Liste der Felder zweimal zu pflegen - und ein vergessenes Feld faellt hier
+        /// nicht als Fehler auf, sondern als Token, dem etwas fehlt.
+        /// </remarks>
+        private static Token ToToken(TokenRow t)
+            => new Token
+            {
+                Id = t.TokenId,
+                NodeId = t.NodeId,
+                Status = (TokenStatus)t.Status,
+                WaitingSignal = t.WaitingSignal,
+                DueUtc = t.DueUtc,
+                WaitingTarget = t.WaitingTarget,
+                WaitingForChildInstanceId = t.WaitingForChildInstanceId,
+                Variables = string.IsNullOrEmpty(t.VariablesJson)
+                    ? null
+                    : WorkflowJson.DeserializeVariables(t.VariablesJson),
+                SplitTokenId = t.SplitTokenId,
+                BoundaryOwnerTokenId = t.BoundaryOwnerTokenId,
+                BoundaryIteration = t.BoundaryIteration,
+                RaceTokenId = t.RaceTokenId,
+                WaitingCorrelation = t.WaitingCorrelation,
+                WaitingKind = (Model.WaitKind?)t.WaitingKind,
+                ArrivedViaFlowId = t.ArrivedViaFlowId,
+                SubProcessOwnerTokenId = t.SubProcessOwnerTokenId,
+                SplitBranchCount = t.SplitBranchCount,
+                CompensationOwnerTokenId = t.CompensationOwnerTokenId,
+                TaskKey = t.TaskKey,
+                TaskPermission = t.TaskPermission,
+                AssignedTo = t.AssignedTo,
+                TaskTitle = t.TaskTitle,
+                TaskCreatedUtc = t.TaskCreatedUtc,
+                TaskDueUtc = t.TaskDueUtc
+            };
+
+        /// <summary>Uebersetzt einen Protokolleintrag in sein Domaenen-Gegenstueck.</summary>
+        private static HistoryEntry ToHistoryEntry(HistoryEntryRow h)
+            => new HistoryEntry
+            {
+                TimestampUtc = h.TimestampUtc,
+                NodeId = h.NodeId,
+                Event = h.Event,
+                Detail = h.Detail,
+                Severity = (HistorySeverity)h.Severity
+            };
 
         private sealed class BranchLock : IWorkflowBranchLock
         {

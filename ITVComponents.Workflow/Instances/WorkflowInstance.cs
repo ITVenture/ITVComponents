@@ -26,6 +26,21 @@ namespace ITVComponents.Workflow.Instances
         Cancelled
     }
 
+    /// <summary>Ergaenzungen zum <see cref="WorkflowStatus"/>.</summary>
+    public static class WorkflowStatusExtensions
+    {
+        /// <summary>
+        /// Ist das ein <b>Endstatus</b> - hat der Vorgang also aufgehoert, etwas zu tun?
+        /// </summary>
+        /// <remarks>
+        /// <b>Abgebrochen zaehlt dazu.</b> Ein abgebrochener Vorgang laeuft nicht weiter, und fuer die
+        /// Aufbewahrung ist er ein beendeter Datensatz wie ein gescheiterter. Das steht hier an EINER
+        /// Stelle, damit die Frage nicht an drei Orten verschieden beantwortet wird.
+        /// </remarks>
+        public static bool IsEnded(this WorkflowStatus status)
+            => status is WorkflowStatus.Completed or WorkflowStatus.Faulted or WorkflowStatus.Cancelled;
+    }
+
     /// <summary>
     /// Der Schweregrad eines Protokolleintrags - fuer Filterung/Nachvollzug im Monitoring.
     /// </summary>
@@ -293,6 +308,44 @@ namespace ITVComponents.Workflow.Instances
 
         /// <summary>Zeitpunkt der letzten Aenderung (UTC).</summary>
         public DateTime UpdatedUtc { get; set; }
+
+        /// <summary>
+        /// Wann dieser Vorgang <b>geendet</b> hat (UTC), oder null, solange er laeuft.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Ein eigenes Feld und nicht <see cref="UpdatedUtc"/>: das heisst „zuletzt geaendert". Ein
+        /// gescheiterter Vorgang ist ausdruecklich anhaltbar, und jedes Anhalten schriebe daran - die
+        /// Aufbewahrungsfrist finge damit still von vorne an. Genau das faellt erst nach einem Jahr auf,
+        /// und dann als „der raeumt nicht auf".
+        /// </para>
+        /// <para>
+        /// <b>Ein Wiederaufsatz nimmt das Ende zurueck</b> (<see cref="StampEnd"/> setzt wieder null):
+        /// ein Vorgang, der weiterlaeuft, hat nicht geendet - eine Frist auf einen ueberholten Endpunkt
+        /// waere schlimmer als gar keine.
+        /// </para></remarks>
+        public DateTime? EndedUtc { get; set; }
+
+        /// <summary>
+        /// Haelt den Endzeitpunkt nach: gesetzt, sobald der Status ein Endstatus ist, zurueckgenommen,
+        /// sobald er es nicht mehr ist. Ein <b>bestehender</b> Endzeitpunkt wird nie ueberschrieben.
+        /// </summary>
+        /// <param name="nowUtc">der aktuelle Zeitpunkt</param>
+        /// <remarks>
+        /// Gerufen wird das von der Ablage, an derselben Stelle wie <see cref="UpdatedUtc"/> - dort geht
+        /// jede Aenderung durch, und nur dort. In der Engine waere es ein Dutzend Stellen, von denen
+        /// irgendwann eine fehlte.
+        /// </remarks>
+        public void StampEnd(DateTime nowUtc)
+        {
+            if (!Status.IsEnded())
+            {
+                EndedUtc = null;
+                return;
+            }
+
+            EndedUtc ??= nowUtc;
+        }
 
         /// <summary>Die aktuell aktiven Tokens (stehen auf einem Knoten, bereit zur Verarbeitung).</summary>
         [JsonIgnore]
