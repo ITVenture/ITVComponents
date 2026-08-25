@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface ITrustedComponentAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<TrustedComponentViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<TrustedComponentViewModel?> CreateAsync(ClaimsPrincipal user, TrustedComponentViewModel input);

@@ -69,8 +69,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "DbCultures.View", "DbCultures.Write");
-        hasWrite = Handler.HasPermission(currentUser, "DbCultures.Write");
+        hasView = Handler.HasPermission("DbCultures.View", "DbCultures.Write");
+        hasWrite = Handler.HasPermission("DbCultures.Write");
     }
 
     private async Task<GridData<CultureViewModel>> LoadData(GridState<CultureViewModel> state, CancellationToken ct)

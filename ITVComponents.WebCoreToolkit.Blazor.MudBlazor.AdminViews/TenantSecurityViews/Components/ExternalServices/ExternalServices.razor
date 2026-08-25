@@ -100,9 +100,9 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Services.Connections.View", "Services.Connections.Write");
-        hasWrite = Handler.HasPermission(currentUser, "Services.Connections.Write");
-        isSysAdmin = Handler.HasPermission(currentUser, "Sysadmin");
+        hasView = Handler.HasPermission("Services.Connections.View", "Services.Connections.Write");
+        hasWrite = Handler.HasPermission("Services.Connections.Write");
+        isSysAdmin = Handler.HasPermission("Sysadmin");
     }
 
     private async Task<GridData<ExternalOAuthServiceViewModel>> LoadData(GridState<ExternalOAuthServiceViewModel> state, CancellationToken ct)

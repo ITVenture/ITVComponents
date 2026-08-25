@@ -83,7 +83,7 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public AdminContext GetContext(ClaimsPrincipal user)

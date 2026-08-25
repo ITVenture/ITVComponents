@@ -53,7 +53,7 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Sysadmin");
+        hasView = Handler.HasPermission("Sysadmin");
     }
 
     private async Task<GridData<FeatureActivationViewModel>> LoadData(GridState<FeatureActivationViewModel> state, CancellationToken ct)

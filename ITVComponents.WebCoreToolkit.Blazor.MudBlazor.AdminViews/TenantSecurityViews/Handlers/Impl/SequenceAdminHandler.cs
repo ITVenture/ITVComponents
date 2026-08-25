@@ -88,12 +88,12 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<SequenceViewModel>> ListAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "Sequences.View", "Sequences.Write"))
+        if (!HasPermission("Sequences.View", "Sequences.Write"))
             return new PagedResult<SequenceViewModel>();
 
         using var db = CreateDb();
@@ -124,7 +124,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
 
     public async Task<SequenceViewModel?> CreateAsync(ClaimsPrincipal user, int? tenantId, SequenceViewModel input)
     {
-        if (!HasPermission(user, "Sequences.Write")) return null;
+        if (!HasPermission("Sequences.Write")) return null;
         using var db = CreateDb();
         var effectiveTenantId = tenantId ?? db.CurrentTenantId ?? -1;
         var entity = new TSequence
@@ -147,7 +147,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
 
     public async Task<SequenceViewModel?> UpdateAsync(ClaimsPrincipal user, SequenceViewModel input)
     {
-        if (!HasPermission(user, "Sequences.Write")) return null;
+        if (!HasPermission("Sequences.Write")) return null;
         using var db = CreateDb();
         var entity = await db.Sequences.FirstOrDefaultAsync(s => s.SequenceId == input.SequenceId);
         if (entity == null) return null;
@@ -162,7 +162,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int sequenceId)
     {
-        if (!HasPermission(user, "Sequences.Write")) return false;
+        if (!HasPermission("Sequences.Write")) return false;
         using var db = CreateDb();
         var entity = await db.Sequences.FirstOrDefaultAsync(s => s.SequenceId == sequenceId);
         if (entity == null) return false;

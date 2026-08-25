@@ -31,12 +31,12 @@ public class SystemLogAdminHandler : ISystemLogAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<SystemEventViewModel>> ListAsync(ClaimsPrincipal user, SystemLogQuery query)
     {
-        if (!HasPermission(user, "SystemLog.View"))
+        if (!HasPermission("SystemLog.View"))
             return new PagedResult<SystemEventViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -79,7 +79,7 @@ public class SystemLogAdminHandler : ISystemLogAdminHandler
 
     public async Task<SystemLogContextResult> GetContextAsync(ClaimsPrincipal user, SystemLogContextQuery query)
     {
-        if (!HasPermission(user, "SystemLog.View"))
+        if (!HasPermission("SystemLog.View"))
             return new SystemLogContextResult();
 
         var before = Math.Clamp(query.Before, 0, SystemLogContextQuery.MaxContextSize);

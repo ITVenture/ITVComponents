@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IAssetTemplateAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<AssetTemplateViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<AssetTemplateViewModel?> CreateAsync(ClaimsPrincipal user, AssetTemplateViewModel input);

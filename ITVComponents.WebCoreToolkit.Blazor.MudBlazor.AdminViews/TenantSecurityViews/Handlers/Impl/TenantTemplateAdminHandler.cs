@@ -20,12 +20,12 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<TenantTemplateViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "TenantTemplates.View", "TenantTemplates.Write"))
+        if (!HasPermission("TenantTemplates.View", "TenantTemplates.Write"))
             return new PagedResult<TenantTemplateViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -52,7 +52,7 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
 
     public async Task<TenantTemplateViewModel?> CreateAsync(ClaimsPrincipal user, TenantTemplateViewModel input)
     {
-        if (!HasPermission(user, "TenantTemplates.Write")) return null;
+        if (!HasPermission("TenantTemplates.Write")) return null;
 
         return await factory.UseAsync<TenantTemplateViewModel?>(async db =>
         {
@@ -71,7 +71,7 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
 
     public async Task<TenantTemplateViewModel?> UpdateAsync(ClaimsPrincipal user, TenantTemplateViewModel input)
     {
-        if (!HasPermission(user, "TenantTemplates.Write")) return null;
+        if (!HasPermission("TenantTemplates.Write")) return null;
 
         return await factory.UseAsync<TenantTemplateViewModel?>(async db =>
         {
@@ -87,7 +87,7 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int tenantTemplateId)
     {
-        if (!HasPermission(user, "TenantTemplates.Write")) return false;
+        if (!HasPermission("TenantTemplates.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {

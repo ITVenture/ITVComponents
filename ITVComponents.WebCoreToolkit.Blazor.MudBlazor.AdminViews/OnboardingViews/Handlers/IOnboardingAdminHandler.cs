@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingVie
 public interface IOnboardingAdminHandler
 {
     /// <summary>True when the ambient user holds ANY of <paramref name="permissions"/> in the current scope.</summary>
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     /// <summary>True when the current user may manage employees/profiles (holds ManageEmployees).</summary>
     bool CanManage(ClaimsPrincipal user);

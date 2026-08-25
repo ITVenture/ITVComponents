@@ -19,12 +19,12 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<HealthScriptViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "HealthChecks.View", "HealthChecks.Write", "Sysadmin"))
+        if (!HasPermission("HealthChecks.View", "HealthChecks.Write", "Sysadmin"))
             return new PagedResult<HealthScriptViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -50,7 +50,7 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
 
     public async Task<HealthScriptViewModel?> CreateAsync(ClaimsPrincipal user, HealthScriptViewModel input)
     {
-        if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return null;
+        if (!HasPermission("HealthChecks.Write", "Sysadmin")) return null;
 
         return await factory.UseAsync<HealthScriptViewModel?>(async db =>
         {
@@ -68,7 +68,7 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
 
     public async Task<HealthScriptViewModel?> UpdateAsync(ClaimsPrincipal user, HealthScriptViewModel input)
     {
-        if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return null;
+        if (!HasPermission("HealthChecks.Write", "Sysadmin")) return null;
 
         return await factory.UseAsync<HealthScriptViewModel?>(async db =>
         {
@@ -83,7 +83,7 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int healthScriptId)
     {
-        if (!HasPermission(user, "HealthChecks.Write", "Sysadmin")) return false;
+        if (!HasPermission("HealthChecks.Write", "Sysadmin")) return false;
 
         return await factory.UseAsync(async db =>
         {

@@ -105,16 +105,16 @@ else
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
 
-        hasViewPermission = Handler.HasPermission(currentUser, "Users.View", "Users.Write");
-        hasWritePermission = Handler.HasPermission(currentUser, "Users.Write");
-        hasPropView = Handler.HasPermission(currentUser, "Users.Properties.View", "Users.Properties.Write");
-        hasPropWrite = Handler.HasPermission(currentUser, "Users.Properties.Write");
-        hasLoginView = Handler.SupportsLogins && Handler.HasPermission(currentUser, "Users.Logins.View", "Users.Logins.Write");
-        hasLoginWrite = Handler.SupportsLogins && Handler.HasPermission(currentUser, "Users.Logins.Write");
-        hasTokenView = Handler.SupportsTokens && Handler.HasPermission(currentUser, "Users.Tokens.View", "Users.Tokens.Write");
-        hasTokenWrite = Handler.SupportsTokens && Handler.HasPermission(currentUser, "Users.Tokens.Write");
-        hasClaimView = Handler.SupportsClaims && Handler.HasPermission(currentUser, "Users.Claims.View", "Users.Claims.Write");
-        hasClaimWrite = Handler.SupportsClaims && Handler.HasPermission(currentUser, "Users.Claims.Write");
+        hasViewPermission = Handler.HasPermission("Users.View", "Users.Write");
+        hasWritePermission = Handler.HasPermission("Users.Write");
+        hasPropView = Handler.HasPermission("Users.Properties.View", "Users.Properties.Write");
+        hasPropWrite = Handler.HasPermission("Users.Properties.Write");
+        hasLoginView = Handler.SupportsLogins && Handler.HasPermission("Users.Logins.View", "Users.Logins.Write");
+        hasLoginWrite = Handler.SupportsLogins && Handler.HasPermission("Users.Logins.Write");
+        hasTokenView = Handler.SupportsTokens && Handler.HasPermission("Users.Tokens.View", "Users.Tokens.Write");
+        hasTokenWrite = Handler.SupportsTokens && Handler.HasPermission("Users.Tokens.Write");
+        hasClaimView = Handler.SupportsClaims && Handler.HasPermission("Users.Claims.View", "Users.Claims.Write");
+        hasClaimWrite = Handler.SupportsClaims && Handler.HasPermission("Users.Claims.Write");
 
         var ctx = Handler.GetContext(currentUser);
         isSysAdmin = ctx.IsSysAdmin;

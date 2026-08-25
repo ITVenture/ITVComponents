@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IAuthenticationTypeAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<AuthenticationTypeViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<AuthenticationTypeViewModel?> CreateAsync(ClaimsPrincipal user, AuthenticationTypeViewModel input);

@@ -89,12 +89,12 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<DashboardWidgetViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
+        if (!HasPermission("DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardWidgetViewModel>();
 
         using var db = CreateDb();
@@ -131,7 +131,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardWidgetViewModel?> CreateAsync(ClaimsPrincipal user, DashboardWidgetViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = new TWidget
         {
@@ -155,7 +155,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardWidgetViewModel?> UpdateAsync(ClaimsPrincipal user, DashboardWidgetViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = await db.Widgets.FirstOrDefaultAsync(w => w.DashboardWidgetId == input.DashboardWidgetId);
         if (entity == null) return null;
@@ -176,7 +176,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int dashboardWidgetId)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        if (!HasPermission("DashboardWidgets.Write")) return false;
         using var db = CreateDb();
         var entity = await db.Widgets.FirstOrDefaultAsync(w => w.DashboardWidgetId == dashboardWidgetId);
         if (entity == null) return false;
@@ -187,7 +187,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> MoveAsync(ClaimsPrincipal user, int draggedWidgetId, int anchorWidgetId, bool below)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        if (!HasPermission("DashboardWidgets.Write")) return false;
         if (draggedWidgetId == anchorWidgetId) return false;
 
         using var db = CreateDb();
@@ -218,7 +218,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<PagedResult<DashboardParamViewModel>> ListParamsAsync(ClaimsPrincipal user, int dashboardWidgetId, ListQuery query)
     {
-        if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
+        if (!HasPermission("DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardParamViewModel>();
 
         using var db = CreateDb();
@@ -239,7 +239,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardParamViewModel?> CreateParamAsync(ClaimsPrincipal user, int dashboardWidgetId, DashboardParamViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = new TWidgetParam
         {
@@ -257,7 +257,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardParamViewModel?> UpdateParamAsync(ClaimsPrincipal user, DashboardParamViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = await db.WidgetParams.FirstOrDefaultAsync(p => p.DashboardParamId == input.DashboardParamId);
         if (entity == null) return null;
@@ -270,7 +270,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> DeleteParamAsync(ClaimsPrincipal user, int dashboardParamId)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        if (!HasPermission("DashboardWidgets.Write")) return false;
         using var db = CreateDb();
         var entity = await db.WidgetParams.FirstOrDefaultAsync(p => p.DashboardParamId == dashboardParamId);
         if (entity == null) return false;
@@ -281,7 +281,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<PagedResult<DashboardWidgetLocalizationViewModel>> ListLocalesAsync(ClaimsPrincipal user, int dashboardWidgetId, ListQuery query)
     {
-        if (!HasPermission(user, "DashboardWidgets.View", "DashboardWidgets.Write"))
+        if (!HasPermission("DashboardWidgets.View", "DashboardWidgets.Write"))
             return new PagedResult<DashboardWidgetLocalizationViewModel>();
 
         using var db = CreateDb();
@@ -303,7 +303,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardWidgetLocalizationViewModel?> CreateLocaleAsync(ClaimsPrincipal user, int dashboardWidgetId, DashboardWidgetLocalizationViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = new TWidgetLocalization
         {
@@ -322,7 +322,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<DashboardWidgetLocalizationViewModel?> UpdateLocaleAsync(ClaimsPrincipal user, DashboardWidgetLocalizationViewModel input)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return null;
+        if (!HasPermission("DashboardWidgets.Write")) return null;
         using var db = CreateDb();
         var entity = await db.WidgetLocales.FirstOrDefaultAsync(l => l.DashboardWidgetLocalizationId == input.DashboardWidgetLocalizationId);
         if (entity == null) return null;
@@ -336,7 +336,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> DeleteLocaleAsync(ClaimsPrincipal user, int dashboardWidgetLocalizationId)
     {
-        if (!HasPermission(user, "DashboardWidgets.Write")) return false;
+        if (!HasPermission("DashboardWidgets.Write")) return false;
         using var db = CreateDb();
         var entity = await db.WidgetLocales.FirstOrDefaultAsync(l => l.DashboardWidgetLocalizationId == dashboardWidgetLocalizationId);
         if (entity == null) return false;

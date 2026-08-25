@@ -143,8 +143,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "DashboardWidgets.View", "DashboardWidgets.Write");
-        hasWrite = Handler.HasPermission(currentUser, "DashboardWidgets.Write");
+        hasView = Handler.HasPermission("DashboardWidgets.View", "DashboardWidgets.Write");
+        hasWrite = Handler.HasPermission("DashboardWidgets.Write");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

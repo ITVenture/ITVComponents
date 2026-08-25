@@ -276,7 +276,7 @@
     private async Task OpenBranchCorrection(string nodeId)
     {
         if (instance is null || instance.Status != WorkflowStatus.Faulted
-            || !Handler.HasPermission(currentUser!, WorkflowSecurity.Operate))
+            || !Handler.HasPermission(WorkflowSecurity.Operate))
         {
             return;
         }

@@ -90,7 +90,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
@@ -100,7 +100,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<PagedResult<GlobalRoleViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.Write", ToolkitPermission.Sysadmin))
+        if (!HasPermission("GlobalRoles.View", "GlobalRoles.Write", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalRoleViewModel>();
 
         using var db = CreateDb();
@@ -163,7 +163,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<PagedResult<GlobalPermissionAssignmentViewModel>> ListPermissionsForGlobalRoleAsync(
         ClaimsPrincipal user, int globalRoleId, ListQuery query)
     {
-        if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.AssignPermission", ToolkitPermission.Sysadmin))
+        if (!HasPermission("GlobalRoles.View", "GlobalRoles.AssignPermission", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalPermissionAssignmentViewModel>();
 
         using var db = CreateDb();
@@ -227,7 +227,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
     public async Task<PagedResult<GlobalRoleForLocalRoleAssignmentViewModel>> ListGlobalRolesForLocalRoleAsync(
         ClaimsPrincipal user, int localRoleId, ListQuery query)
     {
-        if (!HasPermission(user, "GlobalRoles.View", "GlobalRoles.AssignRole", ToolkitPermission.Sysadmin))
+        if (!HasPermission("GlobalRoles.View", "GlobalRoles.AssignRole", ToolkitPermission.Sysadmin))
             return new PagedResult<GlobalRoleForLocalRoleAssignmentViewModel>();
 
         using var db = CreateDb();

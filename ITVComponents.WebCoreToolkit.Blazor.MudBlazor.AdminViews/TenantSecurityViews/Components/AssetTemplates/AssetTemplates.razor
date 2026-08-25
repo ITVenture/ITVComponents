@@ -84,7 +84,7 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        isSysAdmin = Handler.HasPermission(currentUser, "Sysadmin");
+        isSysAdmin = Handler.HasPermission("Sysadmin");
     }
 
     private async Task<GridData<AssetTemplateViewModel>> LoadData(GridState<AssetTemplateViewModel> state, CancellationToken ct)

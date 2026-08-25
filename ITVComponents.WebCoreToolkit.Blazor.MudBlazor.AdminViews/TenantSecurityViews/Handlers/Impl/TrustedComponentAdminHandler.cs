@@ -19,12 +19,12 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<TrustedComponentViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "TrustedComponents.View", "TrustedComponents.Write"))
+        if (!HasPermission("TrustedComponents.View", "TrustedComponents.Write"))
             return new PagedResult<TrustedComponentViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -52,7 +52,7 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
 
     public async Task<TrustedComponentViewModel?> CreateAsync(ClaimsPrincipal user, TrustedComponentViewModel input)
     {
-        if (!HasPermission(user, "TrustedComponents.Write")) return null;
+        if (!HasPermission("TrustedComponents.Write")) return null;
 
         return await factory.UseAsync<TrustedComponentViewModel?>(async db =>
         {
@@ -72,7 +72,7 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
 
     public async Task<TrustedComponentViewModel?> UpdateAsync(ClaimsPrincipal user, TrustedComponentViewModel input)
     {
-        if (!HasPermission(user, "TrustedComponents.Write")) return null;
+        if (!HasPermission("TrustedComponents.Write")) return null;
 
         return await factory.UseAsync<TrustedComponentViewModel?>(async db =>
         {
@@ -89,7 +89,7 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int trustedFullAccessComponentId)
     {
-        if (!HasPermission(user, "TrustedComponents.Write")) return false;
+        if (!HasPermission("TrustedComponents.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {

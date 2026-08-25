@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IGlobalSettingsAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<GlobalSettingViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<GlobalSettingViewModel?> CreateAsync(ClaimsPrincipal user, GlobalSettingViewModel input);

@@ -16,7 +16,7 @@ public interface IUserAdminHandler
 
     UserListContext GetContext(ClaimsPrincipal user);
 
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, UserListQuery query);
 

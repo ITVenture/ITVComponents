@@ -88,8 +88,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "PlugInConstants.View", "PlugInConstants.Write");
-        hasWrite = Handler.HasPermission(currentUser, "PlugInConstants.Write");
+        hasView = Handler.HasPermission("PlugInConstants.View", "PlugInConstants.Write");
+        hasWrite = Handler.HasPermission("PlugInConstants.Write");
     }
 
     private async Task<GridData<WebPluginConstantViewModel>> LoadData(GridState<WebPluginConstantViewModel> state, CancellationToken ct)

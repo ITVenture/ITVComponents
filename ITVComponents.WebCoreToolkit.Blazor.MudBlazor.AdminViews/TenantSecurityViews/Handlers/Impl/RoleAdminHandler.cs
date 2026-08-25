@@ -89,7 +89,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         this.tenantOptions = tenantOptions;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public AdminContext GetContext(ClaimsPrincipal user)

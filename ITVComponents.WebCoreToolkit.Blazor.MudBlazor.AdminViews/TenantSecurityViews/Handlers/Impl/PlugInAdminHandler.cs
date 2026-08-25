@@ -83,7 +83,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
@@ -100,7 +100,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<PagedResult<WebPluginViewModel>> ListPluginsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginViewModel>();
+        if (!HasPermission("PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var effective = ResolveTenant(db, tenantId);
@@ -133,7 +133,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginViewModel?> CreatePluginAsync(ClaimsPrincipal user, int? tenantId, WebPluginViewModel input)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return null;
+        if (!HasPermission("PlugIns.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var effective = ResolveTenant(db, tenantId);
@@ -159,7 +159,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginViewModel?> UpdatePluginAsync(ClaimsPrincipal user, WebPluginViewModel input)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return null;
+        if (!HasPermission("PlugIns.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.WebPlugins.FirstOrDefaultAsync(n => n.WebPluginId == input.WebPluginId);
@@ -176,7 +176,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<bool> DeletePluginAsync(ClaimsPrincipal user, int webPluginId)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return false;
+        if (!HasPermission("PlugIns.Write")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.WebPlugins.FirstOrDefaultAsync(n => n.WebPluginId == webPluginId);
@@ -190,7 +190,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<PagedResult<WebPluginGenericParameterViewModel>> ListPluginParametersAsync(ClaimsPrincipal user, int webPluginId, ListQuery query)
     {
-        if (!HasPermission(user, "PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginGenericParameterViewModel>();
+        if (!HasPermission("PlugIns.View", "PlugIns.Write")) return new PagedResult<WebPluginGenericParameterViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
 
@@ -211,7 +211,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginGenericParameterViewModel?> CreatePluginParameterAsync(ClaimsPrincipal user, int webPluginId, WebPluginGenericParameterViewModel input)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return null;
+        if (!HasPermission("PlugIns.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = new TWebPluginGenericParameter
@@ -229,7 +229,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginGenericParameterViewModel?> UpdatePluginParameterAsync(ClaimsPrincipal user, WebPluginGenericParameterViewModel input)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return null;
+        if (!HasPermission("PlugIns.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.GenericPluginParams.FirstOrDefaultAsync(n => n.WebPluginGenericParameterId == input.WebPluginGenericParameterId);
@@ -242,7 +242,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<bool> DeletePluginParameterAsync(ClaimsPrincipal user, int webPluginGenericParameterId)
     {
-        if (!HasPermission(user, "PlugIns.Write")) return false;
+        if (!HasPermission("PlugIns.Write")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.GenericPluginParams.FirstOrDefaultAsync(n => n.WebPluginGenericParameterId == webPluginGenericParameterId);
@@ -256,7 +256,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<PagedResult<WebPluginConstantViewModel>> ListConstantsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "PlugInConstants.View", "PlugInConstants.Write")) return new PagedResult<WebPluginConstantViewModel>();
+        if (!HasPermission("PlugInConstants.View", "PlugInConstants.Write")) return new PagedResult<WebPluginConstantViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var effective = ResolveTenant(db, tenantId);
@@ -283,7 +283,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginConstantViewModel?> CreateConstantAsync(ClaimsPrincipal user, int? tenantId, WebPluginConstantViewModel input)
     {
-        if (!HasPermission(user, "PlugInConstants.Write")) return null;
+        if (!HasPermission("PlugInConstants.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var effective = ResolveTenant(db, tenantId);
@@ -305,7 +305,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<WebPluginConstantViewModel?> UpdateConstantAsync(ClaimsPrincipal user, WebPluginConstantViewModel input)
     {
-        if (!HasPermission(user, "PlugInConstants.Write")) return null;
+        if (!HasPermission("PlugInConstants.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.WebPluginConstants.FirstOrDefaultAsync(n => n.WebPluginConstantId == input.WebPluginConstantId);
@@ -319,7 +319,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<bool> DeleteConstantAsync(ClaimsPrincipal user, int webPluginConstantId)
     {
-        if (!HasPermission(user, "PlugInConstants.Write")) return false;
+        if (!HasPermission("PlugInConstants.Write")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyScope(db);
         var entity = await db.WebPluginConstants.FirstOrDefaultAsync(n => n.WebPluginConstantId == webPluginConstantId);

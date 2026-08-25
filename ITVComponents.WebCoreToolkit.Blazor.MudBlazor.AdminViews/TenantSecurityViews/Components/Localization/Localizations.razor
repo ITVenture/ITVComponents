@@ -77,8 +77,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "DbResources.View", "DbResources.Write");
-        hasWrite = Handler.HasPermission(currentUser, "DbResources.Write");
+        hasView = Handler.HasPermission("DbResources.View", "DbResources.Write");
+        hasWrite = Handler.HasPermission("DbResources.Write");
     }
 
     private async Task<GridData<LocalizationViewModel>> LoadData(GridState<LocalizationViewModel> state, CancellationToken ct)

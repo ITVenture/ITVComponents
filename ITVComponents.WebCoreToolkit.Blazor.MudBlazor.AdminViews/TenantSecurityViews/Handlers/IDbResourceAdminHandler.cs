@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IDbResourceAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<CultureViewModel>> ListCulturesAsync(ClaimsPrincipal user, ListQuery query);
     Task<CultureViewModel?> CreateCultureAsync(ClaimsPrincipal user, CultureViewModel input);

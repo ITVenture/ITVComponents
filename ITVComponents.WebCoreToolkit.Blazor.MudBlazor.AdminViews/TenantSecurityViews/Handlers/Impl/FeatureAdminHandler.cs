@@ -20,12 +20,12 @@ public class FeatureAdminHandler : IFeatureAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<FeatureViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "Features.View", "Features.Write"))
+        if (!HasPermission("Features.View", "Features.Write"))
             return new PagedResult<FeatureViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -52,7 +52,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<FeatureViewModel?> CreateAsync(ClaimsPrincipal user, FeatureViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<FeatureViewModel?>(async db =>
         {
@@ -71,7 +71,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<FeatureViewModel?> UpdateAsync(ClaimsPrincipal user, FeatureViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<FeatureViewModel?>(async db =>
         {
@@ -87,7 +87,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int featureId)
     {
-        if (!HasPermission(user, "Features.Write")) return false;
+        if (!HasPermission("Features.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {
@@ -101,7 +101,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<PagedResult<TemplateModuleViewModel>> ListTemplateModulesAsync(ClaimsPrincipal user, int featureId, ListQuery query)
     {
-        if (!HasPermission(user, "Features.View", "Features.Write"))
+        if (!HasPermission("Features.View", "Features.Write"))
             return new PagedResult<TemplateModuleViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -127,7 +127,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleViewModel?> CreateTemplateModuleAsync(ClaimsPrincipal user, int featureId, TemplateModuleViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleViewModel?>(async db =>
         {
@@ -146,7 +146,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleViewModel?> UpdateTemplateModuleAsync(ClaimsPrincipal user, TemplateModuleViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleViewModel?>(async db =>
         {
@@ -160,7 +160,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<bool> DeleteTemplateModuleAsync(ClaimsPrincipal user, int templateModuleId)
     {
-        if (!HasPermission(user, "Features.Write")) return false;
+        if (!HasPermission("Features.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {
@@ -174,7 +174,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<PagedResult<TemplateModuleConfiguratorViewModel>> ListConfiguratorsAsync(ClaimsPrincipal user, int templateModuleId, ListQuery query)
     {
-        if (!HasPermission(user, "Features.View", "Features.Write"))
+        if (!HasPermission("Features.View", "Features.Write"))
             return new PagedResult<TemplateModuleConfiguratorViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -203,7 +203,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleConfiguratorViewModel?> CreateConfiguratorAsync(ClaimsPrincipal user, int templateModuleId, TemplateModuleConfiguratorViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleConfiguratorViewModel?>(async db =>
         {
@@ -225,7 +225,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleConfiguratorViewModel?> UpdateConfiguratorAsync(ClaimsPrincipal user, TemplateModuleConfiguratorViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleConfiguratorViewModel?>(async db =>
         {
@@ -242,7 +242,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<bool> DeleteConfiguratorAsync(ClaimsPrincipal user, int templateModuleConfiguratorId)
     {
-        if (!HasPermission(user, "Features.Write")) return false;
+        if (!HasPermission("Features.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {
@@ -256,7 +256,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<PagedResult<TemplateModuleScriptViewModel>> ListScriptsAsync(ClaimsPrincipal user, int templateModuleId, ListQuery query)
     {
-        if (!HasPermission(user, "Features.View", "Features.Write"))
+        if (!HasPermission("Features.View", "Features.Write"))
             return new PagedResult<TemplateModuleScriptViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -282,7 +282,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleScriptViewModel?> CreateScriptAsync(ClaimsPrincipal user, int templateModuleId, TemplateModuleScriptViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleScriptViewModel?>(async db =>
         {
@@ -301,7 +301,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleScriptViewModel?> UpdateScriptAsync(ClaimsPrincipal user, TemplateModuleScriptViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleScriptViewModel?>(async db =>
         {
@@ -315,7 +315,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<bool> DeleteScriptAsync(ClaimsPrincipal user, int templateModuleScriptId)
     {
-        if (!HasPermission(user, "Features.Write")) return false;
+        if (!HasPermission("Features.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {
@@ -329,7 +329,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<PagedResult<TemplateModuleConfiguratorParameterViewModel>> ListConfiguratorParametersAsync(ClaimsPrincipal user, int templateModuleConfiguratorId, ListQuery query)
     {
-        if (!HasPermission(user, "Features.View", "Features.Write"))
+        if (!HasPermission("Features.View", "Features.Write"))
             return new PagedResult<TemplateModuleConfiguratorParameterViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -358,7 +358,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleConfiguratorParameterViewModel?> CreateConfiguratorParameterAsync(ClaimsPrincipal user, int templateModuleConfiguratorId, TemplateModuleConfiguratorParameterViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleConfiguratorParameterViewModel?>(async db =>
         {
@@ -379,7 +379,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<TemplateModuleConfiguratorParameterViewModel?> UpdateConfiguratorParameterAsync(ClaimsPrincipal user, TemplateModuleConfiguratorParameterViewModel input)
     {
-        if (!HasPermission(user, "Features.Write")) return null;
+        if (!HasPermission("Features.Write")) return null;
 
         return await factory.UseAsync<TemplateModuleConfiguratorParameterViewModel?>(async db =>
         {
@@ -395,7 +395,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
 
     public async Task<bool> DeleteConfiguratorParameterAsync(ClaimsPrincipal user, int templateModuleCfgParameterId)
     {
-        if (!HasPermission(user, "Features.Write")) return false;
+        if (!HasPermission("Features.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {

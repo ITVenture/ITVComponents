@@ -58,8 +58,8 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "GlobalRoles.View", "GlobalRoles.AssignPermission", "Sysadmin");
-        hasWrite = Handler.HasPermission(currentUser, "GlobalRoles.AssignPermission", "Sysadmin");
+        hasView = Handler.HasPermission("GlobalRoles.View", "GlobalRoles.AssignPermission", "Sysadmin");
+        hasWrite = Handler.HasPermission("GlobalRoles.AssignPermission", "Sysadmin");
     }
 
     private async Task<GridData<GlobalPermissionAssignmentViewModel>> LoadData(GridState<GlobalPermissionAssignmentViewModel> state, CancellationToken ct)

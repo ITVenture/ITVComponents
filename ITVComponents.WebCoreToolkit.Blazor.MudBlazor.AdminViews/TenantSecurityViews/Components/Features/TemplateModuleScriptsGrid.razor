@@ -55,8 +55,8 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Features.View", "Features.Write");
-        hasWrite = Handler.HasPermission(currentUser, "Features.Write");
+        hasView = Handler.HasPermission("Features.View", "Features.Write");
+        hasWrite = Handler.HasPermission("Features.Write");
     }
 
     private async Task<GridData<TemplateModuleScriptViewModel>> LoadData(GridState<TemplateModuleScriptViewModel> state, CancellationToken ct)

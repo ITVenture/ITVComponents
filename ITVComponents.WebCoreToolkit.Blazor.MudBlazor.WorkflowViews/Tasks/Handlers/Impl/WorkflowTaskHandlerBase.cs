@@ -41,7 +41,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<PagedResult<UserTaskListItem>> ListTasksAsync(ClaimsPrincipal user,
             UserTaskListQuery query, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return new PagedResult<UserTaskListItem>();
             }
@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// <inheritdoc/>
         public async Task<IReadOnlyList<string>> ListTaskKeysAsync(ClaimsPrincipal user, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return Array.Empty<string>();
             }
@@ -134,7 +134,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<UserTaskListItem?> FindNextAsync(ClaimsPrincipal user, string instanceId,
             string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            if (!HasPermission(WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
             {
                 return null;
             }
@@ -234,7 +234,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task ReleaseClaimAsync(ClaimsPrincipal user, string instanceId, string tokenId,
             string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return;
             }
@@ -263,7 +263,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<UserTaskAssignmentStatus> ReassignAsync(ClaimsPrincipal user, string instanceId,
             string tokenId, string? newAssignee, string? reason = null, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 LogEnvironment.LogEvent(
                     $"Reassign denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
@@ -312,7 +312,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<IReadOnlyList<WorkflowComment>> ListCommentsAsync(ClaimsPrincipal user,
             string instanceId, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            if (!HasPermission(WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
             {
                 return Array.Empty<WorkflowComment>();
             }
@@ -340,7 +340,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<WorkflowComment?> AddCommentAsync(ClaimsPrincipal user, string instanceId,
             string? tokenId, string text, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 LogEnvironment.LogEvent(
                     $"Comment denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
@@ -396,7 +396,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<IReadOnlyList<WorkflowAttachment>> ListAttachmentsAsync(ClaimsPrincipal user,
             string instanceId, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
+            if (!HasPermission(WorkflowSecurity.Tasks) || string.IsNullOrWhiteSpace(instanceId))
             {
                 return Array.Empty<WorkflowAttachment>();
             }
@@ -428,7 +428,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
             string? tokenId, string fileName, string? contentType, byte[] content,
             string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 LogEnvironment.LogEvent(
                     $"Attachment denied: '{UserName(user)}' has no '{WorkflowSecurity.Tasks}' permission.",
@@ -503,7 +503,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<WorkflowAttachmentDownload?> OpenAttachmentAsync(ClaimsPrincipal user,
             string instanceId, int attachmentKey, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return null;
             }
@@ -544,7 +544,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         public async Task<bool> DeleteAttachmentAsync(ClaimsPrincipal user, string instanceId,
             int attachmentKey, string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return false;
             }
@@ -625,7 +625,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         /// </remarks>
         private bool MayReassign(ClaimsPrincipal user, string? me, string? assignedTo, string? taskPermission)
         {
-            if (HasPermission(user, WorkflowSecurity.AssignTasks))
+            if (HasPermission(WorkflowSecurity.AssignTasks))
             {
                 return true;
             }
@@ -763,7 +763,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
         private async Task<bool> MayWorkOnAsync(ClaimsPrincipal user, string instanceId, string tokenId,
             string? environment = null)
         {
-            if (!HasPermission(user, WorkflowSecurity.Tasks))
+            if (!HasPermission(WorkflowSecurity.Tasks))
             {
                 return false;
             }

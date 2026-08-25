@@ -216,7 +216,7 @@
     {
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        mayAssignForeign = Handler.HasPermission(currentUser, WorkflowSecurity.AssignTasks);
+        mayAssignForeign = Handler.HasPermission(WorkflowSecurity.AssignTasks);
 
         SubscribeToProgress();
 

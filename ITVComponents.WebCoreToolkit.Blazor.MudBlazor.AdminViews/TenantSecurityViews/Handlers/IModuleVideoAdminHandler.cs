@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IModuleVideoAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<VideoTutorialViewModel>> ListTutorialsAsync(ClaimsPrincipal user, ListQuery query);
     Task<VideoTutorialViewModel?> CreateTutorialAsync(ClaimsPrincipal user, VideoTutorialViewModel input);

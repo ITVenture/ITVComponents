@@ -89,12 +89,12 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<PermissionSetViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
+        if (!HasPermission("Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
             return new PagedResult<PermissionSetViewModel>();
 
         using var db = CreateDb();
@@ -117,7 +117,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
 
     public async Task<PermissionSetViewModel?> CreateAsync(ClaimsPrincipal user, PermissionSetViewModel input)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        if (!HasPermission("Apps.PermissionSets.Write")) return null;
         using var db = CreateDb();
         var entity = new TAppPermissionSet { Name = input.Name };
         db.AppPermissionSets.Add(entity);
@@ -128,7 +128,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
 
     public async Task<PermissionSetViewModel?> UpdateAsync(ClaimsPrincipal user, PermissionSetViewModel input)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.Write")) return null;
+        if (!HasPermission("Apps.PermissionSets.Write")) return null;
         using var db = CreateDb();
         var entity = await db.AppPermissionSets.FirstOrDefaultAsync(p => p.AppPermissionSetId == input.AppPermissionSetId);
         if (entity == null) return null;
@@ -139,7 +139,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int appPermissionSetId)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
+        if (!HasPermission("Apps.PermissionSets.Write")) return false;
         using var db = CreateDb();
         var entity = await db.AppPermissionSets.FirstOrDefaultAsync(p => p.AppPermissionSetId == appPermissionSetId);
         if (entity == null) return false;
@@ -151,7 +151,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<PagedResult<AppPermissionAssignmentViewModel>> ListPermissionsForSetAsync(
         ClaimsPrincipal user, int appPermissionSetId, ListQuery query)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
+        if (!HasPermission("Apps.PermissionSets.View", "Apps.PermissionSets.Write"))
             return new PagedResult<AppPermissionAssignmentViewModel>();
 
         using var db = CreateDb();
@@ -189,7 +189,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     public async Task<bool> SetPermissionForSetAsync(
         ClaimsPrincipal user, int appPermissionSetId, int permissionId, bool assigned)
     {
-        if (!HasPermission(user, "Apps.PermissionSets.Write")) return false;
+        if (!HasPermission("Apps.PermissionSets.Write")) return false;
 
         using var db = CreateDb();
         var existing = await db.AppPermissions.FirstOrDefaultAsync(ap =>

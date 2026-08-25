@@ -20,12 +20,12 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<CultureViewModel>> ListCulturesAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "DbCultures.View", "DbCultures.Write")) return new PagedResult<CultureViewModel>();
+        if (!HasPermission("DbCultures.View", "DbCultures.Write")) return new PagedResult<CultureViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = db.Cultures.AsNoTracking().AsQueryable();
@@ -41,7 +41,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<CultureViewModel?> CreateCultureAsync(ClaimsPrincipal user, CultureViewModel input)
     {
-        if (!HasPermission(user, "DbCultures.Write")) return null;
+        if (!HasPermission("DbCultures.Write")) return null;
         return await factory.UseAsync<CultureViewModel?>(async db =>
         {
             var entity = new Culture { Name = input.Name };
@@ -54,7 +54,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<CultureViewModel?> UpdateCultureAsync(ClaimsPrincipal user, CultureViewModel input)
     {
-        if (!HasPermission(user, "DbCultures.Write")) return null;
+        if (!HasPermission("DbCultures.Write")) return null;
         return await factory.UseAsync<CultureViewModel?>(async db =>
         {
             var entity = await db.Cultures.FirstOrDefaultAsync(c => c.CultureId == input.CultureId);
@@ -67,7 +67,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<bool> DeleteCultureAsync(ClaimsPrincipal user, int cultureId)
     {
-        if (!HasPermission(user, "DbCultures.Write")) return false;
+        if (!HasPermission("DbCultures.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.Cultures.FirstOrDefaultAsync(c => c.CultureId == cultureId);
@@ -80,7 +80,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<PagedResult<LocalizationViewModel>> ListLocalizationsAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationViewModel>();
+        if (!HasPermission("DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = db.Localizations.AsNoTracking().AsQueryable();
@@ -96,7 +96,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<LocalizationViewModel?> CreateLocalizationAsync(ClaimsPrincipal user, LocalizationViewModel input)
     {
-        if (!HasPermission(user, "DbResources.Write")) return null;
+        if (!HasPermission("DbResources.Write")) return null;
         return await factory.UseAsync<LocalizationViewModel?>(async db =>
         {
             var entity = new DbLocale { Identifier = input.Identifier };
@@ -109,7 +109,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<LocalizationViewModel?> UpdateLocalizationAsync(ClaimsPrincipal user, LocalizationViewModel input)
     {
-        if (!HasPermission(user, "DbResources.Write")) return null;
+        if (!HasPermission("DbResources.Write")) return null;
         return await factory.UseAsync<LocalizationViewModel?>(async db =>
         {
             var entity = await db.Localizations.FirstOrDefaultAsync(l => l.LocalizationId == input.LocalizationId);
@@ -122,7 +122,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<bool> DeleteLocalizationAsync(ClaimsPrincipal user, int localizationId)
     {
-        if (!HasPermission(user, "DbResources.Write")) return false;
+        if (!HasPermission("DbResources.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.Localizations.FirstOrDefaultAsync(l => l.LocalizationId == localizationId);
@@ -135,7 +135,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<PagedResult<LocalizationCultureViewModel>> ListLocalizationCulturesAsync(ClaimsPrincipal user, int localizationId, ListQuery query)
     {
-        if (!HasPermission(user, "DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationCultureViewModel>();
+        if (!HasPermission("DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationCultureViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = from lc in db.LocalizationCultures.AsNoTracking()
@@ -157,7 +157,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<LocalizationCultureViewModel?> CreateLocalizationCultureAsync(ClaimsPrincipal user, int localizationId, LocalizationCultureViewModel input)
     {
-        if (!HasPermission(user, "DbResources.Write")) return null;
+        if (!HasPermission("DbResources.Write")) return null;
         return await factory.UseAsync<LocalizationCultureViewModel?>(async db =>
         {
             var entity = new LocalizationCulture { LocalizationId = localizationId, CultureId = input.CultureId };
@@ -171,7 +171,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<bool> DeleteLocalizationCultureAsync(ClaimsPrincipal user, int localizationCultureId)
     {
-        if (!HasPermission(user, "DbResources.Write")) return false;
+        if (!HasPermission("DbResources.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.LocalizationCultures.FirstOrDefaultAsync(c => c.LocalizationCultureId == localizationCultureId);
@@ -184,7 +184,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<PagedResult<LocalizationStringViewModel>> ListStringsAsync(ClaimsPrincipal user, int localizationCultureId, ListQuery query)
     {
-        if (!HasPermission(user, "DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationStringViewModel>();
+        if (!HasPermission("DbResources.View", "DbResources.Write")) return new PagedResult<LocalizationStringViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = db.LocalizationCultureStrings.AsNoTracking().Where(s => s.LocalizationCultureId == localizationCultureId);
@@ -206,7 +206,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<LocalizationStringViewModel?> CreateStringAsync(ClaimsPrincipal user, int localizationCultureId, LocalizationStringViewModel input)
     {
-        if (!HasPermission(user, "DbResources.Write")) return null;
+        if (!HasPermission("DbResources.Write")) return null;
         return await factory.UseAsync<LocalizationStringViewModel?>(async db =>
         {
             var entity = new LocalizationString
@@ -225,7 +225,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<LocalizationStringViewModel?> UpdateStringAsync(ClaimsPrincipal user, LocalizationStringViewModel input)
     {
-        if (!HasPermission(user, "DbResources.Write")) return null;
+        if (!HasPermission("DbResources.Write")) return null;
         return await factory.UseAsync<LocalizationStringViewModel?>(async db =>
         {
             var entity = await db.LocalizationCultureStrings.FirstOrDefaultAsync(s => s.LocalizationStringId == input.LocalizationStringId);
@@ -239,7 +239,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
 
     public async Task<bool> DeleteStringAsync(ClaimsPrincipal user, int localizationStringId)
     {
-        if (!HasPermission(user, "DbResources.Write")) return false;
+        if (!HasPermission("DbResources.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.LocalizationCultureStrings.FirstOrDefaultAsync(s => s.LocalizationStringId == localizationStringId);

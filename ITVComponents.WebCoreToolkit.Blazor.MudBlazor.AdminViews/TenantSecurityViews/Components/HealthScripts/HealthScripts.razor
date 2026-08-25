@@ -76,8 +76,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "HealthChecks.View", "HealthChecks.Write", "Sysadmin");
-        hasWrite = Handler.HasPermission(currentUser, "HealthChecks.Write", "Sysadmin");
+        hasView = Handler.HasPermission("HealthChecks.View", "HealthChecks.Write", "Sysadmin");
+        hasWrite = Handler.HasPermission("HealthChecks.Write", "Sysadmin");
     }
 
     private async Task<GridData<HealthScriptViewModel>> LoadData(GridState<HealthScriptViewModel> state, CancellationToken ct)

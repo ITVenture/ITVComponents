@@ -52,8 +52,8 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Tenants.AssignNav", "Sysadmin");
-        hasWrite = Handler.HasPermission(currentUser, "Tenants.AssignNav", "Sysadmin");
+        hasView = Handler.HasPermission("Tenants.AssignNav", "Sysadmin");
+        hasWrite = Handler.HasPermission("Tenants.AssignNav", "Sysadmin");
     }
 
     private async Task<GridData<TenantNavigationAssignmentViewModel>> LoadData(GridState<TenantNavigationAssignmentViewModel> state, CancellationToken ct)

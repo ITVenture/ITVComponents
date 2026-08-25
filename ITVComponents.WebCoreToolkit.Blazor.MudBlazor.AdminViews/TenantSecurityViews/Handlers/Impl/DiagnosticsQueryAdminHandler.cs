@@ -90,12 +90,12 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<DiagnosticsQueryViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
+        if (!HasPermission("DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
             return new PagedResult<DiagnosticsQueryViewModel>();
 
         using var db = CreateDb();
@@ -135,7 +135,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<DiagnosticsQueryViewModel?> CreateAsync(ClaimsPrincipal user, DiagnosticsQueryViewModel input)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return null;
+        if (!HasPermission("DiagnosticsQueries.Write")) return null;
         using var db = CreateDb();
         var entity = new TQuery
         {
@@ -157,7 +157,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<DiagnosticsQueryViewModel?> UpdateAsync(ClaimsPrincipal user, DiagnosticsQueryViewModel input)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return null;
+        if (!HasPermission("DiagnosticsQueries.Write")) return null;
         using var db = CreateDb();
         var entity = await db.DiagnosticsQueries
             .Include(d => d.Tenants)
@@ -176,7 +176,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int diagnosticsQueryId)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return false;
+        if (!HasPermission("DiagnosticsQueries.Write")) return false;
         using var db = CreateDb();
         var entity = await db.DiagnosticsQueries
             .Include(d => d.Tenants)
@@ -193,7 +193,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<PagedResult<DiagnosticsQueryParameterViewModel>> ListParametersAsync(ClaimsPrincipal user, int diagnosticsQueryId, ListQuery query)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
+        if (!HasPermission("DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
             return new PagedResult<DiagnosticsQueryParameterViewModel>();
 
         using var db = CreateDb();
@@ -216,7 +216,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<DiagnosticsQueryParameterViewModel?> CreateParameterAsync(ClaimsPrincipal user, int diagnosticsQueryId, DiagnosticsQueryParameterViewModel input)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return null;
+        if (!HasPermission("DiagnosticsQueries.Write")) return null;
         using var db = CreateDb();
         var entity = new TQueryParameter
         {
@@ -236,7 +236,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<DiagnosticsQueryParameterViewModel?> UpdateParameterAsync(ClaimsPrincipal user, DiagnosticsQueryParameterViewModel input)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return null;
+        if (!HasPermission("DiagnosticsQueries.Write")) return null;
         using var db = CreateDb();
         var entity = await db.DiagnosticsQueryParameters.FirstOrDefaultAsync(p => p.DiagnosticsQueryParameterId == input.DiagnosticsQueryParameterId);
         if (entity == null) return null;
@@ -251,7 +251,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<bool> DeleteParameterAsync(ClaimsPrincipal user, int diagnosticsQueryParameterId)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.Write")) return false;
+        if (!HasPermission("DiagnosticsQueries.Write")) return false;
         using var db = CreateDb();
         var entity = await db.DiagnosticsQueryParameters.FirstOrDefaultAsync(p => p.DiagnosticsQueryParameterId == diagnosticsQueryParameterId);
         if (entity == null) return false;
@@ -262,7 +262,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
 
     public async Task<IReadOnlyList<TenantChoice>> ListAllTenantsAsync(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, "DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
+        if (!HasPermission("DiagnosticsQueries.View", "DiagnosticsQueries.Write"))
             return Array.Empty<TenantChoice>();
 
         using var db = CreateDb();

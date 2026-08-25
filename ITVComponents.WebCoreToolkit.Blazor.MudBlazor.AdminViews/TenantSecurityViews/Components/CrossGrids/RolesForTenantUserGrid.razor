@@ -59,8 +59,8 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Roles.AssignUser", "Roles.View");
-        hasWrite = Handler.HasPermission(currentUser, "Roles.AssignUser");
+        hasView = Handler.HasPermission("Roles.AssignUser", "Roles.View");
+        hasWrite = Handler.HasPermission("Roles.AssignUser");
     }
 
     private async Task<GridData<RoleAssignmentViewModel>> LoadData(GridState<RoleAssignmentViewModel> state, CancellationToken ct)

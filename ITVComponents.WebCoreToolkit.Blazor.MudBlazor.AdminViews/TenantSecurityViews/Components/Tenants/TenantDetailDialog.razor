@@ -76,7 +76,7 @@
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
-        canExtractTemplate = Handler.HasPermission(auth.User, "TenantTemplates.Write");
+        canExtractTemplate = Handler.HasPermission("TenantTemplates.Write");
     }
 
     private void Close() => MudDialog.Close();

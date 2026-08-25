@@ -95,7 +95,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     
     public bool UseHierarchy => tenantOptions.Value.UseHierarchy;
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public AdminContext GetContext(ClaimsPrincipal user)
@@ -285,7 +285,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<PagedResult<TenantSettingViewModel>> ListSettingsAsync(ClaimsPrincipal user, int tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "Tenants.View", "Tenants.WriteSettings"))
+        if (!HasPermission("Tenants.View", "Tenants.WriteSettings"))
             return new PagedResult<TenantSettingViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
@@ -313,7 +313,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<TenantSettingViewModel?> CreateSettingAsync(ClaimsPrincipal user, int tenantId, TenantSettingViewModel input)
     {
-        if (!HasPermission(user, "Tenants.WriteSettings")) return null;
+        if (!HasPermission("Tenants.WriteSettings")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -336,7 +336,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<TenantSettingViewModel?> UpdateSettingAsync(ClaimsPrincipal user, TenantSettingViewModel input)
     {
-        if (!HasPermission(user, "Tenants.WriteSettings")) return null;
+        if (!HasPermission("Tenants.WriteSettings")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -364,7 +364,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<bool> DeleteSettingAsync(ClaimsPrincipal user, int tenantSettingId)
     {
-        if (!HasPermission(user, "Tenants.WriteSettings")) return false;
+        if (!HasPermission("Tenants.WriteSettings")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -378,7 +378,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<PagedResult<TenantFeatureActivationAssignmentViewModel>> ListFeatureActivationsForTenantAsync(
         ClaimsPrincipal user, int tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "Sysadmin"))
+        if (!HasPermission("Sysadmin"))
             return new PagedResult<TenantFeatureActivationAssignmentViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
@@ -412,7 +412,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> SetFeatureActivationForTenantAsync(
         ClaimsPrincipal user, int tenantId, int featureId, bool assigned, DateTime? activationStart, DateTime? activationEnd)
     {
-        if (!HasPermission(user, "Sysadmin")) return false;
+        if (!HasPermission("Sysadmin")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -451,7 +451,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<PagedResult<TenantNavigationAssignmentViewModel>> ListNavigationForTenantAsync(
         ClaimsPrincipal user, int tenantId, ListQuery query)
     {
-        if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin"))
+        if (!HasPermission("Tenants.AssignNav", "Sysadmin"))
             return new PagedResult<TenantNavigationAssignmentViewModel>();
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
@@ -483,7 +483,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
     public async Task<bool> SetNavigationForTenantAsync(
         ClaimsPrincipal user, int tenantId, int navigationMenuId, bool assigned)
     {
-        if (!HasPermission(user, "Tenants.AssignNav", "Sysadmin")) return false;
+        if (!HasPermission("Tenants.AssignNav", "Sysadmin")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -513,7 +513,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<bool> ReapplyTenantTemplateAsync(ClaimsPrincipal user, int tenantId, TemplateApplyMode defaultMode)
     {
-        if (!HasPermission(user, "TenantTemplates.Write")) return false;
+        if (!HasPermission("TenantTemplates.Write")) return false;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 
@@ -528,7 +528,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
     public async Task<TenantTemplateViewModel?> ExtractTemplateAsync(ClaimsPrincipal user, int tenantId, string name, string? description)
     {
-        if (!HasPermission(user, "TenantTemplates.Write")) return null;
+        if (!HasPermission("TenantTemplates.Write")) return null;
         using var db = dbFactory.CreateDbContext();
         ApplyContextScope(db, IsSysAdmin());
 

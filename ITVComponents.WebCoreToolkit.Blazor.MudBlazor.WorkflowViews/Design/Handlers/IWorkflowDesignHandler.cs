@@ -15,7 +15,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
     public interface IWorkflowDesignHandler
     {
         /// <summary>Prueft, ob der aktuelle Benutzer eine der Berechtigungen hat.</summary>
-        bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+        bool HasPermission(params string[] permissions);
 
         /// <summary>
         /// Liefert eine Seite der Definition-Uebersicht (je Zeile eine Id+Version). <paramref name="environment"/>

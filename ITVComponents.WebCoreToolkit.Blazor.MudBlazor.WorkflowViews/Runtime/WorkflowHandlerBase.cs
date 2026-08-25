@@ -98,7 +98,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         /// ihn fuehren; wer echte "pruefe fuer Benutzer X"-Semantik braucht, braucht einen anderen Weg als
         /// diesen.
         /// </remarks>
-        public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+        public bool HasPermission(params string[] permissions)
             => Services.VerifyUserPermissions(permissions);
 
         /// <summary>

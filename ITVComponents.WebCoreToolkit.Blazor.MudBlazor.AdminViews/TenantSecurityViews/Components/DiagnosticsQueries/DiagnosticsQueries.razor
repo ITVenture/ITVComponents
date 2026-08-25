@@ -89,8 +89,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "DiagnosticsQueries.View", "DiagnosticsQueries.Write");
-        hasWrite = Handler.HasPermission(currentUser, "DiagnosticsQueries.Write");
+        hasView = Handler.HasPermission("DiagnosticsQueries.View", "DiagnosticsQueries.Write");
+        hasWrite = Handler.HasPermission("DiagnosticsQueries.Write");
         if (hasView) allTenants = await Handler.ListAllTenantsAsync(currentUser);
     }
 

@@ -38,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             this.planSynchronizer = planSynchronizer;
         }
 
-        public bool HasPermission(ClaimsPrincipal user, params string[] permissions) => services.VerifyUserPermissions(permissions);
+        public bool HasPermission(params string[] permissions) => services.VerifyUserPermissions(permissions);
 
         public bool CanManage(ClaimsPrincipal user)
             => services.VerifyUserPermissions(new[] { ManageSubscriptionPermission, ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin });

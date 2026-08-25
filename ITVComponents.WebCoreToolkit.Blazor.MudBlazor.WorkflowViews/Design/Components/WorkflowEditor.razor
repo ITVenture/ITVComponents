@@ -844,13 +844,13 @@
             { nameof(DefinitionSettingsDialog.Def), def },
             {
                 nameof(DefinitionSettingsDialog.CanPublish),
-                Handler.HasPermission(auth.User, WorkflowSecurity.DesignPublic)
+                Handler.HasPermission(WorkflowSecurity.DesignPublic)
             },
             {
                 // Feature und Berechtigung der Definition sind eine Aussage ueber ALLE Mandanten - das
                 // darf nur der Sysadmin, nicht schon, wer oeffentlich modellieren darf.
                 nameof(DefinitionSettingsDialog.CanGate),
-                Handler.HasPermission(auth.User, WorkflowSecurity.Sysadmin)
+                Handler.HasPermission(WorkflowSecurity.Sysadmin)
             }
         };
         var options = new DialogOptions

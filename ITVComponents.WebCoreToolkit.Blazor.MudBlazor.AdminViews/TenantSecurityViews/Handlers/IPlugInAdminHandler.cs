@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IPlugInAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<WebPluginViewModel>> ListPluginsAsync(ClaimsPrincipal user, int? tenantId, ListQuery query);
     Task<WebPluginViewModel?> CreatePluginAsync(ClaimsPrincipal user, int? tenantId, WebPluginViewModel input);

@@ -20,12 +20,12 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<TenantTypeViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "TenantTypes.View", "TenantTypes.Write"))
+        if (!HasPermission("TenantTypes.View", "TenantTypes.Write"))
             return new PagedResult<TenantTypeViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -52,7 +52,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
 
     public async Task<TenantTypeViewModel?> CreateAsync(ClaimsPrincipal user, TenantTypeViewModel input)
     {
-        if (!HasPermission(user, "TenantTypes.Write")) return null;
+        if (!HasPermission("TenantTypes.Write")) return null;
 
         return await factory.UseAsync<TenantTypeViewModel?>(async db =>
         {
@@ -71,7 +71,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
 
     public async Task<TenantTypeViewModel?> UpdateAsync(ClaimsPrincipal user, TenantTypeViewModel input)
     {
-        if (!HasPermission(user, "TenantTypes.Write")) return null;
+        if (!HasPermission("TenantTypes.Write")) return null;
 
         return await factory.UseAsync<TenantTypeViewModel?>(async db =>
         {
@@ -87,7 +87,7 @@ public class TenantTypeAdminHandler : ITenantTypeAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int tenantTypeId)
     {
-        if (!HasPermission(user, "TenantTypes.Write")) return false;
+        if (!HasPermission("TenantTypes.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {

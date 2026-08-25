@@ -24,12 +24,12 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public Task<PagedResult<AuthenticationTypeViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "AuthenticationTypes.View", "AuthenticationTypes.Write"))
+        if (!HasPermission("AuthenticationTypes.View", "AuthenticationTypes.Write"))
             return Task.FromResult(new PagedResult<AuthenticationTypeViewModel>());
 
         return factory.UseAsync(async db =>
@@ -54,7 +54,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<AuthenticationTypeViewModel?> CreateAsync(ClaimsPrincipal user, AuthenticationTypeViewModel input)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult<AuthenticationTypeViewModel?>(null);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult<AuthenticationTypeViewModel?>(null);
 
         return factory.UseAsync<AuthenticationTypeViewModel?>(async db =>
         {
@@ -68,7 +68,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<AuthenticationTypeViewModel?> UpdateAsync(ClaimsPrincipal user, AuthenticationTypeViewModel input)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult<AuthenticationTypeViewModel?>(null);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult<AuthenticationTypeViewModel?>(null);
 
         return factory.UseAsync<AuthenticationTypeViewModel?>(async db =>
         {
@@ -82,7 +82,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<bool> DeleteAsync(ClaimsPrincipal user, int authenticationTypeId)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult(false);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult(false);
 
         return factory.UseAsync(async db =>
         {
@@ -96,7 +96,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<PagedResult<AuthenticationClaimMappingViewModel>> ListClaimsAsync(ClaimsPrincipal user, int authenticationTypeId, ListQuery query)
     {
-        if (!HasPermission(user, "AuthenticationTypes.View", "AuthenticationTypes.Write"))
+        if (!HasPermission("AuthenticationTypes.View", "AuthenticationTypes.Write"))
             return Task.FromResult(new PagedResult<AuthenticationClaimMappingViewModel>());
 
         return factory.UseAsync(async db =>
@@ -124,7 +124,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<AuthenticationClaimMappingViewModel?> CreateClaimAsync(ClaimsPrincipal user, int authenticationTypeId, AuthenticationClaimMappingViewModel input)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult<AuthenticationClaimMappingViewModel?>(null);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult<AuthenticationClaimMappingViewModel?>(null);
 
         return factory.UseAsync<AuthenticationClaimMappingViewModel?>(async db =>
         {
@@ -149,7 +149,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<AuthenticationClaimMappingViewModel?> UpdateClaimAsync(ClaimsPrincipal user, AuthenticationClaimMappingViewModel input)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult<AuthenticationClaimMappingViewModel?>(null);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult<AuthenticationClaimMappingViewModel?>(null);
 
         return factory.UseAsync<AuthenticationClaimMappingViewModel?>(async db =>
         {
@@ -169,7 +169,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
 
     public Task<bool> DeleteClaimAsync(ClaimsPrincipal user, int claimMappingId)
     {
-        if (!HasPermission(user, "AuthenticationTypes.Write")) return Task.FromResult(false);
+        if (!HasPermission("AuthenticationTypes.Write")) return Task.FromResult(false);
 
         return factory.UseAsync(async db =>
         {

@@ -96,8 +96,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "PlugIns.View", "PlugIns.Write");
-        hasWrite = Handler.HasPermission(currentUser, "PlugIns.Write");
+        hasView = Handler.HasPermission("PlugIns.View", "PlugIns.Write");
+        hasWrite = Handler.HasPermission("PlugIns.Write");
     }
 
     private async Task<GridData<WebPluginViewModel>> LoadData(GridState<WebPluginViewModel> state, CancellationToken ct)

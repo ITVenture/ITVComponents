@@ -21,12 +21,12 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<GlobalSettingViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "GlobalSettings.View", "GlobalSettings.Write"))
+        if (!HasPermission("GlobalSettings.View", "GlobalSettings.Write"))
             return new PagedResult<GlobalSettingViewModel>();
 
         return await factory.UseAsync(async db =>
@@ -53,7 +53,7 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
 
     public async Task<GlobalSettingViewModel?> CreateAsync(ClaimsPrincipal user, GlobalSettingViewModel input)
     {
-        if (!HasPermission(user, "GlobalSettings.Write")) return null;
+        if (!HasPermission("GlobalSettings.Write")) return null;
 
         return await factory.UseAsync<GlobalSettingViewModel?>(async db =>
         {
@@ -79,7 +79,7 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
 
     public async Task<GlobalSettingViewModel?> UpdateAsync(ClaimsPrincipal user, GlobalSettingViewModel input)
     {
-        if (!HasPermission(user, "GlobalSettings.Write")) return null;
+        if (!HasPermission("GlobalSettings.Write")) return null;
 
         return await factory.UseAsync<GlobalSettingViewModel?>(async db =>
         {
@@ -101,7 +101,7 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int globalSettingId)
     {
-        if (!HasPermission(user, "GlobalSettings.Write")) return false;
+        if (!HasPermission("GlobalSettings.Write")) return false;
 
         return await factory.UseAsync(async db =>
         {

@@ -84,7 +84,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public UserListContext GetContext(ClaimsPrincipal user)

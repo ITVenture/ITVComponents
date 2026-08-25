@@ -78,8 +78,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "GlobalSettings.View", "GlobalSettings.Write");
-        hasWrite = Handler.HasPermission(currentUser, "GlobalSettings.Write");
+        hasView = Handler.HasPermission("GlobalSettings.View", "GlobalSettings.Write");
+        hasWrite = Handler.HasPermission("GlobalSettings.Write");
     }
 
     private async Task<GridData<GlobalSettingViewModel>> LoadData(GridState<GlobalSettingViewModel> state, CancellationToken ct)

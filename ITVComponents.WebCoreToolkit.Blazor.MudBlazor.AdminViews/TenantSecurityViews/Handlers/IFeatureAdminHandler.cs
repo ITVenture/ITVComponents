@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IFeatureAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<FeatureViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<FeatureViewModel?> CreateAsync(ClaimsPrincipal user, FeatureViewModel input);

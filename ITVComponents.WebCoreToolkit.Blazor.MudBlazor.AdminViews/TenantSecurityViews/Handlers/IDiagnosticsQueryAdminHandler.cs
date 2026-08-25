@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IDiagnosticsQueryAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<DiagnosticsQueryViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<DiagnosticsQueryViewModel?> CreateAsync(ClaimsPrincipal user, DiagnosticsQueryViewModel input);

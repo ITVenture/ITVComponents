@@ -119,8 +119,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Roles.View", "Roles.Write");
-        hasWrite = Handler.HasPermission(currentUser, "Roles.Write");
+        hasView = Handler.HasPermission("Roles.View", "Roles.Write");
+        hasWrite = Handler.HasPermission("Roles.Write");
         var ctx = Handler.GetContext(currentUser);
         isSysAdmin = ctx.IsSysAdmin;
         effectiveTenantId = EmbeddedTenantId ?? TenantIdQuery ?? ctx.CurrentTenantId;

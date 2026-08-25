@@ -7,7 +7,7 @@ public interface IRoleAdminHandler
 {
     AdminContext GetContext(ClaimsPrincipal user);
 
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<RoleViewModel>> ListRolesAsync(ClaimsPrincipal user, int tenantId, ListQuery query);
     Task<RoleViewModel?> CreateRoleAsync(ClaimsPrincipal user, int tenantId, RoleViewModel input);

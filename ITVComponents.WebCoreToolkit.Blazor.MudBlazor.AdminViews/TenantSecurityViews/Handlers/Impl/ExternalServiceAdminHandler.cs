@@ -100,14 +100,14 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { "Sysadmin" });
 
     public async Task<PagedResult<ExternalOAuthServiceViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
+        if (!HasPermission("Services.Connections.View", "Services.Connections.Write"))
             return new PagedResult<ExternalOAuthServiceViewModel>();
 
         using var db = CreateDb();
@@ -151,7 +151,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<ExternalOAuthServiceViewModel?> CreateAsync(ClaimsPrincipal user, ExternalOAuthServiceViewModel input)
     {
-        if (!HasPermission(user, "Services.Connections.Write")) return null;
+        if (!HasPermission("Services.Connections.Write")) return null;
         using var db = CreateDb();
         var sysAdmin = IsSysAdmin();
         if (!sysAdmin) input.Global = false;
@@ -179,7 +179,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<ExternalOAuthServiceViewModel?> UpdateAsync(ClaimsPrincipal user, ExternalOAuthServiceViewModel input)
     {
-        if (!HasPermission(user, "Services.Connections.Write")) return null;
+        if (!HasPermission("Services.Connections.Write")) return null;
         using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
         if (entity == null) return null;
@@ -200,7 +200,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int oauthServiceId)
     {
-        if (!HasPermission(user, "Services.Connections.Write")) return false;
+        if (!HasPermission("Services.Connections.Write")) return false;
         using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
         if (entity == null) return false;
@@ -211,7 +211,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<PagedResult<ExternalOAuthServiceTenantLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, int oauthServiceId, ListQuery query)
     {
-        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
+        if (!HasPermission("Services.Connections.View", "Services.Connections.Write"))
             return new PagedResult<ExternalOAuthServiceTenantLoginViewModel>();
 
         using var db = CreateDb();
@@ -236,7 +236,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<bool> RevokeLoginAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId)
     {
-        if (!HasPermission(user, "Services.Connections.Write")) return false;
+        if (!HasPermission("Services.Connections.Write")) return false;
         using var db = CreateDb();
         var entity = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId);
         if (entity == null) return false;
@@ -247,7 +247,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId)
     {
-        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write")) return null;
+        if (!HasPermission("Services.Connections.View", "Services.Connections.Write")) return null;
         using var db = CreateDb();
         var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
         if (entity == null) return null;
@@ -275,7 +275,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     public async Task<ExternalServiceTestResultViewModel> PerformTestAsync(ClaimsPrincipal user, ExternalServiceTestRequestViewModel request)
     {
-        if (!HasPermission(user, "Services.Connections.View", "Services.Connections.Write"))
+        if (!HasPermission("Services.Connections.View", "Services.Connections.Write"))
             return new ExternalServiceTestResultViewModel { ErrorMessage = "Insufficient permission", IsSuccess = false };
         if (oauthClientFactory == null)
             return new ExternalServiceTestResultViewModel { ErrorMessage = "OAuth client factory is not registered", IsSuccess = false };

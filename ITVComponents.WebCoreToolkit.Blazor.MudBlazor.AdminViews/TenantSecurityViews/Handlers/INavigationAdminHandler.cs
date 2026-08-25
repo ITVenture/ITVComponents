@@ -12,7 +12,7 @@ public enum NavigationMoveAnchor
 
 public interface INavigationAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<NavigationMenuViewModel>> ListAsync(ClaimsPrincipal user, int? parentId, ListQuery query);
     Task<NavigationMenuViewModel?> CreateAsync(ClaimsPrincipal user, NavigationMenuViewModel input);

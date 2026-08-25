@@ -87,8 +87,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Apps.Templates.View", "Apps.Templates.Write");
-        hasWrite = Handler.HasPermission(currentUser, "Apps.PermissionSets.Write");
+        hasView = Handler.HasPermission("Apps.Templates.View", "Apps.Templates.Write");
+        hasWrite = Handler.HasPermission("Apps.PermissionSets.Write");
     }
 
     private async Task<GridData<ClientAppTemplateViewModel>> LoadData(GridState<ClientAppTemplateViewModel> state, CancellationToken ct)

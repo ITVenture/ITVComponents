@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface IGlobalRoleAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<GlobalRoleViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query);
     Task<GlobalRoleViewModel?> CreateAsync(ClaimsPrincipal user, GlobalRoleViewModel input);

@@ -30,7 +30,7 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions) => services.VerifyUserPermissions(permissions);
+    public bool HasPermission(params string[] permissions) => services.VerifyUserPermissions(permissions);
 
     public bool CanManage(ClaimsPrincipal user) => services.VerifyUserPermissions(OnboardingAdminPermissions.AnyAccess);
 

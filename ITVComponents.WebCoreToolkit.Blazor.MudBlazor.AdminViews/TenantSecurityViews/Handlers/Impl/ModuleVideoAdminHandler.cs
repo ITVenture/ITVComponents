@@ -19,12 +19,12 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
         this.services = services;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<VideoTutorialViewModel>> ListTutorialsAsync(ClaimsPrincipal user, ListQuery query)
     {
-        if (!HasPermission(user, "ModuleHelp.View", "ModuleHelp.Write")) return new PagedResult<VideoTutorialViewModel>();
+        if (!HasPermission("ModuleHelp.View", "ModuleHelp.Write")) return new PagedResult<VideoTutorialViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = db.Tutorials.AsNoTracking().AsQueryable();
@@ -47,7 +47,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<VideoTutorialViewModel?> CreateTutorialAsync(ClaimsPrincipal user, VideoTutorialViewModel input)
     {
-        if (!HasPermission(user, "ModuleHelp.Write")) return null;
+        if (!HasPermission("ModuleHelp.Write")) return null;
         return await factory.UseAsync<VideoTutorialViewModel?>(async db =>
         {
             var entity = new VideoTutorial
@@ -66,7 +66,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<VideoTutorialViewModel?> UpdateTutorialAsync(ClaimsPrincipal user, VideoTutorialViewModel input)
     {
-        if (!HasPermission(user, "ModuleHelp.Write")) return null;
+        if (!HasPermission("ModuleHelp.Write")) return null;
         return await factory.UseAsync<VideoTutorialViewModel?>(async db =>
         {
             var entity = await db.Tutorials.FirstOrDefaultAsync(t => t.VideoTutorialId == input.VideoTutorialId);
@@ -82,7 +82,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<bool> DeleteTutorialAsync(ClaimsPrincipal user, int videoTutorialId)
     {
-        if (!HasPermission(user, "ModuleHelp.Write")) return false;
+        if (!HasPermission("ModuleHelp.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.Tutorials.FirstOrDefaultAsync(t => t.VideoTutorialId == videoTutorialId);
@@ -95,7 +95,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<PagedResult<TutorialStreamViewModel>> ListStreamsAsync(ClaimsPrincipal user, int videoTutorialId, ListQuery query)
     {
-        if (!HasPermission(user, "ModuleHelp.View", "ModuleHelp.Write")) return new PagedResult<TutorialStreamViewModel>();
+        if (!HasPermission("ModuleHelp.View", "ModuleHelp.Write")) return new PagedResult<TutorialStreamViewModel>();
         return await factory.UseAsync(async db =>
         {
             var q = db.TutorialStreams.AsNoTracking().Where(s => s.VideoTutorialId == videoTutorialId);
@@ -116,7 +116,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<TutorialStreamViewModel?> UpdateStreamAsync(ClaimsPrincipal user, TutorialStreamViewModel input)
     {
-        if (!HasPermission(user, "ModuleHelp.Write")) return null;
+        if (!HasPermission("ModuleHelp.Write")) return null;
         return await factory.UseAsync<TutorialStreamViewModel?>(async db =>
         {
             var entity = await db.TutorialStreams.FirstOrDefaultAsync(s => s.TutorialStreamId == input.TutorialStreamId);
@@ -130,7 +130,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
 
     public async Task<bool> DeleteStreamAsync(ClaimsPrincipal user, int tutorialStreamId)
     {
-        if (!HasPermission(user, "ModuleHelp.Write")) return false;
+        if (!HasPermission("ModuleHelp.Write")) return false;
         return await factory.UseAsync(async db =>
         {
             var entity = await db.TutorialStreams.FirstOrDefaultAsync(s => s.TutorialStreamId == tutorialStreamId);

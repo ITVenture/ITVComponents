@@ -153,7 +153,7 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "SystemLog.View");
+        hasView = Handler.HasPermission("SystemLog.View");
     }
 
     private async Task<GridData<SystemEventViewModel>> LoadData(GridState<SystemEventViewModel> state, CancellationToken ct)

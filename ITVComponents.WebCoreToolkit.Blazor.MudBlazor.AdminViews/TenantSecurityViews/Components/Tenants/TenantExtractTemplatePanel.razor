@@ -46,7 +46,7 @@
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasWrite = Handler.HasPermission(currentUser, "TenantTemplates.Write");
+        hasWrite = Handler.HasPermission("TenantTemplates.Write");
     }
 
     private async Task Extract()

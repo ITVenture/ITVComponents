@@ -88,12 +88,12 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<FeatureActivationViewModel>> ListActivationsAsync(ClaimsPrincipal user, int featureId, ListQuery query)
     {
-        if (!HasPermission(user, "Sysadmin"))
+        if (!HasPermission("Sysadmin"))
             return new PagedResult<FeatureActivationViewModel>();
 
         using var db = CreateDb();
@@ -120,7 +120,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
 
     public async Task<FeatureActivationViewModel?> CreateActivationAsync(ClaimsPrincipal user, FeatureActivationViewModel input)
     {
-        if (!HasPermission(user, "Sysadmin")) return null;
+        if (!HasPermission("Sysadmin")) return null;
         using var db = CreateDb();
         var entity = new TTenantFeatureActivation
         {
@@ -137,7 +137,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
 
     public async Task<FeatureActivationViewModel?> UpdateActivationAsync(ClaimsPrincipal user, FeatureActivationViewModel input)
     {
-        if (!HasPermission(user, "Sysadmin")) return null;
+        if (!HasPermission("Sysadmin")) return null;
         using var db = CreateDb();
         var entity = await db.TenantFeatureActivations.FirstOrDefaultAsync(a => a.TenantFeatureActivationId == input.TenantFeatureActivationId);
         if (entity == null) return null;
@@ -149,7 +149,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
 
     public async Task<bool> DeleteActivationAsync(ClaimsPrincipal user, int tenantFeatureActivationId)
     {
-        if (!HasPermission(user, "Sysadmin")) return false;
+        if (!HasPermission("Sysadmin")) return false;
         using var db = CreateDb();
         var entity = await db.TenantFeatureActivations.FirstOrDefaultAsync(a => a.TenantFeatureActivationId == tenantFeatureActivationId);
         if (entity == null) return false;

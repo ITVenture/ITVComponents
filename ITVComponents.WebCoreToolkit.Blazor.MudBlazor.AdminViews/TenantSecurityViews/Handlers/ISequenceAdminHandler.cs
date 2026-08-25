@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 
 public interface ISequenceAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<SequenceViewModel>> ListAsync(ClaimsPrincipal user, int? tenantId, ListQuery query);
     Task<SequenceViewModel?> CreateAsync(ClaimsPrincipal user, int? tenantId, SequenceViewModel input);

@@ -79,8 +79,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "ModuleHelp.View", "ModuleHelp.Write");
-        hasWrite = Handler.HasPermission(currentUser, "ModuleHelp.Write");
+        hasView = Handler.HasPermission("ModuleHelp.View", "ModuleHelp.Write");
+        hasWrite = Handler.HasPermission("ModuleHelp.Write");
     }
 
     private async Task<GridData<VideoTutorialViewModel>> LoadData(GridState<VideoTutorialViewModel> state, CancellationToken ct)

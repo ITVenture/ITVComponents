@@ -10,7 +10,7 @@ public interface ITenantAdminHandler
 
     bool UseHierarchy { get; }
     
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     Task<PagedResult<TenantViewModel>> ListTenantsAsync(ClaimsPrincipal user, ListQuery query);
     Task<TenantViewModel?> CreateTenantAsync(ClaimsPrincipal user, TenantViewModel input);

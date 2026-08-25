@@ -5,7 +5,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Diagnostics;
 
 public interface IAssemblyDiagnosticsAdminHandler
 {
-    bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+    bool HasPermission(params string[] permissions);
 
     /// <summary>True when a HealthCheckService is registered in the container.</summary>
     bool HealthAvailable { get; }

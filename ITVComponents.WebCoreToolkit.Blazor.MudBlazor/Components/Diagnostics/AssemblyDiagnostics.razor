@@ -209,7 +209,7 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "AssemblyDiagnostics.View");
+        hasView = Handler.HasPermission("AssemblyDiagnostics.View");
         exportProfiles = ExportProfileOptions.Value.EffectiveProfiles();
     }
 

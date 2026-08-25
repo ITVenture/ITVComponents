@@ -78,8 +78,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "TrustedComponents.View", "TrustedComponents.Write");
-        hasWrite = Handler.HasPermission(currentUser, "TrustedComponents.Write");
+        hasView = Handler.HasPermission("TrustedComponents.View", "TrustedComponents.Write");
+        hasWrite = Handler.HasPermission("TrustedComponents.Write");
     }
 
     private async Task<GridData<TrustedComponentViewModel>> LoadData(GridState<TrustedComponentViewModel> state, CancellationToken ct)

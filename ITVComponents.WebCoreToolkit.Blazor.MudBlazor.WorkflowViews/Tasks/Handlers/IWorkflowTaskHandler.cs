@@ -20,7 +20,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
     public interface IWorkflowTaskHandler
     {
         /// <summary>Prueft, ob der aktuelle Benutzer eine der Berechtigungen hat.</summary>
-        bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+        bool HasPermission(params string[] permissions);
 
         /// <summary>
         /// Liefert eine Seite der Arbeitsliste. Enthaelt ausschliesslich Aufgaben, deren

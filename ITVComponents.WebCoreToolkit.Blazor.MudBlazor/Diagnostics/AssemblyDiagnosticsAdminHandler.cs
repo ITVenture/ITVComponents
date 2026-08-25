@@ -26,14 +26,14 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
         health = services.GetService<HealthCheckService>();
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public bool HealthAvailable => health != null;
 
     public IReadOnlyList<AssemblyInfoViewModel> ListAssemblies(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, ViewPermission)) return Array.Empty<AssemblyInfoViewModel>();
+        if (!HasPermission(ViewPermission)) return Array.Empty<AssemblyInfoViewModel>();
 
         return AssemblyLoadContext.All
             .SelectMany(ctx => ctx.Assemblies.Select(a => new { Context = ctx.Name, Assembly = a }))
@@ -56,7 +56,7 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
 
     public IReadOnlyList<ClaimInfoViewModel> ListClaims(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, ViewPermission)) return Array.Empty<ClaimInfoViewModel>();
+        if (!HasPermission(ViewPermission)) return Array.Empty<ClaimInfoViewModel>();
         if (user.Identity is not ClaimsIdentity) return Array.Empty<ClaimInfoViewModel>();
 
         return user.Claims.Select(c => new ClaimInfoViewModel
@@ -71,7 +71,7 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
 
     public async Task<IReadOnlyList<HealthTestViewModel>> ListHealthAsync(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, ViewPermission) || health == null) return Array.Empty<HealthTestViewModel>();
+        if (!HasPermission(ViewPermission) || health == null) return Array.Empty<HealthTestViewModel>();
 
         var report = await health.CheckHealthAsync();
         return report.Entries.Select(e => new HealthTestViewModel
@@ -87,7 +87,7 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
 
     public async Task<IReadOnlyList<HealthTestViewModel>> ListHealthDetailAsync(ClaimsPrincipal user, string checkName)
     {
-        if (!HasPermission(user, ViewPermission) || health == null) return Array.Empty<HealthTestViewModel>();
+        if (!HasPermission(ViewPermission) || health == null) return Array.Empty<HealthTestViewModel>();
 
         var report = await health.CheckHealthAsync(p => p.Name == checkName);
         if (!report.Entries.TryGetValue(checkName, out var entry)) return Array.Empty<HealthTestViewModel>();
@@ -108,7 +108,7 @@ public class AssemblyDiagnosticsAdminHandler : IAssemblyDiagnosticsAdminHandler
 
     public string? ApplyConfigChanges(ClaimsPrincipal user, IEnumerable<Change> changes)
     {
-        if (!HasPermission(user, ViewPermission)) return "Not authorized to apply configuration changes.";
+        if (!HasPermission(ViewPermission)) return "Not authorized to apply configuration changes.";
 
         var handler = ResolveConfigurationHandler();
         if (handler == null) return "No configuration handler is registered on this host.";

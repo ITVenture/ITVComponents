@@ -588,14 +588,54 @@ existiert.
 
 ### Zurückgestellt
 
-- **`HasPermission(ClaimsPrincipal user, …)`**: 33× identisch, `user` wird **nirgends** gelesen — kein
-  einziger Ausreisser unter 274 Aufrufstellen, also kein aktiver Bug. Es ist eine geladene Waffe für den
-  ersten Aufrufer, der bei Impersonation einen fremden Principal einsetzt. Die Default-Interface-Methode
-  ist billig; den Parameter zu streichen ist breaking und gehört an einen Major-Bump.
+- ~~**`HasPermission(ClaimsPrincipal user, …)`**~~ — **erledigt, siehe Runde 3.** Der Parameter ist weg.
 - **Die 17 generischen Handler-Präambeln** (~1.050 Z.): Aritätsänderung, breaking für
   Host-Registrierungen.
 - **`PagedResult<T>`/`ListQuery` dreifach definiert**: Namespace-Wechsel ist breaking für Hosts mit
   eigenen Handler-Implementierungen.
+
+### Runde 3 — der erste zurückgestellte Bruch, vorgezogen
+
+Die Preview-Phase ist der billigste Zeitpunkt für einen breaking change, und der Grund ist nicht „der
+Pilot ist klein", sondern: **solange MLM der einzige Konsument ist, ist der Compiler ein vollständiger
+Prüfer.** Sobald ein zweiter Host dazukommt, den man nicht parallel baut, wird aus „einmal durchbauen"
+ein Anruf.
+
+**`HasPermission(ClaimsPrincipal user, …)` → `HasPermission(…)`.** Vorher geprüft, nicht angenommen: von
+**31** Implementierungen liest **keine einzige** den Principal. 62 Deklarationen und Implementierungen,
+**278** Aufrufstellen, 115 Dateien.
+
+**Zwei Lehren aus dem Durchlauf**, beide fuer die Planung des nächsten Bruchs wichtiger als die Zahlen:
+
+1. **Die Inventur war unvollständig.** Gesucht wurde nach Bezeichnern (`user`, `currentUser`); die Form
+   `auth.User` — ein Member-Zugriff — war nicht gezählt. Drei Stellen fielen durch. Folgenlos, aber nur
+   dank des Compilers, nicht dank der Suche.
+2. **Ein grüner Teilbau ist kein Beweis.** Im ersten Anlauf scheiterten zwei Projekte; alles, was von
+   ihnen abhängt, wurde gar nicht erst gebaut, und der dritte Fehler lag unentdeckt darunter. Die erste
+   Fehlerliste nach einem solchen Update ist nie die vollständige — das gilt für MLM genauso.
+
+Geprüft über die **ganze Solution**: 103 Projekte, 0 Fehler, 837 Tests grün.
+
+### Was dabei über die Verdrahtung herauskam — und die Reihenfolge ändert
+
+Beim Abschätzen der Client-Kosten stellte sich heraus: **kein Client schreibt die 47 Typargumente je
+aus.** `WebPartInit` löst die Registrierungs-Methoden über `MethodHelper.GetMethod<TDelegate>(contextType,
+name)` per Reflexion auf, und die Typparameter werden über ihren **Namen** aus dem DbContext gefüllt.
+
+Das korrigiert den Eintrag unten gleich zweifach:
+
+- **Die 17 generischen Handler-Präambeln sind für Clients gar nicht breaking** — die Arität erscheint in
+  keinem Client-Code. Der Eintrag „breaking für Host-Registrierungen" war falsch.
+- **Aber es ist der einzige der drei Posten, bei dem der Compiler NICHT schützt.** Die Bindung ist
+  namensbasiert und wird beim Start aufgelöst. Ein umbenannter Typparameter sieht aus wie nichts — die
+  Registrierung unterbleibt, und man merkt es an einer Ansicht, die fehlt.
+
+Damit dreht sich die Reihenfolge: die Präambeln sind **kein** guter Kandidat für einen Bruch (kein
+Client-Nutzen, schwächstes Sicherheitsnetz), `PagedResult<T>`/`ListQuery` dagegen schon — breite
+Fläche, aber compiler-gefunden.
+
+Der stille Fehlschlag in der Verdrahtung selbst ist mit behoben (siehe Commit „Eine Registrierung, die
+nicht zustande kommt, sagt es jetzt").
 
 ---
 

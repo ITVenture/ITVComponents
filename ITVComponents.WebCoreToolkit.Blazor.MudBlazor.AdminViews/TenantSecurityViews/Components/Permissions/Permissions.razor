@@ -92,8 +92,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        hasView = Handler.HasPermission(currentUser, "Permissions.View", "Permissions.Write");
-        hasWrite = Handler.HasPermission(currentUser, "Permissions.Write");
+        hasView = Handler.HasPermission("Permissions.View", "Permissions.Write");
+        hasWrite = Handler.HasPermission("Permissions.Write");
         var ctx = Handler.GetContext(currentUser);
         isSysAdmin = ctx.IsSysAdmin;
         // Sysadmins default to the global catalog (tenantId=null) — they manage global permissions

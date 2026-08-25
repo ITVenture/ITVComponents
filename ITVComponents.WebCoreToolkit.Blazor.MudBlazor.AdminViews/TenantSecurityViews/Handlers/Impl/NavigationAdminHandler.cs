@@ -89,12 +89,12 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         return db;
     }
 
-    public bool HasPermission(ClaimsPrincipal user, params string[] permissions)
+    public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
     public async Task<PagedResult<NavigationMenuViewModel>> ListAsync(ClaimsPrincipal user, int? parentId, ListQuery query)
     {
-        if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
+        if (!HasPermission("Navigation.View", "Navigation.Write"))
             return new PagedResult<NavigationMenuViewModel>();
 
         using var db = CreateDb();
@@ -145,7 +145,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<NavigationMenuViewModel?> CreateAsync(ClaimsPrincipal user, NavigationMenuViewModel input)
     {
-        if (!HasPermission(user, "Navigation.Write")) return null;
+        if (!HasPermission("Navigation.Write")) return null;
         using var db = CreateDb();
         var maxOrder = await db.Navigation.Where(n => n.ParentId == input.ParentId)
             .MaxAsync(n => (int?)n.SortOrder) ?? 0;
@@ -176,7 +176,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<NavigationMenuViewModel?> UpdateAsync(ClaimsPrincipal user, NavigationMenuViewModel input)
     {
-        if (!HasPermission(user, "Navigation.Write")) return null;
+        if (!HasPermission("Navigation.Write")) return null;
         using var db = CreateDb();
         var entity = await db.Navigation
             .Include(n => n.Tenants)
@@ -200,7 +200,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int navigationMenuId)
     {
-        if (!HasPermission(user, "Navigation.Write")) return false;
+        if (!HasPermission("Navigation.Write")) return false;
         using var db = CreateDb();
         var entity = await db.Navigation
             .Include(n => n.Tenants)
@@ -215,7 +215,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<bool> MoveAsync(ClaimsPrincipal user, int draggedItemId, int? anchorItemId, NavigationMoveAnchor anchor)
     {
-        if (!HasPermission(user, "Navigation.Write")) return false;
+        if (!HasPermission("Navigation.Write")) return false;
         if (draggedItemId == anchorItemId) return false;
 
         using var db = CreateDb();
@@ -286,7 +286,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<IReadOnlyList<NavigationParentChoice>> ListAllNavigationItemsAsync(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
+        if (!HasPermission("Navigation.View", "Navigation.Write"))
             return Array.Empty<NavigationParentChoice>();
 
         using var db = CreateDb();
@@ -301,7 +301,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
 
     public async Task<IReadOnlyList<TenantChoice>> ListAllTenantsAsync(ClaimsPrincipal user)
     {
-        if (!HasPermission(user, "Navigation.View", "Navigation.Write"))
+        if (!HasPermission("Navigation.View", "Navigation.Write"))
             return Array.Empty<TenantChoice>();
 
         using var db = CreateDb();

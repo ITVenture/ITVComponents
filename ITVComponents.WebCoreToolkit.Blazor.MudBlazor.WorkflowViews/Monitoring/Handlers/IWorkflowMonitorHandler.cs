@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
     public interface IWorkflowMonitorHandler
     {
         /// <summary>Prueft, ob der aktuelle Benutzer eine der Berechtigungen hat.</summary>
-        bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+        bool HasPermission(params string[] permissions);
 
         /// <summary>
         /// Liefert eine Seite der Instanz-Uebersicht. <paramref name="environment"/> waehlt - falls

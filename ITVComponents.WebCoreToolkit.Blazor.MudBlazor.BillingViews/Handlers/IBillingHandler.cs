@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
     /// </summary>
     public interface IBillingHandler
     {
-        bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+        bool HasPermission(params string[] permissions);
 
         /// <summary>True if billing management is permitted for the current user (ManageSubscription / admin).</summary>
         bool CanManage(ClaimsPrincipal user);
