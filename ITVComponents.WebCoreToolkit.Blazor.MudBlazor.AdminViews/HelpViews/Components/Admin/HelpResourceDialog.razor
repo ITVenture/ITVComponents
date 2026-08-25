@@ -107,7 +107,7 @@
             return;
         }
 
-        await form.Validate();
+        await form.ValidateAsync();
         if (!form.IsValid)
         {
             Snackbar.Add("Please fix the highlighted fields.", Severity.Warning);

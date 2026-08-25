@@ -33,24 +33,18 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.h6">Roles for tenant @effectiveTenantId</MudText>
-            <MudSpacer />
-            <MudTextField @bind-Value="search"
-                          Placeholder="Search…"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          IconSize="Size.Medium"
-                          Class="mt-0"
-                          DebounceInterval="300"
-                          OnDebounceIntervalElapsed="ReloadGrid" />
-            <SecureView RequiredPermissions="Roles.Write">
-                <Permitted>
-                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                        Add role
-                    </MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="ReloadGrid" @bind-Search="search" OnSearch="ReloadGrid">
+                <TitleContent>Roles for tenant @effectiveTenantId</TitleContent>
+                <ChildContent>
+                <SecureView RequiredPermissions="Roles.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                            Add role
+                        </MudButton>
+                    </Permitted>
+                </SecureView>
+                </ChildContent>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="RoleViewModel" />

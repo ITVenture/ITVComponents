@@ -21,16 +21,18 @@ else
 {
     <MudDataGrid T="EmployeeViewModel" Items="employees" Dense="true" Hover="true">
         <ToolBarContent>
-            <RefreshButton OnClick="Reload" />
-            <MudText Typo="Typo.subtitle2">@L["OnbAdm_Emp_Title"]</MudText>
-            <MudSpacer />
-            <SecureView RequiredPermissions="Onboarding.Admin.Employees.Write">
-                <Permitted>
-                    <MudButton StartIcon="@Icons.Material.Filled.PersonAdd" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="Invite">
-                        @L["OnbAdm_Emp_Invite"]
-                    </MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="Reload" TitleTypo="Typo.subtitle2">
+                <TitleContent>@L["OnbAdm_Emp_Title"]</TitleContent>
+                <ChildContent>
+                <SecureView RequiredPermissions="Onboarding.Admin.Employees.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.PersonAdd" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="Invite">
+                            @L["OnbAdm_Emp_Invite"]
+                        </MudButton>
+                    </Permitted>
+                </SecureView>
+                </ChildContent>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="EmployeeViewModel" />

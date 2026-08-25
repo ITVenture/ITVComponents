@@ -16,16 +16,15 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.subtitle2">Properties</MudText>
-            <MudSpacer />
-            <SecureView RequiredPermissions="Users.Properties.Write">
-                <Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
-                    Add property
-                </MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Properties" TitleTypo="Typo.subtitle2">
+                <SecureView RequiredPermissions="Users.Properties.Write">
+                    <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                        Add property
+                    </MudButton>
+                    </Permitted>
+                </SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.PropertyName" Title="Name" />

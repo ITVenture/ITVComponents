@@ -59,18 +59,18 @@
     /// <summary>Klasse fuer den Dialog-Rahmen, z.B. <c>itv-fill-editor</c>.</summary>
     [Parameter] public string? Class { get; set; }
 
-    /// <summary>
-    /// Darstellung des Speichern-Knopfes. Vorgabe <see cref="Variant.Text"/> - das ist die Vorgabe von
-    /// <c>MudButton</c> selbst.
-    /// </summary>
+    /// <summary>Darstellung des Speichern-Knopfes. Vorgabe <see cref="Variant.Filled"/>.</summary>
     /// <remarks>
-    /// Der Parameter existiert nur, weil die uebernommenen Dialoge hier <b>uneinheitlich</b> waren: gut
-    /// die Haelfte setzte <c>Variant.Filled</c>, der Rest nichts. Die Huelle bildet den Ist-Zustand ab,
-    /// statt ihn beilaeufig zu vereinheitlichen - eine Optik-Entscheidung fuer vierzig Masken gehoert
-    /// nicht in einen Umbau, der sonst nichts sichtbar aendert. Sie liesse sich jetzt an EINER Stelle
-    /// treffen: Vorgabe umstellen und die Attribute streichen.
-    /// </remarks>
-    [Parameter] public Variant SaveVariant { get; set; } = Variant.Text;
+    /// Hier lag vor der Zusammenfuehrung eine Uneinheitlichkeit: sechzehn Dialoge setzten
+    /// <c>Variant.Filled</c>, die uebrigen neunzehn nichts - also die Vorgabe <c>Text</c> von
+    /// <c>MudButton</c>. Derselbe Knopf sah also je nach Maske anders aus. Die Entscheidung ist jetzt
+    /// gefallen und steht an DIESER Stelle: gefuellt, weil der Speichern-Knopf die vorgeschlagene
+    /// Handlung ist und sich vom Abbrechen daneben abheben soll.
+    /// <para>
+    /// Der Parameter bleibt als Ausweg fuer den Einzelfall - aber wer ihn setzt, weicht ab und sollte
+    /// wissen, warum.
+    /// </para></remarks>
+    [Parameter] public Variant SaveVariant { get; set; } = Variant.Filled;
 
     /// <summary>
     /// Meldung, die bei ungueltiger Maske erscheint. Null (Vorgabe) = keine Meldung; dann bleibt der

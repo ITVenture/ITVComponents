@@ -18,23 +18,17 @@
              Hover="true"
              Dense="true">
     <ToolBarContent>
-        <RefreshButton OnClick="ReloadGrid" />
-        <MudText Typo="Typo.subtitle1">@(ParentId is null ? "Top level" : "Child items")</MudText>
-        <MudSpacer />
-        <MudTextField @bind-Value="search"
-                      Placeholder="Search…"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      IconSize="Size.Medium"
-                      Class="mt-0"
-                      DebounceInterval="300"
-                      OnDebounceIntervalElapsed="ReloadGrid" />
-        @if (HasWrite)
-        {
-            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                Add item
-            </MudButton>
-        }
+        <CrudGridToolbar OnRefresh="ReloadGrid" TitleTypo="Typo.subtitle1" @bind-Search="search" OnSearch="ReloadGrid">
+            <TitleContent>@(ParentId is null ? "Top level" : "Child items")</TitleContent>
+            <ChildContent>
+            @if (HasWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add item
+                </MudButton>
+            }
+            </ChildContent>
+        </CrudGridToolbar>
     </ToolBarContent>
     <Columns>
         @if (HasWrite)

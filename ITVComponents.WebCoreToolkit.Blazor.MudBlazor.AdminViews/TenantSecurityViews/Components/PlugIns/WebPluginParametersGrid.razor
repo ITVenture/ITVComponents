@@ -14,14 +14,13 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">Generic parameters</MudText>
-            <MudSpacer />
-            <SecureView RequiredPermissions="PlugIns.Write"><Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
-                    Add parameter
-                </MudButton>
-            </Permitted></SecureView>
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Generic parameters" TitleTypo="Typo.subtitle2">
+                <SecureView RequiredPermissions="PlugIns.Write"><Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="OpenCreate">
+                        Add parameter
+                    </MudButton>
+                </Permitted></SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.GenericTypeName" Title="Generic type" />

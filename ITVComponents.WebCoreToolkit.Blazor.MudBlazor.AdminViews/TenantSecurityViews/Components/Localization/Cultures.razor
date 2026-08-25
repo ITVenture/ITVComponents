@@ -28,14 +28,13 @@ else
                  RowsPerPage="50"
                  Hover="true" Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.h6">Cultures</MudText>
-            <MudSpacer />
-            <SecureView RequiredPermissions="DbCultures.Write">
-                <Permitted>
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">Add culture</MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Cultures">
+                <SecureView RequiredPermissions="DbCultures.Write">
+                    <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">Add culture</MudButton>
+                    </Permitted>
+                </SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.Name" Title="Name" />

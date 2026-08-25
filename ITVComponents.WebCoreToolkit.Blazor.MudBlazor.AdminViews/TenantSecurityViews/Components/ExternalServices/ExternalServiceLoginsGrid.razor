@@ -13,9 +13,7 @@
              Hover="true"
              Dense="true">
     <ToolBarContent>
-        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-        <MudText Typo="Typo.subtitle2">Tenant logins</MudText>
-        <MudSpacer />
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Tenant logins" TitleTypo="Typo.subtitle2" />
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.TenantName" Title="Tenant" />

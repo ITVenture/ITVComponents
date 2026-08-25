@@ -13,16 +13,15 @@
              Hover="true"
              Dense="true">
     <ToolBarContent>
-        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-        <MudText Typo="Typo.subtitle2">Parameters</MudText>
-        <MudSpacer />
-        <SecureView RequiredPermissions="DashboardWidgets.Write">
-            <Permitted>
-            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
-                Add parameter
-            </MudButton>
-            </Permitted>
-        </SecureView>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Parameters" TitleTypo="Typo.subtitle2">
+            <SecureView RequiredPermissions="DashboardWidgets.Write">
+                <Permitted>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                    Add parameter
+                </MudButton>
+                </Permitted>
+            </SecureView>
+        </CrudGridToolbar>
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.ParameterName" Title="Name" />

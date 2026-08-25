@@ -29,23 +29,15 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.h6">Sequences</MudText>
-            <MudSpacer />
-            <MudTextField @bind-Value="search"
-                          Placeholder="Search…"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          Class="mt-0"
-                          DebounceInterval="300"
-                          OnDebounceIntervalElapsed="ReloadGrid" />
-            <SecureView RequiredPermissions="Sequences.Write">
-                <Permitted>
-                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                        Add sequence
-                    </MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Sequences" @bind-Search="search" OnSearch="ReloadGrid">
+                <SecureView RequiredPermissions="Sequences.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                            Add sequence
+                        </MudButton>
+                    </Permitted>
+                </SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.SequenceName" Title="Name" />

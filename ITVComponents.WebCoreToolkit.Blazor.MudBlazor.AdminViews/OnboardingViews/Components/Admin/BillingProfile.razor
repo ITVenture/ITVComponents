@@ -268,7 +268,7 @@ else
             return;
         }
 
-        await form.Validate();
+        await form.ValidateAsync();
         if (!form.IsValid)
         {
             Snackbar.Add(L["OnbAdm_FixInvalid"], Severity.Warning);

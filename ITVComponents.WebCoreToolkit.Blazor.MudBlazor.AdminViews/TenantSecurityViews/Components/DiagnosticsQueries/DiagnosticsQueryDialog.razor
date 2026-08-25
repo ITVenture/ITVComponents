@@ -81,7 +81,7 @@
     private async Task Save()
     {
         if (form is null) return;
-        await form.Validate();
+        await form.ValidateAsync();
         if (!form.IsValid) return;
         if (queryEditor is not null) Model.QueryText = await queryEditor.GetValueAsync();
         MudDialog.Close(DialogResult.Ok(Model));

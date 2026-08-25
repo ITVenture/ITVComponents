@@ -29,20 +29,11 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.h6">Asset templates</MudText>
-            <MudSpacer />
-            <MudTextField @bind-Value="search"
-                          Placeholder="Search…"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          IconSize="Size.Medium"
-                          Class="mt-0"
-                          DebounceInterval="300"
-                          OnDebounceIntervalElapsed="ReloadGrid" />
-            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                Add template
-            </MudButton>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Asset templates" @bind-Search="search" OnSearch="ReloadGrid">
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                    Add template
+                </MudButton>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="AssetTemplateViewModel" />

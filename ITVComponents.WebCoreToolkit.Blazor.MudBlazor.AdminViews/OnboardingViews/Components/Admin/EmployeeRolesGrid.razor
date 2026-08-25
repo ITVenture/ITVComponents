@@ -7,9 +7,9 @@
 
 <MudDataGrid T="EmployeeRoleAssignmentViewModel" Items="roles" SortMode="SortMode.None" Dense="true" Hover="true">
     <ToolBarContent>
-        <RefreshButton OnClick="Reload" />
-        <MudText Typo="Typo.subtitle2">@L["OnbAdm_Roles_Title"]</MudText>
-        <MudSpacer />
+        <CrudGridToolbar OnRefresh="Reload" TitleTypo="Typo.subtitle2">
+            <TitleContent>@L["OnbAdm_Roles_Title"]</TitleContent>
+        </CrudGridToolbar>
     </ToolBarContent>
     <Columns>
         <TemplateColumn T="EmployeeRoleAssignmentViewModel" Title="" Sortable="false">

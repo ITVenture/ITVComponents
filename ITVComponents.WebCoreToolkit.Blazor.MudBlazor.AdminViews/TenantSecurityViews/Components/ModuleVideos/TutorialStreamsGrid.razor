@@ -12,9 +12,7 @@
                  SortMode="SortMode.None"
                  RowsPerPage="10" Hover="true" Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">Streams</MudText>
-            <MudSpacer />
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Streams" TitleTypo="Typo.subtitle2" />
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.LanguageTag" Title="Language" />

@@ -15,9 +15,7 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">External logins</MudText>
-            <MudSpacer />
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="External logins" TitleTypo="Typo.subtitle2" />
         </ToolBarContent>
         <Columns>
             <PropertyColumn Property="x => x.LoginProvider" Title="Provider" />

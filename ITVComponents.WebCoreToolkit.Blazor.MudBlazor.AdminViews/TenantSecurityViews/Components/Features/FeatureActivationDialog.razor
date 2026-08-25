@@ -1,4 +1,4 @@
-<EditDialogShell Model="Model" IsCreate="IsCreate" SaveVariant="Variant.Filled" InvalidMessage="Please correct invalid fields">
+<EditDialogShell Model="Model" IsCreate="IsCreate" InvalidMessage="Please correct invalid fields">
     @if (IsCreate)
     {
         <MudNumericField @bind-Value="Model.TenantId" Label="Tenant ID" Required="true" Min="1" />

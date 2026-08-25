@@ -1,0 +1,100 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@* Die gemeinsame Werkzeugleiste der Raster-Seiten: Neu-Laden, Titel, Abstand, Suche - und danach, was
+   die Seite selbst beisteuert (in aller Regel ein Hinzufuegen-Knopf hinter einem SecureView).
+
+   Gehoert INNERHALB von <ToolBarContent> eines MudDataGrid. Sie ersetzt dessen Inhalt, nicht das
+   Element selbst - MudDataGrid erwartet dort sein eigenes Fragment. *@
+
+@if (OnRefresh.HasDelegate)
+{
+    <RefreshButton OnClick="OnRefresh" />
+}
+@if (TitleContent is not null)
+{
+    <MudText Typo="@TitleTypo">@TitleContent</MudText>
+}
+else if (!string.IsNullOrEmpty(Title))
+{
+    <MudText Typo="@TitleTypo">@Title</MudText>
+}
+<MudSpacer />
+@if (ShowSearch)
+{
+    <MudTextField T="string"
+                  Value="@Search"
+                  ValueChanged="SearchValueChanged"
+                  Placeholder="@SearchPlaceholder"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  IconSize="Size.Medium"
+                  Class="mt-0"
+                  Immediate="@SearchImmediate"
+                  DebounceInterval="@SearchDebounce"
+                  OnDebounceIntervalElapsed="@(_ => OnSearch.InvokeAsync())" />
+}
+@ChildContent
+
+@code {
+    /// <summary>
+    /// Was beim Neu-Laden geschehen soll. Ohne Zuweisung erscheint der Knopf gar nicht - ein Raster ohne
+    /// Server-Daten hat nichts nachzuladen.
+    /// </summary>
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    /// <summary>Die Ueberschrift der Leiste.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// Die Ueberschrift als Fragment - fuer uebersetzte Titel, die sich nicht als Attributwert schreiben
+    /// lassen. Schlaegt <see cref="Title"/>.
+    /// </summary>
+    [Parameter] public RenderFragment? TitleContent { get; set; }
+
+    /// <summary>
+    /// Die Stufe der Ueberschrift. Vorgabe <c>Typo.h6</c> fuer eine Seite; Untergitter in einem Dialog
+    /// verwenden <c>Typo.subtitle2</c>, damit die Leiste nicht mit dem Dialogtitel konkurriert.
+    /// </summary>
+    [Parameter] public Typo TitleTypo { get; set; } = Typo.h6;
+
+    /// <summary>Der aktuelle Suchbegriff (fuer <c>@@bind-Search</c>).</summary>
+    [Parameter] public string? Search { get; set; }
+
+    /// <summary>Gegenstueck zu <see cref="Search"/>.</summary>
+    [Parameter] public EventCallback<string?> SearchChanged { get; set; }
+
+    /// <summary>
+    /// Laeuft, wenn der Benutzer zu tippen aufgehoert hat (nach <see cref="SearchDebounce"/>) - hier
+    /// gehoert das Neu-Laden des Rasters hin.
+    /// </summary>
+    /// <remarks>
+    /// Getrennt von <see cref="SearchChanged"/>, und das mit Absicht: der gebundene Wert soll bei jedem
+    /// Tastendruck aktuell sein, ein Server-Aufruf aber nicht bei jedem Tastendruck laufen.
+    /// </remarks>
+    [Parameter] public EventCallback OnSearch { get; set; }
+
+    /// <summary>Ob das Suchfeld erscheint. Vorgabe: sobald <see cref="OnSearch"/> gesetzt ist.</summary>
+    [Parameter] public bool? ShowSearchField { get; set; }
+
+    /// <summary>Platzhalter im Suchfeld.</summary>
+    [Parameter] public string SearchPlaceholder { get; set; } = "Search…";
+
+    /// <summary>Wartezeit in Millisekunden, bevor <see cref="OnSearch"/> laeuft.</summary>
+    [Parameter] public double SearchDebounce { get; set; } = 300;
+
+    /// <summary>Ob der gebundene Wert schon beim Tippen nachgefuehrt wird.</summary>
+    [Parameter] public bool SearchImmediate { get; set; }
+
+    /// <summary>
+    /// Was rechts der Suche steht - fast immer ein Hinzufuegen-Knopf hinter einem <c>SecureView</c>.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool ShowSearch => ShowSearchField ?? OnSearch.HasDelegate;
+
+    private Task SearchValueChanged(string? value)
+    {
+        Search = value;
+        return SearchChanged.InvokeAsync(value);
+    }
+}

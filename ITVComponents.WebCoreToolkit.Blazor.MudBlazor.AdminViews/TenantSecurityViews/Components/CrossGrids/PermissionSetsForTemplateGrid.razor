@@ -14,9 +14,7 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">Permission sets</MudText>
-            <MudSpacer />
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Permission sets" TitleTypo="Typo.subtitle2" />
         </ToolBarContent>
         <Columns>
             <TemplateColumn T="AppPermissionSetAssignmentViewModel" Title="" Sortable="false">

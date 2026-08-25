@@ -45,7 +45,7 @@
     private async Task Save()
     {
         if (form is null) return;
-        await form.Validate();
+        await form.ValidateAsync();
         if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
         if (valueEditor is not null) Model.SettingsValue = await valueEditor.GetValueAsync();
         if (string.IsNullOrWhiteSpace(Model.SettingsValue)) { Snackbar.Add("Value is required", Severity.Warning); return; }

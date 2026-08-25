@@ -37,24 +37,15 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.h6">Dashboard widgets</MudText>
-            <MudSpacer />
-            <MudTextField @bind-Value="search"
-                          Placeholder="Search…"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          IconSize="Size.Medium"
-                          Class="mt-0"
-                          DebounceInterval="300"
-                          OnDebounceIntervalElapsed="ReloadGrid" />
-            <SecureView RequiredPermissions="DashboardWidgets.Write">
-                <Permitted>
-                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                        Add widget
-                    </MudButton>
-                </Permitted>
-            </SecureView>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Dashboard widgets" @bind-Search="search" OnSearch="ReloadGrid">
+                <SecureView RequiredPermissions="DashboardWidgets.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                            Add widget
+                        </MudButton>
+                    </Permitted>
+                </SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             @if (hasWrite)

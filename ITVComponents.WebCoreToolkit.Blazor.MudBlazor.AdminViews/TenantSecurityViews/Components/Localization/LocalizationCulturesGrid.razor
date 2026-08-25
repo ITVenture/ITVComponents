@@ -12,13 +12,12 @@
                  SortMode="SortMode.None"
                  RowsPerPage="10" Hover="true" Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">Cultures</MudText>
-            <MudSpacer />
-            <SecureView RequiredPermissions="DbResources.Write"><Permitted>
-                <MudNumericField @bind-Value="newCultureId" Label="Culture ID" Style="max-width: 140px;" />
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="AddCulture">Add culture</MudButton>
-            </Permitted></SecureView>
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Cultures" TitleTypo="Typo.subtitle2">
+                <SecureView RequiredPermissions="DbResources.Write"><Permitted>
+                    <MudNumericField @bind-Value="newCultureId" Label="Culture ID" Style="max-width: 140px;" />
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="AddCulture">Add culture</MudButton>
+                </Permitted></SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="LocalizationCultureViewModel" />

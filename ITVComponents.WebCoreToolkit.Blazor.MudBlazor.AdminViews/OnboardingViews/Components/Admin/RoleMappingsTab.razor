@@ -14,15 +14,17 @@
 
 <MudDataGrid T="EmployeeRoleMappingViewModel" Items="mappings" Dense="true" Hover="true" Groupable="false">
     <ToolBarContent>
-        <RefreshButton OnClick="Reload" />
-        <MudText Typo="Typo.subtitle2">@L["OnbAdm_Tab_RoleMappings"]</MudText>
-        <MudSpacer />
-        @* Ein "Neu"-Menue statt drei "… hinzufuegen"-Knoepfen: die drei Aktionen sind Varianten derselben
-           Handlung, und ihre Namen sind zu lang fuer eine Leiste - auf 400px Geraetebreite quollen die
-           Beschriftungen sichtbar aus den Knoepfen. Die Eintraege tragen die Art-Bezeichnungen aus der
-           Tabellenspalte, damit Menue und Spalte dasselbe Wort benutzen; die Permission-Gates sind
-           unveraendert aus den SecureViews uebernommen. *@
-        <ToolbarActionMenu Label="@L["OnbAdm_Rm_New"]" Actions="@CreateActions" />
+        <CrudGridToolbar OnRefresh="Reload" TitleTypo="Typo.subtitle2">
+            <TitleContent>@L["OnbAdm_Tab_RoleMappings"]</TitleContent>
+            <ChildContent>
+            @* Ein "Neu"-Menue statt drei "… hinzufuegen"-Knoepfen: die drei Aktionen sind Varianten derselben
+               Handlung, und ihre Namen sind zu lang fuer eine Leiste - auf 400px Geraetebreite quollen die
+               Beschriftungen sichtbar aus den Knoepfen. Die Eintraege tragen die Art-Bezeichnungen aus der
+               Tabellenspalte, damit Menue und Spalte dasselbe Wort benutzen; die Permission-Gates sind
+               unveraendert aus den SecureViews uebernommen. *@
+            <ToolbarActionMenu Label="@L["OnbAdm_Rm_New"]" Actions="@CreateActions" />
+            </ChildContent>
+        </CrudGridToolbar>
     </ToolBarContent>
     <Columns>
         <HierarchyColumn T="EmployeeRoleMappingViewModel" ButtonDisabledFunc="@(x => x.Kind != EmployeeRoleMappingKind.DirectRole && x.Kind != EmployeeRoleMappingKind.Delegation)" />

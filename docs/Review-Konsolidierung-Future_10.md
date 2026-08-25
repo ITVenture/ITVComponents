@@ -445,9 +445,14 @@ fällig gewesen. Genau dafür macht man so einen Umbau.
   der Rest nichts (also `Variant.Text`, die Vorgabe von `MudButton`).
 - **Bei ungültiger Eingabe** zeigen 20 Dialoge keine Meldung und 15 ein „Please correct invalid fields".
 
-Beides ist als Parameter (`SaveVariant`, `InvalidMessage`) je Maske erhalten geblieben. Eine
-Optik-Entscheidung für vierzig Masken gehört nicht in einen Umbau, der sonst nichts sichtbar ändert —
-sie lässt sich jetzt aber an **einer** Stelle treffen: Vorgabe umstellen, Attribute streichen.
+Beides blieb zunächst als Parameter (`SaveVariant`, `InvalidMessage`) je Maske erhalten — eine
+Optik-Entscheidung für vierzig Masken gehört nicht in einen Umbau, der sonst nichts sichtbar ändert.
+
+**Nachgetragen (Runde 2d):** die Entscheidung zum Speichern-Knopf ist gefallen und war dann genau das,
+was die Hülle versprochen hat — Vorgabe der Hülle auf `Variant.Filled`, fünfzehn nun überflüssige
+Attribute gestrichen. **Neunzehn Dialoge sehen dadurch anders aus als vorher**, und das ist gewollt: der
+Speichern-Knopf ist die vorgeschlagene Handlung und soll sich vom Abbrechen daneben abheben.
+`InvalidMessage` bleibt je Maske.
 
 ### Was stehen blieb, und warum
 
@@ -490,6 +495,45 @@ Spaltenköpfen — und das ist kein erfundenes Risiko, sondern **Befund 5 aus Ru
 (`new GridData<X> { Items = result.Items, TotalItems = result.TotalCount }` und die leere Variante) auf
 Helfer umzustellen. Sie sparen **keine** Zeile, verhindern **keinen** Fehler und hätten 59 Dateien
 angefasst — das wäre Unruhe statt Konsolidierung.
+
+### Runde 2d — `CrudGridToolbar`, und was der Compiler dabei gefunden hat
+
+Die Werkzeugleiste wurde doch angegangen — **55 von 65** Leisten laufen jetzt über
+`ITVComponents.WebCoreToolkit.Blazor.MudBlazor/SharedComponents/CrudGridToolbar.razor`.
+82 Dateien, −606/+377, Komponente 100 Zeilen.
+
+Zwei Entwurfsentscheidungen ergaben sich aus den Zahlen, nicht aus dem Gefühl:
+
+- **`TitleTypo`**: die vermeintlich titellosen Leisten hatten sehr wohl einen Titel, nur mit
+  `Typo.subtitle2` statt `h6`. Das sind Untergitter *innerhalb* von Dialogen, die nicht mit dem
+  Dialogtitel konkurrieren sollen — eine sinnvolle Unterscheidung, kein Wildwuchs.
+- **`OnSearch` getrennt von `SearchChanged`**: der gebundene Wert soll bei jedem Tastendruck aktuell
+  sein, der Server-Aufruf aber nicht. Die Vorlagen machten das schon so (`@bind-Value` plus
+  `OnDebounceIntervalElapsed`); ein Zusammenlegen hätte je Taste eine Abfrage ausgelöst.
+
+**Der erste Anlauf war falsch, und das ist der lehrreiche Teil.** Der Compiler meldete:
+
+- **`RZ9996`, 55×** — das Umbau-Skript hatte `<ToolBarContent>` *ersetzt* statt dessen Inhalt zu füllen.
+  `MudDataGrid` nimmt als direktes Kind nur seine eigenen Fragmente an. Die Komponente gehört
+  **hinein**, nicht an dessen Stelle.
+- **`RZ9986`, 1×** — `Roles.razor` trägt den Titel `Roles for tenant @effectiveTenantId`. Als
+  Attributwert ist das gemischter C#-/Markup-Inhalt, den Razor ablehnt. Regel jetzt: enthält der Titel
+  `@` oder `"`, geht er als `TitleContent`-Fragment.
+- Dazu ein dritter, nur kosmetisch: der Suchfeld-Regex verschluckte das ``, das nackte `
+` passte
+  danach nicht mehr auf den CRLF-Zeilensplit — die Einrückung des Restinhalts zerfiel.
+
+**Bemerkenswert ist, was NICHT passierte:** `RZ10012` kam in keinem Lauf vor. Die Komponente wurde also
+von Anfang an überall aufgelöst — der `@namespace`- und `_Imports`-Weg stimmte. Genau diese Diagnose
+kann bei einem Razor-Sweep still danebengehen (siehe die Unterordner-Falle), und sie war sauber.
+
+Zehn Leisten blieben stehen: sieben mit abweichendem Suchfeld (`Clearable`/`Label`/`Margin` statt der
+üblichen Form) und drei strukturelle Sonderfälle, darunter der Hilfe-Themenbaum mit seiner
+`@if (Root)`-Verzweigung.
+
+**Mitgenommen:** die zehn nicht umgestellten Dialoge (plus `BillingProfile.razor` und
+`TestFormDialog.razor`, die nach Dateinamen keine Dialoge sind, den Aufruf aber auch hatten) rufen jetzt
+`ValidateAsync()` statt des veralteten `Validate()` — zwölf Dateien, `CS0618` damit vollständig weg.
 
 ### Zurückgestellt
 

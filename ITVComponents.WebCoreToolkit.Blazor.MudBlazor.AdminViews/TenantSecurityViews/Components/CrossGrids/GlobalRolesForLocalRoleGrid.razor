@@ -14,9 +14,7 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-            <MudText Typo="Typo.subtitle2">Global roles</MudText>
-            <MudSpacer />
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Global roles" TitleTypo="Typo.subtitle2" />
         </ToolBarContent>
         <Columns>
             <TemplateColumn T="GlobalRoleForLocalRoleAssignmentViewModel" Title="" Sortable="false">

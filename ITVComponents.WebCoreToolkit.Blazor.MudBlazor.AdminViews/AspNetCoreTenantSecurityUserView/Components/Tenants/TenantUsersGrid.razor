@@ -21,17 +21,7 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <RefreshButton OnClick="ReloadGrid" />
-            <MudText Typo="Typo.subtitle2">Users</MudText>
-            <MudSpacer />
-            <MudTextField @bind-Value="search"
-                          Placeholder="Search…"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          IconSize="Size.Medium"
-                          Class="mt-0"
-                          DebounceInterval="300"
-                          OnDebounceIntervalElapsed="ReloadGrid" />
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Users" TitleTypo="Typo.subtitle2" @bind-Search="search" OnSearch="ReloadGrid" />
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="UserViewModel" />

@@ -13,16 +13,15 @@
              Hover="true"
              Dense="true">
     <ToolBarContent>
-        <RefreshButton OnClick="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" />
-        <MudText Typo="Typo.subtitle2">Paths</MudText>
-        <MudSpacer />
-        <SecureView RequiredPermissions="Sysadmin">
-            <Permitted>
-            <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
-                Add path
-            </MudButton>
-            </Permitted>
-        </SecureView>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Paths" TitleTypo="Typo.subtitle2">
+            <SecureView RequiredPermissions="Sysadmin">
+                <Permitted>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                    Add path
+                </MudButton>
+                </Permitted>
+            </SecureView>
+        </CrudGridToolbar>
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.PathTemplate" Title="Path template" />

@@ -30,7 +30,7 @@
     private async Task Save()
     {
         if (form is null) return;
-        await form.Validate();
+        await form.ValidateAsync();
         if (markupEditor is not null) Model.Markup = await markupEditor.GetValueAsync();
         if (!form.IsValid) return;
         MudDialog.Close(DialogResult.Ok(Model));
