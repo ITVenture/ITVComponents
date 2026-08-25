@@ -343,8 +343,83 @@ namespace ITVComponents.Workflow.Validation
             // entscheiden - das gehoert modelliert, nicht dem Zufall der Zweig-Reihenfolge ueberlassen.
             issues.AddRange(ParallelWriteConflicts(nodes, flows, byId, inCount, outCount));
 
+            // Die Aufbewahrungsfristen haengen an keinem Knoten - und ihre Fehler faellt sonst niemandem
+            // auf: die Regel schweigt bei Unsinn, statt zu werfen, und was sie verwirft, verschwindet
+            // wortlos. Hier ist die Stelle, an der es der Autor erfaehrt.
+            issues.AddRange(RetentionIssues(definition));
+
             // Fehler zuerst, dann Warnungen - stabile Reihenfolge fuer die Anzeige.
             return issues.OrderBy(x => x.Severity).ToList();
+        }
+
+        /// <summary>
+        /// Prueft die Aufbewahrungs-Einstellungen der Definition.
+        /// </summary>
+        /// <remarks>
+        /// <b>Warum das hier stehen MUSS:</b> die Aufbewahrungsregel wirft bei keiner dieser Eingaben.
+        /// Eine negative Frist wird verworfen (und die naechste Stufe der Kette gilt), ein
+        /// widerspruechlicher Rahmen wird ganz ignoriert, ein Rahmen ohne Erlaubnis kommt nie zum Zug.
+        /// Das ist zur Laufzeit richtig - schweigend richtig. Ohne diese Meldungen erfaehrt der Autor
+        /// seinen Tippfehler nie und wundert sich Monate spaeter, warum eine Frist nicht gilt.
+        /// </remarks>
+        private static IEnumerable<ValidationIssue> RetentionIssues(WorkflowDefinition definition)
+        {
+            var issues = new List<ValidationIssue>();
+
+            void CheckDays(int? days, string what)
+            {
+                if (days is < 0)
+                {
+                    // Fehler und nicht Warnung: der Wert wird nicht etwa auf 0 gerundet, er zaehlt gar
+                    // nicht - es gilt still die naechste Stufe der Kette.
+                    issues.Add(Error(null,
+                        $"{what} is negative ({days}). A negative period would put the cut-off date in "
+                        + "the FUTURE and sweep away processes that have not even ended. It is discarded, "
+                        + "and the next stage of the chain applies instead. Use 0 for "
+                        + "\"right after it ends\"."));
+                }
+            }
+
+            CheckDays(definition.RetentionDays, "The archive period");
+            CheckDays(definition.AttachmentRetentionDays, "The attachment period");
+            CheckDays(definition.MinTenantRetentionDays, "The lower bound for the archive period");
+            CheckDays(definition.MaxTenantRetentionDays, "The upper bound for the archive period");
+            CheckDays(definition.MinTenantAttachmentRetentionDays,
+                "The lower bound for the attachment period");
+            CheckDays(definition.MaxTenantAttachmentRetentionDays,
+                "The upper bound for the attachment period");
+
+            void CheckRange(int? min, int? max, string what)
+            {
+                if (min is >= 0 && max is >= 0 && min.Value > max.Value)
+                {
+                    issues.Add(Error(null,
+                        $"The bounds for {what} contradict each other (at least {min}, at most {max}). "
+                        + "Which one would win is anybody's guess, so NEITHER applies - a tenant's wish "
+                        + "then stands unchanged, however far outside it lies."));
+                }
+            }
+
+            CheckRange(definition.MinTenantRetentionDays, definition.MaxTenantRetentionDays,
+                "the archive period");
+            CheckRange(definition.MinTenantAttachmentRetentionDays,
+                definition.MaxTenantAttachmentRetentionDays, "the attachment period");
+
+            bool hasBounds = definition.MinTenantRetentionDays != null
+                             || definition.MaxTenantRetentionDays != null
+                             || definition.MinTenantAttachmentRetentionDays != null
+                             || definition.MaxTenantAttachmentRetentionDays != null;
+            if (hasBounds && !definition.AllowTenantRetentionOverride)
+            {
+                // Warnung, kein Fehler: es ist nicht falsch, nur wirkungslos - und wer den Schalter
+                // spaeter umlegt, hat den Rahmen dann sofort richtig stehen.
+                issues.Add(Warn(null,
+                    "Bounds for the tenants' retention periods are set, but tenants are not allowed to "
+                    + "set one at all (AllowTenantRetentionOverride is off) - the bounds have nothing to "
+                    + "limit and do nothing."));
+            }
+
+            return issues;
         }
 
         /// <summary>

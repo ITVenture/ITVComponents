@@ -584,6 +584,84 @@ namespace ITVComponents.Workflow.Test
             return def;
         }
 
+        // --- Die Aufbewahrungsfristen -----------------------------------------------------------------
+        //
+        // Alle vier Faelle haben gemeinsam, dass die REGEL sie schweigend richtig behandelt: sie wirft
+        // nirgends. Genau deshalb muessen sie hier auffallen - sonst erfaehrt der Autor seinen
+        // Tippfehler nie und wundert sich Monate spaeter, warum eine Frist nicht gilt.
+
+        [TestMethod]
+        public void ANegativeRetentionPeriod_IsError()
+        {
+            WorkflowDefinition def = Linear();
+            def.RetentionDays = -1;
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+
+            Assert.IsTrue(issues.Any(i => i.Severity == ValidationSeverity.Error
+                                          && i.Message.Contains("negative")),
+                "a negative period would put the cut-off in the future - it is discarded, not rounded, "
+                + "and that has to be said.");
+        }
+
+        [TestMethod]
+        public void ZeroDays_IsNoComplaint()
+        {
+            WorkflowDefinition def = Linear();
+            def.RetentionDays = 0;
+            def.AttachmentRetentionDays = 0;
+
+            Assert.IsFalse(HasError(WorkflowDefinitionValidator.Validate(def)),
+                "zero means 'right after it ends' - the sharpest setting there is, and a valid one.");
+        }
+
+        [TestMethod]
+        public void ContradictingBounds_AreError()
+        {
+            WorkflowDefinition def = Linear();
+            def.AllowTenantRetentionOverride = true;
+            def.MinTenantRetentionDays = 100;
+            def.MaxTenantRetentionDays = 10;
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+
+            Assert.IsTrue(issues.Any(i => i.Severity == ValidationSeverity.Error
+                                          && i.Message.Contains("contradict")),
+                "neither bound applies then - a tenant's wish stands unchanged, however far outside it "
+                + "lies. That is the opposite of what the author meant.");
+        }
+
+        [TestMethod]
+        public void BoundsWithoutPermission_AreAWarningNotAnError()
+        {
+            WorkflowDefinition def = Linear();
+            def.MinTenantRetentionDays = 30;
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+
+            Assert.IsFalse(HasError(issues), "it is not wrong, only ineffective.");
+            Assert.IsTrue(issues.Any(i => i.Severity == ValidationSeverity.Warning
+                                          && i.Message.Contains("nothing to")),
+                "the bounds limit an objection nobody may raise - worth saying, not worth refusing.");
+        }
+
+        [TestMethod]
+        public void ProperBounds_AreNoComplaint()
+        {
+            WorkflowDefinition def = Linear();
+            def.AllowTenantRetentionOverride = true;
+            def.RetentionDays = 90;
+            def.MinTenantRetentionDays = 30;
+            def.MaxTenantRetentionDays = 3650;
+            def.AttachmentRetentionDays = 30;
+            def.MinTenantAttachmentRetentionDays = 0;
+
+            var issues = WorkflowDefinitionValidator.Validate(def);
+
+            Assert.IsFalse(issues.Any(i => i.Message.Contains("period") || i.Message.Contains("bound")),
+                "a sane setup must not produce noise - a validator that cries wolf gets ignored.");
+        }
+
         /// <summary>Start → AND-Split → zwei Aktivitaeten → Join → Ende.</summary>
         private static WorkflowDefinition ParallelSkeleton()
         {

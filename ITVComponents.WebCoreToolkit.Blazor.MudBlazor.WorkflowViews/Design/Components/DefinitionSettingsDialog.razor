@@ -94,6 +94,69 @@
                 Entries below this level are never written for instances of this workflow — they are not just
                 hidden, they never reach the database. Errors always get through, whatever is set here.
             </MudText>
+
+            <MudDivider Class="my-4" />
+
+            @* Aufbewahrung. Die einzige Einstellung in diesem Dialog, an der das LOESCHEN von Daten
+               haengt - deshalb sagt die Erklaerung zuerst, dass leer nichts bedeutet. *@
+            <MudText Typo="Typo.subtitle2">Retention</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Leave both empty and nothing is ever cleaned up — whoever configures nothing loses nothing.
+                Both periods are counted <b>from the moment a process ends</b>, not from its start:
+                otherwise a process that runs for a year would archive itself mid-flight. <b>0</b> is a
+                valid setting and means „right after it ends".
+            </MudText>
+
+            <div class="d-flex gap-4 mt-3">
+                <MudNumericField T="int?" @bind-Value="Def.RetentionDays" Label="Archive after (days)"
+                                 Min="0" Clearable="true" Margin="Margin.Dense"
+                                 HelperText="@("Empty = the host's default")" />
+                <MudNumericField T="int?" @bind-Value="Def.AttachmentRetentionDays"
+                                 Label="Drop attachment contents after (days)"
+                                 Min="0" Clearable="true" Margin="Margin.Dense"
+                                 HelperText="@("Empty = the host's default")" />
+            </div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Two periods, because files may go earlier than the process they belonged to. What is
+                deleted are the <b>contents</b>; the description of an attachment — name, size, who, when —
+                always stays, otherwise the archived process could not even say „there was a file here".
+            </MudText>
+
+            <MudSwitch T="bool" @bind-Value="Def.AllowTenantRetentionOverride" Color="Color.Primary"
+                       Class="mt-3" Label="A tenant may set its own periods" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Off by default, and deliberately so: a period a tenant can quietly overrule is not a
+                period. An objection raised while this is off is <b>not rejected</b> — it stays and takes
+                effect the moment you allow it.
+            </MudText>
+
+            @if (Def.AllowTenantRetentionOverride)
+            {
+                <MudText Typo="Typo.caption" Class="mt-3">
+                    How far a tenant may go. Empty = no limit in that direction.
+                </MudText>
+                <div class="d-flex gap-4">
+                    <MudNumericField T="int?" @bind-Value="Def.MinTenantRetentionDays"
+                                     Label="Archive: at least (days)" Min="0" Clearable="true"
+                                     Margin="Margin.Dense" />
+                    <MudNumericField T="int?" @bind-Value="Def.MaxTenantRetentionDays"
+                                     Label="Archive: at most (days)" Min="0" Clearable="true"
+                                     Margin="Margin.Dense" />
+                </div>
+                <div class="d-flex gap-4 mt-2">
+                    <MudNumericField T="int?" @bind-Value="Def.MinTenantAttachmentRetentionDays"
+                                     Label="Attachments: at least (days)" Min="0" Clearable="true"
+                                     Margin="Margin.Dense" />
+                    <MudNumericField T="int?" @bind-Value="Def.MaxTenantAttachmentRetentionDays"
+                                     Label="Attachments: at most (days)" Min="0" Clearable="true"
+                                     Margin="Margin.Dense" />
+                </div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    A wish outside these bounds is <b>limited, not thrown away</b> — and the tenant is told
+                    that it was. The bounds limit only the tenant's objection, never the periods above:
+                    those are the norm, and a workflow may well be stricter with itself than with others.
+                </MudText>
+            }
         }
     </DialogContent>
     <DialogActions>
