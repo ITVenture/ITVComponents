@@ -3657,6 +3657,36 @@ niemand mehr sucht; so wird im schlimmsten Fall ein zweites Mal gelöscht — un
 `DeleteAsync` ist ein Bemühen, kein Anspruch. **Scheitert das Löschen**, bleibt der Vorgang unmarkiert,
 wird als `ProcessesFailed` gezählt und beim nächsten Lauf erneut versucht; die Ausnahme steht im Log.
 
+### 46.7 Einschalten — der Worker fährt beide Läufe
+
+Der `WorkflowWorkerService` hat dafür einen vierten, sehr langsamen Zyklus. **Er ist per Vorgabe aus:**
+
+```csharp
+services.AddWorkflowWebWorker(o =>
+{
+    o.RetentionInterval = TimeSpan.FromHours(6);           // Vorgabe: TimeSpan.Zero = aus
+    o.RetentionDefaults = new WorkflowRetentionDefaults    // optional, die letzte Stufe der Kette
+    {
+        RetentionDays = 3650,
+        AttachmentRetentionDays = 365
+    };
+    o.MaxRetentionBatch = 200;                             // je Definition, Mandant und Lauf
+});
+```
+
+**Warum aus per Vorgabe:** das ist der einzige Lauf im Worker, der Daten **löscht**. Einen solchen von
+selbst mitlaufen zu lassen, weil ein Paket aktualisiert wurde, wäre die falsche Richtung — auch wenn
+ohne eingestellte Fristen ohnehin nichts passierte. Ist er aus, sagt der Worker das **einmal im Log**,
+damit niemand vergeblich sucht, warum seine Fristen nichts bewirken.
+
+**Er fährt je Umgebung, nicht je Deskriptor.** Aufgeräumt wird mandantenübergreifend; bei
+mandantengebundenen Deskriptoren täte sonst jeder dieselbe Arbeit — dieselbe Lehre wie beim
+Poll-Deskriptor. Und er läuft **immer im filterfreien Regime**: mit Mandantenfilter sähe er
+`TenantId IS NULL` und liefe leer, ohne eine einzige Meldung.
+
+Erst nach dem Intervall, nicht beim Start: ein Prozessstart ist der schlechteste Moment für einen Lauf,
+der löscht.
+
 ---
 
 ## Schnellübersicht der Breaking Changes
@@ -3722,3 +3752,4 @@ wird als `ProcessesFailed` gezählt und beim nächsten Lauf erneut versucht; die
 | 49 | **Aufbewahrung: die Ablage** (§45) | **Pflicht-Migration `RetentionOverrides`** (beide Provider) — eine neue Tabelle `WorkflowRetentionOverrides`, kein Datenumzug, keine Änderung an bestehenden Tabellen. `IWorkflowStore` bekommt **drei** neue Member (`GetRetentionOverrides`, `GetRetentionOverridesForDefinition`, `SaveRetentionOverride`) — **eigene Store-Implementierungen brechen**. **Es wird noch nichts aufgeräumt:** hier kommen nur die Regel und die Ablage an; Aufbewahrungslauf, Archiv und Oberfläche folgen. **Sagt niemand etwas, wird nicht aufgeräumt** — wer nichts einstellt, verliert nichts. Die sieben neuen Felder an der Definition (`RetentionDays`, `AttachmentRetentionDays`, `AllowTenantRetentionOverride`, vier Grenzen) kosten **keine** Migration, sie liegen im `DefinitionJson`. **Merke: der Widerspruch hängt an Besitzer + `DefinitionId` + widersprechendem Mandanten, NICHT am `DefinitionKey`** (der wird je Version neu vergeben). **Merke: ohne `AllowTenantRetentionOverride` wirkt ein Widerspruch nicht — er wird aber trotzdem gespeichert** und wirkt, sobald die Definition ihn erlaubt. Eine Rücknahme (beide Fristen null) **löscht die Zeile nicht**; einen Lösch-Weg gibt es bewusst nicht. Für PostgreSQL trägt der eindeutige Index `NULLS NOT DISTINCT` — alle drei Spalten sind nullable |
 | 50 | **Aufbewahrungslauf + Archiv** (§46) | **Pflicht-Migration `InstanceEndedAndArchive`** (beide Provider): neue Spalte `WorkflowInstances.EndedUtc` + Index, **Nachtrag für den Altbestand** (`EndedUtc = UpdatedUtc` für alles schon Beendete) und die Tabelle `WorkflowArchivedInstances`. **Ohne den Nachtrag trägt jeder bestehende Vorgang `NULL` und fällt für immer aus der Aufbewahrung heraus.** `IWorkflowStore` bekommt **vier** neue Member (`ListEndedInstanceGroups`, `FindEndedInstances`, `ArchiveInstanceTree`, `GetArchivedInstance`) — **eigene Store-Implementierungen brechen**. **Von selbst passiert nichts:** ohne eingestellte Frist wird nichts archiviert, und den Lauf (`WorkflowRetentionRunner.Run`) muss jemand anstossen. **Merke: eine eigene Spalte fürs Ende, nicht `UpdatedUtc`** — ein gescheiterter Vorgang ist anhaltbar, und jedes Anhalten setzte die Uhr sonst still zurück; ein Wiederaufsatz nimmt das Ende dagegen ausdrücklich zurück. **Merke: der Prozessbaum geht als Ganzes, mit der Frist der Wurzel** — läuft irgendwo noch ein Subworkflow, passiert gar nichts (protokolliert, als `TreesRefused` gezählt). Das Archiv ist **flach** und hat seine eigene Ansicht (kein Union in der Live-Liste), ohne FK auf die Definition und mit ihrem Namen als Text. **Die Anhang-Bytes bleiben liegen** (eigene Frist); nicht zugestellte Outbox-Einträge und liegengebliebene Sperren gehen mit — mit Protokolleintrag, nicht stillschweigend |
 | 51 | **Eigene Frist für die Anhang-Inhalte** (§46.6) | **Pflicht-Migration `AttachmentRetention`** (beide Provider): `WorkflowAttachments.BytesPurgedUtc` (+ Index) und `WorkflowArchivedInstances.AttachmentCount`. **Kein Breaking Change für eigene Store-Implementierungen** — die drei Ablage-Methoden liegen bewusst nur auf `EfWorkflowStore`, nicht im `IWorkflowStore`-Vertrag: Anhänge gibt es allein in der Datenbank-Fassung. Der Lauf ist `WorkflowAttachmentRetentionRunner.RunAsync` (async, eigene Klasse — die Inhalte liegen hinter der austauschbaren `IWorkflowAttachmentStore`). **Merke: er greift auch bei noch AKTIVEN, beendeten Vorgängen** — sonst bisse eine kurze Anhang-Frist neben einer langen Aufbewahrungsfrist nie, und das ist der ganze Sinn zweier Fristen. **Die Beschreibung bleibt in jedem Fall** (Name, Grösse, wer, wann, samt `FileIdentifier`), weg sind nur die Bytes. **Merke: gelöscht wird zuerst, markiert danach** — andersherum bliebe bei einem Abbruch eine Datei liegen, die niemand mehr sucht. Scheitert das Löschen, bleibt der Vorgang unmarkiert, wird als `ProcessesFailed` gezählt und beim nächsten Lauf erneut versucht |
+| 52 | **Aufbewahrung einschalten** (§46.7) | Kein Schema-Change, **opt-in, per Vorgabe AUS**. Der `WorkflowWorkerService` hat einen vierten, sehr langsamen Zyklus für beide Läufe; er startet nur mit `WorkflowWorkerOptions.RetentionInterval > TimeSpan.Zero` (dazu optional `RetentionDefaults` als letzte Stufe der Kette und `MaxRetentionBatch`, Vorgabe 200). **Warum aus:** das ist der einzige Lauf im Worker, der Daten **löscht** — einen solchen mitlaufen zu lassen, weil ein Paket aktualisiert wurde, wäre die falsche Richtung. Ist er aus, sagt der Worker das **einmal im Log**, damit niemand vergeblich sucht, warum seine Fristen nichts bewirken. **Merke: er fährt je UMGEBUNG, nicht je Deskriptor** (mandantengebundene Deskriptoren täten sonst alle dieselbe Arbeit) und **immer filterfrei** — mit Mandantenfilter sähe er `TenantId IS NULL` und liefe leer, ohne Meldung. Der erste Lauf kommt nach dem Intervall, nicht beim Start |

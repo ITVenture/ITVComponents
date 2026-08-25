@@ -1,4 +1,5 @@
 using System;
+using ITVComponents.Workflow.Retention;
 
 namespace ITVComponents.Workflow.WebWorker
 {
@@ -52,5 +53,36 @@ namespace ITVComponents.Workflow.WebWorker
         /// fuer den naechsten Durchgang oder einen anderen Prozess liegen.
         /// </summary>
         public int MaxTimerBatch { get; set; } = 200;
+
+        /// <summary>
+        /// Wie oft der <b>Aufbewahrungslauf</b> faehrt. <b>Vorgabe <see cref="TimeSpan.Zero"/> = aus.</b>
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Ausdruecklich abgeschaltet, bis jemand es einschaltet. Das ist der einzige Lauf hier, der
+        /// Daten <b>loescht</b>; einen solchen von selbst mitlaufen zu lassen, weil ein Paket
+        /// aktualisiert wurde, waere die falsche Vorgabe - auch wenn ohne eingestellte Fristen ohnehin
+        /// nichts passierte. Ein sinnvoller Wert sind Stunden, nicht Minuten.
+        /// </para>
+        /// <para>
+        /// Der Lauf faehrt <b>je Umgebung</b> und nicht je Deskriptor: er raeumt
+        /// mandantenuebergreifend, und bei mandantengebundenen Deskriptoren taete sonst jeder dieselbe
+        /// Arbeit. Dieselbe Lehre wie beim Poll-Deskriptor.
+        /// </para></remarks>
+        public TimeSpan RetentionInterval { get; set; } = TimeSpan.Zero;
+
+        /// <summary>
+        /// Die globalen Aufbewahrungs-Vorgaben - die letzte Stufe der Kette hinter dem Widerspruch des
+        /// Mandanten und der Vorgabe der Definition. Null = keine, dann gilt nur, was an einer
+        /// Definition steht.
+        /// </summary>
+        public WorkflowRetentionDefaults? RetentionDefaults { get; set; }
+
+        /// <summary>
+        /// Wie viele Prozessbaeume (bzw. Vorgaenge beim Anhang-Lauf) je Definition, Mandant und Lauf
+        /// hoechstens verarbeitet werden. Der Rest bleibt fuer den naechsten Durchgang liegen - und der
+        /// Lauf sagt, dass er gedeckelt hat.
+        /// </summary>
+        public int MaxRetentionBatch { get; set; } = 200;
     }
 }

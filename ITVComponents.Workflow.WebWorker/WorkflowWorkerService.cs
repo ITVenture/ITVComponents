@@ -9,7 +9,9 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.WebPlugins.InjectablePlugins;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.EntityFramework;
+using ITVComponents.Workflow.EntityFramework.Abstractions;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Stores;
 using ITVComponents.Workflow.WebWorker.Runtime;
@@ -25,6 +27,11 @@ namespace ITVComponents.Workflow.WebWorker
     /// Scheduler (Faelligkeit pruefen) und einen geteilten, gedeckelten Pool (die Antriebe). Die Deskriptoren
     /// sind passiv; dieser Service treibt sie. Beide Betriebs-Regimes teilen sich denselben Antriebs-Pfad und
     /// unterscheiden sich nur darin, welcher <c>Prepare*Context</c> den Store-Kontext baut.
+    /// <para>
+    /// Dazu ein vierter, sehr langsamer Zyklus: der <b>Aufbewahrungslauf</b>. Er faehrt je UMGEBUNG
+    /// (nicht je Deskriptor - er raeumt mandantenuebergreifend), immer filterfrei, und ist per Vorgabe
+    /// <b>aus</b>: <c>WorkflowWorkerOptions.RetentionInterval</c> schaltet ihn ein.
+    /// </para>
     /// </summary>
     public sealed class WorkflowWorkerService : BackgroundService, IWorkflowWorkerWake
     {
@@ -66,8 +73,10 @@ namespace ITVComponents.Workflow.WebWorker
 
             Task refresh = RefreshLoopAsync(stop);
             Task schedule = ScheduleLoopAsync(stop);
+            Task retention = RetentionLoopAsync(stop);
 
-            await Task.WhenAll(new[] { refresh, schedule }.Concat(consumers)).ConfigureAwait(false);
+            await Task.WhenAll(new[] { refresh, schedule, retention }.Concat(consumers))
+                .ConfigureAwait(false);
         }
 
         // ---- langsamer Refresh: teure Discovery, selten -----------------------------------------------
@@ -179,6 +188,154 @@ namespace ITVComponents.Workflow.WebWorker
             }
         }
 
+        /// <summary>
+        /// Woher der Store dieses Deskriptors seine Kontexte bekommt - oder null, wenn es dafuer nichts
+        /// gibt (dann ist die Ursache bereits protokolliert).
+        /// </summary>
+        /// <remarks>
+        /// Aus <c>Drive</c> herausgezogen, als der Aufbewahrungslauf denselben Weg brauchte. Die
+        /// Reihenfolge ist keine Geschmacksfrage und steht deshalb an EINER Stelle: <b>zuerst</b> die
+        /// Kontext-Fabrik (der options-only-Weg, der einzige wirklich filterfreie), und nur wenn eine
+        /// Umgebung ausdruecklich ein Store-Plugin nennt, dessen Name.
+        /// </remarks>
+        private Func<WorkflowContext>? ResolveContextSource(IServiceProvider sp, DescriptorSpec spec,
+            List<IDisposable> leases)
+        {
+            IDbContextFactory<WorkflowContext>? contextFactory =
+                string.IsNullOrEmpty(spec.StorePluginName) ? sp.GetService<IDbContextFactory<WorkflowContext>>() : null;
+            IFreshInjectablePlugin<WorkflowContext>? fresh = contextFactory == null
+                ? sp.GetService<IFreshInjectablePlugin<WorkflowContext>>()
+                : null;
+
+            if (contextFactory == null && fresh == null)
+            {
+                log.LogError(
+                    "Workflow worker: descriptor {Key} has neither an IDbContextFactory<WorkflowContext> nor an "
+                    + "IFreshInjectablePlugin<WorkflowContext> to build its store from - this descriptor cannot "
+                    + "run. Register the context factory (single-environment web setup) or name a store plugin "
+                    + "on the environment.", spec.Key);
+                return null;
+            }
+
+            return () =>
+            {
+                if (contextFactory != null)
+                {
+                    // Der Store disposed den Kontext je Aufruf selbst - hier nichts zu sammeln.
+                    return contextFactory.CreateDbContext();
+                }
+
+                IPluginLease<WorkflowContext> lease = fresh!.Lease(spec.StorePluginName ?? ContextPluginName);
+                leases.Add(lease);
+                return lease.Value;
+            };
+        }
+
+        // ---- Der Aufbewahrungslauf: langsam, je UMGEBUNG, und per Vorgabe aus -------------------------
+        private async Task RetentionLoopAsync(CancellationToken stop)
+        {
+            if (opt.RetentionInterval <= TimeSpan.Zero)
+            {
+                // Kein stilles Nichtstun: wer die Fristen einstellt und sich wundert, dass nichts
+                // passiert, soll den Grund im Log finden.
+                log.LogInformation(
+                    "Workflow worker: retention is off (RetentionInterval is not set). Nothing will be "
+                    + "archived or purged, whatever deadlines are configured.");
+                return;
+            }
+
+            try
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    // Erst warten, dann raeumen: ein Prozessstart ist der schlechteste Moment fuer einen
+                    // Lauf, der loescht - und der erste Refresh muss die Umgebungen ohnehin erst finden.
+                    await Task.Delay(opt.RetentionInterval, stop).ConfigureAwait(false);
+
+                    // Je UMGEBUNG einmal, nicht je Deskriptor: der Lauf raeumt mandantenuebergreifend,
+                    // und bei mandantengebundenen Deskriptoren taete sonst jeder dieselbe Arbeit.
+                    foreach (DescriptorSpec spec in live.Values.Select(d => d.Spec)
+                                 .GroupBy(s => s.EnvironmentName ?? string.Empty)
+                                 .Select(g => g.First())
+                                 .ToList())
+                    {
+                        try
+                        {
+                            await RunRetentionAsync(spec, stop).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            // Eine Umgebung darf die anderen nicht mitnehmen - aber sie verschwindet auch
+                            // nicht stillschweigend.
+                            log.LogError(ex,
+                                "Workflow worker: retention run for environment {Environment} failed.",
+                                spec.EnvironmentName ?? "(default)");
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // normaler Stop
+            }
+        }
+
+        /// <summary>Ein Aufbewahrungs- und ein Anhang-Lauf ueber die Ablage dieser Umgebung.</summary>
+        /// <remarks>
+        /// <b>Immer im filterfreien Regime</b>, auch wenn der Deskriptor an einen Mandanten gebunden war:
+        /// aufgeraeumt wird ueber alle Mandanten, und die Grenze zieht die Frist, nicht der Kontext. Mit
+        /// Filter saehe der Lauf „TenantId IS NULL" - er liefe leer, ohne eine einzige Meldung.
+        /// </remarks>
+        private async Task RunRetentionAsync(DescriptorSpec spec, CancellationToken stop)
+        {
+            using IServiceScope scope = scopeFactory.CreateScope();
+            IServiceProvider sp = scope.ServiceProvider;
+            sp.PrepareEmptyContext(out _);
+
+            var leases = new List<IDisposable>();
+            try
+            {
+                Func<WorkflowContext>? leaseCtx = ResolveContextSource(sp, spec, leases);
+                if (leaseCtx == null)
+                {
+                    return;
+                }
+
+                var store = new EfWorkflowStore(leaseCtx);
+                DateTime nowUtc = DateTime.UtcNow;
+
+                new WorkflowRetentionRunner(store, opt.RetentionDefaults)
+                    .Run(nowUtc, opt.MaxRetentionBatch);
+
+                // Die Anhang-Inhalte haben ihre eigene Frist - und der Lauf greift auch bei Vorgaengen,
+                // die noch aktiv liegen. Die Ablage der Bytes ist austauschbar; ist keine registriert,
+                // gilt die eingebaute.
+                IWorkflowAttachmentStore attachments =
+                    sp.GetService<IWorkflowAttachmentStore>() ?? new EfWorkflowAttachmentStore(leaseCtx);
+                await new WorkflowAttachmentRetentionRunner(store, attachments, opt.RetentionDefaults)
+                    .RunAsync(nowUtc, opt.MaxRetentionBatch, stop).ConfigureAwait(false);
+            }
+            finally
+            {
+                foreach (IDisposable lease in leases)
+                {
+                    try
+                    {
+                        lease.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogWarning(ex,
+                            "Workflow worker: releasing a store lease after the retention run failed.");
+                    }
+                }
+            }
+        }
+
         // ---- Der Antrieb: spiegelt WorkflowRunner.Poll + WorkflowTaskWorker, einzelthreadig je Drive ---
         private (bool foundWork, DateTime? nextTimer) Drive(WorkflowExecutionDescriptor d, CancellationToken ct)
         {
@@ -213,40 +370,17 @@ namespace ITVComponents.Workflow.WebWorker
             // gesetzt werden - der einzige wirklich filterfreie). Nennt eine Umgebung ausdruecklich ein
             // Store-Plugin, gilt dessen Name: im Mehr-Umgebungen-Betrieb zeigt jede Umgebung auf ihre
             // eigene Ablage, und dann liegt es beim Host, dieses Plugin filterfrei zu bauen.
-            IDbContextFactory<WorkflowContext>? contextFactory =
-                string.IsNullOrEmpty(spec.StorePluginName) ? sp.GetService<IDbContextFactory<WorkflowContext>>() : null;
-            IFreshInjectablePlugin<WorkflowContext>? fresh = contextFactory == null
-                ? sp.GetService<IFreshInjectablePlugin<WorkflowContext>>()
-                : null;
-
-            if (contextFactory == null && fresh == null)
+            Func<WorkflowContext>? leaseCtx = ResolveContextSource(sp, spec, leases);
+            if (leaseCtx == null)
             {
-                log.LogError(
-                    "Workflow worker: descriptor {Key} has neither an IDbContextFactory<WorkflowContext> nor an "
-                    + "IFreshInjectablePlugin<WorkflowContext> to build its store from - this descriptor cannot "
-                    + "run. Register the context factory (single-environment web setup) or name a store plugin "
-                    + "on the environment.", spec.Key);
                 return (false, null);
-            }
-
-            WorkflowContext LeaseCtx()
-            {
-                if (contextFactory != null)
-                {
-                    // Der Store disposed den Kontext je Aufruf selbst - hier nichts zu sammeln.
-                    return contextFactory.CreateDbContext();
-                }
-
-                IPluginLease<WorkflowContext> lease = fresh!.Lease(spec.StorePluginName ?? ContextPluginName);
-                leases.Add(lease);
-                return lease.Value;
             }
 
             try
             {
                 // EfWorkflowStore leaset je Aufruf einen frischen Kontext (Unit of Work je Aufruf) und disposed
                 // ihn selbst; die Operation sammelt die Scopes und schliesst sie am Ende (Doppel-Dispose idempotent).
-                IWorkflowStore store = new EfWorkflowStore(LeaseCtx);
+                IWorkflowStore store = new EfWorkflowStore(leaseCtx);
                 // Ist ein Protokoll-Filter registriert, gilt er fuer die hier angetriebenen Instanzen;
                 // sonst der prozessweite Standard (WorkflowHistoryFilter.Default). Das Feature-Gate
                 // entscheidet bei jedem zeitgesteuerten und jedem nachrichten-getriebenen Start, ob der
