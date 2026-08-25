@@ -7,7 +7,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common
     /// Eine serverseitige Listenabfrage (Paging, Sortierung, Suche) - gemeinsame Form fuer die
     /// Grids dieses Moduls.
     /// </summary>
-    public sealed class ListQuery
+    public sealed class WorkflowListQuery
     {
         /// <summary>Nullbasierte Seitennummer.</summary>
         public int Page { get; init; }
@@ -28,13 +28,5 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common
         public int? Status { get; init; }
     }
 
-    /// <summary>Ein Seitenausschnitt samt Gesamtzahl.</summary>
-    public sealed class PagedResult<T>
-    {
-        /// <summary>Die Elemente dieser Seite.</summary>
-        public IReadOnlyList<T> Items { get; init; } = Array.Empty<T>();
 
-        /// <summary>Gesamtzahl ueber alle Seiten.</summary>
-        public int TotalCount { get; init; }
-    }
 }

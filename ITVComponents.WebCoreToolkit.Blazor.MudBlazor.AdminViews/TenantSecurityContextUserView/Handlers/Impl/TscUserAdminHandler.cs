@@ -9,6 +9,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.EntityFrameworkCore;
 using TscModels = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityContextUserView.Handlers.Impl;
 
@@ -95,19 +96,19 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
     public bool HasPermission(params string[] permissions)
         => services.VerifyUserPermissions(permissions);
 
-    public UserListContext GetContext(ClaimsPrincipal user)
+    public AdminContext GetContext(ClaimsPrincipal user)
     {
         using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
         ApplyContextScope(db, sysAdmin);
-        return new UserListContext
+        return new AdminContext
         {
             IsSysAdmin = sysAdmin,
             CurrentTenantId = sysAdmin ? null : db.CurrentTenantId
         };
     }
 
-    public async Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, UserListQuery query)
+    public async Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, ListQuery query)
     {
         using var db = dbFactory.CreateDbContext();
         var sysAdmin = IsSysAdmin();
@@ -242,7 +243,7 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
         return false;
     }
 
-    public async Task<PagedResult<CustomUserPropertyViewModel>> ListPropertiesAsync(ClaimsPrincipal user, string userId, UserListQuery query)
+    public async Task<PagedResult<CustomUserPropertyViewModel>> ListPropertiesAsync(ClaimsPrincipal user, string userId, ListQuery query)
     {
         if (!IsSysAdmin() || !int.TryParse(userId, out var uid)) return Empty<CustomUserPropertyViewModel>();
         using var db = dbFactory.CreateDbContext();
@@ -309,17 +310,17 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
         return true;
     }
 
-    public Task<PagedResult<UserLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, string userId, UserListQuery query)
+    public Task<PagedResult<UserLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, string userId, ListQuery query)
         => Task.FromResult(Empty<UserLoginViewModel>());
 
     public Task<bool> DeleteLoginAsync(ClaimsPrincipal user, UserLoginViewModel input) => Task.FromResult(false);
 
-    public Task<PagedResult<UserTokenViewModel>> ListTokensAsync(ClaimsPrincipal user, string userId, UserListQuery query)
+    public Task<PagedResult<UserTokenViewModel>> ListTokensAsync(ClaimsPrincipal user, string userId, ListQuery query)
         => Task.FromResult(Empty<UserTokenViewModel>());
 
     public Task<bool> DeleteTokenAsync(ClaimsPrincipal user, UserTokenViewModel input) => Task.FromResult(false);
 
-    public Task<PagedResult<UserClaimViewModel>> ListClaimsAsync(ClaimsPrincipal user, string userId, UserListQuery query)
+    public Task<PagedResult<UserClaimViewModel>> ListClaimsAsync(ClaimsPrincipal user, string userId, ListQuery query)
         => Task.FromResult(Empty<UserClaimViewModel>());
 
     public Task<UserClaimViewModel?> CreateClaimAsync(ClaimsPrincipal user, string userId, UserClaimViewModel input)

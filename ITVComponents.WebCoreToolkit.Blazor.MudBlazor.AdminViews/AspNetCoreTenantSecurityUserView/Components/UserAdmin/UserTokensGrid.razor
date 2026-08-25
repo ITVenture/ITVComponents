@@ -61,7 +61,7 @@
             return new GridData<UserTokenViewModel> { Items = Array.Empty<UserTokenViewModel>(), TotalItems = 0 };
 
         var sort = state.SortDefinitions.FirstOrDefault();
-        var query = new UserListQuery
+        var query = new ListQuery
         {
             Page = state.Page,
             PageSize = state.PageSize,

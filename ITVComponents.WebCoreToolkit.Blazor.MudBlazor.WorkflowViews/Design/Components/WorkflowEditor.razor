@@ -294,7 +294,7 @@
         try
         {
             var list = await Handler.ListDefinitionsAsync(auth.User,
-                new ListQuery { Page = 0, PageSize = 500 }, Environment);
+                new WorkflowListQuery { Page = 0, PageSize = 500 }, Environment);
             subDefinitionIds = list.Items.Select(i => i.Id).Distinct().OrderBy(x => x).ToList();
         }
         catch (Exception ex)

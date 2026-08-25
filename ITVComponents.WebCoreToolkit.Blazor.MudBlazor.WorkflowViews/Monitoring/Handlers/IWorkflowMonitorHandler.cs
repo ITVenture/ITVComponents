@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.ViewModels;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring.Handlers
 {
@@ -20,7 +21,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// Liefert eine Seite der Instanz-Uebersicht. <paramref name="environment"/> waehlt - falls
         /// konfiguriert - die Workflow-Umgebung (Store); null = die Standard-Umgebung.
         /// </summary>
-        Task<PagedResult<WorkflowInstanceListItem>> ListInstancesAsync(ClaimsPrincipal user, ListQuery query,
+        Task<PagedResult<WorkflowInstanceListItem>> ListInstancesAsync(ClaimsPrincipal user, WorkflowListQuery query,
             string? environment = null);
 
         /// <summary>Laedt eine Instanz vollstaendig (Variablen, Tokens, Protokoll), oder null.</summary>

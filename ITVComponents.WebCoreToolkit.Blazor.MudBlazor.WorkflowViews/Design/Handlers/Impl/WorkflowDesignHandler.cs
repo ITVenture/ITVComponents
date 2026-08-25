@@ -16,6 +16,7 @@ using ITVComponents.Workflow.EntityFramework;
 using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Plugins;
 using Microsoft.EntityFrameworkCore;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers.Impl
 {
@@ -46,7 +47,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         protected override bool NeedsEngine => false;
 
         /// <inheritdoc/>
-        public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query,
+        public async Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, WorkflowListQuery query,
             string? environment = null)
         {
             using WorkflowOperation op = BeginOperation(environment);

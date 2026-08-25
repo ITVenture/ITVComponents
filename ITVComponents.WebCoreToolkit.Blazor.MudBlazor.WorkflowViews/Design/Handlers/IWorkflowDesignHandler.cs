@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Common;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.ViewModels;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Model;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Handlers
 {
@@ -21,7 +22,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         /// Liefert eine Seite der Definition-Uebersicht (je Zeile eine Id+Version). <paramref name="environment"/>
         /// waehlt - falls konfiguriert - die Workflow-Umgebung (Store); null = die Standard-Umgebung.
         /// </summary>
-        Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, ListQuery query,
+        Task<PagedResult<WorkflowDefinitionListItem>> ListDefinitionsAsync(ClaimsPrincipal user, WorkflowListQuery query,
             string? environment = null);
 
         /// <summary>

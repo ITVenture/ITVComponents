@@ -3390,6 +3390,45 @@ Ansicht fehlt: **ins Log schauen, dort steht es jetzt.**
 
 ---
 
+## 43. `PagedResult` und `ListQuery` liegen jetzt an EINER Stelle — **Pflicht, wenn ihr Handler selbst implementiert**
+
+`PagedResult<T>` lag **dreimal** buchstäblich identisch im Repo, `ListQuery` **zweimal** unter zwei Namen.
+Beide sind zusammengeführt:
+
+| vorher | jetzt |
+|---|---|
+| `…AdminViews.TenantSecurityViews.ViewModels.ListQuery` | `ITVComponents.WebCoreToolkit.Blazor.Paging.ListQuery` |
+| `…AdminViews.AspNetCoreTenantSecurityUserView.ViewModels.UserListQuery` | dieselbe `ListQuery` |
+| `…ViewModels.PagedResult<T>` (2×) und `…WorkflowViews.Common.PagedResult<T>` | `ITVComponents.WebCoreToolkit.Blazor.Paging.PagedResult<T>` |
+| `AdminContext` und `UserListContext` | `ITVComponents.WebCoreToolkit.Blazor.Paging.AdminContext` |
+
+Die Typen liegen im Paket **`ITVComponents.WebCoreToolkit.Blazor.MudBlazor`** — dem, das ihr wegen
+`EditDialogShell`/`CrudGridToolbar` ohnehin zusammen mit AdminViews hochzieht (§42.4).
+
+**Was ihr tun müsst:** in euren eigenen Handler-Implementierungen und Masken die `using`-Zeile auf
+`ITVComponents.WebCoreToolkit.Blazor.Paging` umstellen und `UserListQuery` → `ListQuery`,
+`UserListContext` → `AdminContext` umbenennen. Der Compiler zeigt euch jede Stelle (`CS0246`).
+
+```powershell
+$src = Get-ChildItem -Recurse -File |
+       Where-Object { $_.Extension -in '.cs','.razor' -and $_.FullName -notmatch '\\(obj|bin)\\' }
+$src | Select-String -Pattern '\b(PagedResult|ListQuery|UserListQuery|AdminContext|UserListContext)\b' |
+  Select-Object Path, LineNumber, Line
+```
+
+### 43.1 Achtung: die Workflow-Abfrage war NICHT dasselbe
+
+Die dritte Fassung, `…WorkflowViews.Common.ListQuery`, ist **nicht** mitgekommen und heisst jetzt
+**`WorkflowListQuery`**. Sie trägt statt `TenantId` ein **`Status`**-Feld — sie sah nur gleich aus, weil
+sie gleich hiess.
+
+Das ist der Grund für die Umbenennung und nicht ein Schönheitsentscheid: hätten wir alle drei
+zusammengezogen, wäre entweder der Status-Filter der Workflow-Übersicht verschwunden oder jede
+Admin-Abfrage hätte ein Feld bekommen, das dort nichts bedeutet. **Wenn ihr eigene Workflow-Handler
+implementiert, benennt den Typ mit um** — der Compiler meldet es.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3398,6 +3437,8 @@ Ansicht fehlt: **ins Log schauen, dort steht es jetzt.**
 | 42b | **Workflow: Fault** | ein gescheiterter Vorgang läuft **nicht mehr** von selbst weiter — nur noch per `RetryFaulted`. Kein Schema-Change, aber Monitoring prüfen (§42.2) |
 | 42c | `UserTaskCompletionStatus` | neuer Wert `InstanceNotResumable` (hinten angehängt) — nur relevant für eigene Aufgaben-Masken (§42.3) |
 | 42d | **Pakete** | `…Blazor.MudBlazor` und `…Blazor.MudBlazor.AdminViews` zusammen hochziehen (§42.4) |
+| 43a | **`PagedResult<T>` / `ListQuery`** | zusammengelegt nach `ITVComponents.WebCoreToolkit.Blazor.Paging` (Paket `…Blazor.MudBlazor`); `UserListQuery`→`ListQuery`, `UserListContext`→`AdminContext` (§43) |
+| 43b | **Workflow-Abfrage** | `…WorkflowViews.Common.ListQuery` heisst jetzt `WorkflowListQuery` — sie trägt `Status` statt `TenantId` und war nie derselbe Typ (§43.1) |
 | 1 | `IFileHandler.AddFile` | `ModelStateDictionary` raus, `FileOperationResult` zurück; Namespace → `ServiceShared.FileHandling` |
 | 1b | `IFileHandler.ReadFile` (sync) | `ref`/`out byte[]` → `FileReadResult ReadFile(id, identity)` (Stream-basiert, wie async) |
 | 2 | `IRespondingFileHandler.GetUploadResult` | `IResult` → `FileReadResult`; Namespace → `ServiceShared.FileHandling` |

@@ -1,4 +1,5 @@
 using MudBlazor;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
 
@@ -6,7 +7,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTen
 /// Das Gegenstueck zu <c>TenantSecurityViews.ViewModels.GridQuery</c> fuer die Benutzer-Ansichten.
 /// </summary>
 /// <remarks>
-/// Zweimal dasselbe, und das ist bekannt: <see cref="UserListQuery"/> und <c>ListQuery</c> sind Feld
+/// Zweimal dasselbe, und das ist bekannt: <see cref="ListQuery"/> und <c>ListQuery</c> sind Feld
 /// fuer Feld identisch, <c>PagedResult&lt;T&gt;</c> ist es ebenfalls. Sie zusammenzulegen ist ein
 /// <b>breaking change</b> - die Vertraege stehen in den Handler-Schnittstellen, die Hosts selbst
 /// implementieren, und ein Namensraum-Wechsel bricht sie. Der Bericht hat das ausdruecklich
@@ -22,11 +23,11 @@ public static class UserGridQuery
     /// <param name="state">der Zustand, den <c>MudDataGrid.ServerData</c> uebergibt</param>
     /// <param name="search">der Suchbegriff der Maske, oder null</param>
     /// <param name="tenantId">der Mandant, falls die Seite auf einen eingeschraenkt ist</param>
-    public static UserListQuery ToUserListQuery<T>(this GridState<T> state, string? search = null,
+    public static ListQuery ToUserListQuery<T>(this GridState<T> state, string? search = null,
         int? tenantId = null)
     {
         var sort = state.SortDefinitions.FirstOrDefault();
-        return new UserListQuery
+        return new ListQuery
         {
             Page = state.Page,
             PageSize = state.PageSize,

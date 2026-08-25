@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.ViewModels;
+using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.AspNetCoreTenantSecurityUserView.Handlers;
 
@@ -14,11 +15,11 @@ public interface IUserAdminHandler
     bool SupportsClaims => true;
     bool ShowAuthenticationType => false;
 
-    UserListContext GetContext(ClaimsPrincipal user);
+    AdminContext GetContext(ClaimsPrincipal user);
 
     bool HasPermission(params string[] permissions);
 
-    Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, UserListQuery query);
+    Task<PagedResult<UserViewModel>> ListUsersAsync(ClaimsPrincipal user, ListQuery query);
 
     Task<UserViewModel?> CreateUserAsync(ClaimsPrincipal user, UserViewModel input);
 
@@ -26,18 +27,18 @@ public interface IUserAdminHandler
 
     Task<bool> DeleteUserAsync(ClaimsPrincipal user, string userOrTenantUserId, int? tenantId);
 
-    Task<PagedResult<CustomUserPropertyViewModel>> ListPropertiesAsync(ClaimsPrincipal user, string userId, UserListQuery query);
+    Task<PagedResult<CustomUserPropertyViewModel>> ListPropertiesAsync(ClaimsPrincipal user, string userId, ListQuery query);
     Task<CustomUserPropertyViewModel?> CreatePropertyAsync(ClaimsPrincipal user, string userId, CustomUserPropertyViewModel input);
     Task<CustomUserPropertyViewModel?> UpdatePropertyAsync(ClaimsPrincipal user, CustomUserPropertyViewModel input);
     Task<bool> DeletePropertyAsync(ClaimsPrincipal user, int customUserPropertyId);
 
-    Task<PagedResult<UserLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, string userId, UserListQuery query);
+    Task<PagedResult<UserLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, string userId, ListQuery query);
     Task<bool> DeleteLoginAsync(ClaimsPrincipal user, UserLoginViewModel input);
 
-    Task<PagedResult<UserTokenViewModel>> ListTokensAsync(ClaimsPrincipal user, string userId, UserListQuery query);
+    Task<PagedResult<UserTokenViewModel>> ListTokensAsync(ClaimsPrincipal user, string userId, ListQuery query);
     Task<bool> DeleteTokenAsync(ClaimsPrincipal user, UserTokenViewModel input);
 
-    Task<PagedResult<UserClaimViewModel>> ListClaimsAsync(ClaimsPrincipal user, string userId, UserListQuery query);
+    Task<PagedResult<UserClaimViewModel>> ListClaimsAsync(ClaimsPrincipal user, string userId, ListQuery query);
     Task<UserClaimViewModel?> CreateClaimAsync(ClaimsPrincipal user, string userId, UserClaimViewModel input);
     Task<UserClaimViewModel?> UpdateClaimAsync(ClaimsPrincipal user, UserClaimViewModel input);
     Task<bool> DeleteClaimAsync(ClaimsPrincipal user, int claimId);
