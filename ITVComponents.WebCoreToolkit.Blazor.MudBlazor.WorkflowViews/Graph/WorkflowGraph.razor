@@ -192,10 +192,10 @@ else
                     sb.Append($"<ellipse cx=\"{N(node.CenterX)}\" cy=\"{N(node.CenterY)}\" rx=\"{N(node.Width / 2)}\" ry=\"{N(node.Height / 2)}\" {style} />");
                     break;
                 case NodeShape.Diamond:
-                    sb.Append($"<polygon points=\"{DiamondPoints(node)}\" {style} />");
+                    sb.Append($"<polygon points=\"{SvgShapes.Diamond(node.X, node.Y, node.Width, node.Height)}\" {style} />");
                     break;
                 case NodeShape.Hexagon:
-                    sb.Append($"<polygon points=\"{HexagonPoints(node)}\" {style} />");
+                    sb.Append($"<polygon points=\"{SvgShapes.Hexagon(node.X, node.Y, node.Width, node.Height)}\" {style} />");
                     break;
                 case NodeShape.Rectangle:
                     sb.Append($"<rect x=\"{N(node.X)}\" y=\"{N(node.Y)}\" width=\"{N(node.Width)}\" height=\"{N(node.Height)}\" {style} />");
@@ -269,27 +269,6 @@ else
     }
 
     private static string N(double value) => value.ToString(CultureInfo.InvariantCulture);
-
-    private static string DiamondPoints(LaidOutNode n)
-    {
-        return string.Join(" ",
-            $"{N(n.CenterX)},{N(n.Y)}",
-            $"{N(n.X + n.Width)},{N(n.CenterY)}",
-            $"{N(n.CenterX)},{N(n.Y + n.Height)}",
-            $"{N(n.X)},{N(n.CenterY)}");
-    }
-
-    private static string HexagonPoints(LaidOutNode n)
-    {
-        double k = GraphLayout.HexagonInset(n.Width, n.Height);
-        return string.Join(" ",
-            $"{N(n.X + k)},{N(n.Y)}",
-            $"{N(n.X + n.Width - k)},{N(n.Y)}",
-            $"{N(n.X + n.Width)},{N(n.CenterY)}",
-            $"{N(n.X + n.Width - k)},{N(n.Y + n.Height)}",
-            $"{N(n.X + k)},{N(n.Y + n.Height)}",
-            $"{N(n.X)},{N(n.CenterY)}");
-    }
 
     private static string Clip(string label) => label.Length <= 18 ? label : label.Substring(0, 16) + "…";
 }
