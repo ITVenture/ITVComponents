@@ -108,9 +108,14 @@ Der Aufrufer löst die Delegation nicht ein: er liest aus `stored` nur `IsPublic
 `GetDefinitionAsync` prüfen ausserdem gar nichts und verlassen sich vollständig auf `SecureView` in der
 Komponente.
 
-**Status: behoben** über `MayTouchDefinition` in der neuen Handler-Basis. Die fehlenden Guards auf den
-*lesenden* Wegen (`List`/`Get`) sind **offen** — sie sind eine eigene Entscheidung, weil dort heute
-bewusst der Query-Filter trägt.
+**Status: behoben** über `MayTouchDefinition` in der neuen Handler-Basis.
+
+**Die lesenden Wege (`List`/`Get`) bekommen bewusst KEINEN Guard — entschieden, siehe Runde 5.** Sie
+fragen ohne `IgnoreQueryFilters()` ab; die Mandantengrenze zieht dort der Query-Filter. Der Schreibweg
+brauchte seinen Guard aus einem anderen Grund: er lädt über `GetDefinition(int definitionKey)`, und
+**diese** Überladung umgeht den Filter absichtlich — dort reicht der Store etwas Ungefiltertes heraus
+und sagt, die Entscheidung liege beim Aufrufer. Auf den Lesewegen gibt es diese Zusage gar nicht
+einzulösen.
 
 ### 5. Spaltensortierung im Tsc-Modus wirkungslos
 
@@ -636,6 +641,37 @@ Fläche, aber compiler-gefunden.
 
 Der stille Fehlschlag in der Verdrahtung selbst ist mit behoben (siehe Commit „Eine Registrierung, die
 nicht zustande kommt, sagt es jetzt").
+
+### Runde 5 — die lesenden Entwurfs-Wege: kein Guard, aber auch keine stille Annahme
+
+Der letzte offene Punkt aus Abschnitt A. Nachgesehen ist der Befund **milder und zugleich
+interessanter** als die Berichtszeile.
+
+**Kein Loch:** beide Lesewege fragen ohne `IgnoreQueryFilters()` ab, der Query-Filter zieht die Grenze.
+Was fehlte, war nicht eine Prüfung, sondern die **Absicherung der Annahme**, dass der Filter überhaupt
+da ist.
+
+Denn es gibt in diesem Haus ausdrücklich einen filterfreien Weg: der Runner braucht ihn, weil sein
+Suchlauf jedem Mandanten-Scope vorausgeht — und wirklich filterfrei ist allein die
+options-only-Registrierung (`IDbContextFactory<WorkflowContext>`), auf der gar keine Model-Optionen
+gesetzt werden. Hängt eine **Ansicht** versehentlich dort, sieht sie die Zeilen aller Mandanten. Ohne
+Fehler, ohne Meldung — die Liste ist nur länger.
+
+Neu meldet `WorkflowOperation.LeaseContext` genau das, an dem einen Engpass, durch den sowohl der Store
+als auch die direkten EF-Abfragen ihren Kontext holen. **Einmal je Modell**, nicht je Abfrage (das
+Modell ist ein langlebiges Singleton je Konfiguration; eine Meldung pro Rasterseite wäre Rauschen), über
+eine schwache Tabelle, damit die Prüfung kein Modell am Leben hält.
+
+Die Meldung unterscheidet ausdrücklich vom Nachbarfall: **`useTenantFilter: false` ist nicht
+filterfrei**, sondern wertet den aktiven Mandanten als `null` — dann sieht man nur noch die öffentlichen
+Definitionen. Das fällt von selbst auf, weil man zu **wenig** sieht. Der Fall hier ist der umgekehrte
+und deshalb der teurere.
+
+**Einen zweiten Guard neben dem Filter gibt es bewusst nicht.** Das wäre genau der Fehler, den dieser
+Bericht von vorn bis hinten beschreibt: dieselbe Regel in zwei Fassungen, die auseinanderlaufen können.
+
+Nebenbei: die Prüfung nutzt `GetDeclaredQueryFilters()` und nicht das unter EF Core 10 abgekündigte
+`GetQueryFilter()` — sonst hätte sie eine `CS0618` eingebaut, während Runde 2b eine beseitigt hat.
 
 ---
 
