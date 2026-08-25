@@ -283,23 +283,65 @@ das nicht leisten — es sieht den EF-Store nicht. Genau deshalb konnte die Dive
 Gegenprobe gefahren: mit wieder eingebautem Filter fallen genau die drei `("memory")`-Fälle, die
 `("ef")`-Fälle bleiben grün.
 
-### Nebenbefund beim Angleichen — ein fälliger Timer hebt einen Fault auf
+### Runde 1c — ein fälliger Timer hob einen Fault auf — **entschieden und behoben**
 
-**Nicht gefixt: das ist eine Produktentscheidung, keine Aufräumarbeit.** Beim Nachverfolgen der
-Faulted-Kante aufgefallen, und es gilt **im EF-Store, also im Betrieb** — die Angleichung hat es nur
-sichtbar gemacht, nicht verursacht.
+Beim Nachverfolgen der Faulted-Kante aufgefallen. Es galt **im EF-Store, also im Betrieb** — die
+Angleichung aus Runde 1b hat es nur sichtbar gemacht, nicht verursacht.
 
 `Fault()` setzt den Status und lässt die übrigen Tokens **stehen** (gewollt — daran hängt der Retry).
-Ein noch scharfer Timer an einem anderen Zweig wird später fällig, `FindDueTimers` liefert die Instanz
-(kein Status-Filter, siehe oben), und `TriggerTimers` bzw. `ReactivateTimers` setzen `Status = Running`,
-**ohne den Fault zu prüfen**. Die Instanz läuft still weiter, die Fehlermeldung ist weg. Dasselbe gilt
-für ein eintreffendes Signal.
+Ein noch scharfer Timer an einem anderen Zweig wurde später fällig, `FindDueTimers` lieferte die Instanz,
+und `TriggerTimers` bzw. `ReactivateTimers` setzten `Status = Running`, **ohne den Fault zu prüfen**.
+Die Instanz lief still weiter, die Fehlermeldung war weg. Dasselbe galt für ein eintreffendes Signal,
+für die Ziel-Übernahme und für die Rückkehr eines Subworkflows.
 
 Typischer Weg dorthin: ein Fristen-Timer am Schritt bleibt scharf, während ein anderer Zweig faultet.
 
-Die Frage ist nicht, ob der Store das findet — er muss, sonst käme man an den Zweig nie wieder heran.
-Die Frage ist, ob **Reaktivierung** einen Fault überschreiben darf. Berührt den Retry fehlgeschlagener
-Instanzen, wo genau dieses Wiederanlaufen der gewollte Weg ist — nur eben ausgelöst und protokolliert.
+### Die Entscheidung
+
+**Ein Retry muss ausdrücklich ausgelöst und protokolliert sein.** Ein Timer, der von selbst fällig wird,
+ist beides nicht — er darf eine gefaultete Instanz nicht weiterlaufen lassen. Wieder aufgenommen wird
+sie ausschliesslich über `RetryFaultedBranches`.
+
+### Wo der Riegel sitzt — und wo ausdrücklich nicht
+
+Neu `WorkflowEngine.MayResumeOnEvent(instance, opName)`: **eine** Stelle, dieselbe Statusmenge wie
+`Advance` (Completed, Faulted, Cancelled), mit Log-Eintrag beim Abweisen. Angeschlossen sind die sieben
+Wege, auf denen ein Ereignis einen Wartepunkt weiterschiebt: `SignalWorkflow`/`SignalInstance`,
+`TriggerTimers`, `ReactivateSignal`, `ReactivateTimers`, `ReactivateForTargets`, `MessageDelivered` und
+`DeliverChildCompletion`.
+
+**Der Store bleibt bei den ereignisgetriebenen Suchläufen aussen vor.** `FindWaitingForSignal` findet
+eine gefaultete Instanz weiterhin — er muss, sonst käme man nach einem Retry nie wieder an den Zweig
+heran, und eine Nachricht, die eine gefaultete Instanz nicht erreicht hat, ist eine Meldung, die man
+haben will. Abgewiesen wird in der Engine, wo sich das berichten lässt.
+
+**Bei den gepollten Suchläufen dagegen schon**, und zwar genau dort, wo die Bedingung für „angehalten"
+ohnehin steht: `FindDueTimers`, `ClaimDueTimers` und `FindBranchesWaitingForTarget` lassen Gefaultete
+aus — in **beiden** Stores. Der Grund ist nicht Fachlichkeit, sondern Betrieb: ein fälliger Timer bleibt
+fällig. Ohne diese Bedingung grüffe der Riegel bei **jedem Runner-Takt** aufs Neue und schriebe dieselbe
+Warnung endlos fort — der Guard wäre selbst der nächste Fehler. `ClaimDueTimers` verbräuchte zudem je
+Poll einen Platz von `maxInstances` für eine Instanz, die niemand aufgreifen darf.
+
+### Der Test, der aus dem falschen Grund grün war
+
+Die Gegenprobe (Riegel entschärft, Tests müssen fallen) hat einen der drei Schutztests als **wertlos**
+entlarvt: er prüfte nur, dass die Instanz am Ende noch `Faulted` ist — und das ist sie auch **ohne**
+Riegel. Das Token des gescheiterten Zweigs bleibt nämlich aktiv (es IST der Wiederaufsatzpunkt), ein
+Vortrieb führt die Aktivität deshalb erneut aus, sie scheitert wieder, und die Instanz landet ein
+zweites Mal auf `Faulted`. Der Status verrät hier gar nichts.
+
+Ob der Timer gefeuert hat, sieht man **nur an seinem eigenen Token**: ist es noch `Waiting` mit
+`DueUtc`, hat er nicht gefeuert. Genau darauf prüft der Test jetzt — und fällt in der Gegenprobe.
+
+**Merke:** bei einem Riegel gegen „still weiterlaufen" ist der Instanz-Status die schlechteste Zusage,
+die man prüfen kann. Er stellt sich von selbst wieder her.
+
+### Bewusst offen geblieben: `CompleteUserTask`
+
+Dort klickt ein **Mensch** auf eine Aufgabe, die ihm angezeigt wurde. Der Riegel würde greifen, aber die
+Oberfläche hätte darauf keine ehrliche Antwort: `UserTaskCompletionStatus` kennt heute nur `NotFound`,
+`AlreadyCompleted`, `Completed`, `Faulted` — und „die Instanz war schon vorher gefaultet" ist keines
+davon. Das braucht einen eigenen Ausgang plus Text in vier Sprachen. Offene Frage, nicht vergessen.
 
 ### Zurückgestellt
 

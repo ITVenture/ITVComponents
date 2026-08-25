@@ -851,11 +851,16 @@ namespace ITVComponents.Workflow.EntityFramework
         {
             using WorkflowContext ctx = contextFactory();
             int waiting = (int)TokenStatus.Waiting;
+            int faulted = (int)WorkflowStatus.Faulted;
             // Angehaltene Instanzen bleiben aussen vor - ihre Timer werden zwar faellig, aber niemand
             // soll sie deswegen vorantreiben. Beim Fortsetzen sind sie ueberfaellig und kommen dran.
+            // Gefaultete ebenso: dort bleiben die Tokens fuer den Wiederaufsatz stehen, und den loest
+            // ausschliesslich ein ausdruecklicher Retry aus (WorkflowEngine.MayResumeOnEvent). Die
+            // Bedingung steht hier, damit der Poll sie nicht bei JEDEM Takt aufgreift und abweist.
             List<string> ids = ctx.Tokens
                 .Where(t => t.Status == waiting && t.DueUtc != null && t.DueUtc <= nowUtc
-                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId && i.Suspended))
+                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId
+                                                               && (i.Suspended || i.Status == faulted)))
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();
@@ -885,6 +890,7 @@ namespace ITVComponents.Workflow.EntityFramework
 
             using WorkflowContext ctx = contextFactory();
             int waiting = (int)TokenStatus.Waiting;
+            int faulted = (int)WorkflowStatus.Faulted;
             DateTime until = nowUtc.Add(lease);
             string claim = owner + "#" + Guid.NewGuid().ToString("N");
 
@@ -898,9 +904,12 @@ namespace ITVComponents.Workflow.EntityFramework
                             && (t.TimerLeaseUntilUtc == null || t.TimerLeaseUntilUtc <= nowUtc))
                 .GroupBy(t => t.InstanceId)
                 .Select(g => new { InstanceId = g.Key, Due = g.Min(t => t.DueUtc) })
-                // Der Join auf die Instanz stand hier ohnehin (fuer die Dringlichkeit) - die
-                // Angehalten-Bedingung kostet daher nichts extra.
-                .Join(ctx.WorkflowInstances.Where(r => !r.Suspended), x => x.InstanceId, r => r.Id,
+                // Der Join auf die Instanz stand hier ohnehin (fuer die Dringlichkeit) - die Bedingungen
+                // "angehalten" und "gefaultet" kosten daher nichts extra. Beide heissen hier dasselbe:
+                // faellig ja, aufgreifen nein (siehe FindDueTimers). Ohne sie verbraeuchte eine
+                // gefaultete Instanz bei jedem Poll einen Platz von maxInstances.
+                .Join(ctx.WorkflowInstances.Where(r => !r.Suspended && r.Status != faulted),
+                    x => x.InstanceId, r => r.Id,
                     (x, r) => new { x.InstanceId, x.Due, r.Priority })
                 .OrderBy(x => x.Priority)
                 .ThenBy(x => x.Due)
@@ -1346,10 +1355,14 @@ namespace ITVComponents.Workflow.EntityFramework
 
             using WorkflowContext ctx = contextFactory();
             int waitingForTarget = (int)TokenStatus.WaitingForTarget;
+            int faulted = (int)WorkflowStatus.Faulted;
+            // Angehalten und gefaultet heissen auch hier "vorantreiben nein" (siehe FindDueTimers) - und
+            // auch dieser Suchlauf wird gepollt.
             List<string> ids = ctx.Tokens
                 .Where(t => t.Status == waitingForTarget
                             && t.WaitingTarget != null && targetList.Contains(t.WaitingTarget)
-                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId && i.Suspended))
+                            && !ctx.WorkflowInstances.Any(i => i.Id == t.InstanceId
+                                                               && (i.Suspended || i.Status == faulted)))
                 .Select(t => t.InstanceId)
                 .Distinct()
                 .ToList();

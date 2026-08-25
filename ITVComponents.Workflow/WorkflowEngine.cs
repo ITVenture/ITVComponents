@@ -600,6 +600,11 @@ namespace ITVComponents.Workflow
             IReadOnlyList<string> activated = ReactivateAndCommit(message.InstanceId, "MessageDelivered",
                 (fresh, definition) =>
                 {
+                    if (!MayResumeOnEvent(fresh, "MessageDelivered"))
+                    {
+                        return new List<string>();
+                    }
+
                     Token token = fresh.Tokens.FirstOrDefault(t => t.Id == message.WaitingTokenId
                                                                    && t.Status == TokenStatus.Waiting);
                     if (token == null)
@@ -669,6 +674,11 @@ namespace ITVComponents.Workflow
             WorkflowInstance instance = store.GetInstance(instanceId)
                 ?? throw new InvalidOperationException($"No instance found for '{instanceId}'.");
 
+            if (!MayResumeOnEvent(instance, "SignalWorkflow"))
+            {
+                return false;
+            }
+
             var waiting = instance.Tokens
                 .Where(t => Accepts(instance, t, signalName, correlationKey, broadcast))
                 .ToList();
@@ -720,6 +730,11 @@ namespace ITVComponents.Workflow
             if (instance == null)
             {
                 throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (!MayResumeOnEvent(instance, "TriggerTimers"))
+            {
+                return false;
             }
 
             var due = instance.Tokens
@@ -1811,6 +1826,11 @@ namespace ITVComponents.Workflow
 
             return ReactivateAndCommit(instanceId, "ReactivateSignal", (fresh, definition) =>
             {
+                if (!MayResumeOnEvent(fresh, "ReactivateSignal"))
+                {
+                    return new List<string>();
+                }
+
                 var waiting = fresh.Tokens
                     .Where(t => Accepts(fresh, t, signalName, correlationKey, broadcast))
                     .ToList();
@@ -1876,6 +1896,11 @@ namespace ITVComponents.Workflow
 
             return ReactivateAndCommit(instanceId, "ReactivateTimers", (fresh, definition) =>
             {
+                if (!MayResumeOnEvent(fresh, "ReactivateTimers"))
+                {
+                    return new List<string>();
+                }
+
                 var due = fresh.Tokens
                     .Where(t => t.Status == TokenStatus.Waiting && t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc)
                     .ToList();
@@ -1944,6 +1969,11 @@ namespace ITVComponents.Workflow
 
             return ReactivateAndCommit(instanceId, "ReactivateForTargets", (fresh, _) =>
             {
+                if (!MayResumeOnEvent(fresh, "ReactivateForTargets"))
+                {
+                    return new List<string>();
+                }
+
                 var parked = fresh.Tokens
                     .Where(t => t.Status == TokenStatus.WaitingForTarget
                                 && t.WaitingTarget != null && targetSet.Contains(t.WaitingTarget))
@@ -1990,6 +2020,54 @@ namespace ITVComponents.Workflow
             return committed && reactivated != null
                 ? reactivated
                 : (IReadOnlyList<string>)Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// Darf ein eintreffendes Ereignis (Signal, Timer, Ziel-Uebernahme, Kind-Rueckkehr) diese Instanz
+        /// noch vorantreiben? Steht sie in einem Endzustand, lautet die Antwort nein - und die Meldung ist
+        /// dann bereits geschrieben.
+        /// </summary>
+        /// <param name="instance">die betroffene Instanz</param>
+        /// <param name="opName">Name der Operation - er steht in der Meldung</param>
+        /// <remarks>
+        /// Dieselbe Menge wie in <see cref="Advance"/>: Completed, Faulted, Cancelled. Der Fall, um den es
+        /// wirklich geht, ist <b>Faulted</b>. <see cref="Fault"/> laesst die uebrigen Tokens bewusst
+        /// stehen - daran haengt der Wiederaufsatz. Ein Fristen-Timer an einem anderen Zweig bleibt damit
+        /// scharf, wird spaeter faellig, und ohne diese Pruefung setzte die Reaktivierung die Instanz
+        /// wieder auf <see cref="WorkflowStatus.Running"/>: sie liefe still weiter, die Fehlermeldung
+        /// waere weg, und niemand haette den Wiederaufsatz entschieden.
+        /// <para>
+        /// Eine gefaultete Instanz nimmt ausschliesslich <see cref="RetryFaultedBranches"/> wieder auf -
+        /// ausdruecklich ausgeloest und protokolliert. Genau das ist der Unterschied, den diese Pruefung
+        /// verteidigt.
+        /// </para>
+        /// <para>
+        /// Die <b>gepollten</b> Suchlaeufe der Stores lassen gefaultete Instanzen bereits aussen vor
+        /// (dort, wo auch die Bedingung fuer „angehalten" steht). Sonst schriebe diese Meldung bei jedem
+        /// Runner-Takt aufs Neue dieselbe Zeile - ein faelliger Timer bleibt ja faellig. Hier steht die
+        /// Regel, dort steht die Ersparnis; greifen muss sie trotzdem hier, denn die direkt aufgerufenen
+        /// Wege gehen an keinem Suchlauf vorbei.
+        /// </para>
+        /// <para>
+        /// Bewusst NICHT angeschlossen: <see cref="CompleteUserTask"/>. Dort klickt ein Mensch auf eine
+        /// Aufgabe, die ihm angezeigt wurde - was die Oberflaeche ihm in diesem Fall antworten soll, ist
+        /// eine eigene Frage (sie braucht einen eigenen Ausgang in
+        /// <see cref="UserTaskCompletionStatus"/>). Siehe Review-Doku.
+        /// </para></remarks>
+        private static bool MayResumeOnEvent(WorkflowInstance instance, string opName)
+        {
+            if (instance.Status != WorkflowStatus.Faulted
+                && instance.Status != WorkflowStatus.Cancelled
+                && instance.Status != WorkflowStatus.Completed)
+            {
+                return true;
+            }
+
+            LogEnvironment.LogEvent(
+                $"{opName}: instance '{instance.Id}' is {instance.Status} - the event was NOT applied. " +
+                "A finished or faulted instance is resumed only by an explicit retry, so that picking it "
+                + "up again stays a deliberate and logged decision.", LogSeverity.Warning);
+            return false;
         }
 
         /// <summary>
@@ -5058,6 +5136,11 @@ namespace ITVComponents.Workflow
                     LogEnvironment.LogEvent(
                         $"DeliverChildCompletion: parent '{child.ParentInstanceId}' of sub-workflow " +
                         $"'{childInstanceId}' not found - skipped.", LogSeverity.Warning);
+                    return;
+                }
+
+                if (!MayResumeOnEvent(parent, "DeliverChildCompletion"))
+                {
                     return;
                 }
 

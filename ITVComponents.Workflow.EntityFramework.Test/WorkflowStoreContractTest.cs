@@ -142,6 +142,66 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 + "the one instance-level condition that DOES belong in the timer lookup.");
         }
 
+        /// <summary>
+        /// Gefaultete Instanzen gehoeren nicht in die <b>gepollten</b> Suchlaeufe. Die Entscheidung selbst
+        /// trifft <c>WorkflowEngine.MayResumeOnEvent</c> - hier steht sie, damit der Runner eine
+        /// gefaultete Instanz nicht bei jedem Takt aufgreift und wieder abweist. Ein faelliger Timer
+        /// bleibt faellig; die Meldung darueber schriebe sich sonst endlos fort.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(Memory)]
+        [DataRow(Ef)]
+        public void TimerLookup_SkipsFaultedInstances(string kind)
+        {
+            IWorkflowStore store = NewStore(kind);
+            var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+            SaveInstance(store, WorkflowStatus.Faulted, DueAt("w", now.AddMinutes(-5)));
+
+            Assert.AreEqual(0, store.FindDueTimers(now).Count(),
+                $"[{kind}] a faulted instance keeps its armed timers for the retry, but the poll must not "
+                + "offer it up on every cycle.");
+            Assert.AreEqual(0, store.ClaimDueTimers(now, "runner", TimeSpan.FromMinutes(1), 10).Count(),
+                $"[{kind}] the same goes for the claiming poll - otherwise it burns a maxInstances slot.");
+        }
+
+        [DataTestMethod]
+        [DataRow(Memory)]
+        [DataRow(Ef)]
+        public void TargetLookup_SkipsFaultedInstances(string kind)
+        {
+            IWorkflowStore store = NewStore(kind);
+            var parked = new Token
+            {
+                Id = "w",
+                NodeId = "n-w",
+                Status = TokenStatus.WaitingForTarget,
+                WaitingTarget = "backend"
+            };
+            SaveInstance(store, WorkflowStatus.Faulted, parked);
+
+            Assert.AreEqual(0, store.FindBranchesWaitingForTarget(new[] { "backend" }).Count(),
+                $"[{kind}] the target handoff is polled as well - same reason as with the timers.");
+        }
+
+        /// <summary>
+        /// Die Gegenprobe zu den beiden davor: der <b>Signal</b>-Suchlauf laesst gefaultete Instanzen
+        /// bewusst durch. Er wird nicht gepollt, sondern laeuft je eintreffender Nachricht - und dass eine
+        /// Nachricht eine gefaultete Instanz nicht erreicht hat, ist eine Meldung, die man haben will.
+        /// Abgewiesen wird sie danach in der Engine.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow(Memory)]
+        [DataRow(Ef)]
+        public void SignalLookup_StillFindsFaultedInstances(string kind)
+        {
+            IWorkflowStore store = NewStore(kind);
+            SaveInstance(store, WorkflowStatus.Faulted, WaitingForSignal("w", "approve", WaitKind.Message));
+
+            Assert.AreEqual(1, store.FindWaitingForSignal("approve").Count(),
+                $"[{kind}] the store must keep finding the branch - after a retry it has to be reachable, "
+                + "and the refusal belongs in the engine, where it can be reported.");
+        }
+
         [DataTestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]

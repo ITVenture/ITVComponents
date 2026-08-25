@@ -471,11 +471,13 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc)
         {
-            // Angehaltene Instanzen bleiben aussen vor (wie im EF-Store), der Instanz-Status dagegen
-            // entscheidet nichts: ein faelliger Timer kann an einem Zweig haengen, waehrend ein anderer
-            // noch laeuft - siehe FindWaitingForSignal.
+            // Angehalten und gefaultet bleiben aussen vor (wie im EF-Store): beide heissen "faellig ja,
+            // vorantreiben nein". Beim Fault entscheidet das ohnehin WorkflowEngine.MayResumeOnEvent -
+            // hier steht es, damit der Poll die Instanz nicht bei JEDEM Takt aufgreift und abweist.
+            // Der Instanz-Status im uebrigen entscheidet nichts: ein faelliger Timer kann an einem Zweig
+            // haengen, waehrend ein anderer noch laeuft - siehe FindWaitingForSignal.
             return instances.Values
-                .Where(i => !i.Suspended)
+                .Where(i => !i.Suspended && i.Status != WorkflowStatus.Faulted)
                 .Where(i => i.WaitingTokens.Any(t => t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc))
                 .OrderBy(i => i.Priority)
                 .ToList();
@@ -731,9 +733,10 @@ namespace ITVComponents.Workflow.Stores
             }
 
             // Rein am Token-Zustand orientiert (nicht am Instanz-Status): ein ziel-wartender Zweig kann neben
-            // aktiven Geschwister-Zweigen bestehen, dann laeuft die Instanz noch.
+            // aktiven Geschwister-Zweigen bestehen, dann laeuft die Instanz noch. Angehalten und gefaultet
+            // sind die Ausnahmen - beide heissen "vorantreiben nein" (siehe FindDueTimers).
             return instances.Values
-                .Where(i => !i.Suspended)
+                .Where(i => !i.Suspended && i.Status != WorkflowStatus.Faulted)
                 .Where(i => i.Tokens.Any(t => t.Status == TokenStatus.WaitingForTarget
                                               && t.WaitingTarget != null && targetSet.Contains(t.WaitingTarget)))
                 .ToList();
