@@ -22,7 +22,23 @@ namespace ITVComponents.Workflow
         Completed,
 
         /// <summary>Der Abschluss hat die Instanz auf Faulted laufen lassen (z.B. fehlende Ausgangskante).</summary>
-        Faulted
+        Faulted,
+
+        /// <summary>
+        /// Der <b>Vorgang</b> steht still - er ist gescheitert, abgebrochen oder bereits beendet. Die
+        /// Aufgabe wurde deshalb NICHT abgeschlossen und die Eingaben nicht gespeichert.
+        /// </summary>
+        /// <remarks>
+        /// Zu unterscheiden von <see cref="Faulted"/>: dort ist die Aufgabe erledigt und der Prozess erst
+        /// danach gescheitert. Hier war er es schon vorher, und der Abschluss haette ihn still wieder in
+        /// Gang gesetzt - wieder aufgenommen wird ein gescheiterter Vorgang ausschliesslich ueber einen
+        /// ausdruecklichen Retry (<see cref="WorkflowEngine.RetryFaultedBranches"/>).
+        /// <para>
+        /// Der Ausgang ist bewusst von <see cref="NotFound"/> getrennt: die Aufgabe gibt es sehr wohl noch,
+        /// und nach einem Retry laesst sie sich auch wieder erledigen. „Gibt es nicht mehr" waere eine
+        /// falsche Auskunft und schickte den Benutzer an die falsche Stelle.
+        /// </para></remarks>
+        InstanceNotResumable
     }
 
     /// <summary>

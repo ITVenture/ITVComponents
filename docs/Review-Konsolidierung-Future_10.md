@@ -336,12 +336,23 @@ Ob der Timer gefeuert hat, sieht man **nur an seinem eigenen Token**: ist es noc
 **Merke:** bei einem Riegel gegen „still weiterlaufen" ist der Instanz-Status die schlechteste Zusage,
 die man prüfen kann. Er stellt sich von selbst wieder her.
 
-### Bewusst offen geblieben: `CompleteUserTask`
+### `CompleteUserTask` — nachgezogen, mit eigenem Ausgang
 
-Dort klickt ein **Mensch** auf eine Aufgabe, die ihm angezeigt wurde. Der Riegel würde greifen, aber die
-Oberfläche hätte darauf keine ehrliche Antwort: `UserTaskCompletionStatus` kennt heute nur `NotFound`,
-`AlreadyCompleted`, `Completed`, `Faulted` — und „die Instanz war schon vorher gefaultet" ist keines
-davon. Das braucht einen eigenen Ausgang plus Text in vier Sprachen. Offene Frage, nicht vergessen.
+Dort klickt ein **Mensch** auf eine Aufgabe, die ihm angezeigt wurde. Der Riegel greift auch hier, aber
+ein blosser Log-Eintrag wäre die falsche Antwort — und `NotFound` wäre eine Ausrede: die Aufgabe gibt
+es sehr wohl noch, und nach einem Retry lässt sie sich auch wieder erledigen.
+
+Neu deshalb `UserTaskCompletionStatus.InstanceNotResumable` (angehängt, damit bestehende Werte ihre Zahl
+behalten). Zu unterscheiden von `Faulted`: **dort** ist die Aufgabe erledigt und der Prozess erst danach
+gescheitert, **hier** war er es schon vorher.
+
+In `UserTaskDialog.razor` bekommt der Fall einen eigenen `case` — bewusst **ohne** `completed = true`:
+es wurde nichts abgeschlossen, also darf weder die Nachbereitung der Maske laufen noch der Assistent
+weiterspringen. Der Dialog bleibt offen; die Eingaben des Benutzers wegzuwerfen wäre die schlechtere
+Antwort. Meldung in allen vier Sprachen (`WorkflowTaskMessages(.de|.fr|.it).resx`).
+
+Der Post-Hook `IUserTaskView.PostResolveActivityAsync` sieht den neuen Ausgang **nicht**: er läuft nur nach
+einem echten Abschluss, und genau das ist hier nicht passiert.
 
 ### Zurückgestellt
 

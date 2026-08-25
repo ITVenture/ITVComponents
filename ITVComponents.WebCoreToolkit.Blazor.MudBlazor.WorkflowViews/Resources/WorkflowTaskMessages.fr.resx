@@ -148,6 +148,9 @@
   <data name="ViewCannotComplete" xml:space="preserve">
     <value>Ce formulaire de tache ne peut pas terminer la tache - il n'implemente pas le contrat requis. Merci de le signaler a votre administration.</value>
   </data>
+  <data name="InstanceNotResumable" xml:space="preserve">
+    <value>Ce processus est à l&apos;arrêt - il a échoué, a été annulé ou est déjà terminé. La tâche n&apos;a pas été terminée et vos saisies n&apos;ont pas été enregistrées.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Cette tâche n&apos;existe plus.</value>
   </data>

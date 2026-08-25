@@ -148,6 +148,9 @@
   <data name="ViewCannotComplete" xml:space="preserve">
     <value>Questa maschera non puo completare l'attivita - non implementa il contratto richiesto. Segnalalo alla tua amministrazione.</value>
   </data>
+  <data name="InstanceNotResumable" xml:space="preserve">
+    <value>Questo processo è fermo - non è riuscito, è stato annullato oppure è già terminato. L&apos;attività non è stata completata e le tue voci non sono state salvate.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Questa attività non esiste più.</value>
   </data>

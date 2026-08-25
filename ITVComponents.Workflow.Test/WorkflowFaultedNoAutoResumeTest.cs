@@ -150,6 +150,37 @@ namespace ITVComponents.Workflow.Test
         }
 
         /// <summary>
+        /// Auch der Klick eines Menschen schiebt einen Wartepunkt weiter - und darf einen stehenden
+        /// Vorgang deshalb nicht wieder in Gang setzen. Anders als bei Timer und Signal bekommt die
+        /// Oberflaeche hier aber eine Antwort statt nur einen Log-Eintrag.
+        /// </summary>
+        [TestMethod]
+        public void CompletingAUserTaskOfAFaultedInstanceIsRefusedWithItsOwnOutcome()
+        {
+            SaveForkedDefinition(new UserActivityNode { Id = "w", TaskKey = "Check" });
+            WorkflowEngine engine = NewEngine();
+            WorkflowInstance started = engine.StartWorkflow("wf");
+
+            WorkflowInstance faulted = store.GetInstance(started.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, faulted.Status,
+                "the failing branch must have faulted the instance.");
+            Token task = faulted.Tokens.Single(t => t.Status == TokenStatus.Waiting && t.TaskKey != null);
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(started.Id, task.Id,
+                new Dictionary<string, object> { { "decision", true } }, "anna");
+
+            Assert.AreEqual(UserTaskCompletionStatus.InstanceNotResumable, result.Status,
+                "the outcome must say what is really the matter - NOT NotFound: the task still exists, "
+                + "and after a retry of the process the very same click is right again.");
+            Assert.IsFalse(result.Success, "nothing was completed.");
+
+            WorkflowInstance after = store.GetInstance(started.Id);
+            Assert.AreEqual(WorkflowStatus.Faulted, after.Status, "the fault must survive the click.");
+            Assert.IsTrue(after.Tokens.Any(t => t.Id == task.Id && t.Status == TokenStatus.Waiting),
+                "the task token must still be waiting - it is the same token the user sees again.");
+        }
+
+        /// <summary>
         /// Die Gegenprobe: der Riegel darf nur den Fault betreffen. Dieselbe Definition ohne den
         /// scheiternden Zweig laeuft auf den Timer zu und wird von ihm ganz normal aufgenommen.
         /// </summary>

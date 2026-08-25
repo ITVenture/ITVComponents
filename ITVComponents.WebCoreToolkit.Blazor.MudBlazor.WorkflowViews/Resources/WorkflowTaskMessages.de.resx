@@ -148,6 +148,9 @@
   <data name="ViewCannotComplete" xml:space="preserve">
     <value>Diese Aufgabenmaske kann die Aufgabe nicht abschliessen - sie erfuellt den erforderlichen Vertrag nicht. Bitte melden Sie das Ihrer Administration.</value>
   </data>
+  <data name="InstanceNotResumable" xml:space="preserve">
+    <value>Dieser Vorgang steht still - er ist gescheitert, wurde abgebrochen oder ist bereits beendet. Die Aufgabe wurde nicht abgeschlossen, Ihre Eingaben wurden nicht gespeichert.</value>
+  </data>
   <data name="TaskGone" xml:space="preserve">
     <value>Diese Aufgabe gibt es nicht mehr.</value>
   </data>

@@ -2049,10 +2049,9 @@ namespace ITVComponents.Workflow
         /// Wege gehen an keinem Suchlauf vorbei.
         /// </para>
         /// <para>
-        /// Bewusst NICHT angeschlossen: <see cref="CompleteUserTask"/>. Dort klickt ein Mensch auf eine
-        /// Aufgabe, die ihm angezeigt wurde - was die Oberflaeche ihm in diesem Fall antworten soll, ist
-        /// eine eigene Frage (sie braucht einen eigenen Ausgang in
-        /// <see cref="UserTaskCompletionStatus"/>). Siehe Review-Doku.
+        /// <see cref="CompleteUserTask"/> haengt ebenfalls daran, meldet den Fall aber zusaetzlich nach
+        /// oben: dort klickt ein Mensch auf eine Aufgabe, die ihm angezeigt wurde, und der braucht eine
+        /// Antwort statt nur eines Log-Eintrags - <see cref="UserTaskCompletionStatus.InstanceNotResumable"/>.
         /// </para></remarks>
         private static bool MayResumeOnEvent(WorkflowInstance instance, string opName)
         {
@@ -3666,6 +3665,16 @@ namespace ITVComponents.Workflow
                     // je Versuch neu bestimmt, nicht akkumuliert.
                     outcome = UserTaskCompletionStatus.NotFound;
                     endsAssistant = false;
+
+                    // Auch der Klick auf "Erledigen" ist ein Ereignis, das einen Wartepunkt weiterschiebt -
+                    // und ein stehender Vorgang liefe danach still weiter. Eigener Ausgang statt NotFound:
+                    // die Aufgabe gibt es noch, und nach einem Retry laesst sie sich auch erledigen.
+                    if (!MayResumeOnEvent(fresh, "CompleteUserTask"))
+                    {
+                        outcome = UserTaskCompletionStatus.InstanceNotResumable;
+                        return new List<string>();
+                    }
+
                     Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
                     if (token == null)
                     {

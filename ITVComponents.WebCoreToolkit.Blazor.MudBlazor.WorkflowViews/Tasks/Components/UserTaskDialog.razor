@@ -526,6 +526,13 @@
                     completed = true;
                     Snackbar.Add(L["CompletionFaulted"], Severity.Error);
                     break;
+                case UserTaskCompletionStatus.InstanceNotResumable:
+                    // Bewusst NICHT completed: es wurde nichts abgeschlossen, also darf auch die
+                    // Nachbereitung der Maske nicht laufen und der Dialog nicht weiterspringen. Er bleibt
+                    // offen - die Eingaben des Benutzers wegzuwerfen waere die schlechtere Antwort, und
+                    // nach einem Retry des Vorgangs ist derselbe Klick wieder richtig.
+                    Snackbar.Add(L["InstanceNotResumable"], Severity.Error);
+                    break;
                 default:
                     Snackbar.Add(L["TaskGone"], Severity.Warning);
                     break;
