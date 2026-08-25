@@ -1,38 +1,16 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.TenantName" Label="Tenant name" Required="true" RequiredError="Tenant name is required" />
-            <MudTextField @bind-Value="Model.DisplayName" Label="Display name" />
-            <MudTextField @bind-Value="Model.TimeZone" Label="Time zone" Placeholder="e.g. Europe/Zurich" />
-            <ForeignKeySelect T="int?" @bind-Value="Model.TenantTypeId" Table="TenantTypes" Label="Tenant type" />
-            @if (UseHierarchy)
-            {
-                <ForeignKeySelect T="int?" @bind-Value="Model.ParentTenantId" Table="Tenants" Label="Parent tenant" />
-            }
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.TenantName" Label="Tenant name" Required="true" RequiredError="Tenant name is required" />
+    <MudTextField @bind-Value="Model.DisplayName" Label="Display name" />
+    <MudTextField @bind-Value="Model.TimeZone" Label="Time zone" Placeholder="e.g. Europe/Zurich" />
+    <ForeignKeySelect T="int?" @bind-Value="Model.TenantTypeId" Table="TenantTypes" Label="Tenant type" />
+    @if (UseHierarchy)
+    {
+        <ForeignKeySelect T="int?" @bind-Value="Model.ParentTenantId" Table="Tenants" Label="Parent tenant" />
+    }
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public TenantViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool UseHierarchy { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

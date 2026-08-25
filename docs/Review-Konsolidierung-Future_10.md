@@ -409,6 +409,57 @@ Namensfindung samt Aufgeben nach fünf Varianten, Adress-Übernahme. Vorher gab 
 Helfer bleibt `internal` (das Projekt wird als Paket ausgeliefert) und ist über `InternalsVisibleTo`
 prüfbar.
 
+### Runde 2b — `EditDialogShell`: 35 von 45 Dialogen
+
+Hier hielt die Schätzung der Prüfung stand. 45 Dialoge trugen dasselbe Gerüst — Rahmen, `MudForm`,
+Aktionsleiste, `Cancel`, `Save` — und in **35** davon war der Abschlussweg **wortgleich**, in genau zwei
+Formen (mit und ohne Hinweis-Meldung). Keiner nutzte `TitleContent`, 44 hatten genau zwei Knöpfe.
+
+Neu `ITVComponents.WebCoreToolkit.Blazor.MudBlazor/SharedComponents/EditDialogShell.razor`. Bewusst
+**nicht** generisch: `MudForm.Model` ist selbst `object`, und die Nutzlast eines `DialogResult` ebenso —
+ein `TModel` hätte nichts geprüft, wäre aber an jeder Aufrufstelle mitzuschreiben gewesen.
+
+| | |
+|---|---|
+| 35 Dialoge | −1064 / +286 Zeilen |
+| Hülle | +137 (grösstenteils Doku) |
+| **netto** | **≈ −640 Zeilen** |
+
+**Der eigentliche Gewinn ist aber nicht die Zeilenzahl.** In jedem der 35 Dialoge stand
+
+```csharp
+await form.Validate();
+if (!form.IsValid) return;
+```
+
+von Hand. Wer das beim nächsten Dialog vergisst, schliesst ihn trotz ungültiger Eingaben — und niemand
+merkt es, bis Unsinn in der Datenbank steht. Das kann jetzt niemand mehr vergessen.
+
+**Sofort eingelöst:** der Compiler meldete an dieser Zeile `CS0618` — `MudForm.Validate()` ist zugunsten
+von `ValidateAsync()` veraltet. Die Korrektur war **eine** Zeile; vorher wäre sie fünfunddreissig Mal
+fällig gewesen. Genau dafür macht man so einen Umbau.
+
+### Zwei Uneinheitlichkeiten, die dabei sichtbar wurden — bewusst NICHT vereinheitlicht
+
+- **Der Speichern-Knopf sieht nicht überall gleich aus**: 16 Dialoge setzen `Variant="Variant.Filled"`,
+  der Rest nichts (also `Variant.Text`, die Vorgabe von `MudButton`).
+- **Bei ungültiger Eingabe** zeigen 20 Dialoge keine Meldung und 15 ein „Please correct invalid fields".
+
+Beides ist als Parameter (`SaveVariant`, `InvalidMessage`) je Maske erhalten geblieben. Eine
+Optik-Entscheidung für vierzig Masken gehört nicht in einen Umbau, der sonst nichts sichtbar ändert —
+sie lässt sich jetzt aber an **einer** Stelle treffen: Vorgabe umstellen, Attribute streichen.
+
+### Was stehen blieb, und warum
+
+Zehn Dialoge sind nicht umgestellt — nicht übersehen, sondern vom Umbau-Skript ausdrücklich abgewiesen:
+es arbeitet streng konservativ und lässt jede Datei unverändert, die nicht **exakt** auf das Muster
+passt. Sie haben echten eigenen Abschluss-Code (Speichern über einen Handler, Zusatzprüfungen, eine vom
+Server vergebene Id als Nutzlast, ein Skript-Editor, dessen Inhalt erst beim Speichern abgeholt wird).
+Für sie bietet die Hülle `OnValidated` und `Result` an; ob sich der Umbau dort lohnt, ist einzeln zu
+entscheiden und nicht im Sweep.
+
+Nebenbei entfielen 15 `@inject ISnackbar Snackbar`, die nach dem Umbau niemand mehr brauchte.
+
 ### Zurückgestellt
 
 - **`HasPermission(ClaimsPrincipal user, …)`**: 33× identisch, `user` wird **nirgends** gelesen — kein

@@ -1,44 +1,22 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.FullQualifiedTypeName"
-                          Label="Component type (FullQualifiedTypeName)"
-                          Required="true"
-                          RequiredError="Type name is required"
-                          Lines="2"
-                          Placeholder="Namespace.Type, Assembly, Version=..., Culture=..., PublicKeyToken=..." />
-            <MudTextField @bind-Value="Model.TargetQualifiedTypeName"
-                          Label="Target type"
-                          Lines="2"
-                          Placeholder="The DbContext / target this component is trusted on" />
-            <MudTextField @bind-Value="Model.Description" Label="Description" Lines="2" />
-            <MudTextField @bind-Value="Model.TrustLevelConfig"
-                          Label="Trust level (JSON)"
-                          Lines="4"
-                          Placeholder='{"HideGlobals":false,"ShowAllTenants":true,"IncludeParentTree":true,"IncludeChildTree":true}' />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.FullQualifiedTypeName"
+                  Label="Component type (FullQualifiedTypeName)"
+                  Required="true"
+                  RequiredError="Type name is required"
+                  Lines="2"
+                  Placeholder="Namespace.Type, Assembly, Version=..., Culture=..., PublicKeyToken=..." />
+    <MudTextField @bind-Value="Model.TargetQualifiedTypeName"
+                  Label="Target type"
+                  Lines="2"
+                  Placeholder="The DbContext / target this component is trusted on" />
+    <MudTextField @bind-Value="Model.Description" Label="Description" Lines="2" />
+    <MudTextField @bind-Value="Model.TrustLevelConfig"
+                  Label="Trust level (JSON)"
+                  Lines="4"
+                  Placeholder='{"HideGlobals":false,"ShowAllTenants":true,"IncludeParentTree":true,"IncludeChildTree":true}' />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public TrustedComponentViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

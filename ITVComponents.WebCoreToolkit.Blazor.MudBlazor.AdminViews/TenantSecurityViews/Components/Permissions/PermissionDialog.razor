@@ -1,31 +1,9 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.PermissionName" Label="Permission name" Required="true" RequiredError="Permission name is required" />
-            <MudTextField @bind-Value="Model.Description" Label="Description" Lines="3" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.PermissionName" Label="Permission name" Required="true" RequiredError="Permission name is required" />
+    <MudTextField @bind-Value="Model.Description" Label="Description" Lines="3" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public PermissionViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

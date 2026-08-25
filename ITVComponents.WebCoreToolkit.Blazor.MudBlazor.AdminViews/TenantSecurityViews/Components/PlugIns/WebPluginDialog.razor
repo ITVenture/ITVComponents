@@ -1,38 +1,27 @@
-@inject ISnackbar Snackbar
-
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.UniqueName" Label="Unique name" Required="true" MaxLength="300" />
-            <MudTextField @bind-Value="Model.Constructor" Label="Constructor" Lines="4" MaxLength="8192" />
-            <MudTextField @bind-Value="Model.StartupRegistrationConstructor" Label="Startup registration constructor" Lines="3" MaxLength="8192" />
-            <MudStack Row="true" Spacing="3" Class="mt-2">
-                <MudCheckBox @bind-Value="Model.AutoLoad" Label="Auto-load" />
-                <MudCheckBox @bind-Value="Model.Transient" Label="Transient" />
-                @* Nur bei globalen Plugins: ein Mandanten-Plugin ist anonym gar nicht sichtbar, die
-                   Kennzeichnung waere dort ohne Wirkung und nur irrefuehrend. *@
-                @if (IsGlobal)
-                {
-                    <MudCheckBox @bind-Value="Model.AllowAnonymous" Label="Allow anonymous" />
-                }
-            </MudStack>
-            @if (IsGlobal && Model.AllowAnonymous)
-            {
-                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-                    This plug-in can be loaded without a signed-in user. Use it only for plug-ins that are
-                    meant to run in anonymous flows, such as onboarding.
-                </MudAlert>
-            }
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate" SaveVariant="Variant.Filled" InvalidMessage="Please correct invalid fields">
+    <MudTextField @bind-Value="Model.UniqueName" Label="Unique name" Required="true" MaxLength="300" />
+    <MudTextField @bind-Value="Model.Constructor" Label="Constructor" Lines="4" MaxLength="8192" />
+    <MudTextField @bind-Value="Model.StartupRegistrationConstructor" Label="Startup registration constructor" Lines="3" MaxLength="8192" />
+    <MudStack Row="true" Spacing="3" Class="mt-2">
+        <MudCheckBox @bind-Value="Model.AutoLoad" Label="Auto-load" />
+        <MudCheckBox @bind-Value="Model.Transient" Label="Transient" />
+        @* Nur bei globalen Plugins: ein Mandanten-Plugin ist anonym gar nicht sichtbar, die
+           Kennzeichnung waere dort ohne Wirkung und nur irrefuehrend. *@
+        @if (IsGlobal)
+        {
+            <MudCheckBox @bind-Value="Model.AllowAnonymous" Label="Allow anonymous" />
+        }
+    </MudStack>
+    @if (IsGlobal && Model.AllowAnonymous)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+            This plug-in can be loaded without a signed-in user. Use it only for plug-ins that are
+            meant to run in anonymous flows, such as onboarding.
+        </MudAlert>
+    }
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public WebPluginViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
 
@@ -41,16 +30,4 @@
     /// <c>Model.TenantId</c> kommen - das ist dort noch leer -, darum wird es von aussen gesetzt.
     /// </summary>
     [Parameter] public bool IsGlobal { get; set; }
-
-    private MudForm? form;
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
-
-    private void Cancel() => MudDialog.Cancel();
 }

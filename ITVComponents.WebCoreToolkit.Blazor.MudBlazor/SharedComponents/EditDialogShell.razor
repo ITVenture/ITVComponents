@@ -1,0 +1,137 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@inject ISnackbar Snackbar
+
+@* Die gemeinsame Huelle der Bearbeiten-Dialoge: Rahmen, Maske, Aktionsleiste und der Abschlussweg.
+   Der Aufrufer liefert nur noch seine Felder.
+
+   Vorher stand dieses Geruest in ueber dreissig Dialogen wortgleich - samt der Falle, dass ein
+   vergessenes "await form.Validate()" den Dialog trotz ungueltiger Eingaben schliesst. Genau das kann
+   hier niemand mehr vergessen. *@
+
+<MudDialog Class="@Class">
+    <DialogContent>
+        <MudForm @ref="form" Model="Model">
+            @ChildContent
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        @ExtraActions
+        <MudButton OnClick="Cancel" Disabled="@Busy">@CancelLabel</MudButton>
+        <MudButton Color="Color.Primary" Variant="@SaveVariant" OnClick="Save" Disabled="@Busy">@EffectiveSaveLabel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>
+    /// Das bearbeitete Modell. Es geht an <c>MudForm</c> (fuer die Attribut-Pruefung) und ist zugleich
+    /// die Nutzlast beim Schliessen - sofern <see cref="Result"/> nichts anderes sagt.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst <see cref="object"/> und kein Typparameter: <c>MudForm.Model</c> ist selbst
+    /// <see cref="object"/>, und die Nutzlast eines <c>DialogResult</c> ebenso. Ein <c>TModel</c> haette
+    /// nichts geprueft, waere aber an <b>jeder</b> Aufrufstelle mitzuschreiben gewesen.
+    /// </remarks>
+    [Parameter, EditorRequired] public object Model { get; set; } = default!;
+
+    /// <summary>Die Felder der Maske - sie landen innerhalb der <c>MudForm</c>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Zusaetzliche Knoepfe, LINKS von Abbrechen und Speichern. Hier gehoert unter anderem der
+    /// <see cref="DialogMaximizeToggle"/> hin.
+    /// </summary>
+    [Parameter] public RenderFragment? ExtraActions { get; set; }
+
+    /// <summary>Anlegen statt Bearbeiten - entscheidet nur ueber die Beschriftung des Knopfes.</summary>
+    [Parameter] public bool IsCreate { get; set; }
+
+    /// <summary>Beschriftung beim Anlegen (Vorgabe „Create").</summary>
+    [Parameter] public string CreateLabel { get; set; } = "Create";
+
+    /// <summary>Beschriftung beim Bearbeiten (Vorgabe „Save").</summary>
+    [Parameter] public string SaveLabel { get; set; } = "Save";
+
+    /// <summary>Beschriftung des Abbrechen-Knopfes (Vorgabe „Cancel").</summary>
+    [Parameter] public string CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>Klasse fuer den Dialog-Rahmen, z.B. <c>itv-fill-editor</c>.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Darstellung des Speichern-Knopfes. Vorgabe <see cref="Variant.Text"/> - das ist die Vorgabe von
+    /// <c>MudButton</c> selbst.
+    /// </summary>
+    /// <remarks>
+    /// Der Parameter existiert nur, weil die uebernommenen Dialoge hier <b>uneinheitlich</b> waren: gut
+    /// die Haelfte setzte <c>Variant.Filled</c>, der Rest nichts. Die Huelle bildet den Ist-Zustand ab,
+    /// statt ihn beilaeufig zu vereinheitlichen - eine Optik-Entscheidung fuer vierzig Masken gehoert
+    /// nicht in einen Umbau, der sonst nichts sichtbar aendert. Sie liesse sich jetzt an EINER Stelle
+    /// treffen: Vorgabe umstellen und die Attribute streichen.
+    /// </remarks>
+    [Parameter] public Variant SaveVariant { get; set; } = Variant.Text;
+
+    /// <summary>
+    /// Meldung, die bei ungueltiger Maske erscheint. Null (Vorgabe) = keine Meldung; dann bleibt der
+    /// Dialog still stehen und die Felder markieren sich selbst.
+    /// </summary>
+    /// <remarks>
+    /// Bewusst nicht mit einem Standardtext vorbelegt: von den uebernommenen Dialogen zeigten zwanzig
+    /// keine Meldung und fuenfzehn eine. Beides ist vertretbar, aber es ist eine Entscheidung der Maske -
+    /// die Huelle soll sie nicht heimlich fuer alle umstellen.
+    /// </remarks>
+    [Parameter] public string? InvalidMessage { get; set; }
+
+    /// <summary>
+    /// Laeuft NACH erfolgreicher Pruefung und VOR dem Schliessen. Liefert false, wenn doch nicht
+    /// geschlossen werden soll (eigene Zusatzpruefung, misslungenes Speichern).
+    /// </summary>
+    [Parameter] public Func<Task<bool>>? OnValidated { get; set; }
+
+    /// <summary>
+    /// Die Nutzlast beim Schliessen, falls es nicht <see cref="Model"/> sein soll (etwa eine vom Server
+    /// vergebene Id). Wird erst nach <see cref="OnValidated"/> abgefragt.
+    /// </summary>
+    [Parameter] public Func<object?>? Result { get; set; }
+
+    /// <summary>Sperrt beide Knoepfe, solange die Maske arbeitet.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    private MudForm? form;
+
+    private string EffectiveSaveLabel => IsCreate ? CreateLabel : SaveLabel;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    /// <summary>
+    /// Der eine Abschlussweg: pruefen, ggf. melden, den Haken des Aufrufers fragen, schliessen.
+    /// </summary>
+    private async Task Save()
+    {
+        if (form is null)
+        {
+            return;
+        }
+
+        // ValidateAsync und nicht das veraltete Validate(): der Umbau auf die Huelle macht diese
+        // Korrektur zu einer einzigen Zeile - vorher waere sie fuenfunddreissig Mal faellig gewesen.
+        await form.ValidateAsync();
+        if (!form.IsValid)
+        {
+            if (!string.IsNullOrEmpty(InvalidMessage))
+            {
+                Snackbar.Add(InvalidMessage, Severity.Warning);
+            }
+
+            return;
+        }
+
+        if (OnValidated is not null && !await OnValidated())
+        {
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(Result is not null ? Result() : Model));
+    }
+}

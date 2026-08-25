@@ -1,33 +1,11 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.SystemKey" Label="System key" Required="true" RequiredError="System key is required" />
-            <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" />
-            <ForeignKeyAutocomplete T="int?" Table="Features" @bind-Value="Model.FeatureId" Label="Required feature" Clearable="true" />
-            <ForeignKeyAutocomplete T="int?" Table="Permissions" @bind-Value="Model.PermissionId" Label="Required permission" Clearable="true" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.SystemKey" Label="System key" Required="true" RequiredError="System key is required" />
+    <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" />
+    <ForeignKeyAutocomplete T="int?" Table="Features" @bind-Value="Model.FeatureId" Label="Required feature" Clearable="true" />
+    <ForeignKeyAutocomplete T="int?" Table="Permissions" @bind-Value="Model.PermissionId" Label="Required permission" Clearable="true" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public AssetTemplateViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

@@ -1,52 +1,30 @@
 @using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.UniqueConnectionName" Label="Connection name" Required="true" RequiredError="Name is required" MaxLength="255" />
-            @if (AllowGlobal)
-            {
-                <MudCheckBox @bind-Value="Model.Global" Label="Global (shared across tenants)" />
-            }
-            <MudSelect T="ExternalServiceAuthenticationType" @bind-Value="Model.AuthenticationType" Label="Authentication type">
-                @foreach (var t in Enum.GetValues<ExternalServiceAuthenticationType>())
-                {
-                    <MudSelectItem T="ExternalServiceAuthenticationType" Value="@t">@t</MudSelectItem>
-                }
-            </MudSelect>
-            <MudTextField @bind-Value="Model.AuthorizationEndpoint" Label="Authorization endpoint" />
-            <MudTextField @bind-Value="Model.TokenEndpoint" Label="Token endpoint" />
-            <MudTextField @bind-Value="Model.RevocationEndpoint" Label="Revocation endpoint" />
-            <MudTextField @bind-Value="Model.ClientId" Label="Client ID" />
-            <MudTextField @bind-Value="Model.ClientSecret"
-                          Label="Client secret"
-                          HelperText="Prefix with 'encrypt:' to encrypt before saving. Leave empty to keep existing secret."
-                          InputType="@(MudBlazor.InputType.Password)" />
-            <MudTextField @bind-Value="Model.Scope" Label="Scope" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.UniqueConnectionName" Label="Connection name" Required="true" RequiredError="Name is required" MaxLength="255" />
+    @if (AllowGlobal)
+    {
+        <MudCheckBox @bind-Value="Model.Global" Label="Global (shared across tenants)" />
+    }
+    <MudSelect T="ExternalServiceAuthenticationType" @bind-Value="Model.AuthenticationType" Label="Authentication type">
+        @foreach (var t in Enum.GetValues<ExternalServiceAuthenticationType>())
+        {
+            <MudSelectItem T="ExternalServiceAuthenticationType" Value="@t">@t</MudSelectItem>
+        }
+    </MudSelect>
+    <MudTextField @bind-Value="Model.AuthorizationEndpoint" Label="Authorization endpoint" />
+    <MudTextField @bind-Value="Model.TokenEndpoint" Label="Token endpoint" />
+    <MudTextField @bind-Value="Model.RevocationEndpoint" Label="Revocation endpoint" />
+    <MudTextField @bind-Value="Model.ClientId" Label="Client ID" />
+    <MudTextField @bind-Value="Model.ClientSecret"
+                  Label="Client secret"
+                  HelperText="Prefix with 'encrypt:' to encrypt before saving. Leave empty to keep existing secret."
+                  InputType="@(MudBlazor.InputType.Password)" />
+    <MudTextField @bind-Value="Model.Scope" Label="Scope" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public ExternalOAuthServiceViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool AllowGlobal { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

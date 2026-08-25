@@ -1,35 +1,13 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.RoleName" Label="Role name" Required="true" RequiredError="Role name is required" />
-            @if (AllowSystemRole)
-            {
-                <MudCheckBox @bind-Value="Model.IsSystemRole" Label="System role" />
-            }
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.RoleName" Label="Role name" Required="true" RequiredError="Role name is required" />
+    @if (AllowSystemRole)
+    {
+        <MudCheckBox @bind-Value="Model.IsSystemRole" Label="System role" />
+    }
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public RoleViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool AllowSystemRole { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

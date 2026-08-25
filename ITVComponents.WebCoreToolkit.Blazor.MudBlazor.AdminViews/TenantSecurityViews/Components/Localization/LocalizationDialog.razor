@@ -1,30 +1,8 @@
-@inject ISnackbar Snackbar
-
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.Identifier" Label="Identifier (e.g. resource fully-qualified name)" Required="true" MaxLength="1024" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate" SaveVariant="Variant.Filled" InvalidMessage="Please correct invalid fields">
+    <MudTextField @bind-Value="Model.Identifier" Label="Identifier (e.g. resource fully-qualified name)" Required="true" MaxLength="1024" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter, EditorRequired] public LocalizationViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
-
-    private MudForm? form;
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) { Snackbar.Add("Please correct invalid fields", Severity.Warning); return; }
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
-    private void Cancel() => MudDialog.Cancel();
 }

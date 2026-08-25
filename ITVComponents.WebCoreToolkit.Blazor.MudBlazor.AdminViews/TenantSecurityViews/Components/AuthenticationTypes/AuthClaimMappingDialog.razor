@@ -1,36 +1,14 @@
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.IncomingClaimName" Label="Incoming claim name" Required="true" />
-            <MudTextField @bind-Value="Model.Condition" Label="Condition (optional)" />
-            <MudTextField @bind-Value="Model.OutgoingClaimName" Label="Outgoing claim name" Required="true" />
-            <MudTextField @bind-Value="Model.OutgoingClaimValue" Label="Outgoing claim value" Required="true" Lines="2" />
-            <MudTextField @bind-Value="Model.OutgoingValueType" Label="Outgoing value type" />
-            <MudTextField @bind-Value="Model.OutgoingIssuer" Label="Outgoing issuer" />
-            <MudTextField @bind-Value="Model.OutgoingOriginalIssuer" Label="Outgoing original issuer" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Add" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate" CreateLabel="Add">
+    <MudTextField @bind-Value="Model.IncomingClaimName" Label="Incoming claim name" Required="true" />
+    <MudTextField @bind-Value="Model.Condition" Label="Condition (optional)" />
+    <MudTextField @bind-Value="Model.OutgoingClaimName" Label="Outgoing claim name" Required="true" />
+    <MudTextField @bind-Value="Model.OutgoingClaimValue" Label="Outgoing claim value" Required="true" Lines="2" />
+    <MudTextField @bind-Value="Model.OutgoingValueType" Label="Outgoing value type" />
+    <MudTextField @bind-Value="Model.OutgoingIssuer" Label="Outgoing issuer" />
+    <MudTextField @bind-Value="Model.OutgoingOriginalIssuer" Label="Outgoing original issuer" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public AuthenticationClaimMappingViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
-
-    private MudForm? form;
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
-    }
 }

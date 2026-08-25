@@ -1,45 +1,24 @@
 @using System.ComponentModel.DataAnnotations
 
-<MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" Model="Model">
-            <MudTextField @bind-Value="Model.UserName" Label="User name" Required="true" RequiredError="User name is required" />
-            <MudTextField @bind-Value="Model.Email" Label="Email" InputType="InputType.Email" />
-            <MudCheckBox @bind-Value="Model.EmailConfirmed" Label="Email confirmed" />
-            <MudTextField @bind-Value="Model.PhoneNumber" Label="Phone number" />
-            <MudCheckBox @bind-Value="Model.PhoneNumberConfirmed" Label="Phone confirmed" />
-            <MudCheckBox @bind-Value="Model.TwoFactorEnabled" Label="Two-factor enabled" />
-            <MudCheckBox @bind-Value="Model.LockoutEnabled" Label="Lockout enabled" />
-            <MudDatePicker @bind-Date="lockoutDate" Label="Locked until" Editable="true" Clearable="true" />
-            <ForeignKeySelect T="int?" @bind-Value="Model.AuthenticationTypeId" Table="AuthenticationTypes" Label="Authentication type" />
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">@(IsCreate ? "Create" : "Save")</MudButton>
-    </DialogActions>
-</MudDialog>
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.UserName" Label="User name" Required="true" RequiredError="User name is required" />
+    <MudTextField @bind-Value="Model.Email" Label="Email" InputType="InputType.Email" />
+    <MudCheckBox @bind-Value="Model.EmailConfirmed" Label="Email confirmed" />
+    <MudTextField @bind-Value="Model.PhoneNumber" Label="Phone number" />
+    <MudCheckBox @bind-Value="Model.PhoneNumberConfirmed" Label="Phone confirmed" />
+    <MudCheckBox @bind-Value="Model.TwoFactorEnabled" Label="Two-factor enabled" />
+    <MudCheckBox @bind-Value="Model.LockoutEnabled" Label="Lockout enabled" />
+    <MudDatePicker @bind-Date="lockoutDate" Label="Locked until" Editable="true" Clearable="true" />
+    <ForeignKeySelect T="int?" @bind-Value="Model.AuthenticationTypeId" Table="AuthenticationTypes" Label="Authentication type" />
+</EditDialogShell>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-
     [Parameter, EditorRequired] public UserViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
 
-    private MudForm? form;
     private DateTime? lockoutDate
     {
         get => Model.LockoutEnd?.UtcDateTime;
         set => Model.LockoutEnd = value.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)) : null;
-    }
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Save()
-    {
-        if (form is null) return;
-        await form.Validate();
-        if (!form.IsValid) return;
-        MudDialog.Close(DialogResult.Ok(Model));
     }
 }
