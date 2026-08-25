@@ -59,9 +59,8 @@ namespace ITVComponents.Workflow.Test
         [TestMethod]
         public void AfterALongStandstill_TheNextDateIsAheadOfUs()
         {
-            // Ein laengerer Stillstand erzeugt KEINE Kette verpasster Termine: TimeTable rechnet intern
-            // weiter, bis der Termin in der Zukunft liegt. Wer drei Tage aus war, bekommt also nicht drei
-            // Laeufe nachgereicht.
+            // Ein laengerer Stillstand erzeugt KEINE Kette verpasster Termine. Wer drei Tage aus war,
+            // bekommt nicht drei Laeufe nachgereicht, sondern den naechsten Termin.
             //
             // Nachgeholt wird trotzdem - aber ueber die GESPEICHERTE Faelligkeit, nicht hier: die bleibt
             // stehen, solange sie niemand aufgreift, und feuert beim naechsten Aufgriff einmal. Genau
@@ -73,6 +72,30 @@ namespace ITVComponents.Workflow.Test
             Assert.IsNotNull(next);
             Assert.IsTrue(next > nowUtc, "the computed date is always the next one ahead, never a missed one.");
             Assert.IsTrue(next < nowUtc.AddDays(2), "and it is the NEXT one - not one three days from now.");
+        }
+
+        [TestMethod]
+        public void AfterALongStandstill_TheNextDateIsAheadOfUs_AtEveryTimeOfDay()
+        {
+            // Derselbe Fall wie oben, aber unabhaengig davon, wie spaet es gerade ist.
+            //
+            // Der Test darueber traf den Fehler nur zwischen Mitternacht und 08:00 Ortszeit: TimeTable
+            // baut den Termin AUS DEM ANKERDATUM, sobald an jenem Tag noch eine Tageszeit uebrig ist -
+            // und "noch uebrig" haengt an der Tageszeit des Ankers, die aus DateTime.UtcNow stammt. Am
+            // Nachmittag war 08:00 durch, die zukunfts-erzwingende Rekursion sprang an, und der Fehler
+            // blieb unsichtbar. Acht Stunden am Tag war die Suite rot, sechzehn gruen.
+            //
+            // Hier wird der Anker deshalb ausdruecklich auf 01:00 ORTSZEIT gelegt - vor der ersten
+            // Tageszeit des Musters, in jeder Zeitzone.
+            DateTime anchorUtc = DateTime.SpecifyKind(
+                DateTime.Now.Date.AddDays(-3).AddHours(1), DateTimeKind.Local).ToUniversalTime();
+            DateTime nowUtc = DateTime.UtcNow;
+
+            DateTime? next = ScheduleEvaluator.NextDueUtc(DailyAtEight, anchorUtc, nowUtc);
+
+            Assert.IsNotNull(next);
+            Assert.IsTrue(next > nowUtc,
+                "an anchor whose time-of-day precedes the schedule must not yield that day's date.");
         }
 
         [TestMethod]

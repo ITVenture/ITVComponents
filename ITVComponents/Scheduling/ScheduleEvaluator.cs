@@ -71,12 +71,12 @@ namespace ITVComponents.Scheduling
 
             DateTime anchorLocal = ToLocal(lastRunUtc ?? nowUtc);
 
-            // Gerechnet wird ab dem letzten Lauf. Das Ergebnis liegt trotzdem praktisch immer in der
-            // ZUKUNFT: liegt der naechste Termin nach dem Anker bereits hinter uns, rechnet TimeTable
-            // intern weiter - und diese Rekursion erzwingt kuenftige Termine, unabhaengig vom Schalter
-            // hier. Ein laengerer Stillstand laesst also keine Kette verpasster Termine entstehen.
+            // Gerechnet wird zuerst ab dem letzten Lauf - damit ein Muster wie "jeden zweiten Tag" seinen
+            // Rhythmus behaelt, statt bei jedem Aufruf neu anzusetzen. Ob das Ergebnis auch vor uns liegt,
+            // entscheidet der Riegel weiter unten; TimeTable sichert das mit forceFutureDates:false NICHT
+            // zu (die Begruendung steht dort).
             //
-            // Das ist auch nicht der Weg, ueber den nachgeholt wird: das ergibt sich aus der GESPEICHERTEN
+            // Nachgeholt wird ueber diesen Weg ohnehin nicht: das ergibt sich aus der GESPEICHERTEN
             // Faelligkeit. Sie bleibt stehen, solange niemand sie aufgreift, ist damit ueberfaellig und
             // feuert beim naechsten Aufgriff EINMAL - danach steht der Termin wieder ab jetzt. Genau so ist
             // "einmal nachholen, nicht n-mal" gemeint.
@@ -87,6 +87,36 @@ namespace ITVComponents.Scheduling
             }
 
             DateTime nextUtc = ToUtc(nextLocal.Value);
+
+            // Und hier wird das Zukunfts-Versprechen dieser Methode tatsaechlich eingeloest - der Absatz
+            // darueber beschrieb lange, was TimeTable NICHT tut.
+            //
+            // Mit forceFutureDates:false rechnet TimeTable ab dem Anker und baut den Termin AUS DEM
+            // ANKERDATUM, sobald an jenem Tag noch eine Tageszeit uebrig ist (TimeTable.cs:315). Die
+            // Rekursion, die Zukunft erzwingt, wird nur betreten, wenn dort KEINE mehr uebrig ist
+            // (TimeTable.cs:164). Ein Anker von vor drei Tagen um 00:20 Ortszeit liefert deshalb den
+            // Termin von vor drei Tagen um 08:00 - und niemand merkt es, solange alle Aufrufer als Anker
+            // "jetzt" uebergeben. Genau das taten sie bisher; die Zusicherung hing an dieser Gewohnheit.
+            //
+            // Liegt das Ergebnis also nicht vor uns, wird ab JETZT gerechnet. Das ist die Bedeutung von
+            // "naechste Faelligkeit" - und zugleich der Grund, warum ein langer Stillstand keine Kette
+            // verpasster Termine erzeugt.
+            //
+            // Bewusst mit dem uebergebenen nowUtc und NICHT ueber die einparametrige Ueberladung: die
+            // klemmt intern auf DateTime.Now (TimeTable.cs:128 -> :148) und koppelte diese Methode damit
+            // von ihrem eigenen Zeit-Parameter ab - eine Zeitrechnung, die sich nicht mehr vorgeben
+            // laesst, ist nicht pruefbar.
+            if (nextUtc <= nowUtc)
+            {
+                nextLocal = timeTable.GetNextExecutionTime(ToLocal(nowUtc), false);
+                if (nextLocal == null)
+                {
+                    return null;
+                }
+
+                nextUtc = ToUtc(nextLocal.Value);
+            }
+
             if (nextUtc > nowUtc.AddYears(MaxLookAheadYears))
             {
                 return null;
