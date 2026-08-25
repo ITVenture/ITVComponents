@@ -3289,10 +3289,115 @@ und `ReleaseLocksOfOwner` (ein Anspruch gehört einem Runner, nicht einem Mandan
 
 ---
 
+## 42. Konsolidierungs-Runde: was davon euch betrifft
+
+Diese Runde war überwiegend Aufräumen im Toolkit (Doppelspurigkeit zusammengeführt, Dialoge und
+Raster-Werkzeugleisten auf gemeinsame Bausteine). **Für euch bleiben davon drei Punkte übrig** — der
+Rest ist innen und ändert für euch nichts.
+
+### 42.1 `HasPermission` verliert den Principal — **Pflicht, aber winzig**
+
+```csharp
+// vorher
+bool HasPermission(ClaimsPrincipal user, params string[] permissions);
+Handler.HasPermission(currentUser, "Tenants.Write")
+
+// jetzt
+bool HasPermission(params string[] permissions);
+Handler.HasPermission("Tenants.Write")
+```
+
+Der Parameter wurde in **keiner** der 31 Implementierungen gelesen — die Prüfung lief immer gegen den
+aktuellen Berechtigungs-Bereich. Er war damit kein Fehler, aber eine geladene Waffe für den ersten
+Aufrufer, der bei Impersonation einen fremden Principal einsetzt und annimmt, er werde beachtet.
+
+**Was ihr tun müsst:** die Aufrufstellen kürzen, und falls ihr einen der `I…AdminHandler`-Verträge
+selbst implementiert, dort die Signatur nachziehen. Der Compiler zeigt euch jede Stelle.
+
+```powershell
+$src = Get-ChildItem -Recurse -File |
+       Where-Object { $_.Extension -in '.cs','.razor' -and $_.FullName -notmatch '\\(obj|bin)\\' }
+$src | Select-String -Pattern 'HasPermission\(' | Select-Object Path, LineNumber, Line
+$src | Select-String -Pattern ':\s*I[A-Za-z]*AdminHandler\b' | Select-Object Path, LineNumber, Line
+```
+
+**Zwei Fallen aus unserem eigenen Durchlauf**, damit sie euch nicht auch erwischen:
+
+- Sucht nach den **Formen**, nicht nach Bezeichnern. Wir hatten nach `user`/`currentUser` gesucht und
+  `auth.User` — einen Member-Zugriff — übersehen. Drei Stellen fielen durch; gefunden hat sie der
+  Compiler, nicht die Suche.
+- **Baut die ganze Solution**, nicht das Projekt, an dem ihr gerade seid. Scheitert ein Projekt, wird
+  alles Abhängige gar nicht erst gebaut — die erste Fehlerliste ist nie die vollständige.
+
+### 42.2 Ein gescheiterter Vorgang läuft nicht mehr von selbst weiter — **Verhaltensänderung**
+
+Bisher konnte ein **gefaulteter** Vorgang still weiterlaufen: `Fault()` lässt die übrigen Tokens
+absichtlich stehen (der Wiederaufsatz braucht sie), ein Fristen-Timer an einem anderen Zweig blieb
+scharf, wurde später fällig — und die Reaktivierung setzte den Vorgang wieder auf `Running`, **ohne den
+Fault anzusehen**. Die Fehlermeldung war weg, und entschieden hatte das niemand. Dasselbe galt für ein
+eintreffendes Signal, die Ziel-Übernahme und die Rückkehr eines Subworkflows.
+
+**Ab jetzt gilt: einen gescheiterten Vorgang nimmt ausschliesslich ein ausdrücklicher Retry wieder auf**
+(`RetryFaulted` / `RetryFaultedBranches`). Jede Abweisung steht im Log.
+
+**Was ihr davon merkt:** Vorgänge, die sich bisher scheinbar „von selbst erholt" haben, bleiben jetzt
+gefaultet stehen und warten auf eine Entscheidung. Das ist die Absicht — vorher habt ihr nicht gesehen,
+dass überhaupt etwas gescheitert war. **Schaut nach dem Deployment einmal ins Monitoring**, ob dort
+Vorgänge stehen, die vorher unbemerkt weitergelaufen sind.
+
+Kein Schema-Change, keine Migration.
+
+### 42.3 Ein neuer Ausgang beim Abschliessen einer Aufgabe
+
+`UserTaskCompletionStatus` hat einen Wert dazubekommen: **`InstanceNotResumable`** — der Vorgang steht
+still (gescheitert, abgebrochen oder schon beendet), die Aufgabe wurde deshalb *nicht* abgeschlossen und
+die Eingaben nicht gespeichert. Der Wert hängt **hinten** an, die bestehenden behalten ihre Zahl.
+
+Zu unterscheiden von `Faulted`: **dort** ist die Aufgabe erledigt und der Prozess erst danach
+gescheitert, **hier** war er es schon vorher.
+
+**Was ihr tun müsst:** nichts, wenn ihr den Ausgang nur über `Success` auswertet. Wertet ihr ihn in
+einer **eigenen Aufgaben-Maske** aus (`IUserTaskView`), behandelt den neuen Wert — sonst landet er in
+eurem `default`-Zweig und der Benutzer bekommt „gibt es nicht mehr" zu lesen, obwohl es die Aufgabe sehr
+wohl noch gibt und sie nach einem Retry wieder funktioniert. Die Meldung dazu liegt als
+`InstanceNotResumable` in `WorkflowTaskMessages` (en/de/fr/it).
+
+### 42.4 Zwei Pakete gehören ab jetzt zusammen
+
+Die neuen gemeinsamen Bausteine `EditDialogShell` und `CrudGridToolbar` liegen in
+**`ITVComponents.WebCoreToolkit.Blazor.MudBlazor`**, ihre Nutzer in
+**`…Blazor.MudBlazor.AdminViews`**. Zieht beide Pakete **zusammen** hoch — sonst findet AdminViews die
+Komponenten nicht.
+
+### 42.5 Sichtbar, aber ohne Aufwand
+
+- **Der Speichern-Knopf ist jetzt überall gefüllt** (`Variant.Filled`). Vorher war es die Hälfte der
+  Dialoge, die andere Hälfte nicht. 19 Masken sehen dadurch anders aus — das ist gewollt und kein
+  Fehler.
+- Bei ungültiger Eingabe bleibt es je Maske dabei, ob ein Hinweis erscheint.
+
+### 42.6 Eine Warnung für eure eigenen Registrierungs-Methoden
+
+Falls ihr dem Muster der `Add…`-Erweiterungsmethoden folgt (generische Registrierung, aufgelöst über den
+DbContext): **die Bindung der Typparameter läuft über ihren NAMEN, nicht über ihre Position.** Die Namen
+sind damit faktisch Vertrag. Wer einen umbenennt, bricht die Verdrahtung — und kein Compiler sagt etwas
+dazu, es fällt erst beim Start auf, und zwar daran, dass eine Ansicht fehlt.
+
+Das war bisher zusätzlich **stumm**: der Auflösungsweg lieferte kommentarlos `null`, und der Aufrufer
+lief in eine `NullReferenceException`, deren Meldung nichts über die Ursache sagte. Das ist behoben —
+ein Fehlschlag nennt jetzt Klasse, Methode, Kontext-Typ und Grund. Wenn bei euch nach dem Update eine
+Ansicht fehlt: **ins Log schauen, dort steht es jetzt.**
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 42a | **`HasPermission`** | Parameter `ClaimsPrincipal user` entfällt — Aufrufstellen kürzen; eigene `I…AdminHandler`-Implementierungen nachziehen (§42.1) |
+| 42b | **Workflow: Fault** | ein gescheiterter Vorgang läuft **nicht mehr** von selbst weiter — nur noch per `RetryFaulted`. Kein Schema-Change, aber Monitoring prüfen (§42.2) |
+| 42c | `UserTaskCompletionStatus` | neuer Wert `InstanceNotResumable` (hinten angehängt) — nur relevant für eigene Aufgaben-Masken (§42.3) |
+| 42d | **Pakete** | `…Blazor.MudBlazor` und `…Blazor.MudBlazor.AdminViews` zusammen hochziehen (§42.4) |
 | 1 | `IFileHandler.AddFile` | `ModelStateDictionary` raus, `FileOperationResult` zurück; Namespace → `ServiceShared.FileHandling` |
 | 1b | `IFileHandler.ReadFile` (sync) | `ref`/`out byte[]` → `FileReadResult ReadFile(id, identity)` (Stream-basiert, wie async) |
 | 2 | `IRespondingFileHandler.GetUploadResult` | `IResult` → `FileReadResult`; Namespace → `ServiceShared.FileHandling` |
