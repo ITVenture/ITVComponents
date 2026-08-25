@@ -16,6 +16,12 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Damit die strategie-neutralen Helfer (…Handlers.Impl) pruefbar sind, ohne sie oeffentlich zu
+         machen: dieses Projekt wird als Paket ausgeliefert, und eine oeffentliche Hilfsklasse waere eine
+         dauerhafte API-Zusage fuer etwas, das niemand ausserhalb aufrufen soll. -->
+    <InternalsVisibleTo Include="ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test" />
+  </ItemGroup>
+  <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>
   <ItemGroup>

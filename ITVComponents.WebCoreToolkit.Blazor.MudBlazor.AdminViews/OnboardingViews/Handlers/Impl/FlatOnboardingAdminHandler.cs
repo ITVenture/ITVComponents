@@ -4,13 +4,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Flat.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Models;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.ViewModels;
-using ITVComponents.WebCoreToolkit.Configuration;
-using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Options;
 using ITVComponents.WebCoreToolkit.Extensions;
-using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
@@ -41,8 +37,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
     public bool CanManageAllFeatures(ClaimsPrincipal user) => services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures);
 
-    public bool ForceDedicatedRoleForMappings =>
-        services.GetService<IGlobalSettings<TenantSetupOptions>>()?.ValueOrDefault?.ForceDedicatedRoleForMappings ?? false;
+    public bool ForceDedicatedRoleForMappings => OnboardingAdminHelper.ForceDedicatedRoleForMappings(services);
 
     public async Task<TenantPickerItem?> GetCurrentTenantAsync(ClaimsPrincipal admin, CancellationToken ct = default)
     {
@@ -74,27 +69,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             .Select(tu => tu.UserId)
             .ToListAsync(ct);
 
-        // Zwei Arten von Nachweisen laufen hier zusammen: die des Mandanten (Tenant/Both, mit TenantId) und
-        // die persoenlichen seiner Mitglieder (ohne TenantId). Ein Nachweis einer Person, die dem Mandanten
-        // nicht angehoert, ist nie dabei.
-        return await db.ConsentRecords.AsNoTracking()
-            .Where(r => r.TenantId == current
-                        || (r.TenantId == null && r.UserId != null && members.Contains(r.UserId)))
-            .OrderByDescending(r => r.AcceptedUtc)
-            .Select(r => new ConsentRecordViewModel
-            {
-                ConsentRecordId = r.ConsentRecordId,
-                ConsentKey = r.ConsentKey,
-                Version = r.Version,
-                Accepted = r.Accepted,
-                AcceptedUtc = r.AcceptedUtc,
-                Email = r.Email,
-                Scope = r.Scope,
-                TenantId = r.TenantId,
-                Culture = r.Culture,
-                Origin = r.Origin
-            })
-            .ToArrayAsync(ct);
+        return await OnboardingAdminHelper.ListConsentsAsync(db, current, members, ct);
     }
 
     public async Task<BillingProfileAdminViewModel[]> ListBillingProfilesAsync(ClaimsPrincipal admin, CancellationToken ct = default)
@@ -157,8 +132,8 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             Email = p.Email,
             PhoneNumber = p.PhoneNumber,
             UseInvoiceAddr = p.UseInvoiceAddr,
-            DefaultAddress = ToInput(p.DefaultAddress),
-            InvoiceAddress = ToInput(p.InvoiceAddress)
+            DefaultAddress = OnboardingAdminHelper.ToInput(p.DefaultAddress),
+            InvoiceAddress = OnboardingAdminHelper.ToInput(p.InvoiceAddress)
         };
     }
 
@@ -419,30 +394,13 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             return Array.Empty<FeatureOption>();
         }
 
-        return await db.Set<ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Feature>().AsNoTracking()
-            .OrderBy(f => f.FeatureName)
-            .Select(f => new FeatureOption
-            {
-                FeatureName = f.FeatureName,
-                FeatureDescription = f.FeatureDescription,
-                Enabled = f.Enabled
-            })
-            .ToArrayAsync(ct);
+        return await OnboardingAdminHelper.ListFeaturesAsync(db, ct);
     }
 
     public async Task<int?> SaveRoleMappingAsync(ClaimsPrincipal admin, EmployeeRoleMappingViewModel model, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
-        // Creating/editing a mapping requires FULL write authority for its kind (or the generic role-mappings
-        // write). For Delegation this is the full-edit tier — the weaker delegate-assign tier may not create/rename.
-        var required = model.Kind switch
-        {
-            EmployeeRoleMappingKind.DirectRole => OnboardingAdminPermissions.DirectRoleWrite,
-            EmployeeRoleMappingKind.PermissionSet => OnboardingAdminPermissions.PermissionSetWrite,
-            EmployeeRoleMappingKind.Delegation => OnboardingAdminPermissions.DelegationWrite,
-            _ => OnboardingAdminPermissions.RoleMappingsAnyWrite
-        };
-        var (ok, current) = Authorize(db,required);
+        var (ok, current) = Authorize(db, OnboardingAdminHelper.RequiredWritePermission(model.Kind));
         if (!ok)
         {
             return null;
@@ -481,7 +439,9 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
                 {
                     // Always a fresh dedicated role: never reuse an existing one. On a name collision, auto-suffix
                     // (Name_1, Name_2, …); give up (fail the save) once the base and five suffixes are all taken.
-                    var freeName = await FindFreeRoleNameAsync(db, current, baseName, ct);
+                    var freeName = await OnboardingAdminHelper.FindFreeRoleNameAsync(baseName,
+                        candidate => db.SecurityRoles.IgnoreQueryFilters().AsNoTracking()
+                            .AnyAsync(r => r.TenantId == current && r.RoleName == candidate, ct));
                     if (freeName == null)
                     {
                         return null;
@@ -539,26 +499,6 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         return mapping.EmployeeRoleMappingId;
     }
 
-    /// <summary>
-    /// Finds a free role name in the tenant: the base name if available, otherwise <c>base_1</c>, <c>base_2</c>,
-    /// … <c>base_5</c>. Returns null when the base and all five numbered variants are taken (caller fails the save).
-    /// </summary>
-    private static async Task<string?> FindFreeRoleNameAsync(TContext db, int tenantId, string baseName, CancellationToken ct)
-    {
-        for (var i = 0; i <= 5; i++)
-        {
-            var candidate = i == 0 ? baseName : $"{baseName}_{i}";
-            var taken = await db.SecurityRoles.IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(r => r.TenantId == tenantId && r.RoleName == candidate, ct);
-            if (!taken)
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
     public async Task<bool> DeleteRoleMappingAsync(ClaimsPrincipal admin, int employeeRoleMappingId, CancellationToken ct = default)
     {
         using var db = dbFactory.CreateDbContext();
@@ -576,14 +516,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         }
 
         // Enforce the kind-specific write authority for the row being deleted (Delegation delete needs full edit).
-        var requiredForKind = mapping.Kind switch
-        {
-            EmployeeRoleMappingKind.DirectRole => OnboardingAdminPermissions.DirectRoleWrite,
-            EmployeeRoleMappingKind.PermissionSet => OnboardingAdminPermissions.PermissionSetWrite,
-            EmployeeRoleMappingKind.Delegation => OnboardingAdminPermissions.DelegationWrite,
-            _ => OnboardingAdminPermissions.RoleMappingsAnyWrite
-        };
-        if (!services.VerifyUserPermissions(requiredForKind))
+        if (!services.VerifyUserPermissions(OnboardingAdminHelper.RequiredWritePermission(mapping.Kind)))
         {
             return false;
         }
@@ -663,10 +596,7 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
 
         // Assigning sets to a DirectRole is a DirectRole write; on a Delegation role the weaker delegate-assign tier
         // is enough (that is the whole point of the Delegation kind).
-        var requiredAssign = direct.Kind == EmployeeRoleMappingKind.Delegation
-            ? OnboardingAdminPermissions.DelegationAssign
-            : OnboardingAdminPermissions.DirectRoleWrite;
-        if (!services.VerifyUserPermissions(requiredAssign))
+        if (!services.VerifyUserPermissions(OnboardingAdminHelper.RequiredAssignPermission(direct.Kind)))
         {
             return false;
         }
@@ -691,18 +621,12 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     }
 
     /// <summary>
-    /// Resolves the current scope tenant and enforces the admin gate: a non-zero <c>CurrentTenantId</c> plus
-    /// ANY of the <paramref name="requiredAnyOf"/> permissions. The permission check runs against the current
-    /// permission-scope, and the centralized authorization already restricts that to the caller's enabled
-    /// access on the tenant, so no separate membership probe is needed. When no permissions are supplied,
-    /// falls back to "any onboarding-admin permission".
+    /// Der Mandant des aktuellen Bereichs plus Admin-Riegel - die Regel steht in
+    /// <see cref="OnboardingAdminHelper.Authorize"/>, weil sie fuer beide Strategien dieselbe ist. Bleibt
+    /// als Wrapper stehen, damit die rund zwanzig Aufrufstellen unveraendert lesbar bleiben.
     /// </summary>
     private (bool ok, int tenantId) Authorize(TContext db, params string[] requiredAnyOf)
-    {
-        var current = db.CurrentTenantId ?? 0;
-        var required = requiredAnyOf is { Length: > 0 } ? requiredAnyOf : OnboardingAdminPermissions.AnyAccess;
-        return current == 0 || !services.VerifyUserPermissions(required) ? (false, 0) : (true, current);
-    }
+        => OnboardingAdminHelper.Authorize(db, services, requiredAnyOf);
 
     /// <summary>
     /// Restricts a role-mapping query to the ones visible in the current tenant: unless the caller holds the
@@ -711,32 +635,13 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     /// </summary>
     private IQueryable<EmployeeRoleMapping> ApplyFeatureGate(IQueryable<EmployeeRoleMapping> query)
     {
-        if (services.VerifyUserPermissions(OnboardingAdminPermissions.AllFeatures))
+        if (OnboardingAdminHelper.MayIgnoreFeatureGate(services))
         {
             return query;
         }
 
-        var active = GetActiveFeatureNames();
+        var active = OnboardingAdminHelper.ActiveFeatureNames(services);
         return query.Where(m => m.VisibilityFeature == null || m.VisibilityFeature == "" || active.Contains(m.VisibilityFeature));
-    }
-
-    /// <summary>
-    /// The feature names currently activated in the caller's permission-scope (the current tenant) — the same
-    /// source the SecureView / <c>VerifyActivatedFeatures</c> feature checks use.
-    /// </summary>
-    private List<string> GetActiveFeatureNames()
-    {
-        var scope = services.GetService<IPermissionScope>();
-        var repo = services.GetService<ISecurityRepository>();
-        if (scope == null || repo == null)
-        {
-            return new List<string>();
-        }
-
-        return repo.GetFeatures(scope.PermissionPrefix)
-            .Where(f => f.Enabled)
-            .Select(f => f.FeatureName)
-            .ToList();
     }
 
     private Task<bool> ProfileInScopeAsync(TContext db, int billingProfileId, int current, CancellationToken ct)
@@ -745,31 +650,12 @@ public class FlatOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     private Task<bool> EmployeeInScopeAsync(TContext db, int employeeId, int current, CancellationToken ct)
         => db.Employees.IgnoreQueryFilters().AnyAsync(e => e.EmployeeId == employeeId && e.TenantId == current, ct);
 
-    private static AddressInput ToInput(Address? address) => address == null
-        ? new AddressInput()
-        : new AddressInput
-        {
-            Name = address.Name,
-            Addition1 = address.Addition1,
-            Addition2 = address.Addition2,
-            Street = address.Street,
-            Number = address.Number,
-            Zip = address.Zip,
-            City = address.City
-        };
-
     /// <summary>Updates the existing address row in place, or creates a new typed one when absent.</summary>
     private static TAddress Apply<TAddress>(TAddress? existing, AddressInput input, string fallbackName)
         where TAddress : Address, new()
     {
         var target = existing ?? new TAddress();
-        target.Name = string.IsNullOrWhiteSpace(input.Name) ? fallbackName : input.Name;
-        target.Addition1 = input.Addition1;
-        target.Addition2 = input.Addition2;
-        target.Street = input.Street;
-        target.Number = input.Number;
-        target.Zip = input.Zip ?? string.Empty;
-        target.City = input.City ?? string.Empty;
+        OnboardingAdminHelper.Fill(target, input, fallbackName);
         return target;
     }
 }

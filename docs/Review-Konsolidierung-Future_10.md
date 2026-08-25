@@ -239,12 +239,12 @@ filterfreie Umgebung filterte die Ansicht also nach Mandant, während ihr eigene
 | `EditDialogShell` für 43 Dialoge | ~950 Z. | niedrig |
 | `SvgWriter`: Viewer und Editor zeichnen dasselbe SVG zweimal | ~200 Z. | mittel |
 
-**Onboarding:** `FlatOnboardingAdminHandler.cs` (775 Z.) und `HierarchyOnboardingAdminHandler.cs`
-(776 Z.) sind zu **96,6 %** identisch — nur 53 Zeilen unterscheiden sich, alle 30 Member existieren
-beidseitig, kein Verhaltensunterschied. Der Härtetest: `git log` zeigt für beide Dateien **dieselben
-6 Commits**. Jede Änderung musste bisher zweimal gemacht werden; beim siebten Mal wird sie es nicht.
-Die Abstraktion liegt bereits eine Schicht tiefer (`BillingProfileBase<>`, `EmployeeBase<>`,
-`AddressBase<>`), sie wird nur nicht genutzt.
+**Onboarding — erledigt, aber anders als geplant. Siehe „Runde 2a" unten: die Zahl in diesem Absatz
+hält der Prüfung nicht stand.** `FlatOnboardingAdminHandler.cs` (775 Z.) und
+`HierarchyOnboardingAdminHandler.cs` (776 Z.) sind zu **96,6 %** identisch — nur 53 Zeilen unterscheiden
+sich, alle 30 Member existieren beidseitig, kein Verhaltensunterschied. Der Härtetest: `git log` zeigt
+für beide Dateien **dieselben 6 Commits**. Jede Änderung musste bisher zweimal gemacht werden; beim
+siebten Mal wird sie es nicht.
 
 **Stores:** Der Trigger-/Aktivierungs-Lebenszyklus (`SyncTriggers`, `RehomeActivations`,
 `EnsureOwnActivation`, Pattern-Reset, `WarnAboutOrphans`) ist in beiden Stores vollständig ausformuliert
@@ -353,6 +353,61 @@ Antwort. Meldung in allen vier Sprachen (`WorkflowTaskMessages(.de|.fr|.it).resx
 
 Der Post-Hook `IUserTaskView.PostResolveActivityAsync` sieht den neuen Ausgang **nicht**: er läuft nur nach
 einem echten Abschluss, und genau das ist hier nicht passiert.
+
+### Runde 2a — Onboarding: was davon wirklich ging
+
+**Die 96,6 % stimmen als Text. Sie stimmen nicht als Typen** — und daran ist die geplante gemeinsame
+Basisklasse gescheitert.
+
+Mehrere Zeilen, die im `diff` gar nicht auftauchen, sind in Wahrheit verschieden. Sie sehen nur gleich
+aus, weil das `using` die Auflösung macht:
+
+```csharp
+var role = new Role { TenantId = current, RoleName = freeName, IsSystemRole = false };
+db.RoleRoles.Add(new RoleRole { PermissiveRoleId = set.RoleId, PermittedRoleId = direct.RoleId });
+```
+
+`Role` ist hier einmal `CoreIdentity.Models.Role` und einmal `CoreIdentityTree.Model.Role` — zwei CLR-Typen
+mit je **zwölfparametriger** generischer Basis. Dasselbe bei `RoleRole`, `User`, `Tenant`, `TenantUser`.
+Dazu greift der Handler nicht nur auf Skalare zu, sondern auf **Navigationen** (`p.Tenant.DisplayName`,
+`p.Employees.Count`, `m.Role.RoleName`, `p.DefaultAddress`) — eine nicht-generische Skalar-Basis im Modell
+hätte die nicht abgedeckt.
+
+Die Rechnung für eine gemeinsame Basisklasse: **~19 Typparameter**, ein Drittel davon nur, um die
+Constraint-Kette zu schliessen, dazu ~10 abstrakte DbSet-Accessoren (an `ISecurityContext<45 Argumente>`
+lässt sich `TContext` nicht binden). Das ist genau die Kategorie, die weiter unten unter
+„Zurückgestellt" steht — 700 lesbare Zeilen gegen eine Wand aus `where`-Klauseln. **Nicht gemacht.**
+
+**Gemacht wurde die Helfer-Extraktion** im Hausmuster von `OnboardingPendingHelper`: statische Methoden
+mit **engen** Typparametern je Methode, neu in `OnboardingAdminHelper.cs`. Die Auswahlregel: was eine
+*Entscheidung* trifft oder auf einem *geteilten* Typ arbeitet, geht hinein; die getippten Abfragen auf
+strategie-eigenen Entitäten bleiben beim Handler, dort kostet der Typ nichts.
+
+Zusammengeführt: `Authorize`, `ForceDedicatedRoleForMappings`, beide Permission-Switches,
+`RequiredAssignPermission`, `MayIgnoreFeatureGate`, `ActiveFeatureNames`, `ListFeaturesAsync` (`Feature`
+ist ein geteilter Typ), die Consent-Abfrage (`ConsentRecord` ist strategie-neutral — das sagt
+`IOnboardingConsentContext` selbst), `FindFreeRoleNameAsync` (Namensregel hier, Abfrage per Rückruf beim
+Aufrufer) sowie `ToInput`/`Fill` auf `AddressBase<>`.
+
+| | vorher | nachher |
+|---|---|---|
+| `FlatOnboardingAdminHandler` | 775 | 667 |
+| `HierarchyOnboardingAdminHandler` | 776 | 668 |
+| `OnboardingAdminHelper` | — | 240 |
+
+**216 doppelt gepflegte Zeilen sind zu einer Fassung geworden.** Die Netto-Zeilenzahl bleibt dabei etwa
+gleich — der Gewinn ist „eine Stelle statt zwei", nicht „weniger Code". Wer die Ersparnis in Zeilen
+misst, misst das Falsche.
+
+Von den sechs gemeinsamen Commits hätten **drei** nur noch eine Stelle berührt (Re-Gating auf
+`Onboarding.Admin.*`, Feature-Sichtbarkeits-Gate, Zustimmungs-Nachweise). Die `IDbContextFactory`-Umstellung
+nicht — die sass im Rumpf jeder einzelnen Methode.
+
+Neu abgesichert: `OnboardingAdminHelperTest` im AdminViews-Testprojekt — Berechtigungs-Zuordnung,
+Namensfindung samt Aufgeben nach fünf Varianten, Adress-Übernahme. Vorher gab es für diese Handler
+**keinen einzigen Test**; ein Test hätte damals ohnehin nur eine der beiden Fassungen getroffen. Der
+Helfer bleibt `internal` (das Projekt wird als Paket ausgeliefert) und ist über `InternalsVisibleTo`
+prüfbar.
 
 ### Zurückgestellt
 
