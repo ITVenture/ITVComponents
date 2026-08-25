@@ -17,23 +17,38 @@ namespace ITVComponents.Helpers
             var t = staticType
                 .GetMethods(methodFlags)
                 .Where(n => n.IsGenericMethod);
-            //var p = t.GetGenericArguments();
-            var p2 = (from n in t
-                let p = n.GetGenericArguments()
-                let u = knownParameters.FirstOrDefault(i => p.All(pm => i.Value.ContainsKey(pm.Name))).Value
-                where u != null
-                select new { n, p, u });
-            foreach (var i in p2)
+            foreach (var n in t)
             {
-                var mth = (from m in i.p join a in i.u on m.Name equals a.Key select a.Value).ToArray();
+                var p = n.GetGenericArguments();
+                var u = knownParameters.FirstOrDefault(i => p.All(pm => i.Value.ContainsKey(pm.Name))).Value;
+                if (u == null)
+                {
+                    // Ein Suchlauf, kein Auftrag: diese Methode gehoert nicht zu den bekannten Parametern,
+                    // und das ist der Normalfall (der Typ hat auch generische Methoden zu anderen Zwecken).
+                    // Trotzdem nicht stumm - genau hier verschwindet sonst eine Registrierung, weil jemand
+                    // einen Typparameter umbenannt hat, und niemand erfaehrt es.
+                    LogEnvironment.LogDebugEvent(
+                        $"'{staticType.FullName}.{n.Name}' was skipped: no known parameter set covers all of "
+                        + $"[{string.Join(", ", p.Select(pm => pm.Name))}]. The binding goes by the NAME of "
+                        + "the type parameter - a renamed one looks exactly like this.",
+                        LogSeverity.Report);
+                    continue;
+                }
+
+                var mth = (from m in p join a in u on m.Name equals a.Key select a.Value).ToArray();
                 MethodInfo retMi = null;
                 try
                 {
-                    retMi = i.n.MakeGenericMethod(mth);
+                    retMi = n.MakeGenericMethod(mth);
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogDebugEvent($"Failed to construct method {i.n.Name}. {ex.OutlineException()}",
+                    // Hier waren alle Namen bekannt - dass es TROTZDEM scheitert, ist kein Normalfall:
+                    // die Bedingungen der Methode passen nicht zum Kontext. Das gehoert ins Log, wo man
+                    // es findet, und nicht nur in die Debug-Ausgabe.
+                    LogEnvironment.LogEvent(
+                        $"'{staticType.FullName}.{n.Name}' could not be built although every type parameter "
+                        + $"was known - it will NOT be available. {ex.OutlineException()}",
                         LogSeverity.Error);
                 }
 
