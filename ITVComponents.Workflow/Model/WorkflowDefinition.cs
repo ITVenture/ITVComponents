@@ -73,7 +73,7 @@ namespace ITVComponents.Workflow.Model
         /// <b>Als Name, nicht als Schluessel</b>, aus demselben Grund wie bei <see cref="Key"/>: die
         /// Definition ist exportierbar, und eine Zeilennummer zeigt in der Nachbaranlage auf etwas
         /// anderes. Der Kern setzt den Namen nicht durch - das tut der Mantel, so wie bei
-        /// <see cref="Nodes.UserActivityNode.RequiredPermission"/>.
+        /// <see cref="UserActivityNode.RequiredPermission"/>.
         /// </para>
         /// <para>
         /// Das Feature ist die Bedingung, die <b>bei jedem Lauf</b> nachgeprueft wird, nicht nur beim
@@ -124,6 +124,45 @@ namespace ITVComponents.Workflow.Model
         /// mitschreiben, waehrend der Rest knapp bleibt (oder umgekehrt).
         /// </summary>
         public Instances.HistorySeverity? MinHistorySeverity { get; set; }
+
+        /// <summary>
+        /// Nach wie vielen Tagen <b>ab dem Ende</b> eines Vorgangs dieser Definition er archiviert wird.
+        /// Null = die globale Vorgabe gilt.
+        /// </summary>
+        /// <remarks>
+        /// <b>Ab dem Ende und nicht ab dem Start</b>: sonst archivierte sich ein Vorgang, der ein Jahr
+        /// laeuft, mitten im Betrieb selbst.
+        /// </remarks>
+        public int? RetentionDays { get; set; }
+
+        /// <summary>
+        /// Nach wie vielen Tagen ab dem Ende die <b>Anhang-Inhalte</b> wegfallen. Null = die globale
+        /// Vorgabe gilt.
+        /// </summary>
+        /// <remarks>
+        /// Eine eigene Frist, weil die Bytes das eigentliche Volumen sind und laenger oder kuerzer
+        /// aufzubewahren sein koennen als der Vorgang selbst. Die Beschreibung des Anhangs (Name,
+        /// Groesse, wer, wann) bleibt im Archiv stehen - ein Archiv, das nicht mehr sagen kann "hier war
+        /// eine Datei", haette den Vorgang unvollstaendig festgehalten.
+        /// </remarks>
+        public int? AttachmentRetentionDays { get; set; }
+
+        /// <summary>
+        /// Darf ein Mandant den Fristen dieser Definition <b>widersprechen</b> und eigene setzen?
+        /// Vorgabe: nein.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Dieselbe Form wie beim Zeitplan eines Ausloesers: dort traegt der Ausloeser das Muster, die
+        /// Uebernahme des Mandanten darf ein eigenes setzen - <b>aber nur, wenn
+        /// <c>AllowReschedule</c> es erlaubt</b>. Hier ist es dasselbe, nur fuer Fristen.
+        /// </para>
+        /// <para>
+        /// Die Vorgabe ist bewusst die restriktive Seite. Eine Frist, der ein Mandant unbemerkt
+        /// widersprechen kann, ist keine Frist - und wo eine Aufbewahrung vorgeschrieben ist, gehoert die
+        /// Entscheidung nicht dem, der die Daten loswerden moechte.
+        /// </para></remarks>
+        public bool AllowTenantRetentionOverride { get; set; }
 
         /// <summary>Die Knoten des Graphen.</summary>
         public List<WorkflowNode> Nodes { get; set; } = new List<WorkflowNode>();
