@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Security;
@@ -55,6 +59,15 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
         private readonly IFreshInjectablePlugin<WorkflowContext> freshContext;
         private readonly WorkflowEngineFactory? engineFactory;
         private readonly string? storeDependencyName;
+        /// <summary>
+        /// Die Modelle, fuer die die Filter-Pruefung schon gelaufen ist. Als schwache Tabelle, damit die
+        /// Pruefung kein Modell am Leben haelt, das die Anwendung sonst freigeben wuerde.
+        /// </summary>
+        private static readonly ConditionalWeakTable<IModel, object> ReportedModels = new();
+
+        /// <summary>Der Platzhalter-Wert der Tabelle - gebraucht wird nur der Schluessel.</summary>
+        private static readonly object Reported = new();
+
         private readonly List<IDisposable> leases = new();
         private EfWorkflowStore? store;
         private WorkflowEngine? engine;
@@ -88,7 +101,65 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
             // treffen eine per Namen registrierte scope-owned WorkflowContext-Dependency (scope[name,true]).
             IPluginLease<WorkflowContext> lease = freshContext.Lease(storeDependencyName ?? ContextPluginName);
             leases.Add(lease);
+            WarnIfUnfiltered(lease.Value, storeDependencyName ?? ContextPluginName);
             return lease.Value;
+        }
+
+        /// <summary>
+        /// Meldet, wenn dieser Kontext <b>gar keinen</b> Mandantenfilter mitbringt.
+        /// </summary>
+        /// <param name="ctx">der geleaste Kontext</param>
+        /// <param name="dependencyName">unter welchem Namen er geholt wurde - das ist der Hinweis fuer die Suche</param>
+        /// <remarks>
+        /// <para>
+        /// Die Lese-Wege der Ansichten ziehen ihre Mandantengrenze <b>aus dem Query-Filter</b> und nicht
+        /// aus einer eigenen Pruefung - <c>ListDefinitionsAsync</c> und <c>GetDefinitionAsync</c> fragen
+        /// schlicht ungefiltert ab und verlassen sich darauf, dass das Modell filtert. Das ist so gewollt:
+        /// die Grenze zweimal zu ziehen hiesse, zwei Fassungen zu haben, die auseinanderlaufen koennen.
+        /// </para>
+        /// <para>
+        /// <b>Aber es darf keine stille Annahme sein.</b> Es gibt in diesem Haus ausdruecklich einen
+        /// filterfreien Weg - der Runner braucht ihn, weil sein Suchlauf jedem Mandanten-Scope vorausgeht,
+        /// und wirklich filterfrei ist allein die options-only-Registrierung ueber
+        /// <c>IDbContextFactory&lt;WorkflowContext&gt;</c>, auf der gar keine Model-Optionen gesetzt werden.
+        /// Haengt eine ANSICHT versehentlich an dieser Registrierung, sieht sie die Zeilen aller Mandanten
+        /// - ohne Fehler, ohne Meldung, die Liste ist nur laenger. Genau das sagt diese Meldung.
+        /// </para>
+        /// <para>
+        /// Nicht zu verwechseln mit <c>useTenantFilter: false</c>: das ist NICHT filterfrei, sondern
+        /// wertet den aktiven Mandanten als <c>null</c> aus - dann sind nur noch die mandantenlosen
+        /// (bei Definitionen: die oeffentlichen) Zeilen sichtbar. Das faellt von selbst auf, weil man zu
+        /// WENIG sieht; der Fall hier ist der umgekehrte und deshalb der teurere.
+        /// </para>
+        /// <para>
+        /// Einmal je Modell gemeldet, nicht je Abfrage: das Modell ist ein langlebiges Singleton je
+        /// Konfiguration, und eine Meldung pro Rasterseite waere keine Warnung mehr, sondern Rauschen.
+        /// </para></remarks>
+        private static void WarnIfUnfiltered(WorkflowContext ctx, string dependencyName)
+        {
+            IModel model = ctx.Model;
+            if (ReportedModels.TryGetValue(model, out _))
+            {
+                return;
+            }
+
+            ReportedModels.AddOrUpdate(model, Reported);
+            // GetDeclaredQueryFilters und nicht das veraltete GetQueryFilter: seit EF Core 10 kann eine
+            // Entitaet MEHRERE benannte Filter tragen, und die Einzahl-Form ist deshalb abgekuendigt.
+            // Geprueft wird nur, OB ueberhaupt einer da ist - welcher, ist hier nicht die Frage.
+            if (model.FindEntityType(typeof(WorkflowDefinitionRow))?.GetDeclaredQueryFilters().Any() == true)
+            {
+                return;
+            }
+
+            LogEnvironment.LogEvent(
+                $"The workflow context leased as '{dependencyName}' carries NO tenant query filter at all "
+                + "(the model has none on WorkflowDefinitionRow). The view and design paths take their "
+                + "tenant boundary from exactly that filter - without it this view lists the rows of EVERY "
+                + "tenant, and nothing about that looks like an error. This is the filter-free "
+                + "registration meant for the runner (options-only, IDbContextFactory<WorkflowContext>); "
+                + "the views belong on the named plugin registration that sets the model options.",
+                LogSeverity.Error);
         }
 
         /// <summary>
