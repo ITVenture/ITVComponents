@@ -155,5 +155,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         /// </remarks>
         Task<bool> SetRetentionObjectionAsync(ClaimsPrincipal user, RetentionObjectionRequest request,
             string? environment = null);
+
+        /// <summary>
+        /// Eine Seite der <b>Archiv</b>-Uebersicht: Vorgaenge, deren Aufbewahrungsfrist abgelaufen ist.
+        /// Leer ohne <see cref="WorkflowSecurity.Monitor"/>.
+        /// </summary>
+        /// <remarks>
+        /// Eine eigene Ansicht und kein Filter in der Instanz-Liste: sonst braeuchte jede
+        /// Uebersichts-Abfrage eine Union ueber zwei Tabellen, die verschieden gebaut sind.
+        /// </remarks>
+        Task<PagedResult<ArchivedInstanceListItem>> ListArchivedInstancesAsync(ClaimsPrincipal user,
+            WorkflowListQuery query, string? environment = null);
+
+        /// <summary>
+        /// Ein archivierter Vorgang samt seiner Nutzlast (Verlauf, Endstand, Kommentare,
+        /// Anhang-Beschreibungen), oder null.
+        /// </summary>
+        Task<ArchivedInstanceDetail?> GetArchivedInstanceAsync(ClaimsPrincipal user, string instanceId,
+            string? environment = null);
     }
 }

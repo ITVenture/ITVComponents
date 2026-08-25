@@ -1,0 +1,151 @@
+@*
+    Ein archivierter Vorgang in voller Breite.
+
+    Bewusst KEIN Graph und keine Token-Ansicht wie beim lebenden Vorgang: die Definition, auf der er
+    lief, kann längst weg sein - das Archiv hängt ausdrücklich an keiner. Was hier steht, steht im
+    Archiv-Datensatz selbst.
+*@
+
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
+@using ITVComponents.Workflow.Instances
+
+@inject IStringLocalizer<WorkflowMonitorMessages> L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Class="mr-2" />
+            <span>@(Detail?.Head.DefinitionName ?? Detail?.Head.DefinitionId)</span>
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (Detail is not null)
+        {
+            <MudSimpleTable Dense="true" Striped="true" Class="mb-4">
+                <tr><td>@L["ArchiveFieldInstance"]</td><td>@Detail.Head.InstanceId</td></tr>
+                <tr>
+                    <td>@L["InstancesStatus"]</td>
+                    <td>
+                        @WorkflowMonitorText.Status(L, Detail.Head.Status)
+                        @if (!string.IsNullOrEmpty(Detail.Head.FaultCode))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Error">
+                                @Detail.Head.FaultCode — @Detail.FaultMessage
+                            </MudText>
+                        }
+                    </td>
+                </tr>
+                <tr><td>@L["ArchiveColumnStarted"]</td><td>@Show(Detail.Head.CreatedUtc)</td></tr>
+                <tr><td>@L["ArchiveColumnEnded"]</td><td>@Show(Detail.Head.EndedUtc)</td></tr>
+                <tr><td>@L["ArchiveColumnArchived"]</td><td>@Show(Detail.Head.ArchivedUtc)</td></tr>
+                @if (Detail.ParentInstanceId is not null)
+                {
+                    <tr><td>@L["ArchiveFieldParent"]</td><td>@Detail.ParentInstanceId</td></tr>
+                }
+            </MudSimpleTable>
+
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-3"
+                     KeepPanelsAlive="true">
+                <MudTabPanel Text="@L["ArchiveTabVariables"]">
+                    @if (Detail.Variables.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@L["ArchiveNothing"]</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Striped="true">
+                            @foreach (var v in Detail.Variables)
+                            {
+                                <tr><td>@v.Key</td><td>@(v.Value?.ToString() ?? "—")</td></tr>
+                            }
+                        </MudSimpleTable>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="@L["ArchiveTabHistory"]">
+                    @if (Detail.History.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@L["ArchiveNothing"]</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Striped="true">
+                            @foreach (HistoryEntry h in Detail.History)
+                            {
+                                <tr>
+                                    <td>@Show(h.TimestampUtc)</td>
+                                    <td>@h.Event</td>
+                                    <td>@h.NodeId</td>
+                                    <td>@h.Detail</td>
+                                </tr>
+                            }
+                        </MudSimpleTable>
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="@L["ArchiveTabComments"]">
+                    @if (Detail.Comments.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@L["ArchiveNothing"]</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var c in Detail.Comments)
+                        {
+                            <MudText Typo="Typo.body2">@c.Text</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2">
+                                @c.Author — @Show(c.CreatedUtc)
+                            </MudText>
+                        }
+                    }
+                </MudTabPanel>
+
+                <MudTabPanel Text="@L["ArchiveTabAttachments"]">
+                    @if (Detail.Attachments.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@L["ArchiveNothing"]</MudText>
+                    }
+                    else
+                    {
+                        @* Die Beschreibungen stehen hier auch dann, wenn die Inhalte längst weg sind:
+                           ein Archiv, das nicht mehr sagen kann „hier war eine Datei", hätte den Vorgang
+                           unvollständig festgehalten. *@
+                        @if (Detail.Head.AttachmentsPurged)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                                @L["ArchiveAttachmentsPurgedHint"]
+                            </MudAlert>
+                        }
+                        <MudSimpleTable Dense="true" Striped="true">
+                            @foreach (var a in Detail.Attachments)
+                            {
+                                <tr>
+                                    <td>@a.FileName</td>
+                                    <td>@a.SizeBytes</td>
+                                    <td>@a.Author</td>
+                                    <td>@Show(a.CreatedUtc)</td>
+                                </tr>
+                            }
+                        </MudSimpleTable>
+                    }
+                </MudTabPanel>
+            </MudTabs>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudSpacer />
+        <MudButton Color="Color.Primary" OnClick="Close">@L["Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Der archivierte Vorgang.</summary>
+    [Parameter] public ArchivedInstanceDetail? Detail { get; set; }
+
+    private static string Show(DateTime? utc)
+        => utc is null ? "—" : utc.Value.ToLocalTime().ToString("g");
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

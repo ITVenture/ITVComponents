@@ -42,6 +42,17 @@ namespace ITVComponents.Workflow.EntityFramework
             // Sammel-Zugriffe im Store setzen ausdruecklich IgnoreQueryFilters().
             options.ConfigureGlobalFilter<TokenRow>(
                 r => r.TenantId == CurrentTenant);
+
+            // Archivierte Vorgaenge: derselbe strikte Filter wie bei den lebenden. Ein archivierter
+            // Vorgang gehoert genauso einem Mandanten - dass er beendet ist, macht ihn nicht oeffentlich.
+            //
+            // Der Aufbewahrungs- und der Anhang-Lauf gehen mandantenuebergreifend; sie lesen und
+            // schreiben diese Tabelle deshalb durchgaengig mit IgnoreQueryFilters(). Der Filter hier ist
+            // fuer die andere Seite: die Ansichten, die den Kontext des angemeldeten Mandanten haben.
+            // Ohne ihn muesste jede einzelne Abfrage daran denken - und die erste, die es vergisst,
+            // zeigt einem Mandanten die Vorgaenge aller anderen.
+            options.ConfigureGlobalFilter<WorkflowArchivedInstanceRow>(
+                r => r.TenantId == CurrentTenant);
         }
 
         // Platzhalter: der ExpressionFixVisitor ersetzt jede Referenz hierauf durch WorkflowContext.CurrentTenant.

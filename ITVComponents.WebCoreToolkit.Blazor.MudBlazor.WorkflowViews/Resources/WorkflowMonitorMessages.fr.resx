@@ -553,4 +553,61 @@
   <data name="RetentionCancel" xml:space="preserve">
     <value>Annuler</value>
   </data>
+  <data name="ArchiveTitle" xml:space="preserve">
+    <value>Archives</value>
+  </data>
+  <data name="ArchiveIntro" xml:space="preserve">
+    <value>Processus dont le délai de conservation est écoulé. Ils restent à titre de preuve — il n'y a plus rien à intervenir ici.</value>
+  </data>
+  <data name="ArchiveGridTitle" xml:space="preserve">
+    <value>Processus archivés</value>
+  </data>
+  <data name="ArchiveSearchPlaceholder" xml:space="preserve">
+    <value>Id, flux ou code d'erreur…</value>
+  </data>
+  <data name="ArchiveColumnProcess" xml:space="preserve">
+    <value>Flux</value>
+  </data>
+  <data name="ArchiveColumnStarted" xml:space="preserve">
+    <value>Commencé</value>
+  </data>
+  <data name="ArchiveColumnEnded" xml:space="preserve">
+    <value>Terminé</value>
+  </data>
+  <data name="ArchiveColumnArchived" xml:space="preserve">
+    <value>Archivé</value>
+  </data>
+  <data name="ArchiveColumnAttachments" xml:space="preserve">
+    <value>Pièces jointes</value>
+  </data>
+  <data name="ArchiveAttachmentsPurged" xml:space="preserve">
+    <value>contenus supprimés</value>
+  </data>
+  <data name="ArchiveAttachmentsPurgedHint" xml:space="preserve">
+    <value>Les contenus de ces pièces jointes ont été supprimés — leur propre délai est écoulé. Ce qu'elles étaient reste consigné.</value>
+  </data>
+  <data name="ArchiveDetailTitle" xml:space="preserve">
+    <value>Processus archivé</value>
+  </data>
+  <data name="ArchiveFieldInstance" xml:space="preserve">
+    <value>Id du processus</value>
+  </data>
+  <data name="ArchiveFieldParent" xml:space="preserve">
+    <value>Appelé par</value>
+  </data>
+  <data name="ArchiveTabVariables" xml:space="preserve">
+    <value>Valeurs finales</value>
+  </data>
+  <data name="ArchiveTabHistory" xml:space="preserve">
+    <value>Ce qui s'est passé</value>
+  </data>
+  <data name="ArchiveTabComments" xml:space="preserve">
+    <value>Commentaires</value>
+  </data>
+  <data name="ArchiveTabAttachments" xml:space="preserve">
+    <value>Pièces jointes</value>
+  </data>
+  <data name="ArchiveNothing" xml:space="preserve">
+    <value>Rien n'est consigné ici.</value>
+  </data>
 </root>

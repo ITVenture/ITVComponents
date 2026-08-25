@@ -553,4 +553,61 @@
   <data name="RetentionCancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
+  <data name="ArchiveTitle" xml:space="preserve">
+    <value>Archive</value>
+  </data>
+  <data name="ArchiveIntro" xml:space="preserve">
+    <value>Processes whose retention period has run out. They are kept as a record — there is nothing left to intervene in here.</value>
+  </data>
+  <data name="ArchiveGridTitle" xml:space="preserve">
+    <value>Archived processes</value>
+  </data>
+  <data name="ArchiveSearchPlaceholder" xml:space="preserve">
+    <value>Id, workflow or error code…</value>
+  </data>
+  <data name="ArchiveColumnProcess" xml:space="preserve">
+    <value>Workflow</value>
+  </data>
+  <data name="ArchiveColumnStarted" xml:space="preserve">
+    <value>Started</value>
+  </data>
+  <data name="ArchiveColumnEnded" xml:space="preserve">
+    <value>Ended</value>
+  </data>
+  <data name="ArchiveColumnArchived" xml:space="preserve">
+    <value>Archived</value>
+  </data>
+  <data name="ArchiveColumnAttachments" xml:space="preserve">
+    <value>Attachments</value>
+  </data>
+  <data name="ArchiveAttachmentsPurged" xml:space="preserve">
+    <value>contents removed</value>
+  </data>
+  <data name="ArchiveAttachmentsPurgedHint" xml:space="preserve">
+    <value>The contents of these attachments have been removed — their own period has run out. What they were is still on record.</value>
+  </data>
+  <data name="ArchiveDetailTitle" xml:space="preserve">
+    <value>Archived process</value>
+  </data>
+  <data name="ArchiveFieldInstance" xml:space="preserve">
+    <value>Process id</value>
+  </data>
+  <data name="ArchiveFieldParent" xml:space="preserve">
+    <value>Called by</value>
+  </data>
+  <data name="ArchiveTabVariables" xml:space="preserve">
+    <value>Final values</value>
+  </data>
+  <data name="ArchiveTabHistory" xml:space="preserve">
+    <value>What happened</value>
+  </data>
+  <data name="ArchiveTabComments" xml:space="preserve">
+    <value>Comments</value>
+  </data>
+  <data name="ArchiveTabAttachments" xml:space="preserve">
+    <value>Attachments</value>
+  </data>
+  <data name="ArchiveNothing" xml:space="preserve">
+    <value>Nothing recorded here.</value>
+  </data>
 </root>

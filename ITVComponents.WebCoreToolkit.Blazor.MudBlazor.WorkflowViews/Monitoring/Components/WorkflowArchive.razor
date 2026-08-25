@@ -1,0 +1,192 @@
+@page "/Workflow/Archive"
+@page "/Workflow/env/{Environment}/Archive"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
+@using ITVComponents.Workflow.Instances
+
+@inject IWorkflowMonitorHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject IStringLocalizer<WorkflowMonitorMessages> L
+
+@* Eine EIGENE Ansicht und kein Filter in der Instanz-Liste: das Archiv ist eine andere Tabelle, flach
+   gebaut, und ein Vorgang darin hat keinen Lauf-Zustand mehr. In die Live-Liste gemischt braeuchte jede
+   Uebersichts-Abfrage eine Union - und die Knoepfe dort (anhalten, wiederholen, Signal) haetten hier
+   nichts zu tun. *@
+
+<PageTitle>@L["ArchiveTitle"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["ArchiveTitle"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">@L["ArchiveIntro"]</MudText>
+
+<SecureView RequiredPermissions="Workflow.Monitor" RequiredFeatures="ITVWorkflow">
+    <Permitted>
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudDataGrid T="ArchivedInstanceListItem"
+                         @ref="grid"
+                         ServerData="LoadData"
+                         SortMode="SortMode.Single"
+                         RowsPerPage="25"
+                         Hover="true"
+                         Dense="true">
+                <ToolBarContent>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Title="@L["Refresh"]"
+                                   OnClick="ReloadGrid" />
+                    <MudText Typo="Typo.h6">@L["ArchiveGridTitle"]</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="search"
+                                  Placeholder="@L["ArchiveSearchPlaceholder"]"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="mt-0 ml-2"
+                                  DebounceInterval="300"
+                                  OnDebounceIntervalElapsed="ReloadGrid" />
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.DefinitionId" Title="@L["ArchiveColumnProcess"]">
+                        <CellTemplate>
+                            <MudText Typo="Typo.body2">
+                                @(context.Item.DefinitionName ?? context.Item.DefinitionId)
+                            </MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @context.Item.DefinitionId v@(context.Item.DefinitionVersion)
+                            </MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.Status" Title="@L["InstancesStatus"]" Sortable="false">
+                        <CellTemplate>
+                            <MudText Typo="Typo.body2">
+                                @WorkflowMonitorText.Status(L, context.Item.Status)
+                            </MudText>
+                            @if (!string.IsNullOrEmpty(context.Item.FaultCode))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Error">@context.Item.FaultCode</MudText>
+                            }
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.CreatedUtc" Title="@L["ArchiveColumnStarted"]">
+                        <CellTemplate>@Show(context.Item.CreatedUtc)</CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.EndedUtc" Title="@L["ArchiveColumnEnded"]">
+                        <CellTemplate>@Show(context.Item.EndedUtc)</CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.ArchivedUtc" Title="@L["ArchiveColumnArchived"]">
+                        <CellTemplate>@Show(context.Item.ArchivedUtc)</CellTemplate>
+                    </PropertyColumn>
+                    <TemplateColumn T="ArchivedInstanceListItem" Title="@L["ArchiveColumnAttachments"]"
+                                    Sortable="false">
+                        <CellTemplate>
+                            @if (context.Item.AttachmentCount == 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">—</MudText>
+                            }
+                            else
+                            {
+                                @* Die Zahl bleibt stehen, auch wenn die Inhalte weg sind - der Vorgang
+                                   HATTE diese Dateien, und das gehoert zum Datensatz. *@
+                                <MudText Typo="Typo.body2">@context.Item.AttachmentCount</MudText>
+                                @if (context.Item.AttachmentsPurged)
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        @L["ArchiveAttachmentsPurged"]
+                                    </MudText>
+                                }
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="ArchivedInstanceListItem" Title="" Sortable="false">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                                           OnClick="@(() => OpenDetailAsync(context.Item))" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="ArchivedInstanceListItem" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["CentralNoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    /// <summary>Die Workflow-Umgebung (mehrere Stores/Datenbanken), oder null für die Vorgabe.</summary>
+    [Parameter] public string? Environment { get; set; }
+
+    private MudDataGrid<ArchivedInstanceListItem>? grid;
+    private ClaimsPrincipal? currentUser;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+        => currentUser = (await AuthState.GetAuthenticationStateAsync()).User;
+
+    private async Task<GridData<ArchivedInstanceListItem>> LoadData(
+        GridState<ArchivedInstanceListItem> state, CancellationToken ct)
+    {
+        if (currentUser is null)
+        {
+            return new GridData<ArchivedInstanceListItem>
+            {
+                Items = Array.Empty<ArchivedInstanceListItem>(), TotalItems = 0
+            };
+        }
+
+        // Die Sortier-Anforderung MUSS über SortDefinitions gelesen werden - sonst sind die
+        // Spaltenköpfe anklickbar und wirkungslos.
+        var sort = state.SortDefinitions.FirstOrDefault();
+        var query = new WorkflowListQuery
+        {
+            Page = state.Page,
+            PageSize = state.PageSize,
+            SortColumn = sort?.SortBy,
+            SortDescending = sort?.Descending ?? false,
+            Search = search
+        };
+
+        PagedResult<ArchivedInstanceListItem> result =
+            await Handler.ListArchivedInstancesAsync(currentUser, query, Environment);
+        return new GridData<ArchivedInstanceListItem>
+        {
+            Items = result.Items, TotalItems = result.TotalCount
+        };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null)
+        {
+            await grid.ReloadServerData();
+        }
+    }
+
+    private async Task OpenDetailAsync(ArchivedInstanceListItem item)
+    {
+        ArchivedInstanceDetail? detail =
+            await Handler.GetArchivedInstanceAsync(currentUser!, item.InstanceId, Environment);
+        if (detail is null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { nameof(ArchivedInstanceDetailDialog.Detail), detail }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true };
+        await DialogService.ShowAsync<ArchivedInstanceDetailDialog>(L["ArchiveDetailTitle"], parameters,
+            options);
+    }
+
+    private static string Show(DateTime? utc)
+        => utc is null ? "—" : utc.Value.ToLocalTime().ToString("g");
+}

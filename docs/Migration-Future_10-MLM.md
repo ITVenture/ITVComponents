@@ -3733,6 +3733,29 @@ in einem eigenen Prozess ohne Worker**, registriert dort `WorkflowRetentionDefau
 denselben Werten; sonst zeigt die Ansicht „niemand hat eine Frist gesetzt", während der Worker längst
 aufräumt.
 
+### 47.4 Die Archiv-Ansicht `/Workflow/Archive`
+
+Eigene Seite (auch `/Workflow/env/{Environment}/Archive`), Berechtigung **`Workflow.Monitor`**,
+lokalisiert. **Eine eigene Ansicht und kein Filter in der Instanz-Liste:** das Archiv ist eine andere,
+flach gebaute Tabelle, und ein Vorgang darin hat keinen Lauf-Zustand mehr — in die Live-Liste gemischt
+bräuchte jede Übersichts-Abfrage eine Union, und die Knöpfe dort (anhalten, wiederholen, Signal) hätten
+hier nichts zu tun.
+
+Die Liste zeigt nur die **Spalten** der Archiv-Zeile; die Nutzlast (Verlauf, Endstand, Kommentare,
+Anhang-Beschreibungen) wird erst im Detail-Dialog ausgepackt — sonst lädt eine Seite mit zwanzig Zeilen
+zwanzig ganze Vorgänge und zeigt davon vier Felder. Der Dialog hat bewusst **keinen Graphen**: die
+Definition, auf der ein archivierter Vorgang lief, kann längst weg sein, und das Archiv hängt
+ausdrücklich an keiner.
+
+Anhänge stehen mit ihrer Anzahl da, auch wenn die Inhalte weggeräumt sind — mit dem Hinweis, dass sie
+es sind. **Der Vorgang hatte diese Dateien, und das gehört zum Datensatz.**
+
+**Neu für den Betrieb:** die Tabelle `WorkflowArchivedInstances` bekommt einen **Mandanten-Query-Filter**
+(kein Schema-Change, reine Laufzeit). Ein archivierter Vorgang gehört genauso einem Mandanten wie ein
+lebender; dass er beendet ist, macht ihn nicht öffentlich. Die beiden Aufräum-Läufe lesen und schreiben
+diese Tabelle durchgängig mit `IgnoreQueryFilters()` — **wer eigenen Code direkt auf `db.WorkflowArchivedInstances`
+schreibt, sieht ab jetzt nur noch die Zeilen des aktiven Mandanten.**
+
 ---
 
 ## Schnellübersicht der Breaking Changes
@@ -3800,3 +3823,4 @@ aufräumt.
 | 51 | **Eigene Frist für die Anhang-Inhalte** (§46.6) | **Pflicht-Migration `AttachmentRetention`** (beide Provider): `WorkflowAttachments.BytesPurgedUtc` (+ Index) und `WorkflowArchivedInstances.AttachmentCount`. **Kein Breaking Change für eigene Store-Implementierungen** — die drei Ablage-Methoden liegen bewusst nur auf `EfWorkflowStore`, nicht im `IWorkflowStore`-Vertrag: Anhänge gibt es allein in der Datenbank-Fassung. Der Lauf ist `WorkflowAttachmentRetentionRunner.RunAsync` (async, eigene Klasse — die Inhalte liegen hinter der austauschbaren `IWorkflowAttachmentStore`). **Merke: er greift auch bei noch AKTIVEN, beendeten Vorgängen** — sonst bisse eine kurze Anhang-Frist neben einer langen Aufbewahrungsfrist nie, und das ist der ganze Sinn zweier Fristen. **Die Beschreibung bleibt in jedem Fall** (Name, Grösse, wer, wann, samt `FileIdentifier`), weg sind nur die Bytes. **Merke: gelöscht wird zuerst, markiert danach** — andersherum bliebe bei einem Abbruch eine Datei liegen, die niemand mehr sucht. Scheitert das Löschen, bleibt der Vorgang unmarkiert, wird als `ProcessesFailed` gezählt und beim nächsten Lauf erneut versucht |
 | 52 | **Aufbewahrung einschalten** (§46.7) | Kein Schema-Change, **opt-in, per Vorgabe AUS**. Der `WorkflowWorkerService` hat einen vierten, sehr langsamen Zyklus für beide Läufe; er startet nur mit `WorkflowWorkerOptions.RetentionInterval > TimeSpan.Zero` (dazu optional `RetentionDefaults` als letzte Stufe der Kette und `MaxRetentionBatch`, Vorgabe 200). **Warum aus:** das ist der einzige Lauf im Worker, der Daten **löscht** — einen solchen mitlaufen zu lassen, weil ein Paket aktualisiert wurde, wäre die falsche Richtung. Ist er aus, sagt der Worker das **einmal im Log**, damit niemand vergeblich sucht, warum seine Fristen nichts bewirken. **Merke: er fährt je UMGEBUNG, nicht je Deskriptor** (mandantengebundene Deskriptoren täten sonst alle dieselbe Arbeit) und **immer filterfrei** — mit Mandantenfilter sähe er `TenantId IS NULL` und liefe leer, ohne Meldung. Der erste Lauf kommt nach dem Intervall, nicht beim Start |
 | 53 | **Fristen bedienen** (§47) | Kein Schema-Change. Definitions-Editor: Abschnitt **Retention** (die Grenzen erscheinen erst mit dem Schalter). Validator: negative Frist und `min > max` sind **Fehler**, Grenzen ohne Erlaubnis eine **Warnung** — der Grund ist, dass die Regel an all diesen Stellen nicht wirft, sondern schweigend das Richtige tut. Neue Seite **`/Workflow/Retention`** (`Workflow.Operate`, Feature `ITVWorkflow`, lokalisiert en/de/fr/it) — **der Menüeintrag kommt aus eurer Navigations-Tabelle, den legt ihr an**. Sie zeigt je Ablauf die geltende Frist **und ihre Herkunft**, den Rahmen, und ob ein Wunsch begrenzt wurde. `IWorkflowMonitorHandler` bekommt **zwei** neue Member (`ListRetentionSettingsAsync`, `SetRetentionObjectionAsync`) — **eigene Implementierungen des Interfaces brechen**. **Merke: `AddWorkflowWebWorker` registriert gesetzte `RetentionDefaults` jetzt auch als eigenen Singleton** — betreibt ihr die Oberfläche ohne Worker im selben Prozess, registriert sie dort selbst, sonst zeigt die Ansicht „niemand hat eine Frist gesetzt", während der Worker aufräumt |
+| 54 | **Archiv-Ansicht** (§47.4) | Kein Schema-Change. Neue Seite **`/Workflow/Archive`** (`Workflow.Monitor`, Feature `ITVWorkflow`, lokalisiert en/de/fr/it) — **Menüeintrag legt ihr an**. `IWorkflowMonitorHandler` bekommt **zwei** weitere Member (`ListArchivedInstancesAsync`, `GetArchivedInstanceAsync`) — **eigene Implementierungen brechen** (zusammen mit §47 also vier neue Member). **Verhaltensänderung ohne Migration:** `WorkflowArchivedInstances` bekommt einen **Mandanten-Query-Filter** — wer eigenen Code direkt auf `db.WorkflowArchivedInstances` schreibt, sieht ab jetzt nur die Zeilen des aktiven Mandanten (die Aufräum-Läufe setzen durchgängig `IgnoreQueryFilters()`). **Merke: eigene Ansicht statt Filter in der Instanz-Liste** — sonst bräuchte jede Übersichts-Abfrage eine Union, und die Eingriffs-Knöpfe hätten dort nichts zu tun. Die Liste liest nur Spalten, die Nutzlast erst im Detail; der Dialog zeigt bewusst **keinen Graphen** (die Definition kann längst weg sein) |

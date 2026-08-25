@@ -925,6 +925,129 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             return Task.FromResult(true);
         }
 
+        /// <inheritdoc/>
+        public async Task<PagedResult<ArchivedInstanceListItem>> ListArchivedInstancesAsync(
+            ClaimsPrincipal user, WorkflowListQuery query, string? environment = null)
+        {
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Monitor }))
+            {
+                return new PagedResult<ArchivedInstanceListItem>();
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+
+            // MIT Query-Filter, ausdruecklich: die Archiv-Tabelle traegt seit dem Aufbewahrungslauf
+            // einen Mandanten-Filter, weil ein archivierter Vorgang genauso einem Mandanten gehoert wie
+            // ein lebender. Die Laeufe, die mandantenuebergreifend raeumen muessen, setzen dagegen
+            // IgnoreQueryFilters() - und zwar sie, nicht diese Ansicht.
+            IQueryable<WorkflowArchivedInstanceRow> q = ctx.WorkflowArchivedInstances.AsNoTracking();
+
+            if (query.Status.HasValue)
+            {
+                int status = query.Status.Value;
+                q = q.Where(r => r.Status == status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                string term = query.Search!;
+                q = q.Where(r => r.InstanceId.Contains(term) || r.DefinitionId.Contains(term)
+                                 || (r.DefinitionName != null && r.DefinitionName.Contains(term))
+                                 || (r.FaultCode != null && r.FaultCode.Contains(term)));
+            }
+
+            int total = await q.CountAsync();
+
+            // Vorgabe ist das Ende, absteigend: was zuletzt geendet hat, sucht man zuerst. Nach dem
+            // Archivierungs-Zeitpunkt zu sortieren waere die Reihenfolge des Aufraeum-Laufs, nicht die
+            // des Geschehens.
+            q = query.SortColumn switch
+            {
+                nameof(ArchivedInstanceListItem.CreatedUtc) => query.SortDescending
+                    ? q.OrderByDescending(r => r.CreatedUtc)
+                    : q.OrderBy(r => r.CreatedUtc),
+                nameof(ArchivedInstanceListItem.ArchivedUtc) => query.SortDescending
+                    ? q.OrderByDescending(r => r.ArchivedUtc)
+                    : q.OrderBy(r => r.ArchivedUtc),
+                nameof(ArchivedInstanceListItem.DefinitionId) => query.SortDescending
+                    ? q.OrderByDescending(r => r.DefinitionId)
+                    : q.OrderBy(r => r.DefinitionId),
+                _ => query.SortDescending || string.IsNullOrEmpty(query.SortColumn)
+                    ? q.OrderByDescending(r => r.EndedUtc)
+                    : q.OrderBy(r => r.EndedUtc)
+            };
+
+            List<WorkflowArchivedInstanceRow> rows = await q
+                .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+            return new PagedResult<ArchivedInstanceListItem>
+            {
+                Items = rows.Select(ToArchivedListItem).ToList(),
+                TotalCount = total
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<ArchivedInstanceDetail?> GetArchivedInstanceAsync(ClaimsPrincipal user,
+            string instanceId, string? environment = null)
+        {
+            if (!Services.VerifyUserPermissions(new[] { WorkflowSecurity.Monitor }))
+            {
+                return null;
+            }
+
+            using WorkflowOperation op = BeginOperation(environment);
+            WorkflowContext ctx = op.LeaseContext();
+            WorkflowArchivedInstanceRow? row = await ctx.WorkflowArchivedInstances.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.InstanceId == instanceId);
+            if (row == null)
+            {
+                return null;
+            }
+
+            WorkflowArchivePayload? payload =
+                WorkflowJson.Deserialize<WorkflowArchivePayload>(row.PayloadJson);
+            if (payload == null)
+            {
+                // Die Zeile ist da, ihr Inhalt nicht lesbar - das ist ein Befund und nicht ein Detail,
+                // das eben leer bleibt. Die Kopfdaten stehen in Spalten und werden trotzdem gezeigt.
+                LogEnvironment.LogEvent(
+                    $"Archiv: die Nutzlast des Vorgangs '{instanceId}' liess sich nicht lesen. Es werden "
+                    + "nur die Kopfdaten gezeigt.", LogSeverity.Warning);
+            }
+
+            return new ArchivedInstanceDetail
+            {
+                Head = ToArchivedListItem(row),
+                FaultMessage = row.FaultMessage,
+                RootInstanceId = row.RootInstanceId,
+                ParentInstanceId = row.ParentInstanceId,
+                Variables = WorkflowJson.DeserializeVariables(payload?.VariablesJson)
+                    .ToDictionary(v => v.Key, v => (object?)v.Value),
+                History = payload?.History ?? new List<HistoryEntry>(),
+                Comments = payload?.Comments ?? new List<WorkflowArchivedComment>(),
+                Attachments = payload?.Attachments ?? new List<WorkflowArchivedAttachment>()
+            };
+        }
+
+        /// <summary>Die Zeilen-Daten eines archivierten Vorgangs - ohne die Nutzlast anzufassen.</summary>
+        private static ArchivedInstanceListItem ToArchivedListItem(WorkflowArchivedInstanceRow row)
+            => new ArchivedInstanceListItem
+            {
+                InstanceId = row.InstanceId,
+                DefinitionId = row.DefinitionId,
+                DefinitionVersion = row.DefinitionVersion,
+                DefinitionName = row.DefinitionName,
+                Status = (WorkflowStatus)row.Status,
+                CreatedUtc = row.CreatedUtc,
+                EndedUtc = row.EndedUtc,
+                ArchivedUtc = row.ArchivedUtc,
+                FaultCode = row.FaultCode,
+                HasParent = row.ParentInstanceId != null,
+                AttachmentCount = row.AttachmentCount,
+                AttachmentsPurged = row.AttachmentsPurgedUtc != null
+            };
+
         /// <summary>Der Anzeigename der Definition eines Ausloesers, oder null.</summary>
         private static string? DefinitionName(WorkflowOperation op, WorkflowStartTrigger trigger)
         {

@@ -553,4 +553,61 @@
   <data name="RetentionCancel" xml:space="preserve">
     <value>Annulla</value>
   </data>
+  <data name="ArchiveTitle" xml:space="preserve">
+    <value>Archivio</value>
+  </data>
+  <data name="ArchiveIntro" xml:space="preserve">
+    <value>Processi il cui termine di conservazione è scaduto. Restano come documentazione — qui non c'è più nulla su cui intervenire.</value>
+  </data>
+  <data name="ArchiveGridTitle" xml:space="preserve">
+    <value>Processi archiviati</value>
+  </data>
+  <data name="ArchiveSearchPlaceholder" xml:space="preserve">
+    <value>Id, flusso o codice di errore…</value>
+  </data>
+  <data name="ArchiveColumnProcess" xml:space="preserve">
+    <value>Flusso</value>
+  </data>
+  <data name="ArchiveColumnStarted" xml:space="preserve">
+    <value>Iniziato</value>
+  </data>
+  <data name="ArchiveColumnEnded" xml:space="preserve">
+    <value>Terminato</value>
+  </data>
+  <data name="ArchiveColumnArchived" xml:space="preserve">
+    <value>Archiviato</value>
+  </data>
+  <data name="ArchiveColumnAttachments" xml:space="preserve">
+    <value>Allegati</value>
+  </data>
+  <data name="ArchiveAttachmentsPurged" xml:space="preserve">
+    <value>contenuti rimossi</value>
+  </data>
+  <data name="ArchiveAttachmentsPurgedHint" xml:space="preserve">
+    <value>I contenuti di questi allegati sono stati rimossi — il loro termine è scaduto. Cosa fossero resta documentato.</value>
+  </data>
+  <data name="ArchiveDetailTitle" xml:space="preserve">
+    <value>Processo archiviato</value>
+  </data>
+  <data name="ArchiveFieldInstance" xml:space="preserve">
+    <value>Id del processo</value>
+  </data>
+  <data name="ArchiveFieldParent" xml:space="preserve">
+    <value>Chiamato da</value>
+  </data>
+  <data name="ArchiveTabVariables" xml:space="preserve">
+    <value>Valori finali</value>
+  </data>
+  <data name="ArchiveTabHistory" xml:space="preserve">
+    <value>Cosa è successo</value>
+  </data>
+  <data name="ArchiveTabComments" xml:space="preserve">
+    <value>Commenti</value>
+  </data>
+  <data name="ArchiveTabAttachments" xml:space="preserve">
+    <value>Allegati</value>
+  </data>
+  <data name="ArchiveNothing" xml:space="preserve">
+    <value>Qui non è registrato nulla.</value>
+  </data>
 </root>
