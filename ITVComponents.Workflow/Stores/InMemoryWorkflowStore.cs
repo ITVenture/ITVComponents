@@ -431,8 +431,12 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindWaitingForSignal(string signalName, string correlationKey = null)
         {
+            // Rein am Token-Zustand orientiert (nicht am Instanz-Status) - wie im EF-Store und wie in
+            // FindBranchesWaitingForTarget: ein signal-wartender Zweig kann neben aktiven Geschwister-
+            // Zweigen bestehen (dann laeuft die Instanz noch) oder neben einem gefaulteten. Ob die
+            // Nachricht ihn erreicht, entscheidet allein sein Wartepunkt - genau das prueft danach
+            // WorkflowEngine.Accepts.
             return instances.Values
-                .Where(i => i.Status == WorkflowStatus.Waiting)
                 .Where(i => i.WaitingTokens.Any(t => t.WaitingSignal == signalName
                                                      && Correlates(i, t, correlationKey)))
                 .ToList();
@@ -441,8 +445,8 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindWaitingForBroadcast(string signalName)
         {
+            // Ebenfalls nur am Token-Zustand - siehe FindWaitingForSignal.
             return instances.Values
-                .Where(i => i.Status == WorkflowStatus.Waiting)
                 .Where(i => i.WaitingTokens.Any(t => t.WaitingSignal == signalName
                                                      && t.WaitingKind == Model.WaitKind.Signal))
                 .ToList();
@@ -467,8 +471,11 @@ namespace ITVComponents.Workflow.Stores
         /// <inheritdoc/>
         public IEnumerable<WorkflowInstance> FindDueTimers(DateTime nowUtc)
         {
+            // Angehaltene Instanzen bleiben aussen vor (wie im EF-Store), der Instanz-Status dagegen
+            // entscheidet nichts: ein faelliger Timer kann an einem Zweig haengen, waehrend ein anderer
+            // noch laeuft - siehe FindWaitingForSignal.
             return instances.Values
-                .Where(i => i.Status == WorkflowStatus.Waiting && !i.Suspended)
+                .Where(i => !i.Suspended)
                 .Where(i => i.WaitingTokens.Any(t => t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc))
                 .OrderBy(i => i.Priority)
                 .ToList();
@@ -485,9 +492,17 @@ namespace ITVComponents.Workflow.Stores
         public IEnumerable<WorkflowInstance> ClaimDueTimers(DateTime nowUtc, string owner, TimeSpan lease,
             int maxInstances)
         {
+            // Die Reihenfolge zaehlt trotzdem, denn maxInstances schneidet ab: erst Dringlichkeit, dann
+            // die aelteste Faelligkeit je Instanz - dieselbe Zusage wie im EF-Store, damit ein Test nicht
+            // auf einer Reihenfolge fusst, die es nur hier gibt.
             return maxInstances <= 0
                 ? new List<WorkflowInstance>()
-                : FindDueTimers(nowUtc).Take(maxInstances).ToList();
+                : FindDueTimers(nowUtc)
+                    .OrderBy(i => i.Priority)
+                    .ThenBy(i => i.WaitingTokens.Where(t => t.DueUtc.HasValue && t.DueUtc.Value <= nowUtc)
+                        .Min(t => t.DueUtc.Value))
+                    .Take(maxInstances)
+                    .ToList();
         }
 
         /// <inheritdoc/>

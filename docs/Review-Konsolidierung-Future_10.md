@@ -256,7 +256,50 @@ mehr.
 Ebenfalls Store-Divergenz: `FindWaitingForSignal`/`FindWaitingForBroadcast` filtern in-memory zusätzlich
 über `instance.Status == Waiting`, in EF rein über den Token-Zustand. Eine Instanz mit einem aktiven und
 einem wartenden Zweig (Status `Running` — der Normalfall bei parallelen Regionen und bei Nachrichten am
-Schritt) findet der EF-Store, der In-Memory-Store nicht.
+Schritt) findet der EF-Store, der In-Memory-Store nicht. — **erledigt, siehe Runde 1b.**
+
+### Runde 1b — die Store-Divergenz bei den Suchläufen — **erledigt**
+
+Betroffen waren **drei** Abfragen, nicht zwei: `FindWaitingForSignal`, `FindWaitingForBroadcast` und
+`FindDueTimers` trugen in-memory je einen zusätzlichen Filter über `instance.Status == Waiting`. Der
+Filter ist ersatzlos gestrichen; beim Timer bleibt `!Suspended` stehen, denn **den** hat der EF-Store
+auch (angehalten heisst: fällig ja, vorantreiben nein).
+
+Die Regel stand längst im selben File: `FindBranchesWaitingForTarget` sagt in seinem Kommentar genau das
+Richtige — *„rein am Token-Zustand orientiert (nicht am Instanz-Status)"*. Wieder der Befund aus Abschnitt
+B in klein: die Fassung war da, sie wurde nur nicht angewendet.
+
+Dass der Instanz-Status hier nichts zu suchen hat, ist keine Auslegung, sondern im Kern nachlesbar:
+weder `SignalInstance` noch `ReactivateSignal` noch `TriggerTimers` schauen ihn an. Wer ein Ereignis
+annimmt, entscheidet allein `WorkflowEngine.Accepts` am **Token**.
+
+Mitgenommen: `InMemoryWorkflowStore.ClaimDueTimers` schnitt bei `maxInstances` aus einer nur nach
+Dringlichkeit sortierten Liste ab — der EF-Store sortiert zusätzlich nach der ältesten Fälligkeit je
+Instanz. Bei Gleichstand entschied in-memory die Reihenfolge des Dictionaries. Jetzt beide gleich.
+
+**Der Beweis liegt neu in `ITVComponents.Workflow.EntityFramework.Test/WorkflowStoreContractTest.cs`:**
+sieben Szenarien, jedes über `[DataRow]` gegen **beide** Store-Fassungen. Das Test-Projekt des Kerns kann
+das nicht leisten — es sieht den EF-Store nicht. Genau deshalb konnte die Divergenz so lange bestehen.
+Gegenprobe gefahren: mit wieder eingebautem Filter fallen genau die drei `("memory")`-Fälle, die
+`("ef")`-Fälle bleiben grün.
+
+### Nebenbefund beim Angleichen — ein fälliger Timer hebt einen Fault auf
+
+**Nicht gefixt: das ist eine Produktentscheidung, keine Aufräumarbeit.** Beim Nachverfolgen der
+Faulted-Kante aufgefallen, und es gilt **im EF-Store, also im Betrieb** — die Angleichung hat es nur
+sichtbar gemacht, nicht verursacht.
+
+`Fault()` setzt den Status und lässt die übrigen Tokens **stehen** (gewollt — daran hängt der Retry).
+Ein noch scharfer Timer an einem anderen Zweig wird später fällig, `FindDueTimers` liefert die Instanz
+(kein Status-Filter, siehe oben), und `TriggerTimers` bzw. `ReactivateTimers` setzen `Status = Running`,
+**ohne den Fault zu prüfen**. Die Instanz läuft still weiter, die Fehlermeldung ist weg. Dasselbe gilt
+für ein eintreffendes Signal.
+
+Typischer Weg dorthin: ein Fristen-Timer am Schritt bleibt scharf, während ein anderer Zweig faultet.
+
+Die Frage ist nicht, ob der Store das findet — er muss, sonst käme man an den Zweig nie wieder heran.
+Die Frage ist, ob **Reaktivierung** einen Fault überschreiben darf. Berührt den Retry fehlgeschlagener
+Instanzen, wo genau dieses Wiederanlaufen der gewollte Weg ist — nur eben ausgelöst und protokolliert.
 
 ### Zurückgestellt
 
