@@ -178,7 +178,16 @@ else
                               ChartLabels="@panel.LabelTexts"
                               ChartSeries="@panel.Declaration.Series"
                               SelectedIndexChanged="@(index => OnSelected(panel, index))"
-                              @attributes="@panel.Parameters" />
+                              @attributes="@panel.Parameters">
+                        @* Immer gesetzt, auch wenn die Liste leer ist: eine zweite Markup-Fassung "mit"
+                           und "ohne" waere derselbe Aufruf zweimal - und beim naechsten Parameter waere
+                           eine davon vergessen. Leer rendert nichts. *@
+                        @* Fertiges Markup und keine <text>-Elemente hier: Razor deutet <text> als
+                           eigenes Steuer-Tag und lehnt Attribute daran ab (RZ1023) - dieselbe Stelle
+                           steht aus demselben Grund schon in WorkflowGraph.razor. Kodiert wird beim
+                           Erzeugen, siehe ChartWidgetPanel.OverlayMarkup. *@
+                        <CustomGraphics>@((MarkupString)panel.OverlayMarkup)</CustomGraphics>
+                    </MudChart>
                 }
             </div>
         </text>;

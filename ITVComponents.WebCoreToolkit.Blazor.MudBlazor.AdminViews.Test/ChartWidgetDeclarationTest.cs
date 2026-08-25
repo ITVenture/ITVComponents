@@ -742,5 +742,142 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             Assert.IsNotNull(message);
             StringAssert.Contains(message!, "return");
         }
+
+        // --- Texte im Diagramm ------------------------------------------------------------------------
+
+        /// <summary>
+        /// Der Regelfall: zwei Zeilen in der Mitte eines Rings - die grosse Zahl und darunter, wogegen
+        /// sie zaehlt.
+        /// </summary>
+        [TestMethod]
+        public void Overlay_IsReadWithItsPositions()
+        {
+            var errors = new List<string>();
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                ("type", "donut"),
+                ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }),
+                ("overlay", new object?[]
+                {
+                    Map(("text", "12"), ("class", "mud-typography-h3"), ("posY", "45%")),
+                    Map(("text", "von 20"), ("class", "mud-typography-h6"), ("posY", "60%"))
+                })), errors);
+
+            Assert.IsNotNull(declaration);
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors);
+            Assert.AreEqual(2, declaration!.Overlay.Count);
+            Assert.AreEqual("12", declaration.Overlay[0].Text);
+            Assert.AreEqual("mud-typography-h3", declaration.Overlay[0].Class);
+            Assert.AreEqual("45%", declaration.Overlay[0].PosY);
+            Assert.AreEqual("50%", declaration.Overlay[0].PosX, "ohne Angabe steht der Text mittig.");
+            Assert.AreEqual("middle", declaration.Overlay[0].Anchor,
+                "in SVG ist x der ANFANG des Textes - ohne diese Vorgabe staende er rechts der Mitte.");
+        }
+
+        /// <summary>
+        /// Eine falsche Ausrichtung wird gemeldet, nicht still auf die Vorgabe gedreht: sie verschiebt den
+        /// Text SICHTBAR, und dann sucht man den Fehler im Diagramm statt im Text.
+        /// </summary>
+        [TestMethod]
+        public void Overlay_UnknownAnchor_IsReported()
+        {
+            var errors = new List<string>();
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                ("type", "donut"),
+                ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }),
+                ("overlay", new object?[] { Map(("text", "x"), ("anchor", "center")) })), errors);
+
+            Assert.IsNotNull(declaration);
+            Assert.AreEqual(1, errors.Count);
+            StringAssert.Contains(errors[0], "center");
+            StringAssert.Contains(errors[0], "middle");
+            Assert.AreEqual("middle", declaration!.Overlay[0].Anchor);
+        }
+
+        /// <summary>
+        /// Ein Eintrag ohne Aufbau bekommt eine Meldung. Anders als bei 'labels' gibt es hier bewusst
+        /// keine Kurzform: ein blosser Text haette keine Position, und die zu raten hiesse, ihn irgendwo
+        /// hinzuschreiben.
+        /// </summary>
+        [TestMethod]
+        public void Overlay_PlainString_IsReported()
+        {
+            var errors = new List<string>();
+            ChartWidgetDeclaration.FromMap(Map(
+                ("type", "donut"),
+                ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }),
+                ("overlay", new object?[] { "nur ein Text" })), errors);
+
+            Assert.AreEqual(1, errors.Count);
+            StringAssert.Contains(errors[0], "overlay");
+        }
+
+        /// <summary>
+        /// Eine Zahl als Koordinate wird IMMER mit Punkt geschrieben. Unter deutschem Gebietsschema waere
+        /// ein Komma in einem SVG-Attribut ein zweiter Wert und nicht ein Dezimaltrennzeichen - die Form
+        /// zerfiele.
+        /// </summary>
+        [TestMethod]
+        public void Overlay_NumericCoordinate_UsesTheInvariantForm()
+        {
+            CultureInfo before = Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                Thread.CurrentThread.CurrentCulture = new CultureInfo("de-CH");
+                var errors = new List<string>();
+                ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                    ("type", "donut"),
+                    ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }),
+                    ("overlay", new object?[] { Map(("text", "x"), ("posX", 12.5)) })), errors);
+
+                Assert.AreEqual("12.5", declaration!.Overlay[0].PosX);
+            }
+            finally
+            {
+                Thread.CurrentThread.CurrentCulture = before;
+            }
+        }
+
+        /// <summary>
+        /// Der Grund, warum die Deklaration aus der Datenbank kommen darf: Text UND Attributwerte werden
+        /// kodiert. Ein Eintrag, der ein Element schliessen will, schliesst keines.
+        /// </summary>
+        /// <remarks>
+        /// Geprueft ueber den oeffentlichen Weg (<c>ChartWidgetPanel.Build</c>) und nicht am Erzeuger
+        /// direkt: so haengt der Test an der Kette, die im Betrieb laeuft, und nicht an einem Baustein
+        /// daraus.
+        /// </remarks>
+        [TestMethod]
+        public void OverlayMarkup_EncodesEverythingItWrites()
+        {
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(new object?[]
+            {
+                Map(("type", "donut"),
+                    ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }),
+                    ("overlay", new object?[]
+                    {
+                        Map(("text", "</text><script>alert(1)</script>"), ("class", "a\" onload=\"x"))
+                    }))
+            });
+
+            string markup = panels[0].OverlayMarkup;
+            StringAssert.Contains(markup, "&lt;script&gt;");
+            Assert.IsFalse(markup.Contains("<script>"), "kein Element aus dem Text.");
+            Assert.IsFalse(markup.Contains("onload=\"x\""), "kein Attribut aus der Klasse.");
+            Assert.AreEqual(1, markup.Split(new[] { "</text>" }, StringSplitOptions.None).Length - 1,
+                "genau ein schliessendes text-Element - der Text hat keines beigesteuert.");
+        }
+
+        /// <summary>Ohne Texte entsteht kein Markup - dann rendert die Ansicht schlicht nichts.</summary>
+        [TestMethod]
+        public void OverlayMarkup_WithoutTexts_IsEmpty()
+        {
+            IReadOnlyList<ChartWidgetPanel> panels = ChartWidgetPanel.Build(new object?[]
+            {
+                Map(("type", "donut"),
+                    ("series", new object?[] { Map(("name", "n"), ("data", new object?[] { 1 })) }))
+            });
+
+            Assert.AreEqual(string.Empty, panels[0].OverlayMarkup);
+        }
     }
 }

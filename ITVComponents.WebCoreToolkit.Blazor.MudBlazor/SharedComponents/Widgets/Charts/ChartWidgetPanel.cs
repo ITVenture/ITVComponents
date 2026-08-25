@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
+using System.Text;
 using MudBlazor;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
@@ -35,6 +37,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
 
         /// <summary>Die Beschriftungen als Zeichenketten - was die Diagramm-Komponente entgegennimmt.</summary>
         public string[] LabelTexts { get; init; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Die Texte im Diagramm als fertiges SVG-Markup - leer, wenn es keine gibt.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Warum als Text und nicht als Markup in der Ansicht:</b> Razor deutet <c>&lt;text&gt;</c> als
+        /// eigenes STEUER-Tag (es dient dort dazu, blossen Inhalt ohne umschliessendes Element
+        /// auszugeben) und lehnt Attribute daran ab - <c>RZ1023</c>. Dieselbe Stelle steht schon in
+        /// <c>WorkflowGraph.razor</c>, aus genau diesem Grund. Ein SVG-<c>&lt;text&gt;</c> muss also als
+        /// Zeichenkette entstehen.
+        /// </para>
+        /// <para>
+        /// <b>Damit liegt das Kodieren hier</b> - und das ist der Preis dafuer, dass die Deklaration aus
+        /// der Datenbank kommen darf. Text UND Attributwerte gehen durch
+        /// <see cref="WebUtility.HtmlEncode(string)"/>; nichts davon wird durchgereicht.
+        /// </para></remarks>
+        public string OverlayMarkup { get; init; } = string.Empty;
 
         /// <summary>
         /// The width this chart was declared with, if it is an absolute length - otherwise null.
@@ -95,6 +115,37 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 ? FormattableString.Invariant($"{number}px")
                 : text;
         }
+
+        /// <summary>
+        /// Baut die <c>&lt;text&gt;</c>-Elemente der Diagramm-Texte. Siehe <see cref="OverlayMarkup"/>,
+        /// warum das hier und nicht in der Ansicht geschieht.
+        /// </summary>
+        internal static string BuildOverlay(IReadOnlyList<ChartWidgetOverlayText>? overlay)
+        {
+            if (overlay == null || overlay.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            foreach (ChartWidgetOverlayText item in overlay)
+            {
+                sb.Append("<text x=\"").Append(Enc(item.PosX))
+                  .Append("\" y=\"").Append(Enc(item.PosY))
+                  .Append("\" text-anchor=\"").Append(Enc(item.Anchor))
+                  .Append('"');
+                if (!string.IsNullOrWhiteSpace(item.Class))
+                {
+                    sb.Append(" class=\"").Append(Enc(item.Class)).Append('"');
+                }
+
+                sb.Append('>').Append(Enc(item.Text)).Append("</text>");
+            }
+
+            return sb.ToString();
+        }
+
+        private static string Enc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
         private static readonly HashSet<string> RelativeKeywords = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -161,7 +212,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 Declaration = declaration,
                 Parameters = parameters,
                 Errors = errors,
-                LabelTexts = declaration.Labels.Select(l => l.Text).ToArray()
+                LabelTexts = declaration.Labels.Select(l => l.Text).ToArray(),
+                OverlayMarkup = BuildOverlay(declaration.Overlay)
             };
         }
     }

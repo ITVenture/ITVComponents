@@ -21,6 +21,55 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
     }
 
     /// <summary>
+    /// Ein Text, der IM Diagramm steht - fuer die Mitte eines Rings die uebliche Verwendung.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bewusst eine Liste positionierter Eintraege und kein festes "gross oben, klein unten": drei oder
+    /// vier Zeilen sind genauso plausibel, und ein festes Schema muesste beim ersten solchen Wunsch
+    /// aufgebrochen werden.
+    /// </para>
+    /// <para>
+    /// <b>Und bewusst kein freies SVG:</b> die Deklaration kommt aus der Datenbank, und Markup von dort
+    /// ungeprueft in die Seite zu geben ist das Muster, das einem spaeter auf die Fuesse faellt. Der Text
+    /// wird kodiert in ein <c>&lt;text&gt;</c>-Element geschrieben - deshalb darf er von dort kommen.
+    /// </para></remarks>
+    public sealed class ChartWidgetOverlayText
+    {
+        /// <summary>Was dasteht.</summary>
+        public string Text { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Die CSS-Klasse(n) - hier gehoeren die Typografie-Klassen hin. <b>Keine freien Stil-Angaben:</b>
+        /// eine Klasse ist eine Auswahl aus dem, was das Stylesheet anbietet, ein <c>style</c> waere ein
+        /// zweiter Weg, Fremdes einzuschleusen.
+        /// </summary>
+        public string? Class { get; init; }
+
+        /// <summary>Waagrechte Lage, als SVG-Koordinate oder Prozentwert. Vorgabe: Mitte.</summary>
+        public string PosX { get; init; } = "50%";
+
+        /// <summary>Senkrechte Lage, als SVG-Koordinate oder Prozentwert. Vorgabe: Mitte.</summary>
+        public string PosY { get; init; } = "50%";
+
+        /// <summary>
+        /// Woran die Position den Text ausrichtet: <c>start</c>, <c>middle</c> oder <c>end</c>.
+        /// </summary>
+        /// <remarks>
+        /// Vorgabe <c>middle</c>, und das ist keine Kosmetik: in SVG ist <c>x</c> der ANFANG des Textes.
+        /// Ohne diese Ausrichtung staende ein Text bei <c>PosX = "50%"</c> rechts neben der Mitte - der
+        /// Fehler, den man beim ersten Ausprobieren macht.
+        /// </remarks>
+        public string Anchor { get; init; } = DefaultAnchor;
+
+        /// <summary>Die Vorgabe-Ausrichtung.</summary>
+        public const string DefaultAnchor = "middle";
+
+        /// <summary>Die zulaessigen Ausrichtungen.</summary>
+        public static IReadOnlyList<string> Anchors { get; } = new[] { "start", "middle", "end" };
+    }
+
+    /// <summary>
     /// What both chart renderers produce and the chart view consumes: the prepared parts plus everything
     /// else, still untouched, for the pass-through binding.
     /// </summary>
@@ -42,6 +91,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
         public IReadOnlyList<ChartWidgetLabel> Labels { get; init; } = Array.Empty<ChartWidgetLabel>();
 
         public List<ChartSeries<double>> Series { get; init; } = new();
+
+        /// <summary>
+        /// Texte, die IM Diagramm stehen (leer = keine). Beim Ring die Mitte - dort steht sonst nichts.
+        /// </summary>
+        public IReadOnlyList<ChartWidgetOverlayText> Overlay { get; init; } = Array.Empty<ChartWidgetOverlayText>();
 
         /// <summary>
         /// The caption above this chart. Null hides it.
@@ -139,6 +193,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 Type = type,
                 Labels = labels,
                 Series = series,
+                Overlay = ReadOverlay(values, errors),
                 Title = ReadTitle(values),
                 MinWidth = ReadMinWidth(values, errors),
                 Action = ReadAction(values),
@@ -157,7 +212,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
         /// </remarks>
         public static IReadOnlyList<string> PreparedFields { get; } = new[]
         {
-            "type", "labels", "series", "title", "minWidth", "action"
+            "type", "labels", "series", "title", "minWidth", "action", "overlay"
         };
 
         private static bool IsPreparedField(string name)
@@ -275,6 +330,80 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
             }
 
             return labels;
+        }
+
+        /// <summary>
+        /// Liest die Texte, die im Diagramm stehen sollen. Fehlt der Eintrag, gibt es keine - das ist der
+        /// Normalfall und keine Meldung wert.
+        /// </summary>
+        private static IReadOnlyList<ChartWidgetOverlayText> ReadOverlay(IDictionary<string, object?> values,
+            List<string> errors)
+        {
+            if (!values.TryGetValue("overlay", out object? raw) || raw == null)
+            {
+                return Array.Empty<ChartWidgetOverlayText>();
+            }
+
+            var texts = new List<ChartWidgetOverlayText>();
+            foreach (object? item in AsList(raw, errors, "overlay"))
+            {
+                if (AsMap(item) is not IDictionary<string, object?> map)
+                {
+                    // Anders als bei 'labels' gibt es hier keine Kurzform: ein blosser Text haette keine
+                    // Position, und die zu raten hiesse, ihn irgendwo hinzuschreiben.
+                    errors.Add("Each entry of 'overlay' must be an object with at least 'text'.");
+                    continue;
+                }
+
+                var entry = new Dictionary<string, object?>(map, StringComparer.OrdinalIgnoreCase);
+                entry.TryGetValue("text", out object? text);
+                entry.TryGetValue("class", out object? cls);
+                entry.TryGetValue("posX", out object? posX);
+                entry.TryGetValue("posY", out object? posY);
+                entry.TryGetValue("anchor", out object? anchor);
+
+                string resolvedAnchor = Convert.ToString(anchor, CultureInfo.InvariantCulture) ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(resolvedAnchor))
+                {
+                    resolvedAnchor = ChartWidgetOverlayText.DefaultAnchor;
+                }
+                else if (!ChartWidgetOverlayText.Anchors.Contains(resolvedAnchor, StringComparer.OrdinalIgnoreCase))
+                {
+                    // Melden statt still auf die Vorgabe zu fallen: ein Tippfehler in der Ausrichtung
+                    // verschiebt den Text sichtbar, und dann sucht man ihn im Diagramm statt im Text.
+                    errors.Add($"'{resolvedAnchor}' is not a valid overlay anchor - use "
+                               + $"{string.Join(", ", ChartWidgetOverlayText.Anchors)}.");
+                    resolvedAnchor = ChartWidgetOverlayText.DefaultAnchor;
+                }
+
+                texts.Add(new ChartWidgetOverlayText
+                {
+                    Text = Convert.ToString(text, CultureInfo.InvariantCulture) ?? string.Empty,
+                    Class = Convert.ToString(cls, CultureInfo.InvariantCulture),
+                    PosX = Coordinate(posX) ?? "50%",
+                    PosY = Coordinate(posY) ?? "50%",
+                    Anchor = resolvedAnchor
+                });
+            }
+
+            return texts;
+        }
+
+        /// <summary>
+        /// Eine SVG-Koordinate aus dem Skript: Zahl oder Prozentwert. Immer mit Punkt als Trennzeichen -
+        /// unter deutschem Gebietsschema waere ein Komma in einem SVG-Attribut ein zweiter Wert.
+        /// </summary>
+        private static string? Coordinate(object? raw)
+        {
+            if (raw == null)
+            {
+                return null;
+            }
+
+            string text = raw is IFormattable f
+                ? f.ToString(null, CultureInfo.InvariantCulture)
+                : Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(text) ? null : text;
         }
 
         private static List<ChartSeries<double>> ReadSeries(IDictionary<string, object?> values,

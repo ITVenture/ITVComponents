@@ -3429,6 +3429,46 @@ implementiert, benennt den Typ mit um** — der Compiler meldet es.
 
 ---
 
+## 44. Texte im Diagramm (opt-in, kein Schema-Change)
+
+Ein Diagramm kann jetzt Texte **in sich** tragen — bei einem Ring die Mitte, wo sonst nichts steht. Neu
+ist dafür das Feld `overlay` in der Diagramm-Deklaration; ohne das Feld ändert sich nichts.
+
+```json
+{
+  "type": "donut",
+  "labels": [ "angesehen", "offen" ],
+  "series": [ { "name": "Journeys", "data": [ 12, 8 ] } ],
+  "overlay": [
+    { "text": "12",     "class": "mud-typography-h3", "posY": "45%" },
+    { "text": "von 20", "class": "mud-typography-h6", "posY": "60%" }
+  ]
+}
+```
+
+| Feld | Bedeutung |
+|---|---|
+| `text` | was dasteht — **Pflicht** |
+| `class` | CSS-Klasse(n), hier gehört die Typografie hin |
+| `posX` / `posY` | Lage als SVG-Koordinate oder Prozentwert, Vorgabe je `50%` |
+| `anchor` | `start`, `middle` oder `end`; Vorgabe `middle` |
+
+**Drei Dinge, die man wissen sollte:**
+
+Es ist **kein HTML**, sondern SVG — ein `<h3>` gibt es dort nicht. Deshalb `class` mit einer
+Typografie-Klasse statt eines Tags.
+
+**`anchor` ist per Vorgabe `middle`, und das ist Absicht:** in SVG ist `posX` der *Anfang* des Textes.
+Ohne die Ausrichtung stünde ein Text bei `posX: "50%"` rechts neben der Mitte. Ein unbekannter Wert wird
+gemeldet und nicht still auf die Vorgabe gedreht — er verschöbe den Text sichtbar, und dann sucht man
+den Fehler im Diagramm statt im Text.
+
+**Es gibt bewusst keine Kurzform** wie bei `labels` (wo ein blosser Text genügt): ein Text ohne Position
+müsste geraten werden. Und es gibt bewusst **kein freies SVG**: Text und Attributwerte werden kodiert
+geschrieben — genau deshalb darf die Deklaration aus der Datenbank kommen.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
