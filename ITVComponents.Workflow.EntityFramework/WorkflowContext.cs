@@ -419,6 +419,19 @@ namespace ITVComponents.Workflow.EntityFramework
 
         /// <summary>Die Kennung, unter der die Ablage den Inhalt fuehrt.</summary>
         public string FileIdentifier { get; set; }
+
+        /// <summary>
+        /// Wann die <b>Bytes</b> dieses Anhangs weggeraeumt wurden (UTC), oder null, solange es sie
+        /// gibt.
+        /// </summary>
+        /// <remarks>
+        /// Die Anhaenge haben eine <b>eigene</b> Frist - sie duerfen frueher (oder spaeter) wegfallen als
+        /// der Vorgang selbst. Faellt der Inhalt weg, bleibt diese Zeile stehen: ein Vorgang, der nicht
+        /// mehr sagen kann „hier war eine Datei", waere unvollstaendig festgehalten. Auch
+        /// <see cref="FileIdentifier"/> bleibt - er sagt, WAS hier lag, und bei fremder Ablage kann ihn
+        /// noch jemand brauchen.
+        /// </remarks>
+        public DateTime? BytesPurgedUtc { get; set; }
     }
 
     /// <summary>
@@ -718,6 +731,12 @@ namespace ITVComponents.Workflow.EntityFramework
         /// Token-Endzustaende, Kommentare und die Beschreibungen der Anhaenge.
         /// </summary>
         public string PayloadJson { get; set; }
+
+        /// <summary>
+        /// Wie viele Anhaenge der Vorgang hatte. <b>Als Spalte und nicht nur im JSON</b>: der
+        /// Anhang-Lauf muss die Vorgaenge mit Anhaengen finden koennen, ohne jede Nutzlast zu lesen.
+        /// </summary>
+        public int AttachmentCount { get; set; }
 
         /// <summary>
         /// Wann die <b>Inhalte</b> der Anhaenge weggefallen sind (UTC), oder null, solange sie noch da
@@ -1121,6 +1140,9 @@ namespace ITVComponents.Workflow.EntityFramework
                 e.HasKey(n => n.AttachmentKey);
                 // "die Anhaenge dieses Vorgangs, aelteste zuerst" - dieselbe Abfrage wie beim Faden.
                 e.HasIndex(n => new { n.InstanceId, n.CreatedUtc });
+                // Der Anhang-Lauf sucht die, deren Bytes noch da sind. Das sind mit der Zeit die
+                // wenigsten - ohne Index liest er jedes Mal die ganze Tabelle.
+                e.HasIndex(n => n.BytesPurgedUtc);
                 e.HasOne<WorkflowInstanceRow>()
                     .WithMany()
                     .HasForeignKey(n => n.InstanceId)

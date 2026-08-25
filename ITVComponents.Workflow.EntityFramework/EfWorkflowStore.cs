@@ -1472,6 +1472,170 @@ namespace ITVComponents.Workflow.EntityFramework
             return tree.Count;
         }
 
+        /// <summary>
+        /// Die Gruppen von Vorgaengen, deren Anhang-<b>Bytes</b> noch da sind - je Definition und
+        /// Mandant eine, mit dem aeltesten Endzeitpunkt. Der Einstieg des Anhang-Laufs.
+        /// </summary>
+        /// <remarks>
+        /// <b>Nicht im <c>IWorkflowStore</c>-Vertrag</b>, sondern nur hier: Anhaenge gibt es allein in
+        /// der Datenbank-Fassung. Eine Ablage ohne sie muesste eine leere Liste zurueckgeben - und eine
+        /// Zusicherung, die nur eine Fassung erfuellen kann, gehoert nicht in einen gemeinsamen Vertrag.
+        /// <para>
+        /// Beide Quellen kommen vor: ein Vorgang, der noch aktiv liegt (seine Anhang-Frist kann
+        /// <b>kuerzer</b> sein als die des Vorgangs), und ein bereits archivierter.
+        /// </para></remarks>
+        public IReadOnlyList<WorkflowAttachmentGroup> ListAttachmentGroups()
+        {
+            using WorkflowContext ctx = contextFactory();
+            List<WorkflowAttachmentGroup> live = ctx.WorkflowAttachments.AsNoTracking().IgnoreQueryFilters()
+                .Where(a => a.BytesPurgedUtc == null)
+                .Join(ctx.WorkflowInstances.AsNoTracking().IgnoreQueryFilters()
+                        .Where(i => i.EndedUtc != null),
+                    a => a.InstanceId, i => i.Id, (a, i) => i)
+                .GroupBy(i => new { i.DefinitionKey, i.TenantId })
+                .Select(g => new WorkflowAttachmentGroup
+                {
+                    DefinitionKey = g.Key.DefinitionKey,
+                    TenantId = g.Key.TenantId,
+                    OldestEndedUtc = g.Min(i => i.EndedUtc).Value
+                })
+                .ToList();
+
+            List<WorkflowAttachmentGroup> archived = ctx.WorkflowArchivedInstances.AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(r => r.AttachmentCount > 0 && r.AttachmentsPurgedUtc == null && r.EndedUtc != null)
+                .GroupBy(r => new { r.DefinitionKey, r.TenantId })
+                .Select(g => new WorkflowAttachmentGroup
+                {
+                    DefinitionKey = g.Key.DefinitionKey,
+                    TenantId = g.Key.TenantId,
+                    OldestEndedUtc = g.Min(r => r.EndedUtc).Value
+                })
+                .ToList();
+
+            // Die Zusammenfuehrung im Speicher und nicht als Union in SQL: es sind wenige Zeilen, und
+            // eine Union ueber zwei Gruppierungen waere fuer beide Provider zu uebersetzen.
+            return live.Concat(archived)
+                .GroupBy(g => new { g.DefinitionKey, g.TenantId })
+                .Select(g => new WorkflowAttachmentGroup
+                {
+                    DefinitionKey = g.Key.DefinitionKey,
+                    TenantId = g.Key.TenantId,
+                    OldestEndedUtc = g.Min(x => x.OldestEndedUtc)
+                })
+                .ToList();
+        }
+
+        /// <summary>
+        /// Die Vorgaenge einer Gruppe, deren Anhang-Bytes faellig sind - samt der Kennungen, unter denen
+        /// die Ablage sie fuehrt.
+        /// </summary>
+        /// <param name="definitionKey">die Definitionszeile</param>
+        /// <param name="tenantId">der Mandant</param>
+        /// <param name="endedBeforeUtc">der Stichtag der Anhang-Frist</param>
+        /// <param name="max">Obergrenze je Aufruf</param>
+        public IReadOnlyList<WorkflowAttachmentPurgeCandidate> FindPurgeableAttachments(int definitionKey,
+            string tenantId, DateTime endedBeforeUtc, int max)
+        {
+            if (max <= 0)
+            {
+                return new List<WorkflowAttachmentPurgeCandidate>();
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            List<WorkflowAttachmentPurgeCandidate> candidates = ctx.WorkflowAttachments.AsNoTracking()
+                .IgnoreQueryFilters()
+                .Where(a => a.BytesPurgedUtc == null)
+                .Join(ctx.WorkflowInstances.AsNoTracking().IgnoreQueryFilters()
+                        .Where(i => i.DefinitionKey == definitionKey && i.TenantId == tenantId
+                                    && i.EndedUtc != null && i.EndedUtc < endedBeforeUtc),
+                    a => a.InstanceId, i => i.Id, (a, i) => a)
+                .ToList()
+                .GroupBy(a => a.InstanceId)
+                .Select(g => new WorkflowAttachmentPurgeCandidate
+                {
+                    InstanceId = g.Key,
+                    IsArchived = false,
+                    FileIdentifiers = g.Select(a => a.FileIdentifier)
+                        .Where(f => !string.IsNullOrEmpty(f)).Distinct().ToList()
+                })
+                .Take(max)
+                .ToList();
+
+            if (candidates.Count < max)
+            {
+                candidates.AddRange(ctx.WorkflowArchivedInstances.AsNoTracking().IgnoreQueryFilters()
+                    .Where(r => r.DefinitionKey == definitionKey && r.TenantId == tenantId
+                                && r.AttachmentCount > 0 && r.AttachmentsPurgedUtc == null
+                                && r.EndedUtc != null && r.EndedUtc < endedBeforeUtc)
+                    .OrderBy(r => r.EndedUtc)
+                    .Take(max - candidates.Count)
+                    .ToList()
+                    .Select(r => new WorkflowAttachmentPurgeCandidate
+                    {
+                        InstanceId = r.InstanceId,
+                        IsArchived = true,
+                        // Beim archivierten Vorgang stehen die Kennungen in der Nutzlast - die Spalte
+                        // sagt nur, DASS es welche gab. Deshalb wird sie ueberhaupt gefuehrt: ohne sie
+                        // muesste jede Nutzlast gelesen werden, um das herauszufinden.
+                        FileIdentifiers = (WorkflowJson.Deserialize<WorkflowArchivePayload>(r.PayloadJson)
+                                ?.Attachments ?? new List<WorkflowArchivedAttachment>())
+                            .Select(a => a.FileIdentifier)
+                            .Where(f => !string.IsNullOrEmpty(f)).Distinct().ToList()
+                    }));
+            }
+
+            return candidates;
+        }
+
+        /// <summary>
+        /// Haelt fest, dass die Anhang-Bytes dieses Vorgangs weg sind - an den aktiven Zeilen und, wenn
+        /// er schon archiviert ist, an der Archiv-Zeile.
+        /// </summary>
+        /// <param name="instanceId">der Vorgang</param>
+        /// <param name="nowUtc">der Zeitpunkt</param>
+        /// <remarks>
+        /// Wird <b>nach</b> dem Loeschen der Bytes gerufen, nicht davor. Andersherum bliebe bei einem
+        /// Abbruch eine Datei liegen, die niemand mehr sucht; so wird im schlimmsten Fall ein zweites Mal
+        /// geloescht - und das ist ausdruecklich erlaubt (<c>IWorkflowAttachmentStore.DeleteAsync</c>
+        /// ist ein Bemuehen, kein Anspruch).
+        /// </remarks>
+        public void MarkAttachmentsPurged(string instanceId, DateTime nowUtc)
+        {
+            if (string.IsNullOrEmpty(instanceId))
+            {
+                throw new ArgumentNullException(nameof(instanceId));
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            List<WorkflowAttachmentRow> rows = ctx.WorkflowAttachments.IgnoreQueryFilters()
+                .Where(a => a.InstanceId == instanceId && a.BytesPurgedUtc == null).ToList();
+            foreach (WorkflowAttachmentRow row in rows)
+            {
+                row.BytesPurgedUtc = nowUtc;
+            }
+
+            WorkflowArchivedInstanceRow archived = ctx.WorkflowArchivedInstances.IgnoreQueryFilters()
+                .FirstOrDefault(r => r.InstanceId == instanceId);
+            if (archived != null)
+            {
+                archived.AttachmentsPurgedUtc = nowUtc;
+            }
+
+            if (rows.Count == 0 && archived == null)
+            {
+                // Weder aktiv noch im Archiv - dann wurden gerade Bytes geloescht, deren Vorgang
+                // zwischenzeitlich verschwunden ist. Nichts zu retten, aber es gehoert gesagt.
+                LogEnvironment.LogEvent(
+                    $"MarkAttachmentsPurged: process '{instanceId}' is neither active nor archived any "
+                    + "more - its attachment bytes were deleted with nothing left to note it on.",
+                    LogSeverity.Warning);
+                return;
+            }
+
+            ctx.SaveChanges();
+        }
+
         /// <summary>Die Instanz-Zeile und alle ihre Nachfahren; leer, wenn es die Wurzel nicht gibt.</summary>
         /// <remarks>
         /// Schrittweise ueber <c>ParentInstanceId</c> statt ueber <c>RootInstanceId</c>: der Baum kann
@@ -1521,6 +1685,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 RootInstanceId = row.RootInstanceId,
                 ParentInstanceId = row.ParentInstanceId,
                 ArchivedUtc = nowUtc,
+                AttachmentCount = attachments.Count,
                 PayloadJson = WorkflowJson.Serialize(new WorkflowArchivePayload
                 {
                     // Der Variablen-Stack kommt so, wie er in der Spalte stand - typtreu und ohne den
@@ -1579,6 +1744,7 @@ namespace ITVComponents.Workflow.EntityFramework
                     ParentInstanceId = row.ParentInstanceId,
                     ArchivedUtc = AsUtc(row.ArchivedUtc) ?? row.ArchivedUtc,
                     PayloadJson = row.PayloadJson,
+                    AttachmentCount = row.AttachmentCount,
                     AttachmentsPurgedUtc = AsUtc(row.AttachmentsPurgedUtc)
                 };
         }

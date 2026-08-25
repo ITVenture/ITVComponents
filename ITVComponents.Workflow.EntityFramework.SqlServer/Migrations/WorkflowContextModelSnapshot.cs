@@ -190,6 +190,9 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<DateTime>("ArchivedUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("AttachmentCount")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("AttachmentsPurgedUtc")
                         .HasColumnType("datetime2");
 
@@ -273,6 +276,9 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.Property<string>("Author")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("BytesPurgedUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ContentType")
                         .HasColumnType("nvarchar(max)");
 
@@ -298,6 +304,8 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("AttachmentKey");
+
+                    b.HasIndex("BytesPurgedUtc");
 
                     b.HasIndex("InstanceId", "CreatedUtc");
 

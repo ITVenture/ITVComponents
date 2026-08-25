@@ -91,6 +91,12 @@ namespace ITVComponents.Workflow.Retention
         public string PayloadJson { get; set; }
 
         /// <summary>
+        /// Wie viele Anhaenge der Vorgang hatte - als Feld, damit der Anhang-Lauf die Vorgaenge mit
+        /// Anhaengen findet, ohne jede Nutzlast zu lesen.
+        /// </summary>
+        public int AttachmentCount { get; set; }
+
+        /// <summary>
         /// Wann die Anhang-Inhalte weggefallen sind (UTC), oder null, solange sie noch da sind.
         /// </summary>
         public DateTime? AttachmentsPurgedUtc { get; set; }
