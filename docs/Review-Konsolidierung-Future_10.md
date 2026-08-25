@@ -519,7 +519,8 @@ Zwei Entwurfsentscheidungen ergaben sich aus den Zahlen, nicht aus dem Gefühl:
 - **`RZ9986`, 1×** — `Roles.razor` trägt den Titel `Roles for tenant @effectiveTenantId`. Als
   Attributwert ist das gemischter C#-/Markup-Inhalt, den Razor ablehnt. Regel jetzt: enthält der Titel
   `@` oder `"`, geht er als `TitleContent`-Fragment.
-- Dazu ein dritter, nur kosmetisch: der Suchfeld-Regex verschluckte das ``, das nackte `
+- Dazu ein dritter, nur kosmetisch: der Suchfeld-Regex verschluckte das `
+`, das nackte `
 ` passte
   danach nicht mehr auf den CRLF-Zeilensplit — die Einrückung des Restinhalts zerfiel.
 
@@ -534,6 +535,56 @@ Zehn Leisten blieben stehen: sieben mit abweichendem Suchfeld (`Clearable`/`Labe
 **Mitgenommen:** die zehn nicht umgestellten Dialoge (plus `BillingProfile.razor` und
 `TestFormDialog.razor`, die nach Dateinamen keine Dialoge sind, den Aufruf aber auch hatten) rufen jetzt
 `ValidateAsync()` statt des veralteten `Validate()` — zwölf Dateien, `CS0618` damit vollständig weg.
+
+### Runde 2e — Trigger-Logik: nicht zusammengelegt, sondern nachgewiesen
+
+**Die Zusammenlegung scheitert nicht an der Logik.** Die Entscheidungsregeln *sind* identisch — die
+`AllowReschedule`-Ausnahme, die `IsPublic`-Regel, bis in die Log-Texte hinein. Sie scheitert am
+**Speicher-Modell**: die eine Fassung arbeitet auf Domänenobjekten in Dictionaries, die andere auf
+EF-Zeilen mit `IgnoreQueryFilters` und `SaveChanges` — und die trägt SQL-Übersetzbarkeit im Gepäck.
+`EfWorkflowStore` vermerkt ausdrücklich, dass `DefaultIfEmpty(wert)` sich **nicht** übersetzen lässt,
+und genau das benutzt die In-Memory-Fassung. Eine gemeinsame Implementierung müsste in der EF-Form
+geschrieben werden und dem Speicher ohne Datenbank die Zwänge einer Datenbank aufdrücken.
+
+**Also nachgewiesen statt zusammengelegt.** Es gab ~30 Tests für diesen Lebenszyklus — alle nur gegen
+EF. Neu `WorkflowTriggerLifecycleContractTest`: sechs Zusagen über **beide** Fassungen. Darunter die,
+die am leichtesten kaputtgeht — die Aktivierung hängt an der **fachlichen Identität** des Auslösers,
+nicht an seiner Zeilennummer; der `TriggerKey` wird bei jedem Neuaufbau neu vergeben.
+
+Eine Abweichung ist geprüft und **gewollt** (steht als Kommentar, nicht als Test): der EF-Store sammelt
+zusätzlich über `DefinitionKey`, um Auslöser-Zeilen aus der Zeit vor einer Korrektur einzufangen. Ein
+Speicher ohne Persistenz kann keinen Altbestand haben.
+
+**Der Test schlug beim Schreiben dreimal zu — und jedes Mal lag es an der Erwartung, nicht an den
+Stores.** Die waren sich in allem einig:
+
+1. Eine öffentliche Definition ist nicht automatisch übernehmbar — der Start-Knoten muss es erlauben.
+2. `SaveActivation` schreibt bewusst nur Zustimmung, Muster-Übersteuerung und Variablen und lässt den
+   Lauf-Zustand einer bestehenden Zeile in Ruhe.
+3. `LastInstanceId` wird nur zusammen mit `lastRunUtc` geschrieben — „welche Instanz" ohne „wann" wäre
+   eine halbe Auskunft.
+
+Der zweite ist der lehrreichste: als schlichte Zuweisung am Objekt war der Test **in-memory grün und in
+EF rot**. Der Speicher ohne Datenbank liefert dieselbe Referenz zurück, die der Aufrufer bearbeitet hat
+— die Zuweisung „wirkt" dort ohne jedes Speichern. Genau dafür läuft der Test gegen beide Fassungen.
+
+### Runde 2f — `SvgWriter`: die Schätzung setzt eine Kopie voraus, die es nicht gibt
+
+**Ansicht und Editor erzeugen nicht dasselbe SVG.** Die Ansicht zeichnet in absoluten Koordinaten, der
+Editor am Ursprung innerhalb einer verschobenen Gruppe (`transform="translate(x,y)"`) und mit
+`data-*`-Merkmalen, weil an ihnen das Ziehen und das Interop hängen — dieselbe Unterscheidung wie beim
+doppelten Kanten-Routing, das weiter oben schon als unvermeidbar steht.
+
+Geteilt ist die **Geometrie**, und das ist der Teil, dessen Auseinanderlaufen niemand bemerkt: eine
+Raute mit einer anderen Spitze fällt nicht als Fehler auf, sondern höchstens als „sieht im Editor
+irgendwie anders aus". Neu `Graph/SvgShapes.cs` mit `Diamond` und `Hexagon`; der Versatz ist der
+einzige Unterschied zwischen den Aufrufern, also ist er ein Parameter. Die Einbuchtung des Sechsecks lag
+ohnehin schon gemeinsam in `GraphLayout.HexagonInset` — der neue Typ zieht nach, was danebenstand.
+Mitgenommen: die Zahlenformatierung (SVG braucht den Punkt; unter deutschem Gebietsschema wäre ein
+Komma ein zweiter Koordinaten-Trenner, und die Form zerfiele).
+
+74 Zeilen neu, 26 entfernt — die geschätzten ~200 Zeilen Ersparnis gibt es nicht, weil die Kopie nicht
+existiert.
 
 ### Zurückgestellt
 
