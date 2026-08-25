@@ -3469,6 +3469,83 @@ geschrieben — genau deshalb darf die Deklaration aus der Datenbank kommen.
 
 ---
 
+## 45. Aufbewahrung von Vorgängen: die Ablage — **Pflicht-Migration (1 Tabelle)**
+
+**Es wird noch nichts aufgeräumt.** Was hier ankommt, sind die Regel (wie lange gilt was) und die
+Ablage für den Widerspruch eines Mandanten. Der Aufbewahrungslauf, das Archiv und die Oberfläche
+kommen in eigenen Schritten. Wer nichts einstellt, verliert auch später nichts — **sagt niemand etwas,
+wird nicht aufgeräumt**.
+
+### 45.1 Was ihr tun müsst
+
+**Pflicht-Migration `RetentionOverrides`** (beide Provider): eine neue Tabelle
+`WorkflowRetentionOverrides` mit eindeutigem Index über `(OwnerTenantId, DefinitionId, TenantId)` und
+einem Index auf `TenantId`. Kein Datenumzug, keine Änderung an bestehenden Tabellen.
+
+```
+dotnet ef database update --context WorkflowContext
+```
+
+**`IWorkflowStore` bekommt drei neue Member** — `GetRetentionOverrides(tenantId)`,
+`GetRetentionOverridesForDefinition(ownerTenantId, definitionId)` und
+`SaveRetentionOverride(…)`. **Eigene Store-Implementierungen brechen.**
+
+An der **Definition** liegen sieben neue Felder — `RetentionDays`, `AttachmentRetentionDays`,
+`AllowTenantRetentionOverride` und die vier Grenzen `Min`/`MaxTenantRetentionDays` bzw.
+`Min`/`MaxTenantAttachmentRetentionDays`. Sie kosten **keine** Migration: die Definitionszeile hat fünf
+Spalten, alles Weitere liegt im `DefinitionJson`.
+
+### 45.2 Wie die Frist zustande kommt
+
+Die Kette ist **Widerspruch des Mandanten → Vorgabe der Definition → globale Vorgabe**; jede Stufe
+null heisst „erben". Gemessen wird **ab dem Ende** eines Vorgangs, nicht ab dem Start — sonst
+archivierte sich ein Vorgang, der ein Jahr läuft, mitten im Betrieb selbst. Es sind **zwei** Fristen:
+die Anhang-Inhalte dürfen kürzer oder länger bleiben als der Vorgang. Die Beschreibung des Anhangs
+bleibt in jedem Fall — ein Archiv, das nicht mehr sagen kann „hier war eine Datei", hätte den Vorgang
+unvollständig festgehalten.
+
+`AllowTenantRetentionOverride` sagt **ob** ein Mandant widersprechen darf, die vier Grenzen sagen **wie
+weit**. Dieselbe Form wie beim Zeitplan eines Auslösers, wo `PatternOverride` nur mit `AllowReschedule`
+wirkt, und die Vorgabe ist bewusst die restriktive: **ohne Erlaubnis wirkt kein Widerspruch.**
+
+**Merke: ein nicht erlaubter Widerspruch wird nicht abgelehnt, er wirkt nur nicht.** Erlaubt die
+Definition ihn später doch, ist der Wunsch des Mandanten noch da.
+
+**Merke: begrenzt wird, nicht verworfen — aber es wird gesagt.** Liegt der Wunsch ausserhalb des
+Rahmens, trägt das Ergebnis `RequestedDays`/`WasLimited` mit; die Oberfläche kann sagen, dass und warum
+der Wert angehoben wurde. Still zu begrenzen hiesse: er stellt zehn Tage ein, bekommt dreissig und
+erfährt es nirgends.
+
+**Merke: 0 Tage sind gültig** („sofort nach dem Ende"), **negative Werte werden verworfen** — sie
+ergäben einen Stichtag in der Zukunft und räumten laufende Vorgänge weg. Ein widersprüchlicher Rahmen
+(Untergrenze grösser als Obergrenze) wird **ganz ignoriert** statt in einer der beiden Richtungen
+aufgelöst.
+
+### 45.3 Woran der Widerspruch hängt
+
+An der **fachlichen** Identität: Besitzer der Definition (`OwnerTenantId`, null = die öffentliche) +
+`DefinitionId` + widersprechender Mandant (`TenantId`). **Nicht am `DefinitionKey`** — der wird bei
+jeder Version neu vergeben, und ein Widerspruch, der daran hinge, wäre beim nächsten Veröffentlichen
+still weg. Dieselbe Lehre wie bei den Auslöser-Übernahmen.
+
+**Der Besitzer gehört dazu, nicht nur die Id:** legt ein Mandant eine eigene Definition gleichen Namens
+neben der öffentlichen an, wären das sonst dieselbe Zeile — sein Widerspruch gegen die eine wirkte
+still auch gegen die andere, obwohl die zwei verschiedene Rahmen setzen.
+
+**Eine Rücknahme löscht die Zeile nicht:** beide Fristen auf null heisst „nichts gesagt", die Vorgabe
+greift wieder — aber `SetBy`/`SetUtc` halten fest, wer sie wann zurückgenommen hat. Wo das Löschen von
+Daten an einer Einstellung hängt, ist die Spur mehr wert als die aufgeräumte Tabelle. Einen Lösch-Weg
+gibt es deshalb bewusst nicht.
+
+**Für PostgreSQL:** der eindeutige Index steht als reines SQL mit `NULLS NOT DISTINCT` da. Alle drei
+Spalten sind nullable (öffentliche Definition, mandantenfreier Betrieb); ohne den Zusatz wäre der
+Schutz dort stillschweigend wirkungslos — dieselbe Falle wie bei den Auslöser-Aktivierungen.
+
+Die Tabelle trägt **keinen** Mandantenfilter, wie die Aktivierungen und die Outbox: der spätere
+Aufbewahrungslauf geht mandantenübergreifend.
+
+---
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3529,3 +3606,4 @@ geschrieben — genau deshalb darf die Deklaration aus der Datenbank kommen.
 | 46 | **PostgreSQL für den Mandanten-Baum** (§39, optional) | **Wer bei SQL Server bleibt, muss nichts tun.** Die Ausprägung `CoreIdentityTree` gibt es jetzt auch für PostgreSQL (Initialmigration + 5 Views + 10 Funktionen). Beim Wechsel: WebPart auf `Identity = CoreIdentity`, `Strategy = Tree`, dann Initialmigration und eine Migration mit `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` (wiederholbar). **Euer eigener Kontext ist damit nicht erledigt** — dessen PostgreSQL-Migrationen kommen aus eurem Repo. Zwei Verhaltensunterschiede: der Zyklen-Abbruch meldet `SQLSTATE 54001` mit Klartext statt Fehler 530 (bewusst eine Ausnahme statt der still abbrechenden `CYCLE`-Klausel), und `GetChildTenantsWithPermsProc` ist dort eine **Funktion** — eigenes SQL ruft `select * from "…"(…)` statt `exec`. Geprüft: dieselbe Hierarchie beidseitig, 95 Zeilen Zeile-für-Zeile ohne Unterschied. **Inzwischen auch das Laufzeitverhalten unter Last** — siehe §40, die dort gefundene Lücke ist geschlossen |
 | 47 | **Mandanten-Baum: Anker-Fix** (§40) | **Pflicht-Migration für BEIDE Provider:** eine Migration, die `ConfigureViews(migrationBuilder)` des jeweiligen Providers erneut ausführt (wiederholbar). Kein Schema-Change, keine Vertragsänderung — ohne sie bleiben schlicht die alten, langsamen Objekte stehen. Ein Filter auf ein Baum-Blatt kam bisher **nach** der Rekursion zum Zug; wo er aus einem **Join** stammt (Blickpunkt aus einer Tabellenvariablen in den beiden Rollenbaum-Prozeduren), baute **jede** der beiden Datenbanken den ganzen Baum. Bei 10 000 Mandanten: Rollen-Baum nach unten 5 007 → **166 ms** (SQL Server) bzw. 4 703 → **68 ms** (PostgreSQL), Kind-Mandanten mit Berechtigung 4 839 → **151 ms** bzw. 5 087 → **71 ms**; der Mandantenfilter auf PostgreSQL 280 → **1 ms**. Ergebnisse unverändert: alte gegen neue Fassung auf beiden Datenbanken und beiden Fixtures **null Unterschiede**, Gleichheitstest und Zyklen-Wächter unverändert. Einziger Preis: ein Durchlauf des ganzen Baums **ohne** Filter kostet auf PostgreSQL mehr (286 → 800 ms) — im Toolkit-Code kommt er nicht vor |
 | 48 | **Token-Zeilen mandantengefiltert** (§41) | **Pflicht-Migration `TokenTenantBackfill`** (beide Provider), **vor** dem ersten Start mit der neuen Fassung. Kein Schema-Change — sie trägt den denormalisierten Mandanten an Token-Zeilen nach, die ihn noch nicht haben. Betroffen sind Vorgänge, die seit vor der Migration `UserTasks` **parken**: die wurden seither nie gespeichert und tragen `NULL`. Ohne den Nachtrag verschluckt der neue Filter deren Tokens — und **die Fehlerart ist hier eine andere als sonst: nicht „sieht zu viel", sondern „sieht nichts", also ein Vorgang, der ohne Meldung stehen bleibt.** Für eigenen Code: `db.Tokens` liefert ab jetzt nur die Zeilen des aktiven Mandanten (bewusst; wer darüber hinaus lesen will, setzt `IgnoreQueryFilters()`). Der Runner muss filterfrei bleiben — sein Suchlauf geht jedem `WorkflowExecutionScope` voraus |
+| 49 | **Aufbewahrung: die Ablage** (§45) | **Pflicht-Migration `RetentionOverrides`** (beide Provider) — eine neue Tabelle `WorkflowRetentionOverrides`, kein Datenumzug, keine Änderung an bestehenden Tabellen. `IWorkflowStore` bekommt **drei** neue Member (`GetRetentionOverrides`, `GetRetentionOverridesForDefinition`, `SaveRetentionOverride`) — **eigene Store-Implementierungen brechen**. **Es wird noch nichts aufgeräumt:** hier kommen nur die Regel und die Ablage an; Aufbewahrungslauf, Archiv und Oberfläche folgen. **Sagt niemand etwas, wird nicht aufgeräumt** — wer nichts einstellt, verliert nichts. Die sieben neuen Felder an der Definition (`RetentionDays`, `AttachmentRetentionDays`, `AllowTenantRetentionOverride`, vier Grenzen) kosten **keine** Migration, sie liegen im `DefinitionJson`. **Merke: der Widerspruch hängt an Besitzer + `DefinitionId` + widersprechendem Mandanten, NICHT am `DefinitionKey`** (der wird je Version neu vergeben). **Merke: ohne `AllowTenantRetentionOverride` wirkt ein Widerspruch nicht — er wird aber trotzdem gespeichert** und wirkt, sobald die Definition ihn erlaubt. Eine Rücknahme (beide Fristen null) **löscht die Zeile nicht**; einen Lösch-Weg gibt es bewusst nicht. Für PostgreSQL trägt der eindeutige Index `NULLS NOT DISTINCT` — alle drei Spalten sind nullable |

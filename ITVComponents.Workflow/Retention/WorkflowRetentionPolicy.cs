@@ -7,19 +7,39 @@ namespace ITVComponents.Workflow.Retention
     /// Der Widerspruch eines Mandanten gegen die Fristen einer Definition.
     /// </summary>
     /// <remarks>
-    /// <b>Haengt an der FACHLICHEN Identitaet</b> (Mandant + Definitions-Id), nicht am technischen
-    /// Schluessel der Definitionszeile. Der wird bei jeder neuen Version neu vergeben - ein Widerspruch,
-    /// der daran haengt, waere beim naechsten Veroeffentlichen still weg, und es gaelte wieder die
-    /// Vorgabe. Dieselbe Lehre wie bei den Ausloeser-Uebernahmen, die aus genau diesem Grund nicht am
-    /// <c>TriggerKey</c> haengen.
+    /// <para>
+    /// <b>Haengt an der FACHLICHEN Identitaet</b> (Besitzer + Definitions-Id + widersprechender
+    /// Mandant), nicht am technischen Schluessel der Definitionszeile. Der wird bei jeder neuen Version
+    /// neu vergeben - ein Widerspruch, der daran haengt, waere beim naechsten Veroeffentlichen still
+    /// weg, und es gaelte wieder die Vorgabe. Dieselbe Lehre wie bei den Ausloeser-Uebernahmen, die aus
+    /// genau diesem Grund nicht am <c>TriggerKey</c> haengen.
+    /// </para>
+    /// <para>
+    /// <b>Der Besitzer gehoert dazu, nicht nur die Id.</b> Legt ein Mandant eine eigene Definition
+    /// gleichen Namens neben der oeffentlichen an, waeren das ohne ihn dieselbe Zeile - ein Widerspruch
+    /// gaelte still fuer beide, obwohl die zwei Definitionen verschiedene Rahmen setzen und die eine ihn
+    /// vielleicht gar nicht erlaubt. Dieselbe Form wie bei <c>WorkflowStartTriggerActivation</c>.
+    /// </para>
+    /// <para>
+    /// <b>Eine Ruecknahme loescht die Zeile nicht</b>: beide Fristen auf null heisst „nichts gesagt", die
+    /// Vorgabe greift wieder - aber <see cref="SetBy"/> und <see cref="SetUtc"/> halten fest, wer sie
+    /// wann zurueckgenommen hat. Bei einer Einstellung, an der das Loeschen von Daten haengt, ist das
+    /// die Spur, die spaeter gesucht wird.
+    /// </para>
     /// </remarks>
     public sealed class WorkflowRetentionOverride
     {
-        /// <summary>Der Mandant, der widerspricht.</summary>
+        /// <summary>
+        /// Der Mandant der DEFINITION, null = die oeffentliche. Teil der Identitaet - nicht der
+        /// Widersprechende, das ist <see cref="TenantId"/>.
+        /// </summary>
         public string OwnerTenantId { get; set; }
 
-        /// <summary>Die fachliche Id der Definition, der er widerspricht.</summary>
+        /// <summary>Die fachliche Id der Definition. Teil der Identitaet.</summary>
         public string DefinitionId { get; set; }
+
+        /// <summary>Der Mandant, der widerspricht. Teil der Identitaet.</summary>
+        public string TenantId { get; set; }
 
         /// <summary>Seine Frist bis zum Archivieren, oder null (dann gilt die Vorgabe).</summary>
         public int? RetentionDays { get; set; }
@@ -30,7 +50,7 @@ namespace ITVComponents.Workflow.Retention
         /// <summary>Wer den Widerspruch eingelegt hat - fuer die Nachvollziehbarkeit.</summary>
         public string SetBy { get; set; }
 
-        /// <summary>Wann.</summary>
+        /// <summary>Wann - von der Ablage gesetzt, wenn der Aufrufer nichts mitbringt.</summary>
         public DateTime SetUtc { get; set; }
     }
 

@@ -6,6 +6,7 @@ using System.Linq;
 using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Retention;
 
 namespace ITVComponents.Workflow.Stores
 {
@@ -47,6 +48,15 @@ namespace ITVComponents.Workflow.Stores
 
         /// <summary>Der Zaehler fuer die Aktivierungs-Schluessel.</summary>
         private int nextActivationKey;
+
+        /// <summary>
+        /// Die Widersprueche gegen die Aufbewahrungsfristen, nach ihrer fachlichen Identitaet. Anders
+        /// als bei den Aktivierungen ist kein technischer Schluessel noetig: der Widerspruch traegt
+        /// keinen Lauf-Zustand, auf den von aussen gezeigt wuerde.
+        /// </summary>
+        private readonly ConcurrentDictionary<(string Owner, string DefinitionId, string Tenant),
+            WorkflowRetentionOverride> retentionOverrides =
+            new ConcurrentDictionary<(string, string, string), WorkflowRetentionOverride>();
 
         /// <summary>
         /// Der Zaehler fuer die technischen Kennungen. Auch die Ablage im Speicher vergibt sie - sonst
@@ -682,6 +692,54 @@ namespace ITVComponents.Workflow.Stores
 
             existing.ActivatedBy = activation.ActivatedBy ?? existing.ActivatedBy;
             activation.ActivationKey = existing.ActivationKey;
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverrides(string tenantId)
+            => retentionOverrides.Values.Where(o => o.TenantId == tenantId).ToList();
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverridesForDefinition(
+            string ownerTenantId, string definitionId)
+            => retentionOverrides.Values
+                .Where(o => o.OwnerTenantId == ownerTenantId && o.DefinitionId == definitionId)
+                .ToList();
+
+        /// <inheritdoc/>
+        public void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride)
+        {
+            if (retentionOverride == null)
+            {
+                throw new ArgumentNullException(nameof(retentionOverride));
+            }
+
+            if (string.IsNullOrEmpty(retentionOverride.DefinitionId))
+            {
+                throw new ArgumentException(
+                    "A retention objection names no definition. Without it, it is not decidable whose "
+                    + "deadline is being contradicted.", nameof(retentionOverride));
+            }
+
+            if (retentionOverride.SetUtc == default)
+            {
+                retentionOverride.SetUtc = DateTime.UtcNow;
+            }
+
+            (string, string, string) key = (retentionOverride.OwnerTenantId,
+                retentionOverride.DefinitionId, retentionOverride.TenantId);
+            if (!retentionOverrides.TryGetValue(key, out WorkflowRetentionOverride existing))
+            {
+                retentionOverrides[key] = retentionOverride;
+                return;
+            }
+
+            // Die bestehende Zeile wird geaendert und nicht ersetzt - das ist der Weg, den auch die
+            // Datenbank geht, und die Ruecknahme (beide Fristen null) ist dabei ein Wert wie jeder
+            // andere: sie loescht nichts, sie sagt "nichts gesagt".
+            existing.RetentionDays = retentionOverride.RetentionDays;
+            existing.AttachmentRetentionDays = retentionOverride.AttachmentRetentionDays;
+            existing.SetBy = retentionOverride.SetBy;
+            existing.SetUtc = retentionOverride.SetUtc;
         }
 
         /// <inheritdoc/>

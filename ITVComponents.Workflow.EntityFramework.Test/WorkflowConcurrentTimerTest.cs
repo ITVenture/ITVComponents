@@ -4,6 +4,7 @@ using System.Linq;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Stores;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -367,6 +368,16 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             public void SaveActivation(WorkflowStartTriggerActivation activation)
                 => inner.SaveActivation(activation);
+
+            public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverrides(string tenantId)
+                => inner.GetRetentionOverrides(tenantId);
+
+            public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverridesForDefinition(
+                string ownerTenantId, string definitionId)
+                => inner.GetRetentionOverridesForDefinition(ownerTenantId, definitionId);
+
+            public void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride)
+                => inner.SaveRetentionOverride(retentionOverride);
 
             public DateTime? PeekNextScheduleDueUtc(DateTime now) => inner.PeekNextScheduleDueUtc(now);
 

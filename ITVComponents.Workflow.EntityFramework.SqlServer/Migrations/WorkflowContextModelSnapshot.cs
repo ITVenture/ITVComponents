@@ -468,6 +468,45 @@ namespace ITVComponents.Workflow.EntityFramework.SqlServer.Migrations
                     b.ToTable("Outbox");
                 });
 
+            modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowRetentionOverrideRow", b =>
+                {
+                    b.Property<int>("RetentionOverrideKey")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RetentionOverrideKey"));
+
+                    b.Property<int?>("AttachmentRetentionDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DefinitionId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("OwnerTenantId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("RetentionDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SetBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("SetUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TenantId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("RetentionOverrideKey");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("OwnerTenantId", "DefinitionId", "TenantId")
+                        .IsUnique();
+
+                    b.ToTable("WorkflowRetentionOverrides");
+                });
+
             modelBuilder.Entity("ITVComponents.Workflow.EntityFramework.WorkflowStartTriggerActivationRow", b =>
                 {
                     b.Property<int>("ActivationKey")

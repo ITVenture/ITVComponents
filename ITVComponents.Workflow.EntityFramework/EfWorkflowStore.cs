@@ -6,6 +6,7 @@ using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Retention;
 using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
 using Microsoft.EntityFrameworkCore;
@@ -1258,6 +1259,75 @@ namespace ITVComponents.Workflow.EntityFramework
         }
 
         /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverrides(string tenantId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            return ctx.WorkflowRetentionOverrides.AsNoTracking().IgnoreQueryFilters()
+                .Where(o => o.TenantId == tenantId)
+                .ToList()
+                .Select(ToRetentionOverride)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverridesForDefinition(
+            string ownerTenantId, string definitionId)
+        {
+            using WorkflowContext ctx = contextFactory();
+            return ctx.WorkflowRetentionOverrides.AsNoTracking().IgnoreQueryFilters()
+                .Where(o => o.OwnerTenantId == ownerTenantId && o.DefinitionId == definitionId)
+                .ToList()
+                .Select(ToRetentionOverride)
+                .ToList();
+        }
+
+        /// <inheritdoc/>
+        public void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride)
+        {
+            if (retentionOverride == null)
+            {
+                throw new ArgumentNullException(nameof(retentionOverride));
+            }
+
+            if (string.IsNullOrEmpty(retentionOverride.DefinitionId))
+            {
+                throw new ArgumentException(
+                    "A retention objection names no definition. Without it, it is not decidable whose "
+                    + "deadline is being contradicted.", nameof(retentionOverride));
+            }
+
+            if (retentionOverride.SetUtc == default)
+            {
+                retentionOverride.SetUtc = DateTime.UtcNow;
+            }
+
+            using WorkflowContext ctx = contextFactory();
+            WorkflowRetentionOverrideRow row = ctx.WorkflowRetentionOverrides.IgnoreQueryFilters()
+                .FirstOrDefault(o => o.OwnerTenantId == retentionOverride.OwnerTenantId
+                                     && o.DefinitionId == retentionOverride.DefinitionId
+                                     && o.TenantId == retentionOverride.TenantId);
+            if (row == null)
+            {
+                row = new WorkflowRetentionOverrideRow
+                {
+                    OwnerTenantId = retentionOverride.OwnerTenantId,
+                    DefinitionId = retentionOverride.DefinitionId,
+                    TenantId = retentionOverride.TenantId
+                };
+                ctx.WorkflowRetentionOverrides.Add(row);
+            }
+
+            // Die Fristen werden ohne Wenn und Aber uebernommen - auch als null. Das IST die Ruecknahme:
+            // "nichts gesagt", und die Vorgabe greift wieder. Ein ??-Rueckfall wie bei ActivatedBy waere
+            // hier genau falsch, er machte die Ruecknahme unmoeglich.
+            row.RetentionDays = retentionOverride.RetentionDays;
+            row.AttachmentRetentionDays = retentionOverride.AttachmentRetentionDays;
+            row.SetBy = retentionOverride.SetBy;
+            row.SetUtc = retentionOverride.SetUtc;
+            ctx.SaveChanges();
+        }
+
+        /// <inheritdoc/>
         public DateTime? PeekNextScheduleDueUtc(DateTime nowUtc)
         {
             using WorkflowContext ctx = contextFactory();
@@ -1329,6 +1399,19 @@ namespace ITVComponents.Workflow.EntityFramework
                 ClaimedUntil = AsUtc(row.LeaseUntilUtc),
                 ActivatedBy = row.ActivatedBy,
                 ActivatedUtc = AsUtc(row.ActivatedUtc) ?? row.ActivatedUtc
+            };
+
+        /// <summary>Uebersetzt eine Widerspruchs-Zeile in ihr Domaenen-Gegenstueck.</summary>
+        private static WorkflowRetentionOverride ToRetentionOverride(WorkflowRetentionOverrideRow row)
+            => new WorkflowRetentionOverride
+            {
+                OwnerTenantId = row.OwnerTenantId,
+                DefinitionId = row.DefinitionId,
+                TenantId = row.TenantId,
+                RetentionDays = row.RetentionDays,
+                AttachmentRetentionDays = row.AttachmentRetentionDays,
+                SetBy = row.SetBy,
+                SetUtc = AsUtc(row.SetUtc) ?? row.SetUtc
             };
 
         /// <summary>

@@ -3,6 +3,7 @@ using System;
 using ITVComponents.Workflow.EntityFramework;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ITVComponents.Workflow.EntityFramework.PostgreSql.Migrations
 {
     [DbContext(typeof(WorkflowContext))]
-    partial class WorkflowContextModelSnapshot : ModelSnapshot
+    [Migration("20260825191849_RetentionOverrides")]
+    partial class RetentionOverrides
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

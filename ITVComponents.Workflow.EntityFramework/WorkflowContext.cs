@@ -632,6 +632,53 @@ namespace ITVComponents.Workflow.EntityFramework
     }
 
     /// <summary>
+    /// Der <b>Widerspruch eines Mandanten</b> gegen die Aufbewahrungsfristen einer Definition.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Wie <see cref="WorkflowStartTriggerActivationRow"/> ueber die <b>fachliche</b> Identitaet
+    /// (<see cref="OwnerTenantId"/> + <see cref="DefinitionId"/> + <see cref="TenantId"/>) und nicht
+    /// ueber <c>DefinitionKey</c>: der wird bei jeder Version neu vergeben, und ein Widerspruch, der
+    /// daran haengt, waere beim naechsten Veroeffentlichen still weg - es gaelte wieder die Vorgabe.
+    /// </para>
+    /// <para>
+    /// Bewusst <b>ohne</b> Mandanten-Filter, wie die Aktivierungen: der Aufbewahrungslauf geht
+    /// mandantenuebergreifend und muss die Zeilen aller Mandanten sehen. Die Grenze zieht der Mantel,
+    /// der den Benutzer kennt.
+    /// </para>
+    /// <para>
+    /// <b>Eine Ruecknahme loescht die Zeile nicht</b> - beide Fristen auf null heisst "nichts gesagt",
+    /// und <see cref="SetBy"/>/<see cref="SetUtc"/> halten fest, wer das wann getan hat.
+    /// </para>
+    /// </remarks>
+    public class WorkflowRetentionOverrideRow
+    {
+        /// <summary>Der technische Schluessel dieser Zeile (von der Datenbank vergeben).</summary>
+        public int RetentionOverrideKey { get; set; }
+
+        /// <summary>Der Mandant der DEFINITION (null = oeffentlich).</summary>
+        public string OwnerTenantId { get; set; }
+
+        /// <summary>Die fachliche Id der Definition.</summary>
+        public string DefinitionId { get; set; }
+
+        /// <summary>Der Mandant, der widerspricht.</summary>
+        public string TenantId { get; set; }
+
+        /// <summary>Seine Frist bis zum Archivieren, oder null (dann gilt die Vorgabe).</summary>
+        public int? RetentionDays { get; set; }
+
+        /// <summary>Seine Frist fuer die Anhang-Inhalte, oder null (dann gilt die Vorgabe).</summary>
+        public int? AttachmentRetentionDays { get; set; }
+
+        /// <summary>Wer den Widerspruch zuletzt gesetzt (oder zurueckgenommen) hat.</summary>
+        public string SetBy { get; set; }
+
+        /// <summary>Wann (UTC).</summary>
+        public DateTime SetUtc { get; set; }
+    }
+
+    /// <summary>
     /// Eine <b>vorgemerkte, noch nicht zugestellte Nachricht</b> - geschrieben im selben Commit wie der
     /// Zweig, der sie ausgeloest hat.
     /// </summary>
@@ -856,6 +903,9 @@ namespace ITVComponents.Workflow.EntityFramework
         /// <summary>Die Aktivierungen der Ausloeser je Mandant - Zustimmung und Lauf-Zustand.</summary>
         public DbSet<WorkflowStartTriggerActivationRow> WorkflowStartTriggerActivations { get; set; }
 
+        /// <summary>Die Widersprueche der Mandanten gegen die Aufbewahrungsfristen.</summary>
+        public DbSet<WorkflowRetentionOverrideRow> WorkflowRetentionOverrides { get; set; }
+
         /// <summary>Die Kommentare an den Vorgaengen.</summary>
         public DbSet<WorkflowCommentRow> WorkflowComments { get; set; }
 
@@ -1036,6 +1086,28 @@ namespace ITVComponents.Workflow.EntityFramework
                 // Version, aus der ihr Ausloeser stammte - sie gehoert der Definition als Ganzem, nicht
                 // einer ihrer Fassungen. Und keinen auf den Ausloeser, weil dessen Zeile bei jedem
                 // Speichern eine andere ist.
+            });
+
+            modelBuilder.Entity<WorkflowRetentionOverrideRow>(e =>
+            {
+                e.HasKey(n => n.RetentionOverrideKey);
+                // Die fachliche Identitaet, EINDEUTIG: ein Mandant widerspricht einer Definition genau
+                // einmal. Dieselben zwei Fallen wie beim eindeutigen Index der Aktivierungen, und aus
+                // demselben Grund - hier sind sogar alle drei Spalten nullable (oeffentliche Definition,
+                // mandantenfreier Betrieb):
+                // 1) HasFilter(null) ist Pflicht, sonst haengt SQL Server von selbst ein
+                //    "WHERE ... IS NOT NULL" an und nimmt ausgerechnet die oeffentlichen Definitionen
+                //    von der Pruefung aus - also den Regelfall.
+                // 2) PostgreSQL behandelt NULLs im eindeutigen Index als VERSCHIEDEN; dort setzt die
+                //    Migration NULLS NOT DISTINCT, sonst ist der Schutz still wirkungslos.
+                e.HasIndex(n => new { n.OwnerTenantId, n.DefinitionId, n.TenantId })
+                    .IsUnique().HasFilter(null);
+                // "was hat DIESER Mandant eingestellt?" - die Abfrage der Uebersicht. Der eindeutige
+                // Index hilft ihr nicht: dort steht der Mandant an letzter Stelle.
+                e.HasIndex(n => n.TenantId);
+                // KEIN Fremdschluessel auf die Definition, aus demselben Grund wie bei den
+                // Aktivierungen: der Widerspruch gehoert der Definition als Ganzem und ueberlebt die
+                // Fassung, gegen die er eingelegt wurde.
             });
 
             modelBuilder.Entity<WorkflowBranchLockRow>(e =>

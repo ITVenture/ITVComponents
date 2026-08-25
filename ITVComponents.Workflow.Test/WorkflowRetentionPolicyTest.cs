@@ -26,7 +26,14 @@ namespace ITVComponents.Workflow.Test
             };
 
         private static WorkflowRetentionOverride Objection(int? days)
-            => new WorkflowRetentionOverride { OwnerTenantId = "t1", DefinitionId = "wf", RetentionDays = days };
+            => new WorkflowRetentionOverride
+            {
+                // Die oeffentliche Definition (Besitzer null), gegen die der Mandant t1 widerspricht.
+                OwnerTenantId = null,
+                DefinitionId = "wf",
+                TenantId = "t1",
+                RetentionDays = days
+            };
 
         private static WorkflowRetentionDefaults Global(int? days)
             => new WorkflowRetentionDefaults { RetentionDays = days };

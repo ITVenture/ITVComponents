@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.Retention;
 
 namespace ITVComponents.Workflow.Stores
 {
@@ -284,6 +285,45 @@ namespace ITVComponents.Workflow.Stores
         /// ausloesen.
         /// </remarks>
         void SaveActivation(WorkflowStartTriggerActivation activation);
+
+        /// <summary>
+        /// Die Widersprueche dieses Mandanten gegen die Aufbewahrungsfristen - der Weg der Oberflaeche,
+        /// die zeigt, was er selbst eingestellt hat.
+        /// </summary>
+        /// <param name="tenantId">der widersprechende Mandant</param>
+        /// <returns>seine Widersprueche; nie null</returns>
+        /// <remarks>
+        /// Auch die zurueckgenommenen (beide Fristen null) sind dabei: sie sind der Nachweis, dass
+        /// jemand die Frist einmal angefasst hat, und die Uebersicht soll das zeigen koennen.
+        /// </remarks>
+        IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverrides(string tenantId);
+
+        /// <summary>
+        /// Alle Widersprueche gegen EINE Definition - der Weg des Aufbewahrungslaufs, der eine Definition
+        /// in die Hand nimmt und fuer jeden ihrer Mandanten die geltende Frist braucht.
+        /// </summary>
+        /// <param name="ownerTenantId">der Mandant der Definition; null = die oeffentliche</param>
+        /// <param name="definitionId">die fachliche Id der Definition</param>
+        /// <returns>die Widersprueche; nie null</returns>
+        /// <remarks>
+        /// Ueber die fachliche Identitaet und nicht ueber <c>DefinitionKey</c>: der Widerspruch gehoert
+        /// der Definition als Ganzem, nicht einer ihrer Fassungen.
+        /// </remarks>
+        IReadOnlyList<WorkflowRetentionOverride> GetRetentionOverridesForDefinition(string ownerTenantId,
+            string definitionId);
+
+        /// <summary>
+        /// Legt einen Widerspruch an oder aendert ihn - erkannt an seiner fachlichen Identitaet
+        /// (Besitzer + Definition + widersprechender Mandant).
+        /// </summary>
+        /// <param name="retentionOverride">der Widerspruch; <c>SetUtc</c> wird gesetzt, wenn er leer ist</param>
+        /// <remarks>
+        /// <b>Es gibt bewusst keinen Loesch-Weg.</b> Eine Ruecknahme setzt beide Fristen auf null - damit
+        /// gilt wieder die Vorgabe, aber die Zeile haelt fest, wer sie wann zurueckgenommen hat. Wo das
+        /// Loeschen von Daten an einer Einstellung haengt, ist die Spur mehr wert als die aufgeraeumte
+        /// Tabelle.
+        /// </remarks>
+        void SaveRetentionOverride(WorkflowRetentionOverride retentionOverride);
 
         /// <summary>
         /// Die frueheste noch nicht faellige Zeitplan-Faelligkeit (&gt; nowUtc), oder null. Das Gegenstueck
