@@ -460,6 +460,37 @@ entscheiden und nicht im Sweep.
 
 Nebenbei entfielen 15 `@inject ISnackbar Snackbar`, die nach dem Umbau niemand mehr brauchte.
 
+### Runde 2c — `CrudGrid`: der Posten hält der Prüfung NICHT stand
+
+Von den drei grossen Posten ist das der einzige, dessen Schätzung (~2.000 Z.) sich nicht einlösen lässt.
+
+**Ein gemeinsames Raster-Bauteil ist blockiert.** `CrudGrid<T>` bräuchte einen gemeinsamen
+Handler-Vertrag (`ListAsync`/`CreateAsync`/`UpdateAsync`/`DeleteAsync`). Den gibt es nicht — jeder der
+rund sechzig Handler hat eigene Methodennamen. Ihn nachzurüsten hiesse, `PagedResult`/`ListQuery`
+zusammenzulegen, und **genau das steht unten unter „Zurückgestellt" als breaking**. Nebenbefund:
+`ListQuery` (TenantSecurityViews) und `UserListQuery` (AspNetCoreTenantSecurityUserView) sind Feld für
+Feld identisch, `PagedResult<T>` ebenso.
+
+**Die Werkzeugleiste ist nicht skriptbar.** 65 Leisten, 795 Zeilen — aber die häufigste normalisierte
+Form kommt **viermal** vor. Die Varianz ist echt: mit/ohne Suchfeld (nur 30 von 65 haben eines),
+mit/ohne Hinzufügen-Knopf, unterschiedliche `SecureView`-Berechtigungen, `@if (Root)`-Verzweigungen,
+lokalisierte und wörtliche Titel. Ein `CrudGridToolbar` ist machbar, aber das wären **65 Handgriffe an
+Markup mit sichtbarer Wirkung**, nicht ein Sweep. Offen, als eigene Entscheidung.
+
+**Gemacht wurde der Teil mit einem Fehler-Bezug:** neu `GridQuery.ToListQuery` (und `UserGridQuery.
+ToUserListQuery` für die Benutzer-Ansichten). Die Übersetzung `GridState` → `ListQuery` stand achtzehn
+Mal ausgeschrieben da; die Sortierung geht darin über `state.SortDefinitions.FirstOrDefault()`. Wer die
+Zeile vergisst oder `SortColumn` nicht setzt, bekommt ein Raster mit anklickbaren, **wirkungslosen**
+Spaltenköpfen — und das ist kein erfundenes Risiko, sondern **Befund 5 aus Runde 1**
+(„Spaltensortierung im Tsc-Modus wirkungslos"). Jetzt kann er nicht mehr entstehen.
+
+18 Dateien, −163/+18 Zeilen.
+
+**Bewusst NICHT gemacht:** die übrigen 107 wiederkehrenden Einzeiler
+(`new GridData<X> { Items = result.Items, TotalItems = result.TotalCount }` und die leere Variante) auf
+Helfer umzustellen. Sie sparen **keine** Zeile, verhindern **keinen** Fehler und hätten 59 Dateien
+angefasst — das wäre Unruhe statt Konsolidierung.
+
 ### Zurückgestellt
 
 - **`HasPermission(ClaimsPrincipal user, …)`**: 33× identisch, `user` wird **nirgends** gelesen — kein

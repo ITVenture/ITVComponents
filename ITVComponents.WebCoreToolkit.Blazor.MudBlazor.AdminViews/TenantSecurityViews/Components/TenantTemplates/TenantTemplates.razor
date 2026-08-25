@@ -93,15 +93,7 @@ else
     private async Task<GridData<TenantTemplateViewModel>> LoadData(GridState<TenantTemplateViewModel> state, CancellationToken ct)
     {
         if (currentUser is null) return new GridData<TenantTemplateViewModel> { Items = Array.Empty<TenantTemplateViewModel>(), TotalItems = 0 };
-        var sort = state.SortDefinitions.FirstOrDefault();
-        var query = new ListQuery
-        {
-            Page = state.Page,
-            PageSize = state.PageSize,
-            SortColumn = sort?.SortBy,
-            SortDescending = sort?.Descending ?? false,
-            Search = search
-        };
+        var query = state.ToListQuery(search);
         var result = await Handler.ListAsync(currentUser, query);
         return new GridData<TenantTemplateViewModel> { Items = result.Items, TotalItems = result.TotalCount };
     }

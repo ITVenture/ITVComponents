@@ -114,15 +114,7 @@ else
     private async Task<GridData<PermissionViewModel>> LoadData(GridState<PermissionViewModel> state, CancellationToken ct)
     {
         if (currentUser is null) return new GridData<PermissionViewModel> { Items = Array.Empty<PermissionViewModel>(), TotalItems = 0 };
-        var sort = state.SortDefinitions.FirstOrDefault();
-        var query = new ListQuery
-        {
-            Page = state.Page,
-            PageSize = state.PageSize,
-            SortColumn = sort?.SortBy,
-            SortDescending = sort?.Descending ?? false,
-            Search = search
-        };
+        var query = state.ToListQuery(search);
         var result = await Handler.ListPermissionsAsync(currentUser, effectiveTenantId, query);
         return new GridData<PermissionViewModel> { Items = result.Items, TotalItems = result.TotalCount };
     }

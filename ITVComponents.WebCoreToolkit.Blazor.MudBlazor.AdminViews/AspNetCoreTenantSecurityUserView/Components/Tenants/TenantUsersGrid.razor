@@ -94,16 +94,7 @@ else
         if (currentUser is null || !hasView)
             return new GridData<UserViewModel> { Items = Array.Empty<UserViewModel>(), TotalItems = 0 };
 
-        var sort = state.SortDefinitions.FirstOrDefault();
-        var query = new UserListQuery
-        {
-            Page = state.Page,
-            PageSize = state.PageSize,
-            SortColumn = sort?.SortBy,
-            SortDescending = sort?.Descending ?? false,
-            Search = search,
-            TenantId = TenantId
-        };
+        var query = state.ToUserListQuery(search, TenantId);
         var result = await Handler.ListUsersAsync(currentUser, query);
         return new GridData<UserViewModel> { Items = result.Items, TotalItems = result.TotalCount };
     }

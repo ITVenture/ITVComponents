@@ -136,15 +136,7 @@ else
     {
         if (currentUser is null || effectiveTenantId is null)
             return new GridData<RoleViewModel> { Items = Array.Empty<RoleViewModel>(), TotalItems = 0 };
-        var sort = state.SortDefinitions.FirstOrDefault();
-        var query = new ListQuery
-        {
-            Page = state.Page,
-            PageSize = state.PageSize,
-            SortColumn = sort?.SortBy,
-            SortDescending = sort?.Descending ?? false,
-            Search = search
-        };
+        var query = state.ToListQuery(search);
         var result = await Handler.ListRolesAsync(currentUser, effectiveTenantId.Value, query);
         return new GridData<RoleViewModel> { Items = result.Items, TotalItems = result.TotalCount };
     }
