@@ -63,10 +63,25 @@ namespace ITVComponents.Workflow.Retention
     /// <summary>Eine geltende Frist samt ihrer Herkunft.</summary>
     /// <param name="Days">die Tage, oder null = kein Aufraeumen</param>
     /// <param name="Source">woher der Wert stammt</param>
-    public readonly record struct EffectiveRetention(int? Days, RetentionSource Source)
+    /// <param name="RequestedDays">
+    /// was der Mandant wollte, falls der Rahmen es begrenzt hat - sonst null
+    /// </param>
+    public readonly record struct EffectiveRetention(int? Days, RetentionSource Source,
+        int? RequestedDays = null)
     {
         /// <summary>Wird ueberhaupt aufgeraeumt?</summary>
         public bool Applies => Days.HasValue;
+
+        /// <summary>
+        /// Wurde der Wunsch des Mandanten vom Rahmen begrenzt? Dann steht in
+        /// <see cref="RequestedDays"/>, was er wollte.
+        /// </summary>
+        /// <remarks>
+        /// <b>Begrenzt und nicht verworfen</b> - aber es wird gesagt. Still zu begrenzen hiesse, dass ein
+        /// Mandant zehn Tage einstellt, dreissig bekommt und es nirgends erfaehrt. Bei einer Einstellung,
+        /// an der das Loeschen von Daten haengt, ist das die schlechteste aller Auskuenfte.
+        /// </remarks>
+        public bool WasLimited => RequestedDays.HasValue;
 
         /// <summary>
         /// Der Stichtag: alles, was VOR diesem Zeitpunkt geendet hat, ist faellig. Null, wenn nicht
@@ -109,7 +124,9 @@ namespace ITVComponents.Workflow.Retention
             => Resolve(
                 MayOverride(definition) ? tenantOverride?.RetentionDays : null,
                 definition?.RetentionDays,
-                defaults?.RetentionDays);
+                defaults?.RetentionDays,
+                definition?.MinTenantRetentionDays,
+                definition?.MaxTenantRetentionDays);
 
         /// <summary>Die Frist fuer die Anhang-Inhalte.</summary>
         /// <param name="definition">die Definition des Vorgangs</param>
@@ -120,7 +137,9 @@ namespace ITVComponents.Workflow.Retention
             => Resolve(
                 MayOverride(definition) ? tenantOverride?.AttachmentRetentionDays : null,
                 definition?.AttachmentRetentionDays,
-                defaults?.AttachmentRetentionDays);
+                defaults?.AttachmentRetentionDays,
+                definition?.MinTenantAttachmentRetentionDays,
+                definition?.MaxTenantAttachmentRetentionDays);
 
         /// <summary>
         /// Wirkt ein Widerspruch dieses Mandanten ueberhaupt? Ohne Definition nein - dann ist nicht zu
@@ -130,11 +149,15 @@ namespace ITVComponents.Workflow.Retention
         public static bool MayOverride(WorkflowDefinition definition)
             => definition is { AllowTenantRetentionOverride: true };
 
-        private static EffectiveRetention Resolve(int? tenant, int? definition, int? global)
+        private static EffectiveRetention Resolve(int? tenant, int? definition, int? global,
+            int? min, int? max)
         {
             if (Valid(tenant))
             {
-                return new EffectiveRetention(tenant, RetentionSource.Tenant);
+                int granted = Clamp(tenant.Value, min, max);
+                return granted == tenant.Value
+                    ? new EffectiveRetention(tenant, RetentionSource.Tenant)
+                    : new EffectiveRetention(granted, RetentionSource.Tenant, tenant);
             }
 
             if (Valid(definition))
@@ -154,5 +177,30 @@ namespace ITVComponents.Workflow.Retention
         /// raeumte Vorgaenge weg, die noch gar nicht geendet haben.
         /// </summary>
         private static bool Valid(int? days) => days is >= 0;
+
+        /// <summary>
+        /// Haelt den Wunsch des Mandanten im Rahmen der Definition.
+        /// </summary>
+        /// <remarks>
+        /// <b>Ein widerspruechlicher Rahmen (Untergrenze groesser als Obergrenze) wird ganz ignoriert</b>
+        /// statt in einer der beiden Richtungen aufgeloest. Er ist ein Fehler des Autors, und welche der
+        /// beiden Grenzen "gewinnt", waere geraten - beide Antworten liessen sich begruenden, und genau
+        /// deshalb darf sie hier nicht fallen. Der Validator der Definition ist die Stelle, die das
+        /// bemaengelt; bis dahin gilt der Wunsch des Mandanten unveraendert.
+        /// </remarks>
+        private static int Clamp(int days, int? min, int? max)
+        {
+            if (Valid(min) && Valid(max) && min.Value > max.Value)
+            {
+                return days;
+            }
+
+            if (Valid(min) && days < min.Value)
+            {
+                return min.Value;
+            }
+
+            return Valid(max) && days > max.Value ? max.Value : days;
+        }
     }
 }

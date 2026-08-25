@@ -164,6 +164,32 @@ namespace ITVComponents.Workflow.Model
         /// </para></remarks>
         public bool AllowTenantRetentionOverride { get; set; }
 
+        /// <summary>
+        /// Die kuerzeste Frist bis zum Archivieren, die ein Mandant waehlen darf. Null = keine
+        /// Untergrenze.
+        /// </summary>
+        /// <remarks>
+        /// Der Rahmen begrenzt <b>nur den Widerspruch des Mandanten</b>, nicht die Vorgabe der Definition
+        /// selbst - die IST die Norm. Gedacht fuer den Fall, dass eine Aufbewahrung vorgeschrieben ist:
+        /// der Mandant darf laenger aufheben, aber nicht kuerzer.
+        /// </remarks>
+        public int? MinTenantRetentionDays { get; set; }
+
+        /// <summary>
+        /// Die laengste Frist bis zum Archivieren, die ein Mandant waehlen darf. Null = keine Obergrenze.
+        /// </summary>
+        /// <remarks>
+        /// Die Gegenrichtung zu <see cref="MinTenantRetentionDays"/>: wo eine Loeschfrist gilt, darf ein
+        /// Mandant nicht beliebig lange aufheben.
+        /// </remarks>
+        public int? MaxTenantRetentionDays { get; set; }
+
+        /// <summary>Untergrenze fuer den Widerspruch zur Anhang-Frist, oder null.</summary>
+        public int? MinTenantAttachmentRetentionDays { get; set; }
+
+        /// <summary>Obergrenze fuer den Widerspruch zur Anhang-Frist, oder null.</summary>
+        public int? MaxTenantAttachmentRetentionDays { get; set; }
+
         /// <summary>Die Knoten des Graphen.</summary>
         public List<WorkflowNode> Nodes { get; set; } = new List<WorkflowNode>();
 

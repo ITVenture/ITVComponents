@@ -107,6 +107,115 @@ namespace ITVComponents.Workflow.Test
                 "derselbe Widerspruch, nur die Definition hat ihre Meinung geaendert.");
         }
 
+        // --- Der Rahmen -------------------------------------------------------------------------------
+
+        private static WorkflowDefinition Bounded(int? days, int? min, int? max)
+            => new WorkflowDefinition
+            {
+                Id = "wf",
+                RetentionDays = days,
+                AllowTenantRetentionOverride = true,
+                MinTenantRetentionDays = min,
+                MaxTenantRetentionDays = max
+            };
+
+        /// <summary>
+        /// Innerhalb des Rahmens gilt der Wunsch unveraendert - und WasLimited sagt, dass nichts
+        /// angefasst wurde.
+        /// </summary>
+        [TestMethod]
+        public void AWishInsideTheBounds_IsGrantedAsIs()
+        {
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(
+                Bounded(90, min: 30, max: 365), Objection(180), null);
+
+            Assert.AreEqual(180, result.Days);
+            Assert.AreEqual(RetentionSource.Tenant, result.Source);
+            Assert.IsFalse(result.WasLimited);
+            Assert.IsNull(result.RequestedDays);
+        }
+
+        /// <summary>
+        /// Der Fall, fuer den es den Rahmen gibt: eine vorgeschriebene Mindestaufbewahrung. Der Mandant
+        /// darf laenger aufheben, aber nicht kuerzer.
+        /// </summary>
+        [TestMethod]
+        public void TooShort_IsRaisedToTheMinimum_AndSaysSo()
+        {
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(
+                Bounded(90, min: 30, max: null), Objection(10), null);
+
+            Assert.AreEqual(30, result.Days, "die Untergrenze setzt sich durch.");
+            Assert.AreEqual(RetentionSource.Tenant, result.Source, "es bleibt SEIN Wunsch, nur begrenzt.");
+            Assert.IsTrue(result.WasLimited,
+                "still zu begrenzen hiesse: er stellt zehn Tage ein, bekommt dreissig und erfaehrt es nie.");
+            Assert.AreEqual(10, result.RequestedDays, "was er wollte, bleibt ablesbar.");
+        }
+
+        /// <summary>Die Gegenrichtung: wo eine Loeschfrist gilt, darf niemand beliebig lange aufheben.</summary>
+        [TestMethod]
+        public void TooLong_IsCutToTheMaximum_AndSaysSo()
+        {
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(
+                Bounded(90, min: null, max: 365), Objection(3650), null);
+
+            Assert.AreEqual(365, result.Days);
+            Assert.IsTrue(result.WasLimited);
+            Assert.AreEqual(3650, result.RequestedDays);
+        }
+
+        /// <summary>
+        /// Der Rahmen begrenzt NUR den Widerspruch. Die Vorgabe der Definition ist die Norm - sie an
+        /// ihren eigenen Grenzen zu beschneiden hiesse, dem Autor zu widersprechen.
+        /// </summary>
+        [TestMethod]
+        public void TheBoundsDoNotTouchTheDefinitionsOwnDefault()
+        {
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(
+                Bounded(5, min: 30, max: 365), null, null);
+
+            Assert.AreEqual(5, result.Days);
+            Assert.AreEqual(RetentionSource.Definition, result.Source);
+            Assert.IsFalse(result.WasLimited);
+        }
+
+        /// <summary>
+        /// Ohne Erlaubnis nuetzt auch ein Rahmen nichts: der Widerspruch wirkt gar nicht, und dann ist
+        /// auch nichts zu begrenzen.
+        /// </summary>
+        [TestMethod]
+        public void WithoutPermission_TheBoundsAreNotEvenReached()
+        {
+            var definition = new WorkflowDefinition
+            {
+                Id = "wf",
+                RetentionDays = 90,
+                MinTenantRetentionDays = 30,
+                AllowTenantRetentionOverride = false
+            };
+
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(definition, Objection(10), null);
+
+            Assert.AreEqual(90, result.Days);
+            Assert.AreEqual(RetentionSource.Definition, result.Source);
+            Assert.IsFalse(result.WasLimited);
+        }
+
+        /// <summary>
+        /// Ein widerspruechlicher Rahmen wird GANZ ignoriert. Welche der beiden Grenzen "gewinnt", waere
+        /// geraten - beide Antworten liessen sich begruenden, und genau deshalb darf die Entscheidung
+        /// hier nicht fallen.
+        /// </summary>
+        [TestMethod]
+        public void ContradictoryBounds_AreIgnoredEntirely()
+        {
+            EffectiveRetention result = WorkflowRetentionPolicy.Archive(
+                Bounded(90, min: 365, max: 30), Objection(100), null);
+
+            Assert.AreEqual(100, result.Days, "der Wunsch gilt unveraendert.");
+            Assert.IsFalse(result.WasLimited, "und es wird nicht behauptet, es sei begrenzt worden.");
+        }
+
         // --- Grenzfaelle -------------------------------------------------------------------------------
 
         /// <summary>
