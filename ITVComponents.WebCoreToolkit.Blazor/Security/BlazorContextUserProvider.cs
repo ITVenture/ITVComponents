@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -118,11 +119,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 }
 
                 var result = ParseQuery(uri);
+                var baseSegments = BaseSegments(baseUri);
+                // Der Asset-Abschnitt fuehrt die URL an (siehe SharedAssetPath): steht er im base-href, ist
+                // der Mandant der ZWEITE Abschnitt, nicht der erste. Und ein lebender Circuit hat keinen
+                // HttpContext mehr - der Abschnitt hier ist die einzige Quelle, aus der der Asset-Kontext
+                // eine Navigation im Circuit ueberlebt.
+                var assetSegment = baseSegments.Length != 0 && SharedAssetPath.IsAssetSegment(baseSegments[0])
+                    ? baseSegments[0]
+                    : RequestAssetSegment();
+                if (!string.IsNullOrEmpty(assetSegment))
+                {
+                    result[Global.SharedAssetSegmentItemKey] = assetSegment;
+                }
+
                 var opts = scopeOptions.Value;
                 if (opts.TenantSource == TenantSource.PathSegment
                     && !string.IsNullOrEmpty(opts.RouteOverrideParam))
                 {
-                    var segment = ExtractFirstBaseSegment(baseUri);
+                    var tenantIndex = baseSegments.Length != 0 && SharedAssetPath.IsAssetSegment(baseSegments[0]) ? 1 : 0;
+                    var segment = baseSegments.Length > tenantIndex ? baseSegments[tenantIndex] : null;
                     if (string.IsNullOrEmpty(segment))
                     {
                         // NavigationManager initialized but the base URI carries no tenant — a request that
@@ -172,6 +187,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         /// </summary>
         private string? RequestTenantSegment()
             => httpContextAccessor.HttpContext?.Items.TryGetValue(TenantPathPrefixMiddleware.TenantSegmentItemKey, out var value) == true
+                ? value as string
+                : null;
+
+        /// <summary>
+        /// The shared-asset segment <see cref="SharedAssetPathMiddleware"/> stashed for the request being
+        /// served, or <c>null</c>. Only relevant while a request exists (static SSR, non-Blazor endpoints);
+        /// inside a live circuit the base URI is the source.
+        /// </summary>
+        private string? RequestAssetSegment()
+            => httpContextAccessor.HttpContext?.Items.TryGetValue(Global.SharedAssetSegmentItemKey, out var value) == true
                 ? value as string
                 : null;
 
@@ -233,20 +258,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             }
         }
 
-        private static string? ExtractFirstBaseSegment(string baseUri)
+        /// <summary>
+        /// The segments of the current base URI, in order. Formerly only the first one was needed (the
+        /// tenant); with a shared asset in the path the base href can carry two prefixes, and which is which
+        /// depends on the first one being marked.
+        /// </summary>
+        private static string[] BaseSegments(string baseUri)
         {
             try
             {
                 var path = new Uri(baseUri).AbsolutePath;
-                if (string.IsNullOrEmpty(path)) return null;
+                if (string.IsNullOrEmpty(path)) return Array.Empty<string>();
                 var trimmed = path.Trim('/');
-                if (trimmed.Length == 0) return null;
-                var slash = trimmed.IndexOf('/');
-                return slash < 0 ? trimmed : trimmed.Substring(0, slash);
+                if (trimmed.Length == 0) return Array.Empty<string>();
+                return trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
             }
             catch
             {
-                return null;
+                return Array.Empty<string>();
             }
         }
 

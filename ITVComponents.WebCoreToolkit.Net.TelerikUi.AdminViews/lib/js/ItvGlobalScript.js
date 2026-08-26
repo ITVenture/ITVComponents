@@ -275,7 +275,13 @@ window.ITVenture = {
     },
     Ajax: {
         globalAjaxTimeout: null,
+        // Wird vom Server ueberschrieben (Html.ItvClientContext): der Wert kommt aus PathBase und traegt
+        // damit sowohl ein virtuelles Verzeichnis als auch den Abschnitt eines geteilten Assets. Ein fest
+        // stehendes "/" waere in beiden Faellen falsch.
         baseUrl: "/",
+        // Der Abschnitt des aktuell wirksamen geteilten Assets (mit Marker) oder null. Fuer Skripte, die
+        // eine URL ohne "~/" zusammensetzen und den Kontext trotzdem behalten muessen.
+        assetSegment: null,
         ajaxGet: function (url, expectedType, extend) {
             if (typeof expectedType === "undefined" || expectedType === null) {
                 expectedType = "json";

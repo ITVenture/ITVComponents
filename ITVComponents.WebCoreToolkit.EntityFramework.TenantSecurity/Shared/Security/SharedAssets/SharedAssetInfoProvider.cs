@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
@@ -151,6 +152,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public bool VerifyRequestLocation(string requestPath, string assetKey, string userScope, ClaimsPrincipal requestor)
         {
+            requestPath = Canonical(requestPath);
             if (!ImpersonationDeactivated)
             {
                 using var lease = contextFactory.Lease<TContext>();
@@ -175,6 +177,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public AssetTemplateInfo[] GetEligibleShares(string requestPath)
         {
+            requestPath = Canonical(requestPath);
             if (!ImpersonationDeactivated)
             {
                 using var lease = contextFactory.Lease<TContext>();
@@ -205,6 +208,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
         {
+            requestPath = Canonical(requestPath);
             using var lease = contextFactory.Lease<TContext>();
             var database = lease.Context;
             var assetTmp = database.AssetTemplates.First(n => n.SystemKey == template.TemplateKey);
@@ -331,24 +335,48 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             return false;
         }
 
+        /// <summary>
+        /// Erzeugt den Link fuer einen anonymen Empfaenger: derselbe Pfad wie <see cref="CreateLink"/>, nur
+        /// traegt der Abschnitt zusaetzlich das Zugangs-Token.
+        /// </summary>
         public string CreateAnonymousLink(AssetInfo info, HttpContext context)
         {
-            var baseUrl = CreateLink(info, context);
             var anonymousProvider = services.GetService<IAnonymousAssetLinkProvider>();
-            if (anonymousProvider != null && info is FullAssetInfo fin)
+            if (anonymousProvider == null || info is not FullAssetInfo fin)
             {
-                baseUrl = anonymousProvider.CreateAnonymousLink(baseUrl, fin);
-                return baseUrl;
+                LogEnvironment.LogEvent(
+                    "Kein IAnonymousAssetLinkProvider registriert oder keine vollen Asset-Angaben vorhanden - es kann kein anonymer Link erzeugt werden.",
+                    LogSeverity.Error);
+                return null;
             }
 
-            return null;
+            return BuildLink(info, context, anonymousProvider.CreateAnonymousToken(fin));
         }
 
+        /// <summary>
+        /// Erzeugt den Link fuer einen angemeldeten Empfaenger. Der Asset-Abschnitt steht ganz vorne, davor
+        /// nur Schema und Host - siehe <see cref="SharedAssetPath"/>.
+        /// </summary>
         public string CreateLink(AssetInfo info, HttpContext context)
         {
-            var quid = info.AssetRootPath.Contains('?');
-            var nop = !info.AssetRootPath.EndsWith('?');
-            return $"{context.Request.Scheme}://{context.Request.Host}{info.AssetRootPath}{(!nop?(quid?"&":"?"):string.Empty)}{WebCoreToolkit.Global.FixedAssetRequestQueryParameter}={info.AssetKey}";
+            return BuildLink(info, context, null);
+        }
+
+        private string BuildLink(AssetInfo info, HttpContext context, string accessToken)
+        {
+            var segment = SharedAssetPath.BuildSegment(info.AssetKey, accessToken);
+            // Der Mandant gehoert nur in den Link, wenn ihn dieser Host ueberhaupt im Pfad fuehrt. Das ist
+            // dieselbe Bedingung, unter der IUrlFormat den Scope einsetzt.
+            var scope = services.GetService<IPermissionScope>();
+            var tenant = scope is { IsScopeExplicit: true } ? scope.PermissionPrefix : null;
+            var prefix = SharedAssetPath.BuildPrefix(segment, tenant);
+            var rootPath = string.IsNullOrEmpty(info.AssetRootPath) ? "/" : info.AssetRootPath;
+            if (!rootPath.StartsWith("/", StringComparison.Ordinal))
+            {
+                rootPath = "/" + rootPath;
+            }
+
+            return $"{context.Request.Scheme}://{context.Request.Host}{prefix}{rootPath}";
         }
 
         public FullAssetInfo FindAnonymousAsset(string assetKey)
@@ -439,6 +467,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
 
             return legit;
+        }
+
+        /// <summary>
+        /// Bringt einen Anfragepfad auf die Form, in der <c>RootPath</c> und die Pfadmuster der Vorlage
+        /// gespeichert sind: ohne Asset-Abschnitt und ohne Mandantensegment - so, wie ihn die Route sieht.
+        /// <para>
+        /// Ohne das wuerde derselbe Vergleich je nach Host gegen verschiedene Pfade laufen: in MVC steht der
+        /// Mandant noch im Pfad, in Blazor liegt er bereits in <c>PathBase</c>. Gespeichert werden kann aber
+        /// nur eine der beiden Formen.
+        /// </para>
+        /// </summary>
+        /// <param name="requestPath">der Pfad, wie ihn der Aufrufer kennt</param>
+        /// <returns>der praefixfreie Pfad</returns>
+        private string Canonical(string requestPath)
+        {
+            var assetSegment = services.GetService<ISharedAssetContext>()?.Segment;
+            var tenant = services.GetService<IPermissionScope>()?.PermissionPrefix;
+            return SharedAssetPath.Canonicalize(requestPath, assetSegment, tenant);
         }
 
         private bool IsTemplateValidForPath(TAssetTemplate template, string requestPath)

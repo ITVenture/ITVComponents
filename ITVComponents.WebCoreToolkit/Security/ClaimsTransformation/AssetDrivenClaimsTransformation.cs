@@ -8,24 +8,38 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
 {
+    /// <summary>
+    /// Decorates the current principal with the fixed scope, permissions and features of the shared asset
+    /// the request runs in.
+    /// <para>
+    /// Reads the asset through <see cref="ISharedAssetContext"/> instead of digging in the query string
+    /// itself, which is what makes it work in a Blazor circuit as well: there is no query and no usable
+    /// referer per navigation there, but there is a path prefix.
+    /// </para>
+    /// </summary>
     public class AssetDrivenClaimsTransformation : ICollectedClaimsProvider
     {
-        private readonly IHttpContextUserProvider userProvider;
+        private readonly ISharedAssetContext assetContext;
         private readonly IServiceScopeFactory serviceProvider;
+        private readonly ILogger<AssetDrivenClaimsTransformation> logger;
         public const string ITVentureIssuerString = "IT-Venture WebCore-Toolkit -- Shared Assets";
 
         /// <summary>
         /// Initializes a new instance of the AssetDrivenClaimsTransformation class
         /// </summary>
-        /// <param name="userProvider">provides access to the current http-context</param>
+        /// <param name="assetContext">provides the shared asset of the current context</param>
         /// <param name="serviceProvider">the service-provider that enables this object to get registered services</param>
-        public AssetDrivenClaimsTransformation(IHttpContextUserProvider userProvider, IServiceScopeFactory serviceProvider)
+        /// <param name="logger">a logger for assets that can not be applied</param>
+        public AssetDrivenClaimsTransformation(ISharedAssetContext assetContext, IServiceScopeFactory serviceProvider,
+            ILogger<AssetDrivenClaimsTransformation> logger)
         {
-            this.userProvider = userProvider;
+            this.assetContext = assetContext;
             this.serviceProvider = serviceProvider;
+            this.logger = logger;
         }
 
         /// <summary>
@@ -37,21 +51,44 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
         /// <returns>The transformed principal.</returns>
         public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
         {
-            IQueryCollection refQ;
-            if (userProvider.HttpContext != null &&
-                ((refQ = userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
-                || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)))
+            if (!assetContext.HasAsset || principal?.Identity is not ClaimsIdentity id)
             {
-                var assetKey = refQ[Global.FixedAssetRequestQueryParameter];
-                using (var context = serviceProvider.CreateScope())
+                return Task.FromResult(principal);
+            }
+
+            if (id.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
+            {
+                // Idempotenz: die Transformation laeuft bei jedem AuthenticateAsync, die Claims sind aber
+                // schon dran. Ohne diese Probe sammelt derselbe Prinzipal sie mehrfach ein.
+                return Task.FromResult(principal);
+            }
+
+            using (var context = serviceProvider.CreateScope())
+            {
+                var assetManager = context.ServiceProvider.GetService<ISharedAssetAdapter>();
+                if (assetManager == null)
                 {
-                    var assetManager = context.ServiceProvider.GetService<ISharedAssetAdapter>();
-                    var assetInfo = assetManager.GetAssetInfo(assetKey, principal);
-                    var id = principal.Identity as ClaimsIdentity;
-                    id.AddClaims(from t in assetInfo.Permissions select new Claim(ClaimTypes.FixedAssetPermission, t));
-                    id.AddClaims(from t in assetInfo.Features select new Claim(ClaimTypes.FixedAssetFeature, t));
-                    id.AddClaim(new Claim(ClaimTypes.FixedUserScope, assetInfo.UserScopeName));
+                    logger.LogError(
+                        "A request runs inside shared asset '{AssetKey}', but no ISharedAssetAdapter is registered - no asset permissions are applied.",
+                        assetContext.AssetKey);
+                    return Task.FromResult(principal);
                 }
+
+                var assetInfo = assetManager.GetAssetInfo(assetContext.AssetKey, principal);
+                if (assetInfo == null)
+                {
+                    // Kein Zugriff (Filter, Gueltigkeitsfenster, unbekannter Schluessel). Das ist eine
+                    // legitime Antwort - aber eine, die man im Log sehen muss, weil der Besucher nur eine
+                    // Seite ohne Inhalt sieht und "der Link geht nicht" meldet.
+                    logger.LogInformation(
+                        "Shared asset '{AssetKey}' is not accessible for the current requestor; no asset claims are applied.",
+                        assetContext.AssetKey);
+                    return Task.FromResult(principal);
+                }
+
+                id.AddClaims(from t in assetInfo.Permissions select new Claim(ClaimTypes.FixedAssetPermission, t));
+                id.AddClaims(from t in assetInfo.Features select new Claim(ClaimTypes.FixedAssetFeature, t));
+                id.AddClaim(new Claim(ClaimTypes.FixedUserScope, assetInfo.UserScopeName));
             }
 
             return Task.FromResult(principal);

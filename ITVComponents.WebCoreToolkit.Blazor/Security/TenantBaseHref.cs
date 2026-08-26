@@ -1,3 +1,4 @@
+﻿using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +21,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {
             var segment = HttpContextAccessor.HttpContext?.Items[TenantPathPrefixMiddleware.TenantSegmentItemKey] as string;
-            var href = string.IsNullOrEmpty(segment) ? "/" : $"/{segment}/";
+            // Der Asset-Abschnitt gehoert mit in den base-href, und zwar VOR den Mandanten: nur so erben
+            // relative Verweise und der NavigationManager den Asset-Kontext, statt beim ersten Klick
+            // herauszufallen. Er steht in der URL ohnehin an dieser Stelle.
+            var assetSegment = HttpContextAccessor.HttpContext?.Items[Global.SharedAssetSegmentItemKey] as string;
+            var prefix = SharedAssetPath.BuildPrefix(assetSegment, segment);
+            var href = prefix.Length == 0 ? "/" : $"{prefix}/";
 
             builder.OpenElement(0, "base");
             builder.AddAttribute(1, "href", href);

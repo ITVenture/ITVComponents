@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Net.Extensions;
 using ITVComponents.WebCoreToolkit.Net.Options;
@@ -54,6 +55,46 @@ ITVenture.Tools.Uploader.fileTokenMode=""query"";
             return html.Raw($@"<script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews/js/itvComponents.min.js".ExtendUrlWithVersion()}""></script>
 <script src=""{"/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews/js/itvJqPlugs.min.js".ExtendUrlWithVersion()}""></script>
 {setLinkOptions}");
+        }
+
+        /// <summary>
+        /// Emits the client-side context every ITVenture script depends on: the base url that
+        /// <c>ITVenture.Helpers.ResolveUrl</c> substitutes for <c>~/</c>, and the shared-asset segment of the
+        /// current request.
+        /// <para>
+        /// The base url is taken from <c>PathBase</c> - never hard-wired to "/". That single fact is what
+        /// makes every <c>~/</c>-call carry the shared-asset prefix (and a virtual directory) without any
+        /// script knowing about either: the asset segment lives in <c>PathBase</c>.
+        /// </para>
+        /// <para>
+        /// Place it after <see cref="ItvScriptRef"/> and before any script that builds urls.
+        /// </para>
+        /// </summary>
+        /// <param name="html">the html-helper of a razor-view</param>
+        /// <returns>the generated script block</returns>
+        /// <summary>
+        /// Emits the client-side context the ITVenture scripts depend on: the base url that
+        /// <c>ITVenture.Helpers.ResolveUrl</c> substitutes for <c>~/</c>, plus the shared-asset segment of
+        /// the current request.
+        /// <para>
+        /// The base url comes from <c>PathBase</c> and is never hard-wired to "/". That single fact is what
+        /// makes every <c>~/</c>-call carry the shared-asset prefix - and a virtual directory - without any
+        /// script knowing about either: the asset segment lives in <c>PathBase</c>.
+        /// </para>
+        /// <para>Place it after <see cref="ItvScriptRef"/> and before any script that builds urls.</para>
+        /// </summary>
+        /// <param name="html">the html-helper of a razor-view</param>
+        /// <returns>the generated script block</returns>
+        public static IHtmlContent ItvClientContext(this IHtmlHelper html)
+        {
+            var request = html.ViewContext.HttpContext.Request;
+            var pathBase = request.PathBase.Value ?? string.Empty;
+            var baseUrl = pathBase.EndsWith("/", StringComparison.Ordinal) ? pathBase : pathBase + "/";
+            var assetSegment = html.ViewContext.HttpContext.Items[Global.SharedAssetSegmentItemKey] as string;
+            return html.Raw($@"<script>
+ITVenture.Ajax.baseUrl={JsonSerializer.Serialize(baseUrl)};
+ITVenture.Ajax.assetSegment={JsonSerializer.Serialize(assetSegment)};
+</script>");
         }
 
         public static IHtmlContent ItvCustomBootstrapV4(this IHtmlHelper html, string version= null)

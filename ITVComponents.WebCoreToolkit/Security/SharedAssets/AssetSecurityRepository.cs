@@ -198,8 +198,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             if (userLabels.Length == 1 && userLabels[0].Equals(decoratedUser.Identity.Name, StringComparison.OrdinalIgnoreCase) && userAuthenticationType ==
                 ((ClaimsIdentity)decoratedUser.Identity).AuthenticationType)
             {
+                // ScopeName ist der Name, gegen den Mandanten-Segment und Routen-Constraint pruefen - hier
+                // stand frueher ein Literal, waehrend der echte Mandant im Anzeigenamen lag. Solange dieser
+                // Weg nie an einer Mandanten-Pruefung vorbeikam, fiel das nicht auf; mit dem Asset im Pfad
+                // ergibt es einen 404 auf genau der URL, die funktionieren soll.
                 yield return new ScopeInfo
-                    { ScopeDisplayName = assignedUserScope, ScopeName = "Limited Asset Scope" };
+                    { ScopeName = assignedUserScope, ScopeDisplayName = assignedUserScope };
             }
         }
 

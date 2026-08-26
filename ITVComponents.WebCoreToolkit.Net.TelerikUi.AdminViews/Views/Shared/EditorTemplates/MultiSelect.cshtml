@@ -9,7 +9,7 @@
         var area = (string) ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_Area"];
         var url = new StringBuilder();
         url.Append(urlFormat != null ?
-            urlFormat.FormatUrl($"~[SlashPermissionScope]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
+            urlFormat.FormatUrl($"~[SlashScopeUnderBase]{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}") :
             $"~{(!string.IsNullOrEmpty(area) ? $"/{area}" : "")}");
         url.Append($"/ForeignKey/{ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_RepoName"]}/{ViewData[$"{ViewData.TemplateInfo.GetFullHtmlFieldName("")}_TableName"]}");
         ru.Url(Url.Content(url.ToString()));

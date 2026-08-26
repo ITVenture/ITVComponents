@@ -20,6 +20,35 @@
 
         public const string FixedAssetRequestQueryParameter = "SharedAssetKey";
 
+        /// <summary>
+        /// Query-parameter carrying the anonymous access-token in the deprecated query form. Kept readable
+        /// so links that were already sent out keep working; new links use the path form.
+        /// </summary>
+        public const string FixedAssetTokenQueryParameter = "__AccessToken";
+
+        /// <summary>
+        /// Marks the first path segment as a shared-asset segment (<c>/~{key}[.{token}]/…</c>). A segment
+        /// starting with this is an asset segment and nothing else, which is what makes it distinguishable
+        /// from any page path.
+        /// </summary>
+        public const string SharedAssetPathMarker = "~";
+
+        /// <summary>
+        /// Key under which the raw asset segment (with marker) is stored in <c>HttpContext.Items</c>.
+        /// </summary>
+        public const string SharedAssetSegmentItemKey = "ITVComponents.WebCoreToolkit.SharedAssetSegment";
+
+        /// <summary>
+        /// Key under which the decoded asset key is stored in <c>HttpContext.Items</c>.
+        /// </summary>
+        public const string SharedAssetKeyItemKey = "ITVComponents.WebCoreToolkit.SharedAssetKey";
+
+        /// <summary>
+        /// Key under which the anonymous access-token of the current request is stored in
+        /// <c>HttpContext.Items</c>.
+        /// </summary>
+        public const string SharedAssetTokenItemKey = "ITVComponents.WebCoreToolkit.SharedAssetToken";
+
 
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 

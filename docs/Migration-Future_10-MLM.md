@@ -3855,10 +3855,145 @@ habt: der Eintrag schadet nicht, wird aber nicht mehr gebraucht.
 richten sich jetzt zeilenweise aneinander aus, auch wenn eine Legende mehr Kategorien hat als die
 daneben. Rein visuell, keine Konfigurationsänderung.
 
+## 50. Geteilte Assets liegen jetzt im Pfad — **kein Schema-Change, aber Pflicht-Verdrahtung**
+
+Der Schlüssel eines geteilten Assets kam bisher als Query-Parameter
+(`?SharedAssetKey=…&__AccessToken=…`) und wurde notfalls aus dem `Referer` nachgelesen. Beides fällt
+weg: der Schlüssel steht jetzt in einem **markierten Pfad-Abschnitt ganz vorne**.
+
+**Es gibt nichts zu migrieren** — keine Tabelle, keine Spalte, kein Datenumzug. Was zu tun ist, steht
+in 50.2 bis 50.5; der Übersetzer zeigt euch 50.4 von selbst.
+
+### 50.1 Die neue Form
+
+```
+/~{Base64Url(AssetKey)}[.{AccessToken}]/{mandant}/rest/des/pfades
+```
+
+Der Abschnitt steht **vor** dem Mandanten, in MVC wie in Blazor. Er beantwortet „wer bist du und was
+darfst du" — der Mandant fällt nur nebenbei an, denn er steht am Asset. Die Middleware schneidet ihn
+aus `Request.Path` und hängt ihn an `Request.PathBase`, wie es der Mandanten-Präfix eine Ebene weiter
+innen auch tut. Damit erben **alle** relativen Verweise, Weiterleitungen und Unterressourcen den
+Kontext von selbst, und er überlebt Navigation — was er in der Query-Form nie tat.
+
+Nebeneffekt, den ihr kennen solltet: den Präfix zu verlassen heisst, den Base-Href-Raum zu verlassen.
+Das ist ein Vollreload und in Blazor ein neuer Circuit. Genau das macht die Kontextgrenze hart.
+
+### 50.2 Pflicht: `UseSharedAssetPath()` — so früh wie möglich
+
+```csharp
+app.UseSharedAssetPath();     // VOR allem anderen
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseTenantPathPrefix();    // nur Blazor-Hosts
+app.UseRouting();
+app.UseAuthorization();
+```
+
+Ein Aufruf, ganz am Anfang. Die vier Bedingungen — vor `UseStaticFiles` (Unterressourcen unter dem
+Präfix), vor `UseAuthentication` (das Schema `Shared-Asset-Key` liest von dort), vor `UseRouting`
+(sonst sieht die Route ein Segment zu viel) und vor `UseTenantPathPrefix` (die Mandanten-Middleware
+soll den Mandanten wie immer als ersten Abschnitt sehen) — sind an dieser einen Stelle alle erfüllt.
+
+**Vergesst ihr es, sagt es das Log.** Sieht das Anmeldeschema eine Anfrage mit unbearbeitetem
+Asset-Abschnitt, schreibt es einmal je Prozess ein `LogError` mit der richtigen Reihenfolge. Stilles
+Nichtstun gibt es hier nicht — ein Link, der „einfach nichts macht", ist genau die Sorte Fehler, die
+einen Nachmittag kostet.
+
+Die **Dienste** kommen weiterhin über `WebPartInitOptions.UseSharedAssets` — daran ändert sich
+nichts, ausser dass der Schalter jetzt zusätzlich den `ISharedAssetContext` registriert. Die
+Pipeline-Reihenfolge kann euch kein WebPart abnehmen: das WebPart-System hat für Middleware
+absichtlich keinen Haken, weil die Reihenfolge davon abhängt, was ihr sonst noch in die Pipeline
+stellt.
+
+### 50.3 MVC/Telerik: `@Html.ItvClientContext()` ins Layout
+
+```cshtml
+@Html.ItvScriptRef()
+@Html.ItvClientContext()   <!-- neu, danach -->
+```
+
+Das Skript setzt `ITVenture.Ajax.baseUrl` **aus `PathBase`** und zusätzlich
+`ITVenture.Ajax.assetSegment`. Damit trägt jeder `~/`-Aufruf über `ITVenture.Helpers.ResolveUrl` den
+Asset-Abschnitt automatisch mit — er liegt ja in `PathBase`.
+
+**Wenn ihr `baseUrl` bisher selbst gesetzt habt: nehmt den Helfer, oder bildet den Wert aus
+`Url.Content("~/")`.** Ein fest verdrahtetes `"/"` bricht nicht nur den Asset-Kontext, sondern auch
+jedes virtuelle Verzeichnis. Und prüft eigene Skripte, die `window.location.pathname` anhand von
+`baseUrl.length` zerlegen — sie bekommen jetzt einen Abschnitt mehr, wenn `baseUrl` ihn enthält.
+
+### 50.4 Breaking: zwei Signaturen
+
+```csharp
+// vorher
+AnonymousAsset Execute(IQueryCollection requestQuery, out bool denied);
+string CreateAnonymousLink(string baseUrl, FullAssetInfo info);
+
+// nachher
+AnonymousAsset Execute(string assetKey, string accessToken, out bool denied);
+string CreateAnonymousToken(FullAssetInfo info);
+```
+
+`IGetAnonymousAssetQuery` bekommt Schlüssel und Token als Werte — woher sie stammen, ist nicht mehr
+seine Sache. Und `IAnonymousAssetLinkProvider` hängt das Token nicht mehr an eine fertige URL,
+sondern liefert es allein; wohin es gehört, weiss `SharedAssetPath`. Betrifft euch nur, wenn ihr eine
+der beiden Schnittstellen selbst implementiert — die mitgelieferte Implementierung ist umgestellt.
+
+### 50.5 Neue Platzhalter im `IUrlFormat` — und eine Falle
+
+`[SlashPermissionScope]` liefert jetzt den **vollen** Präfix, also Asset-Abschnitt **und** Mandant.
+Für root-absolute Ausgabe (`href="[SlashPermissionScope]/help/x"`) ist das genau richtig und ändert
+für euch nichts.
+
+**Wer aber `~[SlashPermissionScope]` schreibt, bekommt den Präfix doppelt** — `~` löst über `baseUrl`
+schon auf `PathBase` auf, und dort steht der Asset-Abschnitt bereits. Dafür gibt es die zweite
+Familie:
+
+| Platzhalter | liefert | wofür |
+|---|---|---|
+| `[SlashPermissionScope]` | den vollen Präfix (Asset + Mandant) | root-absolut, z. B. in `href` |
+| `[SlashScopeUnderBase]` | nur, was **nicht** schon in `PathBase` steckt | hinter einem `~` |
+| `[SlashAssetSegment]` | nur den Asset-Abschnitt | Sonderfälle |
+
+Alle drei gibt es auch ohne `Slash` und mit `…Slash`-Suffix. Sucht in euren Views nach
+`~[SlashPermissionScope]` und stellt die Treffer auf `~[SlashScopeUnderBase]` um — im Toolkit waren
+es drei. Heute fällt die Doppelung nicht auf, weil `PathBase` bei euch leer ist; mit einem
+Asset-Abschnitt fällt sie sofort auf.
+
+### 50.6 Die Query-Form bleibt lesend
+
+Bereits verschickte Links brechen nicht: `?SharedAssetKey=…&__AccessToken=…` wird weiterhin gelesen,
+inklusive Referer-Rückfall. **Erzeugt** werden nur noch Pfad-Links. Abschalten könnt ihr die Altform,
+sobald eure alten Links abgelaufen sind:
+
+```jsonc
+"UseSharedAssets": true,
+"AcceptQuerySharedAssetKey": false,          // Vorgabe: true
+"AcceptSharedAssetRefererFallback": false    // Vorgabe: true
+```
+
+### 50.7 Zwei Dinge zum Nachschauen
+
+**Der `RootPath` eurer Assets** wird jetzt gegen die **präfixfreie** Form des Anfragepfads geprüft —
+also den Pfad ohne Mandanten- und ohne Asset-Abschnitt, so wie ihn die Route sieht. Wurden eure
+bestehenden `SharedAssets.RootPath`-Werte mit Mandantensegment gespeichert (in MVC-Hosts durchaus
+möglich, weil dort `Request.Path` den Mandanten enthält), passen sie nicht mehr. Ein Blick in die
+Tabelle genügt; korrigiert wird per `UPDATE`, nicht per Migration.
+
+**`AssetSecurityRepository.GetEligibleScopes`** lieferte Name und Anzeigename vertauscht — der
+Mandant stand im Anzeigenamen, im Namen ein Literal. Das ist behoben. Auffallen konnte es bisher
+nicht, weil dieser Weg nie an einer Mandantenprüfung vorbeikam; mit dem Asset im Pfad hätte es einen
+404 auf genau der URL ergeben, die funktionieren soll.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 50a | **`UseSharedAssetPath()`** | Pflicht, wenn ihr geteilte Assets benutzt: **ganz vorne** in der Pipeline, vor `UseStaticFiles`/`UseAuthentication`/`UseRouting`/`UseTenantPathPrefix` (§50.2) |
+| 50b | **`IGetAnonymousAssetQuery.Execute`** | `(IQueryCollection, out bool)` → `(string assetKey, string accessToken, out bool)`; `IAnonymousAssetLinkProvider.CreateAnonymousLink` → `CreateAnonymousToken(FullAssetInfo)` — nur bei eigener Implementierung (§50.4) |
+| 50c | **`~[SlashPermissionScope]`** | in Views auf `~[SlashScopeUnderBase]` umstellen, sonst steht der Präfix doppelt in der URL (§50.5) |
+| 50d | **`ITVenture.Ajax.baseUrl`** | `@Html.ItvClientContext()` ins MVC-Layout (setzt `baseUrl` aus `PathBase` + `assetSegment`); eigenes hart gesetztes `"/"` entfernen (§50.3) |
+| 50e | `SharedAssets.RootPath` | prüfen, ob Altwerte ein Mandantensegment enthalten — geprüft wird gegen die präfixfreie Form (§50.7) |
 | 42a | **`HasPermission`** | Parameter `ClaimsPrincipal user` entfällt — Aufrufstellen kürzen; eigene `I…AdminHandler`-Implementierungen nachziehen (§42.1) |
 | 42b | **Workflow: Fault** | ein gescheiterter Vorgang läuft **nicht mehr** von selbst weiter — nur noch per `RetryFaulted`. Kein Schema-Change, aber Monitoring prüfen (§42.2) |
 | 42c | `UserTaskCompletionStatus` | neuer Wert `InstanceNotResumable` (hinten angehängt) — nur relevant für eigene Aufgaben-Masken (§42.3) |

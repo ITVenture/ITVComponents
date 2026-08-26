@@ -20,7 +20,7 @@
     @(Html.Kendo().DropDownList().Name($"Templates4{ViewData["tenantId"]}")
         .DataSource(d => d.Ajax().Read(ra =>
         {
-            var url = urlFormat.FormatUrl($"~[SlashPermissionScope]/ForeignKey/sys/TenantTemplates");
+            var url = urlFormat.FormatUrl($"~[SlashScopeUnderBase]/ForeignKey/sys/TenantTemplates");
             ra.Url(Url.Content(url));
         }).ServerOperation(true).Events(e => e.Error("ITVenture.Helpers.listErrorHandler")))
         .DataValueField("Key")

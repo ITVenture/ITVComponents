@@ -17,7 +17,17 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
 {
     public class DefaultAnonymousAssetUserResolver : IGetAnonymousAssetQuery, IAnonymousAssetLinkProvider
     {
-        public const string SecurityTokenParamName = "__AccessToken";
+        /// <summary>
+        /// Der Name des Query-Parameters der abgekuendigten Form. Bleibt als Alias auf die zentrale
+        /// Konstante stehen, weil Hosts ihn benutzen.
+        /// </summary>
+        public const string SecurityTokenParamName = Global.FixedAssetTokenQueryParameter;
+
+        /// <summary>
+        /// Der Name, unter dem ein anonymer Asset-Besucher auftritt. Er entspricht dem Platzhalter, den ein
+        /// Benutzerfilter am Asset tragen kann, damit ein Asset ueberhaupt anonym geteilt werden kann.
+        /// </summary>
+        public const string AnonymousUserLabel = "#ANONYMOUS#";
         private readonly ISecurityRepository securityRepository;
         private readonly ISharedAssetAdapter assetAdapter;
         private readonly IOptions<AnonymousLinkSettings> options;
@@ -31,21 +41,29 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
             this.logger = logger;
         }
         
-        public AnonymousAsset Execute(IQueryCollection providedQuery, out bool denied)
+        public AnonymousAsset Execute(string assetKey, string accessToken, out bool denied)
         {
-            if (providedQuery.ContainsKey(Global.FixedAssetRequestQueryParameter) &&
-                providedQuery.ContainsKey(SecurityTokenParamName))
+            if (!string.IsNullOrEmpty(assetKey) && !string.IsNullOrEmpty(accessToken))
             {
-                string assetKey = providedQuery[Global.FixedAssetRequestQueryParameter];
-                string securitytoken = providedQuery[SecurityTokenParamName];
                 var asset = assetAdapter.FindAnonymousAsset(assetKey);
-                denied = !ValidateAnonymousToken(securitytoken, asset);
+                if (asset == null)
+                {
+                    // Ein Token ohne passendes Asset ist kein "kein anonymer Zugriff", sondern ein
+                    // abgelehnter - sonst faellt der Aufrufer stillschweigend auf den anonymen Benutzer
+                    // zurueck und der Fehler taucht erst als fehlende Berechtigung wieder auf.
+                    logger.LogWarning("No anonymously shared asset found for the provided key.");
+                    denied = true;
+                    return null;
+                }
+
+                denied = !ValidateAnonymousToken(accessToken, asset);
                 if (!denied)
                 {
-                    AnonymousAsset retVal = new AnonymousAsset("#ANONYMOUS#", DateTime.Now);
+                    AnonymousAsset retVal = new AnonymousAsset(AnonymousUserLabel, DateTime.Now);
                     return retVal;
                 }
 
+                logger.LogWarning("The provided access-token did not validate for the requested asset.");
                 return null;
             }
 
@@ -53,17 +71,13 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
             return null;
         }
 
-        public string CreateAnonymousLink(string baseUrl, FullAssetInfo info)
+        public string CreateAnonymousToken(FullAssetInfo info)
         {
-            var quid = baseUrl.Contains('?');
-            var nop = !baseUrl.EndsWith('?');
             var raw = securityRepository.Encrypt(
                 Encoding.UTF8.GetBytes(
                     $"{info.AnonymousAccessTokenRaw}#{DateTime.Now:yyyyMMddHHmmssfff}#{info.NotBefore:yyyyMMdd}#{info.NotAfter:yyyyMMdd}"),
                 info.UserScopeName);
-            var ret = WebEncoders.Base64UrlEncode(raw);
-            return
-                $"{baseUrl}{(!nop ? (quid ? "&" : "?") : string.Empty)}{SecurityTokenParamName}={ret}";
+            return WebEncoders.Base64UrlEncode(raw);
         }
 
         private bool ValidateAnonymousToken(string token, FullAssetInfo info)

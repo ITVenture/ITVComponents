@@ -308,49 +308,60 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             return decorator;
         }
 
+        /// <summary>
+        /// Indicates whether the current context runs inside a shared asset that is valid for the requested
+        /// location, and - if so - pushes the asset-scoped security repository on top of the stack.
+        /// <para>
+        /// Host-neutral: the asset comes from <see cref="ISharedAssetContext"/> (path segment, circuit route
+        /// data or the deprecated query), not from the query string of a live HTTP request, so this works
+        /// inside a Blazor circuit too.
+        /// </para>
+        /// </summary>
+        /// <param name="provider">the service-provider for the current scope</param>
+        /// <param name="securityRepository">the asset-scoped repository, when one applies</param>
+        /// <param name="identities">the identities the asset was granted to</param>
+        /// <param name="denied">true when an asset was named but does not apply to the requested location</param>
+        /// <returns>true when the current request legitimately runs inside a shared asset</returns>
         public static bool IsLegitSharedAssetPath(this IServiceProvider provider,
             out ISecurityRepository securityRepository, out IdentityInfo[] identities, out bool denied)
         {
             denied = false;
+            securityRepository = null;
+            identities = null;
             var assetProvider = provider.GetService<ISharedAssetAdapter>();
-            var userProvider = provider.GetService<IHttpContextUserProvider>();
-            IQueryCollection refQ;
-            if (userProvider?.HttpContext?.Request == null)
+            var assetContext = provider.GetService<ISharedAssetContext>();
+            var userProvider = provider.GetService<IContextUserProvider>();
+            if (assetContext?.HasAsset != true || userProvider?.User == null
+                || !userProvider.User.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
             {
-                securityRepository = null;
-                identities = null;
                 return false;
             }
 
-            if (((refQ=userProvider.HttpContext.Request.Query).ContainsKey(Global.FixedAssetRequestQueryParameter)
-                || (refQ = userProvider.HttpContext.Request.GetRefererQuery()) != null && refQ.ContainsKey(Global.FixedAssetRequestQueryParameter)) && 
-                userProvider.User.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
+            var assetKey = assetContext.AssetKey;
+            var userScope = userProvider.User.Claims.First(n => n.Type == ClaimTypes.FixedUserScope).Value;
+            // Die kanonische Form: ohne Asset-Abschnitt und ohne Mandanten - der Pfad, wie ihn die Route
+            // sieht. Roh weitergereicht wuerde derselbe Vergleich in MVC gegen einen Pfad MIT
+            // Mandantensegment laufen und in Blazor gegen einen ohne.
+            var requestPath = SharedAssetPath.Canonicalize(userProvider.RequestPath, assetContext.Segment,
+                provider.GetService<IPermissionScope>()?.PermissionPrefix);
+            if (assetProvider != null && !(denied = !assetProvider.VerifyRequestLocation(requestPath, assetKey, userScope, userProvider.User)))
             {
-                var requestPath = userProvider.HttpContext.Request.Path;
-                var assetKey = refQ[Global.FixedAssetRequestQueryParameter];
-                var userScope = userProvider.HttpContext.User.Claims.First(n => n.Type == ClaimTypes.FixedUserScope)
-                    .Value;
-                if (assetProvider != null && !(denied = !assetProvider.VerifyRequestLocation(requestPath,assetKey, userScope, userProvider.User)))
+                identities = (from t in userProvider.User.Identities where t.IsAuthenticated select new IdentityInfo{Labels=new []{t.Name}, AuthenticationType=t.AuthenticationType}).ToArray();
+                var tmp = provider.GetService<ISecurityRepository>();
+                if (tmp is not SecurityRepository seco)
                 {
-                    identities= (from t in userProvider.User.Identities where t.IsAuthenticated select new IdentityInfo{Labels=new []{t.Name}, AuthenticationType=t.AuthenticationType}).ToArray();//new string[] { userProvider.User.Identity.Name };
-                    var tmp = provider.GetService<ISecurityRepository>();
-                    if (tmp is not SecurityRepository seco)
-                    {
-                        throw new InvalidOperationException(
-                            "SecurityRepository is required to make this work! Use GetAssetSecurityRepository in your ISecurityRepository dependency injection call.");
-                    }
-
-                    if (seco.Current is not AssetSecurityRepository)
-                    {
-                        seco.PushRepo(new AssetSecurityRepository(userProvider.User, seco.Current, assetProvider.GetAssetInfo(assetKey, userProvider.User)));
-                    }
-                    securityRepository = seco;
-                    return true;
+                    throw new InvalidOperationException(
+                        "SecurityRepository is required to make this work! Use GetAssetSecurityRepository in your ISecurityRepository dependency injection call.");
                 }
+
+                if (seco.Current is not AssetSecurityRepository)
+                {
+                    seco.PushRepo(new AssetSecurityRepository(userProvider.User, seco.Current, assetProvider.GetAssetInfo(assetKey, userProvider.User)));
+                }
+                securityRepository = seco;
+                return true;
             }
 
-            securityRepository = null;
-            identities = null;
             return false;
         }
 

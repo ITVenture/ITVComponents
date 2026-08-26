@@ -107,7 +107,12 @@ namespace ITVComponents.WebCoreToolkit
 
             if (options.UseSharedAssets)
             {
-                services.UseAssetDrivenClaimsTransformation(options.UseCollectedClaimsTransformation);
+                services.UseSharedAssetPathContext(o =>
+                    {
+                        o.AcceptQuerySharedAssetKey = options.AcceptQuerySharedAssetKey;
+                        o.AcceptRefererFallback = options.AcceptSharedAssetRefererFallback;
+                    })
+                    .UseAssetDrivenClaimsTransformation(options.UseCollectedClaimsTransformation);
             }
 
             if (options.UseNavigator)

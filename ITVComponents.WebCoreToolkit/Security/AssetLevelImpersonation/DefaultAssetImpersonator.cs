@@ -36,11 +36,13 @@ namespace ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation
         {
             var user = userProvider.User;
             var tmp = assetAdapter.GetAssetInfo(assetKey, user);
-            var refer = userProvider.HttpContext.Request.GetTypedHeaders().Referer;
-            if (tmp != null && (assetAdapter.VerifyRequestLocation(userProvider.HttpContext.Request.Path, assetKey,
+            // Der Referer ist ein Rueckfall fuer die abgekuendigte Query-Form und kann fehlen - ohne die
+            // Null-Probe wirft der zweite Zweig genau dann, wenn der erste nicht getroffen hat.
+            var refer = userProvider.HttpContext?.Request.GetTypedHeaders().Referer;
+            if (tmp != null && (assetAdapter.VerifyRequestLocation(userProvider.RequestPath, assetKey,
                                     tmp.UserScopeName, user)
-                                || assetAdapter.VerifyRequestLocation(refer.LocalPath, assetKey, tmp.UserScopeName,
-                                    user)))
+                                || (refer != null && assetAdapter.VerifyRequestLocation(refer.LocalPath, assetKey,
+                                    tmp.UserScopeName, user))))
             {
                 securityRepository.PushRepo(new AssetSecurityRepository(user, securityRepository.Current, tmp));
                 permissionScope.PushScope(tmp.UserScopeName);

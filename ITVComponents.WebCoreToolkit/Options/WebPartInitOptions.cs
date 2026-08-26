@@ -40,6 +40,20 @@ namespace ITVComponents.WebCoreToolkit.Options
 
         public bool UsePageModelHandlerFactory { get; set; }
         public bool UseSharedAssets { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the deprecated query form of a shared-asset link
+        /// (<c>?SharedAssetKey=…&amp;__AccessToken=…</c>) is still accepted. Defaults to true so links that
+        /// were already sent out keep working; new links are always created in the path form
+        /// (<c>/~{key}[.{token}]/…</c>). Only relevant when <see cref="UseSharedAssets"/> is on.
+        /// </summary>
+        public bool AcceptQuerySharedAssetKey { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the <c>Referer</c> may serve as a last resort for the
+        /// deprecated query form. The path form needs no such fallback - sub-resources inherit the prefix.
+        /// </summary>
+        public bool AcceptSharedAssetRefererFallback { get; set; } = true;
         public List<CultureConfigOption> CultureConfig { get; set; } = new();
         public List<LocalizationMappingOption> CultureMapping { get; set; } = new();
         public List<LocalizationMappingOption> UiCultureMapping { get; set; } = new();

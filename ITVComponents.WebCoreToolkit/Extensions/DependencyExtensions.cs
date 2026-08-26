@@ -21,6 +21,7 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.AssetLevelImpersonation;
 using ITVComponents.WebCoreToolkit.Security.ClaimsTransformation;
 using ITVComponents.WebCoreToolkit.Security.PermissionHandling;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.Security.UserMappers;
 using ITVComponents.WebCoreToolkit.Security.UserScopes;
 using ITVComponents.WebCoreToolkit.WebPlugins;
@@ -32,6 +33,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
@@ -194,12 +196,35 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             bool collectable = false)
         {
             services.AddScoped<IImpersonationControl, DefaultAssetImpersonator>();
+            services.UseSharedAssetPathContext();
             if (!collectable)
             {
                 return services.AddScoped<IClaimsTransformation, AssetDrivenClaimsTransformation>();
             }
 
             return services.AddScoped<ICollectedClaimsProvider, AssetDrivenClaimsTransformation>();
+        }
+
+        /// <summary>
+        /// Registers the host-neutral shared-asset context every consumer of a shared asset reads from
+        /// (claims transformation, permission check, link building). Idempotent, and implied by
+        /// <see cref="UseAssetDrivenClaimsTransformation"/> - a host that switched <c>UseSharedAssets</c> on
+        /// in its WebPart configuration does not have to call it.
+        /// </summary>
+        /// <param name="services">the services to inject the context into</param>
+        /// <param name="options">an optional callback configuring the path options</param>
+        /// <returns>the provided servicecollection</returns>
+        public static IServiceCollection UseSharedAssetPathContext(this IServiceCollection services,
+            Action<SharedAssetPathOptions> options = null)
+        {
+            services.AddHttpContextAccessor();
+            if (options != null)
+            {
+                services.Configure(options);
+            }
+
+            services.TryAddScoped<ISharedAssetContext, SharedAssetContext>();
+            return services;
         }
 
         /// <summary>
@@ -289,7 +314,12 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>a the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseUrlFormatter(this IServiceCollection services)
         {
-            return services.AddScoped<IUrlFormat,UrlFormatImpl>();
+            // Der Formatter setzt den Asset-Abschnitt in die Scope-Platzhalter ein und braucht dafuer den
+            // Kontext. Er wird hier mitregistriert, weil der eingebaute DI-Container Standardwerte von
+            // Konstruktor-Parametern NICHT beruecksichtigt - ein Host ohne geteilte Assets bekaeme sonst
+            // beim Aufloesen einen Fehler statt eines leeren Kontexts.
+            return services.UseSharedAssetPathContext()
+                .AddScoped<IUrlFormat, UrlFormatImpl>();
         }
 
         /// <summary>

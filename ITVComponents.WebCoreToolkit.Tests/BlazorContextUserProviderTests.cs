@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Blazor.Security;
@@ -197,6 +197,36 @@ namespace ITVComponents.WebCoreToolkit.Tests
         /// <see cref="HttpContext.Items"/>, moved onto <c>PathBase</c>, gone from <c>Path</c> — and therefore
         /// absent from the route values, which is the whole point of the case.
         /// </summary>
+        [TestMethod]
+        public void Asset_Prefix_Shifts_The_Tenant_To_The_Second_Base_Segment()
+        {
+            // With a shared asset the base href reads /~abc/TenantA/ - the tenant is no longer the first
+            // segment. Reading position 0 blindly would resolve the asset segment as a tenant name.
+            var provider = NewProvider("https://app/~abc/TenantA/", "https://app/~abc/TenantA/orders",
+                TenantSource.PathSegment);
+
+            Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
+            Assert.AreEqual("~abc", provider.RouteData[Global.SharedAssetSegmentItemKey]);
+        }
+
+        [TestMethod]
+        public void Asset_Prefix_Without_Tenant_Publishes_Only_The_Asset()
+        {
+            var provider = NewProvider("https://app/~abc/", "https://app/~abc/orders", TenantSource.PathSegment);
+
+            Assert.IsFalse(provider.RouteData.ContainsKey("tenant"));
+            Assert.AreEqual("~abc", provider.RouteData[Global.SharedAssetSegmentItemKey]);
+        }
+
+        [TestMethod]
+        public void Without_An_Asset_Nothing_Is_Published_For_One()
+        {
+            var provider = NewProvider("https://app/TenantA/", "https://app/TenantA/orders", TenantSource.PathSegment);
+
+            Assert.AreEqual("TenantA", provider.RouteData["tenant"]);
+            Assert.IsFalse(provider.RouteData.ContainsKey(Global.SharedAssetSegmentItemKey));
+        }
+
         private static IHttpContextAccessor RequestBehindTenantPrefix(string tenant)
         {
             var ctx = new DefaultHttpContext();

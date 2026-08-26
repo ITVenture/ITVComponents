@@ -1,4 +1,5 @@
-﻿using ITVComponents.WebCoreToolkit.Security.SharedAssets;
+﻿using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess.Extensions
@@ -12,7 +13,11 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess.Extensions
         /// <returns>the provided servicecollection</returns>
         public static IServiceCollection UseDefaultAnonymousAssetResolver(this IServiceCollection services)
         {
-            return services.AddScoped<IGetAnonymousAssetQuery, DefaultAnonymousAssetUserResolver>().AddScoped<IAnonymousAssetLinkProvider,DefaultAnonymousAssetUserResolver>();
+            // Der Auth-Handler liest den Schluessel ueber den ISharedAssetContext - ohne ihn scheitert er
+            // erst beim Anmelden und mit einer DI-Meldung, die nichts ueber die Ursache sagt.
+            return services.UseSharedAssetPathContext()
+                .AddScoped<IGetAnonymousAssetQuery, DefaultAnonymousAssetUserResolver>()
+                .AddScoped<IAnonymousAssetLinkProvider, DefaultAnonymousAssetUserResolver>();
         }
     }
 }
