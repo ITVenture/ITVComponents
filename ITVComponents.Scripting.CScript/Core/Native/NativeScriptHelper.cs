@@ -155,8 +155,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="configuration">the configuration that is used for compiling the provided linq-query</param>
         /// <param name="expression">the expression to run on the target object</param>
         /// <param name="arguments">arguments for the query. each property of the given object will lead to a parameter of the resulting method</param>
+        /// <param name="serviceProvider">optional service-provider the script may resolve services from through <c>Inject&lt;T&gt;()</c>. Pass a scope, not the root provider, or scoped services stay unreachable</param>
         /// <returns>the result of the compiled and executed method</returns>
-        public static object RunLinqQuery(string configuration, string label, string expression, IDictionary<string, object> arguments)
+        public static object RunLinqQuery(string configuration, string label, string expression, IDictionary<string, object> arguments, IServiceProvider serviceProvider = null)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
             string roslynHash = GetFlatString(expression);
@@ -193,7 +194,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 idic[argument.Key] = argument.Value;
             }
 
-            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic, ServiceProvider = serviceProvider }));
         }
 
         /// <summary>
@@ -204,8 +205,9 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         /// <param name="nameOfTarget">the name of the parameter holding the target-object</param>
         /// <param name="expression">the expression to run on the target object</param>
         /// <param name="arguments">arguments for the query. each property of the given object will lead to a parameter of the resulting method</param>
+        /// <param name="serviceProvider">optional service-provider the script may resolve services from through <c>Inject&lt;T&gt;()</c>. Pass a scope, not the root provider, or scoped services stay unreachable</param>
         /// <returns>the result of the compiled and executed method</returns>
-        public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string label, string expression, IDictionary<string, object> arguments)
+        public static object RunLinqQuery(string configuration, object target, string nameOfTarget, string label, string expression, IDictionary<string, object> arguments, IServiceProvider serviceProvider = null)
         {
             var cfg = configurations.GetOrAdd(configuration, new NativeConfiguration());
             string roslynHash = GetFlatString(expression);
@@ -245,7 +247,7 @@ namespace ITVComponents.Scripting.CScript.Core.Native
                 idic[argument.Key] = argument.Value;
             }
 
-            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic }));
+            return AsyncHelpers.RunSync(() => roslynScript.Value(new NativeScriptObjectHelper { Global = idic, ServiceProvider = serviceProvider }));
         }
 
         public static T RunCustomCode<T, TInput>(string configuration, TInput target, string label, string expression)
@@ -504,8 +506,69 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         }
     }
 
+    /// <summary>
+    /// Globals-object of every roslyn-script compiled by the <see cref="NativeScriptHelper"/>. Roslyn puts each
+    /// public member of this type directly into the script-scope — that is why a script writes <c>Global.Db</c>,
+    /// and why <see cref="Inject{T}"/> is callable without any prefix.
+    /// </summary>
     public class NativeScriptObjectHelper
     {
+        /// <summary>Gets or sets the named values handed to the script (addressed as <c>Global.Xyz</c>).</summary>
         public dynamic Global { get; set; }
+
+        /// <summary>
+        /// Gets or sets the service-provider a script resolves services from. Set by whoever runs the script;
+        /// null when the calling context has none.
+        /// </summary>
+        public IServiceProvider ServiceProvider { get; set; }
+
+        /// <summary>
+        /// Resolves a service from the executing context, e.g.
+        /// <c>Inject&lt;IGlobalSettings&lt;MyOptions&gt;&gt;()</c>. Throws when no provider was supplied or the
+        /// service is not registered — a script silently continuing with null would fail further down, at a
+        /// place that no longer names the service that was actually missing.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The returned instance belongs to the surrounding scope. Never dispose it and never wrap it in a
+        /// <c>using</c>: that would tear down a service (a DbContext, say) the caller still relies on. Note also
+        /// that scoped services are only resolvable when the caller passed a scope rather than the root provider.
+        /// </para>
+        /// <para>
+        /// <b>Do not inject a DbContext directly.</b> The scope handed in is the caller's own — under Blazor that
+        /// is the circuit, so the context would be the very instance the running UI is working with, and a script
+        /// enumerating while the page renders hits "a second operation was started on this context". Inject the
+        /// <c>IDbContextFactory&lt;T&gt;</c> instead and open a context per operation. Services that already use
+        /// the factory internally are unproblematic — the caveat is about pulling the context itself, and about
+        /// services that still take one through their constructor.
+        /// </para>
+        /// </remarks>
+        /// <typeparam name="T">the service-type to resolve</typeparam>
+        /// <returns>the resolved service</returns>
+        public T Inject<T>()
+        {
+            if (ServiceProvider == null)
+            {
+                throw new InvalidOperationException($"Unable to inject {typeof(T)}: the executing context did not provide a service-provider.");
+            }
+
+            if (ServiceProvider.GetService(typeof(T)) is not T retVal)
+            {
+                throw new InvalidOperationException($"Unable to inject {typeof(T)}: no such service is registered in the current scope.");
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Same as <see cref="Inject{T}"/>, but yields the default-value instead of throwing when the service is
+        /// unavailable. For optional dependencies a script can do without.
+        /// </summary>
+        /// <typeparam name="T">the service-type to resolve</typeparam>
+        /// <returns>the resolved service, or the default-value of <typeparamref name="T"/></returns>
+        public T InjectOrDefault<T>()
+        {
+            return ServiceProvider?.GetService(typeof(T)) is T retVal ? retVal : default;
+        }
     }
 }

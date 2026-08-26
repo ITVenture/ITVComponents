@@ -272,7 +272,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Extensions
             data ??= new Dictionary<string, object>();
             data["User"] = user;
             data["Services"] = services;
-            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", queryLabel, query, data);
+            // The provider is handed over a second time, outside the Global-bag: it backs the script-side
+            // Inject<T>() so a query can pull a service by type instead of resolving it by hand off Services.
+            // Every diagnostics caller passes a scope (request/circuit), so scoped services resolve.
+            return (IEnumerable)NativeScriptHelper.RunLinqQuery(configName, context, "Db", queryLabel, query, data, services);
         }
 
         private static string CreateDiagQuery(DbContext context, DiagnosticsQueryDefinition query, IDictionary<string, object> arguments)
