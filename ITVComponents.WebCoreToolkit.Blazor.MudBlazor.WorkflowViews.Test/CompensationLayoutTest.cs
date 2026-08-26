@@ -21,7 +21,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -73,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

@@ -36,7 +36,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -114,7 +114,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -165,7 +165,7 @@ namespace ITVComponents.Workflow.Test
             // Zwei Ausloeser hintereinander: der zweite darf nichts mehr finden.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -196,7 +196,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -221,7 +221,7 @@ namespace ITVComponents.Workflow.Test
             // Im Rueckabwicklungs-Pfad ein Wartepunkt: der Ausloeser darf nicht weiterlaufen.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -262,7 +262,7 @@ namespace ITVComponents.Workflow.Test
             // Aussen reserve, innen inner - der Ausloeser steht IM Abschnitt.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -304,7 +304,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -341,7 +341,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -371,7 +371,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -400,7 +400,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

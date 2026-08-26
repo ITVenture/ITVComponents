@@ -72,7 +72,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "norm",
+                TechnicalName = "norm",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -104,7 +104,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "pick",
+                TechnicalName = "pick",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -154,7 +154,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -199,7 +199,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { flow }
             };

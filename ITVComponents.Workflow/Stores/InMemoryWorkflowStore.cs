@@ -81,7 +81,7 @@ namespace ITVComponents.Workflow.Stores
             if (definition.IsPublic && !string.IsNullOrEmpty(definition.TenantId))
             {
                 throw new InvalidOperationException(
-                    $"Definition '{definition.Id}' v{definition.Version} is marked public but also names " +
+                    $"Definition '{definition.TechnicalName}' v{definition.Version} is marked public but also names " +
                     $"the tenant '{definition.TenantId}'. Decide one - public means no tenant.");
             }
 
@@ -99,7 +99,7 @@ namespace ITVComponents.Workflow.Stores
             string previousTenantId = TenantOfKey(previousStoreKey);
             bool tenantChanged = previousStoreKey != null && previousTenantId != definition.TenantId;
 
-            string key = Key(definition.Id, definition.Version, definition.TenantId);
+            string key = Key(definition.TechnicalName, definition.Version, definition.TenantId);
             if (definitions.TryGetValue(key, out WorkflowDefinition existing))
             {
                 // Aktualisieren: die technische Kennung bleibt, worauf verwiesen wird, aendert sich nicht.
@@ -165,13 +165,13 @@ namespace ITVComponents.Workflow.Stores
             }
 
             int highest = definitions.Values
-                .Where(d => d.Id == definition.Id && d.TenantId == definition.TenantId)
+                .Where(d => d.TechnicalName == definition.TechnicalName && d.TenantId == definition.TenantId)
                 .Select(d => d.Version)
                 .DefaultIfEmpty(definition.Version)
                 .Max();
             WorkflowDefinition newest = highest == definition.Version
                 ? definition
-                : definitions.Values.First(d => d.Id == definition.Id && d.TenantId == definition.TenantId
+                : definitions.Values.First(d => d.TechnicalName == definition.TechnicalName && d.TenantId == definition.TenantId
                                                 && d.Version == highest);
 
             // Wessen Ausloeser in den Neuaufbau gehoeren: die des jetzigen Besitzers - und beim Wechsel
@@ -201,7 +201,7 @@ namespace ITVComponents.Workflow.Stores
             }
 
             foreach (WorkflowStartTrigger stale in triggers.Values
-                         .Where(t => Owned(t.TenantId) && t.DefinitionId == definition.Id
+                         .Where(t => Owned(t.TenantId) && t.DefinitionId == definition.TechnicalName
                                      && kept.All(k => k.TriggerKey != t.TriggerKey))
                          .ToList())
             {
@@ -268,7 +268,7 @@ namespace ITVComponents.Workflow.Stores
         private void RehomeActivations(WorkflowDefinition definition, string previousTenantId)
         {
             List<WorkflowStartTriggerActivation> previous = activations.Values
-                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.Id)
+                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.TechnicalName)
                 .ToList();
             foreach (WorkflowStartTriggerActivation activation in previous)
             {
@@ -280,7 +280,7 @@ namespace ITVComponents.Workflow.Stores
                 if (!belongsToNewOwner)
                 {
                     LogEnvironment.LogEvent(
-                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        $"Die Uebernahme von '{definition.TechnicalName}' (Knoten '{activation.NodeId}') durch den "
                         + $"Mandanten '{activation.TenantId ?? "-"}' wurde entfernt: die Definition gehoert "
                         + $"jetzt dem Mandanten '{definition.TenantId}' und steht ihm nicht mehr offen.",
                         LogSeverity.Warning);
@@ -289,14 +289,14 @@ namespace ITVComponents.Workflow.Stores
                 }
 
                 bool duplicate = activations.Values.Any(
-                    a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.Id
+                    a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.TechnicalName
                          && a.NodeId == activation.NodeId && a.Kind == activation.Kind
                          && string.Equals(a.TenantId, activation.TenantId,
                              StringComparison.OrdinalIgnoreCase));
                 if (duplicate)
                 {
                     LogEnvironment.LogEvent(
-                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        $"Die Uebernahme von '{definition.TechnicalName}' (Knoten '{activation.NodeId}') durch den "
                         + $"Mandanten '{activation.TenantId ?? "-"}' konnte nicht mitgezogen werden: beim "
                         + "neuen Besitzer steht dafuer bereits eine Zeile. Die aeltere wurde entfernt, es "
                         + "gilt die bestehende.", LogSeverity.Warning);
@@ -378,7 +378,7 @@ namespace ITVComponents.Workflow.Stores
             // Die eigene Definition des Mandanten schlaegt die oeffentliche - eine mandanteneigene
             // Fassung ist die Verfeinerung und soll die allgemeine ueberdecken.
             IEnumerable<WorkflowDefinition> candidates = definitions.Values
-                .Where(d => d.Id == definitionId
+                .Where(d => d.TechnicalName == definitionId
                             && (d.TenantId == tenantId || string.IsNullOrEmpty(d.TenantId)));
             if (version.HasValue)
             {
@@ -650,7 +650,7 @@ namespace ITVComponents.Workflow.Stores
         public int? ResolveDefinitionKey(string ownerTenantId, string definitionId, int? version = null)
         {
             IEnumerable<WorkflowDefinition> candidates = definitions.Values
-                .Where(d => d.Id == definitionId && d.TenantId == ownerTenantId);
+                .Where(d => d.TechnicalName == definitionId && d.TenantId == ownerTenantId);
             if (version.HasValue)
             {
                 candidates = candidates.Where(d => d.Version == version.Value);

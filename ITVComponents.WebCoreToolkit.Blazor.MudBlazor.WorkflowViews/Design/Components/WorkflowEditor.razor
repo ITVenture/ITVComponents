@@ -1,7 +1,7 @@
 @page "/Workflow/Editor/new"
 @page "/Workflow/env/{Environment}/Editor/new"
-@page "/Workflow/Definitions/{DefinitionId}/{Version:int}/edit"
-@page "/Workflow/env/{Environment}/Definitions/{DefinitionId}/{Version:int}/edit"
+@page "/Workflow/Definitions/{Key:int}/edit"
+@page "/Workflow/env/{Environment}/Definitions/{Key:int}/edit"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using System.Globalization
@@ -43,11 +43,11 @@
                 <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Title="Back" OnClick="Back" />
                 @if (isNew)
                 {
-                    <MudTextField @bind-Value="def.Id" Label="Id" Margin="Margin.Dense" Style="max-width:200px" Class="mr-2" />
+                    <MudTextField @bind-Value="def.TechnicalName" Label="Technical name" Margin="Margin.Dense" Style="max-width:200px" Class="mr-2" />
                 }
                 else
                 {
-                    <MudText Typo="Typo.subtitle1" Class="mr-4"><b>@def.Id</b></MudText>
+                    <MudText Typo="Typo.subtitle1" Class="mr-4"><b>@def.TechnicalName</b></MudText>
                 }
                 <MudTextField @bind-Value="def.Name" Label="Name" Margin="Margin.Dense" Style="max-width:240px" Class="mr-2" />
                 <MudNumericField @bind-Value="def.Version" Label="Version" Min="1" Margin="Margin.Dense" Style="max-width:100px" />
@@ -187,9 +187,12 @@
 </SecureView>
 
 @code {
-    [Parameter] public string? DefinitionId { get; set; }
-
-    [Parameter] public int Version { get; set; }
+    /// <summary>
+    /// Der Primaerschluessel der zu bearbeitenden Definitionszeile. 0 (Route ohne Schluessel) = neu.
+    /// Bewusst der Schluessel und nicht Name+Version: nach dem Speichern als neue Version zeigt der
+    /// Editor auf GENAU die Zeile weiter, die er angelegt hat.
+    /// </summary>
+    [Parameter] public int Key { get; set; }
 
     /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Standard.</summary>
     [Parameter] public string? Environment { get; set; }
@@ -268,16 +271,16 @@
     protected override async Task OnParametersSetAsync()
     {
         loaded = false;
-        isNew = string.IsNullOrEmpty(DefinitionId);
+        isNew = Key == 0;
         var auth = await AuthState.GetAuthenticationStateAsync();
 
         if (isNew)
         {
-            def = new WorkflowDefinition { Id = "new-workflow", Version = 1, Name = "New workflow" };
+            def = new WorkflowDefinition { TechnicalName = "new-workflow", Version = 1, Name = "New workflow" };
         }
         else
         {
-            def = await Handler.GetDefinitionAsync(auth.User, DefinitionId!, Version, Environment);
+            def = await Handler.GetDefinitionByKeyAsync(auth.User, Key, Environment);
             if (def is not null)
             {
                 EnsureDiagram(def);
@@ -295,7 +298,7 @@
         {
             var list = await Handler.ListDefinitionsAsync(auth.User,
                 new WorkflowListQuery { Page = 0, PageSize = 500 }, Environment);
-            subDefinitionIds = list.Items.Select(i => i.Id).Distinct().OrderBy(x => x).ToList();
+            subDefinitionIds = list.Items.Select(i => i.TechnicalName).Distinct().OrderBy(x => x).ToList();
         }
         catch (Exception ex)
         {
@@ -1090,7 +1093,7 @@
         try
         {
             string json = WorkflowJson.ExportDefinition(def);
-            await JS.InvokeVoidAsync("itvWfEditor.downloadText", $"{def.Id}-v{def.Version}.json", json);
+            await JS.InvokeVoidAsync("itvWfEditor.downloadText", $"{def.TechnicalName}-v{def.Version}.json", json);
         }
         catch (Exception ex)
         {
@@ -1165,9 +1168,9 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(def.Id))
+        if (string.IsNullOrWhiteSpace(def.TechnicalName))
         {
-            Snackbar.Add("An id is required.", Severity.Warning);
+            Snackbar.Add("A technical name is required.", Severity.Warning);
             return;
         }
 
@@ -1182,7 +1185,7 @@
         int previousVersion = def.Version;
         if (asNewVersion)
         {
-            WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.Id, null, Environment);
+            WorkflowDefinition? latest = await Handler.GetDefinitionAsync(auth.User, def.TechnicalName, null, Environment);
             def.Version = (latest?.Version ?? def.Version) + 1;
             // Eine neue Version ist eine neue ZEILE, und die technische Kennung gehört der alten.
             // Bliebe sie stehen, fände die Ablage über sie die bestehende Zeile und schriebe ihr bloss
@@ -1196,12 +1199,12 @@
         {
             if (hasErrors)
             {
-                Snackbar.Add($"Saved '{def.Id}' v{def.Version} WITH ERRORS — it is disabled for start until "
+                Snackbar.Add($"Saved '{def.TechnicalName}' v{def.Version} WITH ERRORS — it is disabled for start until "
                              + "the errors are fixed.", Severity.Warning);
             }
             else
             {
-                Snackbar.Add($"Definition '{def.Id}' v{def.Version} saved", Severity.Success);
+                Snackbar.Add($"Definition '{def.TechnicalName}' v{def.Version} saved", Severity.Success);
             }
 
             isNew = false;
@@ -1213,7 +1216,11 @@
 
             // Relativ (ohne fuehrenden Slash) - loest gegen <base href="/{tenant}/"> auf; ein
             // fuehrender Slash verliesse den Tenant und ergaebe 404.
-            Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(def.Id)}/{def.Version}/edit");
+            // Ueber den Schluessel, den der Store gerade vergeben hat - nicht ueber Name+Version.
+            // Beim Speichern als neue Version ist das eine FRISCHE Zeile; ein Ziel aus Name und Version
+            // koennte dieselbe Adresse auf die Fassung eines anderen Mandanten aufloesen.
+            Key = def.Key;
+            Nav.NavigateTo($"{EnvPrefix}/Definitions/{def.Key}/edit");
         }
         else
         {

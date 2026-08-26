@@ -188,7 +188,7 @@ namespace ITVComponents.Workflow.Test
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "parent",
+                TechnicalName = "parent",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, call, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { Flow("s", "n"), Flow("n", "e") }
             });
@@ -228,7 +228,7 @@ namespace ITVComponents.Workflow.Test
             call.Inputs.Add(Input("n", ParameterBindingKind.Literal, literal: 4));
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "parent",
+                TechnicalName = "parent",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, call, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { Flow("s", "n"), Flow("n", "e") }
             });
@@ -248,7 +248,7 @@ namespace ITVComponents.Workflow.Test
             configure(start);
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode> { start, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { Flow("s", "e") }
             };
@@ -261,7 +261,7 @@ namespace ITVComponents.Workflow.Test
             configure(node);
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

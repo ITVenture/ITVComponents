@@ -30,7 +30,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -87,7 +87,7 @@ namespace ITVComponents.Workflow.Test
             int firstRuns = 0;
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -155,7 +155,7 @@ namespace ITVComponents.Workflow.Test
             // wo die fehlgeschlagene Aktivitaet liest - sonst sieht sie den korrigierten Wert nie.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -217,7 +217,7 @@ namespace ITVComponents.Workflow.Test
             nodes.AddRange(new[] { "b3", "b4", "b5" }
                 .Select(id => new AutomatedActivityNode { Id = id, ActivityRef = id }));
 
-            store.SaveDefinition(new WorkflowDefinition { Id = "wf", Nodes = nodes, Flows = flows });
+            store.SaveDefinition(new WorkflowDefinition { TechnicalName = "wf", Nodes = nodes, Flows = flows });
         }
 
         private static ActivityRegistry CountingActivities(IDictionary<string, int> runs)
@@ -310,7 +310,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

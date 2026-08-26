@@ -49,7 +49,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

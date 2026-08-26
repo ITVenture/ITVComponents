@@ -39,7 +39,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "seq",
+                TechnicalName = "seq",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -83,7 +83,7 @@ namespace ITVComponents.Workflow.Test
             activities.Register("finish", ctx => ctx.Variables["done"] = true);
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wait",
+                TechnicalName = "wait",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -114,7 +114,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "corr",
+                TechnicalName = "corr",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -136,7 +136,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "timer",
+                TechnicalName = "timer",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -165,7 +165,7 @@ namespace ITVComponents.Workflow.Test
             activities.Register("boom", ctx => throw new InvalidOperationException("kaputt"));
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "fault",
+                TechnicalName = "fault",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -186,7 +186,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "nomatch",
+                TechnicalName = "nomatch",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -217,7 +217,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -252,7 +252,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "parwait",
+                TechnicalName = "parwait",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -297,7 +297,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "deadlock",
+                TechnicalName = "deadlock",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -337,7 +337,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "combined",
+                TechnicalName = "combined",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -375,7 +375,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "cancel",
+                TechnicalName = "cancel",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -402,7 +402,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = "gw",
+                TechnicalName = "gw",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

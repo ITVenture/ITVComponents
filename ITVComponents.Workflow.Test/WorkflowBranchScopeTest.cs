@@ -77,7 +77,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "open",
+                TechnicalName = "open",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -190,7 +190,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "nested",
+                TechnicalName = "nested",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -269,7 +269,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "seq",
+                TechnicalName = "seq",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -297,7 +297,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "leak",
+                TechnicalName = "leak",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -327,7 +327,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

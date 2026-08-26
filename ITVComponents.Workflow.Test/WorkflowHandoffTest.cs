@@ -32,7 +32,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = "ho",
+                TechnicalName = "ho",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -87,7 +87,7 @@ namespace ITVComponents.Workflow.Test
             // Rueckwaerts-Kompatibilitaet: ohne ExecutionTarget laeuft die Aktivitaet auf jeder Engine.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "plain",
+                TechnicalName = "plain",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

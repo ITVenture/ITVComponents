@@ -52,7 +52,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -349,7 +349,7 @@ namespace ITVComponents.Workflow.Test
             // Nebenpfad mit eigenem Wartepunkt: er laeuft noch, wenn die Aufgabe erledigt wird.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -391,7 +391,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -428,7 +428,7 @@ namespace ITVComponents.Workflow.Test
             // Eine gewoehnliche Aktivitaet laeuft synchron durch - dort gibt es nichts scharf zu stellen.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

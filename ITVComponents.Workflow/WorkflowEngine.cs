@@ -166,7 +166,7 @@ namespace ITVComponents.Workflow
         private WorkflowInstance CreateInstance(WorkflowDefinition definition,
             IDictionary<string, object> initialVariables, string correlationKey, int? priority)
         {
-            string definitionId = definition.Id;
+            string definitionId = definition.TechnicalName;
 
             // Eine als fehlerhaft markierte Definition wird gar nicht erst instanziiert - sonst entstuende
             // eine Instanz, die sofort (oder am ersten fehlerhaften Knoten) faultet. Das Flag setzt der
@@ -194,7 +194,7 @@ namespace ITVComponents.Workflow
                 // ersten mandanteneigenen Fassung desselben Namens nicht mehr entscheidbar, welche
                 // Definition gemeint ist. Name und Version stehen als Anzeige daneben.
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 Status = WorkflowStatus.Running,
                 CorrelationKey = correlationKey,
@@ -222,10 +222,10 @@ namespace ITVComponents.Workflow
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Start parameters of definition '{definition.Id}' v{definition.Version} could not be " +
+                    $"Start parameters of definition '{definition.TechnicalName}' v{definition.Version} could not be " +
                     $"resolved: {ex.OutlineException()}", LogSeverity.Error);
                 throw new InvalidOperationException(
-                    $"Start parameters of definition '{definition.Id}' could not be resolved: {ex.Message}", ex);
+                    $"Start parameters of definition '{definition.TechnicalName}' could not be resolved: {ex.Message}", ex);
             }
 
             foreach (StartNode start in startNodes)
@@ -4766,7 +4766,7 @@ namespace ITVComponents.Workflow
         {
             StartNode signature = SelectDeclaring(
                 startNodes?.Where(s => s?.Inputs is { Count: > 0 }).ToList(),
-                "start parameters", $"Definition '{definition.Id}' v{definition.Version}");
+                "start parameters", $"Definition '{definition.TechnicalName}' v{definition.Version}");
             if (signature == null)
             {
                 return;
@@ -4848,7 +4848,7 @@ namespace ITVComponents.Workflow
             }
 
             LogEnvironment.LogEvent(
-                $"Definition '{definition.Id}' v{definition.Version} has {startNodes.Count} start nodes " +
+                $"Definition '{definition.TechnicalName}' v{definition.Version} has {startNodes.Count} start nodes " +
                 $"({string.Join(", ", startNodes.Select(s => $"'{s.Id}'"))}) - each gets a token (implicit " +
                 "parallel start). Use exactly one start node followed by an AND split instead.",
                 LogSeverity.Warning);
@@ -4954,7 +4954,7 @@ namespace ITVComponents.Workflow
                 var startNodes = subDef.StartNodes().ToList();
                 if (startNodes.Count == 0)
                 {
-                    Fault(instance, $"Sub-workflow '{subDef.Id}' has no start node.", node.Id);
+                    Fault(instance, $"Sub-workflow '{subDef.TechnicalName}' has no start node.", node.Id);
                     return false;
                 }
 
@@ -4966,7 +4966,7 @@ namespace ITVComponents.Workflow
                     Id = childId,
                     // Wie beim Start: der Verweis ist die technische Kennung der aufgeloesten Zeile.
                     DefinitionKey = subDef.Key,
-                    DefinitionId = subDef.Id,
+                    DefinitionId = subDef.TechnicalName,
                     DefinitionVersion = subDef.Version,
                     TenantId = instance.TenantId,
                     ParentInstanceId = instance.Id,
@@ -4999,11 +4999,11 @@ namespace ITVComponents.Workflow
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent(
-                        $"Start parameters of sub-workflow '{subDef.Id}' called from node '{node.Id}' in " +
+                        $"Start parameters of sub-workflow '{subDef.TechnicalName}' called from node '{node.Id}' in " +
                         $"instance '{instance.Id}' could not be resolved: {ex.OutlineException()}",
                         LogSeverity.Error);
                     Fault(instance,
-                        $"Start parameters of sub-workflow '{subDef.Id}' failed: {ex.Message}", node.Id);
+                        $"Start parameters of sub-workflow '{subDef.TechnicalName}' failed: {ex.Message}", node.Id);
                     return false;
                 }
 

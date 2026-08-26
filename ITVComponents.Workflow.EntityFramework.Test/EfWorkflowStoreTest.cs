@@ -53,7 +53,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         /// </summary>
         private static int SaveDummyDefinition(EfWorkflowStore store)
         {
-            var definition = new WorkflowDefinition { Id = "d", Version = 1, Name = "d" };
+            var definition = new WorkflowDefinition { TechnicalName = "d", Version = 1, Name = "d" };
             store.SaveDefinition(definition);
             return definition.Key;
         }
@@ -146,7 +146,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var store = NewStore();
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "shape",
+                TechnicalName = "shape",
                 Version = 3,
                 Nodes = new List<WorkflowNode>
                 {
@@ -191,7 +191,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "bindings",
+                TechnicalName = "bindings",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, activity, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
                 {
@@ -234,7 +234,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "dataflow",
+                TechnicalName = "dataflow",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, activity, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
                 {
@@ -354,7 +354,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var store = NewStore();
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "boom",
+                TechnicalName = "boom",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -480,7 +480,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "ho",
+                TechnicalName = "ho",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -500,7 +500,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wait",
+                TechnicalName = "wait",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -521,7 +521,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "timer",
+                TechnicalName = "timer",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

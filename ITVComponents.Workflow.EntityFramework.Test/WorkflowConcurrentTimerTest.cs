@@ -240,7 +240,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "tmr",
+                TechnicalName = "tmr",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -257,7 +257,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "ut",
+                TechnicalName = "ut",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

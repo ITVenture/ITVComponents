@@ -3,8 +3,18 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Vie
     /// <summary>Eine Zeile der Definition-Uebersicht.</summary>
     public sealed class WorkflowDefinitionListItem
     {
-        /// <summary>Fachliche Id der Definition.</summary>
-        public string Id { get; init; } = "";
+        /// <summary>
+        /// Der Primaerschluessel der Definitionszeile - der Aufhaenger jeder Aktion (oeffnen, bearbeiten)
+        /// und der Wert, den man in Einstellungen hinterlegt. Eindeutig ohne Namens- oder
+        /// Mandanten-Aufloesung.
+        /// </summary>
+        public int Key { get; init; }
+
+        /// <summary>
+        /// Der sprechende Name der Definition. Zum Suchen und Wiedererkennen - nicht als Aufhaenger
+        /// einer Aktion, weil derselbe Name je Mandant und Version mehrfach vorkommt.
+        /// </summary>
+        public string TechnicalName { get; init; } = "";
 
         /// <summary>Version.</summary>
         public int Version { get; init; }

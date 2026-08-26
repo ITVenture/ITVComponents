@@ -31,7 +31,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wd",
+                TechnicalName = "wd",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

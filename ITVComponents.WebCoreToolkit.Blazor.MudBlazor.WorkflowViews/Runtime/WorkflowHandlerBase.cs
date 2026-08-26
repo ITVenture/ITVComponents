@@ -232,7 +232,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Runtime
             }
 
             LogEnvironment.LogEvent(
-                $"{operation} der Definition '{stored.Id}' v{stored.Version} abgelehnt: sie gehoert dem "
+                $"{operation} der Definition '{stored.TechnicalName}' v{stored.Version} abgelehnt: sie gehoert dem "
                 + $"Mandanten '{stored.TenantId}', der laufende Kontext ist '{CurrentTenant()}'.",
                 LogSeverity.Warning);
             return false;

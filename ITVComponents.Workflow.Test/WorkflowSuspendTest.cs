@@ -37,7 +37,7 @@ namespace ITVComponents.Workflow.Test
         private void SaveDefinition()
             => store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -153,7 +153,7 @@ namespace ITVComponents.Workflow.Test
             // Aussage, die niemand einloesen kann.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "quick",
+                TechnicalName = "quick",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
                     { new SequenceFlow { Id = "s->e", SourceId = "s", TargetId = "e" } }

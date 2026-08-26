@@ -65,7 +65,7 @@ namespace ITVComponents.Workflow.EntityFramework
             {
                 // Widerspruch statt Auslegungsfrage: wer beides setzt, hat sich nicht entschieden.
                 throw new InvalidOperationException(
-                    $"Definition '{definition.Id}' v{definition.Version} is marked public but also names " +
+                    $"Definition '{definition.TechnicalName}' v{definition.Version} is marked public but also names " +
                     $"the tenant '{definition.TenantId}'. Decide one - public means no tenant.");
             }
 
@@ -84,7 +84,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 ? ctx.WorkflowDefinitions.IgnoreQueryFilters()
                     .FirstOrDefault(d => d.DefinitionKey == definition.Key)
                 : ctx.WorkflowDefinitions.IgnoreQueryFilters()
-                    .FirstOrDefault(d => d.Id == definition.Id && d.Version == definition.Version
+                    .FirstOrDefault(d => d.Id == definition.TechnicalName && d.Version == definition.Version
                                          && d.TenantId == definition.TenantId);
             // Der Besitzer VOR dem Speichern. Er entscheidet, welche Ausloeser-Zeilen in den Neuaufbau
             // gehoeren - und zwar nur bei einer BESTEHENDEN Zeile: bei einer neuen ist "null" nicht
@@ -95,7 +95,7 @@ namespace ITVComponents.Workflow.EntityFramework
             string previousTenantId = null;
             if (row == null)
             {
-                row = new WorkflowDefinitionRow { Id = definition.Id, Version = definition.Version };
+                row = new WorkflowDefinitionRow { Id = definition.TechnicalName, Version = definition.Version };
                 ctx.WorkflowDefinitions.Add(row);
             }
             else
@@ -109,7 +109,7 @@ namespace ITVComponents.Workflow.EntityFramework
                     // mehr. Wer eine NEUE Version wollte, muss den Schluessel loslassen - kommt er hier
                     // mit, ist das der Weg, auf dem eine Fassung unbemerkt verschwindet.
                     LogEnvironment.LogEvent(
-                        $"Definition '{definition.Id}': die bestehende Zeile (Schluessel {row.DefinitionKey}) "
+                        $"Definition '{definition.TechnicalName}': die bestehende Zeile (Schluessel {row.DefinitionKey}) "
                         + $"wechselt von Version {row.Version} auf {definition.Version}. Es entsteht KEINE "
                         + "zweite Fassung - war eine neue Version gemeint, muss die technische Kennung 0 sein.",
                         LogSeverity.Warning);
@@ -117,7 +117,7 @@ namespace ITVComponents.Workflow.EntityFramework
 
                 // Beim Aktualisieren duerfen Name und Version mitwandern - die technische Kennung nicht.
                 // An ihr haengen die laufenden Instanzen.
-                row.Id = definition.Id;
+                row.Id = definition.TechnicalName;
                 row.Version = definition.Version;
             }
 
@@ -169,7 +169,7 @@ namespace ITVComponents.Workflow.EntityFramework
             // und weil dieser Weg in JEDEM Speichern einer Definition steckt, faellt so etwas nicht an
             // einer Stelle auf, sondern ueberall zugleich.
             int? highest = ctx.WorkflowDefinitions.IgnoreQueryFilters()
-                .Where(d => d.Id == definition.Id && d.TenantId == definition.TenantId)
+                .Where(d => d.Id == definition.TechnicalName && d.TenantId == definition.TenantId)
                 .Max(d => (int?)d.Version);
             int highestVersion = highest ?? definition.Version;
 
@@ -177,13 +177,13 @@ namespace ITVComponents.Workflow.EntityFramework
             if (highestVersion != definition.Version)
             {
                 WorkflowDefinitionRow newestRow = ctx.WorkflowDefinitions.IgnoreQueryFilters()
-                    .FirstOrDefault(d => d.Id == definition.Id && d.TenantId == definition.TenantId
+                    .FirstOrDefault(d => d.Id == definition.TechnicalName && d.TenantId == definition.TenantId
                                          && d.Version == highestVersion);
                 newest = Materialize(newestRow);
                 if (newest == null)
                 {
                     LogEnvironment.LogEvent(
-                        $"Die Ausloeser der Definition '{definition.Id}' konnten nicht aufgebaut werden: "
+                        $"Die Ausloeser der Definition '{definition.TechnicalName}' konnten nicht aufgebaut werden: "
                         + $"Version {highestVersion} ist nicht lesbar. Die Ausloeser bleiben, wie sie sind.",
                         LogSeverity.Error);
                     return;
@@ -217,11 +217,11 @@ namespace ITVComponents.Workflow.EntityFramework
             }
 
             Collect(ctx.WorkflowStartTriggers
-                .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.Id));
+                .Where(t => t.TenantId == definition.TenantId && t.DefinitionId == definition.TechnicalName));
             if (tenantChanged)
             {
                 Collect(ctx.WorkflowStartTriggers
-                    .Where(t => t.TenantId == previousTenantId && t.DefinitionId == definition.Id));
+                    .Where(t => t.TenantId == previousTenantId && t.DefinitionId == definition.TechnicalName));
             }
 
             if (newest.Key != 0)
@@ -235,7 +235,7 @@ namespace ITVComponents.Workflow.EntityFramework
             // Die Aktivierungen dieser Definition - ueber die fachliche Identitaet, nicht ueber
             // TriggerKey: der ist gleich ein anderer.
             List<WorkflowStartTriggerActivationRow> activations = ctx.WorkflowStartTriggerActivations
-                .Where(a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.Id)
+                .Where(a => a.OwnerTenantId == definition.TenantId && a.DefinitionId == definition.TechnicalName)
                 .ToList();
 
             if (tenantChanged)
@@ -328,7 +328,7 @@ namespace ITVComponents.Workflow.EntityFramework
             List<WorkflowStartTriggerActivationRow> existingAtNewOwner)
         {
             List<WorkflowStartTriggerActivationRow> previous = ctx.WorkflowStartTriggerActivations
-                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.Id)
+                .Where(a => a.OwnerTenantId == previousTenantId && a.DefinitionId == definition.TechnicalName)
                 .ToList();
             var kept = new List<WorkflowStartTriggerActivationRow>();
             foreach (WorkflowStartTriggerActivationRow activation in previous)
@@ -342,7 +342,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 if (!belongsToNewOwner)
                 {
                     LogEnvironment.LogEvent(
-                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        $"Die Uebernahme von '{definition.TechnicalName}' (Knoten '{activation.NodeId}') durch den "
                         + $"Mandanten '{activation.TenantId ?? "-"}' wurde entfernt: die Definition gehoert "
                         + $"jetzt dem Mandanten '{definition.TenantId}' und steht ihm nicht mehr offen.",
                         LogSeverity.Warning);
@@ -362,7 +362,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 if (duplicate)
                 {
                     LogEnvironment.LogEvent(
-                        $"Die Uebernahme von '{definition.Id}' (Knoten '{activation.NodeId}') durch den "
+                        $"Die Uebernahme von '{definition.TechnicalName}' (Knoten '{activation.NodeId}') durch den "
                         + $"Mandanten '{activation.TenantId ?? "-"}' konnte nicht mitgezogen werden: beim "
                         + "neuen Besitzer steht dafuer bereits eine Zeile. Die aeltere wurde entfernt, es "
                         + "gilt die bestehende.", LogSeverity.Warning);

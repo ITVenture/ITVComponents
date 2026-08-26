@@ -123,7 +123,7 @@ namespace ITVComponents.Workflow.EntityFramework
                 WorkflowDefinition definition = store.GetDefinition(group.DefinitionKey);
                 WorkflowRetentionOverride objection = definition == null
                     ? null
-                    : store.GetRetentionOverridesForDefinition(definition.TenantId, definition.Id)
+                    : store.GetRetentionOverridesForDefinition(definition.TenantId, definition.TechnicalName)
                         .FirstOrDefault(o => o.TenantId == group.TenantId);
                 DateTime? cutoff = WorkflowRetentionPolicy
                     .Attachments(definition, objection, defaults).DueBefore(nowUtc);

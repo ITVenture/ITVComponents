@@ -104,7 +104,7 @@ namespace ITVComponents.Workflow.Test
 
             return new WorkflowDefinition
             {
-                Id = "rich", Version = 3, Name = "Rich", TenantId = "t1",
+                TechnicalName = "rich", Version = 3, Name = "Rich", TenantId = "t1",
                 Nodes = new List<WorkflowNode>
                 {
                     start,
@@ -137,7 +137,7 @@ namespace ITVComponents.Workflow.Test
             string json = WorkflowJson.ExportDefinition(original);
             WorkflowDefinition copy = WorkflowJson.ImportDefinition(json);
 
-            Assert.AreEqual("rich", copy.Id);
+            Assert.AreEqual("rich", copy.TechnicalName);
             Assert.AreEqual(3, copy.Version);
             Assert.AreEqual("t1", copy.TenantId);
 

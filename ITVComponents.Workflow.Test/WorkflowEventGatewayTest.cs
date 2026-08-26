@@ -30,7 +30,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -141,7 +141,7 @@ namespace ITVComponents.Workflow.Test
             // das Gateway waere ein stiller Nicht-Effekt.
             var definition = new WorkflowDefinition
             {
-                Id = "bad",
+                TechnicalName = "bad",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -168,7 +168,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "bad",
+                TechnicalName = "bad",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

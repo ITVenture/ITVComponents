@@ -193,7 +193,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "chain",
+                TechnicalName = "chain",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -279,7 +279,7 @@ namespace ITVComponents.Workflow.Test
             configure(node);
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

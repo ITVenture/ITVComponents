@@ -54,7 +54,7 @@ namespace ITVComponents.Workflow.Test
                 flows.Add(new SequenceFlow { Id = "a->err", SourceId = "a", TargetId = "err-end" });
             }
 
-            store.SaveDefinition(new WorkflowDefinition { Id = "wf", Nodes = nodes, Flows = flows });
+            store.SaveDefinition(new WorkflowDefinition { TechnicalName = "wf", Nodes = nodes, Flows = flows });
         }
 
         [TestMethod]

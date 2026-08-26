@@ -332,7 +332,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 flows.Add(Flow("bt", "se"));
             }
 
-            return new WorkflowDefinition { Id = "ut", Version = 1, Nodes = nodes, Flows = flows };
+            return new WorkflowDefinition { TechnicalName = "ut", Version = 1, Nodes = nodes, Flows = flows };
         }
 
         private static WorkflowInstance ActiveAtWriteX(IWorkflowStore store)
@@ -352,7 +352,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wx",
+                TechnicalName = "wx",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -368,7 +368,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

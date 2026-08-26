@@ -77,7 +77,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
             return new WorkflowDefinition
             {
-                Id = "main",
+                TechnicalName = "main",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, call, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
                 {
@@ -91,7 +91,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             return new WorkflowDefinition
             {
-                Id = "sub",
+                TechnicalName = "sub",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

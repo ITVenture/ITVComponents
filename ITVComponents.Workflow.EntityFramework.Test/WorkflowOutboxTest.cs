@@ -50,7 +50,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "ordering",
+                TechnicalName = "ordering",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -69,7 +69,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "payment",
+                TechnicalName = "payment",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s2" },

@@ -1,5 +1,5 @@
-@page "/Workflow/Definitions/{DefinitionId}/{Version:int}"
-@page "/Workflow/env/{Environment}/Definitions/{DefinitionId}/{Version:int}"
+@page "/Workflow/Definitions/{Key:int}"
+@page "/Workflow/env/{Environment}/Definitions/{Key:int}"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using ITVComponents.Workflow.Model
@@ -15,12 +15,12 @@
             @* Ziele relativ (ohne fuehrenden Slash) - siehe Kommentar in WorkflowDefinitions.razor. *@
             <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="@($"{EnvPrefix}/Definitions")" Title="Back" />
             <MudText Typo="Typo.h5">
-                @(string.IsNullOrEmpty(definition?.Name) ? DefinitionId : definition!.Name)
-                <MudText Typo="Typo.caption" Class="ml-2" Inline="true">@DefinitionId (v@Version)</MudText>
+                @(string.IsNullOrEmpty(definition?.Name) ? definition?.TechnicalName : definition!.Name)
+                <MudText Typo="Typo.caption" Class="ml-2" Inline="true">@definition?.TechnicalName (v@definition?.Version) &middot; #@Key</MudText>
             </MudText>
             <MudSpacer />
             <MudButton StartIcon="@Icons.Material.Filled.Edit" Variant="Variant.Filled" Color="Color.Primary"
-                       Href="@($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(DefinitionId)}/{Version}/edit")">Edit</MudButton>
+                       Href="@($"{EnvPrefix}/Definitions/{Key}/edit")">Edit</MudButton>
         </MudStack>
 
         @if (!loaded)
@@ -44,9 +44,8 @@
 </SecureView>
 
 @code {
-    [Parameter] public string DefinitionId { get; set; } = "";
-
-    [Parameter] public int Version { get; set; }
+    /// <summary>Der Primaerschluessel der Definitionszeile - der Aufhaenger dieser Ansicht.</summary>
+    [Parameter] public int Key { get; set; }
 
     /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Standard.</summary>
     [Parameter] public string? Environment { get; set; }
@@ -62,7 +61,7 @@
     {
         loaded = false;
         var auth = await AuthState.GetAuthenticationStateAsync();
-        definition = await Handler.GetDefinitionAsync(auth.User, DefinitionId, Version, Environment);
+        definition = await Handler.GetDefinitionByKeyAsync(auth.User, Key, Environment);
         loaded = true;
     }
 }

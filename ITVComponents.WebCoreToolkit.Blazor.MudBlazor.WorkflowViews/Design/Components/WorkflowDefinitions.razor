@@ -6,6 +6,10 @@
 @inject IWorkflowDesignHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@using ITVComponents.Helpers
+@using ITVComponents.Logging
 
 <PageTitle>Workflow definitions</PageTitle>
 
@@ -45,7 +49,7 @@
                     }
                     <MudSpacer />
                     <MudTextField @bind-Value="search"
-                                  Placeholder="Search id…"
+                                  Placeholder="Search name…"
                                   Adornment="Adornment.Start"
                                   AdornmentIcon="@Icons.Material.Filled.Search"
                                   Class="mt-0 ml-2"
@@ -53,7 +57,19 @@
                                   OnDebounceIntervalElapsed="ReloadGrid" />
                 </ToolBarContent>
                 <Columns>
-                    <PropertyColumn Property="x => x.Id" Title="Id" />
+                    @* Der Schluessel steht vorn und laesst sich kopieren: er ist der Aufhaenger jeder
+                       Aktion und der Wert, den man in Einstellungen hinterlegt. Eine laufende Nummer
+                       abzutippen ist die Sorte Fehler, die erst spaeter auffaellt. *@
+                    <TemplateColumn T="WorkflowDefinitionListItem" Title="Key" SortBy="x => x.Key">
+                        <CellTemplate>
+                            <MudStack Row="true" Spacing="0" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.body2"><b>@context.Item.Key</b></MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                               Title="Copy key" OnClick="@(() => CopyKey(context.Item))" />
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.TechnicalName" Title="Technical name" />
                     <PropertyColumn Property="x => x.Version" Title="Ver" />
                     <PropertyColumn Property="x => x.Name" Title="Name" />
                     <PropertyColumn Property="x => x.NodeCount" Title="Nodes" Sortable="false" />
@@ -145,11 +161,32 @@
     // Root und laeuft in einen 404, weil die Toolkit-Routen tenant-gebunden sind.
     private void OpenGraph(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}");
+        Nav.NavigateTo($"{EnvPrefix}/Definitions/{item.Key}");
     }
 
     private void OpenEditor(WorkflowDefinitionListItem item)
     {
-        Nav.NavigateTo($"{EnvPrefix}/Definitions/{Uri.EscapeDataString(item.Id)}/{item.Version}/edit");
+        Nav.NavigateTo($"{EnvPrefix}/Definitions/{item.Key}/edit");
+    }
+
+    /// <summary>
+    /// Legt den Schluessel in die Zwischenablage. Schlaegt das fehl (kein sicherer Kontext, Berechtigung
+    /// verweigert), wird der Wert wenigstens angezeigt - stillschweigend nichts zu tun waere das
+    /// Schlimmste, weil der Benutzer dann einen Wert einfuegt, der noch von vorher stammt.
+    /// </summary>
+    private async Task CopyKey(WorkflowDefinitionListItem item)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", item.Key.ToString());
+            Snackbar.Add($"Key {item.Key} copied", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            LogEnvironment.LogEvent(
+                $"Schluessel {item.Key} konnte nicht in die Zwischenablage gelegt werden: {ex.OutlineException()}",
+                LogSeverity.Warning);
+            Snackbar.Add($"Key is {item.Key} (copying failed)", Severity.Info);
+        }
     }
 }

@@ -264,7 +264,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             params Token[] tokens)
         {
             WorkflowDefinition definition = store.GetDefinition("d", 1)
-                ?? new WorkflowDefinition { Id = "d", Version = 1, Name = "d" };
+                ?? new WorkflowDefinition { TechnicalName = "d", Version = 1, Name = "d" };
             if (definition.Key == 0)
             {
                 store.SaveDefinition(definition);
@@ -273,7 +273,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var instance = new WorkflowInstance
             {
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 Status = status,
                 Tokens = tokens.ToList()

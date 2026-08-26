@@ -52,7 +52,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Version = 1,
                 Name = "Der Ablauf wf",
                 RetentionDays = retentionDays,
@@ -70,7 +70,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var instance = new WorkflowInstance
             {
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 TenantId = "t1",
                 Status = WorkflowStatus.Completed,

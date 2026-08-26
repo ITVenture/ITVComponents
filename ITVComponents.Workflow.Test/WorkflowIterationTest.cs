@@ -64,7 +64,7 @@ namespace ITVComponents.Workflow.Test
                 flows.Add(F("a", "handled"));
             }
 
-            store.SaveDefinition(new WorkflowDefinition { Id = "wf", Nodes = nodes, Flows = flows });
+            store.SaveDefinition(new WorkflowDefinition { TechnicalName = "wf", Nodes = nodes, Flows = flows });
             return node;
         }
 
@@ -430,7 +430,7 @@ namespace ITVComponents.Workflow.Test
             node.Outputs.Add(new ActivityOutputBinding { Parameter = "stillOpen", Variable = "items" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, node, new EndNode { Id = "ok" }

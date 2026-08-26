@@ -244,7 +244,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private static WorkflowDefinition WithSchedule(string id, string pattern, string tenantId)
             => new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Version = 1,
                 TenantId = tenantId,
                 Nodes = new List<WorkflowNode>

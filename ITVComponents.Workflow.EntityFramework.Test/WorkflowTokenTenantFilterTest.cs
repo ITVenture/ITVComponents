@@ -46,7 +46,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private EfWorkflowStore StoreFor(string tenant) => new EfWorkflowStore(() => MakeContext(tenant));
 
         private static WorkflowDefinition PublicDefinition(string id)
-            => new WorkflowDefinition { Id = id, Version = 1, TenantId = null, IsPublic = true, Name = id };
+            => new WorkflowDefinition { TechnicalName = id, Version = 1, TenantId = null, IsPublic = true, Name = id };
 
         private string NewInstance(EfWorkflowStore store, string id, params Token[] tokens)
         {

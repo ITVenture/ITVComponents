@@ -30,7 +30,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Version = 1,
                 Name = $"Der Ablauf {id}",
                 TenantId = tenantId,
@@ -51,7 +51,7 @@ namespace ITVComponents.Workflow.Test
             var instance = new WorkflowInstance
             {
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 TenantId = tenantId,
                 Status = status,

@@ -151,7 +151,7 @@ namespace ITVComponents.Workflow.Retention
 
             WorkflowRetentionOverride objection = definition == null
                 ? null
-                : store.GetRetentionOverridesForDefinition(definition.TenantId, definition.Id)
+                : store.GetRetentionOverridesForDefinition(definition.TenantId, definition.TechnicalName)
                     .FirstOrDefault(o => o.TenantId == group.TenantId);
 
             EffectiveRetention effective = WorkflowRetentionPolicy.Archive(definition, objection, defaults);

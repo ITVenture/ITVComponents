@@ -46,7 +46,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Version = 1,
                 Name = id,
                 IsPublic = isPublic,

@@ -90,7 +90,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             return new WorkflowDefinition
             {
-                Id = "hop",
+                TechnicalName = "hop",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

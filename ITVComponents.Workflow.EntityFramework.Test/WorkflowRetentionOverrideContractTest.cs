@@ -186,7 +186,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             EffectiveRetention effective = WorkflowRetentionPolicy.Archive(
                 new WorkflowDefinition
                 {
-                    Id = "wf", Version = 1, RetentionDays = 400, AllowTenantRetentionOverride = true
+                    TechnicalName = "wf", Version = 1, RetentionDays = 400, AllowTenantRetentionOverride = true
                 },
                 withdrawn, null);
 

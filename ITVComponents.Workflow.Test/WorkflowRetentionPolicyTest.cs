@@ -19,7 +19,7 @@ namespace ITVComponents.Workflow.Test
         private static WorkflowDefinition Definition(int? days = null, bool allowOverride = false)
             => new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Version = 1,
                 RetentionDays = days,
                 AllowTenantRetentionOverride = allowOverride
@@ -119,7 +119,7 @@ namespace ITVComponents.Workflow.Test
         private static WorkflowDefinition Bounded(int? days, int? min, int? max)
             => new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 RetentionDays = days,
                 AllowTenantRetentionOverride = true,
                 MinTenantRetentionDays = min,
@@ -195,7 +195,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 RetentionDays = 90,
                 MinTenantRetentionDays = 30,
                 AllowTenantRetentionOverride = false
@@ -273,7 +273,7 @@ namespace ITVComponents.Workflow.Test
         {
             var definition = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 RetentionDays = 30,
                 AttachmentRetentionDays = 180
             };

@@ -29,7 +29,7 @@ namespace ITVComponents.Workflow.Test
             // Ein Wartepunkt, damit die Instanz nach dem Start noch existiert und laeuft.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 DefaultPriority = defaultPriority,
                 Nodes = new List<WorkflowNode>
                 {
@@ -82,7 +82,7 @@ namespace ITVComponents.Workflow.Test
             SaveWaiting("child", WorkflowPriority.Lowest);
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "parent",
+                TechnicalName = "parent",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -129,7 +129,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { F("s", "e") }
             });

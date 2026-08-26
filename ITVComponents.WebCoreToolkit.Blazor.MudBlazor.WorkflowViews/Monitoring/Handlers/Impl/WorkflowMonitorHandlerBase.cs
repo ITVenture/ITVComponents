@@ -419,7 +419,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
 
             return Task.FromResult<WorkflowStartForm?>(new WorkflowStartForm
             {
-                DefinitionId = def.Id,
+                DefinitionId = def.TechnicalName,
                 Version = def.Version,
                 Name = def.Name,
                 Description = start?.FormDescription,

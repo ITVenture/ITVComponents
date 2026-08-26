@@ -70,7 +70,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -122,7 +122,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             node.Outputs.Add(new ActivityOutputBinding { Parameter = "items", Variable = "items" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "rec",
+                TechnicalName = "rec",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, node,

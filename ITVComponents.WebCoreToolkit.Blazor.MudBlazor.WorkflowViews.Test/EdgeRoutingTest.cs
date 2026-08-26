@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         {
             // A --------------> C, mit B exakt dazwischen auf derselben Hoehe. Die gerade Verbindung
             // liefe mitten durch B; die Kante muss aussen herum.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(Activity("a", 0, 0));
             def.Nodes.Add(Activity("b", 200, 0));
             def.Nodes.Add(Activity("c", 400, 0));
@@ -66,7 +66,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
             // Der gemeldete Fall: Fehlerpfad auf eine Benutzer-Aufgabe und von dort zurueck auf die
             // Aktivitaet (Wiederholung). Beide Kanten haengen an denselben zwei Knoten - lagen sie auf
             // denselben Andockpunkten, waere im Bild nur eine Linie zu sehen.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(Activity("a", 0, 0));
             def.Nodes.Add(Activity("b", 320, 0));
             def.Flows.Add(new SequenceFlow { Id = "there", SourceId = "a", TargetId = "b" });
@@ -90,7 +90,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
             // Der rote Port sitzt bei 85% der Hoehe an der rechten Seite. Startete die Kante in der
             // Seitenmitte, laege sie auf dem Erfolgspfad - und der Nutzer saehe nicht, welcher Strang
             // welcher ist.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new AutomatedActivityNode { Id = "act", ActivityRef = "x", ErrorFlowId = "err", Diagram = new DiagramShape { X = 0, Y = 0 } });
             def.Nodes.Add(new UserActivityNode { Id = "task", TaskKey = "t", Diagram = new DiagramShape { X = 320, Y = 200 } });
             def.Nodes.Add(new EndNode { Id = "end", Diagram = new DiagramShape { X = 320, Y = 0 } });
@@ -112,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         {
             // Zwei Knoten, deren Mitten um wenige Pixel auseinanderliegen: ohne Ausrichtung entstuende
             // ein Z mit einem 4-Pixel-Versatz - das liest sich als Zeichenfehler, nicht als Absicht.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(Activity("a", 0, 0));
             def.Nodes.Add(Activity("b", 300, 4));
             def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "a", TargetId = "b" });
@@ -126,7 +126,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         [TestMethod]
         public void SelfLoop_StartsAndEndsOnTheNodeBorder()
         {
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(Activity("a", 100, 100));
             def.Flows.Add(new SequenceFlow { Id = "retry", SourceId = "a", TargetId = "a" });
 
@@ -209,7 +209,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         /// </summary>
         private static WorkflowDefinition BranchingDefinition()
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1 };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1 };
             def.Nodes.Add(new StartNode { Id = "start", Diagram = new DiagramShape { X = 40, Y = 200 } });
             def.Nodes.Add(new AutomatedActivityNode { Id = "act", ActivityRef = "x", ErrorFlowId = "toTask", Diagram = new DiagramShape { X = 200, Y = 190 } });
             def.Nodes.Add(new ExclusiveGatewayNode { Id = "gw", Diagram = new DiagramShape { X = 420, Y = 195 } });

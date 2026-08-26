@@ -35,7 +35,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -110,7 +110,7 @@ namespace ITVComponents.Workflow.Test
             // Zweig b parkt an einem Wartepunkt: der Join darf nicht mit den anderen feuern.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -148,7 +148,7 @@ namespace ITVComponents.Workflow.Test
             // Ein Wartepunkt haelt die Zweige offen, damit der Stempel sichtbar bleibt.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -221,7 +221,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -256,7 +256,7 @@ namespace ITVComponents.Workflow.Test
             // Eine Kante direkt auf den Join gezogen: dieses Token wird nie mitgezaehlt.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -288,7 +288,7 @@ namespace ITVComponents.Workflow.Test
             // Nach dem Join geht es ueber ein XOR zurueck auf den Split - zweite Runde, neue Stempel.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -335,7 +335,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -383,7 +383,7 @@ namespace ITVComponents.Workflow.Test
         {
             var def = new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

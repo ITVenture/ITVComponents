@@ -198,7 +198,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private static WorkflowDefinition UserTaskDefinition()
             => new WorkflowDefinition
             {
-                Id = "ut",
+                TechnicalName = "ut",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

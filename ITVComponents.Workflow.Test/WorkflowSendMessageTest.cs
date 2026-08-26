@@ -29,7 +29,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "ordering",
+                TechnicalName = "ordering",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -64,7 +64,7 @@ namespace ITVComponents.Workflow.Test
 
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "payment",
+                TechnicalName = "payment",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s2" },
@@ -162,7 +162,7 @@ namespace ITVComponents.Workflow.Test
             SaveReceiver();
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "manual",
+                TechnicalName = "manual",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s3" },
@@ -201,7 +201,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "listener",
+                TechnicalName = "listener",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -212,7 +212,7 @@ namespace ITVComponents.Workflow.Test
             });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "pauser",
+                TechnicalName = "pauser",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s2" },
@@ -265,7 +265,7 @@ namespace ITVComponents.Workflow.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, send, new EndNode { Id = "e" }

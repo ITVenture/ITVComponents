@@ -72,7 +72,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = id, Version = 1, TenantId = tenant, IsPublic = tenant == null, Name = id
+                TechnicalName = id, Version = 1, TenantId = tenant, IsPublic = tenant == null, Name = id
             };
         }
 
@@ -89,7 +89,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             // genau der ist der Weg, um den es hier geht.
             StoreFor("Acme").SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf", Version = 1, Name = "wf"
+                TechnicalName = "wf", Version = 1, Name = "wf"
             });
 
             using (WorkflowContext ctx = MakeContext("Acme"))

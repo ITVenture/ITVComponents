@@ -26,11 +26,29 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             string? environment = null);
 
         /// <summary>
-        /// Laedt eine Definition. Ist <paramref name="version"/> null, wird die hoechste Version
-        /// geliefert. Liefert null, wenn nichts gefunden wird. <paramref name="environment"/> waehlt die
-        /// Umgebung (null = Standard).
+        /// Laedt <b>genau eine</b> Definitionszeile ueber ihren Primaerschluessel. Liefert null, wenn es
+        /// sie nicht (mehr) gibt.
         /// </summary>
-        Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version,
+        /// <remarks>
+        /// Der Weg fuer jede Aktion, die sich auf eine bestimmte Definition bezieht - oeffnen,
+        /// bearbeiten, verweisen. Ueber Name und Version waere die Zeile mehrdeutig, sobald es eine
+        /// oeffentliche und eine mandanteneigene Fassung desselben Namens gibt: welche davon gemeint
+        /// ist, entschiede dann der Mandantenkontext des Aufrufers statt der Aufrufer selbst.
+        /// </remarks>
+        Task<WorkflowDefinition?> GetDefinitionByKeyAsync(ClaimsPrincipal user, int definitionKey,
+            string? environment = null);
+
+        /// <summary>
+        /// <b>Sucht</b> eine Definition ueber ihren sprechenden Namen. Ist <paramref name="version"/>
+        /// null, wird die hoechste Version geliefert. Liefert null, wenn nichts gefunden wird.
+        /// <paramref name="environment"/> waehlt die Umgebung (null = Standard).
+        /// </summary>
+        /// <remarks>
+        /// Fuer das Suchen und fuer Fragen der Art „welches ist die neueste Fassung dieses Namens" -
+        /// nicht, um eine bereits bekannte Definition wieder aufzugreifen. Dafuer
+        /// <see cref="GetDefinitionByKeyAsync"/>.
+        /// </remarks>
+        Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string technicalName, int? version,
             string? environment = null);
 
         /// <summary>

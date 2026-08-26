@@ -615,7 +615,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             bool waitOnSameName = false)
             => new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -638,7 +638,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         private static WorkflowDefinition WithSchedule(string id, string pattern)
             => new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

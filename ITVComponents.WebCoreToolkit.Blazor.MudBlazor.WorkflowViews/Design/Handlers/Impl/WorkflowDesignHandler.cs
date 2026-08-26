@@ -70,11 +70,24 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
         }
 
         /// <inheritdoc/>
-        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string definitionId, int? version,
+        public Task<WorkflowDefinition?> GetDefinitionByKeyAsync(ClaimsPrincipal user, int definitionKey,
             string? environment = null)
         {
             using WorkflowOperation op = BeginOperation(environment);
-            return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(definitionId, version));
+            WorkflowDefinition? stored = op.Store.GetDefinition(definitionKey);
+
+            // Der Store trifft die Zeile ueber den Schluessel ausdruecklich FILTERFREI - der Schluessel
+            // kommt hier aber aus der URL und ist damit frei waehlbar. Ohne diesen Guard liesse sich die
+            // Definition eines fremden Mandanten oeffnen, indem man die Nummer hochzaehlt.
+            return Task.FromResult(MayTouchDefinition(op, stored, "Lesen") ? stored : null);
+        }
+
+        /// <inheritdoc/>
+        public Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string technicalName, int? version,
+            string? environment = null)
+        {
+            using WorkflowOperation op = BeginOperation(environment);
+            return Task.FromResult<WorkflowDefinition?>(op.Store.GetDefinition(technicalName, version));
         }
 
         /// <inheritdoc/>
@@ -89,7 +102,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                 return Task.FromResult(false);
             }
 
-            if (definition == null || string.IsNullOrWhiteSpace(definition.Id))
+            if (definition == null || string.IsNullOrWhiteSpace(definition.TechnicalName))
             {
                 LogEnvironment.LogEvent(
                     "Workflow-Definition nicht gespeichert: keine oder leere Id.", LogSeverity.Error);
@@ -112,7 +125,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
                 if (touchesPublic && !Services.VerifyUserPermissions(new[] { WorkflowSecurity.DesignPublic }))
                 {
                     LogEnvironment.LogEvent(
-                        $"Speichern der oeffentlichen Workflow-Definition '{definition.Id}' ohne "
+                        $"Speichern der oeffentlichen Workflow-Definition '{definition.TechnicalName}' ohne "
                         + $"Berechtigung '{WorkflowSecurity.DesignPublic}' abgelehnt.", LogSeverity.Warning);
                     return Task.FromResult(false);
                 }
@@ -133,7 +146,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             catch (Exception ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Konnte Workflow-Definition '{definition.Id}' v{definition.Version} nicht speichern: {ex.OutlineException()}",
+                    $"Konnte Workflow-Definition '{definition.TechnicalName}' v{definition.Version} nicht speichern: {ex.OutlineException()}",
                     LogSeverity.Error);
                 return Task.FromResult(false);
             }
@@ -227,7 +240,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
 
             return new WorkflowDefinitionListItem
             {
-                Id = row.Id,
+                Key = row.DefinitionKey,
+                TechnicalName = row.Id,
                 Version = row.Version,
                 Name = name,
                 NodeCount = nodeCount,

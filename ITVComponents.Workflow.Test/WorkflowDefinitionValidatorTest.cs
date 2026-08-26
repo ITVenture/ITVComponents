@@ -14,7 +14,7 @@ namespace ITVComponents.Workflow.Test
     {
         private static WorkflowDefinition Linear()
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1 };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1 };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "doit" });
             def.Nodes.Add(new EndNode { Id = "e" });
@@ -81,7 +81,7 @@ namespace ITVComponents.Workflow.Test
         public void ExclusiveGatewayWithoutDefault_IsWarningNotError()
         {
             // Beide Zweige laufen auf DAS EINE Ende - eine Definition hat genau einen End-Knoten.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ExclusiveGatewayNode { Id = "x" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "a1", ActivityRef = "big" });
@@ -103,7 +103,7 @@ namespace ITVComponents.Workflow.Test
         {
             // Replace-Knoten liegt auf einem Zweig zwischen AND-Split und Join. Seit den Zweig-Scopes
             // raeumt er nur die Kopie SEINES Zweigs ab - kein Grund mehr zu warnen.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
             def.Nodes.Add(new AutomatedActivityNode
@@ -128,7 +128,7 @@ namespace ITVComponents.Workflow.Test
         public void ConsolidationAfterJoin_NoWarning()
         {
             // Replace-Knoten liegt NACH dem Join -> Ein-Zweig-Segment, keine Warnung.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "x" });
@@ -161,7 +161,7 @@ namespace ITVComponents.Workflow.Test
             var nb = new AutomatedActivityNode { Id = "b", ActivityRef = "y" };
             a(na);
             b(nb);
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
             def.Nodes.Add(na);
@@ -213,7 +213,7 @@ namespace ITVComponents.Workflow.Test
             a2.Outputs.Add(new ActivityOutputBinding { Parameter = "r", Variable = "v" });
             var b = new AutomatedActivityNode { Id = "b", ActivityRef = "y" };
 
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
             def.Nodes.Add(a1);
@@ -259,7 +259,7 @@ namespace ITVComponents.Workflow.Test
         public void ErrorFlow_WithoutASeparateSuccessEdge_IsError()
         {
             // Nur die Fehler-Kante ausgehend -> es fehlt der Erfolgs-Ausgang.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "x", ErrorFlowId = "a->h" });
             def.Nodes.Add(new EndNode { Id = "h" });
@@ -274,7 +274,7 @@ namespace ITVComponents.Workflow.Test
         public void CallWorkflowErrorFlow_WithoutASeparateSuccessEdge_IsError()
         {
             // Der Fehler-Ausgang gilt generalisiert auch fuer CallWorkflowNode.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new CallWorkflowNode { Id = "c", SubDefinitionId = "sub", ErrorFlowId = "c->h" });
             def.Nodes.Add(new EndNode { Id = "h" });
@@ -289,7 +289,7 @@ namespace ITVComponents.Workflow.Test
         public void StartParameters_OnTwoStartNodes_AreError()
         {
             // Die Signatur gehoert der Definition - zweimal deklariert waere sie mehrdeutig.
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             var s1 = new StartNode { Id = "s1" };
             s1.Inputs.Add(new ActivityInputBinding { Parameter = "a", Kind = ParameterBindingKind.Literal, Literal = 1 });
             var s2 = new StartNode { Id = "s2" };
@@ -308,7 +308,7 @@ namespace ITVComponents.Workflow.Test
         [TestMethod]
         public void Result_OnTwoEndNodes_IsError()
         {
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             var e1 = new EndNode { Id = "e1" };
             e1.Outputs.Add(new ActivityOutputBinding { Parameter = "total", Variable = "result" });
             var e2 = new EndNode { Id = "e2" };
@@ -329,7 +329,7 @@ namespace ITVComponents.Workflow.Test
         [TestMethod]
         public void MissingEnd_IsWarning()
         {
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new WaitNode { Id = "w", SignalName = "go" });
             def.Flows.Add(new SequenceFlow { Id = "f", SourceId = "s", TargetId = "w" });
@@ -575,7 +575,7 @@ namespace ITVComponents.Workflow.Test
         {
             var task = new UserActivityNode { Id = "u", TaskKey = "Check" };
             configure(task);
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(task);
             def.Nodes.Add(new EndNode { Id = "e" });
@@ -665,7 +665,7 @@ namespace ITVComponents.Workflow.Test
         /// <summary>Start → AND-Split → zwei Aktivitaeten → Join → Ende.</summary>
         private static WorkflowDefinition ParallelSkeleton()
         {
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "s" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "split" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "a", ActivityRef = "x" });

@@ -39,7 +39,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 MinHistorySeverity = minSeverity,
                 Nodes = new List<WorkflowNode>
                 {

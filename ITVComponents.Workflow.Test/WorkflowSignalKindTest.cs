@@ -27,7 +27,7 @@ namespace ITVComponents.Workflow.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, wait, new EndNode { Id = "e" }

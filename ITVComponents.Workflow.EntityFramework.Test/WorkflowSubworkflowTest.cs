@@ -66,7 +66,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
             return new WorkflowDefinition
             {
-                Id = "main",
+                TechnicalName = "main",
                 Version = 1,
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, call, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
@@ -81,7 +81,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         {
             return new WorkflowDefinition
             {
-                Id = "sub",
+                TechnicalName = "sub",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -216,7 +216,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             midCall.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "y" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "mid",
+                TechnicalName = "mid",
                 Version = 1,
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, midCall, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
@@ -232,7 +232,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             topCall.Outputs.Add(new ActivityOutputBinding { Parameter = "y", Variable = "outcome" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "top",
+                TechnicalName = "top",
                 Version = 1,
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, topCall, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow>
@@ -271,7 +271,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var call = new CallWorkflowNode { Id = "call", SubDefinitionId = "sub", ErrorFlowId = "call->handled", ErrorVariable = "err" };
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "main",
+                TechnicalName = "main",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -305,7 +305,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             call.Outputs.Add(new ActivityOutputBinding { Parameter = "result", Variable = "answer" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "main",
+                TechnicalName = "main",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {
@@ -348,7 +348,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             // Kind, das an einem Wartepunkt haengt (laeuft nicht von selbst zu Ende).
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "sub",
+                TechnicalName = "sub",
                 Version = 1,
                 Nodes = new List<WorkflowNode>
                 {

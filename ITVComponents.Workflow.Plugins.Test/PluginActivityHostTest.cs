@@ -179,7 +179,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "one",
+                TechnicalName = "one",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -207,7 +207,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "two",
+                TechnicalName = "two",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -247,7 +247,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "waitonly",
+                TechnicalName = "waitonly",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

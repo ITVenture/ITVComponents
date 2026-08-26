@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -61,6 +62,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             if (path.StartsWith("/_", StringComparison.Ordinal)
                 || IsExcluded(path, opts.AuthPathExclusions))
             {
+                await next(context);
+                return;
+            }
+
+            // A status-code re-execution (UseStatusCodePagesWithReExecute) carries the error path the HOST
+            // configured — typically "/not-found" — not one the user asked for. Validating THAT against the
+            // eligible scopes turns the error page itself into an error: the visitor gets this middleware's
+            // bare 404 instead of the designed page, and the circuit is gone. Letting it through is safe
+            // precisely because the path is not user-controlled; the diagnostics middleware sets it.
+            // The original path is logged, because it is the one piece of information the error page cannot
+            // show and the only hint at WHAT was actually missing — typically a sub-resource of a page that
+            // itself rendered fine. Information, not Warning: a missing asset is an application matter, not
+            // a failure of the tenant resolution.
+            var reExecute = context.Features.Get<IStatusCodeReExecuteFeature>();
+            if (reExecute != null)
+            {
+                logger.LogInformation(
+                    "TenantPathPrefix: passing through the status-code re-execution to {Path}; the request that actually failed was {OriginalPath}{OriginalQuery}.",
+                    path, reExecute.OriginalPath, reExecute.OriginalQueryString);
                 await next(context);
                 return;
             }

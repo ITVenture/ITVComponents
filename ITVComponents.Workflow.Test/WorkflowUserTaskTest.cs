@@ -507,7 +507,7 @@ namespace ITVComponents.Workflow.Test
             var right = new UserActivityNode { Id = "r", TaskKey = "Check" };
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, split, left, right, join, new EndNode { Id = "e" }
@@ -542,7 +542,7 @@ namespace ITVComponents.Workflow.Test
             task.Outputs.Add(new ActivityOutputBinding { Parameter = "decision", Variable = "approved" });
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" }, split, task, new WaitNode { Id = "w", SignalName = "other" },
@@ -577,7 +577,7 @@ namespace ITVComponents.Workflow.Test
             configure(node);
             return new WorkflowDefinition
             {
-                Id = id,
+                TechnicalName = id,
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

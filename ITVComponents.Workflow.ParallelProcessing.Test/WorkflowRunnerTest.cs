@@ -242,7 +242,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             return new WorkflowDefinition
             {
-                Id = "wait",
+                TechnicalName = "wait",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -263,7 +263,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             return new WorkflowDefinition
             {
-                Id = "timer",
+                TechnicalName = "timer",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -283,7 +283,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             return new WorkflowDefinition
             {
-                Id = "par",
+                TechnicalName = "par",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

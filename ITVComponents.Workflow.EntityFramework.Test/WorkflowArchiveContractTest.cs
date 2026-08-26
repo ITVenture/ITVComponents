@@ -55,7 +55,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         private static WorkflowDefinition Definition(IWorkflowStore store, string id)
         {
-            var definition = new WorkflowDefinition { Id = id, Version = 1, Name = $"Der Ablauf {id}" };
+            var definition = new WorkflowDefinition { TechnicalName = id, Version = 1, Name = $"Der Ablauf {id}" };
             store.SaveDefinition(definition);
             return definition;
         }
@@ -70,7 +70,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             var instance = new WorkflowInstance
             {
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 TenantId = "t1",
                 Status = status,

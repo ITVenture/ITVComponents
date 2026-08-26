@@ -69,7 +69,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
             // und muessen deshalb mit deren Stufe eingereiht werden.
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },
@@ -99,7 +99,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode> { new StartNode { Id = "s" }, new EndNode { Id = "e" } },
                 Flows = new List<SequenceFlow> { F("s", "e") }
             });
@@ -115,7 +115,7 @@ namespace ITVComponents.Workflow.ParallelProcessing.Test
         {
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

@@ -409,7 +409,7 @@ namespace ITVComponents.Workflow.Stores
             return new WorkflowStartTrigger
             {
                 DefinitionKey = definition.Key,
-                DefinitionId = definition.Id,
+                DefinitionId = definition.TechnicalName,
                 DefinitionVersion = definition.Version,
                 TenantId = definition.TenantId,
                 IsPublic = definition.IsPublic,

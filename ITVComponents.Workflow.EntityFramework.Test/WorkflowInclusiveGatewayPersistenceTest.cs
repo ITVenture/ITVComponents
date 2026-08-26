@@ -50,7 +50,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             // Zwei von drei Zweigen aktiv, beide parken an einem Wartepunkt (= Commit in die Ablage).
             store.SaveDefinition(new WorkflowDefinition
             {
-                Id = "wf",
+                TechnicalName = "wf",
                 Nodes = new List<WorkflowNode>
                 {
                     new StartNode { Id = "s" },

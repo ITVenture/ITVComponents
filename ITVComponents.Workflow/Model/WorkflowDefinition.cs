@@ -28,8 +28,21 @@ namespace ITVComponents.Workflow.Model
         [JsonIgnore]
         public int Key { get; set; }
 
-        /// <summary>Fachliche Kennung des Workflows (ueber Versionen hinweg stabil).</summary>
-        public string Id { get; set; }
+        /// <summary>
+        /// Der <b>sprechende</b> Name des Workflows - ueber Versionen hinweg stabil und je Mandant
+        /// eindeutig. Gedacht zum <b>Suchen</b> und Wiedererkennen, nicht als Aufhaenger einer Aktion:
+        /// welche Zeile dieser Name gerade meint, haengt am Mandanten und an der Version. Wer eine
+        /// bestimmte Definition meint, nimmt <see cref="Key"/>.
+        /// </summary>
+        /// <remarks>
+        /// Der JSON-Name bleibt <c>Id</c>, und das mit Absicht: die Definition wird als Ganzes in die
+        /// Ablage serialisiert (<c>DefinitionJson</c>) und ist zugleich das Austauschformat. Wanderte der
+        /// Name im JSON mit, waere jede bereits abgelegte und jede exportierte Definition nicht mehr
+        /// lesbar - der Bestand verlore stillschweigend seinen Namen. Umbenannt wird deshalb nur die
+        /// Eigenschaft, nicht das Format.
+        /// </remarks>
+        [JsonPropertyName("Id")]
+        public string TechnicalName { get; set; }
 
         /// <summary>Version dieser Definition. Laufende Instanzen bleiben an ihrer Version.</summary>
         public int Version { get; set; } = 1;

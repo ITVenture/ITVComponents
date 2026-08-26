@@ -14,7 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
     {
         private static WorkflowDefinition LinearDefinition(bool withDiagram)
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Test" };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1, Name = "Test" };
             def.Nodes.Add(new StartNode { Id = "start", Name = "Start" });
             def.Nodes.Add(new AutomatedActivityNode { Id = "act", Name = "Do it", ActivityRef = "x" });
             def.Nodes.Add(new EndNode { Id = "end", Name = "End" });
@@ -64,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         [TestMethod]
         public void Compute_EveryGatewayIsADiamond_WithItsOwnSymbol()
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Gateways" };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1, Name = "Gateways" };
             def.Nodes.Add(new ExclusiveGatewayNode { Id = "xor" });
             def.Nodes.Add(new ParallelGatewayNode { Id = "and" });
             def.Nodes.Add(new InclusiveGatewayNode { Id = "or" });
@@ -89,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         [TestMethod]
         public void Compute_WaitingKinds_AreHexagons_ExecutingKinds_AreRounded()
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Kinds" };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1, Name = "Kinds" };
             def.Nodes.Add(new AutomatedActivityNode { Id = "auto", Name = "Auto", ActivityRef = "x" });
             def.Nodes.Add(new CallWorkflowNode { Id = "sub", Name = "Sub", SubDefinitionId = "child" });
             def.Nodes.Add(new WaitNode { Id = "wait", Name = "Wait" });
@@ -107,7 +107,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         [TestMethod]
         public void Compute_NodeLabels_CarryKindIndicatorGlyphs()
         {
-            var def = new WorkflowDefinition { Id = "wf", Version = 1, Name = "Glyphs" };
+            var def = new WorkflowDefinition { TechnicalName = "wf", Version = 1, Name = "Glyphs" };
             def.Nodes.Add(new AutomatedActivityNode { Id = "auto", Name = "Auto", ActivityRef = "x" });
             def.Nodes.Add(new CallWorkflowNode { Id = "sub", Name = "Sub", SubDefinitionId = "child" });
             def.Nodes.Add(new WaitNode { Id = "wait", Name = "Wait" });
@@ -165,7 +165,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Test
         [TestMethod]
         public void Edge_LabelPrefersNameThenCondition()
         {
-            var def = new WorkflowDefinition { Id = "wf" };
+            var def = new WorkflowDefinition { TechnicalName = "wf" };
             def.Nodes.Add(new StartNode { Id = "start" });
             def.Nodes.Add(new EndNode { Id = "end" });
             def.Flows.Add(new SequenceFlow { Id = "f1", SourceId = "start", TargetId = "end", Condition = "a > 1" });
