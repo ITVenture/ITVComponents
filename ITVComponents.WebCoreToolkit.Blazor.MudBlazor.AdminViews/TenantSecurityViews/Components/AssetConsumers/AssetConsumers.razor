@@ -1,0 +1,116 @@
+@page "/Security/AssetConsumers"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject IAssetConsumerAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Asset argument consumers</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Asset argument consumers</MudText>
+
+<SecureView RequiredPermissions="Sysadmin" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+        These rows are declared by the code itself: an endpoint registers what it understands the first
+        time it is constructed. They can be removed, but not edited — the next declaration would
+        overwrite any manual change. A row that has not been seen for a long time may simply belong to a
+        page nobody visited since the last restart.
+    </MudAlert>
+
+    <MudDataGrid T="AssetConsumerViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.Single"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Asset argument consumers" @bind-Search="search" OnSearch="ReloadGrid" />
+        </ToolBarContent>
+        <Columns>
+            <HierarchyColumn T="AssetConsumerViewModel" />
+            <TemplateColumn T="AssetConsumerViewModel" Title="Kind" Sortable="false">
+                <CellTemplate>
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.Item.DeclarationKind == AssetConsumerKind.Path ? Color.Primary : Color.Secondary)">
+                        @context.Item.DeclarationKind
+                    </MudChip>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.DeclarationKey" Title="Route template / type" />
+            <PropertyColumn Property="x => x.ArgumentCount" Title="Arguments" />
+            <TemplateColumn T="AssetConsumerViewModel" Title="First seen" Sortable="false">
+                <CellTemplate>@context.Item.FirstSeenUtc.ToLocalTime().ToString("g")</CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="AssetConsumerViewModel" Title="Last seen" Sortable="false">
+                <CellTemplate>@context.Item.LastSeenUtc.ToLocalTime().ToString("g")</CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="AssetConsumerViewModel" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <AssetConsumerArgumentsGrid AssetConsumerId="@context.Item.AssetConsumerId" />
+            </MudPaper>
+        </ChildRowContent>
+        <PagerContent>
+            <MudDataGridPager T="AssetConsumerViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">Sysadmin access required.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private MudDataGrid<AssetConsumerViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetConsumerViewModel>> LoadData(GridState<AssetConsumerViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetConsumerViewModel> { Items = Array.Empty<AssetConsumerViewModel>(), TotalItems = 0 };
+        var query = state.ToListQuery(search);
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<AssetConsumerViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task Delete(AssetConsumerViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete consumer",
+            $"Really remove '{item.DeclarationKey}'? It comes back the next time that endpoint runs.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteAsync(currentUser!, item.AssetConsumerId);
+        if (success) { Snackbar.Add("Consumer removed", Severity.Success); await ReloadGrid(); }
+        else Snackbar.Add("Failed to remove", Severity.Error);
+    }
+}

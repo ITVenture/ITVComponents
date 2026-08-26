@@ -1,0 +1,58 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject IAssetConsumerAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+@* Bewusst ohne Bearbeiten: die Argumente kommen aus dem Code und werden bei der naechsten Meldung
+   des Endpunkts ueberschrieben. Was man hier von Hand aendern wuerde, waere bis zum naechsten
+   Seitenaufbau haltbar. *@
+<MudDataGrid T="AssetConsumerArgumentViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Arguments" TitleTypo="Typo.subtitle2" />
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.ArgumentName" Title="Name" />
+        <TemplateColumn T="AssetConsumerArgumentViewModel" Title="Type" Sortable="false">
+            <CellTemplate>@context.Item.ArgumentType</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="AssetConsumerArgumentViewModel" Title="Required" Sortable="false">
+            <CellTemplate>
+                @if (context.Item.Required)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AssetConsumerArgumentViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AssetConsumerId { get; set; }
+
+    private MudDataGrid<AssetConsumerArgumentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetConsumerArgumentViewModel>> LoadData(GridState<AssetConsumerArgumentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetConsumerArgumentViewModel> { Items = Array.Empty<AssetConsumerArgumentViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListArgumentsAsync(currentUser, AssetConsumerId, query);
+        return new GridData<AssetConsumerArgumentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+}

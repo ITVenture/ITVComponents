@@ -400,6 +400,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
+        /// <inheritdoc/>
+        public DbSet<AssetConsumer> AssetConsumers { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<VideoTutorial> Tutorials { get; set; }

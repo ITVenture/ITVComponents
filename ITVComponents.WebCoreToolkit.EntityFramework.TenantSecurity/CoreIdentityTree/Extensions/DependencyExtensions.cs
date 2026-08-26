@@ -16,6 +16,7 @@ using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.EntityFrameworkCore;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -175,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services)
         {
-            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
+            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
         }
 
         /*/// <summary>
@@ -187,7 +188,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services, Type contextType)
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
-            return services.AddScoped(typeof(ISharedAssetAdapter), t);
+            return services.UsePersistentAssetArgumentRegistry().AddScoped(typeof(ISharedAssetAdapter), t);
         }*/
 
         /// <summary>
@@ -221,7 +222,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public static IServiceCollection UseDbSharedAssets<TImpl>(this IServiceCollection services)
             where TImpl : AspNetTreeSecurityContext<TImpl>
         {
-            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
+            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
         }
     }
 }

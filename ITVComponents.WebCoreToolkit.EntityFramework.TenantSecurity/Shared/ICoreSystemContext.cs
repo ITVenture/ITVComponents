@@ -26,6 +26,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
+        /// <summary>
+        /// Die Endpunkte, die Argumente eines geteilten Assets verstehen. Mandantenfrei, weil es eine
+        /// Eigenschaft des Codes ist und nicht eines Mandanten.
+        /// </summary>
+        public DbSet<AssetConsumer> AssetConsumers { get; set; }
+
+        /// <summary>
+        /// Die Argumente dieser Endpunkte.
+        /// </summary>
+        public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<Culture> Cultures { get; set; }

@@ -224,6 +224,10 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             }
 
             services.TryAddScoped<ISharedAssetContext, SharedAssetContext>();
+            // Die Grundfassung der Registry, damit ein Endpunkt sie in JEDEM Host in den Konstruktor
+            // nehmen kann. Wer die Deklarationen behalten will, ueberschreibt sie mit der
+            // persistierenden Fassung aus dem EF-Paket.
+            services.TryAddSingleton<IAssetArgumentRegistry, InMemoryAssetArgumentRegistry>();
             return services;
         }
 

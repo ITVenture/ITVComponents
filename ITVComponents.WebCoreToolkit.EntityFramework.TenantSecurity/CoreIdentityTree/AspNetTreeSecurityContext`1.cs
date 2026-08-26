@@ -334,6 +334,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             userProvider?.User != null && (userProvider.User.Identities.Any(i => i.IsAuthenticated));
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetConsumer> AssetConsumers { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         /// <summary>

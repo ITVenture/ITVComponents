@@ -21,6 +21,7 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -163,7 +164,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services)
         {
-            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
+            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
         }
 
         /*/// <summary>
@@ -175,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services, Type contextType)
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
-            return services.AddScoped(typeof(ISharedAssetAdapter), t);
+            return services.UsePersistentAssetArgumentRegistry().AddScoped(typeof(ISharedAssetAdapter), t);
         }*/
 
         /// <summary>
@@ -186,7 +187,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         public static IServiceCollection UseDbSharedAssets<TImpl>(this IServiceCollection services)
             where TImpl : SecurityContext<TImpl>
         {
-            return services.AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
+            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
         }
     }
 }

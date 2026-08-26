@@ -288,6 +288,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
+        /// <inheritdoc/>
+        public DbSet<AssetConsumer> AssetConsumers { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
+
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         /// <summary>

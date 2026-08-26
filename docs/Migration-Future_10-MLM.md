@@ -3985,10 +3985,105 @@ Mandant stand im Anzeigenamen, im Namen ein Literal. Das ist behoben. Auffallen 
 nicht, weil dieser Weg nie an einer Mandantenprüfung vorbeikam; mit dem Asset im Pfad hätte es einen
 404 auf genau der URL ergeben, die funktionieren soll.
 
+## 51. Wer welche Asset-Argumente versteht — **Pflicht-Migration (2 Tabellen)**
+
+Erster Schritt der Objektsicherheit für geteilte Assets (Plan:
+`docs/Plan-SharedAsset-Objektsicherheit.md`). Für sich genommen ändert dieser Schritt **noch gar
+nichts** am Verhalten: es entsteht eine Sammelstelle, in der Endpunkte deklarieren, welche Argumente
+sie verstehen. Wirksam wird das erst, wenn Vorlagen Argumente führen.
+
+### 51.1 Die Migration
+
+Zwei neue Systemtabellen, mandantenfrei, in `ICoreSystemContext`:
+
+```
+AssetConsumer           AssetConsumerId, DeclarationKind, DeclarationKey,
+                        FirstSeenUtc, LastSeenUtc
+                        UNIQUE (DeclarationKind, DeclarationKey)
+
+AssetConsumerArgument   AssetConsumerArgumentId, AssetConsumerId (FK, Cascade),
+                        ArgumentName, ArgumentType, Required, SortOrder
+                        UNIQUE (AssetConsumerId, ArgumentName)
+```
+
+`dotnet ef migrations add AssetArgumentRegistry` → `database update`. Kein Datenumzug, kein
+Altbestand — die Zeilen entstehen im Betrieb.
+
+**Warum mandantenfrei:** was ein Endpunkt versteht, ist eine Eigenschaft des Codes und für alle
+Mandanten dasselbe. Mit `TenantId` würde Mandant B die Deklaration nicht sehen, die Mandant A
+ausgelöst hat, und die Maske meldete Unsinn.
+
+### 51.2 Was ihr davon merkt
+
+Nichts, ausser einer neuen Seite: **`/Security/AssetConsumers`** (Sysadmin + Feature
+`ITVAdminViews`) zeigt die Konsumenten mit ihren Argumenten als Master/Detail. Sie ist bewusst
+**kein Editor** — die Zeilen kommen aus dem Code und würden bei der nächsten Meldung überschrieben.
+Was sie kann, ist zeigen und aufräumen.
+
+Den Navigationseintrag legt ihr wie üblich selbst an, falls die Seite ins Menü soll.
+
+### 51.3 Wie eine Zeile entsteht
+
+Ein Endpunkt meldet sich selbst. In MVC und in allem, was per DI konstruiert wird (Controller,
+Datei-Behandlungen, Plugins), im **Konstruktor**:
+
+```csharp
+public OrderController(IAssetArgumentRegistry registry)
+{
+    registry.Declare(AssetConsumerKind.Path, "/sales/order/{id}",
+        new AssetArgumentDeclaration("id", AssetArgumentType.Int));
+}
+```
+
+**Blazor-Komponenten haben keine Konstruktor-Injektion** — dort gehoert die Meldung in
+`OnInitialized`, wo die `[Inject]`-Eigenschaften gesetzt sind:
+
+```razor
+@inject IAssetArgumentRegistry Registry
+
+@code {
+    protected override void OnInitialized()
+        => Registry.Declare(AssetConsumerKind.Path, "/sales/order/{id}",
+            new AssetArgumentDeclaration("id", AssetArgumentType.Int));
+}
+```
+
+Beides ist billig genug fuer den jeweiligen Ort: eine unveraenderte Meldung kostet einen Vergleich im
+Speicher.
+
+Für Datei-Behandlungen und alles andere, was hinter einem gemeinsamen Endpunkt sitzt, gibt es
+`AssetConsumerKind.Type` mit dem CLR-Typ als Schlüssel — hinter `/File/{token}` stehen beliebig
+viele Implementierungen, und welche es ist, weiss man erst nach dem Auflösen des Tokens.
+
+**Die Meldung ist die vollständige Liste** aus Sicht dieses Endpunkts: verschwundene Argumente
+werden entfernt, neue kommen dazu. Ein Konsument dagegen wird **nie automatisch gelöscht** — dass er
+sich seit dem Neustart nicht gemeldet hat, heisst nicht, dass es ihn nicht mehr gibt. Dafür gibt es
+`LastSeenUtc` in der Maske und den Löschen-Knopf.
+
+### 51.4 Zwei Optionen, falls nötig
+
+```jsonc
+"AssetArgumentRegistry": {
+  "Persist": true,              // aus = die Registry bleibt im Speicher der laufenden Instanz
+  "DebounceMilliseconds": 250,
+  "TouchIntervalHours": 24      // wie alt der Zeitstempel einer unveränderten Meldung werden darf
+}
+```
+
+Anders als bei der Auto-Permission-Registrierung ist das Wegschreiben per Vorgabe **an**: hier
+entstehen nur Deklarationen, die nichts gewähren. Aus gedreht weiss die Maske nur so viel wie die
+laufende Instanz — nach jedem Deployment also zunächst nichts.
+
+**Was ausdrücklich nicht passiert: es wird nicht auf dem Anfragepfad geschrieben.** Gemeldet wird aus
+Konstruktoren, also potenziell bei jedem Seitenaufbau; auf dem heissen Pfad steht nur ein Vergleich
+im Speicher, und ein Hintergrund-Worker schreibt gebündelt. `TouchIntervalHours` sorgt dafür, dass
+auch der blosse Zeitstempel einer unveränderten Meldung nicht jedes Mal angefasst wird.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 51a | **Asset-Argument-Registry** | **Pflicht-Migration**: 2 neue Systemtabellen (`AssetConsumer`, `AssetConsumerArgument`), mandantenfrei. Kein Verhaltenswechsel, neue Seite `/Security/AssetConsumers` (§51) |
 | 50a | **`UseSharedAssetPath()`** | Pflicht, wenn ihr geteilte Assets benutzt: **ganz vorne** in der Pipeline, vor `UseStaticFiles`/`UseAuthentication`/`UseRouting`/`UseTenantPathPrefix` (§50.2) |
 | 50b | **`IGetAnonymousAssetQuery.Execute`** | `(IQueryCollection, out bool)` → `(string assetKey, string accessToken, out bool)`; `IAnonymousAssetLinkProvider.CreateAnonymousLink` → `CreateAnonymousToken(FullAssetInfo)` — nur bei eigener Implementierung (§50.4) |
 | 50c | **`~[SlashPermissionScope]`** | in Views auf `~[SlashScopeUnderBase]` umstellen, sonst steht der Präfix doppelt in der URL (§50.5) |

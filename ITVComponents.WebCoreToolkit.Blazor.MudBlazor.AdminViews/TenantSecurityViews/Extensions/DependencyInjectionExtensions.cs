@@ -356,6 +356,11 @@ public static class DependencyInjectionExtensions
             services.AddScoped<IFeatureAdminHandler, FeatureAdminHandler>();
         }
 
+        if (partTypeLoadBehaviorOptions.ShouldLoadType(typeof(AssetConsumerAdminHandler)))
+        {
+            services.AddScoped<IAssetConsumerAdminHandler, AssetConsumerAdminHandler>();
+        }
+
         if (partTypeLoadBehaviorOptions.ShouldLoadType(typeof(TenantTemplateAdminHandler)))
         {
             services.AddScoped<ITenantTemplateAdminHandler, TenantTemplateAdminHandler>();
