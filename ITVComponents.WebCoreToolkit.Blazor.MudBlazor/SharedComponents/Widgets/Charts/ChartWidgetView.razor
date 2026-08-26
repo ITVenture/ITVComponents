@@ -49,7 +49,10 @@ else if (Panels.Count == 1)
 }
 else
 {
-    <div class="d-flex flex-wrap align-stretch">
+    @* Ein Raster und kein Flex-Streifen: nur so lassen sich Ueberschrift und Diagramm ZEILENWEISE
+       ausrichten (siehe RowStyle). Es bricht genauso um wie vorher, nur eben in Rasterzeilen - und
+       innerhalb einer solchen Zeile teilen sich alle Diagramme dieselben zwei Baender. *@
+    <div style="@RowStyle">
         @foreach (ChartWidgetPanel panel in Panels)
         {
             <div class="pa-1" style="@SizeStyle(panel, flexChild: true)">
@@ -108,33 +111,127 @@ else
         var style = new System.Text.StringBuilder();
         if (width != null)
         {
-            if (flexChild)
-            {
-                // 0 0 auto: nicht wachsen, nicht schrumpfen - die Basis ist die width von unten.
-                style.Append("flex: 0 0 auto; ");
-            }
-
             style.Append(FormattableString.Invariant(
                 $"width: min-content; min-width: min(100%, {width}); max-width: 100%;"));
+            if (flexChild)
+            {
+                // In der Rasterzeile ist die Spalte breiter als das Diagramm mit eigener Breite - also
+                // mittig hinein, statt es an den linken Rand zu haengen. Eine Flex-Angabe stuende hier
+                // wirkungslos: wie breit die Spalte ist, entscheidet das Raster (siehe RowStyle).
+                style.Append(" justify-self: center;");
+            }
         }
-        else
+        else if (!flexChild)
         {
             int min = panel.Declaration?.MinWidth ?? ChartWidgetDeclaration.DefaultMinWidth;
             style.Append(min <= 0
                 ? "flex: 1 1 0; min-width: 0;"
                 : FormattableString.Invariant($"flex: 1 1 {min}px; min-width: min(100%, {min}px);"));
         }
+        else
+        {
+            // Die Mindestbreite steht im Raster (RowStyle) und gilt dort fuer die ganze Zeile. Hier NUR
+            // die Freigabe zum Schrumpfen: ein Rasterplatz ist von sich aus mindestens so breit wie sein
+            // Inhalt, und ein Diagramm, das nicht schrumpfen darf, sprengte die schmale Kachel seitlich.
+            style.Append("min-width: 0;");
+        }
 
         if (flexChild)
         {
-            // Eine Spalte aus Ueberschrift und Diagramm - die Voraussetzung dafuer, dass der Platz, den die
-            // Streckung auf die Zeilenhoehe bringt, in der Ueberschrift landet und nicht zwischen ihr und
-            // dem Diagramm (siehe CaptionStyle). Deshalb wird hier auch NICHT gegen die Streckung
-            // gearbeitet: sie ist genau das, woraus der Ausgleich entsteht.
-            style.Append(" display: flex; flex-direction: column;");
+            // Der Platz uebernimmt die beiden Baender seiner Rasterzeile (Ueberschrift, Diagramm) als
+            // eigenes Raster. Dadurch ist das Ueberschriften-Band bei ALLEN Diagrammen einer Zeile gleich
+            // hoch - und damit beginnen die Diagramme darunter auf einer Linie, ohne dass irgendwo eine
+            // Hoehe steht. Siehe RowStyle.
+            style.Append(" display: grid; grid-template-rows: subgrid; grid-row: span 2;");
         }
 
         return style.ToString();
+    }
+
+    /// <summary>
+    /// Die Rasterzeile, in der mehrere Diagramme einer Kachel nebeneinander stehen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Zwei Baender je Diagramm - Ueberschrift und Diagramm -, und weil jeder Platz sie per
+    /// <c>subgrid</c> uebernimmt, gelten sie fuer alle Diagramme einer Zeile GEMEINSAM. Das ist der
+    /// Unterschied zur vorherigen Flex-Fassung: die konnte nur die Gesamthoehe angleichen und musste den
+    /// Ueberschuss irgendwo hinlegen - sie legte ihn in die Ueberschrift. Sobald aber die LEGENDEN
+    /// unterschiedlich hoch waren (eine Kategorie mehr als beim Nachbarn), stammte der Ueberschuss aus
+    /// der Legende und schob Ueberschrift und Ring des Nachbarn nach unten. Ausgerichtet waren dann die
+    /// untersten Legendenzeilen, waehrend Titel und Ringe sichtbar gegeneinander verrutschten.
+    /// </para>
+    /// <para>
+    /// Mit den zwei Baendern kommt der Ausgleich nur noch von den Ueberschriften (mehrzeilige heben das
+    /// Band, siehe <see cref="CaptionStyle"/>), und alles darunter - Ring wie Legende - beginnt bei jedem
+    /// Diagramm an derselben Stelle. Eine laengere Legende reicht dann weiter nach unten als die des
+    /// Nachbarn; das faellt neben buendigen Ringen kaum auf, waehrend die vorherige Loesung genau
+    /// umgekehrt das Auffaellige ausrichtete und das Ruhige verschob.
+    /// </para>
+    /// <para>
+    /// <c>auto-fit</c> mit <c>minmax</c> haelt das bisherige Umbruchverhalten: nebeneinander, solange
+    /// jedes noch seinen Platz bekommt, sonst in die naechste Rasterzeile - und die richtet sich dann
+    /// eigenstaendig aus. <c>min(100%, …)</c> ist wie bisher die Sicherung fuer die Kachel, die selbst
+    /// schmaler ist als diese Breite.
+    /// </para>
+    /// <para>
+    /// <b>Was eine Spalte breit sein muss, entscheidet je Diagramm dasselbe wie vorher in
+    /// <see cref="SizeStyle"/>:</b> hat es eine EIGENE Breite, dann diese - eine Mindestbreite hat daneben
+    /// keine Wirkung mehr, weil die Breite schon feststeht. Sonst seine Mindestbreite. Ueber die Kachel
+    /// hinweg gilt das groesste dieser Masse, damit keines unter das seine gedrueckt wird; gerechnet wird
+    /// per <c>max()</c> im Stylesheet und nicht hier, denn eine deklarierte Breite ist Text (<c>150px</c>)
+    /// und soll dafuer nicht zerlegt werden.
+    /// </para>
+    /// <para>
+    /// Das war der Fehler der ersten Fassung: sie nahm ausschliesslich die Mindestbreiten und begann
+    /// obendrein beim Vorgabewert. Diagramme mit eigener, kleinerer Breite bekamen dadurch Spalten von
+    /// mindestens <see cref="ChartWidgetDeclaration.DefaultMinWidth"/> Pixeln - in einer Kachel, in der
+    /// vorher drei nebeneinander standen, passte danach nur noch eines.
+    /// </para>
+    /// <para>
+    /// Verlangt kein Diagramm eine Breite (<c>minWidth: 0</c> ueberall), gibt es nichts zu unterschreiten
+    /// und damit auch keinen Grund umzubrechen: dann bekommt jedes seine gleich breite Spalte in EINER
+    /// Zeile. Das entspricht dem frueheren <c>flex: 1 1 0</c>. Ohne diesen Zweig stuende in der
+    /// <c>minmax</c>-Untergrenze eine Null, aus der <c>auto-fit</c> beliebig viele Spalten ableitet.
+    /// </para>
+    /// <para>
+    /// Faellt <c>subgrid</c> aus (sehr alter Browser), wird die Regel verworfen und jeder Platz ist ein
+    /// gewoehnliches Raster: die Ueberschriften sind dann nicht mehr untereinander abgestimmt, alles
+    /// andere bleibt. Das ist genau der Zustand, den es vor dieser Ausrichtung ohnehin gab.
+    /// </para>
+    /// </remarks>
+    private string RowStyle
+    {
+        get
+        {
+            var tracks = new List<string>();
+            foreach (ChartWidgetPanel panel in Panels)
+            {
+                // Dieselbe Rangfolge wie in SizeStyle: eigene Breite schlaegt Mindestbreite.
+                string? width = panel.DeclaredWidth;
+                if (width != null)
+                {
+                    tracks.Add(width);
+                    continue;
+                }
+
+                int min = panel.Declaration?.MinWidth ?? ChartWidgetDeclaration.DefaultMinWidth;
+                if (min > 0)
+                {
+                    tracks.Add(FormattableString.Invariant($"{min}px"));
+                }
+            }
+
+            if (tracks.Count == 0)
+            {
+                return FormattableString.Invariant(
+                    $"display: grid; grid-template-columns: repeat({Panels.Count}, 1fr); grid-auto-rows: auto; align-items: start;");
+            }
+
+            string track = tracks.Count == 1 ? tracks[0] : $"max({string.Join(", ", tracks)})";
+            return FormattableString.Invariant(
+                $"display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, {track}), 1fr)); grid-auto-rows: auto; align-items: start;");
+        }
     }
 
     /// <summary>
@@ -204,26 +301,29 @@ else
     /// dreizeiligen sitzt wieder alles schief.
     /// </para>
     /// <para>
-    /// Stattdessen wird der Platz genommen, den es ohnehin schon gibt: die Diagramme einer Zeile sind
-    /// durch <c>align-items: stretch</c> alle so hoch wie das hoechste. Was einem niedrigeren dabei an
-    /// Hoehe zuwaechst, bekommt der Ueberschriften-Block (<c>flex-grow: 1</c>) und legt seinen Text UNTEN
-    /// hin - der Ueberschuss landet also ueber der Ueberschrift statt zwischen ihr und dem Diagramm.
-    /// Damit stehen die Diagramme auf einer Linie, ohne dass irgendwo eine Zahl steht.
+    /// Stattdessen ist die Ueberschrift ein eigenes BAND der Rasterzeile (siehe <see cref="RowStyle"/>):
+    /// es ist so hoch wie die hoechste Ueberschrift der Zeile, und der Text sitzt darin unten
+    /// (<c>align-self: end</c>). Damit beginnen die Diagramme auf einer Linie, ohne dass irgendwo eine
+    /// Hoehe steht - und zwar an der OBERkante, nicht ueber eine gemeinsame Standlinie.
     /// </para>
     /// <para>
-    /// Genau genommen richtet das die UNTERkanten aus; sind die Diagramme gleich hoch - der Regelfall -,
-    /// sind damit auch die Oberkanten buendig. Bei ungleich hohen Diagrammen laesst sich ohnehin nur
-    /// eines von beidem haben, und die gemeinsame Standlinie ist das, was man sieht.
+    /// Der Unterschied zur frueheren Flex-Fassung ist genau der: die konnte nur die Gesamthoehe
+    /// angleichen und musste den Ueberschuss irgendwohin legen. Sie legte ihn in die Ueberschrift - was
+    /// stimmt, solange er von den Ueberschriften stammt. Sobald aber die LEGENDEN unterschiedlich hoch
+    /// waren, kam er von unten und schob Titel und Ring des Nachbarn nach unten: ausgerichtet war dann
+    /// die unterste Legendenzeile, waehrend das Auffaellige - Ueberschrift und Ring - verrutschte.
     /// </para>
     /// </remarks>
     private const string CaptionStyle
-        = "flex: 1 0 auto; display: flex; align-items: flex-end; justify-content: center;";
+        = "align-self: end; display: flex; align-items: flex-end; justify-content: center;";
 
     /// <summary>
-    /// Das Diagramm selbst - es waechst NICHT mit. Der Ueberschuss gehoert der Ueberschrift; ginge er
-    /// hierher, waere zwischen Titel und Diagramm ein Loch und die Diagramme laegen wieder ungleich.
+    /// Das Diagramm selbst - im zweiten Band, an dessen OBERkante. Es wird nicht auf die Bandhoehe
+    /// gestreckt: waere es das, sitzt der Ring bei jedem Diagramm anderswo in seinem Band, je nachdem wie
+    /// hoch dessen Legende ist. So beginnen Ring und Legende bei allen an derselben Stelle, und nur das
+    /// Ende einer laengeren Legende reicht weiter nach unten.
     /// </summary>
-    private const string ChartBlockStyle = "flex: 0 0 auto;";
+    private const string ChartBlockStyle = "align-self: start;";
 
     /// <summary>
     /// Klick auf ein Segment oder einen Legendeneintrag. Der Regelfall ist der Sprung auf eine Seite;
