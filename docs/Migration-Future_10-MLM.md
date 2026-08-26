@@ -3758,6 +3758,103 @@ schreibt, sieht ab jetzt nur noch die Zeilen des aktiven Mandanten.**
 
 ---
 
+## 48. Workflow-Definitionen hängen am Schlüssel — **kein Schema-Change, aber Übersetzungsfehler**
+
+**Wichtig vorweg: es gibt hier nichts zu migrieren.** Keine neue Tabelle, keine neue Spalte, kein
+Datenumzug. Was ihr merkt, merkt der Compiler zuerst.
+
+### 48.1 `WorkflowDefinition.Id` heisst jetzt `TechnicalName`
+
+Der sprechende Name der Definition trägt einen Namen, der sagt was er ist. Absichtlich **ohne**
+Obsolete-Alias: der Übersetzer soll jede Stelle zeigen, statt sie als Warnung durchgehen zu lassen.
+
+```csharp
+// vorher
+string name = definition.Id;
+var def = new WorkflowDefinition { Id = "invoice-approval", Version = 1 };
+
+// nachher
+string name = definition.TechnicalName;
+var def = new WorkflowDefinition { TechnicalName = "invoice-approval", Version = 1 };
+```
+
+**Das Ablage- und Austauschformat bleibt unverändert.** Im JSON heisst das Feld weiterhin `Id`
+(`[JsonPropertyName("Id")]`) — die Definition liegt als Ganzes in `DefinitionJson` und ist zugleich
+das Export-Format. Wäre der Name mitgewandert, hätte **jede** gespeicherte und jede exportierte
+Definition still ihren Namen verloren. Umbenannt ist die Eigenschaft, nie das Format. Auch die Spalte
+`WorkflowDefinitions.Id` bleibt, wie sie ist.
+
+### 48.2 Jede Aktion hängt am Primärschlüssel, nicht mehr an Name + Version
+
+Der Name ist der Weg zum **Suchen**; welche Zeile er meint, hängt am Mandanten und an der Version.
+Sobald ein Mandant eine eigene Fassung gleichen Namens anlegt, entscheidet sonst der Kontext des
+Aufrufers statt des Aufrufers selbst, was geöffnet wird.
+
+Geändert haben sich damit die **Adressen** des Designers:
+
+| vorher | nachher |
+|---|---|
+| `/Workflow/Definitions/{name}/{version}` | `/Workflow/Definitions/{key}` |
+| `/Workflow/Definitions/{name}/{version}/edit` | `/Workflow/Definitions/{key}/edit` |
+| `/Workflow/Editor/new` | unverändert |
+
+**Bestehende Lesezeichen und selbst gesetzte Links laufen ins Leere.** Kein Datenverlust, aber wenn
+ihr irgendwo eine Definitions-URL fest verdrahtet habt (Navigation, Hilfetexte, Mails), zieht sie
+nach. Der Schlüssel steht in der Definitions-Übersicht in einer eigenen Spalte, mit Kopier-Knopf —
+gedacht genau für den Fall, dass ihr ihn in Einstellungen hinterlegen wollt.
+
+### 48.3 Nur wenn ihr Design-Handler selbst implementiert
+
+`IWorkflowDesignHandler` hat eine Methode dazubekommen und eine umbenannten Parameter:
+
+```csharp
+// neu — der Weg für jede Aktion auf einer bestimmten Definition
+Task<WorkflowDefinition?> GetDefinitionByKeyAsync(ClaimsPrincipal user, int definitionKey,
+                                                  string? environment = null);
+
+// bleibt — der Weg zum Suchen; Parameter heisst jetzt technicalName statt definitionId
+Task<WorkflowDefinition?> GetDefinitionAsync(ClaimsPrincipal user, string technicalName, int? version,
+                                             string? environment = null);
+```
+
+`WorkflowDefinitionListItem.Id` heisst ebenfalls `TechnicalName` und trägt neu `Key`.
+
+**Wenn ihr `GetDefinitionByKeyAsync` selbst implementiert:** der Schlüssel kommt aus der URL und ist
+damit frei wählbar, während der Store die Zeile darüber ausdrücklich filterfrei trifft. Ohne
+Besitz-Guard lässt sich die Definition eines fremden Mandanten durch Hochzählen öffnen — die
+mitgelieferte Implementierung prüft denselben Guard wie das Speichern.
+
+### 48.4 Was sich NICHT geändert hat
+
+Das Starten von Hand lief schon vorher richtig: der Dialog wählt über den fachlichen Namen (der
+Benutzer interessiert sich nicht für Nummern), der Handler löst **einmal** auf, prüft die aufgelöste
+Definition und startet dann über deren Schlüssel. Da war nie ein Fenster.
+
+## 49. Kleinigkeiten dieser Runde (kein Schema-Change, nichts zu tun)
+
+**Diagnose-Abfragen können Dienste selbst holen.** Neben `Services` gibt es im Abfrage-Text jetzt
+`Inject<T>()` und `InjectOrDefault<T>()`:
+
+```csharp
+var options = Inject<IGlobalSettings<MeineOptionen>>();
+```
+
+Rein additiv, bestehende Abfragen bleiben unberührt. Der Typ muss wie gehabt über den
+`#@#{U:…;R:…}#@#`-Kopf verfügbar gemacht werden — die Methode erspart das Auflösen, nicht das
+Referenzieren. **Zieht keinen DbContext direkt**: unter Blazor ist das der Circuit-Scope und damit
+die Instanz, mit der die Oberfläche gerade arbeitet; nehmt die `IDbContextFactory<T>`.
+
+**Die Fehlerseite funktioniert im Mandantenbetrieb.** Benutzt ihr
+`UseStatusCodePagesWithReExecute("/not-found", …)`, lief dieser Pfad bisher in die Mandantenprüfung
+und wurde selbst zum 404. Die Middleware lässt eine Re-Execution jetzt durch und protokolliert
+stattdessen den **ursprünglich** fehlgeschlagenen Pfad — meist eine fehlende Unterressource einer
+Seite, die selbst tadellos rendert. Falls ihr `/not-found` deshalb in `AuthPathExclusions` eingetragen
+habt: der Eintrag schadet nicht, wird aber nicht mehr gebraucht.
+
+**Mehrere Diagramme in einer Dashboard-Kachel stehen bündig.** Überschriften, Ringe und Legenden
+richten sich jetzt zeilenweise aneinander aus, auch wenn eine Legende mehr Kategorien hat als die
+daneben. Rein visuell, keine Konfigurationsänderung.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -3768,6 +3865,9 @@ schreibt, sieht ab jetzt nur noch die Zeilen des aktiven Mandanten.**
 | 42d | **Pakete** | `…Blazor.MudBlazor` und `…Blazor.MudBlazor.AdminViews` zusammen hochziehen (§42.4) |
 | 43a | **`PagedResult<T>` / `ListQuery`** | zusammengelegt nach `ITVComponents.WebCoreToolkit.Blazor.Paging` (Paket `…Blazor.MudBlazor`); `UserListQuery`→`ListQuery`, `UserListContext`→`AdminContext` (§43) |
 | 43b | **Workflow-Abfrage** | `…WorkflowViews.Common.ListQuery` heisst jetzt `WorkflowListQuery` — sie trägt `Status` statt `TenantId` und war nie derselbe Typ (§43.1) |
+| 48a | **`WorkflowDefinition.Id`** | heisst `TechnicalName` — hart umbenannt, kein Alias. JSON-Format und DB-Spalte unverändert, also **keine Migration** (§48.1) |
+| 48b | **Definitions-URLs** | `/Workflow/Definitions/{name}/{version}` → `/Workflow/Definitions/{key}`; fest verdrahtete Links nachziehen (§48.2) |
+| 48c | `IWorkflowDesignHandler` | neu `GetDefinitionByKeyAsync`; `WorkflowDefinitionListItem.Id`→`TechnicalName` plus `Key` — nur bei eigener Implementierung (§48.3) |
 | 1 | `IFileHandler.AddFile` | `ModelStateDictionary` raus, `FileOperationResult` zurück; Namespace → `ServiceShared.FileHandling` |
 | 1b | `IFileHandler.ReadFile` (sync) | `ref`/`out byte[]` → `FileReadResult ReadFile(id, identity)` (Stream-basiert, wie async) |
 | 2 | `IRespondingFileHandler.GetUploadResult` | `IResult` → `FileReadResult`; Namespace → `ServiceShared.FileHandling` |
