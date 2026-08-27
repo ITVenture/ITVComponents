@@ -93,6 +93,40 @@ Optionaler zweiter Weg fuer Hosts mit eigener Bezahlmaske: `CreatePaymentIntentA
 `client_secret` zurueck. Wird in derselben Schnittstelle vorgesehen, aber erst gebaut, wenn ein
 Konsument es braucht.
 
+### 2.5 Kein Kundenprofil — der Kauf ist ad hoc
+
+**Der Endkunde gibt seine Zahlungsdaten einmal an, und danach bleibt nichts von ihm zurueck.** Das ist
+keine Nebenwirkung, sondern eine Entscheidung, und sie gehoert aufgeschrieben, weil das Gegenteil
+billiger zu tippen ist als das Gewollte.
+
+Konkret heisst das fuer die Checkout Session aus 2.4:
+
+- `mode: payment` — **kein** `customer` mitgeben und **kein** `setup_future_usage` setzen. Ohne beides
+  benutzt Stripe das Zahlungsmittel genau einmal und speichert es nicht.
+- `customer_email` dient allein dem Beleg. Es entsteht dadurch **kein** Kundenprofil.
+- Was bleibt, reicht fuer alles Weitere: PaymentIntent und Charge liegen auf dem Konto des Tenants, und
+  `TenantSale.ProviderChargeId` traegt den Charge. **Eine Rueckerstattung braucht keinen Customer.**
+
+**Warum das der Vorgabewert sein muss:** einen Customer "sicherheitshalber" anzulegen kostet eine
+Zeile und macht aus einem anonymen Kauf einen registrierten - mit gespeicherten Zahlungsdaten, einem
+Profil, das jemandem gehoert, und einer Datenschutzfrage, die vorher keine war. Wer diese Zeile
+schreibt, muss es also wollen.
+
+**Der Gegenfall ist ausdruecklich nicht vorgesehen.** "Karte fuer das naechste Mal merken" verlangt
+`setup_future_usage` **und** einen Customer je Besucher - und damit eine dauerhafte Identitaet des
+Endkunden, die es im anonymen Shop bewusst nicht gibt. Wer das will, braucht vorher eine Antwort auf
+die Frage, wer dieser Besucher eigentlich ist; siehe `docs/Plan-SharedAsset-Objektsicherheit.md`, wo
+dieselbe Frage schon einmal offengelassen wurde (der Mechanismus liefert Rechte, keine Identitaet).
+
+**Zusammenspiel mit dem anonymen Zugang:** der Verkaufs-Service laeuft ohnehin ohne Benutzer-Scope -
+das Feature-Gate prueft per `TenantId` gegen die Datenbank (siehe 5). Ein Ad-hoc-Ticket kann damit auf
+den Auftrag zeigen, der Besucher bezahlt ihn spontan, und danach existiert weder ein Konto noch ein
+gespeichertes Zahlungsmittel - nur der Verkauf.
+
+**Ungeprueft:** Das ist Entwurfswissen ueber Stripes Verhalten. Beim Bauen ist gegen einen echten
+Account nachzusehen, ob eine Direct Charge auf einem Connected Account sich hier genauso verhaelt -
+`customer_creation` hat bei Connect andere Vorgaben als beim Plattformkonto.
+
 ## 3. Datenmodell
 
 Neu in `ITVComponents.WebCoreToolkit.EntityFramework.Billing/Models/` (Zweig `Payments`).
