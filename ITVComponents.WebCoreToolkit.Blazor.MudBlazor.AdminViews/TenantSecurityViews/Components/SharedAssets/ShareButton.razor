@@ -1,0 +1,86 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject ISharedAssetAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+@* "Hier teilen" - auf der Seite, auf der geteilt wird, und nicht in der Administration.
+
+   Der Knopf erscheint nur, wenn an dieser Stelle ueberhaupt etwas zu teilen ist: welche Vorlagen
+   passen, entscheidet der Adapter aus Pfad, Berechtigung und Feature. *@
+
+@if (templates.Length != 0)
+{
+    <MudTooltip Text="Share this">
+        <MudIconButton Icon="@Icons.Material.Filled.Share" Size="@Size" OnClick="Open" />
+    </MudTooltip>
+}
+
+@code {
+    /// <summary>
+    /// Die Argumentwerte dieser Stelle - typischerweise die Route-Parameter der Seite. Sie belegen die
+    /// Maske vor; ohne sie muesste der Benutzer abtippen, was er vor sich sieht.
+    /// </summary>
+    [Parameter] public IDictionary<string, string>? Context { get; set; }
+
+    /// <summary>Der Pfad, auf dem geteilt wird. Vorgabe: der aktuelle.</summary>
+    [Parameter] public string? Path { get; set; }
+
+    [Parameter] public Size Size { get; set; } = Size.Small;
+
+    private AssetTemplateInfo[] templates = Array.Empty<AssetTemplateInfo>();
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        templates = await Handler.GetEligibleAsync(currentUser, EffectivePath);
+    }
+
+    private string EffectivePath => Path ?? new Uri(Navigation.Uri).AbsolutePath;
+
+    private string Origin => new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority);
+
+    private async Task Open()
+    {
+        var model = new ShareRequestViewModel { RequestPath = EffectivePath };
+        if (Context != null)
+        {
+            foreach (var pair in Context)
+            {
+                model.ArgumentValues[pair.Key] = pair.Value;
+            }
+        }
+
+        var parameters = new DialogParameters<ShareDialog>
+        {
+            { d => d.Model, model },
+            { d => d.Templates, templates },
+            { d => d.OnShare, request => Handler.CreateAsync(currentUser!, request, Origin) }
+        };
+        var dlg = await DialogService.ShowAsync<ShareDialog>("Share", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: ShareResultViewModel created })
+        {
+            // Der Link kommt aus dem Ergebnis und wird nicht neu geholt - und er gehoert dorthin, wo man
+            // ihn kopieren kann, nicht in eine Meldung, die nach drei Sekunden verschwindet.
+            await ShowLink(created.Link ?? string.Empty);
+        }
+    }
+
+    private async Task ShowLink(string link)
+    {
+        if (string.IsNullOrEmpty(link))
+        {
+            Snackbar.Add("Shared, but the link could not be built.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters<ShareLinkDialog> { { d => d.Link, link } };
+        await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+    }
+}

@@ -24,8 +24,14 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
         public const string SecurityTokenParamName = Global.FixedAssetTokenQueryParameter;
 
         /// <summary>
-        /// Der Name, unter dem ein anonymer Asset-Besucher auftritt. Er entspricht dem Platzhalter, den ein
-        /// Benutzerfilter am Asset tragen kann, damit ein Asset ueberhaupt anonym geteilt werden kann.
+        /// Der Name, unter dem ein anonymer Asset-Besucher auftritt.
+        /// <para>
+        /// <b>Nicht zu verwechseln mit dem Filter-Platzhalter</b> <c>##ANONYMOUS</c>
+        /// (<c>SharedAssetInfoProvider.AnonymousTag</c>): der steht AM ASSET und sagt, dass es anonym
+        /// geteilt werden darf. Dieser hier ist bloss der Name, unter dem der Besucher dann auftritt -
+        /// zwei verschiedene Zeichenketten mit zwei verschiedenen Aufgaben, und sie werden nirgends
+        /// miteinander verglichen.
+        /// </para>
         /// </summary>
         public const string AnonymousUserLabel = "#ANONYMOUS#";
         private readonly ISecurityRepository securityRepository;

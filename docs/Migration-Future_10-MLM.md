@@ -4166,7 +4166,7 @@ markiert statt abgelehnt.
 ### 52.6 Der Empfänger
 
 `SharedAssets.RecipientLabel` nimmt auf, an wen eine Freigabe gerichtet ist — typischerweise eine
-E-Mail-Adresse. Sie steht **neben** dem Benutzerfilter, nicht darin: `#ANONYMOUS#` ist ein exakter
+E-Mail-Adresse. Sie steht **neben** dem Benutzerfilter, nicht darin: `##ANONYMOUS` ist ein exakter
 Vergleich, und eine Adresse hineinzufalten würde daraus einen Präfix-Vergleich machen.
 
 **Und sie ist eine Behauptung, kein Nachweis.** Wer den Link hat, ist wer der Link sagt. Für
@@ -4280,10 +4280,89 @@ dann als nicht bestätigt, und ob trotzdem etwas rausgeht, entscheidet die Stren
 liefert dann false, solange noch nicht vollständig bestätigt wurde, setzt aber **nicht** auf
 abgelehnt. So kann ein Endpunkt seine Werte bedenkenlos anbieten, ohne die Freigabe zu kennen.
 
+## 54. Teilen und Freigaben verwalten — **kein Schema-Change**
+
+Vierter Schritt. Ab hier ist der Mechanismus **ohne Host-Code bedienbar** — vorher entstanden
+Freigaben ausschliesslich über eigenen Code oder direkt in der Datenbank.
+
+**Keine Migration.**
+
+### 54.1 Teilen im Kontext: `<ShareButton />`
+
+```razor
+@* auf der Seite, auf der geteilt wird *@
+<ShareButton Context="@(new Dictionary<string, string> { ["orderId"] = Id.ToString() })" />
+```
+
+Der Knopf **erscheint nur, wenn hier überhaupt etwas zu teilen ist** — welche Vorlagen passen,
+entscheidet der Adapter aus Pfad, Berechtigung und Feature. Sonst rendert er nichts.
+
+Der Dialog zeigt die Argumente der gewählten Vorlage in *deren* Reihenfolge und belegt sie aus
+`Context` vor. Genau dafür gibt es die Konsumenten-Registry aus §51: ohne Vorbelegung müsste der
+Benutzer eine Nummer abtippen, die zwei Zentimeter weiter oben auf dem Bildschirm steht.
+
+Wird die Eingabe von der harten Prüfung abgelehnt, **bleibt der Dialog stehen** und zeigt, welches
+Argument fehlt oder nicht passt — statt sich zu schliessen und den Benutzer raten zu lassen.
+
+Der fertige Link erscheint in einem eigenen Dialog mit Kopieren-Knopf. Absichtlich nicht als
+Meldung, die nach drei Sekunden verschwindet: der Link **ist** das Ergebnis.
+
+### 54.2 Die Übersicht: `/Account/Shares`
+
+Je Mandant, mit den Angaben, auf die es ankommt:
+
+| Spalte | warum sie da ist |
+|---|---|
+| **Points at** | die Argumentwerte (`orderId=4711`). Ist die Freigabe **ohne** Objektbindung, steht dort der Pfad in Warnfarbe — sie gilt dann für alles, was die Pfadmuster zulassen |
+| **Reach** | `no sign-in` (anonym), `everyone` (Platzhalter `%`), und die Empfängerangabe. Die zwei Zeilen, die in einer Übersicht auffallen müssen |
+| **Valid** | das Gültigkeitsfenster, oder „unlimited" |
+
+Drei Aktionen: Link zeigen, Links **ungültig machen**, löschen.
+
+### 54.3 Links zurückziehen, ohne die Freigabe zu löschen
+
+Neu am Adapter: `RotateAnonymousToken(assetKey)`. Es erneuert das Geheimnis der Freigabe — **jeder
+bereits verschickte anonyme Link hört auf zu funktionieren**, die Freigabe selbst bleibt mit ihren
+Argumenten und Filtern bestehen.
+
+Das ist der einzige Weg, einen verteilten Link zurückzuziehen, ohne alles wegzuwerfen. Deshalb steht
+er in der Maske.
+
+### 54.4 Breaking: der Adapter kann mehr
+
+```csharp
+// neu in ISharedAssetAdapter
+SharedAssetListItem[] ListSharedAssets(string search, int skip, int take, out int total);
+bool RotateAnonymousToken(string assetKey);
+string CreateLink(AssetInfo info, string origin);
+string CreateAnonymousLink(AssetInfo info, string origin);
+```
+
+Die beiden Link-Überladungen gibt es, weil ein Blazor-Circuit **keine laufende Anfrage** hat — die
+bestehenden `HttpContext`-Fassungen bleiben und delegieren. `RecipientLabel` wird von
+`UpdateSharedAsset` jetzt mitgeführt.
+
+Betrifft euch nur, wenn ihr `ISharedAssetAdapter` selbst implementiert.
+
+### 54.5 Zwei Namen, die sich ähnlich sehen
+
+Beim Bauen der Übersicht aufgefallen und hier festgehalten, weil es sonst jemanden Zeit kostet:
+
+| Zeichenkette | wo | wofür |
+|---|---|---|
+| `##ANONYMOUS` | **Filter am Asset** (`SharedAssetUserFilter.LabelFilter`) | erlaubt den anonymen Zugang |
+| `#ANONYMOUS#` | **Name des Besuchers** (`ClaimTypes.Name` des anonymen Prinzipals) | wie er im Protokoll heisst |
+
+Sie werden **nirgends miteinander verglichen**. Wer eine Freigabe anonym zugänglich machen will,
+trägt `##ANONYMOUS` in die Benutzerfilter ein.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 54a | **Teilen bedienbar** | `<ShareButton />` auf der teilenden Seite, Übersicht `/Account/Shares`. Kein Schema-Change; vorher entstanden Freigaben nur über Host-Code (§54) |
+| 54b | **`ISharedAssetAdapter`** | neu `ListSharedAssets`, `RotateAnonymousToken` und je eine Link-Überladung mit `origin` statt `HttpContext` (der Circuit hat keine Anfrage). Nur bei eigener Implementierung (§54.4) |
+| 54c | `##ANONYMOUS` vs. `#ANONYMOUS#` | **nicht dasselbe**: der Filter am Asset heißt `##ANONYMOUS`, der Name des Besuchers `#ANONYMOUS#` — sie werden nie verglichen (§54.5) |
 | 53a | **Riegel am Ausgang** | `services.UseSharedAssetGuard()` (MVC) bzw. `<AssetScope>` (Blazor). Ohne Vorlage mit Argumenten passiert nichts; mit einer solchen wird eine unbestätigte Antwort **verworfen** (§53) |
 | 53b | **`ISharedAssetContext`** | neu `Require`, `Confirmed`, `Denied`, `MustHoldBack`, `Enforcement`, `ResetConfirmation`. Nur bei eigener Implementierung (§53.2) |
 | 53c | `IAssetArgumentResolver` | optional — nötig, wenn ein Endpunkt nur ein Unter-Objekt kennt (Position statt Auftrag, Datei statt Vorgang) (§53.6) |

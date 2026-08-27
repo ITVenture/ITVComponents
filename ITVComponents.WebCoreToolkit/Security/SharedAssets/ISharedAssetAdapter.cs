@@ -38,6 +38,45 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         bool DeleteSharedAsset(FullAssetInfo assetInfo);
         string CreateAnonymousLink(AssetInfo info, HttpContext context);
         string CreateLink(AssetInfo info, HttpContext context);
+
+        /// <summary>
+        /// Wie <see cref="CreateLink(AssetInfo, HttpContext)"/>, aber ohne laufende Anfrage - fuer den
+        /// Blazor-Circuit, der keine hat.
+        /// </summary>
+        /// <param name="info">die Freigabe</param>
+        /// <param name="origin">Schema und Host, z.B. <c>https://app.example.com</c></param>
+        /// <returns>der Link</returns>
+        string CreateLink(AssetInfo info, string origin);
+
+        /// <summary>
+        /// Wie <see cref="CreateAnonymousLink(AssetInfo, HttpContext)"/>, aber ohne laufende Anfrage.
+        /// </summary>
+        /// <param name="info">die Freigabe</param>
+        /// <param name="origin">Schema und Host</param>
+        /// <returns>der Link fuer anonyme Empfaenger</returns>
+        string CreateAnonymousLink(AssetInfo info, string origin);
+
+        /// <summary>
+        /// Die Freigaben des aktuellen Mandanten.
+        /// </summary>
+        /// <param name="search">Suchbegriff auf Titel und Pfad, oder null</param>
+        /// <param name="skip">wieviele Zeilen zu ueberspringen sind</param>
+        /// <param name="take">wieviele Zeilen zu liefern sind</param>
+        /// <param name="total">die Gesamtzahl</param>
+        /// <returns>die Zeilen</returns>
+        SharedAssetListItem[] ListSharedAssets(string search, int skip, int take, out int total);
+
+        /// <summary>
+        /// Erneuert das Geheimnis einer Freigabe: alle bereits verschickten anonymen Links werden damit
+        /// ungueltig, die Freigabe selbst bleibt bestehen.
+        /// <para>
+        /// Das ist der einzige Weg, einen verteilten Link zurueckzuziehen, ohne die Freigabe zu loeschen -
+        /// und deshalb gehoert er in die Verwaltungsmaske.
+        /// </para>
+        /// </summary>
+        /// <param name="assetKey">die Freigabe</param>
+        /// <returns>true, wenn erneuert wurde</returns>
+        bool RotateAnonymousToken(string assetKey);
         FullAssetInfo FindAnonymousAsset(string assetKey);
         protected internal void SetImpersonationOff();
         protected internal void SetImpersonationOn();

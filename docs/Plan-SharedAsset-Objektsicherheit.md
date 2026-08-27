@@ -95,9 +95,9 @@ Weitergabe und das ganze Filter-Thema im Ticket.
 
 ### 2.8 Der Empfaenger steht neben dem Platzhalter, nicht darin
 
-`#ANONYMOUS#` ist heute ein **exakter** Vergleich in `AssetIsAccessible` — die
+`##ANONYMOUS` ist heute ein **exakter** Vergleich in `AssetIsAccessible` — die
 sicherheitskritischste Zeile des Mechanismus. Eine Empfaengeradresse in das Label zu falten
-(`#ANONYMOUS#mw@example.com#`) wuerde daraus einen Praefix-Vergleich machen. Stattdessen: das Label
+(`##ANONYMOUSmw@example.com`) wuerde daraus einen Praefix-Vergleich machen. Stattdessen: das Label
 bleibt der Filter-Platzhalter, die Adresse kommt als **eigener Wert** daneben (am Asset gespeichert
 bzw. im Ticket verschluesselt, als Claim am Prinzipal, als Namensspalte im Protokoll).
 

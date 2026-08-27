@@ -1,0 +1,112 @@
+﻿@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+<EditDialogShell Model="Model" IsCreate="true" CreateLabel="Create link" OnValidated="Share" Result="@(() => created)" Busy="@busy">
+    @if (Templates.Length == 0)
+    {
+        <MudAlert Severity="Severity.Info">There is nothing to share here.</MudAlert>
+    }
+    else
+    {
+        @* Value/ValueChanged statt @bind-Value: die Auswahl loescht zusaetzlich die Fehlermeldung, und
+           @bind-Value erzeugt selbst ein ValueChanged - beides zusammen ist ein Doppelparameter. *@
+        <MudSelect T="string" Value="@Model.TemplateKey" ValueChanged="TemplateChanged" Label="What to share"
+                   Required="true" RequiredError="Pick what to share">
+            @foreach (var template in Templates)
+            {
+                <MudSelectItem T="string" Value="@template.TemplateKey">@template.AssetTemplateTitle</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudTextField @bind-Value="Model.Title" Label="Title" Required="true" RequiredError="A title is required"
+                      MaxLength="512" Class="mt-2"
+                      HelperText="What the recipient sees, and what you will recognise it by later." />
+
+        @* Die Felder kommen aus der Vorlage, in IHRER Reihenfolge - und sind aus dem laufenden Kontext
+           vorbelegt. Genau dafuer gibt es die Konsumenten-Registry: sonst muesste der Benutzer eine
+           Nummer abtippen, die zwei Zentimeter weiter oben auf dem Bildschirm steht. *@
+        @foreach (var argument in Selected?.Arguments ?? Array.Empty<AssetArgumentDeclaration>())
+        {
+            var name = argument.Name;
+            <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
+                          Required="@argument.Required" RequiredError="@($"{name} is required")"
+                          Value="@GetArgument(name)" ValueChanged="@(v => SetArgument(name, v))" />
+        }
+
+        <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
+                      HelperText="Optional, for your own records. It is a note, not a proof of identity." />
+
+        <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="Works without signing in" Color="Color.Warning"
+                   Class="mt-2" />
+        @if (Model.Anonymous)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
+                Everyone holding this link gets in. Give it a validity window and treat it like a password.
+            </MudAlert>
+        }
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@error</MudAlert>
+        }
+    }
+</EditDialogShell>
+
+@code {
+    [Parameter, EditorRequired] public ShareRequestViewModel Model { get; set; } = default!;
+    [Parameter, EditorRequired] public AssetTemplateInfo[] Templates { get; set; } = Array.Empty<AssetTemplateInfo>();
+
+    /// <summary>
+    /// Legt die Freigabe an. Der Rueckgabewert entscheidet, ob der Dialog schliesst - bei einer
+    /// abgelehnten Eingabe bleibt er stehen und zeigt, was fehlt.
+    /// </summary>
+    [Parameter, EditorRequired] public Func<ShareRequestViewModel, Task<ShareResultViewModel>> OnShare { get; set; } = default!;
+
+    private AssetTemplateInfo? Selected =>
+        Array.Find(Templates, n => n.TemplateKey == Model.TemplateKey);
+
+    private string? error;
+    private bool busy;
+
+    /// <summary>
+    /// Das Ergebnis der Freigabe - es ist die Nutzlast beim Schliessen. Der Link entsteht hier und wird
+    /// nicht ein zweites Mal geholt: ein zweiter Aufruf wuerde bei einem anonymen Link ein NEUES Token
+    /// erzeugen wollen oder schlicht den falschen Schluessel benutzen.
+    /// </summary>
+    private ShareResultViewModel? created;
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(Model.TemplateKey) && Templates.Length == 1)
+        {
+            // Gibt es nur eine Moeglichkeit, ist die Auswahl keine Frage.
+            Model.TemplateKey = Templates[0].TemplateKey;
+        }
+    }
+
+    private void TemplateChanged(string value)
+    {
+        Model.TemplateKey = value;
+        error = null;
+    }
+
+    private string GetArgument(string name)
+        => Model.ArgumentValues.TryGetValue(name, out var value) ? value : string.Empty;
+
+    private void SetArgument(string name, string value) => Model.ArgumentValues[name] = value;
+
+    private async Task<bool> Share()
+    {
+        busy = true;
+        try
+        {
+            var result = await OnShare(Model);
+            error = result.Error;
+            created = result.Success ? result : null;
+            return result.Success;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

@@ -245,6 +245,16 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public bool DeleteSharedAsset(FullAssetInfo assetInfo) => false;
             public string CreateAnonymousLink(AssetInfo info, HttpContext context) => string.Empty;
             public string CreateLink(AssetInfo info, HttpContext context) => string.Empty;
+            public string CreateLink(AssetInfo info, string origin) => string.Empty;
+            public string CreateAnonymousLink(AssetInfo info, string origin) => string.Empty;
+
+            public SharedAssetListItem[] ListSharedAssets(string search, int skip, int take, out int total)
+            {
+                total = 0;
+                return Array.Empty<SharedAssetListItem>();
+            }
+
+            public bool RotateAnonymousToken(string assetKey) => false;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null!;
             void ISharedAssetAdapter.SetImpersonationOff() { }
             void ISharedAssetAdapter.SetImpersonationOn() { }

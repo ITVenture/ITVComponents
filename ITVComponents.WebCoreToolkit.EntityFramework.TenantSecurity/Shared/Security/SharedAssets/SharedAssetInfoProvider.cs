@@ -346,6 +346,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 asset.NotBefore = updatedInfo.NotBefore;
                 asset.NotAfter = updatedInfo.NotAfter;
                 asset.AssetTitle = updatedInfo.AssetTitle;
+                asset.RecipientLabel = updatedInfo.RecipientLabel;
                 database.SaveChanges();
                 return true;
             }
@@ -377,6 +378,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// traegt der Abschnitt zusaetzlich das Zugangs-Token.
         /// </summary>
         public string CreateAnonymousLink(AssetInfo info, HttpContext context)
+            => CreateAnonymousLink(info, Origin(context));
+
+        public string CreateAnonymousLink(AssetInfo info, string origin)
         {
             var anonymousProvider = services.GetService<IAnonymousAssetLinkProvider>();
             if (anonymousProvider == null || info is not FullAssetInfo fin)
@@ -387,7 +391,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return null;
             }
 
-            return BuildLink(info, context, anonymousProvider.CreateAnonymousToken(fin));
+            return BuildLink(info, origin, anonymousProvider.CreateAnonymousToken(fin));
         }
 
         /// <summary>
@@ -395,11 +399,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// nur Schema und Host - siehe <see cref="SharedAssetPath"/>.
         /// </summary>
         public string CreateLink(AssetInfo info, HttpContext context)
+            => CreateLink(info, Origin(context));
+
+        public string CreateLink(AssetInfo info, string origin)
         {
-            return BuildLink(info, context, null);
+            return BuildLink(info, origin, null);
         }
 
-        private string BuildLink(AssetInfo info, HttpContext context, string accessToken)
+        /// <summary>
+        /// Schema und Host der laufenden Anfrage. Im Blazor-Circuit gibt es keine - dort reicht der
+        /// Aufrufer den Ursprung selbst herein.
+        /// </summary>
+        private static string Origin(HttpContext context)
+            => context == null ? string.Empty : $"{context.Request.Scheme}://{context.Request.Host}";
+
+        private string BuildLink(AssetInfo info, string origin, string accessToken)
         {
             var segment = SharedAssetPath.BuildSegment(info.AssetKey, accessToken);
             // Der Mandant gehoert nur in den Link, wenn ihn dieser Host ueberhaupt im Pfad fuehrt. Das ist
@@ -413,7 +427,100 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 rootPath = "/" + rootPath;
             }
 
-            return $"{context.Request.Scheme}://{context.Request.Host}{prefix}{rootPath}";
+            return $"{origin}{prefix}{rootPath}";
+        }
+
+        /// <summary>
+        /// Die Freigaben des aktuellen Mandanten. Der Mandantenfilter des Kontexts zieht die Grenze; die
+        /// Vorlage entscheidet zusaetzlich, wer sie ueberhaupt sehen darf.
+        /// </summary>
+        public SharedAssetListItem[] ListSharedAssets(string search, int skip, int take, out int total)
+        {
+            total = 0;
+            if (ImpersonationDeactivated)
+            {
+                return Array.Empty<SharedAssetListItem>();
+            }
+
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
+            if (database.CurrentTenantId == null)
+            {
+                return Array.Empty<SharedAssetListItem>();
+            }
+
+            var query = database.SharedAssets.Where(n => n.TenantId == database.CurrentTenantId);
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(n => n.AssetTitle.Contains(term) || n.RootPath.Contains(term));
+            }
+
+            // Erst materialisieren, dann filtern: ob jemand eine Vorlage benutzen darf, beantwortet der
+            // Berechtigungsweg und keine Datenbankabfrage.
+            var candidates = query.OrderByDescending(n => n.SharedAssetId).ToArray()
+                .Where(n => (n.Template.RequiredFeature == null ||
+                             services.VerifyActivatedFeatures(new[] { n.Template.RequiredFeature.FeatureName }, out _)) &&
+                            (n.Template.RequiredPermission == null ||
+                             services.VerifyUserPermissions(new[] { n.Template.RequiredPermission.PermissionName }, out _)))
+                .ToArray();
+            total = candidates.Length;
+            return candidates.Skip(skip).Take(take).Select(n => new SharedAssetListItem
+            {
+                AssetKey = n.AssetKey,
+                AssetTitle = n.AssetTitle,
+                TemplateKey = n.Template.SystemKey,
+                TemplateTitle = n.Template.Name,
+                RootPath = n.RootPath,
+                NotBefore = n.NotBefore,
+                NotAfter = n.NotAfter,
+                RecipientLabel = n.RecipientLabel,
+                ArgumentSummary = Summarize(n.ArgumentValuesJson),
+                IsAnonymous = n.UserFilters.Any(f => f.LabelFilter == AnonymousTag),
+                IsPublic = n.UserFilters.Any(f => f.LabelFilter == "%")
+                           || n.TenantFilters.Any(f => f.LabelFilter == "%")
+            }).ToArray();
+        }
+
+        /// <summary>
+        /// Erneuert das Geheimnis: verschickte anonyme Links werden ungueltig, die Freigabe bleibt.
+        /// </summary>
+        public bool RotateAnonymousToken(string assetKey)
+        {
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
+            var asset = database.SharedAssets.FirstOrDefault(n => n.AssetKey == assetKey);
+            if (asset == null)
+            {
+                LogEnvironment.LogEvent($"Keine Freigabe mit dem Schluessel '{assetKey}' gefunden - das Geheimnis wurde nicht erneuert.", LogSeverity.Warning);
+                return false;
+            }
+
+            var ok = (asset.Template.RequiredFeature == null ||
+                      services.VerifyActivatedFeatures(new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
+                     (asset.Template.RequiredPermission == null ||
+                      services.VerifyUserPermissions(new[] { asset.Template.RequiredPermission.PermissionName }, out _));
+            if (!ok || database.CurrentTenantId == null || asset.TenantId != database.CurrentTenantId)
+            {
+                LogEnvironment.LogEvent($"Das Geheimnis der Freigabe '{assetKey}' durfte nicht erneuert werden.", LogSeverity.Warning);
+                return false;
+            }
+
+            asset.AnonymousAccessTokenRaw = Guid.NewGuid().ToString("B");
+            database.SaveChanges();
+            return true;
+        }
+
+        /// <summary>
+        /// Fasst die Argumentwerte lesbar zusammen - was in der Uebersicht die Frage beantwortet, worauf
+        /// eine Freigabe eigentlich zeigt.
+        /// </summary>
+        private static string Summarize(string argumentValuesJson)
+        {
+            var values = AssetArgumentValues.FromJson(argumentValuesJson);
+            return values.IsEmpty
+                ? string.Empty
+                : string.Join(", ", values.Names.Select(n => $"{n}={values[n]}"));
         }
 
         public FullAssetInfo FindAnonymousAsset(string assetKey)

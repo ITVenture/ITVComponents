@@ -1,0 +1,178 @@
+@page "/Account/Shares"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject ISharedAssetAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Shares</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Shares</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudDataGrid T="SharedAssetListItem"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="25"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Shares" @bind-Search="search" OnSearch="ReloadGrid" />
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.AssetTitle" Title="Title" />
+            <PropertyColumn Property="x => x.TemplateTitle" Title="Template" />
+            <TemplateColumn T="SharedAssetListItem" Title="Points at" Sortable="false">
+                <CellTemplate>
+                    @if (string.IsNullOrEmpty(context.Item.ArgumentSummary))
+                    {
+                        @* Ohne Argumente gilt die Freigabe fuer alles, was die Pfadmuster der Vorlage
+                           zulassen - das muss man sehen koennen. *@
+                        <MudTooltip Text="No object binding - this share covers everything its template's paths allow">
+                            <MudText Typo="Typo.body2" Color="Color.Warning">@context.Item.RootPath</MudText>
+                        </MudTooltip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.ArgumentSummary</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="SharedAssetListItem" Title="Reach" Sortable="false">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        @if (context.Item.IsAnonymous)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">no sign-in</MudChip>
+                        }
+                        @if (context.Item.IsPublic)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error">everyone</MudChip>
+                        }
+                        @if (!string.IsNullOrEmpty(context.Item.RecipientLabel))
+                        {
+                            <MudChip T="string" Size="Size.Small">@context.Item.RecipientLabel</MudChip>
+                        }
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="SharedAssetListItem" Title="Valid" Sortable="false">
+                <CellTemplate>@Validity(context.Item)</CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="SharedAssetListItem" Title="" Sortable="false">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1">
+                        <MudTooltip Text="Show link">
+                            <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small"
+                                           OnClick="@(() => ShowLink(context.Item))" />
+                        </MudTooltip>
+                        @if (context.Item.IsAnonymous)
+                        {
+                            <MudTooltip Text="Invalidate every link sent so far">
+                                <MudIconButton Icon="@Icons.Material.Filled.Autorenew" Size="Size.Small"
+                                               OnClick="@(() => Rotate(context.Item))" />
+                            </MudTooltip>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="SharedAssetListItem" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    private MudDataGrid<SharedAssetListItem>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private string? search;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private string Origin => new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority);
+
+    private async Task<GridData<SharedAssetListItem>> LoadData(GridState<SharedAssetListItem> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<SharedAssetListItem> { Items = Array.Empty<SharedAssetListItem>(), TotalItems = 0 };
+        var result = await Handler.ListAsync(currentUser, state.ToListQuery(search));
+        return new GridData<SharedAssetListItem> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private static string Validity(SharedAssetListItem item)
+    {
+        if (item.NotBefore == null && item.NotAfter == null) return "unlimited";
+        var from = item.NotBefore?.ToString("d") ?? "…";
+        var to = item.NotAfter?.ToString("d") ?? "…";
+        return $"{from} – {to}";
+    }
+
+    private async Task ShowLink(SharedAssetListItem item)
+    {
+        var link = await Handler.GetLinkAsync(currentUser!, item.AssetKey, item.IsAnonymous, Origin);
+        if (string.IsNullOrEmpty(link))
+        {
+            Snackbar.Add("The link could not be built.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters<ShareLinkDialog> { { d => d.Link, link } };
+        await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+    }
+
+    private async Task Rotate(SharedAssetListItem item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Invalidate links",
+            $"Every link to '{item.AssetTitle}' sent so far stops working. The share itself stays. Continue?",
+            yesText: "Invalidate", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.RotateAsync(currentUser!, item.AssetKey))
+        {
+            Snackbar.Add("Links invalidated - hand out the new one", Severity.Success);
+            await ReloadGrid();
+        }
+        else
+        {
+            Snackbar.Add("Failed to invalidate", Severity.Error);
+        }
+    }
+
+    private async Task Delete(SharedAssetListItem item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete share",
+            $"Really delete '{item.AssetTitle}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        if (await Handler.DeleteAsync(currentUser!, item.AssetKey))
+        {
+            Snackbar.Add("Share deleted", Severity.Success);
+            await ReloadGrid();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete", Severity.Error);
+        }
+    }
+}

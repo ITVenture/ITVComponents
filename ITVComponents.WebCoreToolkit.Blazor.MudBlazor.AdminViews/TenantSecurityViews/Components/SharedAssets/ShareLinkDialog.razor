@@ -1,0 +1,42 @@
+@inject IJSRuntime Js
+@inject ISnackbar Snackbar
+
+@* Der Link ist das Ergebnis des Teilens - er gehoert dorthin, wo man ihn in Ruhe kopieren kann, und
+   nicht in eine Meldung, die nach drei Sekunden verschwindet. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" Value="@Link" Label="Link" ReadOnly="true" Lines="3" Class="itv-share-link" />
+        <MudText Typo="Typo.caption" Class="mt-2">
+            Anyone holding this link uses the share. Send it the way you would send a password.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="Copy">Copy</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter, EditorRequired] public string Link { get; set; } = string.Empty;
+
+    private void Close() => MudDialog.Close();
+
+    private async Task Copy()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", Link);
+            Snackbar.Add("Link copied", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            // Die Zwischenablage ist nicht ueberall erreichbar (kein sicherer Kontext, verweigerte
+            // Berechtigung). Das Feld daneben zeigt den Link weiterhin - der Benutzer ist also nicht
+            // aufgeschmissen, aber wir verschweigen den Grund nicht.
+            Snackbar.Add("Could not copy - select the link and copy it yourself.", Severity.Warning);
+            Console.WriteLine($"Clipboard access failed: {ex.Message}");
+        }
+    }
+}

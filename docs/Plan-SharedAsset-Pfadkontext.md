@@ -15,7 +15,7 @@ und nicht in Blazor.
 | Modell | `EntityFramework.TenantSecurity/Shared/Models/Base/SharedAsset.cs` | `AssetKey`, `AnonymousAccessTokenRaw`, `RootPath`, `TenantId`, `NotBefore`/`NotAfter`, `UserFilters`, `TenantFilters`, `Template` |
 | Rechte | `AssetTemplate` → `Grants` / `FeatureGrants` | welche Berechtigungen und Features das Asset verleiht |
 | Anonymer Zugang | `Extras/AnonymousAssetAccess/` | eigenes Authentifizierungs-Schema `Shared-Asset-Key`; macht aus Schluessel+Token einen Prinzipal namens `#ANONYMOUS#` |
-| Zugangspruefung | `SharedAssetInfoProvider.AssetIsAccessible` | Benutzer-/Mandantenfilter, `#ANONYMOUS#` und `%` als Platzhalter, Gueltigkeitsfenster |
+| Zugangspruefung | `SharedAssetInfoProvider.AssetIsAccessible` | Benutzer-/Mandantenfilter, `##ANONYMOUS` und `%` als Platzhalter, Gueltigkeitsfenster |
 | Ortsbindung | `SharedAssetInfoProvider.VerifyRequestLocation` | das Asset gilt nur unterhalb der Pfade seines Templates |
 | Uebersteuerung | `Security/ClaimsTransformation/AssetDrivenClaimsTransformation.cs` | haengt `FixedUserScope` + `FixedAssetPermission` + `FixedAssetFeature` an den Prinzipal |
 | Rechte-Ersatz | `Security/SharedAssets/AssetSecurityRepository.cs` | wird per `PushRepo` obendrauf gelegt und **ersetzt** die Berechtigungen |
@@ -376,6 +376,10 @@ Entscheidung steht in Abschnitt 12.
 
 ### 8.6 Alle anonymen Asset-Besucher heissen `#ANONYMOUS#`
 
+**Nicht zu verwechseln mit dem Filter-Platzhalter `##ANONYMOUS`** am Asset: der erlaubt den
+anonymen Zugang, dieser hier ist bloss der Name, unter dem der Besucher dann auftritt. Zwei
+Zeichenketten, zwei Aufgaben - und sie werden nirgends miteinander verglichen.
+
 `AssetSecurityRepository` haengt durchgehend an `Identity.Name`, und der ist fuer den anonymen Weg
 konstant. Der Mechanismus liefert **Rechte, keine Identitaet**. Wer Besucher auseinanderhalten will
 (Warenkorb, Zuordnung, Protokoll), braucht dafuer etwas Eigenes — eine Besucherkennung neben dem
@@ -389,7 +393,7 @@ Asset, nicht darin.
   Gueltigkeitsfenster (`NotBefore`/`NotAfter`, `MaximumLinkDuration`) sind das eigentliche Mittel.
 - **Die Zugangspruefung bleibt unveraendert.** `AssetIsAccessible` verlangt weiterhin einen
   passenden Benutzer- oder Mandantenfilter. `%` ist der Platzhalter fuer "alle" — ein Template mit
-  `%` und `#ANONYMOUS#` ist damit oeffentlich, und das muss in der Verwaltungsmaske auch so
+  `%` und `##ANONYMOUS` ist damit oeffentlich, und das muss in der Verwaltungsmaske auch so
   aussehen.
 - **Ein Asset kann Rechte geben, die der Zugreifende sonst nicht hat.** Das ist sein Zweck. Die
   Schranken sind: **wer** (die Filter), **wo** (die Pfade des Templates), **wie lange** (das
@@ -463,7 +467,7 @@ verschickt wurden, duerfen nicht brechen.
 
 Der oeffentliche Shop-Bereich aus `Plan-Stripe-Connect-TenantPayments.md` ist damit **ein
 Anwendungsfall und kein eigenes Vorhaben**: ein Asset-Template "Shop" mit dem Root-Pfad des Shops,
-`UserFilter = #ANONYMOUS#`, Grants = die Shop-Berechtigungen. Kein Gastkonto, kein Sammelbenutzer,
+`UserFilter = ##ANONYMOUS`, Grants = die Shop-Berechtigungen. Kein Gastkonto, kein Sammelbenutzer,
 keine Sonderlogik im Mandantenweg. Was dort zusaetzlich zu klaeren bleibt, ist allein die
 Besucherkennung fuer den Warenkorb (8.6) — die Rechtefrage ist mit diesem Plan beantwortet.
 

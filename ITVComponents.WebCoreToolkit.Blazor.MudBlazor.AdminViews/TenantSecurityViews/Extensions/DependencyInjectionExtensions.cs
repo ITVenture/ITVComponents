@@ -361,6 +361,11 @@ public static class DependencyInjectionExtensions
             services.AddScoped<IAssetConsumerAdminHandler, AssetConsumerAdminHandler>();
         }
 
+        if (partTypeLoadBehaviorOptions.ShouldLoadType(typeof(SharedAssetAdminHandler)))
+        {
+            services.AddScoped<ISharedAssetAdminHandler, SharedAssetAdminHandler>();
+        }
+
         if (partTypeLoadBehaviorOptions.ShouldLoadType(typeof(TenantTemplateAdminHandler)))
         {
             services.AddScoped<ITenantTemplateAdminHandler, TenantTemplateAdminHandler>();
