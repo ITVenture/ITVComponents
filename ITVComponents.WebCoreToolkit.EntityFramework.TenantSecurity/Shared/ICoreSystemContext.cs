@@ -37,6 +37,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
         /// </summary>
         public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
 
+        /// <summary>
+        /// Die Argumente, die eine Asset-Vorlage fuehrt - also das, worauf eine damit erzeugte Freigabe
+        /// zeigt.
+        /// </summary>
+        public DbSet<AssetTemplateArgument> AssetTemplateArguments { get; set; }
+
+        /// <summary>
+        /// Die Endpunkte, die eine Asset-Vorlage abdeckt.
+        /// </summary>
+        public DbSet<AssetTemplateConsumer> AssetTemplateConsumers { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<Culture> Cultures { get; set; }

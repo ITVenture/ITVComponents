@@ -1,0 +1,21 @@
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+<EditDialogShell Model="Model" IsCreate="IsCreate">
+    <MudTextField @bind-Value="Model.ArgumentName" Label="Name" Required="true" RequiredError="Name is required" MaxLength="128"
+                  HelperText="As the argument is named in the route or in the form." />
+    <MudSelect T="AssetArgumentType" @bind-Value="Model.ArgumentType" Label="Type" Class="mt-2"
+               HelperText="Decides how values are compared: 04711 and 4711 are the same Int, but two different Strings.">
+        @foreach (var type in Enum.GetValues<AssetArgumentType>())
+        {
+            <MudSelectItem T="AssetArgumentType" Value="@type">@type</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSwitch T="bool" @bind-Value="Model.Required" Label="Required" Color="Color.Primary" Class="mt-2" />
+    <MudTextField @bind-Value="Model.ResolverKey" Label="Resolver key" MaxLength="128" Class="mt-2"
+                  HelperText="Only needed when an endpoint knows a sub-object (a position instead of the order) and the host has to resolve it upwards." />
+</EditDialogShell>
+
+@code {
+    [Parameter, EditorRequired] public AssetTemplateArgumentViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+}

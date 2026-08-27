@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -36,6 +37,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public string Name { get; set; }
 
         public string SystemKey { get; set; }
+
+        /// <summary>
+        /// Wie streng die Bestaetigung der Argumente verlangt wird. Vorgabe <c>None</c> - damit verhaelt
+        /// sich jede bestehende Vorlage unveraendert. Wer Argumente pflegt, hebt sie auf mindestens
+        /// <c>Confirmed</c>, sonst haengt die Objektsicherheit am Wohlverhalten jedes Endpunkts.
+        /// </summary>
+        public AssetArgumentEnforcement ArgumentEnforcement { get; set; } = AssetArgumentEnforcement.None;
 
         public virtual ICollection<TAssetTemplatePath> PathTemplates { get; set; } = new List<TAssetTemplatePath>();
 

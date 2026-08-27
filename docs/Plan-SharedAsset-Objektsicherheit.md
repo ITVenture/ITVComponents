@@ -161,8 +161,25 @@ Ob eine Vorlage mit Konsumenten sie noch braucht, steht in 11.
 
 | Neu | Bedeutung |
 |---|---|
-| `ArgumentValues` (Tabelle) | Name + Wert je Argument der Vorlage |
+| `ArgumentValuesJson` | die Argumentwerte in kanonischer Form, als JSON an der Zeile |
 | `RecipientLabel` | Empfaengerangabe (z.B. E-Mail), **neben** dem Filter-Platzhalter |
+
+**Abweichung vom ersten Entwurf, bewusst:** die Werte liegen an der Zeile und nicht in einer eigenen
+Tabelle. Drei Gruende. Sie werden ausschliesslich zusammen mit ihrer Freigabe gelesen - es gibt keine
+Abfrage, die sie ohne sie braucht. Dieselbe Form wandert spaeter in ein Ad-hoc-Ticket, das ohnehin
+serialisiert ist; so gibt es ein Format und einen Vergleichsweg statt zweier. Und eine eigene Tabelle
+haette die Wahl zwischen zwei schlechten Enden gelassen: entweder generisch mitwandern (die Freigabe
+traegt die halbe Typkette des Hosts) oder mandantengebundene Daten in eine mandantenfreie Tabelle
+legen. Preis: kein relationaler Zugriff auf einzelne Werte - "welche Freigaben gibt es zu Auftrag
+4711" ist damit eine Textsuche. Faellt das ins Gewicht, ist es eine spaetere Erweiterung und keine
+Umkehr.
+
+Die Argumente und Konsumenten der **Vorlage** dagegen sind echte Tabellen (`AssetTemplateArgument`,
+`AssetTemplateConsumer`) - sie sind strukturell, global und werden auch ohne ihre Vorlage gelesen.
+Beide verweisen ueber eine **logische `int`-Referenz ohne Fremdschluessel** auf die Vorlage, wie es
+der Billing-Zweig mit dem Mandanten haelt: die Vorlage ist generisch, und eine echte Beziehung wuerde
+die Tabellen in dieselbe Typkette zwingen. Preis: die Datenbank raeumt nicht mit auf - wer eine
+Vorlage loescht, muss ihre Argumente und Konsumenten mitloeschen.
 
 ### 3.4 Protokoll
 

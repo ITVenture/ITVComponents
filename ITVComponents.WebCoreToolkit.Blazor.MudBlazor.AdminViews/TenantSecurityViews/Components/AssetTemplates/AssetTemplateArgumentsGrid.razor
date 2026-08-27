@@ -1,0 +1,142 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject IAssetTemplateAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@* Worauf eine mit dieser Vorlage erzeugte Freigabe zeigen kann. Ohne Argumente bleibt die Vorlage
+   eine reine Pfadfreigabe - genau das Verhalten des Altbestands. *@
+<MudDataGrid T="AssetTemplateArgumentViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Arguments" TitleTypo="Typo.subtitle2">
+            <SecureView RequiredPermissions="Sysadmin">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                        Add argument
+                    </MudButton>
+                </Permitted>
+            </SecureView>
+        </CrudGridToolbar>
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.ArgumentName" Title="Name" />
+        <TemplateColumn T="AssetTemplateArgumentViewModel" Title="Type" Sortable="false">
+            <CellTemplate>@context.Item.ArgumentType</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="AssetTemplateArgumentViewModel" Title="Required" Sortable="false">
+            <CellTemplate>
+                @if (context.Item.Required)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.ResolverKey" Title="Resolver" />
+        <TemplateColumn T="AssetTemplateArgumentViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <SecureView RequiredPermissions="Sysadmin">
+                    <Permitted>
+                        <MudStack Row="true" Spacing="1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                        </MudStack>
+                    </Permitted>
+                </SecureView>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AssetTemplateArgumentViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AssetTemplateId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private MudDataGrid<AssetTemplateArgumentViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetTemplateArgumentViewModel>> LoadData(GridState<AssetTemplateArgumentViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetTemplateArgumentViewModel> { Items = Array.Empty<AssetTemplateArgumentViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListArgumentsAsync(currentUser, AssetTemplateId, query);
+        return new GridData<AssetTemplateArgumentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<AssetTemplateArgumentDialog>
+        {
+            { d => d.Model, new AssetTemplateArgumentViewModel() },
+            { d => d.IsCreate, true }
+        };
+        var dlg = await DialogService.ShowAsync<AssetTemplateArgumentDialog>("Add argument", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AssetTemplateArgumentViewModel input })
+        {
+            var created = await Handler.CreateArgumentAsync(currentUser!, AssetTemplateId, input);
+            if (created != null) { Snackbar.Add("Argument added", Severity.Success); await Reload(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task OpenEdit(AssetTemplateArgumentViewModel item)
+    {
+        var copy = new AssetTemplateArgumentViewModel
+        {
+            AssetTemplateArgumentId = item.AssetTemplateArgumentId,
+            AssetTemplateId = item.AssetTemplateId,
+            ArgumentName = item.ArgumentName,
+            ArgumentType = item.ArgumentType,
+            Required = item.Required,
+            SortOrder = item.SortOrder,
+            ResolverKey = item.ResolverKey
+        };
+        var parameters = new DialogParameters<AssetTemplateArgumentDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false }
+        };
+        var dlg = await DialogService.ShowAsync<AssetTemplateArgumentDialog>("Edit argument", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AssetTemplateArgumentViewModel input })
+        {
+            var updated = await Handler.UpdateArgumentAsync(currentUser!, input);
+            if (updated != null) { Snackbar.Add("Argument updated", Severity.Success); await Reload(); }
+            else Snackbar.Add("Failed to update", Severity.Error);
+        }
+    }
+
+    private async Task Delete(AssetTemplateArgumentViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete argument",
+            $"Really delete '{item.ArgumentName}'? Existing shares keep their stored value, but nothing will compare it any more.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteArgumentAsync(currentUser!, item.AssetTemplateArgumentId);
+        if (success) { Snackbar.Add("Argument deleted", Severity.Success); await Reload(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

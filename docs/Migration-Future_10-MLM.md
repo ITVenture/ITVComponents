@@ -4079,10 +4079,106 @@ Konstruktoren, also potenziell bei jedem Seitenaufbau; auf dem heissen Pfad steh
 im Speicher, und ein Hintergrund-Worker schreibt gebündelt. `TouchIntervalHours` sorgt dafür, dass
 auch der blosse Zeitstempel einer unveränderten Meldung nicht jedes Mal angefasst wird.
 
+## 52. Eine Freigabe zeigt jetzt auf eine Sache — **Pflicht-Migration (2 Tabellen, 3 Spalten)**
+
+Zweiter Schritt der Objektsicherheit. Eine Vorlage kann ab jetzt **Argumente** führen, und eine damit
+erzeugte Freigabe trägt deren **Werte** — also das, worauf sie zeigt.
+
+**Für den Bestand ändert sich nichts.** Eine Vorlage ohne Argumente verhält sich exakt wie bisher: es
+gelten allein ihre Pfadmuster. Objektsicherheit bekommt, wer Argumente pflegt.
+
+### 52.1 Die Migration
+
+```
+AssetTemplateArgument    AssetTemplateArgumentId, AssetTemplateId, ArgumentName,
+                         ArgumentType, Required, SortOrder, ResolverKey
+                         UNIQUE (AssetTemplateId, ArgumentName)
+
+AssetTemplateConsumer    AssetTemplateConsumerId, AssetTemplateId, DeclarationKind,
+                         DeclarationKey, IsEntryPoint
+                         UNIQUE (AssetTemplateId, DeclarationKind, DeclarationKey)
+
+AssetTemplates    + ArgumentEnforcement (int)
+SharedAssets      + ArgumentValuesJson (nvarchar(max), null)
+                  + RecipientLabel (nvarchar(256), null)
+```
+
+`dotnet ef migrations add AssetTemplateArguments` → `database update`. Kein Datenumzug.
+
+**Achtung, eine Eigenheit:** die beiden neuen Tabellen verweisen **logisch** auf die Vorlage, ohne
+Fremdschlüssel — die Vorlage ist generisch, und eine echte Beziehung würde die Tabellen in dieselbe
+Typkette zwingen (dieselbe Entscheidung wie bei den Mandanten-Referenzen im Billing-Zweig). Die
+Datenbank räumt deshalb **nicht** mit auf. Das Toolkit tut es beim Löschen einer Vorlage; wer selbst
+Vorlagen löscht, muss Argumente und Endpunkte mitnehmen.
+
+### 52.2 Was ein Argument ist
+
+Name, Typ (`String` | `Int` | `Long` | `Guid` | `Date`), Pflicht — und optional ein **Auflöser**. Der
+Typ ist nicht Dekoration, er entscheidet den Vergleich: `04711` und `4711` sind derselbe `Int`, aber
+zwei verschiedene `String`. Der Auflöser wird gebraucht, wenn ein Endpunkt ein *Unter*-Objekt kennt
+(eine Position statt des Auftrags) und der Host es nach oben normalisieren muss.
+
+**Nicht deklarierte Werte werden abgelehnt.** Ein Wert, den die Vorlage nicht kennt, würde später von
+niemandem geprüft — er wäre eine stille Lücke, keine Zusatzangabe.
+
+### 52.3 Zwei Prüfungen, und nur eine ist hart
+
+| Wann | Was | Verhalten |
+|---|---|---|
+| Freigabe erzeugen | alle Pflichtargumente belegt und typkonform? | **Fehler** — es entsteht keine Freigabe |
+| Vorlage ansehen | verlangt ein registrierter Endpunkt diese Argumente? | **Hinweis** in der Maske |
+
+Die zweite darf nicht hart sein: die Registry aus §51 kennt nur, was sich schon einmal gemeldet hat.
+Nach einem Deployment ist das zunächst wenig, und „unbekannt" ist dann nicht „falsch".
+
+### 52.4 Breaking: eine Signatur
+
+```csharp
+// neu in ISharedAssetAdapter
+AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
+    IDictionary<string, string> argumentValues, string recipientLabel, out string error);
+```
+
+Die alte Fassung bleibt und delegiert (ohne Werte). Betrifft euch nur, wenn ihr
+`ISharedAssetAdapter` selbst implementiert.
+
+Ebenfalls neu, aber additiv: `AssetInfo` trägt `Arguments`, `Values` und `Enforcement`,
+`AssetTemplateInfo` trägt `Arguments`, `FullAssetInfo` trägt `RecipientLabel`.
+
+### 52.5 In der Maske
+
+Die Vorlagen-Seite (`/Security/AssetTemplates`) hat zwei neue Reiter — **Arguments** und
+**Endpoints** — und im Bearbeiten-Dialog die **Argument enforcement**:
+
+| Grad | Wirkung |
+|---|---|
+| `None` | wie bisher: nur Pfadmuster |
+| `Confirmed` | ohne Bestätigung der Argumente wird die Antwort nicht ausgeliefert |
+| `Strict` | zusätzlich muss jede weitere Bestätigung im selben Kontext dieselben Werte liefern |
+
+**Wirksam wird die Strenge erst mit dem nächsten Schritt** (dem Riegel im Endpunkt). Bis dahin ist
+sie eine Einstellung ohne Verhalten — bewusst, damit die Vorlagen vorher gepflegt werden können.
+
+Bei den Endpunkten markiert genau einer den **Einstieg**: aus dessen Route-Vorlage baut die
+Teilen-Maske später die URL. Endpunkte, die der Registry unbekannt sind, werden mit einem Fragezeichen
+markiert statt abgelehnt.
+
+### 52.6 Der Empfänger
+
+`SharedAssets.RecipientLabel` nimmt auf, an wen eine Freigabe gerichtet ist — typischerweise eine
+E-Mail-Adresse. Sie steht **neben** dem Benutzerfilter, nicht darin: `#ANONYMOUS#` ist ein exakter
+Vergleich, und eine Adresse hineinzufalten würde daraus einen Präfix-Vergleich machen.
+
+**Und sie ist eine Behauptung, kein Nachweis.** Wer den Link hat, ist wer der Link sagt. Für
+Zuordnung und Protokoll taugt das, als Identität nicht.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 52a | **Asset-Argumente** | **Pflicht-Migration**: `AssetTemplateArgument`, `AssetTemplateConsumer` + `AssetTemplates.ArgumentEnforcement`, `SharedAssets.ArgumentValuesJson`, `SharedAssets.RecipientLabel`. Verhalten unverändert, solange eine Vorlage keine Argumente führt (§52) |
+| 52b | **`ISharedAssetAdapter`** | neue Überladung `CreateSharedAsset(…, argumentValues, recipientLabel, out error)`; die alte bleibt. Nur bei eigener Implementierung (§52.4) |
+| 52c | Vorlagen löschen | Argumente und Endpunkte verweisen **ohne Fremdschlüssel** auf die Vorlage — wer selbst Vorlagen löscht, muss sie mitnehmen (§52.1) |
 | 51a | **Asset-Argument-Registry** | **Pflicht-Migration**: 2 neue Systemtabellen (`AssetConsumer`, `AssetConsumerArgument`), mandantenfrei. Kein Verhaltenswechsel, neue Seite `/Security/AssetConsumers` (§51) |
 | 50a | **`UseSharedAssetPath()`** | Pflicht, wenn ihr geteilte Assets benutzt: **ganz vorne** in der Pipeline, vor `UseStaticFiles`/`UseAuthentication`/`UseRouting`/`UseTenantPathPrefix` (§50.2) |
 | 50b | **`IGetAnonymousAssetQuery.Execute`** | `(IQueryCollection, out bool)` → `(string assetKey, string accessToken, out bool)`; `IAnonymousAssetLinkProvider.CreateAnonymousLink` → `CreateAnonymousToken(FullAssetInfo)` — nur bei eigener Implementierung (§50.4) |

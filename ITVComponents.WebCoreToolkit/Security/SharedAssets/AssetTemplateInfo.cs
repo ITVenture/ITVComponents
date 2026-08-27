@@ -11,5 +11,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public string AssetTemplateTitle { get; set; }
 
         public string TemplateKey { get; set; }
+
+        /// <summary>
+        /// Die Argumente, die diese Vorlage verlangt. Die Teilen-Maske zeigt daraus ihre Felder - in
+        /// dieser Reihenfolge, nicht alphabetisch.
+        /// </summary>
+        public AssetArgumentDeclaration[] Arguments { get; set; } = Array.Empty<AssetArgumentDeclaration>();
     }
 }

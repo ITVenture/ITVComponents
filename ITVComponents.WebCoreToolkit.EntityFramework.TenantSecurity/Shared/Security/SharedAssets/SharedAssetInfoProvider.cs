@@ -143,6 +143,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     retVal.Features = asset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray();
                     retVal.Permissions = asset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray();
                     retVal.UserScopeName = asset.AssetOwner.TenantName;
+                    retVal.AssetRootPath = asset.RootPath;
+                    // Worauf die Freigabe zeigt, reist von hier aus mit: der Riegel im Endpunkt vergleicht
+                    // spaeter gegen genau diese Werte.
+                    retVal.Arguments = ReadArguments(database, asset.AssetTemplateId);
+                    retVal.Values = AssetArgumentValues.FromJson(asset.ArgumentValuesJson);
+                    retVal.Enforcement = asset.Template.ArgumentEnforcement;
                     return retVal;
                 }
             }
@@ -195,7 +201,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                         retVal.Add(new AssetTemplateInfo
                         {
                             AssetTemplateTitle = template.Name,
-                            TemplateKey = template.SystemKey
+                            TemplateKey = template.SystemKey,
+                            Arguments = ReadArguments(database, template.AssetTemplateId)
                         });
                     }
                 }
@@ -207,7 +214,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         }
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
+            => CreateSharedAsset(requestPath, template, title, null, null, out _);
+
+        public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
+            IDictionary<string, string> argumentValues, string recipientLabel, out string error)
         {
+            error = null;
             requestPath = Canonical(requestPath);
             using var lease = contextFactory.Lease<TContext>();
             var database = lease.Context;
@@ -218,6 +230,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                       services.VerifyUserPermissions(new[] { assetTmp.RequiredPermission.PermissionName }, out _));
             if (ok && database.CurrentTenantId != null && IsTemplateValidForPath(assetTmp, requestPath))
             {
+                // Die harte Pruefung: sie braucht nur die Vorlage. Fehlt ein Pflichtargument oder passt ein
+                // Wert nicht zu seinem Typ, entsteht keine Freigabe - eine Freigabe ohne Ziel waere
+                // schlimmer als keine, weil sie so viel gewaehrt wie die Pfadmuster hergeben.
+                var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
+                if (!AssetArgumentValues.TryCreate(declarations, argumentValues, out var values, out error))
+                {
+                    LogEnvironment.LogEvent($"Die Freigabe wurde nicht angelegt: {error}", LogSeverity.Warning);
+                    return null;
+                }
 
                 var currentTenant = database.Tenants.First(n => n.TenantId == database.CurrentTenantId);
                     var asset = new TSharedAsset
@@ -227,7 +248,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                         AssetTitle = title,
                         TenantId = database.CurrentTenantId.Value,
                         RootPath = requestPath,
-                        AnonymousAccessTokenRaw = Guid.NewGuid().ToString("B")
+                        AnonymousAccessTokenRaw = Guid.NewGuid().ToString("B"),
+                        ArgumentValuesJson = values.IsEmpty ? null : values.ToJson(),
+                        RecipientLabel = recipientLabel
                     };
 
                     database.SharedAssets.Add(asset);
@@ -240,12 +263,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                         Permissions = assetTmp.Grants.Select(n => n.Permission.PermissionName).ToArray(),
                         AssetKey = asset.AssetKey,
                         AssetRootPath = requestPath,
-                        AnonymousAccessTokenRaw = asset.AnonymousAccessTokenRaw
+                        AnonymousAccessTokenRaw = asset.AnonymousAccessTokenRaw,
+                        Arguments = declarations,
+                        Values = values,
+                        Enforcement = assetTmp.ArgumentEnforcement
                     };
             }
 
+            error ??= "The template does not apply to this location, or you may not share here.";
             return null;
         }
+
+        /// <summary>
+        /// Die Argumente einer Vorlage, in ihrer Anzeigereihenfolge. Ueber die logische Referenz statt
+        /// ueber eine Beziehung - die Vorlage ist generisch, die Argumenttabelle bewusst nicht.
+        /// </summary>
+        private static AssetArgumentDeclaration[] ReadArguments(TContext database, int assetTemplateId)
+            => database.AssetTemplateArguments.Where(n => n.AssetTemplateId == assetTemplateId)
+                .OrderBy(n => n.SortOrder)
+                .Select(n => new AssetArgumentDeclaration(n.ArgumentName, n.ArgumentType, n.Required))
+                .ToArray();
 
         public bool UpdateSharedAsset(FullAssetInfo updatedInfo)
         {
@@ -402,7 +439,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                         NotBefore = rawAsset.NotBefore,
                         UserScopeName = rawAsset.AssetOwner.TenantName,
                         Permissions = rawAsset.Template.Grants.Select(n => n.Permission.PermissionName).ToArray(),
-                        Features = rawAsset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray()
+                        Features = rawAsset.Template.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray(),
+                        Arguments = ReadArguments(database, rawAsset.AssetTemplateId),
+                        Values = AssetArgumentValues.FromJson(rawAsset.ArgumentValuesJson),
+                        Enforcement = rawAsset.Template.ArgumentEnforcement,
+                        RecipientLabel = rawAsset.RecipientLabel
                     };
                     retVal.UserShares.AddRange(rawAsset.UserFilters.Select(n => n.LabelFilter));
                     retVal.UserScopeShares.AddRange(rawAsset.TenantFilters.Select(n => n.LabelFilter));

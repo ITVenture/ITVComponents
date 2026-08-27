@@ -1,0 +1,127 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject IAssetTemplateAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@* Wo die Argumente dieser Vorlage verstanden werden. Ein Eintrag, der der Registry unbekannt ist,
+   wird markiert - aber nicht abgelehnt: die Registry kennt nur, was sich schon einmal gemeldet hat. *@
+<MudDataGrid T="AssetTemplateConsumerViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Endpoints" TitleTypo="Typo.subtitle2">
+            <SecureView RequiredPermissions="Sysadmin">
+                <Permitted>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                        Add endpoint
+                    </MudButton>
+                </Permitted>
+            </SecureView>
+        </CrudGridToolbar>
+    </ToolBarContent>
+    <Columns>
+        <TemplateColumn T="AssetTemplateConsumerViewModel" Title="Kind" Sortable="false">
+            <CellTemplate>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Item.DeclarationKind == AssetConsumerKind.Path ? Color.Primary : Color.Secondary)">
+                    @context.Item.DeclarationKind
+                </MudChip>
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="x => x.DeclarationKey" Title="Route template / type" />
+        <TemplateColumn T="AssetTemplateConsumerViewModel" Title="Entry" Sortable="false">
+            <CellTemplate>
+                @if (context.Item.IsEntryPoint)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Title="The link is built from this one" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="AssetTemplateConsumerViewModel" Title="Declared" Sortable="false">
+            <CellTemplate>
+                @if (context.Item.KnownToRegistry)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Size="Size.Small" Color="Color.Warning"
+                             Title="Has never declared itself — which may just mean nobody visited it since the last restart" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="AssetTemplateConsumerViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                <SecureView RequiredPermissions="Sysadmin">
+                    <Permitted>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </Permitted>
+                </SecureView>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="AssetTemplateConsumerViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int AssetTemplateId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private MudDataGrid<AssetTemplateConsumerViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetTemplateConsumerViewModel>> LoadData(GridState<AssetTemplateConsumerViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetTemplateConsumerViewModel> { Items = Array.Empty<AssetTemplateConsumerViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListConsumersAsync(currentUser, AssetTemplateId, query);
+        return new GridData<AssetTemplateConsumerViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Reload()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<AssetTemplateConsumerDialog>
+        {
+            { d => d.Model, new AssetTemplateConsumerViewModel() }
+        };
+        var dlg = await DialogService.ShowAsync<AssetTemplateConsumerDialog>("Add endpoint", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: AssetTemplateConsumerViewModel input })
+        {
+            var created = await Handler.CreateConsumerAsync(currentUser!, AssetTemplateId, input);
+            if (created != null) { Snackbar.Add("Endpoint added", Severity.Success); await Reload(); }
+            else Snackbar.Add("Failed to add", Severity.Error);
+        }
+    }
+
+    private async Task Delete(AssetTemplateConsumerViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Remove endpoint",
+            $"Really remove '{item.DeclarationKey}' from this template?", yesText: "Remove", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteConsumerAsync(currentUser!, item.AssetTemplateConsumerId);
+        if (success) { Snackbar.Add("Endpoint removed", Severity.Success); await Reload(); }
+        else Snackbar.Add("Failed to remove", Severity.Error);
+    }
+}

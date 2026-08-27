@@ -1,8 +1,17 @@
+﻿@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
 <EditDialogShell Model="Model" IsCreate="IsCreate">
     <MudTextField @bind-Value="Model.SystemKey" Label="System key" Required="true" RequiredError="System key is required" />
     <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" />
     <ForeignKeyAutocomplete T="int?" Table="Features" @bind-Value="Model.FeatureId" Label="Required feature" Clearable="true" />
     <ForeignKeyAutocomplete T="int?" Table="Permissions" @bind-Value="Model.PermissionId" Label="Required permission" Clearable="true" />
+    <MudSelect T="AssetArgumentEnforcement" @bind-Value="Model.ArgumentEnforcement" Label="Argument enforcement" Class="mt-2"
+               HelperText="Confirmed and above hold the answer back until an endpoint confirmed the arguments. Only meaningful once the template carries arguments.">
+        @foreach (var mode in Enum.GetValues<AssetArgumentEnforcement>())
+        {
+            <MudSelectItem T="AssetArgumentEnforcement" Value="@mode">@mode</MudSelectItem>
+        }
+    </MudSelect>
 </EditDialogShell>
 
 @code {

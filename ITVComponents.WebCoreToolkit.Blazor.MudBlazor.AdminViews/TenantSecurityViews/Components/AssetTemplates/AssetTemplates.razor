@@ -1,4 +1,4 @@
-@page "/Security/AssetTemplates"
+﻿@page "/Security/AssetTemplates"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -49,6 +49,7 @@ else
             </TemplateColumn>
         </Columns>
         <ChildRowContent>
+            @{ _ = EnsureChecked(context.Item.AssetTemplateId); }
             <MudPaper Elevation="0" Class="pa-2">
                 <MudTabs Elevation="0" Rounded="true">
                     <MudTabPanel Text="Paths">
@@ -59,6 +60,27 @@ else
                     </MudTabPanel>
                     <MudTabPanel Text="Features">
                         <AssetTemplateFeaturesGrid AssetTemplateId="@context.Item.AssetTemplateId" CanWrite="@isSysAdmin" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Arguments">
+                        @if (warnings.TryGetValue(context.Item.AssetTemplateId, out var argumentWarnings) && argumentWarnings.Length != 0)
+                        {
+                            @* Ausdruecklich Hinweise und keine Fehler: die Registry kennt nur, was sich
+                               schon einmal gemeldet hat - nach einem Deployment ist das zunaechst wenig. *@
+                            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                                <MudList T="string" Dense="true">
+                                    @foreach (var warning in argumentWarnings)
+                                    {
+                                        <MudListItem T="string" Text="@warning" />
+                                    }
+                                </MudList>
+                            </MudAlert>
+                        }
+                        <AssetTemplateArgumentsGrid AssetTemplateId="@context.Item.AssetTemplateId"
+                                                    OnChanged="@(() => Check(context.Item.AssetTemplateId))" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Endpoints">
+                        <AssetTemplateConsumersGrid AssetTemplateId="@context.Item.AssetTemplateId"
+                                                    OnChanged="@(() => Check(context.Item.AssetTemplateId))" />
                     </MudTabPanel>
                 </MudTabs>
             </MudPaper>
@@ -79,6 +101,31 @@ else
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private bool isSysAdmin;
     private string? search;
+
+    /// <summary>
+    /// Die Hinweise je Vorlage, sobald ihre Zeile aufgeklappt wurde. Nicht im Voraus fuer alle geladen:
+    /// die Pruefung sieht in der Registry nach und ist damit teurer als eine Listenspalte.
+    /// </summary>
+    private readonly Dictionary<int, string[]> warnings = new();
+    private readonly HashSet<int> checking = new();
+
+    private bool EnsureChecked(int assetTemplateId)
+    {
+        if (currentUser is null || warnings.ContainsKey(assetTemplateId) || !checking.Add(assetTemplateId))
+        {
+            return true;
+        }
+
+        _ = Check(assetTemplateId);
+        return true;
+    }
+
+    private async Task Check(int assetTemplateId)
+    {
+        if (currentUser is null) return;
+        warnings[assetTemplateId] = await Handler.CheckAsync(currentUser, assetTemplateId);
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,7 +168,8 @@ else
             Name = item.Name,
             SystemKey = item.SystemKey,
             FeatureId = item.FeatureId,
-            PermissionId = item.PermissionId
+            PermissionId = item.PermissionId,
+            ArgumentEnforcement = item.ArgumentEnforcement
         };
         var parameters = new DialogParameters<AssetTemplateDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<AssetTemplateDialog>("Edit asset template", parameters, EditDialogDefaults.Edit);

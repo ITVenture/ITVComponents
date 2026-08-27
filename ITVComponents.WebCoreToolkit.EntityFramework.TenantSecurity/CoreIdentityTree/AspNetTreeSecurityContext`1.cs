@@ -340,6 +340,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
 
         /// <inheritdoc/>
         public DbSet<AssetConsumerArgument> AssetConsumerArguments { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetTemplateArgument> AssetTemplateArguments { get; set; }
+
+        /// <inheritdoc/>
+        public DbSet<AssetTemplateConsumer> AssetTemplateConsumers { get; set; }
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         /// <summary>

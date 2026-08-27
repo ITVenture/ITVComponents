@@ -52,6 +52,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [DataType(DataType.Date)]
         public DateTime? NotAfter { get; set; }
 
+        /// <summary>
+        /// Worauf diese Freigabe zeigt: die Argumentwerte der Vorlage, in kanonischer Form.
+        /// <para>
+        /// Bewusst als JSON an der Zeile und nicht als eigene Tabelle. Die Werte werden ausschliesslich
+        /// zusammen mit ihrer Freigabe gelesen, und dieselbe Form wandert spaeter in ein Ad-hoc-Ticket -
+        /// ein Format und ein Vergleichsweg fuer beide Faelle. Eine eigene Tabelle haette die Werte
+        /// ausserdem entweder in die generische Typkette der Freigabe gezwungen oder mandantengebundene
+        /// Daten in eine mandantenfreie Tabelle gelegt.
+        /// </para>
+        /// </summary>
+        public string ArgumentValuesJson { get; set; }
+
+        /// <summary>
+        /// An wen die Freigabe gerichtet ist - typischerweise eine E-Mail-Adresse.
+        /// <para>
+        /// <b>Steht neben dem Filter, nicht darin.</b> Der Platzhalter <c>#ANONYMOUS#</c> in den
+        /// Benutzerfiltern ist ein exakter Vergleich und die sicherheitskritischste Zeile des ganzen
+        /// Mechanismus; eine Adresse hineinzufalten wuerde daraus einen Praefix-Vergleich machen.
+        /// </para>
+        /// <para>
+        /// <b>Und es ist eine Behauptung, kein Nachweis:</b> wer den Link hat, ist wer der Link sagt. Fuer
+        /// Zuordnung und Protokoll taugt das, als Identitaet nicht.
+        /// </para>
+        /// </summary>
+        [MaxLength(256)]
+        public string RecipientLabel { get; set; }
+
         [ForeignKey(nameof(AssetTemplateId))]
         public virtual TAssetTemplate Template { get; set; }
 

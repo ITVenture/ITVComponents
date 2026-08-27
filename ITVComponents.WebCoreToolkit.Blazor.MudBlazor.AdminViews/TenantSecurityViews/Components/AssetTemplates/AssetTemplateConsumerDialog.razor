@@ -1,0 +1,54 @@
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAssetTemplateAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<EditDialogShell Model="Model" IsCreate="true" CreateLabel="Add">
+    <MudAutocomplete T="AssetConsumerViewModel" Label="Known endpoint" Class="mb-2"
+                     SearchFunc="SearchKnown"
+                     ToStringFunc="@(n => n is null ? string.Empty : n.DeclarationKey)"
+                     ValueChanged="TakeKnown"
+                     HelperText="Pick a declared endpoint, or type the route template below yourself." />
+
+    <MudSelect T="AssetConsumerKind" @bind-Value="Model.DeclarationKind" Label="Kind">
+        @foreach (var kind in Enum.GetValues<AssetConsumerKind>())
+        {
+            <MudSelectItem T="AssetConsumerKind" Value="@kind">@kind</MudSelectItem>
+        }
+    </MudSelect>
+    <MudTextField @bind-Value="Model.DeclarationKey" Label="Route template / type" Required="true"
+                  RequiredError="A key is required" MaxLength="1024" Class="mt-2"
+                  HelperText="A route template such as /sales/order/{id} - or the CLR type for endpoints that cannot be told apart by path, such as file handlers." />
+    <MudSwitch T="bool" @bind-Value="Model.IsEntryPoint" Label="Entry point" Color="Color.Primary" Class="mt-2" />
+    <MudText Typo="Typo.caption">
+        The entry point is the endpoint the sharing dialog builds its link from. Exactly one per template.
+    </MudText>
+</EditDialogShell>
+
+@code {
+    [Parameter, EditorRequired] public AssetTemplateConsumerViewModel Model { get; set; } = default!;
+
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<IEnumerable<AssetConsumerViewModel>> SearchKnown(string value, CancellationToken ct)
+    {
+        if (currentUser is null) return Array.Empty<AssetConsumerViewModel>();
+        var result = await Handler.ListKnownConsumersAsync(currentUser,
+            new ListQuery { Page = 0, PageSize = 20, Search = value });
+        return result.Items;
+    }
+
+    private void TakeKnown(AssetConsumerViewModel? known)
+    {
+        if (known is null) return;
+        Model.DeclarationKind = known.DeclarationKind;
+        Model.DeclarationKey = known.DeclarationKey;
+    }
+}
