@@ -1,6 +1,7 @@
 # Plan: Geteilte Assets — von der Pfadfreigabe zur Objektsicherheit
 
-Status: **Entwurf, noch nicht umgesetzt.** Stand 2026-08-26, Zweig Future_10.
+Status: **Phasen 1-3 umgesetzt** (Registry, Argumente, Riegel), Phasen 4-7 offen. Stand 2026-08-27,
+Zweig Future_10. Was der Host tun muss, steht in `docs/Migration-Future_10-MLM.md`, Abschnitte 51-53.
 Setzt auf `docs/Plan-SharedAsset-Pfadkontext.md` auf (umgesetzt).
 
 ## 1. Ausgangslage
@@ -261,8 +262,22 @@ normalisiert (2.5), dann verglichen.
 | Grad | Wirkung |
 |---|---|
 | `None` | wie heute: nur Pfadmuster |
-| `Confirmed` | ohne Bestaetigung wird die Antwort **nicht ausgeliefert** |
-| `Strict` | zusaetzlich: jede weitere Bestaetigung im selben Kontext muss **dieselben** Werte liefern |
+| `Confirmed` | ohne Bestaetigung wird die Antwort **nicht ausgeliefert**; die Bestaetigung gilt fuer den ganzen Kontext |
+| `Strict` | zusaetzlich **verfaellt die Bestaetigung mit dem Vorgang** (`ResetConfirmation`) |
+
+**Korrektur am Entwurf.** Hier stand zuerst: "jede weitere Bestaetigung im selben Kontext muss
+dieselben Werte liefern". Das ist beim Bauen als **wirkungslos** aufgefallen - eine Bestaetigung muss
+ohnehin mit dem Wert der Freigabe uebereinstimmen, sonst wird sie abgelehnt; zwei erfolgreiche
+Bestaetigungen sind damit zwangslaeufig gleich. Der Zweig haette eine Sicherheit vorgetaeuscht, die
+er nicht liefert.
+
+Der Unterschied, der tatsaechlich einen macht, liegt an der **Lebensdauer**: eine MVC-Anfrage hat
+ihren eigenen Scope, ein Blazor-Circuit nicht. Unter `Confirmed` wuerde dort eine einmalige
+Bestaetigung alles Weitere mitdecken; unter `Strict` beginnt jeder Vorgang wieder bei null. Der
+MVC-Filter und `<AssetScope>` rufen `ResetConfirmation` von sich aus.
+
+**Eine Ablehnung nimmt das nicht zurueck** - was einmal auf ein fremdes Objekt gezeigt hat, bleibt
+abgelehnt.
 
 Vorgabe fuer jede Vorlage **mit** Argumenten: mindestens `Confirmed`. Der vergessene Check wird damit
 zur sichtbaren leeren Seite statt zum stillen Loch.
@@ -397,8 +412,8 @@ tauglich.
   Endpoint-Metadaten ableiten laesst, entscheidet sich beim Bauen.
 - **Weitergabe**: darf ein Empfaenger weiterteilen? Heute faktisch nein, weil er die Maske nicht hat.
   Mit Phase 4 wird das eine Entscheidung und keine Nebenwirkung mehr.
-- **Mehrere Argumente, teilweise erfuellt** — reicht die Bestaetigung eines Arguments, wenn die
-  Vorlage zwei kennt? Vorschlag: alle Pflichtargumente, sonst keine Auslieferung.
+- ~~**Mehrere Argumente, teilweise erfuellt**~~ — **entschieden**: es zaehlen ALLE Pflichtargumente.
+  Sonst genuegte es, das harmloseste von zweien zu belegen.
 
 ## 12. Referenzen
 

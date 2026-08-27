@@ -232,6 +232,24 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Registriert den Riegel am Ausgang fuer den MVC-Weg: laeuft eine Anfrage in einem geteilten
+        /// Asset, dessen Vorlage eine Bestaetigung der Argumente verlangt, wird die Antwort ohne
+        /// Bestaetigung nicht ausgeliefert.
+        /// <para>
+        /// Damit muss kein Endpunkt daran denken - wer es vergisst, liefert nichts aus statt zu viel. Fuer
+        /// den Blazor-Weg gibt es kein Gegenstueck an dieser Stelle; dort uebernimmt die Komponente
+        /// <c>AssetScope</c> die Render-Grenze.
+        /// </para>
+        /// </summary>
+        /// <param name="services">die Dienstsammlung</param>
+        /// <returns>die uebergebene Dienstsammlung</returns>
+        public static IServiceCollection UseSharedAssetGuard(this IServiceCollection services)
+        {
+            return services.UseSharedAssetPathContext()
+                .Configure<MvcOptions>(o => o.Filters.Add<SharedAssetGuardFilter>());
+        }
+
+        /// <summary>
         /// Enables the automatic SiteNavigation builder
         /// </summary>
         /// <param name="services">the services where the navigator is injected to</param>

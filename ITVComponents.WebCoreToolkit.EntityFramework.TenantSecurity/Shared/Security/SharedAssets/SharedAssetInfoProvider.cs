@@ -281,7 +281,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private static AssetArgumentDeclaration[] ReadArguments(TContext database, int assetTemplateId)
             => database.AssetTemplateArguments.Where(n => n.AssetTemplateId == assetTemplateId)
                 .OrderBy(n => n.SortOrder)
-                .Select(n => new AssetArgumentDeclaration(n.ArgumentName, n.ArgumentType, n.Required))
+                .Select(n => new AssetArgumentDeclaration(n.ArgumentName, n.ArgumentType, n.Required, n.ResolverKey))
                 .ToArray();
 
         public bool UpdateSharedAsset(FullAssetInfo updatedInfo)

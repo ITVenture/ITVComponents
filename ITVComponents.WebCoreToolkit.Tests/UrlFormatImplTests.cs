@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Routing.Impl;
@@ -97,6 +97,10 @@ namespace ITVComponents.WebCoreToolkit.Tests
             }
         }
 
+        /// <summary>
+        /// Nur die Kennung des Assets zaehlt hier - der Formatter setzt einen Abschnitt in die
+        /// Platzhalter ein und hat mit der Bestaetigung der Argumente nichts zu tun.
+        /// </summary>
         private sealed class FakeAssetContext : ISharedAssetContext
         {
             public FakeAssetContext(string segment) => Segment = segment;
@@ -104,6 +108,13 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public string AssetKey => HasAsset ? "abc" : null;
             public string AccessToken => null;
             public string Segment { get; }
+            public AssetArgumentEnforcement Enforcement => AssetArgumentEnforcement.None;
+            public bool Confirmed => true;
+            public bool Denied => false;
+            public bool MustHoldBack => false;
+            public bool Require(string name, object value) => true;
+            public bool Require(IDictionary<string, object> values) => true;
+            public void ResetConfirmation() { }
         }
     }
 }

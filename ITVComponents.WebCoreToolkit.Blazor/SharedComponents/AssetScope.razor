@@ -1,0 +1,55 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject ISharedAssetContext AssetContext
+
+@* Der Riegel am Ausgang, Blazor-Fassung. Dort gibt es keinen Ausgang, aber eine Render-Grenze: der
+   Inhalt entsteht erst, wenn die Argumente bestaetigt sind.
+
+   Dasselbe Muster wie SecureView, nur eine Achse weiter - SecureView beantwortet "darf der hier
+   ueberhaupt rein", diese Komponente "darf DIESES Objekt an ihn raus". *@
+
+@if (permitted)
+{
+    @ChildContent
+}
+else
+{
+    @Refused
+}
+
+@code {
+    /// <summary>
+    /// Die Werte, die der aktuelle Vorgang betrifft - typischerweise die Route-Parameter der Seite oder
+    /// die Schluessel des geladenen Datensatzes.
+    /// </summary>
+    [Parameter, EditorRequired] public IDictionary<string, object> Args { get; set; } = default!;
+
+    /// <summary>Der geschuetzte Inhalt.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Was statt des Inhalts erscheint. Vorgabe: nichts - die Seite bleibt leer, was aus Sicht des
+    /// Besuchers ehrlicher ist als eine Meldung, die verraet, dass es das Objekt gibt.
+    /// </summary>
+    [Parameter] public RenderFragment? Refused { get; set; }
+
+    private bool permitted = true;
+
+    protected override void OnParametersSet()
+    {
+        if (!AssetContext.HasAsset)
+        {
+            // Ohne Asset ist die Komponente durchsichtig: dieselbe Seite soll ohne Freigabe genauso
+            // funktionieren wie mit.
+            permitted = true;
+            return;
+        }
+
+        // Jeder Parametersatz ist ein neuer Vorgang. Unter Strict verfaellt damit eine frueher erteilte
+        // Bestaetigung - im Circuit ist das der Unterschied, den es ausmacht.
+        AssetContext.ResetConfirmation();
+        AssetContext.Require(Args);
+        permitted = !AssetContext.MustHoldBack;
+    }
+}

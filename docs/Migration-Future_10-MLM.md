@@ -4172,10 +4172,121 @@ Vergleich, und eine Adresse hineinzufalten würde daraus einen Präfix-Vergleich
 **Und sie ist eine Behauptung, kein Nachweis.** Wer den Link hat, ist wer der Link sagt. Für
 Zuordnung und Protokoll taugt das, als Identität nicht.
 
+## 53. Der Riegel: nichts geht raus, was nicht bestätigt wurde — **kein Schema-Change**
+
+Dritter Schritt der Objektsicherheit, und der erste mit Wirkung. Ab hier setzt die Strenge aus §52.5
+tatsächlich etwas durch.
+
+**Keine Migration.** Wer keine Vorlage mit Argumenten pflegt, merkt nichts.
+
+### 53.1 Die Idee in einem Satz
+
+Rechte werden am **Eintritt** geprüft, das Objekt ist erst am **Ausgang** bekannt — also wird dort
+geprüft, und zwar mit Vorgabe *nein*:
+
+> Läuft eine Anfrage in einer Freigabe, deren Vorlage `Confirmed` oder `Strict` verlangt, und hat
+> niemand die Argumente bestätigt, wird die fertige Antwort **verworfen** statt ausgeliefert.
+
+Der vergessene Aufruf fällt damit als leere Seite auf und nicht als stilles Loch.
+
+### 53.2 Bestätigen
+
+```csharp
+assetContext.Require("orderId", order.OrderId);
+assetContext.Require(new Dictionary<string, object> { ["orderId"] = id, ["stage"] = stage });
+```
+
+Der richtige Zeitpunkt ist der, an dem der Wert **sicher** bekannt ist:
+
+| Wo | Wann |
+|---|---|
+| MVC | automatisch aus den gebundenen Werten (siehe 53.3), zusätzlich manuell in der Action |
+| Blazor | in `<AssetScope>` bzw. sobald der Datensatz geladen ist |
+| FileHandler | **nach** dem Auflösen des Tokens, **vor** dem Streamen |
+
+Läuft keine Freigabe, liefert `Require` true — dieselbe Seite soll ohne Freigabe genauso
+funktionieren wie mit.
+
+**Eine Ablehnung ist endgültig.** Wer einmal auf ein fremdes Objekt gezeigt hat, bleibt abgelehnt;
+ein späterer richtiger Wert wäscht das nicht weiss.
+
+**Teilweise bestätigt ist nicht bestätigt**: es zählen *alle* Pflichtargumente. Sonst genügte es, das
+harmloseste von zweien zu belegen.
+
+### 53.3 MVC: `UseSharedAssetGuard()`
+
+```csharp
+services.UseSharedAssetGuard();
+```
+
+Registriert einen Filter, der **nach dem Model-Binding** greift, die gebundenen einfachen Werte als
+Bestätigung anbietet (Namensgleichheit) und nach der Action prüft, ob eine Bestätigung vorliegt.
+Fehlt sie, wird die Antwort verworfen (403).
+
+Gebundene **Modelle** werden nicht angeboten — der Name eines Modellparameters sagt nichts über das
+geteilte Objekt. Wer aus einem Modell bestätigen will, ruft `Require` selbst; dort ist bekannt,
+welche Eigenschaft gemeint ist.
+
+### 53.4 Blazor: `<AssetScope>`
+
+Dort gibt es keinen Ausgang, aber eine Render-Grenze:
+
+```razor
+<AssetScope Args="@(new Dictionary<string, object> { ["orderId"] = Id })">
+    @* entsteht erst, wenn die Argumente bestätigt sind *@
+</AssetScope>
+```
+
+Ohne aktive Freigabe ist die Komponente durchsichtig. Ist der Zugriff abgelehnt, bleibt sie per
+Vorgabe **leer** — das ist gegenüber dem Besucher ehrlicher als eine Meldung, die verrät, dass es das
+Objekt gibt. Über `Refused` lässt sich das überschreiben.
+
+### 53.5 `Confirmed` gegen `Strict` — der Unterschied ist der Circuit
+
+| Grad | Wirkung |
+|---|---|
+| `Confirmed` | eine Bestätigung gilt für den ganzen Kontext |
+| `Strict` | eine Bestätigung verfällt mit dem Vorgang (`ResetConfirmation`) |
+
+In MVC macht das keinen Unterschied: jede Anfrage hat ihren eigenen Scope. **Im Blazor-Circuit
+schon** — der lebt länger als ein Vorgang, und unter `Confirmed` würde eine einmalige Bestätigung
+alles Weitere mitdecken. `<AssetScope>` und der MVC-Filter rufen `ResetConfirmation` von sich aus;
+wer selbst einen Vorgang beginnt, ruft es ebenfalls.
+
+### 53.6 Unter-Objekte: der Auflöser
+
+Kennt ein Endpunkt nur ein Unter-Objekt — eine Position statt des Auftrags, eine Datei statt des
+Vorgangs —, dann normalisiert der Host nach oben:
+
+```csharp
+public class OrderOfPositionResolver : IAssetArgumentResolver
+{
+    public string Key => "order-of";
+
+    public bool TryResolve(string targetArgument, string sourceArgument, object sourceValue,
+        out object resolvedValue) { /* … */ }
+}
+```
+
+Registriert als `IAssetArgumentResolver`, benannt am Argument der Vorlage (Feld **Resolver key**).
+**Einmal je Argumenttyp, nicht je Endpunkt** — das ist der ganze Grund für dieses Konstrukt.
+
+`false` ist dabei kein Fehler, sondern heisst „nicht zuständig oder kein Bezug". Der Zugriff gilt
+dann als nicht bestätigt, und ob trotzdem etwas rausgeht, entscheidet die Strenge.
+
+### 53.7 Ein Argument, das die Freigabe nicht kennt
+
+… ist weder eine Bestätigung noch eine Verletzung — es ist schlicht nicht ihre Ebene. `Require`
+liefert dann false, solange noch nicht vollständig bestätigt wurde, setzt aber **nicht** auf
+abgelehnt. So kann ein Endpunkt seine Werte bedenkenlos anbieten, ohne die Freigabe zu kennen.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 53a | **Riegel am Ausgang** | `services.UseSharedAssetGuard()` (MVC) bzw. `<AssetScope>` (Blazor). Ohne Vorlage mit Argumenten passiert nichts; mit einer solchen wird eine unbestätigte Antwort **verworfen** (§53) |
+| 53b | **`ISharedAssetContext`** | neu `Require`, `Confirmed`, `Denied`, `MustHoldBack`, `Enforcement`, `ResetConfirmation`. Nur bei eigener Implementierung (§53.2) |
+| 53c | `IAssetArgumentResolver` | optional — nötig, wenn ein Endpunkt nur ein Unter-Objekt kennt (Position statt Auftrag, Datei statt Vorgang) (§53.6) |
 | 52a | **Asset-Argumente** | **Pflicht-Migration**: `AssetTemplateArgument`, `AssetTemplateConsumer` + `AssetTemplates.ArgumentEnforcement`, `SharedAssets.ArgumentValuesJson`, `SharedAssets.RecipientLabel`. Verhalten unverändert, solange eine Vorlage keine Argumente führt (§52) |
 | 52b | **`ISharedAssetAdapter`** | neue Überladung `CreateSharedAsset(…, argumentValues, recipientLabel, out error)`; die alte bleibt. Nur bei eigener Implementierung (§52.4) |
 | 52c | Vorlagen löschen | Argumente und Endpunkte verweisen **ohne Fremdschlüssel** auf die Vorlage — wer selbst Vorlagen löscht, muss sie mitnehmen (§52.1) |

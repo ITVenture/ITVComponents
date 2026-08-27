@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 {
@@ -44,8 +44,13 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
     /// <param name="Name">der Name des Arguments, so wie er in der Route bzw. im Formular heisst</param>
     /// <param name="Type">der erwartete Typ</param>
     /// <param name="Required">ob der Endpunkt das Argument zwingend braucht</param>
+    /// <param name="ResolverKey">
+    /// der Aufloeser, mit dem ein Endpunkt ein Unter-Objekt auf diese Ebene normalisiert - "zu dieser
+    /// Position gehoert Auftrag 4711". Null, wenn nur direkt verglichen wird. Von einem Endpunkt bei der
+    /// Selbstmeldung nie gesetzt; er steht an der Vorlage.
+    /// </param>
     public sealed record AssetArgumentDeclaration(string Name, AssetArgumentType Type = AssetArgumentType.String,
-        bool Required = true);
+        bool Required = true, string ResolverKey = null);
 
     /// <summary>
     /// Was ein Endpunkt insgesamt deklariert: wie er identifiziert wird und welche Argumente er versteht.
