@@ -1,7 +1,7 @@
 # Plan: Geteilte Assets — von der Pfadfreigabe zur Objektsicherheit
 
-Status: **Phasen 1-3 umgesetzt** (Registry, Argumente, Riegel), Phasen 4-7 offen. Stand 2026-08-27,
-Zweig Future_10. Was der Host tun muss, steht in `docs/Migration-Future_10-MLM.md`, Abschnitte 51-53.
+Status: **umgesetzt** - alle sieben Phasen. Stand 2026-08-27,
+Zweig Future_10. Was der Host tun muss, steht in `docs/Migration-Future_10-MLM.md`, Abschnitte 51-56.
 Setzt auf `docs/Plan-SharedAsset-Pfadkontext.md` auf (umgesetzt).
 
 ## 1. Ausgangslage
@@ -301,7 +301,13 @@ Vorlage, dann eine kleine Sperrliste widerrufener Nonces, im Notfall Schluesselr
 
 ## 7. Protokollierung
 
-- Geschrieben werden **Einstiege** (erste Anfrage je Kontext) und **jede Verweigerung**.
+- Geschrieben wird **je Vorgang** - und der Riegel am Ausgang ist genau die Stelle, an der ein
+  Vorgang beginnt und endet (eine MVC-Aktion, ein Parametersatz in `<AssetScope>`). Unterressourcen
+  laufen dort nicht durch. Das war die praktikable Antwort auf "erste Anfrage je Kontext": sie
+  braucht keine Heuristik ueber Anfragearten.
+- **Zwei Arten von Verweigerung, getrennt gehalten**: `NotConfirmed` (niemand hat bestaetigt - meist
+  ein vergessener Aufruf) und `Denied` (jemand hat auf ein fremdes Objekt gezeigt - das
+  Alarmzeichen). In einem Topf waere der Unterschied nur im Anwendungs-Log sichtbar.
 - **Nicht** jede Anfrage: Unterressourcen machen daraus sofort DB-Spam — dieselbe Lektion wie beim
   SystemLog.
 - Ad-hoc-Tickets ueber `TicketNonce` + `TemplateSystemKey` statt ueber eine Asset-Id.
@@ -412,6 +418,10 @@ tauglich.
   Endpoint-Metadaten ableiten laesst, entscheidet sich beim Bauen.
 - **Weitergabe**: darf ein Empfaenger weiterteilen? Heute faktisch nein, weil er die Maske nicht hat.
   Mit Phase 4 wird das eine Entscheidung und keine Nebenwirkung mehr.
+- ~~**Ausgegebene Ad-hoc-Tickets registrieren**~~ — **entschieden: nein.** Sie sind kurzlebig; sie zu
+  sammeln gaebe genau den Vorteil auf, fuer den es sie gibt. Im Protokoll ist die Nonce die einzige
+  Spur - damit lassen sich Zugriffe EINEM Ticket zuordnen, aber die Frage "welche Tickets gibt es"
+  bleibt unbeantwortbar, und das ist Absicht.
 - ~~**Mehrere Argumente, teilweise erfuellt**~~ — **entschieden**: es zaehlen ALLE Pflichtargumente.
   Sonst genuegte es, das harmloseste von zweien zu belegen.
 

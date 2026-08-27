@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -24,11 +24,20 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
     {
         private readonly ISharedAssetContext assetContext;
         private readonly ILogger<SharedAssetGuardFilter> logger;
+        private readonly IAssetAccessLog accessLog;
 
-        public SharedAssetGuardFilter(ISharedAssetContext assetContext, ILogger<SharedAssetGuardFilter> logger)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SharedAssetGuardFilter"/> class.
+        /// </summary>
+        /// <param name="assetContext">der Asset-Kontext der Anfrage</param>
+        /// <param name="logger">ein Logger fuer zurueckgehaltene Antworten</param>
+        /// <param name="accessLog">das Zugriffsprotokoll - ohne EF-Paket die Null-Fassung</param>
+        public SharedAssetGuardFilter(ISharedAssetContext assetContext, ILogger<SharedAssetGuardFilter> logger,
+            IAssetAccessLog accessLog)
         {
             this.assetContext = assetContext;
             this.logger = logger;
+            this.accessLog = accessLog;
         }
 
         /// <inheritdoc/>
@@ -44,6 +53,13 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             OfferBoundArguments(context);
 
             var executed = await next();
+
+            // Hier - und nicht bei jeder Anfrage: eine Aktion ist ein Vorgang, eine Unterressource
+            // nicht. Der Riegel ist damit zugleich die Stelle, an der genau einmal je Vorgang
+            // feststeht, ob etwas rausging.
+            AssetAccessRecorder.Record(accessLog, assetContext, context.HttpContext.User,
+                context.HttpContext.Request.Path.Value);
+
             if (!assetContext.MustHoldBack)
             {
                 return;

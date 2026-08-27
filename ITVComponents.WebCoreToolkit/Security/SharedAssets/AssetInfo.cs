@@ -33,5 +33,26 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// Wie streng die Bestaetigung der Argumente verlangt wird.
         /// </summary>
         public AssetArgumentEnforcement Enforcement { get; set; } = AssetArgumentEnforcement.None;
+
+        /// <summary>
+        /// Wie ausfuehrlich Zugriffe protokolliert werden.
+        /// </summary>
+        public AssetAuditMode AuditMode { get; set; } = AssetAuditMode.All;
+
+        /// <summary>
+        /// Die Vorlage, aus der die Rechte stammen - im Protokoll das Einzige, was gespeicherte
+        /// Freigaben und Ad-hoc-Tickets gemeinsam haben.
+        /// </summary>
+        public string TemplateSystemKey { get; set; }
+
+        /// <summary>
+        /// Die Kennung eines Ad-hoc-Tickets, oder null.
+        /// </summary>
+        public string TicketNonce { get; set; }
+
+        /// <summary>
+        /// An wen die Freigabe gerichtet ist.
+        /// </summary>
+        public string RecipientLabel { get; set; }
     }
 }

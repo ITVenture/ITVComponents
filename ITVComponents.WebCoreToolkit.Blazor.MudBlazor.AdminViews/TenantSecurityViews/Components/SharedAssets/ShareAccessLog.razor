@@ -1,0 +1,112 @@
+@page "/Account/ShareLog"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IAssetAccessLogAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Share access</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Share access</MudText>
+
+@if (currentUser is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudDataGrid T="AssetAccessViewModel"
+                 @ref="grid"
+                 ServerData="LoadData"
+                 SortMode="SortMode.None"
+                 RowsPerPage="50"
+                 Hover="true"
+                 Dense="true">
+        <ToolBarContent>
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Share access" @bind-Search="search" OnSearch="ReloadGrid">
+                @* Der Filter, den man in einem Zugriffsprotokoll fast immer zuerst will. *@
+                <MudSwitch T="bool" Value="@deniedOnly" ValueChanged="ToggleDenied" Label="Refusals only"
+                           Color="Color.Error" Class="ml-4" />
+            </CrudGridToolbar>
+        </ToolBarContent>
+        <Columns>
+            <TemplateColumn T="AssetAccessViewModel" Title="When" Sortable="false">
+                <CellTemplate>@context.Item.Created.ToLocalTime().ToString("g")</CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="AssetAccessViewModel" Title="Result" Sortable="false">
+                <CellTemplate>
+                    @if (context.Item.Granted)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success" />
+                    }
+                    else
+                    {
+                        @* NotConfirmed heisst "niemand hat bestaetigt", Denied heisst "jemand hat auf
+                           etwas Fremdes gezeigt" - nur das zweite ist ein Alarmzeichen. *@
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(context.Item.DenyReason == "Denied" ? Color.Error : Color.Warning)">
+                            @context.Item.DenyReason
+                        </MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.AccessedBy" Title="By" />
+            <PropertyColumn Property="x => x.RequestPath" Title="Path" />
+            <PropertyColumn Property="x => x.ArgumentSummary" Title="Points at" />
+            <TemplateColumn T="AssetAccessViewModel" Title="Share" Sortable="false">
+                <CellTemplate>
+                    @if (!string.IsNullOrEmpty(context.Item.TicketNonce))
+                    {
+                        <MudTooltip Text="An ad-hoc ticket - it is stored nowhere; this is the only trace">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">ticket</MudChip>
+                        </MudTooltip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2">@context.Item.TemplateSystemKey</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.RecipientLabel" Title="Recipient" />
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="AssetAccessViewModel" />
+        </PagerContent>
+    </MudDataGrid>
+}
+
+@code {
+    /// <summary>Auf eine Freigabe einschraenken - leer zeigt alle des Mandanten.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "asset")] public string? AssetKey { get; set; }
+
+    private MudDataGrid<AssetAccessViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private string? search;
+    private bool deniedOnly;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<AssetAccessViewModel>> LoadData(GridState<AssetAccessViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<AssetAccessViewModel> { Items = Array.Empty<AssetAccessViewModel>(), TotalItems = 0 };
+        var result = await Handler.ListAsync(currentUser, AssetKey, deniedOnly, state.ToListQuery(search));
+        return new GridData<AssetAccessViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task ToggleDenied(bool value)
+    {
+        deniedOnly = value;
+        await ReloadGrid();
+    }
+}

@@ -1,7 +1,11 @@
-@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+﻿@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
+@using Microsoft.AspNetCore.Components.Authorization
 
 @inject ISharedAssetContext AssetContext
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthState
 
 @* Der Riegel am Ausgang, Blazor-Fassung. Dort gibt es keinen Ausgang, aber eine Render-Grenze: der
    Inhalt entsteht erst, wenn die Argumente bestaetigt sind.
@@ -36,7 +40,7 @@ else
 
     private bool permitted = true;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (!AssetContext.HasAsset)
         {
@@ -51,5 +55,10 @@ else
         AssetContext.ResetConfirmation();
         AssetContext.Require(Args);
         permitted = !AssetContext.MustHoldBack;
+
+        // Ein Parametersatz ist der Vorgang dieser Welt - das Gegenstueck zur Aktion in MVC.
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        AssetAccessRecorder.Record(Services.GetService(typeof(IAssetAccessLog)) as IAssetAccessLog,
+            AssetContext, auth.User, new Uri(Navigation.Uri).AbsolutePath);
     }
 }

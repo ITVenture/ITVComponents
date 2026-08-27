@@ -52,6 +52,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         string TicketPayload { get; }
 
         /// <summary>
+        /// Die Angaben zur Freigabe des aktuellen Kontexts, oder null. Fuer den Riegel und das Protokoll -
+        /// nicht als Auskunft an eine Seite gedacht.
+        /// </summary>
+        AssetInfo CurrentAsset { get; }
+
+        /// <summary>
         /// Wie streng die Vorlage die Bestaetigung ihrer Argumente verlangt. <c>None</c>, wenn kein Asset
         /// laeuft oder die Vorlage keine Argumente fuehrt.
         /// </summary>

@@ -18,9 +18,5 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         public List<string> UserScopeShares { get; } = new List<string>();
 
-        /// <summary>
-        /// An wen die Freigabe gerichtet ist. Siehe die Warnung am Modell: eine Behauptung, kein Nachweis.
-        /// </summary>
-        public string RecipientLabel { get; set; }
     }
 }

@@ -164,7 +164,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         /// <returns>the serviceCollection instance that was passed as argument</returns>
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services)
         {
-            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
+            return services.UsePersistentAssetArgumentRegistry().UseDbAssetAccessLog().AddScoped<ISharedAssetAdapter, SharedAssetProvider>();
         }
 
         /*/// <summary>
@@ -176,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         public static IServiceCollection UseDbSharedAssets(this IServiceCollection services, Type contextType)
         {
             var t = typeof(SharedAssetProvider<>).MakeGenericType(contextType);
-            return services.UsePersistentAssetArgumentRegistry().AddScoped(typeof(ISharedAssetAdapter), t);
+            return services.UsePersistentAssetArgumentRegistry().UseDbAssetAccessLog().AddScoped(typeof(ISharedAssetAdapter), t);
         }*/
 
         /// <summary>
@@ -187,7 +187,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
         public static IServiceCollection UseDbSharedAssets<TImpl>(this IServiceCollection services)
             where TImpl : SecurityContext<TImpl>
         {
-            return services.UsePersistentAssetArgumentRegistry().AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
+            return services.UsePersistentAssetArgumentRegistry().UseDbAssetAccessLog().AddScoped<ISharedAssetAdapter, SharedAssetProvider<TImpl>>();
         }
     }
 }

@@ -228,6 +228,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             // nehmen kann. Wer die Deklarationen behalten will, ueberschreibt sie mit der
             // persistierenden Fassung aus dem EF-Paket.
             services.TryAddSingleton<IAssetArgumentRegistry, InMemoryAssetArgumentRegistry>();
+            services.TryAddScoped<IAssetAccessLog, NullAssetAccessLog>();
             return services;
         }
 

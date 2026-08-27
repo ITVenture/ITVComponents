@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +32,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             }
 
             return services.AddSingleton<IAssetArgumentRegistry, PersistentAssetArgumentRegistry>();
+        }
+
+        /// <summary>
+        /// Registriert das Zugriffsprotokoll, das in die Systemtabelle schreibt. Ueberschreibt die
+        /// Null-Fassung aus dem Kern-Paket.
+        /// </summary>
+        /// <param name="services">die Dienstsammlung</param>
+        /// <returns>die uebergebene Dienstsammlung</returns>
+        public static IServiceCollection UseDbAssetAccessLog(this IServiceCollection services)
+        {
+            return services.AddScoped<IAssetAccessLog, DbAssetAccessLog>();
         }
     }
 }

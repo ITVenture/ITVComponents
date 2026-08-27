@@ -303,6 +303,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         /// <inheritdoc/>
         public DbSet<RevokedAssetTicket> RevokedAssetTickets { get; set; }
 
+        /// <inheritdoc/>
+        public DbSet<SharedAssetAccess> SharedAssetAccesses { get; set; }
+
         public DbSet<HealthScript> HealthScripts { get; set; }
 
         /// <summary>

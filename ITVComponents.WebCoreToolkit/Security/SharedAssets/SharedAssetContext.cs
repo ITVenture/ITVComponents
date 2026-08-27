@@ -92,6 +92,9 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         }
 
         /// <inheritdoc/>
+        public AssetInfo CurrentAsset => Info;
+
+        /// <inheritdoc/>
         public AssetArgumentEnforcement Enforcement => Info?.Enforcement ?? AssetArgumentEnforcement.None;
 
         /// <inheritdoc/>

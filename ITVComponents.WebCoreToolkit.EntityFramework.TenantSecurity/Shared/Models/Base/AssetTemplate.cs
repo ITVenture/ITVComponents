@@ -64,6 +64,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [MaxLength(128)]
         public string ValidityRuleKey { get; set; }
 
+        /// <summary>
+        /// Wie ausfuehrlich Zugriffe auf Freigaben dieser Vorlage protokolliert werden. Vorgabe:
+        /// Einstiege und Verweigerungen - eine Freigabe ist etwas, das man aus der Hand gibt, und ob sie
+        /// benutzt wurde, ist genau die Frage, die spaeter gestellt wird.
+        /// </summary>
+        public AssetAuditMode AuditMode { get; set; } = AssetAuditMode.All;
+
         public virtual ICollection<TAssetTemplatePath> PathTemplates { get; set; } = new List<TAssetTemplatePath>();
 
         public virtual ICollection<TAssetTemplateGrant> Grants { get; set; } = new List<TAssetTemplateGrant>();

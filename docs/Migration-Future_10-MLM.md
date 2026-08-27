@@ -4461,10 +4461,94 @@ bool RevokeTicket(string nonce, DateTime expiresUtc);
 Ebenso neu am `ISharedAssetContext`: `SegmentKind`, `TicketTenant`, `TicketPayload`. Betrifft euch
 nur bei eigener Implementierung.
 
+## 56. Wer hat eine Freigabe benutzt — **Pflicht-Migration (1 Tabelle, 1 Spalte)**
+
+Sechster und letzter Schritt der Objektsicherheit: das Zugriffsprotokoll.
+
+### 56.1 Die Migration
+
+```
+SharedAssetAccess   SharedAssetAccessId, AssetKey?, TicketNonce?, TemplateSystemKey,
+                    TenantName, RecipientLabel?, AccessedBy?, RequestPath,
+                    ArgumentSummary?, Granted, DenyReason?, Created
+                    Index (TenantName, Created), Index (AssetKey)
+
+AssetTemplates  + AuditMode (int, default 2 = All)
+```
+
+`dotnet ef migrations add SharedAssetAccessLog` → `database update`.
+
+### 56.2 Geschrieben wird je Vorgang — nicht je Anfrage
+
+Der Riegel aus §53 ist die Stelle, an der ein Vorgang beginnt und endet: eine MVC-Aktion, ein
+Parametersatz in `<AssetScope>`. **Unterressourcen einer Seite laufen dort nicht durch** und tauchen
+im Protokoll deshalb nicht auf.
+
+Das ist kein Detail: bei einer Zeile pro Anfrage wäre die Tabelle nach einer Woche unbenutzbar —
+dieselbe Lektion, die der SystemLog schon einmal erteilt hat.
+
+### 56.3 Zwei Arten von Verweigerung
+
+| `DenyReason` | heisst | Beurteilung |
+|---|---|---|
+| `NotConfirmed` | niemand hat die Argumente bestätigt | meist ein vergessener `Require`-Aufruf |
+| `Denied` | jemand hat auf ein **fremdes** Objekt gezeigt | das Alarmzeichen |
+
+Getrennt gehalten, weil man sonst im Anwendungs-Log nachsehen müsste, um den Unterschied zu
+erkennen. In der Ansicht ist `Denied` rot, `NotConfirmed` gelb.
+
+### 56.4 Wieviel mitgeschrieben wird
+
+`AuditMode` an der Vorlage:
+
+| Wert | Wirkung |
+|---|---|
+| `Off` | nichts |
+| `DeniedOnly` | nur die Verweigerungen — die günstigste Einstellung, und die Hälfte, die man hinterher braucht |
+| `All` (Vorgabe) | Einstiege und Verweigerungen |
+
+Die Vorgabe ist `All`, weil eine Freigabe etwas ist, das man aus der Hand gibt: ob sie benutzt wurde,
+ist genau die Frage, die später gestellt wird.
+
+### 56.5 Die Ansicht
+
+`/Account/ShareLog`, je Mandant, neueste zuerst, mit dem Schalter **„Refusals only"** — der Filter,
+den man in einem Zugriffsprotokoll fast immer zuerst will. Über `?asset={key}` lässt sich auf eine
+Freigabe einschränken.
+
+### 56.6 Achtung bei eigenen Abfragen
+
+`SharedAssetAccess` liegt als **Systemtabelle** im mandantenfreien Kontext — wie die
+Argument-Registry, und aus demselben Grund: die Freigabe selbst ist generisch. **Die Mandantengrenze
+zieht deshalb der Aufrufer, nicht die Datenbank.** Wer eigene Abfragen auf diese Tabelle schreibt,
+muss `TenantName` selbst einschränken; sonst liest er über Mandanten hinweg.
+
+### 56.7 Ad-hoc-Tickets im Protokoll
+
+Ein Ticket steht nirgends, also gibt es keine Zeile, an der ein Eintrag hängen könnte — im Protokoll
+steht die **Nonce** aus seiner Nutzlast. Damit lassen sich Zugriffe *einem* Ticket zuordnen und ein
+widerrufenes wiederfinden.
+
+**Was damit nicht geht, ist beabsichtigt:** „welche Tickets gibt es" bleibt unbeantwortbar.
+Ausgegebene Tickets werden bewusst nicht gesammelt — sie sind kurzlebig, und sie zu registrieren
+würde genau den Vorteil aufgeben, für den es sie gibt.
+
+### 56.8 Breaking: `IAssetAccessLog`
+
+Neu im Kern; die Fassung, die in die Systemtabelle schreibt, kommt mit `UseDbSharedAssets`. Ohne
+EF-Paket greift eine Null-Fassung, die nichts schreibt. `ISharedAssetContext` bekommt zusätzlich
+`CurrentAsset`. Betrifft euch nur bei eigener Implementierung.
+
+**Ein Ausfall des Protokolls hält keinen Zugriff auf** — aber er wird als `LogError` gemeldet. Ein
+Protokoll, von dem niemand weiss, dass es Lücken hat, ist schlimmer als keines.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
+| 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
+| 56c | Eigene Abfragen auf `SharedAssetAccess` | die Tabelle ist **mandantenfrei** — `TenantName` selbst einschränken, sonst liest man über Mandanten hinweg (§56.6) |
 | 55a | **Ad-hoc-Tickets** | **Pflicht-Migration**: `RevokedAssetTicket` + `AssetTemplates.AllowAdHoc` / `MaxAdHocMinutes` / `ValidityRuleKey`. Bestehende Vorlagen erlauben KEINE Tickets (§55) |
 | 55b | **`ISharedAssetAdapter`** | neu `CreateAdHocTicket`, `GetTicketInfo`, `RevokeTicket`; `ISharedAssetContext` neu `SegmentKind`, `TicketTenant`, `TicketPayload`. Nur bei eigener Implementierung (§55.7) |
 | 55c | `IAssetValidityRule` | optional — für "gilt, bis der Auftrag abgeschlossen ist". **Merke: eine benannte, aber nicht registrierte Regel lehnt ab** (§55.4) |

@@ -53,6 +53,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
         /// </summary>
         public DbSet<RevokedAssetTicket> RevokedAssetTickets { get; set; }
 
+        /// <summary>
+        /// Die protokollierten Zugriffe auf Freigaben. Je Vorgang eine Zeile, nicht je Anfrage.
+        /// </summary>
+        public DbSet<SharedAssetAccess> SharedAssetAccesses { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<Culture> Cultures { get; set; }

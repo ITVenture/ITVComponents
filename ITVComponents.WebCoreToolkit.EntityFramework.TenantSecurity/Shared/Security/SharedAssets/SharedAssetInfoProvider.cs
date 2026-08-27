@@ -152,6 +152,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     retVal.Arguments = ReadArguments(database, asset.AssetTemplateId);
                     retVal.Values = AssetArgumentValues.FromJson(asset.ArgumentValuesJson);
                     retVal.Enforcement = asset.Template.ArgumentEnforcement;
+                    retVal.AuditMode = asset.Template.AuditMode;
+                    retVal.TemplateSystemKey = asset.Template.SystemKey;
+                    retVal.RecipientLabel = asset.RecipientLabel;
                     return retVal;
                 }
             }
@@ -680,7 +683,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 Permissions = assetTmp.Grants.Select(n => n.Permission.PermissionName).ToArray(),
                 Arguments = declarations,
                 Values = values,
-                Enforcement = assetTmp.ArgumentEnforcement
+                Enforcement = assetTmp.ArgumentEnforcement,
+                AuditMode = assetTmp.AuditMode,
+                TemplateSystemKey = assetTmp.SystemKey,
+                TicketNonce = ticket.Nonce,
+                RecipientLabel = ticket.RecipientLabel
             };
         }
 
