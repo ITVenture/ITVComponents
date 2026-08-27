@@ -1,4 +1,4 @@
-@page "/Account/Shares"
+﻿@page "/Account/Shares"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -78,6 +78,10 @@ else
                             <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small"
                                            OnClick="@(() => ShowLink(context.Item))" />
                         </MudTooltip>
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => Edit(context.Item))" />
+                        </MudTooltip>
                         @if (context.Item.IsAnonymous)
                         {
                             <MudTooltip Text="Invalidate every link sent so far">
@@ -141,6 +145,34 @@ else
 
         var parameters = new DialogParameters<ShareLinkDialog> { { d => d.Link, link } };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+    }
+
+    private async Task Edit(SharedAssetListItem item)
+    {
+        var model = await Handler.GetForEditAsync(currentUser!, item.AssetKey);
+        if (model is null)
+        {
+            // Die vollen Angaben gibt es nur mit den Rechten der Vorlage - wer sie nicht hat, sieht die
+            // Zeile zwar, darf sie aber nicht aendern.
+            Snackbar.Add("You may not edit this share.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters<SharedAssetEditDialog> { { d => d.Model, model } };
+        var dlg = await DialogService.ShowAsync<SharedAssetEditDialog>("Edit share", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: SharedAssetEditViewModel input })
+        {
+            if (await Handler.UpdateAsync(currentUser!, input))
+            {
+                Snackbar.Add("Share updated", Severity.Success);
+                await ReloadGrid();
+            }
+            else
+            {
+                Snackbar.Add("Failed to update", Severity.Error);
+            }
+        }
     }
 
     private async Task Rotate(SharedAssetListItem item)

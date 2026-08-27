@@ -4344,7 +4344,28 @@ bestehenden `HttpContext`-Fassungen bleiben und delegieren. `RecipientLabel` wir
 
 Betrifft euch nur, wenn ihr `ISharedAssetAdapter` selbst implementiert.
 
-### 54.5 Zwei Namen, die sich ähnlich sehen
+### 54.5 Eine Freigabe nachträglich ändern
+
+Über den Bearbeiten-Knopf in der Übersicht: Titel, Gültigkeitsfenster, Empfängerangabe und vor allem
+**wer sie benutzen darf**. Die Filterlisten zeigen die beiden Platzhalter als eigene Knöpfe:
+
+| Platzhalter | Bedeutung |
+|---|---|
+| `%` | alle, die die Freigabe erreichen können |
+| `##ANONYMOUS` | ohne Anmeldung (nur bei Benutzerfiltern sinnvoll) |
+
+Sie stehen dort als Knopf und nicht als Text zum Abtippen, weil ein Tippfehler in einem dieser Werte
+einen Filter ergibt, der auf niemanden passt — also eine Freigabe, die stillschweigend niemanden
+hereinlässt. Steht `%` in einer der Listen, warnt der Dialog deutlich.
+
+**Nicht änderbar ist, worauf die Freigabe zeigt.** Die Argumentwerte stehen seit dem Anlegen fest;
+sie nachträglich umzubiegen hiesse, einen bereits verschickten Link stillschweigend auf ein anderes
+Objekt zu richten. Wer etwas anderes teilen will, teilt etwas anderes.
+
+Die vollen Angaben — Gültigkeit und Filter — bekommt nur zu sehen, wer die Freigabe auch verwalten
+darf; das entscheidet der Adapter anhand der Berechtigung der Vorlage.
+
+### 54.6 Zwei Namen, die sich ähnlich sehen
 
 Beim Bauen der Übersicht aufgefallen und hier festgehalten, weil es sonst jemanden Zeit kostet:
 
@@ -4546,6 +4567,7 @@ Protokoll, von dem niemand weiss, dass es Lücken hat, ist schlimmer als keines.
 
 | # | Was | Aktion |
 |---|---|---|
+| 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
 | 56c | Eigene Abfragen auf `SharedAssetAccess` | die Tabelle ist **mandantenfrei** — `TenantName` selbst einschränken, sonst liest man über Mandanten hinweg (§56.6) |

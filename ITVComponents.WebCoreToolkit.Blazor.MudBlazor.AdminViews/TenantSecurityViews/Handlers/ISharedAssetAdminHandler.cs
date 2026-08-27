@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
@@ -41,6 +41,21 @@ public interface ISharedAssetAdminHandler
     /// Erneuert das Geheimnis: verschickte anonyme Links werden ungueltig, die Freigabe bleibt.
     /// </summary>
     Task<bool> RotateAsync(ClaimsPrincipal user, string assetKey);
+
+    /// <summary>
+    /// Laedt eine Freigabe zum Bearbeiten. Liefert null, wenn der Aufrufer sie nicht verwalten darf -
+    /// die vollen Angaben (Gueltigkeit, Filter) gibt es nur mit den Rechten der Vorlage.
+    /// </summary>
+    Task<SharedAssetEditViewModel?> GetForEditAsync(ClaimsPrincipal user, string assetKey);
+
+    /// <summary>
+    /// Aendert Titel, Gueltigkeit, Empfaenger und Filter einer bestehenden Freigabe.
+    /// <para>
+    /// <b>Nicht, worauf sie zeigt.</b> Die Argumentwerte stehen seit dem Anlegen fest; sie umzubiegen
+    /// hiesse, einen verschickten Link stillschweigend auf ein anderes Objekt zu richten.
+    /// </para>
+    /// </summary>
+    Task<bool> UpdateAsync(ClaimsPrincipal user, SharedAssetEditViewModel input);
 
     Task<bool> DeleteAsync(ClaimsPrincipal user, string assetKey);
 }

@@ -1,0 +1,97 @@
+@* Eine Liste von Filterwerten mit den beiden Platzhaltern, die man kennen muss.
+
+   Sie stehen als eigene Knoepfe da und nicht bloss als Text, den man abtippen kann: "%" und
+   "##ANONYMOUS" sind die sicherheitsrelevanten Werte des ganzen Mechanismus, und ein Tippfehler
+   darin ergibt einen Filter, der auf niemanden passt - also eine Freigabe, die stillschweigend
+   niemanden hereinlaesst. *@
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-1">
+    <MudTextField T="string" @bind-Value="entry" Label="@Placeholder" Immediate="true"
+                  OnKeyDown="@(e => { if (e.Key == "Enter") Add(); })" />
+    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="Add" />
+</MudStack>
+
+<MudStack Row="true" Spacing="1" Class="mb-1" Wrap="Wrap.Wrap">
+    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+               OnClick="@(() => AddValue(EveryonePlaceholder))">
+        everyone (%)
+    </MudButton>
+    @if (AllowAnonymous)
+    {
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                   OnClick="@(() => AddValue(AnonymousPlaceholder))">
+            without signing in (##ANONYMOUS)
+        </MudButton>
+    }
+</MudStack>
+
+@if (Values.Count == 0)
+{
+    <MudText Typo="Typo.body2">
+        Nobody yet - a share without any filter can not be used by anyone.
+    </MudText>
+}
+else
+{
+    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+        @foreach (var value in Values.ToArray())
+        {
+            <MudChip T="string" Size="Size.Small" OnClose="@(() => Remove(value))" Color="@ColorOf(value)">
+                @Label(value)
+            </MudChip>
+        }
+    </MudStack>
+}
+
+@code {
+    /// <summary>Der Platzhalter am Asset, der den anonymen Zugang erlaubt.</summary>
+    /// <remarks>
+    /// <b>Nicht zu verwechseln mit <c>#ANONYMOUS#</c></b> - so heisst der Besucher, nicht der Filter.
+    /// Die beiden werden nirgends miteinander verglichen.
+    /// </remarks>
+    public const string AnonymousPlaceholder = "##ANONYMOUS";
+
+    /// <summary>Der Platzhalter, der auf alle passt.</summary>
+    public const string EveryonePlaceholder = "%";
+
+    [Parameter, EditorRequired] public List<string> Values { get; set; } = default!;
+    [Parameter] public string Placeholder { get; set; } = "Value";
+
+    /// <summary>Ob der anonyme Platzhalter hier ueberhaupt sinnvoll ist (nur bei Benutzerfiltern).</summary>
+    [Parameter] public bool AllowAnonymous { get; set; }
+
+    private string? entry;
+
+    private void Add()
+    {
+        AddValue(entry);
+        entry = null;
+    }
+
+    private void AddValue(string? value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed) || Values.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Values.Add(trimmed);
+    }
+
+    private void Remove(string value) => Values.Remove(value);
+
+    private static Color ColorOf(string value) => value switch
+    {
+        EveryonePlaceholder => Color.Error,
+        AnonymousPlaceholder => Color.Warning,
+        _ => Color.Default
+    };
+
+    private static string Label(string value) => value switch
+    {
+        EveryonePlaceholder => "everyone",
+        AnonymousPlaceholder => "without signing in",
+        _ => value
+    };
+}

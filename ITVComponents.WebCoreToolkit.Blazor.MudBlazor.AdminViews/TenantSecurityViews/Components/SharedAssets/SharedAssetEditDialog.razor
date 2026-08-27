@@ -1,0 +1,54 @@
+@* Was sich an einer bestehenden Freigabe noch aendern laesst - Titel, Gueltigkeit, Empfaenger und
+   vor allem: WER sie benutzen darf.
+
+   Nicht dabei ist, worauf sie zeigt. Die Argumentwerte stehen seit dem Anlegen fest; sie hier
+   umbiegen zu koennen hiesse, einen verschickten Link stillschweigend auf ein anderes Objekt zu
+   richten. *@
+
+<EditDialogShell Model="Model" IsCreate="false">
+    <MudTextField @bind-Value="Model.AssetTitle" Label="Title" Required="true" RequiredError="A title is required"
+                  MaxLength="512" />
+
+    @if (!string.IsNullOrEmpty(Model.ArgumentSummary))
+    {
+        <MudTextField T="string" Value="@Model.ArgumentSummary" Label="Points at" ReadOnly="true" Class="mt-2"
+                      HelperText="Fixed since the share was created - a link already handed out must not silently point somewhere else." />
+    }
+
+    <MudDatePicker @bind-Date="Model.NotBefore" Label="Valid from" Clearable="true" Class="mt-2" />
+    <MudDatePicker @bind-Date="Model.NotAfter" Label="Valid until" Clearable="true" />
+
+    <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
+                  HelperText="A note for your own records. It is not a proof of identity." />
+
+    <MudText Typo="Typo.subtitle2" Class="mt-4">Who may use it</MudText>
+    <FilterList Values="Model.UserFilters" Placeholder="User label"
+                AllowAnonymous="true" />
+
+    <MudText Typo="Typo.subtitle2" Class="mt-4">Which tenants may use it</MudText>
+    <FilterList Values="Model.TenantFilters" Placeholder="Tenant name"
+                AllowAnonymous="false" />
+
+    @if (IsPublic)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+            With <b>%</b> in a filter this share is open to everyone it can reach. Remove it unless that
+            is exactly what you mean.
+        </MudAlert>
+    }
+    else if (IsAnonymous)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+            Everyone holding the link gets in, without signing in. Give it an end date.
+        </MudAlert>
+    }
+</EditDialogShell>
+
+@code {
+    [Parameter, EditorRequired] public SharedAssetEditViewModel Model { get; set; } = default!;
+
+    private bool IsAnonymous => Model.UserFilters.Any(n => n == FilterList.AnonymousPlaceholder);
+
+    private bool IsPublic => Model.UserFilters.Any(n => n == FilterList.EveryonePlaceholder)
+                             || Model.TenantFilters.Any(n => n == FilterList.EveryonePlaceholder);
+}

@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Linq;
+using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
@@ -90,6 +91,52 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
 
     public Task<bool> RotateAsync(ClaimsPrincipal user, string assetKey)
         => Task.FromResult(adapter.RotateAnonymousToken(assetKey));
+
+    public Task<SharedAssetEditViewModel?> GetForEditAsync(ClaimsPrincipal user, string assetKey)
+    {
+        // asOwner: die Gueltigkeit und die Filter bekommt nur zu sehen, wer die Freigabe auch verwalten
+        // darf - der Adapter entscheidet das anhand der Vorlage.
+        if (adapter.GetAssetInfo(assetKey, user, asOwner: true) is not FullAssetInfo full)
+        {
+            logger.LogInformation("'{AssetKey}' can not be edited by this user.", assetKey);
+            return Task.FromResult<SharedAssetEditViewModel?>(null);
+        }
+
+        var values = full.Values;
+        return Task.FromResult<SharedAssetEditViewModel?>(new SharedAssetEditViewModel
+        {
+            AssetKey = full.AssetKey,
+            AssetTitle = full.AssetTitle ?? string.Empty,
+            NotBefore = full.NotBefore,
+            NotAfter = full.NotAfter,
+            RecipientLabel = full.RecipientLabel,
+            UserFilters = full.UserShares.ToList(),
+            TenantFilters = full.UserScopeShares.ToList(),
+            ArgumentSummary = values == null || values.IsEmpty
+                ? null
+                : string.Join(", ", values.Names.Select(n => $"{n}={values[n]}"))
+        });
+    }
+
+    public Task<bool> UpdateAsync(ClaimsPrincipal user, SharedAssetEditViewModel input)
+    {
+        if (adapter.GetAssetInfo(input.AssetKey, user, asOwner: true) is not FullAssetInfo full)
+        {
+            logger.LogInformation("'{AssetKey}' was not updated: not accessible for this user.", input.AssetKey);
+            return Task.FromResult(false);
+        }
+
+        full.AssetTitle = input.AssetTitle;
+        full.NotBefore = input.NotBefore;
+        full.NotAfter = input.NotAfter;
+        full.RecipientLabel = input.RecipientLabel;
+        // Die beiden Listen sind der Soll-Zustand; der Adapter rechnet aus, was dazukommt und was geht.
+        full.UserShares.Clear();
+        full.UserShares.AddRange(input.UserFilters.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+        full.UserScopeShares.Clear();
+        full.UserScopeShares.AddRange(input.TenantFilters.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()));
+        return Task.FromResult(adapter.UpdateSharedAsset(full));
+    }
 
     public Task<bool> DeleteAsync(ClaimsPrincipal user, string assetKey)
     {
