@@ -255,6 +255,17 @@ namespace ITVComponents.WebCoreToolkit.Tests
             }
 
             public bool RotateAnonymousToken(string assetKey) => false;
+
+            public string CreateAdHocTicket(string requestPath, AssetTemplateInfo template,
+                IDictionary<string, string> argumentValues, string recipientLabel, TimeSpan? lifetime,
+                string origin, out string error)
+            {
+                error = null!;
+                return null!;
+            }
+
+            public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor) => null!;
+            public bool RevokeTicket(string nonce, DateTime expiresUtc) => false;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null!;
             void ISharedAssetAdapter.SetImpersonationOff() { }
             void ISharedAssetAdapter.SetImpersonationOn() { }

@@ -28,6 +28,9 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         private string assetKey;
         private string accessToken;
         private string segment;
+        private AssetSegmentKind segmentKind;
+        private string ticketTenant;
+        private string ticketPayload;
 
         private bool infoResolved;
         private AssetInfo info;
@@ -56,6 +59,36 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             this.options = options;
             this.services = services;
             this.logger = logger;
+        }
+
+        /// <inheritdoc/>
+        public AssetSegmentKind SegmentKind
+        {
+            get
+            {
+                Resolve();
+                return segmentKind;
+            }
+        }
+
+        /// <inheritdoc/>
+        public string TicketTenant
+        {
+            get
+            {
+                Resolve();
+                return ticketTenant;
+            }
+        }
+
+        /// <inheritdoc/>
+        public string TicketPayload
+        {
+            get
+            {
+                Resolve();
+                return ticketPayload;
+            }
         }
 
         /// <inheritdoc/>
@@ -257,12 +290,15 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 if (adapter == null)
                 {
                     logger.LogDebug(
-                        "No ISharedAssetAdapter is registered; the arguments of shared asset '{AssetKey}' can not be checked.",
-                        assetKey);
+                        "No ISharedAssetAdapter is registered; the arguments of the shared asset can not be checked.");
                     return null;
                 }
 
-                info = adapter.GetAssetInfo(assetKey, contextUser?.User);
+                // Ein Ticket steht nirgends: seine Angaben kommen aus der Nutzlast, die Rechte aus der
+                // Vorlage, auf die es zeigt.
+                info = segmentKind == AssetSegmentKind.Ticket
+                    ? adapter.GetTicketInfo(ticketTenant, ticketPayload, contextUser?.User)
+                    : adapter.GetAssetInfo(assetKey, contextUser?.User);
                 return info;
             }
         }
@@ -273,7 +309,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             get
             {
                 Resolve();
-                return !string.IsNullOrEmpty(assetKey);
+                return !string.IsNullOrEmpty(assetKey) || !string.IsNullOrEmpty(ticketPayload);
             }
         }
 
@@ -315,7 +351,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
 
             resolved = true;
-            if (ResolveFromItems() || ResolveFromRouteData() || ResolveFromQuery())
+            if (ResolveTicketFromItems() || ResolveFromItems() || ResolveFromRouteData() || ResolveFromQuery())
             {
                 return;
             }
@@ -323,6 +359,31 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             assetKey = null;
             accessToken = null;
             segment = null;
+            segmentKind = AssetSegmentKind.None;
+        }
+
+        /// <summary>
+        /// Ein Ad-hoc-Ticket: es gibt keinen Schluessel, nur den Mandanten und die Nutzlast.
+        /// </summary>
+        private bool ResolveTicketFromItems()
+        {
+            var items = httpContextAccessor?.HttpContext?.Items;
+            if (items == null
+                || !items.TryGetValue(Global.SharedAssetTicketPayloadItemKey, out var rawPayload)
+                || rawPayload is not string payload || string.IsNullOrEmpty(payload))
+            {
+                return false;
+            }
+
+            ticketPayload = payload;
+            ticketTenant = items.TryGetValue(Global.SharedAssetTicketTenantItemKey, out var rawTenant)
+                ? rawTenant as string
+                : null;
+            segment = items.TryGetValue(Global.SharedAssetSegmentItemKey, out var rawSegment)
+                ? rawSegment as string
+                : SharedAssetPath.BuildTicketSegment(ticketTenant, payload);
+            segmentKind = AssetSegmentKind.Ticket;
+            return true;
         }
 
         /// <summary>
@@ -345,6 +406,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             segment = items.TryGetValue(Global.SharedAssetSegmentItemKey, out var rawSegment)
                 ? rawSegment as string
                 : SharedAssetPath.BuildSegment(key, accessToken);
+            segmentKind = AssetSegmentKind.StoredAsset;
             return true;
         }
 
@@ -356,14 +418,22 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         {
             var routeData = contextUser?.RouteData;
             if (routeData == null || !routeData.TryGetValue(Global.SharedAssetSegmentItemKey, out var raw)
-                || raw is not string rawSegment || !SharedAssetPath.TryParseSegment(rawSegment, out var key, out var token))
+                || raw is not string rawSegment || !SharedAssetPath.TryParse(rawSegment, out var parsed))
             {
                 return false;
             }
 
-            assetKey = key;
-            accessToken = token;
             segment = rawSegment;
+            segmentKind = parsed.Kind;
+            if (parsed.Kind == AssetSegmentKind.Ticket)
+            {
+                ticketTenant = parsed.TenantName;
+                ticketPayload = parsed.Payload;
+                return true;
+            }
+
+            assetKey = parsed.AssetKey;
+            accessToken = parsed.AccessToken;
             return true;
         }
 
@@ -402,6 +472,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             // No segment: a query-form request carries no prefix, so nothing may be prepended to links -
             // doing so would send the visitor to a path that does not exist for this host.
             segment = null;
+            segmentKind = AssetSegmentKind.StoredAsset;
             return true;
         }
     }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -53,7 +53,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 return;
             }
 
-            if (!SharedAssetPath.TryParseSegment(segment, out var assetKey, out var accessToken))
+            if (!SharedAssetPath.TryParse(segment, out var parsed))
             {
                 // A segment carrying the marker is never a page path, so letting it through would only
                 // produce a confusing 404 further down. Answering here keeps the reason in one place - and
@@ -67,10 +67,20 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
 
             context.Items[Global.SharedAssetSegmentItemKey] = segment;
-            context.Items[Global.SharedAssetKeyItemKey] = assetKey;
-            if (!string.IsNullOrEmpty(accessToken))
+            if (parsed.Kind == AssetSegmentKind.Ticket)
             {
-                context.Items[Global.SharedAssetTokenItemKey] = accessToken;
+                // Ein Ticket steht nirgends - was es ausmacht, reist verschluesselt mit. Der Mandant
+                // liegt im Klartext daneben, weil sonst der Schluessel zum Entschluesseln fehlte.
+                context.Items[Global.SharedAssetTicketTenantItemKey] = parsed.TenantName;
+                context.Items[Global.SharedAssetTicketPayloadItemKey] = parsed.Payload;
+            }
+            else
+            {
+                context.Items[Global.SharedAssetKeyItemKey] = parsed.AssetKey;
+                if (!string.IsNullOrEmpty(parsed.AccessToken))
+                {
+                    context.Items[Global.SharedAssetTokenItemKey] = parsed.AccessToken;
+                }
             }
 
             var prefix = "/" + segment;
@@ -90,7 +100,8 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <param name="context">the current request, may be null</param>
         /// <returns>true when an asset segment was recognized for this request</returns>
         public static bool HasRun(HttpContext context)
-            => context?.Items.ContainsKey(Global.SharedAssetKeyItemKey) == true;
+            => context?.Items.ContainsKey(Global.SharedAssetKeyItemKey) == true
+               || context?.Items.ContainsKey(Global.SharedAssetTicketPayloadItemKey) == true;
 
         /// <summary>
         /// Indicates whether the given request still carries an unprocessed asset segment - which means this

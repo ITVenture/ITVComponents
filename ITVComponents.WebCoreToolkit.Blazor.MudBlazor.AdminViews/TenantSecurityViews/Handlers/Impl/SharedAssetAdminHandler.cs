@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
@@ -28,6 +28,24 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
     public Task<ShareResultViewModel> CreateAsync(ClaimsPrincipal user, ShareRequestViewModel request, string origin)
     {
         var template = new AssetTemplateInfo { TemplateKey = request.TemplateKey };
+        if (request.AdHoc)
+        {
+            // Ein Ticket entsteht und verschwindet mit seiner URL - es gibt hinterher nichts, was man
+            // auflisten oder erneut abrufen koennte. Der Link ist die einzige Ausfertigung.
+            var lifetime = request.LifetimeMinutes is > 0
+                ? TimeSpan.FromMinutes(request.LifetimeMinutes.Value)
+                : (TimeSpan?)null;
+            var ticket = adapter.CreateAdHocTicket(request.RequestPath ?? "/", template, request.ArgumentValues,
+                request.RecipientLabel, lifetime, origin, out var ticketError);
+            if (ticket == null)
+            {
+                logger.LogInformation("An ad-hoc ticket was not created: {Reason}", ticketError);
+                return Task.FromResult(new ShareResultViewModel { Success = false, Error = ticketError });
+            }
+
+            return Task.FromResult(new ShareResultViewModel { Success = true, Link = ticket });
+        }
+
         var created = adapter.CreateSharedAsset(request.RequestPath ?? "/", template, request.Title,
             request.ArgumentValues, request.RecipientLabel, out var error);
         if (created == null)

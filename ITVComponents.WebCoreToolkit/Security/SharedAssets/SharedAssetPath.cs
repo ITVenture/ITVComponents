@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -24,6 +24,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// alphabet contains it, so it can not appear in either half.
         /// </summary>
         private const char TokenSeparator = '.';
+
+        /// <summary>
+        /// Unterscheidet ein Ad-hoc-Ticket von einer gespeicherten Freigabe. Ein Zeichen mehr, und der
+        /// Parser weiss, ob er ueberhaupt in die Datenbank muss.
+        /// </summary>
+        public const string TicketMarker = "!";
 
         /// <summary>
         /// Builds the path segment (without leading slash) for the given asset key and optional anonymous
@@ -57,7 +63,96 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                && segment.Length > Global.SharedAssetPathMarker.Length;
 
         /// <summary>
+        /// Baut den Abschnitt eines Ad-hoc-Tickets. Der Mandant steht im Klartext, weil ohne ihn der
+        /// Schluessel zum Entschluesseln der Nutzlast nicht bestimmbar waere.
+        /// </summary>
+        /// <param name="tenantName">der Mandant, dem das Ticket gehoert</param>
+        /// <param name="payload">die verschluesselte Nutzlast (Base64Url)</param>
+        /// <returns>der Abschnitt, z.B. <c>~!VGVuYW50QQ.eyJ0Ijo…</c></returns>
+        public static string BuildTicketSegment(string tenantName, string payload)
+        {
+            if (string.IsNullOrEmpty(tenantName))
+            {
+                throw new ArgumentNullException(nameof(tenantName));
+            }
+
+            if (string.IsNullOrEmpty(payload))
+            {
+                throw new ArgumentNullException(nameof(payload));
+            }
+
+            var encodedTenant = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(tenantName));
+            return $"{Global.SharedAssetPathMarker}{TicketMarker}{encodedTenant}{TokenSeparator}{payload}";
+        }
+
+        /// <summary>
+        /// Zerlegt einen markierten Abschnitt - gespeicherte Freigabe oder Ad-hoc-Ticket.
+        /// </summary>
+        /// <param name="segment">der Abschnitt, mit Marker, ohne Schraegstriche</param>
+        /// <param name="parsed">das Ergebnis</param>
+        /// <returns>true, wenn der Abschnitt lesbar war</returns>
+        public static bool TryParse(string segment, out AssetSegment parsed)
+        {
+            parsed = null;
+            if (!IsAssetSegment(segment))
+            {
+                return false;
+            }
+
+            var payload = segment.Substring(Global.SharedAssetPathMarker.Length);
+            if (payload.StartsWith(TicketMarker, StringComparison.Ordinal))
+            {
+                var body = payload.Substring(TicketMarker.Length);
+                var split = body.IndexOf(TokenSeparator);
+                if (split <= 0 || split == body.Length - 1)
+                {
+                    return false;
+                }
+
+                string tenant;
+                try
+                {
+                    tenant = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(body.Substring(0, split)));
+                }
+                catch (FormatException)
+                {
+                    return false;
+                }
+
+                if (tenant.Length == 0)
+                {
+                    return false;
+                }
+
+                parsed = new AssetSegment
+                {
+                    Raw = segment,
+                    Kind = AssetSegmentKind.Ticket,
+                    TenantName = tenant,
+                    Payload = body.Substring(split + 1)
+                };
+                return true;
+            }
+
+            if (!TryParseSegment(segment, out var assetKey, out var accessToken))
+            {
+                return false;
+            }
+
+            parsed = new AssetSegment
+            {
+                Raw = segment,
+                Kind = AssetSegmentKind.StoredAsset,
+                AssetKey = assetKey,
+                AccessToken = accessToken
+            };
+            return true;
+        }
+
+        /// <summary>
         /// Parses a marked segment back into asset key and (optional) access token.
+        /// <b>Nur fuer gespeicherte Freigaben</b> - ein Ticket-Abschnitt ergibt hier false. Der
+        /// allgemeine Weg ist <see cref="TryParse"/>.
         /// </summary>
         /// <param name="segment">the segment, with marker, without slashes</param>
         /// <param name="assetKey">the decoded asset key</param>
@@ -73,6 +168,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
 
             var payload = segment.Substring(Global.SharedAssetPathMarker.Length);
+            if (payload.StartsWith(TicketMarker, StringComparison.Ordinal))
+            {
+                // Ein Ticket traegt keinen Schluessel - wer hier landet, hat den falschen Weg genommen.
+                return false;
+            }
+
             var separator = payload.IndexOf(TokenSeparator);
             var rawKey = separator < 0 ? payload : payload.Substring(0, separator);
             var rawToken = separator < 0 ? null : payload.Substring(separator + 1);

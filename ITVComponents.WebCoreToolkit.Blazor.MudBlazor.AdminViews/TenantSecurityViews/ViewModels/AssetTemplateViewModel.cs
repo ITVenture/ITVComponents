@@ -21,6 +21,21 @@ public class AssetTemplateViewModel
     /// Wie streng die Bestaetigung der Argumente verlangt wird. Ohne Argumente bedeutungslos.
     /// </summary>
     public AssetArgumentEnforcement ArgumentEnforcement { get; set; } = AssetArgumentEnforcement.None;
+
+    /// <summary>
+    /// Ob mit dieser Vorlage Ad-hoc-Tickets erzeugt werden duerfen - Freigaben, die nirgends stehen und
+    /// sich nicht einzeln zurueckziehen lassen.
+    /// </summary>
+    public bool AllowAdHoc { get; set; }
+
+    /// <summary>Die Hoechstdauer eines solchen Tickets.</summary>
+    public int MaxAdHocMinutes { get; set; } = 60;
+
+    /// <summary>
+    /// Der Schluessel einer Gueltigkeitsregel, die der Host implementiert ("Auftrag ist offen").
+    /// </summary>
+    [MaxLength(128)]
+    public string? ValidityRuleKey { get; set; }
 }
 
 /// <summary>

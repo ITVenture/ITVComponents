@@ -108,6 +108,9 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public string AssetKey => HasAsset ? "abc" : null;
             public string AccessToken => null;
             public string Segment { get; }
+            public AssetSegmentKind SegmentKind => HasAsset ? AssetSegmentKind.StoredAsset : AssetSegmentKind.None;
+            public string TicketTenant => null;
+            public string TicketPayload => null;
             public AssetArgumentEnforcement Enforcement => AssetArgumentEnforcement.None;
             public bool Confirmed => true;
             public bool Denied => false;

@@ -77,6 +77,47 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <param name="assetKey">die Freigabe</param>
         /// <returns>true, wenn erneuert wurde</returns>
         bool RotateAnonymousToken(string assetKey);
+
+        /// <summary>
+        /// Erzeugt ein Ad-hoc-Ticket: eine Freigabe, die nirgends gespeichert wird, sondern
+        /// verschluesselt in der URL reist.
+        /// <para>
+        /// Die Vorlage muss es erlauben, und die Frist ist Pflicht - hoechstens so lang, wie die Vorlage
+        /// zulaesst. Ein Ticket laesst sich nicht einzeln loeschen; die kurze Frist ist der Grund, warum
+        /// das vertretbar ist.
+        /// </para>
+        /// </summary>
+        /// <param name="requestPath">der Pfad, auf dem geteilt wird</param>
+        /// <param name="template">die Vorlage</param>
+        /// <param name="argumentValues">worauf das Ticket zeigt</param>
+        /// <param name="recipientLabel">an wen es geht (verschluesselt, nicht im Klartext in der URL)</param>
+        /// <param name="lifetime">wie lange es gilt; null = die Hoechstdauer der Vorlage</param>
+        /// <param name="origin">Schema und Host fuer den Link</param>
+        /// <param name="error">benennt, was fehlt, wenn nichts entsteht</param>
+        /// <returns>der fertige Link oder null</returns>
+        string CreateAdHocTicket(string requestPath, AssetTemplateInfo template,
+            IDictionary<string, string> argumentValues, string recipientLabel, TimeSpan? lifetime, string origin,
+            out string error);
+
+        /// <summary>
+        /// Loest ein Ad-hoc-Ticket auf: entschluesseln, pruefen, und die Rechte aus seiner Vorlage holen.
+        /// Liefert null, wenn irgendetwas daran nicht stimmt - abgelaufen, widerrufen, veraendert, oder
+        /// die Vorlage erlaubt keine Tickets (mehr).
+        /// </summary>
+        /// <param name="tenantName">der Mandant aus dem Abschnitt</param>
+        /// <param name="payload">die verschluesselte Nutzlast</param>
+        /// <param name="requestor">wer anfragt</param>
+        /// <returns>die Angaben zur Freigabe oder null</returns>
+        AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor);
+
+        /// <summary>
+        /// Zieht ein Ad-hoc-Ticket zurueck. Die Kennung landet auf der Sperrliste, bis das Ticket ohnehin
+        /// abgelaufen waere.
+        /// </summary>
+        /// <param name="nonce">die Kennung aus der Nutzlast</param>
+        /// <param name="expiresUtc">wann es von selbst geendet haette</param>
+        /// <returns>true, wenn es zurueckgezogen wurde</returns>
+        bool RevokeTicket(string nonce, DateTime expiresUtc);
         FullAssetInfo FindAnonymousAsset(string assetKey);
         protected internal void SetImpersonationOff();
         protected internal void SetImpersonationOn();

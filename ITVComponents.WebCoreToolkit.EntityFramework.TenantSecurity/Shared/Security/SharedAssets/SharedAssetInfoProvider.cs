@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
@@ -13,6 +14,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
@@ -20,6 +22,7 @@ using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -509,6 +512,249 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             asset.AnonymousAccessTokenRaw = Guid.NewGuid().ToString("B");
             database.SaveChanges();
             return true;
+        }
+
+        /// <summary>
+        /// Erzeugt ein Ad-hoc-Ticket. Es wird NICHT gespeichert - die Nutzlast reist verschluesselt in
+        /// der URL, und die Rechte kommen aus der Vorlage, auf die sie zeigt.
+        /// </summary>
+        public string CreateAdHocTicket(string requestPath, AssetTemplateInfo template,
+            IDictionary<string, string> argumentValues, string recipientLabel, TimeSpan? lifetime, string origin,
+            out string error)
+        {
+            error = null;
+            requestPath = Canonical(requestPath);
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
+            var assetTmp = database.AssetTemplates.FirstOrDefault(n => n.SystemKey == template.TemplateKey);
+            if (assetTmp == null)
+            {
+                error = "The template does not exist.";
+                return null;
+            }
+
+            if (!assetTmp.AllowAdHoc)
+            {
+                // Bewusst eine eigene Meldung: "geht nicht" waere im Support wertlos, und dieser Fall ist
+                // eine Einstellung an der Vorlage und kein Fehler des Benutzers.
+                error = "This template does not allow ad-hoc tickets.";
+                return null;
+            }
+
+            var ok = (assetTmp.RequiredFeature == null ||
+                      services.VerifyActivatedFeatures(new[] { assetTmp.RequiredFeature.FeatureName }, out _)) &&
+                     (assetTmp.RequiredPermission == null ||
+                      services.VerifyUserPermissions(new[] { assetTmp.RequiredPermission.PermissionName }, out _));
+            if (!ok || database.CurrentTenantId == null || !IsTemplateValidForPath(assetTmp, requestPath))
+            {
+                error = "The template does not apply to this location, or you may not share here.";
+                return null;
+            }
+
+            var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
+            if (!AssetArgumentValues.TryCreate(declarations, argumentValues, out var values, out error))
+            {
+                return null;
+            }
+
+            // Die Frist ist Pflicht und nach oben begrenzt: ein Ticket laesst sich nicht einzeln
+            // loeschen, also muss es von selbst enden.
+            var maximum = TimeSpan.FromMinutes(Math.Max(1, assetTmp.MaxAdHocMinutes));
+            var effective = lifetime == null || lifetime.Value > maximum || lifetime.Value <= TimeSpan.Zero
+                ? maximum
+                : lifetime.Value;
+            var currentTenant = database.Tenants.First(n => n.TenantId == database.CurrentTenantId);
+            var ticket = new AssetTicket
+            {
+                TemplateKey = assetTmp.SystemKey,
+                RootPath = requestPath,
+                ArgumentValues = values.Names.ToDictionary(n => n, n => values[n]),
+                NotBefore = null,
+                NotAfter = DateTime.UtcNow.Add(effective),
+                Nonce = Guid.NewGuid().ToString("N"),
+                RecipientLabel = recipientLabel
+            };
+
+            var raw = securityRepo.Encrypt(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(ticket)),
+                currentTenant.TenantName);
+            var segment = SharedAssetPath.BuildTicketSegment(currentTenant.TenantName,
+                WebEncoders.Base64UrlEncode(raw));
+            var prefix = SharedAssetPath.BuildPrefix(segment, TenantInPath());
+            var rootPath = string.IsNullOrEmpty(requestPath) ? "/" : requestPath;
+            if (!rootPath.StartsWith("/", StringComparison.Ordinal))
+            {
+                rootPath = "/" + rootPath;
+            }
+
+            return $"{origin}{prefix}{rootPath}";
+        }
+
+        /// <summary>
+        /// Loest ein Ad-hoc-Ticket auf. Jede Pruefung, die fehlschlaegt, ergibt null - und einen Eintrag
+        /// im Log, denn der Empfaenger sieht sonst nur eine Seite ohne Inhalt.
+        /// </summary>
+        public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor)
+        {
+            if (ImpersonationDeactivated || string.IsNullOrEmpty(tenantName) || string.IsNullOrEmpty(payload))
+            {
+                return null;
+            }
+
+            AssetTicket ticket;
+            try
+            {
+                var raw = securityRepo.Decrypt(WebEncoders.Base64UrlDecode(payload), tenantName);
+                ticket = JsonSerializer.Deserialize<AssetTicket>(Encoding.UTF8.GetString(raw));
+            }
+            catch (Exception ex)
+            {
+                // Veraendert, mit einem fremden Schluessel erzeugt oder schlicht kaputt - in jedem Fall
+                // kein gueltiges Ticket. Die Unterscheidung waere fuer den Aufrufer wertlos und fuer
+                // einen Angreifer eine Auskunft.
+                LogEnvironment.LogEvent($"Ein Ad-hoc-Ticket liess sich nicht lesen: {ex.OutlineException()}",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            if (ticket == null || string.IsNullOrEmpty(ticket.TemplateKey))
+            {
+                LogEnvironment.LogEvent("Ein Ad-hoc-Ticket war leer oder nannte keine Vorlage.", LogSeverity.Warning);
+                return null;
+            }
+
+            var now = DateTime.UtcNow;
+            if (ticket.NotBefore != null && now < ticket.NotBefore.Value)
+            {
+                LogEnvironment.LogEvent($"Das Ad-hoc-Ticket '{ticket.Nonce}' gilt noch nicht.", LogSeverity.Warning);
+                return null;
+            }
+
+            if (now > ticket.NotAfter)
+            {
+                LogEnvironment.LogEvent($"Das Ad-hoc-Ticket '{ticket.Nonce}' ist abgelaufen.", LogSeverity.Warning);
+                return null;
+            }
+
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
+            using var h = securityAccessProvider.CreateForCaller(database,
+                ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            if (database.RevokedAssetTickets.Any(n => n.Nonce == ticket.Nonce))
+            {
+                LogEnvironment.LogEvent($"Das Ad-hoc-Ticket '{ticket.Nonce}' wurde zurueckgezogen.", LogSeverity.Warning);
+                return null;
+            }
+
+            var assetTmp = database.AssetTemplates.FirstOrDefault(n => n.SystemKey == ticket.TemplateKey);
+            if (assetTmp == null || !assetTmp.AllowAdHoc)
+            {
+                // Der Grob-Widerruf: wer die Vorlage abschaltet, entwertet alle Tickets, die auf sie
+                // zeigen. Deshalb steht die Vorlage im Ticket und nicht ihre Rechte.
+                LogEnvironment.LogEvent(
+                    $"Die Vorlage '{ticket.TemplateKey}' des Ad-hoc-Tickets fehlt oder erlaubt keine Tickets mehr.",
+                    LogSeverity.Warning);
+                return null;
+            }
+
+            if (!IsTemplateValidForPath(assetTmp, Canonical(services.GetService<IContextUserProvider>()?.RequestPath)))
+            {
+                LogEnvironment.LogEvent(
+                    $"Das Ad-hoc-Ticket '{ticket.Nonce}' gilt an dieser Stelle nicht.", LogSeverity.Warning);
+                return null;
+            }
+
+            var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
+            var values = AssetArgumentValues.FromJson(JsonSerializer.Serialize(ticket.ArgumentValues));
+            if (!IsStillValid(assetTmp.ValidityRuleKey, values, ticket.Nonce))
+            {
+                return null;
+            }
+
+            return new AssetInfo
+            {
+                AssetKey = ticket.Nonce,
+                AssetTitle = null,
+                AssetRootPath = ticket.RootPath,
+                UserScopeName = tenantName,
+                Features = assetTmp.FeatureGrants.Select(n => n.Feature.FeatureName).ToArray(),
+                Permissions = assetTmp.Grants.Select(n => n.Permission.PermissionName).ToArray(),
+                Arguments = declarations,
+                Values = values,
+                Enforcement = assetTmp.ArgumentEnforcement
+            };
+        }
+
+        /// <summary>
+        /// Zieht ein Ad-hoc-Ticket zurueck.
+        /// </summary>
+        public bool RevokeTicket(string nonce, DateTime expiresUtc)
+        {
+            if (string.IsNullOrEmpty(nonce))
+            {
+                return false;
+            }
+
+            using var lease = contextFactory.Lease<TContext>();
+            var database = lease.Context;
+            using var h = securityAccessProvider.CreateForCaller(database,
+                ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = false }));
+            if (database.RevokedAssetTickets.Any(n => n.Nonce == nonce))
+            {
+                return true;
+            }
+
+            database.RevokedAssetTickets.Add(new RevokedAssetTicket
+            {
+                Nonce = nonce,
+                ExpiresUtc = expiresUtc,
+                RevokedUtc = DateTime.UtcNow
+            });
+            database.SaveChanges();
+            return true;
+        }
+
+        /// <summary>
+        /// Fragt die Gueltigkeitsregel der Vorlage - "gilt das noch?" ist manchmal keine Frage des
+        /// Datums. Ohne benannte Regel gilt es.
+        /// </summary>
+        private bool IsStillValid(string validityRuleKey, AssetArgumentValues values, string reference)
+        {
+            if (string.IsNullOrEmpty(validityRuleKey))
+            {
+                return true;
+            }
+
+            var rules = services.GetService<IEnumerable<IAssetValidityRule>>();
+            var rule = rules?.FirstOrDefault(n =>
+                string.Equals(n.Key, validityRuleKey, StringComparison.OrdinalIgnoreCase));
+            if (rule == null)
+            {
+                // Eine benannte, aber nicht registrierte Regel ist ein Verdrahtungsfehler. Sie zu
+                // ignorieren hiesse, eine Freigabe laenger gelten zu lassen, als jemand gemeint hat.
+                LogEnvironment.LogEvent(
+                    $"Die Gueltigkeitsregel '{validityRuleKey}' ist nicht registriert - der Zugriff auf '{reference}' wird abgelehnt.",
+                    LogSeverity.Error);
+                return false;
+            }
+
+            if (rule.IsValid(values))
+            {
+                return true;
+            }
+
+            LogEnvironment.LogEvent($"Die Gueltigkeitsregel '{validityRuleKey}' beendet den Zugriff auf '{reference}'.",
+                LogSeverity.Warning);
+            return false;
+        }
+
+        /// <summary>
+        /// Der Mandant, soweit ihn dieser Host im Pfad fuehrt - dieselbe Bedingung wie beim Linkbau einer
+        /// gespeicherten Freigabe.
+        /// </summary>
+        private string TenantInPath()
+        {
+            var scope = services.GetService<IPermissionScope>();
+            return scope is { IsScopeExplicit: true } ? scope.PermissionPrefix : null;
         }
 
         /// <summary>

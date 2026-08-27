@@ -35,6 +35,18 @@
         <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
                       HelperText="Optional, for your own records. It is a note, not a proof of identity." />
 
+        <MudSwitch T="bool" @bind-Value="Model.AdHoc" Label="Temporary - store nothing" Color="Color.Warning"
+                   Class="mt-2" />
+        @if (Model.AdHoc)
+        {
+            <MudNumericField T="int?" @bind-Value="Model.LifetimeMinutes" Label="Valid for (minutes)" Min="1"
+                             HelperText="Empty uses the template's maximum, which is also the upper limit." />
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">
+                Nothing is stored: the whole share travels encrypted inside the link. It can not be taken
+                back one by one - it ends on its own.
+            </MudAlert>
+        }
+
         <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="Works without signing in" Color="Color.Warning"
                    Class="mt-2" />
         @if (Model.Anonymous)

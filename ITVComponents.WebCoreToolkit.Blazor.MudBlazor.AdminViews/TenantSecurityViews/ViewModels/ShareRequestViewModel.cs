@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 
@@ -32,6 +32,21 @@ public class ShareRequestViewModel
     /// Ob ein Link entstehen soll, der ohne Anmeldung funktioniert.
     /// </summary>
     public bool Anonymous { get; set; }
+
+    /// <summary>
+    /// Ob die Freigabe <b>nirgends gespeichert</b> wird, sondern verschluesselt in der URL reist.
+    /// <para>
+    /// Das ist der schmale Fall - ein Objekt, ein Empfaenger, kurze Frist. Der Preis: ein solches
+    /// Ticket laesst sich nicht einzeln zurueckziehen, sondern endet von selbst.
+    /// </para>
+    /// </summary>
+    public bool AdHoc { get; set; }
+
+    /// <summary>
+    /// Wie lange ein Ad-hoc-Ticket gilt. Leer = die Hoechstdauer der Vorlage, die auch die Obergrenze
+    /// ist.
+    /// </summary>
+    public int? LifetimeMinutes { get; set; }
 }
 
 /// <summary>

@@ -412,6 +412,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
         /// <inheritdoc/>
         public DbSet<AssetTemplateConsumer> AssetTemplateConsumers { get; set; }
 
+        /// <inheritdoc/>
+        public DbSet<RevokedAssetTicket> RevokedAssetTickets { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<VideoTutorial> Tutorials { get; set; }

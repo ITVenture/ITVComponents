@@ -116,7 +116,10 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
                 SystemKey = t.SystemKey,
                 FeatureId = t.FeatureId,
                 PermissionId = t.PermissionId,
-                ArgumentEnforcement = t.ArgumentEnforcement
+                ArgumentEnforcement = t.ArgumentEnforcement,
+                AllowAdHoc = t.AllowAdHoc,
+                MaxAdHocMinutes = t.MaxAdHocMinutes,
+                ValidityRuleKey = t.ValidityRuleKey
             }).ToListAsync();
         return new PagedResult<AssetTemplateViewModel> { Items = items, TotalCount = total };
     }
@@ -131,7 +134,10 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             SystemKey = input.SystemKey,
             FeatureId = input.FeatureId,
             PermissionId = input.PermissionId,
-            ArgumentEnforcement = input.ArgumentEnforcement
+            ArgumentEnforcement = input.ArgumentEnforcement,
+            AllowAdHoc = input.AllowAdHoc,
+            MaxAdHocMinutes = input.MaxAdHocMinutes,
+            ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey
         };
         db.AssetTemplates.Add(entity);
         await db.SaveChangesAsync();
@@ -150,6 +156,9 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         entity.FeatureId = input.FeatureId;
         entity.PermissionId = input.PermissionId;
         entity.ArgumentEnforcement = input.ArgumentEnforcement;
+        entity.AllowAdHoc = input.AllowAdHoc;
+        entity.MaxAdHocMinutes = input.MaxAdHocMinutes;
+        entity.ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey;
         await db.SaveChangesAsync();
         return input;
     }

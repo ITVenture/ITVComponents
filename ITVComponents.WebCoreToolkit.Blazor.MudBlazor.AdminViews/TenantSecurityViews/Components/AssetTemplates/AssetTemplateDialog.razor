@@ -12,6 +12,16 @@
             <MudSelectItem T="AssetArgumentEnforcement" Value="@mode">@mode</MudSelectItem>
         }
     </MudSelect>
+
+    <MudSwitch T="bool" @bind-Value="Model.AllowAdHoc" Label="Allow ad-hoc tickets" Color="Color.Warning" Class="mt-2" />
+    @if (Model.AllowAdHoc)
+    {
+        <MudNumericField T="int" @bind-Value="Model.MaxAdHocMinutes" Label="Maximum lifetime (minutes)" Min="1"
+                         HelperText="A ticket is stored nowhere and can not be withdrawn one by one - the deadline is what makes that acceptable." />
+    }
+
+    <MudTextField @bind-Value="Model.ValidityRuleKey" Label="Validity rule" MaxLength="128" Class="mt-2"
+                  HelperText="Key of a host-side rule ('the order is still open'). A named rule that is not registered refuses access - deliberately." />
 </EditDialogShell>
 
 @code {

@@ -48,6 +48,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
         /// </summary>
         public DbSet<AssetTemplateConsumer> AssetTemplateConsumers { get; set; }
 
+        /// <summary>
+        /// Die zurueckgezogenen Ad-hoc-Tickets. Nur die widerrufenen - ausgegebene stehen nirgends.
+        /// </summary>
+        public DbSet<RevokedAssetTicket> RevokedAssetTickets { get; set; }
+
         public DbSet<SystemEvent> SystemLog { get; set; }
 
         public DbSet<Culture> Cultures { get; set; }

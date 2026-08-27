@@ -4356,10 +4356,118 @@ Beim Bauen der Übersicht aufgefallen und hier festgehalten, weil es sonst jeman
 Sie werden **nirgends miteinander verglichen**. Wer eine Freigabe anonym zugänglich machen will,
 trägt `##ANONYMOUS` in die Benutzerfilter ein.
 
+## 55. Freigaben, die nirgends stehen — **Pflicht-Migration (1 Tabelle, 3 Spalten)**
+
+Fünfter Schritt: **Ad-hoc-Tickets**. Eine Freigabe, die nicht in der Datenbank landet, sondern
+verschlüsselt in der URL reist. Gedacht für den schmalen Fall — **ein Objekt, ein Empfänger, kurze
+Frist**.
+
+Der Anwendungsfall: ein Einstiegspunkt legt einen Auftrag an und gibt einen Schlüssel aus, der auf
+genau diesen zeigt und nur so lange gilt, wie der Vorgang dauert. Dafür eine Zeile in der Datenbank
+anzulegen, die danach niemand mehr braucht, wäre Ballast.
+
+### 55.1 Die Migration
+
+```
+RevokedAssetTicket   RevokedAssetTicketId, Nonce (unique), ExpiresUtc, RevokedUtc
+
+AssetTemplates  + AllowAdHoc (bit, default 0)
+                + MaxAdHocMinutes (int, default 60)
+                + ValidityRuleKey (nvarchar(128), null)
+```
+
+`dotnet ef migrations add AssetAdHocTickets` → `database update`.
+
+**Bestehende Vorlagen erlauben keine Tickets** (`AllowAdHoc` = 0). Das ist Absicht: was sich nicht
+einzeln zurückziehen lässt, soll eine Entscheidung sein und keine Voreinstellung.
+
+### 55.2 Die Form
+
+```
+/~!{Base64Url(Mandant)}.{verschlüsselte Nutzlast}/{mandant}/rest
+```
+
+Der **zweite Marker** `!` sagt dem Parser vor jedem Datenbankzugriff, ob es überhaupt etwas
+nachzuschlagen gibt. Der **Mandant steht im Klartext** — ohne ihn liesse sich der Schlüssel zum
+Entschlüsseln nicht bestimmen; bei Hosts mit Mandant im Pfad steht er ohnehin in derselben URL.
+
+In der Nutzlast: Vorlage, Argumentwerte, Pfad, Gültigkeitsfenster, eine Kennung und optional der
+Empfänger. Verschlüsselt mit dem Mandantenschlüssel — dasselbe Primitiv wie beim anonymen Token.
+
+**Rechte reisen nicht mit.** Im Ticket steht nur, *welche Vorlage* gemeint ist; die Rechte stehen an
+der Vorlage. Das hält die URL kurz — und gibt einen Grob-Widerruf: **wer `AllowAdHoc` an der Vorlage
+abschaltet, entwertet alle Tickets, die auf sie zeigen.**
+
+### 55.3 Was beim Auflösen geprüft wird
+
+| Prüfung | wenn sie fehlschlägt |
+|---|---|
+| Entschlüsseln und Lesen | abgelehnt — verändert, mit fremdem Schlüssel erzeugt oder kaputt; die Unterscheidung wäre nur für einen Angreifer nützlich |
+| Gültigkeitsfenster | abgelehnt |
+| Sperrliste | abgelehnt |
+| Vorlage vorhanden **und** erlaubt Tickets | abgelehnt |
+| Ortsbindung (Pfadmuster) | abgelehnt |
+| Gültigkeitsregel des Hosts | abgelehnt |
+
+Jede Ablehnung schreibt eine Zeile ins Log. Der Empfänger sieht sonst nur eine Seite ohne Inhalt und
+meldet „der Link geht nicht".
+
+### 55.4 Gültigkeit als Bedingung statt als Datum
+
+„Bis der Auftrag abgeschlossen ist" ist kein Ablauf. Wer das als Frist nachbaut, liegt immer daneben.
+Deshalb benennt die Vorlage eine Regel, die der Host implementiert:
+
+```csharp
+public class OpenOrderRule : IAssetValidityRule
+{
+    public string Key => "order-open";
+    public bool IsValid(AssetArgumentValues values) { /* … */ }
+}
+```
+
+Registriert als `IAssetValidityRule`, benannt im Feld **Validity rule** der Vorlage.
+
+**Eine benannte, aber nicht registrierte Regel führt zur Ablehnung** — mit `LogError`. Sie zu
+ignorieren hiesse, eine Freigabe länger gelten zu lassen, als jemand gemeint hat.
+
+### 55.5 Zurückziehen
+
+Ein Ticket steht nirgends, also lässt es sich nicht löschen. Drei Mittel, in dieser Reihenfolge:
+
+1. **Die Frist** — kurz, aus der Vorlage begrenzt. Das ist der Hauptgrund, warum ein nicht
+   widerrufbarer Link vertretbar ist.
+2. **Die Sperrliste** (`RevokeTicket(nonce, expiresUtc)`) — sie enthält nur *widerrufene* Kennungen,
+   nicht ausgegebene. Ein Ticket, das niemand zurückzieht, hinterlässt keine Zeile. `ExpiresUtc` ist
+   die Frist des Tickets; danach darf die Zeile weg, sonst wächst die Tabelle nur.
+3. **`AllowAdHoc` abschalten** — der Holzhammer, der alle Tickets einer Vorlage entwertet.
+
+### 55.6 In der Maske
+
+Der Teilen-Dialog hat einen Schalter **„Temporary — store nothing"** mit Frist, die Vorlagen-Maske
+die drei neuen Einstellungen. Wer ein Ticket erzeugt, sieht den Link **genau einmal**: es gibt
+hinterher nichts, was man auflisten oder erneut abrufen könnte — die URL ist die einzige
+Ausfertigung. Entsprechend erscheinen Tickets auch **nicht** unter `/Account/Shares`.
+
+### 55.7 Breaking: drei Methoden am Adapter
+
+```csharp
+string CreateAdHocTicket(string requestPath, AssetTemplateInfo template,
+    IDictionary<string, string> argumentValues, string recipientLabel, TimeSpan? lifetime,
+    string origin, out string error);
+AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor);
+bool RevokeTicket(string nonce, DateTime expiresUtc);
+```
+
+Ebenso neu am `ISharedAssetContext`: `SegmentKind`, `TicketTenant`, `TicketPayload`. Betrifft euch
+nur bei eigener Implementierung.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 55a | **Ad-hoc-Tickets** | **Pflicht-Migration**: `RevokedAssetTicket` + `AssetTemplates.AllowAdHoc` / `MaxAdHocMinutes` / `ValidityRuleKey`. Bestehende Vorlagen erlauben KEINE Tickets (§55) |
+| 55b | **`ISharedAssetAdapter`** | neu `CreateAdHocTicket`, `GetTicketInfo`, `RevokeTicket`; `ISharedAssetContext` neu `SegmentKind`, `TicketTenant`, `TicketPayload`. Nur bei eigener Implementierung (§55.7) |
+| 55c | `IAssetValidityRule` | optional — für "gilt, bis der Auftrag abgeschlossen ist". **Merke: eine benannte, aber nicht registrierte Regel lehnt ab** (§55.4) |
 | 54a | **Teilen bedienbar** | `<ShareButton />` auf der teilenden Seite, Übersicht `/Account/Shares`. Kein Schema-Change; vorher entstanden Freigaben nur über Host-Code (§54) |
 | 54b | **`ISharedAssetAdapter`** | neu `ListSharedAssets`, `RotateAnonymousToken` und je eine Link-Überladung mit `origin` statt `HttpContext` (der Circuit hat keine Anfrage). Nur bei eigener Implementierung (§54.4) |
 | 54c | `##ANONYMOUS` vs. `#ANONYMOUS#` | **nicht dasselbe**: der Filter am Asset heißt `##ANONYMOUS`, der Name des Besuchers `#ANONYMOUS#` — sie werden nie verglichen (§54.5) |

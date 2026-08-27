@@ -49,6 +49,16 @@
         /// </summary>
         public const string SharedAssetTokenItemKey = "ITVComponents.WebCoreToolkit.SharedAssetToken";
 
+        /// <summary>
+        /// Key under which the tenant of an ad-hoc ticket is stored in <c>HttpContext.Items</c>.
+        /// </summary>
+        public const string SharedAssetTicketTenantItemKey = "ITVComponents.WebCoreToolkit.SharedAssetTicketTenant";
+
+        /// <summary>
+        /// Key under which the encrypted payload of an ad-hoc ticket is stored in <c>HttpContext.Items</c>.
+        /// </summary>
+        public const string SharedAssetTicketPayloadItemKey = "ITVComponents.WebCoreToolkit.SharedAssetTicketPayload";
+
 
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 

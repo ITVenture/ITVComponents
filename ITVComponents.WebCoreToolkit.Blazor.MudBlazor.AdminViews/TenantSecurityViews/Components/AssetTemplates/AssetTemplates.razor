@@ -169,7 +169,10 @@ else
             SystemKey = item.SystemKey,
             FeatureId = item.FeatureId,
             PermissionId = item.PermissionId,
-            ArgumentEnforcement = item.ArgumentEnforcement
+            ArgumentEnforcement = item.ArgumentEnforcement,
+            AllowAdHoc = item.AllowAdHoc,
+            MaxAdHocMinutes = item.MaxAdHocMinutes,
+            ValidityRuleKey = item.ValidityRuleKey
         };
         var parameters = new DialogParameters<AssetTemplateDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<AssetTemplateDialog>("Edit asset template", parameters, EditDialogDefaults.Edit);

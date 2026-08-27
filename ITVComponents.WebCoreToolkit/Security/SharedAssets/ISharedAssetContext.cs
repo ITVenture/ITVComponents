@@ -36,6 +36,22 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         string Segment { get; }
 
         /// <summary>
+        /// Ob der Kontext an einer gespeicherten Freigabe oder an einem Ad-hoc-Ticket haengt.
+        /// </summary>
+        AssetSegmentKind SegmentKind { get; }
+
+        /// <summary>
+        /// Der Mandant eines Ad-hoc-Tickets, oder null. Steht im Klartext im Abschnitt - ohne ihn liesse
+        /// sich der Schluessel zum Entschluesseln nicht bestimmen.
+        /// </summary>
+        string TicketTenant { get; }
+
+        /// <summary>
+        /// Die verschluesselte Nutzlast eines Ad-hoc-Tickets, oder null.
+        /// </summary>
+        string TicketPayload { get; }
+
+        /// <summary>
         /// Wie streng die Vorlage die Bestaetigung ihrer Argumente verlangt. <c>None</c>, wenn kein Asset
         /// laeuft oder die Vorlage keine Argumente fuehrt.
         /// </summary>

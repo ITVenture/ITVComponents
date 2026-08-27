@@ -45,6 +45,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         /// </summary>
         public AssetArgumentEnforcement ArgumentEnforcement { get; set; } = AssetArgumentEnforcement.None;
 
+        /// <summary>
+        /// Ob mit dieser Vorlage Ad-hoc-Tickets erzeugt werden duerfen - Freigaben, die nirgends stehen.
+        /// Vorgabe aus: was sich nicht einzeln zurueckziehen laesst, sollte eine Entscheidung sein.
+        /// </summary>
+        public bool AllowAdHoc { get; set; }
+
+        /// <summary>
+        /// Wie lange ein Ticket dieser Vorlage hoechstens gilt. <b>Die Frist ist bei einem Ticket
+        /// Pflicht</b>, denn sie ist der Hauptgrund, warum ein nicht widerrufbarer Link vertretbar ist.
+        /// </summary>
+        public int MaxAdHocMinutes { get; set; } = 60;
+
+        /// <summary>
+        /// Der Schluessel einer Gueltigkeitsregel, die der Host implementiert ("Auftrag ist offen").
+        /// Leer = es zaehlt allein das Datum.
+        /// </summary>
+        [MaxLength(128)]
+        public string ValidityRuleKey { get; set; }
+
         public virtual ICollection<TAssetTemplatePath> PathTemplates { get; set; } = new List<TAssetTemplatePath>();
 
         public virtual ICollection<TAssetTemplateGrant> Grants { get; set; } = new List<TAssetTemplateGrant>();
