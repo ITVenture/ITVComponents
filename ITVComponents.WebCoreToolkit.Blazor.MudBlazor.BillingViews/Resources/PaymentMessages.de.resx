@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payments_Title" xml:space="preserve"><value>Auszahlungskonto</value></data>
+  <data name="Payments_NoPermission" xml:space="preserve"><value>Sie haben keine Berechtigung, Zahlungen zu verwalten.</value></data>
+  <data name="Payments_ModuleDisabled" xml:space="preserve"><value>Der Zahlungsempfang ist auf dieser Installation zurzeit ausgeschaltet.</value></data>
+  <data name="Payments_LinkExpired" xml:space="preserve"><value>Der Einrichtungslink ist abgelaufen. Starten Sie ihn neu, es geht dort weiter, wo Sie aufgehört haben.</value></data>
+  <data name="Payments_Stage_None_Title" xml:space="preserve"><value>Auszahlungskonto einrichten</value></data>
+  <data name="Payments_Stage_None_Body" xml:space="preserve"><value>Zahlungen Ihrer Kunden gehen auf ein eigenes Konto und nicht über diese Plattform. Sie werden nach Firmenangaben und einer Bankverbindung gefragt und müssen sich ausweisen — das ist gesetzlich vorgeschrieben, um Geld zu empfangen, und keine Formalität von uns.</value></data>
+  <data name="Payments_Stage_None_Duration" xml:space="preserve"><value>Das Formular dauert wenige Minuten. Die Prüfung ist meist innerhalb eines Tages durch; bis dahin sehen Sie das Konto hier bereits.</value></data>
+  <data name="Payments_Field_Country" xml:space="preserve"><value>Land</value></data>
+  <data name="Payments_Field_CountryHint" xml:space="preserve"><value>Das Land Ihrer Firma. Es lässt sich später NICHT mehr ändern — ein falsches Land bedeutet, mit einem neuen Konto von vorn zu beginnen.</value></data>
+  <data name="Payments_Stage_Incomplete_Title" xml:space="preserve"><value>Einrichtung nicht abgeschlossen</value></data>
+  <data name="Payments_Stage_Incomplete_Body" xml:space="preserve"><value>Sie haben die Einrichtung begonnen, aber noch nicht alle Angaben eingereicht. Es ist nichts verloren — machen Sie dort weiter, wo Sie aufgehört haben.</value></data>
+  <data name="Payments_Stage_Review_Title" xml:space="preserve"><value>Angaben eingereicht, Prüfung läuft</value></data>
+  <data name="Payments_Stage_Review_Body" xml:space="preserve"><value>Alles ist eingereicht und wird geprüft. Sie müssen nichts tun; diese Seite zeigt es an, sobald das Konto freigeschaltet ist.</value></data>
+  <data name="Payments_Stage_Active_Title" xml:space="preserve"><value>Ihr Auszahlungskonto ist aktiv</value></data>
+  <data name="Payments_Flag_Charges" xml:space="preserve"><value>Zahlungen</value></data>
+  <data name="Payments_Flag_Payouts" xml:space="preserve"><value>Auszahlungen</value></data>
+  <data name="Payments_PayoutsPending" xml:space="preserve"><value>Sie können bereits Zahlungen entgegennehmen. Auszahlungen auf Ihr Bankkonto starten, sobald die letzten Prüfungen erledigt sind.</value></data>
+  <data name="Payments_Stage_Restricted_Title" xml:space="preserve"><value>Ihr Auszahlungskonto ist eingeschränkt</value></data>
+  <data name="Payments_DisabledReason" xml:space="preserve"><value>Angegebener Grund: {0}</value></data>
+  <data name="Payments_Deadline" xml:space="preserve"><value>Bitte reichen Sie die fehlenden Angaben bis zum {0} nach.</value></data>
+  <data name="Payments_Stage_Disconnected_Title" xml:space="preserve"><value>Die Verbindung zu Ihrem Auszahlungskonto wurde getrennt</value></data>
+  <data name="Payments_Stage_Disconnected_Body" xml:space="preserve"><value>Diese Anwendung erreicht Ihr Konto nicht mehr, weitere Verkäufe sind damit nicht möglich. Eine erneute Einrichtung legt ein NEUES Auszahlungskonto an; bereits getätigte Verkäufe verweisen weiterhin auf das alte.</value></data>
+  <data name="Payments_OpenRequirements" xml:space="preserve"><value>Offene Angaben</value></data>
+  <data name="Payments_PendingVerification" xml:space="preserve"><value>{0} Dokument(e) eingereicht und noch in Prüfung.</value></data>
+  <data name="Payments_AccountId" xml:space="preserve"><value>Konto: {0}</value></data>
+  <data name="Payments_Action_Setup" xml:space="preserve"><value>Auszahlungskonto einrichten</value></data>
+  <data name="Payments_Action_Continue" xml:space="preserve"><value>Einrichtung fortsetzen</value></data>
+  <data name="Payments_Action_Complete" xml:space="preserve"><value>Angaben ergänzen</value></data>
+  <data name="Payments_Action_Dashboard" xml:space="preserve"><value>Auszahlungs-Dashboard öffnen</value></data>
+  <data name="Payments_Action_Refresh" xml:space="preserve"><value>Status aktualisieren</value></data>
+  <data name="Payments_Action_Sales" xml:space="preserve"><value>Verkäufe</value></data>
+  <data name="Payments_NoDashboard" xml:space="preserve"><value>Dieser Kontotyp hat ein eigenes Login; von hier führt kein direkter Weg dorthin.</value></data>
+  <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Da ist etwas schiefgelaufen: {0}</value></data>
+  <data name="Payments_Error_Disabled" xml:space="preserve"><value>Der Zahlungsempfang ist auf dieser Installation ausgeschaltet.</value></data>
+  <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>Der Zahlungsempfang gehört nicht zu Ihrem aktuellen Abonnement.</value></data>
+  <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Es gibt noch kein Auszahlungskonto. Richten Sie zuerst eines ein.</value></data>
+  <data name="Payments_Error_ChargesDisabled" xml:space="preserve"><value>Ihr Auszahlungskonto kann zurzeit keine Zahlungen annehmen. Sehen Sie sich die offenen Angaben auf dieser Seite an.</value></data>
+  <data name="Payments_Error_PayoutsDisabled" xml:space="preserve"><value>Ihr Auszahlungskonto hat noch keinen Auszahlungsweg, und diese Installation verlangt einen, bevor verkauft werden darf.</value></data>
+  <data name="Payments_Error_Disconnected" xml:space="preserve"><value>Die Verbindung zu Ihrem Auszahlungskonto wurde getrennt. Richten Sie ein neues ein.</value></data>
+  <data name="Payments_Error_InvalidAmount" xml:space="preserve"><value>Der Verkauf braucht einen positiven Betrag, eine Währung und eine Referenz.</value></data>
+  <data name="Payments_Error_SaleNotFound" xml:space="preserve"><value>Diesen Verkauf gibt es nicht.</value></data>
+  <data name="Payments_Error_SaleNotRefundable" xml:space="preserve"><value>Dieser Verkauf wurde nie bezahlt, es gibt nichts zu erstatten.</value></data>
+  <data name="Payments_Error_RefundExceedsAmount" xml:space="preserve"><value>Der Betrag ist grösser als das, was von diesem Verkauf noch offen ist.</value></data>
+  <data name="Payments_Error_MissingCharge" xml:space="preserve"><value>Zu diesem Verkauf ist keine Zahlung hinterlegt, eine Erstattung hat kein Ziel.</value></data>
+  <data name="Payments_Error_ProviderError" xml:space="preserve"><value>Der Zahlungsanbieter hat die Anfrage abgelehnt. Einzelheiten stehen im Systemprotokoll.</value></data>
+  <data name="Payments_Error_UnsupportedChargeType" xml:space="preserve"><value>Der eingestellte Zahlungsweg wird von dieser Installation nicht unterstützt.</value></data>
+  <data name="Sales_Title" xml:space="preserve"><value>Verkäufe</value></data>
+  <data name="Sales_Filter_From" xml:space="preserve"><value>Von</value></data>
+  <data name="Sales_Filter_To" xml:space="preserve"><value>Bis</value></data>
+  <data name="Sales_Filter_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Sales_Totals" xml:space="preserve"><value>Umsatz {0} — Provision {1} — für Sie {2}</value></data>
+  <data name="Sales_Col_Date" xml:space="preserve"><value>Datum</value></data>
+  <data name="Sales_Col_Reference" xml:space="preserve"><value>Referenz</value></data>
+  <data name="Sales_Col_Description" xml:space="preserve"><value>Bezeichnung</value></data>
+  <data name="Sales_Col_Amount" xml:space="preserve"><value>Betrag</value></data>
+  <data name="Sales_Col_Fee" xml:space="preserve"><value>Provision</value></data>
+  <data name="Sales_Col_Net" xml:space="preserve"><value>Für Sie</value></data>
+  <data name="Sales_Col_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Sales_Action_Refund" xml:space="preserve"><value>Erstatten</value></data>
+  <data name="Sales_None" xml:space="preserve"><value>Keine Verkäufe in diesem Zeitraum.</value></data>
+  <data name="Sales_Detail_Title" xml:space="preserve"><value>Einzelheiten zum Verkauf</value></data>
+  <data name="Sales_Detail_Refunded" xml:space="preserve"><value>Erstattet</value></data>
+  <data name="Sales_Detail_FeeReturned" xml:space="preserve"><value>Provision zurück: {0}</value></data>
+  <data name="Sales_Detail_Email" xml:space="preserve"><value>Beleg-E-Mail</value></data>
+  <data name="Sales_Detail_Session" xml:space="preserve"><value>Bezahlseite</value></data>
+  <data name="Sales_Detail_PaymentIntent" xml:space="preserve"><value>Zahlung</value></data>
+  <data name="Sales_Detail_Charge" xml:space="preserve"><value>Belastung</value></data>
+  <data name="SaleStatus_Pending" xml:space="preserve"><value>Zahlung ausstehend</value></data>
+  <data name="SaleStatus_Paid" xml:space="preserve"><value>Bezahlt</value></data>
+  <data name="SaleStatus_Failed" xml:space="preserve"><value>Fehlgeschlagen</value></data>
+  <data name="SaleStatus_Canceled" xml:space="preserve"><value>Abgebrochen</value></data>
+  <data name="SaleStatus_Expired" xml:space="preserve"><value>Abgelaufen</value></data>
+  <data name="SaleStatus_Refunded" xml:space="preserve"><value>Erstattet</value></data>
+  <data name="SaleStatus_PartiallyRefunded" xml:space="preserve"><value>Teilweise erstattet</value></data>
+  <data name="Refund_Title" xml:space="preserve"><value>Verkauf erstatten</value></data>
+  <data name="Refund_Intro" xml:space="preserve"><value>Verkauf {0}. Höchstens {1} können noch erstattet werden.</value></data>
+  <data name="Refund_Amount" xml:space="preserve"><value>Betrag</value></data>
+  <data name="Refund_Reason" xml:space="preserve"><value>Grund (für Ihre eigenen Unterlagen)</value></data>
+  <data name="Refund_ReturnFee" xml:space="preserve"><value>Provision ebenfalls zurückgeben</value></data>
+  <data name="Refund_FeeKeptWarning" xml:space="preserve"><value>Ohne dies bleibt die Provision bei der Plattform: Sie erstatten dem Kunden voll und zahlen für den rückabgewickelten Verkauf trotzdem.</value></data>
+  <data name="Refund_Confirm" xml:space="preserve"><value>Jetzt erstatten</value></data>
+  <data name="Refund_Done" xml:space="preserve"><value>Die Erstattung wurde gebucht.</value></data>
+  <data name="Waiver_Title" xml:space="preserve"><value>Auf dem Weg zur kostenlosen Grundgebühr</value></data>
+  <data name="Waiver_Progress" xml:space="preserve"><value>Umsatz laufende Periode: {0} von {1} — noch {2} bis zur kostenlosen Grundgebühr im nächsten Monat.</value></data>
+  <data name="Waiver_Reached" xml:space="preserve"><value>Umsatz laufende Periode: {0} von {1} — erreicht. Die Grundgebühr im nächsten Monat geht auf uns.</value></data>
+  <data name="Waiver_Explanation" xml:space="preserve"><value>Der Erlass wird in der eben abgeschlossenen Periode verdient und auf die folgende Rechnung angewendet, weil Abo-Rechnungen im Voraus gestellt werden. Der erste Monat kann deshalb nie erlassen werden.</value></data>
+  <data name="Admin_Title" xml:space="preserve"><value>Auszahlungskonten</value></data>
+  <data name="Admin_Totals" xml:space="preserve"><value>{0} Konto/Konten — Provision im Zeitraum: {1}</value></data>
+  <data name="Admin_Col_Tenant" xml:space="preserve"><value>Mandant</value></data>
+  <data name="Admin_Col_Account" xml:space="preserve"><value>Konto</value></data>
+  <data name="Admin_Col_Country" xml:space="preserve"><value>Land</value></data>
+  <data name="Admin_Col_State" xml:space="preserve"><value>Zustand</value></data>
+  <data name="Admin_Col_Open" xml:space="preserve"><value>Offen</value></data>
+  <data name="Admin_Col_Sales" xml:space="preserve"><value>Verkäufe</value></data>
+  <data name="Admin_Col_Volume" xml:space="preserve"><value>Umsatz</value></data>
+  <data name="Admin_Col_Commission" xml:space="preserve"><value>Provision</value></data>
+  <data name="Admin_State_Disconnected" xml:space="preserve"><value>getrennt</value></data>
+  <data name="Admin_State_Onboarding" xml:space="preserve"><value>in Einrichtung</value></data>
+  <data name="Admin_State_Restricted" xml:space="preserve"><value>eingeschränkt</value></data>
+  <data name="Admin_State_Active" xml:space="preserve"><value>aktiv</value></data>
+  <data name="Admin_None" xml:space="preserve"><value>Es wurde noch kein Auszahlungskonto eingerichtet.</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Schliessen</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="Common_Apply" xml:space="preserve"><value>Anwenden</value></data>
+</root>

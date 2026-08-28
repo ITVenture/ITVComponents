@@ -21,5 +21,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.Ex
             services.AddScoped<IFeatureProvisioner, BillingFeatureProvisioner<TContext, TTenant, TActivation>>();
             return services;
         }
+
+        /// <summary>
+        /// Registers the tenant-security-backed <see cref="IPaymentFeatureGate"/>, which decides per TENANT ID
+        /// whether that tenant may receive payments from its own end customers.
+        /// <para>
+        /// Without this registration the payments service refuses every sale — fail-closed by design. Use the
+        /// activation type matching the host's security strategy, the same one passed to
+        /// <c>AddBillingFeatureProvisioner</c>.
+        /// </para>
+        /// </summary>
+        public static IServiceCollection AddPaymentFeatureGate<TContext, TTenant, TActivation>(this IServiceCollection services)
+            where TContext : DbContext
+            where TTenant : Tenant
+            where TActivation : TenantFeatureActivation<TTenant>, new()
+        {
+            services.AddScoped<IPaymentFeatureGate, PaymentFeatureGate<TContext, TTenant, TActivation>>();
+            return services;
+        }
     }
 }

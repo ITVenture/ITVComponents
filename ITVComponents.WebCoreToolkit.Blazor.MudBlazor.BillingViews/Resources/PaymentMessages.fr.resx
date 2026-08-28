@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payments_Title" xml:space="preserve"><value>Compte de versement</value></data>
+  <data name="Payments_NoPermission" xml:space="preserve"><value>Vous n'avez pas l'autorisation de gérer les paiements.</value></data>
+  <data name="Payments_ModuleDisabled" xml:space="preserve"><value>L'encaissement de paiements est actuellement désactivé sur cette installation.</value></data>
+  <data name="Payments_LinkExpired" xml:space="preserve"><value>Le lien de configuration a expiré. Relancez-le, vous reprendrez là où vous vous étiez arrêté.</value></data>
+  <data name="Payments_Stage_None_Title" xml:space="preserve"><value>Configurer un compte de versement</value></data>
+  <data name="Payments_Stage_None_Body" xml:space="preserve"><value>Les paiements de vos clients arrivent sur un compte qui vous appartient, et non via cette plateforme. On vous demandera les données de votre entreprise et un compte bancaire, et vous devrez vous identifier — c'est une obligation légale pour encaisser de l'argent, pas une formalité de notre part.</value></data>
+  <data name="Payments_Stage_None_Duration" xml:space="preserve"><value>Le formulaire prend quelques minutes. La vérification aboutit généralement en un jour; d'ici là, le compte est déjà visible ici.</value></data>
+  <data name="Payments_Field_Country" xml:space="preserve"><value>Pays</value></data>
+  <data name="Payments_Field_CountryHint" xml:space="preserve"><value>Le pays de votre entreprise. Il ne pourra PLUS être modifié — un pays erroné oblige à repartir avec un nouveau compte.</value></data>
+  <data name="Payments_Stage_Incomplete_Title" xml:space="preserve"><value>Configuration inachevée</value></data>
+  <data name="Payments_Stage_Incomplete_Body" xml:space="preserve"><value>Vous avez commencé la configuration sans transmettre toutes les informations. Rien n'est perdu — reprenez où vous en étiez.</value></data>
+  <data name="Payments_Stage_Review_Title" xml:space="preserve"><value>Informations transmises, vérification en cours</value></data>
+  <data name="Payments_Stage_Review_Body" xml:space="preserve"><value>Tout a été transmis et est en cours de vérification. Vous n'avez rien à faire; cette page l'indiquera dès que le compte sera validé.</value></data>
+  <data name="Payments_Stage_Active_Title" xml:space="preserve"><value>Votre compte de versement est actif</value></data>
+  <data name="Payments_Flag_Charges" xml:space="preserve"><value>Paiements</value></data>
+  <data name="Payments_Flag_Payouts" xml:space="preserve"><value>Versements</value></data>
+  <data name="Payments_PayoutsPending" xml:space="preserve"><value>Vous pouvez déjà encaisser. Les versements vers votre compte bancaire démarreront une fois les dernières vérifications terminées.</value></data>
+  <data name="Payments_Stage_Restricted_Title" xml:space="preserve"><value>Votre compte de versement est restreint</value></data>
+  <data name="Payments_DisabledReason" xml:space="preserve"><value>Motif indiqué : {0}</value></data>
+  <data name="Payments_Deadline" xml:space="preserve"><value>Veuillez fournir les informations manquantes d'ici au {0}.</value></data>
+  <data name="Payments_Stage_Disconnected_Title" xml:space="preserve"><value>La liaison avec votre compte de versement a été rompue</value></data>
+  <data name="Payments_Stage_Disconnected_Body" xml:space="preserve"><value>Cette application n'atteint plus votre compte, aucune vente n'est donc possible. Une nouvelle configuration crée un NOUVEAU compte de versement; les ventes déjà réalisées continuent de pointer vers l'ancien.</value></data>
+  <data name="Payments_OpenRequirements" xml:space="preserve"><value>Informations en attente</value></data>
+  <data name="Payments_PendingVerification" xml:space="preserve"><value>{0} document(s) transmis et encore en cours de vérification.</value></data>
+  <data name="Payments_AccountId" xml:space="preserve"><value>Compte : {0}</value></data>
+  <data name="Payments_Action_Setup" xml:space="preserve"><value>Configurer le compte de versement</value></data>
+  <data name="Payments_Action_Continue" xml:space="preserve"><value>Poursuivre la configuration</value></data>
+  <data name="Payments_Action_Complete" xml:space="preserve"><value>Compléter les informations</value></data>
+  <data name="Payments_Action_Dashboard" xml:space="preserve"><value>Ouvrir le tableau de bord</value></data>
+  <data name="Payments_Action_Refresh" xml:space="preserve"><value>Actualiser l'état</value></data>
+  <data name="Payments_Action_Sales" xml:space="preserve"><value>Ventes</value></data>
+  <data name="Payments_NoDashboard" xml:space="preserve"><value>Ce type de compte possède son propre accès; aucun lien direct depuis ici.</value></data>
+  <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Quelque chose s'est mal passé : {0}</value></data>
+  <data name="Payments_Error_Disabled" xml:space="preserve"><value>L'encaissement de paiements est désactivé sur cette installation.</value></data>
+  <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>L'encaissement de paiements ne fait pas partie de votre abonnement actuel.</value></data>
+  <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Il n'y a pas encore de compte de versement. Configurez-en un d'abord.</value></data>
+  <data name="Payments_Error_ChargesDisabled" xml:space="preserve"><value>Votre compte de versement ne peut pas encaisser pour le moment. Consultez les informations en attente sur cette page.</value></data>
+  <data name="Payments_Error_PayoutsDisabled" xml:space="preserve"><value>Votre compte de versement n'a pas encore de voie de versement, et cette installation en exige une avant toute vente.</value></data>
+  <data name="Payments_Error_Disconnected" xml:space="preserve"><value>La liaison avec votre compte de versement a été rompue. Configurez-en un nouveau.</value></data>
+  <data name="Payments_Error_InvalidAmount" xml:space="preserve"><value>La vente exige un montant positif, une devise et une référence.</value></data>
+  <data name="Payments_Error_SaleNotFound" xml:space="preserve"><value>Cette vente n'existe pas.</value></data>
+  <data name="Payments_Error_SaleNotRefundable" xml:space="preserve"><value>Cette vente n'a jamais été payée, il n'y a rien à rembourser.</value></data>
+  <data name="Payments_Error_RefundExceedsAmount" xml:space="preserve"><value>Le montant dépasse ce qui reste sur cette vente.</value></data>
+  <data name="Payments_Error_MissingCharge" xml:space="preserve"><value>Aucun paiement n'est enregistré pour cette vente, le remboursement n'a pas de cible.</value></data>
+  <data name="Payments_Error_ProviderError" xml:space="preserve"><value>Le prestataire de paiement a refusé la demande. Les détails figurent dans le journal système.</value></data>
+  <data name="Payments_Error_UnsupportedChargeType" xml:space="preserve"><value>Le mode de paiement configuré n'est pas pris en charge par cette installation.</value></data>
+  <data name="Sales_Title" xml:space="preserve"><value>Ventes</value></data>
+  <data name="Sales_Filter_From" xml:space="preserve"><value>Du</value></data>
+  <data name="Sales_Filter_To" xml:space="preserve"><value>Au</value></data>
+  <data name="Sales_Filter_Status" xml:space="preserve"><value>Statut</value></data>
+  <data name="Sales_Totals" xml:space="preserve"><value>Chiffre d'affaires {0} — commission {1} — pour vous {2}</value></data>
+  <data name="Sales_Col_Date" xml:space="preserve"><value>Date</value></data>
+  <data name="Sales_Col_Reference" xml:space="preserve"><value>Référence</value></data>
+  <data name="Sales_Col_Description" xml:space="preserve"><value>Désignation</value></data>
+  <data name="Sales_Col_Amount" xml:space="preserve"><value>Montant</value></data>
+  <data name="Sales_Col_Fee" xml:space="preserve"><value>Commission</value></data>
+  <data name="Sales_Col_Net" xml:space="preserve"><value>Pour vous</value></data>
+  <data name="Sales_Col_Status" xml:space="preserve"><value>Statut</value></data>
+  <data name="Sales_Action_Refund" xml:space="preserve"><value>Rembourser</value></data>
+  <data name="Sales_None" xml:space="preserve"><value>Aucune vente sur cette période.</value></data>
+  <data name="Sales_Detail_Title" xml:space="preserve"><value>Détails de la vente</value></data>
+  <data name="Sales_Detail_Refunded" xml:space="preserve"><value>Remboursé</value></data>
+  <data name="Sales_Detail_FeeReturned" xml:space="preserve"><value>commission restituée : {0}</value></data>
+  <data name="Sales_Detail_Email" xml:space="preserve"><value>Courriel du reçu</value></data>
+  <data name="Sales_Detail_Session" xml:space="preserve"><value>Page de paiement</value></data>
+  <data name="Sales_Detail_PaymentIntent" xml:space="preserve"><value>Paiement</value></data>
+  <data name="Sales_Detail_Charge" xml:space="preserve"><value>Débit</value></data>
+  <data name="SaleStatus_Pending" xml:space="preserve"><value>Paiement en attente</value></data>
+  <data name="SaleStatus_Paid" xml:space="preserve"><value>Payé</value></data>
+  <data name="SaleStatus_Failed" xml:space="preserve"><value>Échoué</value></data>
+  <data name="SaleStatus_Canceled" xml:space="preserve"><value>Annulé</value></data>
+  <data name="SaleStatus_Expired" xml:space="preserve"><value>Expiré</value></data>
+  <data name="SaleStatus_Refunded" xml:space="preserve"><value>Remboursé</value></data>
+  <data name="SaleStatus_PartiallyRefunded" xml:space="preserve"><value>Partiellement remboursé</value></data>
+  <data name="Refund_Title" xml:space="preserve"><value>Rembourser une vente</value></data>
+  <data name="Refund_Intro" xml:space="preserve"><value>Vente {0}. Au plus {1} peuvent encore être remboursés.</value></data>
+  <data name="Refund_Amount" xml:space="preserve"><value>Montant</value></data>
+  <data name="Refund_Reason" xml:space="preserve"><value>Motif (pour vos propres dossiers)</value></data>
+  <data name="Refund_ReturnFee" xml:space="preserve"><value>Restituer également la commission</value></data>
+  <data name="Refund_FeeKeptWarning" xml:space="preserve"><value>Sans cela, la commission reste à la plateforme : vous remboursez intégralement le client et payez malgré tout la vente annulée.</value></data>
+  <data name="Refund_Confirm" xml:space="preserve"><value>Rembourser maintenant</value></data>
+  <data name="Refund_Done" xml:space="preserve"><value>Le remboursement a été enregistré.</value></data>
+  <data name="Waiver_Title" xml:space="preserve"><value>Vers une redevance de base offerte</value></data>
+  <data name="Waiver_Progress" xml:space="preserve"><value>Chiffre d'affaires de la période : {0} sur {1} — encore {2} pour que la redevance de base du mois prochain soit offerte.</value></data>
+  <data name="Waiver_Reached" xml:space="preserve"><value>Chiffre d'affaires de la période : {0} sur {1} — atteint. La redevance de base du mois prochain est pour nous.</value></data>
+  <data name="Waiver_Explanation" xml:space="preserve"><value>La remise se gagne sur la période qui vient de se terminer et s'applique à la facture suivante, car les factures d'abonnement sont émises d'avance. Le premier mois ne peut donc jamais être offert.</value></data>
+  <data name="Admin_Title" xml:space="preserve"><value>Comptes de versement</value></data>
+  <data name="Admin_Totals" xml:space="preserve"><value>{0} compte(s) — commission sur la période : {1}</value></data>
+  <data name="Admin_Col_Tenant" xml:space="preserve"><value>Locataire</value></data>
+  <data name="Admin_Col_Account" xml:space="preserve"><value>Compte</value></data>
+  <data name="Admin_Col_Country" xml:space="preserve"><value>Pays</value></data>
+  <data name="Admin_Col_State" xml:space="preserve"><value>État</value></data>
+  <data name="Admin_Col_Open" xml:space="preserve"><value>En attente</value></data>
+  <data name="Admin_Col_Sales" xml:space="preserve"><value>Ventes</value></data>
+  <data name="Admin_Col_Volume" xml:space="preserve"><value>Chiffre d'affaires</value></data>
+  <data name="Admin_Col_Commission" xml:space="preserve"><value>Commission</value></data>
+  <data name="Admin_State_Disconnected" xml:space="preserve"><value>déconnecté</value></data>
+  <data name="Admin_State_Onboarding" xml:space="preserve"><value>en configuration</value></data>
+  <data name="Admin_State_Restricted" xml:space="preserve"><value>restreint</value></data>
+  <data name="Admin_State_Active" xml:space="preserve"><value>actif</value></data>
+  <data name="Admin_None" xml:space="preserve"><value>Aucun compte de versement n'a encore été configuré.</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Fermer</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Common_Apply" xml:space="preserve"><value>Appliquer</value></data>
+</root>

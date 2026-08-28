@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
+using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
@@ -26,13 +27,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
         private readonly IFeatureProvisioner provisioner;
         private readonly IStripeClient client;
         private readonly StripeOptions options;
+        private readonly IEnumerable<IVolumeWaiverProcessor> waiverProcessors;
 
-        public StripeWebhookHandler(TContext db, IFeatureProvisioner provisioner, IStripeClient client, IOptions<StripeOptions> options)
+        public StripeWebhookHandler(TContext db, IFeatureProvisioner provisioner, IStripeClient client, IOptions<StripeOptions> options,
+            IEnumerable<IVolumeWaiverProcessor> waiverProcessors)
         {
             this.db = db;
             this.provisioner = provisioner;
             this.client = client;
             this.options = options.Value;
+            // Resolved as a collection on purpose: the payments branch is opt-in, and its absence must not turn
+            // subscription webhooks into a container resolution failure.
+            this.waiverProcessors = waiverProcessors;
         }
 
         public async Task HandleAsync(string payload, string signatureHeader, CancellationToken cancellationToken = default)
@@ -60,6 +66,19 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                     if (stripeEvent.Data.Object is Invoice invoice)
                     {
                         await MarkPastDueAsync(invoice, cancellationToken);
+                    }
+
+                    break;
+                case EventTypes.InvoiceCreated:
+                    // The volume-based waiver of the base fee. It hangs on the PLATFORM webhook, not the connect
+                    // one: what is being discounted is the tenant's own subscription invoice. The window before
+                    // the invoice finalizes is roughly an hour, so this must not be deferred.
+                    if (stripeEvent.Data.Object is Invoice created && !string.IsNullOrEmpty(created.Id))
+                    {
+                        foreach (var processor in waiverProcessors)
+                        {
+                            await processor.ProcessInvoiceCreatedAsync(created.Id, cancellationToken);
+                        }
                     }
 
                     break;

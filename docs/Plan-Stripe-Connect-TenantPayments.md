@@ -1,6 +1,28 @@
 # Plan: Stripe Connect — Tenants empfangen Zahlungen von Endkunden
 
-Status: **Entwurf, noch nicht umgesetzt.** Stand 2026-08-26, Zweig Future_10.
+Status: **umgesetzt** (Phasen 1–8), Stand 2026-08-27, Zweig Future_10. Was am Host zu tun ist, steht in
+`docs/Migration-Future_10-MLM.md` §57. **Noch nie gegen ein echtes Stripe-Konto gelaufen** — der Testlauf
+gegen echte Testkeys steht aus; die dabei zu prüfenden Punkte stehen in 12 und 2.5.
+
+Abweichungen von diesem Entwurf, bewusst getroffen:
+
+- Der **Ländercode wird auf der Einrichtungsseite abgefragt** statt aus dem `BillingProfile` abgeleitet.
+  Die Billing-Pakete kennen das Onboarding-Modell nicht, und „im Zweifel den Tenant fragen" (12) ist
+  ohnehin die Vorgabe dieses Plans.
+- Die **Rückkehr-Endpunkte leiten nur weiter** und erzeugen keinen neuen AccountLink (9.4). Stripe ruft sie
+  ohne Nachweis auf, wer der Besucher ist; ein Endpunkt, der zu einer Mandanten-Nummer aus dem Query-String
+  einen Onboarding-Link ausgäbe, gäbe Zugriff auf fremde Auszahlungskonten aus. Der neue Link entsteht auf
+  der authentifizierten, mandanten-skalierten Seite.
+- Die **zurückgegebene Provision wird vom Anbieter zurückgelesen** (Application-Fee-Objekt am
+  Plattformkonto) statt nur gerechnet — nötig für Erstattungen, die im Stripe-Dashboard ausgelöst wurden.
+  Fällt die Abfrage aus, greift die dokumentierte proportionale Regel, mit Eintrag im Log.
+- Ein Verkauf mit bekannter Referenz, der **noch nicht bezahlt** ist (offen/abgelaufen/fehlgeschlagen),
+  bekommt eine frische Bezahlseite: derselbe Verkauf, ein zweiter Versuch. Bezahlte Verkäufe werden
+  unverändert zurückgegeben (7).
+- Der Fortschrittsbalken in 14.6 misst den **Kalendermonat**, nicht die Abo-Periode: die Periode kennt erst
+  die Rechnung. Die Bemessung selbst folgt weiterhin der Abo-Periode.
+- `TenantFeeWaiver.TenantSaleWaiverId` heisst `TenantFeeWaiverId`; `TenantSale` trägt zusätzlich
+  `ProviderAccountId` und `CheckoutUrl`, `TenantPaymentAccount` zusätzlich `Disconnected`.
 
 ## 1. Ausgangslage und Abgrenzung
 

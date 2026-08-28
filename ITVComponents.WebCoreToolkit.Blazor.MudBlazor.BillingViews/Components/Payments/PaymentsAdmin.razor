@@ -1,0 +1,146 @@
+@page "/Administration/Payments"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
+
+@inject IPaymentsHandler Handler
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PaymentMessages> L
+
+<PageTitle>@L["Admin_Title"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Admin_Title"]</MudText>
+
+<SecureView RequiredPermissions="TenantPayments.Admin,Sysadmin">
+    <Permitted>
+<MudGrid Class="mb-3">
+    <MudItem xs="12" sm="4">
+        <MudDatePicker Label="@L["Sales_Filter_From"]" @bind-Date="fromDate" Clearable="true" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudDatePicker Label="@L["Sales_Filter_To"]" @bind-Date="toDate" Clearable="true" />
+    </MudItem>
+    <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudButton Variant="Variant.Filled" Disabled="@loading" OnClick="Reload" StartIcon="@Icons.Material.Filled.Search">
+            @L["Common_Apply"]
+        </MudButton>
+    </MudItem>
+</MudGrid>
+
+<MudTable Items="accounts" Dense="true" Hover="true" Loading="@loading" Breakpoint="Breakpoint.Sm" T="PaymentAccountAdminViewModel">
+    <ToolBarContent>
+        <MudText Typo="Typo.subtitle1">@L["Admin_Totals", accounts.Count, Money(accounts.Sum(a => a.NetFeeMinor), currency)]</MudText>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@L["Admin_Col_Tenant"]</MudTh>
+        <MudTh>@L["Admin_Col_Account"]</MudTh>
+        <MudTh>@L["Admin_Col_Country"]</MudTh>
+        <MudTh>@L["Admin_Col_State"]</MudTh>
+        <MudTh>@L["Admin_Col_Open"]</MudTh>
+        <MudTh>@L["Admin_Col_Sales"]</MudTh>
+        <MudTh>@L["Admin_Col_Volume"]</MudTh>
+        <MudTh>@L["Admin_Col_Commission"]</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@L["Admin_Col_Tenant"]">@(context.TenantName ?? context.TenantId.ToString())</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Account"]">@context.ProviderAccountId</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Country"]">@(context.Country ?? "—")</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_State"]">
+            @if (context.Disconnected)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error">@L["Admin_State_Disconnected"]</MudChip>
+            }
+            else if (!context.DetailsSubmitted)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Info">@L["Admin_State_Onboarding"]</MudChip>
+            }
+            else if (!context.ChargesEnabled)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">@L["Admin_State_Restricted"]</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">@L["Admin_State_Active"]</MudChip>
+            }
+            @if (!string.IsNullOrEmpty(context.DisabledReason))
+            {
+                <MudText Typo="Typo.caption">@context.DisabledReason</MudText>
+            }
+        </MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Open"]">@context.OpenRequirements</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Sales"]">@context.SalesCount</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Volume"]">@Money(context.VolumeMinor - context.RefundedMinor, context.Currency)</MudTd>
+        <MudTd DataLabel="@L["Admin_Col_Commission"]">@Money(context.NetFeeMinor, context.Currency)</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" Disabled="@busy"
+                           OnClick="@(() => RefreshOne(context.TenantId))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>@L["Admin_None"]</MudText>
+    </NoRecordsContent>
+</MudTable>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["Payments_NoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private IReadOnlyList<PaymentAccountAdminViewModel> accounts = Array.Empty<PaymentAccountAdminViewModel>();
+    private bool loading = true;
+    private bool busy;
+    private DateTime? fromDate = DateTime.Today.AddMonths(-1);
+    private DateTime? toDate;
+
+    /// <summary>Currency of the summed commission. Mixed currencies would not sum meaningfully, so the label
+    /// names the one it actually used rather than pretending a single total.</summary>
+    private string? currency => accounts.Select(a => a.Currency).FirstOrDefault(c => !string.IsNullOrEmpty(c));
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        loading = true;
+        try
+        {
+            accounts = await Handler.GetAdminOverviewAsync(fromDate?.ToUniversalTime(), toDate?.AddDays(1).ToUniversalTime());
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task RefreshOne(int tenantId)
+    {
+        busy = true;
+        try
+        {
+            await Handler.RefreshAccountAsync(tenantId);
+            await Reload();
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string Money(long minor, string? cur)
+        => $"{CurrencyMinorUnits.ToMajor(minor, cur):N2} {cur?.ToUpperInvariant()}";
+
+    private string Translate(TenantPaymentException ex)
+    {
+        var translated = L[ex.Code];
+        return translated.ResourceNotFound ? ex.Message : translated.Value;
+    }
+}

@@ -1,0 +1,282 @@
+@page "/Account/Manage/Payments/Sales"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
+
+@inject IPaymentsHandler Handler
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PaymentMessages> L
+
+<PageTitle>@L["Sales_Title"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Sales_Title"]</MudText>
+
+<SecureView RequiredFeatures="StripePayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
+    <Permitted>
+@if (overview.Waiver is { } waiver)
+{
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.subtitle1">@L["Waiver_Title"]</MudText>
+            <MudProgressLinear Color="@(waiver.Reached ? Color.Success : Color.Primary)" Size="Size.Large"
+                               Value="@waiver.Percent" Class="my-2" />
+            @if (waiver.Reached)
+            {
+                <MudText Typo="Typo.body2">@L["Waiver_Reached", Money(waiver.CurrentVolumeMinor, waiver.Currency), Money(waiver.ThresholdMinor, waiver.Currency)]</MudText>
+            }
+            else
+            {
+                @* "next month" is not decoration: subscription invoices are raised in advance, so a waiver
+                   earned this period can only ever be granted on the NEXT one. Leaving it out is what produces
+                   the support question. *@
+                <MudText Typo="Typo.body2">@L["Waiver_Progress", Money(waiver.CurrentVolumeMinor, waiver.Currency), Money(waiver.ThresholdMinor, waiver.Currency), Money(waiver.RemainingMinor, waiver.Currency)]</MudText>
+            }
+            <MudText Typo="Typo.caption">@L["Waiver_Explanation"]</MudText>
+        </MudCardContent>
+    </MudCard>
+}
+
+<MudGrid Class="mb-3">
+    <MudItem xs="12" sm="4">
+        <MudDatePicker Label="@L["Sales_Filter_From"]" @bind-Date="fromDate" Clearable="true" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudDatePicker Label="@L["Sales_Filter_To"]" @bind-Date="toDate" Clearable="true" />
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudSelect T="TenantSaleStatus?" Value="statusFilter" ValueChanged="OnStatusChanged" Label="@L["Sales_Filter_Status"]" Clearable="true">
+            @foreach (var value in Enum.GetValues<TenantSaleStatus>())
+            {
+                <MudSelectItem T="TenantSaleStatus?" Value="@value">@StatusText(value)</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+<MudTable Items="overview.Items" Dense="true" Hover="true" Loading="@loading" Breakpoint="Breakpoint.Sm"
+          OnRowClick="@((TableRowClickEventArgs<SaleListItemViewModel> args) => ShowDetail(args.Item))" T="SaleListItemViewModel">
+    <ToolBarContent>
+        <MudText Typo="Typo.subtitle1">@L["Sales_Totals", Money(overview.TotalAmountMinor, overview.Currency), Money(overview.TotalFeeMinor, overview.Currency), Money(overview.TotalNetMinor, overview.Currency)]</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Disabled="@loading" OnClick="Reload" />
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>@L["Sales_Col_Date"]</MudTh>
+        <MudTh>@L["Sales_Col_Reference"]</MudTh>
+        <MudTh>@L["Sales_Col_Description"]</MudTh>
+        <MudTh>@L["Sales_Col_Amount"]</MudTh>
+        <MudTh>@L["Sales_Col_Fee"]</MudTh>
+        <MudTh>@L["Sales_Col_Net"]</MudTh>
+        <MudTh>@L["Sales_Col_Status"]</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="@L["Sales_Col_Date"]">@((context.PaidUtc ?? context.Created).ToLocalTime().ToString("g"))</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Reference"]">@context.ExternalReference</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Description"]">@context.Description</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Amount"]">@Money(context.AmountMinor, context.Currency)</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Fee"]">@Money(context.ApplicationFeeMinor - context.ApplicationFeeRefundedMinor, context.Currency)</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Net"]">@Money(context.NetMinor, context.Currency)</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Status"]">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@StatusText(context.Status)</MudChip>
+        </MudTd>
+        <MudTd>
+            @if (canRefund && context.CanRefund)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                           OnClick="@(() => OpenRefund(context))">@L["Sales_Action_Refund"]</MudButton>
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>@L["Sales_None"]</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@* Detail popup: the provider identifiers are what a support case is actually looked up by. *@
+<MudDialog @bind-Visible="detailOpen" Options="dialogOptions">
+    <TitleContent>@L["Sales_Detail_Title"]</TitleContent>
+    <DialogContent>
+        @if (detail is { } sale)
+        {
+            <MudSimpleTable Dense="true" Striped="true">
+                <tbody>
+                    <tr><td>@L["Sales_Col_Reference"]</td><td>@sale.ExternalReference</td></tr>
+                    <tr><td>@L["Sales_Col_Description"]</td><td>@sale.Description</td></tr>
+                    <tr><td>@L["Sales_Col_Amount"]</td><td>@Money(sale.AmountMinor, sale.Currency)</td></tr>
+                    <tr><td>@L["Sales_Col_Fee"]</td><td>@Money(sale.ApplicationFeeMinor, sale.Currency)</td></tr>
+                    <tr><td>@L["Sales_Detail_Refunded"]</td><td>@Money(sale.RefundedMinor, sale.Currency) (@L["Sales_Detail_FeeReturned", Money(sale.ApplicationFeeRefundedMinor, sale.Currency)])</td></tr>
+                    <tr><td>@L["Sales_Detail_Email"]</td><td>@(sale.CustomerEmail ?? "—")</td></tr>
+                    <tr><td>@L["Sales_Detail_Session"]</td><td>@(sale.ProviderSessionId ?? "—")</td></tr>
+                    <tr><td>@L["Sales_Detail_PaymentIntent"]</td><td>@(sale.ProviderPaymentIntentId ?? "—")</td></tr>
+                    <tr><td>@L["Sales_Detail_Charge"]</td><td>@(sale.ProviderChargeId ?? "—")</td></tr>
+                </tbody>
+            </MudSimpleTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => detailOpen = false)">@L["Common_Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="refundOpen" Options="dialogOptions">
+    <TitleContent>@L["Refund_Title"]</TitleContent>
+    <DialogContent>
+        @if (refundTarget is { } target)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">@L["Refund_Intro", target.ExternalReference, Money(target.RefundableMinor, target.Currency)]</MudText>
+            <MudNumericField T="decimal" @bind-Value="refundAmount" Label="@L["Refund_Amount"]"
+                             Min="0" Max="@MajorOf(target.RefundableMinor, target.Currency)" Immediate="true" />
+            <MudTextField T="string" @bind-Value="refundReason" Label="@L["Refund_Reason"]" Class="mt-2" />
+            @* The commission does NOT come back on its own. Left unchecked, the tenant refunds the customer in
+               full while the platform keeps its cut of a reversed deal — so this is on by default and keeping
+               the fee has to be a deliberate act. *@
+            <MudCheckBox T="bool" @bind-Value="refundFee" Label="@L["Refund_ReturnFee"]" Class="mt-2" />
+            @if (!refundFee)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@L["Refund_FeeKeptWarning"]</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => refundOpen = false)">@L["Common_Cancel"]</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Filled" Disabled="@(busy || refundAmount <= 0)" OnClick="ConfirmRefund">
+            @L["Refund_Confirm"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["Payments_NoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private SalesOverviewViewModel overview = new();
+    private bool loading = true;
+    private bool busy;
+    private bool canRefund;
+
+    private DateTime? fromDate = DateTime.Today.AddMonths(-1);
+    private DateTime? toDate;
+    private TenantSaleStatus? statusFilter;
+
+    private readonly DialogOptions dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    private bool detailOpen;
+    private SaleListItemViewModel? detail;
+
+    private bool refundOpen;
+    private SaleListItemViewModel? refundTarget;
+    private decimal refundAmount;
+    private string? refundReason;
+    private bool refundFee = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        canRefund = Handler.CanRefund();
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+        try
+        {
+            // The "to" date is inclusive for the user and exclusive in the query — a day filter that silently
+            // drops the last day is the classic off-by-one nobody reports, they just distrust the numbers.
+            overview = await Handler.GetSalesAsync(
+                fromDate?.ToUniversalTime(),
+                toDate?.AddDays(1).ToUniversalTime(),
+                statusFilter);
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task OnStatusChanged(TenantSaleStatus? status)
+    {
+        statusFilter = status;
+        await Reload();
+    }
+
+    private void ShowDetail(SaleListItemViewModel? sale)
+    {
+        detail = sale;
+        detailOpen = sale != null;
+    }
+
+    private void OpenRefund(SaleListItemViewModel sale)
+    {
+        refundTarget = sale;
+        refundAmount = MajorOf(sale.RefundableMinor, sale.Currency);
+        refundReason = null;
+        refundFee = true;
+        refundOpen = true;
+    }
+
+    private async Task ConfirmRefund()
+    {
+        if (refundTarget is not { } target)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var minor = CurrencyMinorUnits.ToMinor(refundAmount, target.Currency);
+            await Handler.RefundAsync(target.TenantSaleId, minor, refundReason, refundFee);
+            refundOpen = false;
+            Snackbar.Add(L["Refund_Done"].Value, Severity.Success);
+            await Reload();
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(L["Payments_Error_Unexpected", ex.Message].Value, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static decimal MajorOf(long minor, string currency) => CurrencyMinorUnits.ToMajor(minor, currency);
+
+    private string Money(long minor, string? currency)
+        => $"{CurrencyMinorUnits.ToMajor(minor, currency):N2} {currency?.ToUpperInvariant()}";
+
+    private string StatusText(TenantSaleStatus status)
+    {
+        var text = L[$"SaleStatus_{status}"];
+        return text.ResourceNotFound ? status.ToString() : text.Value;
+    }
+
+    private static Color StatusColor(TenantSaleStatus status) => status switch
+    {
+        TenantSaleStatus.Paid => Color.Success,
+        TenantSaleStatus.Pending => Color.Info,
+        TenantSaleStatus.PartiallyRefunded => Color.Warning,
+        TenantSaleStatus.Refunded => Color.Warning,
+        TenantSaleStatus.Failed => Color.Error,
+        _ => Color.Default
+    };
+
+    private string Translate(TenantPaymentException ex)
+    {
+        var translated = L[ex.Code];
+        return translated.ResourceNotFound ? ex.Message : translated.Value;
+    }
+}

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.2.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Only the provider-neutral billing library: the money arithmetic and the price model are pure, and
+         proving them needs neither a container nor a provider account. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />
+  </ItemGroup>
+</Project>

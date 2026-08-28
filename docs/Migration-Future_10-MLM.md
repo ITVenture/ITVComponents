@@ -4563,10 +4563,318 @@ EF-Paket greift eine Null-Fassung, die nichts schreibt. `ISharedAssetContext` be
 **Ein Ausfall des Protokolls hält keinen Zugriff auf** — aber er wird als `LogError` gemeldet. Ein
 Protokoll, von dem niemand weiss, dass es Lücken hat, ist schlimmer als keines.
 
+## 57. Mandanten empfangen Geld von ihren eigenen Kunden — **Pflicht-Migration (4 Tabellen), opt-in**
+
+Das ist die zweite Achse neben dem Abo: bisher zahlte der Mandant euch, jetzt kann der Mandant seinerseits
+von seinen Endkunden kassieren. Der ganze Zweig ist **opt-in** — wer ihn nicht einschaltet, bekommt weder
+Tabellen noch Endpunkte noch Seiten und muss nichts tun.
+
+### 57.1 Warum ein eigenes Konto je Mandant
+
+Das Geld darf **nicht** über euer Plattformkonto laufen. Geld für Dritte weiterzuleiten ist
+Stripe-vertraglich untersagt und in der Schweiz nach GwG bewilligungspflichtig. Der Weg ist deshalb
+**Stripe Connect**: jeder Mandant bekommt ein eigenes Connected Account (Typ `express`), die Zahlung
+entsteht direkt darauf (**Direct Charges**), und ihr zieht eure Provision als `application_fee_amount` ab.
+
+Folgen, die keine Technik sind:
+
+- Der **Mandant** ist Merchant of Record. Stripe-Gebühren, Chargebacks und die Mehrwertsteuer liegen bei ihm.
+- Der Mandant schliesst mit Stripe einen eigenen Vertrag (Connected Account Agreement). Eure AGB müssen
+  darauf verweisen.
+- Beim Onboarding fliessen Ausweis- und Bankdaten des Mandanten zu Stripe — gehört in die
+  Datenschutzerklärung und in die Consent-Schicht.
+
+### 57.2 Die Migration
+
+Vier neue Tabellen, alle neu, **kein Altbestand-Nachtrag**:
+
+```
+TenantPaymentAccounts   TenantPaymentAccountId, TenantId, ProviderAccountId, AccountType,
+                        Country?, DefaultCurrency?, ChargesEnabled, PayoutsEnabled,
+                        DetailsSubmitted, RequirementsJson?, DisabledReason?, Disconnected,
+                        Created, Updated
+                        Unique (TenantId), Unique (ProviderAccountId)
+
+TenantSales             TenantSaleId, TenantId, ExternalReference, Description, AmountMinor,
+                        Currency, ApplicationFeeMinor, Status, ProviderSessionId?,
+                        ProviderPaymentIntentId?, ProviderChargeId?, ProviderAccountId?,
+                        CustomerEmail?, MetadataJson?, CheckoutUrl?, Created, Updated, PaidUtc?
+                        Unique (TenantId, ExternalReference)
+                        Index (ProviderPaymentIntentId), Index (ProviderSessionId)
+
+TenantSaleRefunds       TenantSaleRefundId, TenantSaleId, AmountMinor,
+                        ApplicationFeeRefundedMinor, ProviderRefundId?, Reason?, Status?, Created
+                        Index (ProviderRefundId)
+
+TenantFeeWaivers        TenantFeeWaiverId, TenantId, PeriodStartUtc, PeriodEndUtc, NetVolumeMinor,
+                        ThresholdMinor, Currency?, Granted, WaivedAmountMinor, ProviderInvoiceId,
+                        ProviderInvoiceItemId?, CarryOverPending, Created
+                        Unique (TenantId, ProviderInvoiceId)
+```
+
+Am Kontext:
+
+```csharp
+public class MyContext : DbContext, IBillingContext, IPaymentsContext
+{
+    public DbSet<TenantPaymentAccount> TenantPaymentAccounts { get; set; }
+    public DbSet<TenantSale> TenantSales { get; set; }
+    public DbSet<TenantSaleRefund> TenantSaleRefunds { get; set; }
+    public DbSet<TenantFeeWaiver> TenantFeeWaivers { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ConfigureBilling();
+        modelBuilder.ConfigurePayments();   // NEU, eigener Aufruf neben ConfigureBilling
+    }
+}
+```
+
+`dotnet ef migrations add TenantConnectPayments` → `database update`.
+
+**`IBillingContext` ist unverändert.** Wer die zweite Achse nicht will, implementiert `IPaymentsContext`
+einfach nicht und merkt von diesem Abschnitt nichts.
+
+**Merke: `TenantFeeWaivers` gehört auch dann angelegt, wenn ihr den Gebührenerlass (§57.8) nicht
+einschaltet.** Die Tabelle kostet nichts, und ein späteres Einschalten soll keine zweite Migration
+verlangen.
+
+### 57.3 Alle Beträge in Minor Units
+
+`AmountMinor`, `ApplicationFeeMinor` und alles Weitere sind **Rappen/Cent als `long`**, nicht Franken als
+`decimal`. Stripe rechnet so, und alles andere erzeugt Rundungsdrift genau dort, wo sie am teuersten ist —
+in der Provision.
+
+Zum Umrechnen gibt es `CurrencyMinorUnits.ToMinor` / `ToMajor`. **Rechnet nicht selbst `* 100`**: für JPY
+und KRW ist das falsch, für KWD und BHD auch, und der Fehler ist still.
+
+### 57.4 Konfiguration: ein GlobalSetting `StripePayments`
+
+Ein einziges JSON-GlobalSetting, gelesen über `IGlobalSettings<StripePaymentsOptions>`:
+
+```json
+{
+  "Enabled": true,
+  "AccountType": "express",
+  "ChargeType": "direct",
+  "DefaultCurrency": "CHF",
+  "DefaultCountry": "CH",
+  "ApplicationFee": { "PercentBasisPoints": 100, "FixedMinor": 0, "MinMinor": 0, "MaxMinor": 0 },
+  "ConnectWebhookSecret": "whsec_...",
+  "RequirePayoutsEnabled": false,
+  "RefundApplicationFeeByDefault": true,
+  "StatementDescriptorSuffix": null,
+  "CheckoutExpiryMinutes": 60,
+  "VolumeWaiver": { "Enabled": false }
+}
+```
+
+**Bewusst global und nicht mandanten-skaliert.** `IScopedSettings` sind über die Mandanten-Einstellungen
+schreibbar (`Tenants.WriteSettings`) — ein Mandant könnte sich damit seine eigene Provision auf 0 setzen.
+
+**Der API-Key wird nicht dupliziert**: er kommt weiterhin aus `Billing:Stripe`. Beide Achsen teilen sich
+dasselbe Plattformkonto.
+
+### 57.5 Zwei Webhooks, zwei Secrets — die häufigste Fehlkonfiguration
+
+Connect-Ereignisse abonniert man im Stripe-Dashboard über einen **eigenen** Endpunkt-Typ ("Events on
+connected accounts"), und der hat ein **eigenes** Signing-Secret.
+
+| Endpunkt | Secret aus | Ereignisse |
+|---|---|---|
+| `/billing/webhook` (bestehend) | `Billing:Stripe:WebhookSecret` | `customer.subscription.*`, `invoice.payment_failed`, **neu** `invoice.created` |
+| `/billing/connect/webhook` (neu) | `StripePayments:ConnectWebhookSecret` | `account.updated`, `account.application.deauthorized`, `checkout.session.completed`, `checkout.session.expired`, `payment_intent.payment_failed`, `charge.refunded` |
+
+Das Plattform-Secret in `ConnectWebhookSecret` einzutragen ist der Fehler, den man macht. Er sieht aus wie
+ein Netzwerkproblem: HTTP 400 und nichts kommt an. Die Ablehnung schreibt deshalb ausdrücklich ins Log,
+dass es zwei verschiedene Secrets sind.
+
+Dazu die beiden Rückkehr-Endpunkte `/billing/connect/return` und `/billing/connect/refresh`. Sie leiten
+nur auf die Verwaltungsseite weiter und erzeugen **absichtlich nicht selbst** einen neuen Onboarding-Link:
+Stripe ruft sie im Browser des Besuchers auf, ohne Nachweis, wer das ist — ein Endpunkt, der zu einer
+Mandanten-Nummer aus dem Query-String einen Onboarding-Link ausgäbe, gäbe Zugriff auf fremde
+Auszahlungskonten aus.
+
+### 57.6 Verdrahtung
+
+WebPart-Konfiguration am bestehenden Stripe-Part:
+
+```json
+"ActivateStripeBilling": true,
+"ActivatePayments": true,
+"ActivateVolumeWaiver": false,
+"PaymentsContextType": null,
+"ConnectWebhookPath": "/billing/connect/webhook",
+"ConnectReturnPath": "/billing/connect/return",
+"ConnectRefreshPath": "/billing/connect/refresh",
+"PaymentsManagePath": "/Account/Manage/Payments"
+```
+
+und am Views-Part der Schlüssel `PaymentViews`:
+
+```json
+"PaymentViews": { "ActivatePaymentViews": true }
+```
+
+Wer von Hand verdrahtet:
+
+```csharp
+services.AddStripePayments<MyContext>();                       // Dienste + Connect-Webhook
+services.AddPaymentFeatureGate<MyContext, Tenant, FlatTenantFeatureActivation>();  // PFLICHT
+services.AddScoped<ITenantSaleObserver, MyShopObserver>();     // PFLICHT, siehe 57.9
+services.AddMudBlazorPaymentViews<MyContext, Tenant>();        // Seiten (optional; TTenant = HierarchyTenant bei hierarchischen Hosts)
+app.MapStripeConnectEndpoints();
+```
+
+**Ohne `AddPaymentFeatureGate` wird jeder Verkauf abgelehnt.** Das ist Absicht: fail-closed, weil die
+Gegenrichtung bedeutet, eine Provision auf ein Geschäft zu erheben, zu dem gar keine Berechtigung bestand.
+
+**`IDbContextFactory<MyContext>` muss registriert sein.** Die Dienste öffnen einen Kontext je Vorgang —
+sie laufen auch aus einem Blazor-Circuit, und ein circuit-weiter Kontext plus ein `await` auf eine
+Stripe-Runde ist genau das Rezept für die Nebenläufigkeits-Ausnahme.
+
+### 57.7 Feature und Berechtigungen
+
+**Feature `StripePayments`** im Feature-Katalog anlegen (Name exakt so, `Enabled = true`). Ab dann gilt:
+Ein `PlanFeature` oder `AddOnFeature` mit dem Schlüssel `StripePayments` führt über den bestehenden
+`BillingFeatureProvisioner` automatisch zur `TenantFeatureActivation` — **Achse A schaltet Achse B frei**,
+ohne eine Zeile Sonderlogik. Wer die Zahlungsanbindung verschenken will, aktiviert das Feature am Mandanten
+von Hand.
+
+Neue Berechtigungen (die Auto-Registrierung greift, sie erscheinen nach dem ersten Aufruf der Seiten):
+
+| Permission | Zweck |
+|---|---|
+| `TenantPayments.View` | eigene Verkäufe und Kontostatus sehen |
+| `TenantPayments.Manage` | Auszahlungskonto einrichten, Stripe-Dashboard öffnen |
+| `TenantPayments.Refund` | Rückerstattungen auslösen |
+| `TenantPayments.Admin` | plattformweite Übersicht über alle Connected Accounts |
+
+Neue Seiten: `/Account/Manage/Payments` (Auszahlungskonto), `/Account/Manage/Payments/Sales`
+(Verkäufe + Rückerstattung), `/Administration/Payments` (Plattformsicht). Navigationseinträge müsst ihr
+wie üblich selbst anlegen.
+
+### 57.8 Die Rückerstattung nimmt die Provision **nicht** von selbst mit
+
+Der teuerste Fallstrick des ganzen Zweigs. Stripe erstattet standardmässig nur den Zahlbetrag; die bereits
+abgezweigte Provision bleibt auf eurem Konto liegen:
+
+> Verkauf über 100.— mit 2.5 % Provision. Der Mandant erstattet dem Endkunden die vollen 100.—, hat aber
+> nur 97.50 minus Stripe-Gebühr erhalten. **Er zahlt beim Storno drauf, und ihr verdient an einem
+> rückabgewickelten Geschäft.**
+
+Deshalb steht `RefundApplicationFeeByDefault` auf **true**, und die Maske hakt das Kästchen vor. Wer die
+Provision einbehalten will, muss es aktiv abwählen — dann steht es auch als Warnung im Log. Bei
+**Chargebacks** greift das gar nicht: dort trägt der Mandant den Rücklastschriftbetrag, eure Provision
+bleibt unberührt. Wer das ausgleichen will, braucht eine eigene Gutschrift.
+
+### 57.9 Der Rückweg zum Shop: `ITenantSaleObserver`
+
+Die Zahlung passiert auf Stripes Bezahlseite. Ohne Beobachter erfährt euer Shop **nie**, dass bezahlt wurde:
+
+```csharp
+public class MyShopObserver : ITenantSaleObserver
+{
+    public Task OnSaleCompletedAsync(TenantSale sale, CancellationToken ct) { … }
+    public Task OnSaleRefundedAsync(TenantSale sale, TenantSaleRefund refund, CancellationToken ct) { … }
+}
+```
+
+Aufgerufen **nur beim echten Statuswechsel** `Pending → Paid`. Stripe liefert mindestens einmal, oft
+mehrfach — ein bereits bezahlter Verkauf darf die Bestellung nicht ein zweites Mal freischalten. Wirft ein
+Beobachter, wird die Ausnahme protokolliert und der nächste trotzdem gerufen; der Verkauf bleibt bezahlt,
+denn das Geld ist geflossen.
+
+### 57.10 Der Verkauf ist ad hoc — es bleibt kein Kundenprofil zurück
+
+`mode: payment`, **kein** `customer`, **kein** `setup_future_usage`. Die E-Mail dient allein dem Beleg. Das
+ist eine Entscheidung und keine Nebenwirkung: einen Customer "sicherheitshalber" anzulegen kostet eine
+Zeile und macht aus einem anonymen Kauf einen registrierten — mit gespeicherten Zahlungsdaten und einer
+Datenschutzfrage, die vorher keine war.
+
+"Karte fürs nächste Mal merken" ist deshalb ausdrücklich **nicht** vorgesehen: das verlangt eine dauerhafte
+Identität des Endkunden, die es im anonymen Shop bewusst nicht gibt.
+
+Die Idempotenz trägt **eure** Referenz: `(TenantId, ExternalReference)` ist eindeutig. Zweimal dieselbe
+Bestellnummer liefert denselben Verkauf zurück, nicht einen zweiten. Ist der Verkauf noch unbezahlt
+(offen, abgelaufen, fehlgeschlagen), bekommt er eine frische Bezahlseite — dasselbe Geschäft, ein zweiter
+Versuch. Ist er bezahlt, wird er unverändert zurückgegeben.
+
+### 57.11 Umsatzabhängiger Erlass der Grundgebühr (optional)
+
+Modell: "ab 10'000.— Umsatz ist die Grundgebühr geschenkt". Einschalten über
+`StripePayments:VolumeWaiver` plus `ActivateVolumeWaiver` am WebPart:
+
+```json
+"VolumeWaiver": {
+  "Enabled": true,
+  "Mode": "Hard",
+  "ThresholdMinor": 1000000,
+  "WaiverRampStartMinor": 0,
+  "WaivablePlanKeys": [ "Zahlungsanbindung" ]
+}
+```
+
+Drei Dinge, die vor dem Einschalten klar sein müssen:
+
+**a) Der Erlass ist rückwirkend verdient und wird nach vorne gewährt.** Abo-Rechnungen entstehen im
+**Voraus**, und die Periode ist nicht der Kalendermonat. Am Rechnungsdatum weiss niemand, wie der Monat
+laufen wird, den die Rechnung deckt. Also: *"Du hast in der eben abgelaufenen Periode über 10'000.—
+umgesetzt — deshalb ist der kommende Monat gratis."* **Der erste Monat kann nie erlassen werden.** Das
+gehört in eure Kommunikation, sonst kommt die Rückfrage.
+
+**b) `WaivablePlanKeys` ist fail-closed.** Leer heisst *nichts* wird erlassen. Eingetragen wird der **Name**
+des Plans bzw. Add-ons, dessen Rechnungsposition erlassen werden darf — nicht der eines grösseren Plans
+daneben. Gebucht wird ein **negatives Invoice Item** in genau der Höhe dieser Position, nie ein Coupon (der
+träfe die ganze Rechnung).
+
+**c) Die Ertrags-Delle bei `Hard` ist bewusst in Kauf genommen.** Zwischen 10'000 und 12'000 verdient ihr
+bei 1 % und 20.— Grundgebühr weniger als knapp darunter. Wer sie nicht will, stellt auf `Sliding` — dann
+gilt aber: **`(Schwelle − Bandbeginn) × Satz ≥ Grundgebühr`**, bei 1 % und 20.— also mindestens 2'000.—
+Bandbreite. Ein schmaleres Band streckt die Delle bloss. Die Bedingung wird beim Buchen geprüft und bei
+Verletzung als Warnung ins SystemLog geschrieben.
+
+**Merke: das Zeitfenster ist real.** Zwischen `invoice.created` und der Finalisierung liegt bei Stripe rund
+eine Stunde; danach ist die Rechnung unveränderlich. Bleibt der Webhook aus, wird der Erlass als
+`CarryOverPending` festgehalten und auf der **Folgerechnung** nachgeholt. `invoice.created` muss dafür am
+**Plattform**-Webhook abonniert sein (§57.5).
+
+Stornos: die Bemessung findet **genau einmal** statt, beim Erstellen der Abo-Rechnung. Eine Stornierung
+davor mindert den Umsatz, eine danach lässt die Entscheidung unberührt und wirkt in der Periode, in der sie
+**gebucht** wird — nicht in der des stornierten Verkaufs. Es gibt bewusst **keine** Nachbelastung auf
+bereits bezahlten Rechnungen; formuliert das in den AGB als "massgebend ist der Stand bei der
+Rechnungsstellung".
+
+### 57.12 Fallstricke im Betrieb
+
+- **Der Ländercode ist endgültig.** Stripe lässt `country` nach der Anlage nicht mehr ändern. Falsch
+  geraten heisst: Konto wegwerfen und neu. Die Einrichtungsseite fragt ihn deshalb ab, statt still den
+  `DefaultCountry` zu nehmen.
+- **Ein aktives Konto kann wieder inaktiv werden.** Stripe fordert Unterlagen nach. `ChargesEnabled` wird
+  vor **jedem** Verkauf geprüft, nicht nur beim Onboarding.
+- **Testmodus.** Connected Accounts aus dem Testmodus existieren im Livemodus nicht. Beim Umschalten der
+  Keys sind alle `acct_…` wertlos — `TenantPaymentAccounts` muss dann geleert werden, sonst zeigt die
+  Oberfläche Konten an, die es nicht gibt.
+- **Beleg über die Provision.** Der Einzug ist automatisch, aber Stripe stellt dem Mandanten **keine
+  Rechnung** über eure Provision aus. Die Daten liegen vor (`ApplicationFeeMinor` je Verkauf,
+  `ApplicationFeeRefundedMinor` je Erstattung); ein Monatsbeleg daraus ist noch zu bauen. Für den
+  Vorsteuerabzug des Mandanten reicht die Bildschirmansicht vermutlich nicht — vor dem ersten Livegang mit
+  dem Treuhänder anschauen.
+- **Noch nie gegen ein echtes Stripe-Konto gelaufen.** Wie beim Abo-Billing: der Testlauf gegen echte
+  Stripe-Testkeys gehört zur Inbetriebnahme. Offen zu prüfen ist insbesondere, ob `customer_creation` sich
+  auf einem Connected Account wie erwartet verhält.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 57a | **Zahlungen an den Mandanten** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: `TenantPaymentAccounts`, `TenantSales`, `TenantSaleRefunds`, `TenantFeeWaivers` + `modelBuilder.ConfigurePayments()`. Wer den Zweig nicht will, implementiert den Vertrag nicht — `IBillingContext` ist unverändert (§57.2) |
+| 57b | **Zweiter Webhook, zweites Secret** | `/billing/connect/webhook` mit `StripePayments:ConnectWebhookSecret` — **nicht** das Plattform-Secret. Zusätzlich `invoice.created` am bestehenden Plattform-Endpunkt abonnieren, wenn ihr den Gebührenerlass nutzt (§57.5) |
+| 57c | **`AddPaymentFeatureGate`** | ohne diese Registrierung wird **jeder Verkauf abgelehnt** (fail-closed). Dazu Feature `StripePayments` im Katalog anlegen und mindestens einen `ITenantSaleObserver` registrieren, sonst erfährt der Shop nie von einer Zahlung (§57.6, §57.9) |
+| 57d | **Rückerstattung und Provision** | Stripe gibt die Provision **nicht** von selbst zurück. Vorgabe `RefundApplicationFeeByDefault: true` — auf `false` verdient die Plattform an rückabgewickelten Geschäften und der Mandant zahlt beim Storno drauf (§57.8) |
+| 57e | Beträge in Minor Units | `AmountMinor`/`ApplicationFeeMinor` sind `long` in Rappen. Eigene Umrechnung über `CurrencyMinorUnits` — `* 100` ist für JPY, KRW, KWD und BHD still falsch (§57.3) |
+| 57f | Gebührenerlass (optional) | rückwirkend verdient, nach vorne gewährt; erster Monat nie gratis. `WaivablePlanKeys` ist fail-closed; bei `Sliding` muss `(Schwelle − Bandbeginn) × Satz ≥ Grundgebühr` gelten (§57.11) |
+| 57g | Ländercode am Konto | bei der Anlage fixiert und **nie mehr änderbar**; die Einrichtungsseite fragt ihn ab. Testmodus-Konten existieren im Livemodus nicht — beim Key-Wechsel `TenantPaymentAccounts` leeren (§57.12) |
 | 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |

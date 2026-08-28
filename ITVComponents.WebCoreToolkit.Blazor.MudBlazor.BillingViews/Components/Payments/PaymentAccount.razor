@@ -1,0 +1,301 @@
+@page "/Account/Manage/Payments"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Security.Claims
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
+
+@inject IPaymentsHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PaymentMessages> L
+
+<PageTitle>@L["Payments_Title"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Payments_Title"]</MudText>
+
+<SecureView RequiredFeatures="StripePayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
+    <Permitted>
+@if (loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (!enabled)
+{
+    <MudAlert Severity="Severity.Info">@L["Payments_ModuleDisabled"]</MudAlert>
+}
+else
+{
+    @if (connect == "refresh")
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3">@L["Payments_LinkExpired"]</MudAlert>
+    }
+
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            @if (account.Stage == PaymentAccountStage.None)
+            {
+                <MudText Typo="Typo.h6">@L["Payments_Stage_None_Title"]</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_Stage_None_Body"]</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_Stage_None_Duration"]</MudText>
+                @* The country is fixed at creation and can NEVER be changed afterwards — a wrong one means
+                   throwing the account away and starting over. That is why it is asked here instead of being
+                   taken silently from the configured default. *@
+                <MudTextField T="string" @bind-Value="country" Label="@L["Payments_Field_Country"]"
+                              MaxLength="2" Class="mt-3" Style="max-width:160px"
+                              HelperText="@(L["Payments_Field_CountryHint"].Value)" />
+            }
+            else if (account.Stage == PaymentAccountStage.OnboardingIncomplete)
+            {
+                <MudText Typo="Typo.h6">@L["Payments_Stage_Incomplete_Title"]</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_Stage_Incomplete_Body"]</MudText>
+            }
+            else if (account.Stage == PaymentAccountStage.AwaitingReview)
+            {
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                    <MudText Typo="Typo.h6">@L["Payments_Stage_Review_Title"]</MudText>
+                </MudStack>
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_Stage_Review_Body"]</MudText>
+            }
+            else if (account.Stage == PaymentAccountStage.Active)
+            {
+                <MudText Typo="Typo.h6">@L["Payments_Stage_Active_Title"]</MudText>
+                <MudStack Row="true" Spacing="2" Class="my-2">
+                    <MudChip T="string" Color="@(account.ChargesEnabled ? Color.Success : Color.Error)">@L["Payments_Flag_Charges"]</MudChip>
+                    <MudChip T="string" Color="@(account.PayoutsEnabled ? Color.Success : Color.Warning)">@L["Payments_Flag_Payouts"]</MudChip>
+                </MudStack>
+                @if (!account.PayoutsEnabled)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">@L["Payments_PayoutsPending"]</MudAlert>
+                }
+            }
+            else if (account.Stage == PaymentAccountStage.Restricted)
+            {
+                <MudText Typo="Typo.h6" Color="Color.Error">@L["Payments_Stage_Restricted_Title"]</MudText>
+                @if (!string.IsNullOrEmpty(account.DisabledReason))
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_DisabledReason", account.DisabledReason!]</MudText>
+                }
+                @if (account.CurrentDeadline is { } deadline)
+                {
+                    <MudText Typo="Typo.body2">@L["Payments_Deadline", deadline.ToString("d")]</MudText>
+                }
+            }
+            else if (account.Stage == PaymentAccountStage.Disconnected)
+            {
+                <MudText Typo="Typo.h6" Color="Color.Error">@L["Payments_Stage_Disconnected_Title"]</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_Stage_Disconnected_Body"]</MudText>
+            }
+
+            @if (account.PastDue.Count > 0 || account.CurrentlyDue.Count > 0)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle2">@L["Payments_OpenRequirements"]</MudText>
+                <MudList T="string" Dense="true">
+                    @foreach (var item in account.PastDue)
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.PriorityHigh" IconColor="Color.Error">@item</MudListItem>
+                    }
+                    @foreach (var item in account.CurrentlyDue)
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.Info">@item</MudListItem>
+                    }
+                </MudList>
+            }
+
+            @if (account.PendingVerification.Count > 0)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">@L["Payments_PendingVerification", account.PendingVerification.Count]</MudText>
+            }
+
+            @if (account.HasAccount)
+            {
+                <MudText Typo="Typo.caption" Class="mt-3">@L["Payments_AccountId", account.ProviderAccountId!]</MudText>
+            }
+        </MudCardContent>
+        <MudCardActions>
+            @if (canManage)
+            {
+                @if (account.Stage == PaymentAccountStage.None)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                               StartIcon="@Icons.Material.Filled.AccountBalance" OnClick="StartOnboarding">
+                        @L["Payments_Action_Setup"]
+                    </MudButton>
+                }
+                else if (account.Stage is PaymentAccountStage.OnboardingIncomplete or PaymentAccountStage.Disconnected)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                               StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="StartOnboarding">
+                        @L["Payments_Action_Continue"]
+                    </MudButton>
+                }
+                else if (account.Stage == PaymentAccountStage.Restricted)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                               StartIcon="@Icons.Material.Filled.Edit" OnClick="StartOnboarding">
+                        @L["Payments_Action_Complete"]
+                    </MudButton>
+                }
+                else if (account.Stage == PaymentAccountStage.Active)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                               StartIcon="@Icons.Material.Filled.OpenInNew" OnClick="OpenDashboard">
+                        @L["Payments_Action_Dashboard"]
+                    </MudButton>
+                }
+            }
+
+            @if (account.HasAccount)
+            {
+                <MudButton Variant="Variant.Text" Disabled="@busy" StartIcon="@Icons.Material.Filled.Refresh" OnClick="Refresh">
+                    @L["Payments_Action_Refresh"]
+                </MudButton>
+            }
+
+            <MudSpacer />
+            <MudButton Variant="Variant.Text" Href="@SalesUrl" StartIcon="@Icons.Material.Filled.ReceiptLong">
+                @L["Payments_Action_Sales"]
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">@L["Payments_NoPermission"]</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private PaymentAccountViewModel account = new();
+    private ClaimsPrincipal? currentUser;
+    private bool canManage;
+    private bool enabled;
+    private bool loading = true;
+    private bool busy;
+    private string? country;
+
+    /// <summary>Marker of the return endpoints ("return" / "refresh"), see the connect endpoint extension.</summary>
+    [SupplyParameterFromQuery(Name = "connect")]
+    private string? connect { get; set; }
+
+    /// <summary>Relative to the base uri, so the tenant path prefix travels along.</summary>
+    private string SalesUrl => $"{Nav.BaseUri.TrimEnd('/')}/Account/Manage/Payments/Sales";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        canManage = Handler.CanManage();
+        enabled = Handler.IsEnabled();
+        country = Handler.DefaultCountry;
+
+        // Coming back from the hosted onboarding the state is NOT guaranteed to be final yet, and the webhook
+        // usually has not arrived. Asking the provider directly beats assuming success from the redirect.
+        if (connect == "return")
+        {
+            await LoadAsync(fresh: true);
+        }
+        else
+        {
+            await LoadAsync(fresh: false);
+        }
+    }
+
+    private async Task LoadAsync(bool fresh)
+    {
+        loading = true;
+        try
+        {
+            account = fresh ? await Handler.RefreshAccountAsync() : await Handler.GetAccountAsync();
+            if (!string.IsNullOrEmpty(account.Country))
+            {
+                country = account.Country;
+            }
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Refresh()
+    {
+        busy = true;
+        try
+        {
+            await LoadAsync(fresh: true);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task StartOnboarding()
+    {
+        busy = true;
+        try
+        {
+            // Both URLs must be ABSOLUTE and carry the tenant path prefix. BaseUri already does; a root-absolute
+            // path would bring the tenant back into the wrong tenant, because the prefix middleware strips the
+            // segment before routing.
+            var basePath = Nav.BaseUri.TrimEnd('/');
+            var url = await Handler.StartOnboardingAsync(
+                $"{basePath}/billing/connect/return",
+                $"{basePath}/billing/connect/refresh",
+                country,
+                currentUser?.FindFirst(ClaimTypes.Email)?.Value);
+            Nav.NavigateTo(url, forceLoad: true);
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+            busy = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(L["Payments_Error_Unexpected", ex.Message].Value, Severity.Error);
+            busy = false;
+        }
+    }
+
+    private async Task OpenDashboard()
+    {
+        busy = true;
+        try
+        {
+            var url = await Handler.OpenDashboardAsync();
+            if (string.IsNullOrEmpty(url))
+            {
+                Snackbar.Add(L["Payments_NoDashboard"].Value, Severity.Info);
+                return;
+            }
+
+            Nav.NavigateTo(url, forceLoad: true);
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>
+    /// The service names the reason as a key; the translation happens here, in the tenant's own language. A
+    /// finished sentence thrown from the service layer could not be translated any more.
+    /// </summary>
+    private string Translate(TenantPaymentException ex)
+    {
+        var translated = L[ex.Code];
+        return translated.ResourceNotFound ? ex.Message : translated.Value;
+    }
+}

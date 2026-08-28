@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payments_Title" xml:space="preserve"><value>Conto di accredito</value></data>
+  <data name="Payments_NoPermission" xml:space="preserve"><value>Non ha l'autorizzazione per gestire i pagamenti.</value></data>
+  <data name="Payments_ModuleDisabled" xml:space="preserve"><value>L'incasso di pagamenti è attualmente disattivato su questa installazione.</value></data>
+  <data name="Payments_LinkExpired" xml:space="preserve"><value>Il link di configurazione è scaduto. Lo riavvii: riprenderà da dove si era interrotto.</value></data>
+  <data name="Payments_Stage_None_Title" xml:space="preserve"><value>Configurare un conto di accredito</value></data>
+  <data name="Payments_Stage_None_Body" xml:space="preserve"><value>I pagamenti dei suoi clienti arrivano su un conto suo, non attraverso questa piattaforma. Le verranno chiesti i dati aziendali e un conto bancario e dovrà identificarsi — è un obbligo di legge per incassare denaro, non una formalità nostra.</value></data>
+  <data name="Payments_Stage_None_Duration" xml:space="preserve"><value>Il modulo richiede pochi minuti. La verifica di norma si conclude entro un giorno; fino ad allora il conto è già visibile qui.</value></data>
+  <data name="Payments_Field_Country" xml:space="preserve"><value>Paese</value></data>
+  <data name="Payments_Field_CountryHint" xml:space="preserve"><value>Il paese della sua azienda. In seguito NON è più modificabile — un paese sbagliato significa ricominciare con un nuovo conto.</value></data>
+  <data name="Payments_Stage_Incomplete_Title" xml:space="preserve"><value>Configurazione non conclusa</value></data>
+  <data name="Payments_Stage_Incomplete_Body" xml:space="preserve"><value>Ha iniziato la configurazione senza trasmettere tutti i dati. Nulla è andato perso — riprenda da dove si era fermato.</value></data>
+  <data name="Payments_Stage_Review_Title" xml:space="preserve"><value>Dati trasmessi, verifica in corso</value></data>
+  <data name="Payments_Stage_Review_Body" xml:space="preserve"><value>Tutto è stato trasmesso ed è in verifica. Non deve fare nulla; questa pagina lo indicherà non appena il conto sarà abilitato.</value></data>
+  <data name="Payments_Stage_Active_Title" xml:space="preserve"><value>Il suo conto di accredito è attivo</value></data>
+  <data name="Payments_Flag_Charges" xml:space="preserve"><value>Pagamenti</value></data>
+  <data name="Payments_Flag_Payouts" xml:space="preserve"><value>Accrediti</value></data>
+  <data name="Payments_PayoutsPending" xml:space="preserve"><value>Può già incassare. Gli accrediti sul suo conto bancario partiranno una volta concluse le ultime verifiche.</value></data>
+  <data name="Payments_Stage_Restricted_Title" xml:space="preserve"><value>Il suo conto di accredito è limitato</value></data>
+  <data name="Payments_DisabledReason" xml:space="preserve"><value>Motivo indicato: {0}</value></data>
+  <data name="Payments_Deadline" xml:space="preserve"><value>La preghiamo di fornire i dati mancanti entro il {0}.</value></data>
+  <data name="Payments_Stage_Disconnected_Title" xml:space="preserve"><value>Il collegamento al suo conto di accredito è stato interrotto</value></data>
+  <data name="Payments_Stage_Disconnected_Body" xml:space="preserve"><value>Questa applicazione non raggiunge più il suo conto, quindi non sono possibili ulteriori vendite. Una nuova configurazione crea un NUOVO conto di accredito; le vendite già effettuate continuano a fare riferimento a quello vecchio.</value></data>
+  <data name="Payments_OpenRequirements" xml:space="preserve"><value>Dati in sospeso</value></data>
+  <data name="Payments_PendingVerification" xml:space="preserve"><value>{0} documento/i trasmesso/i e ancora in verifica.</value></data>
+  <data name="Payments_AccountId" xml:space="preserve"><value>Conto: {0}</value></data>
+  <data name="Payments_Action_Setup" xml:space="preserve"><value>Configurare il conto di accredito</value></data>
+  <data name="Payments_Action_Continue" xml:space="preserve"><value>Proseguire la configurazione</value></data>
+  <data name="Payments_Action_Complete" xml:space="preserve"><value>Completare i dati</value></data>
+  <data name="Payments_Action_Dashboard" xml:space="preserve"><value>Aprire il pannello degli accrediti</value></data>
+  <data name="Payments_Action_Refresh" xml:space="preserve"><value>Aggiornare lo stato</value></data>
+  <data name="Payments_Action_Sales" xml:space="preserve"><value>Vendite</value></data>
+  <data name="Payments_NoDashboard" xml:space="preserve"><value>Questo tipo di conto ha un accesso proprio; da qui non c'è un collegamento diretto.</value></data>
+  <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Qualcosa è andato storto: {0}</value></data>
+  <data name="Payments_Error_Disabled" xml:space="preserve"><value>L'incasso di pagamenti è disattivato su questa installazione.</value></data>
+  <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>L'incasso di pagamenti non fa parte del suo abbonamento attuale.</value></data>
+  <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Non esiste ancora un conto di accredito. Ne configuri prima uno.</value></data>
+  <data name="Payments_Error_ChargesDisabled" xml:space="preserve"><value>Il suo conto di accredito al momento non può incassare. Consulti i dati in sospeso su questa pagina.</value></data>
+  <data name="Payments_Error_PayoutsDisabled" xml:space="preserve"><value>Il suo conto di accredito non ha ancora una via di accredito e questa installazione ne richiede una prima di poter vendere.</value></data>
+  <data name="Payments_Error_Disconnected" xml:space="preserve"><value>Il collegamento al suo conto di accredito è stato interrotto. Ne configuri uno nuovo.</value></data>
+  <data name="Payments_Error_InvalidAmount" xml:space="preserve"><value>La vendita richiede un importo positivo, una valuta e un riferimento.</value></data>
+  <data name="Payments_Error_SaleNotFound" xml:space="preserve"><value>Questa vendita non esiste.</value></data>
+  <data name="Payments_Error_SaleNotRefundable" xml:space="preserve"><value>Questa vendita non è mai stata pagata, non c'è nulla da rimborsare.</value></data>
+  <data name="Payments_Error_RefundExceedsAmount" xml:space="preserve"><value>L'importo supera quanto resta di questa vendita.</value></data>
+  <data name="Payments_Error_MissingCharge" xml:space="preserve"><value>Per questa vendita non risulta alcun pagamento, il rimborso non ha un destinatario.</value></data>
+  <data name="Payments_Error_ProviderError" xml:space="preserve"><value>Il fornitore di pagamento ha rifiutato la richiesta. I dettagli sono nel registro di sistema.</value></data>
+  <data name="Payments_Error_UnsupportedChargeType" xml:space="preserve"><value>La modalità di pagamento configurata non è supportata da questa installazione.</value></data>
+  <data name="Sales_Title" xml:space="preserve"><value>Vendite</value></data>
+  <data name="Sales_Filter_From" xml:space="preserve"><value>Dal</value></data>
+  <data name="Sales_Filter_To" xml:space="preserve"><value>Al</value></data>
+  <data name="Sales_Filter_Status" xml:space="preserve"><value>Stato</value></data>
+  <data name="Sales_Totals" xml:space="preserve"><value>Fatturato {0} — provvigione {1} — per lei {2}</value></data>
+  <data name="Sales_Col_Date" xml:space="preserve"><value>Data</value></data>
+  <data name="Sales_Col_Reference" xml:space="preserve"><value>Riferimento</value></data>
+  <data name="Sales_Col_Description" xml:space="preserve"><value>Denominazione</value></data>
+  <data name="Sales_Col_Amount" xml:space="preserve"><value>Importo</value></data>
+  <data name="Sales_Col_Fee" xml:space="preserve"><value>Provvigione</value></data>
+  <data name="Sales_Col_Net" xml:space="preserve"><value>Per lei</value></data>
+  <data name="Sales_Col_Status" xml:space="preserve"><value>Stato</value></data>
+  <data name="Sales_Action_Refund" xml:space="preserve"><value>Rimborsare</value></data>
+  <data name="Sales_None" xml:space="preserve"><value>Nessuna vendita in questo periodo.</value></data>
+  <data name="Sales_Detail_Title" xml:space="preserve"><value>Dettagli della vendita</value></data>
+  <data name="Sales_Detail_Refunded" xml:space="preserve"><value>Rimborsato</value></data>
+  <data name="Sales_Detail_FeeReturned" xml:space="preserve"><value>provvigione restituita: {0}</value></data>
+  <data name="Sales_Detail_Email" xml:space="preserve"><value>E-mail della ricevuta</value></data>
+  <data name="Sales_Detail_Session" xml:space="preserve"><value>Pagina di pagamento</value></data>
+  <data name="Sales_Detail_PaymentIntent" xml:space="preserve"><value>Pagamento</value></data>
+  <data name="Sales_Detail_Charge" xml:space="preserve"><value>Addebito</value></data>
+  <data name="SaleStatus_Pending" xml:space="preserve"><value>Pagamento in sospeso</value></data>
+  <data name="SaleStatus_Paid" xml:space="preserve"><value>Pagato</value></data>
+  <data name="SaleStatus_Failed" xml:space="preserve"><value>Non riuscito</value></data>
+  <data name="SaleStatus_Canceled" xml:space="preserve"><value>Annullato</value></data>
+  <data name="SaleStatus_Expired" xml:space="preserve"><value>Scaduto</value></data>
+  <data name="SaleStatus_Refunded" xml:space="preserve"><value>Rimborsato</value></data>
+  <data name="SaleStatus_PartiallyRefunded" xml:space="preserve"><value>Parzialmente rimborsato</value></data>
+  <data name="Refund_Title" xml:space="preserve"><value>Rimborsare una vendita</value></data>
+  <data name="Refund_Intro" xml:space="preserve"><value>Vendita {0}. Al massimo {1} possono ancora essere rimborsati.</value></data>
+  <data name="Refund_Amount" xml:space="preserve"><value>Importo</value></data>
+  <data name="Refund_Reason" xml:space="preserve"><value>Motivo (per la sua documentazione)</value></data>
+  <data name="Refund_ReturnFee" xml:space="preserve"><value>Restituire anche la provvigione</value></data>
+  <data name="Refund_FeeKeptWarning" xml:space="preserve"><value>Senza questo la provvigione resta alla piattaforma: lei rimborsa integralmente il cliente e paga comunque per la vendita annullata.</value></data>
+  <data name="Refund_Confirm" xml:space="preserve"><value>Rimborsare ora</value></data>
+  <data name="Refund_Done" xml:space="preserve"><value>Il rimborso è stato registrato.</value></data>
+  <data name="Waiver_Title" xml:space="preserve"><value>Verso la quota base gratuita</value></data>
+  <data name="Waiver_Progress" xml:space="preserve"><value>Fatturato del periodo in corso: {0} su {1} — mancano {2} alla quota base gratuita del mese prossimo.</value></data>
+  <data name="Waiver_Reached" xml:space="preserve"><value>Fatturato del periodo in corso: {0} su {1} — raggiunto. La quota base del mese prossimo è offerta da noi.</value></data>
+  <data name="Waiver_Explanation" xml:space="preserve"><value>Lo sconto si guadagna nel periodo appena concluso e viene applicato alla fattura successiva, perché le fatture di abbonamento sono emesse in anticipo. Il primo mese quindi non può mai essere gratuito.</value></data>
+  <data name="Admin_Title" xml:space="preserve"><value>Conti di accredito</value></data>
+  <data name="Admin_Totals" xml:space="preserve"><value>{0} conto/i — provvigione nel periodo: {1}</value></data>
+  <data name="Admin_Col_Tenant" xml:space="preserve"><value>Mandante</value></data>
+  <data name="Admin_Col_Account" xml:space="preserve"><value>Conto</value></data>
+  <data name="Admin_Col_Country" xml:space="preserve"><value>Paese</value></data>
+  <data name="Admin_Col_State" xml:space="preserve"><value>Stato</value></data>
+  <data name="Admin_Col_Open" xml:space="preserve"><value>In sospeso</value></data>
+  <data name="Admin_Col_Sales" xml:space="preserve"><value>Vendite</value></data>
+  <data name="Admin_Col_Volume" xml:space="preserve"><value>Fatturato</value></data>
+  <data name="Admin_Col_Commission" xml:space="preserve"><value>Provvigione</value></data>
+  <data name="Admin_State_Disconnected" xml:space="preserve"><value>scollegato</value></data>
+  <data name="Admin_State_Onboarding" xml:space="preserve"><value>in configurazione</value></data>
+  <data name="Admin_State_Restricted" xml:space="preserve"><value>limitato</value></data>
+  <data name="Admin_State_Active" xml:space="preserve"><value>attivo</value></data>
+  <data name="Admin_None" xml:space="preserve"><value>Non è ancora stato configurato alcun conto di accredito.</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Chiudere</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Annullare</value></data>
+  <data name="Common_Apply" xml:space="preserve"><value>Applicare</value></data>
+</root>
