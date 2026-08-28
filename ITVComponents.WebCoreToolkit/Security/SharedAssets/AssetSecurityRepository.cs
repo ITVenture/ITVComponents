@@ -139,15 +139,16 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return Array.Empty<ClaimData>();
         }
 
+        // Wer die Freigabe benutzt, hoert dadurch nicht auf, er selbst zu sein: ein angemeldeter Empfaenger
+        // behaelt seine Benutzerzeile, und ein Host, der damit stempelt, schreibt weiterhin den richtigen
+        // Namen. Hier pauschal nichts zu liefern hiess, dass die Anfrage innerhalb einer Freigabe niemandem
+        // mehr gehoerte. Fuer den anonymen Besucher aendert der Weg nichts - zu dessen Kennung gibt es
+        // keine Zeile, das darunterliegende Repository liefert von sich aus nichts.
         public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType)
-        {
-            return Array.Empty<T>();
-        }
+            => decoratedRepo.GetUserIds<T>(userLabels, userAuthenticationType);
 
         public T GetUserId<T>(string[] userLabels, string userAuthenticationType)
-        {
-            return default;
-        }
+            => decoratedRepo.GetUserId<T>(userLabels, userAuthenticationType);
 
         public IEnumerable<Permission> GetPermissions(User user)
         {

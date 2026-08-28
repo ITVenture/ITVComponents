@@ -282,12 +282,47 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 return default;
             }
 
+            if (tmp.Length == 0)
+            {
+                // Kein Benutzer, aber authentifiziert - das gibt es wirklich: ein anonymer Besucher mit
+                // einem Freigabe-Link ist fuer die Anwendung jemand, hat aber keine Benutzerzeile. Frueher
+                // lief das in dieselbe Meldung wie der Mehrdeutigkeitsfall und schickte die Suche damit in
+                // die voellig falsche Richtung - nach Benutzer-Mappings, die es gar nicht gibt.
+                throw new InvalidOperationException(
+                    "This request is authenticated but belongs to no user - typically an anonymous visitor inside a shared asset. Use TryGetUserId and decide what your code does without a user.");
+            }
+
             if (tmp.Length != 1)
             {
                 throw new InvalidOperationException("Use GetUserIds in Environment with User-Mappings!");
             }
 
             return tmp[0];
+        }
+
+        /// <summary>
+        /// Fragt nach dem einen Benutzer der laufenden Anfrage, ohne dass "es gibt keinen" eine Ausnahme
+        /// waere. Genau dafuer gibt es sie: innerhalb einer Freigabe kann eine Anfrage authentifiziert sein
+        /// und trotzdem zu keiner Benutzerzeile gehoeren - ein anonymer Besucher mit einem Link ist der
+        /// Normalfall, kein Fehler. Wer stempelt, protokolliert oder einen Fremdschluessel setzt, muss das
+        /// entscheiden koennen, ohne eine Ausnahme zu fangen.
+        /// </summary>
+        /// <typeparam name="T">der Typ der Benutzerkennung</typeparam>
+        /// <param name="provider">der Service-Provider der laufenden Anfrage</param>
+        /// <param name="userId">die Benutzerkennung, oder der Vorgabewert</param>
+        /// <param name="isAuthenticated">ob die Anfrage ueberhaupt authentifiziert ist</param>
+        /// <returns>true, wenn genau ein Benutzer dahinter steht</returns>
+        public static bool TryGetUserId<T>(this IServiceProvider provider, out T userId, out bool isAuthenticated)
+        {
+            var tmp = provider.GetUserIds<T>(out isAuthenticated);
+            userId = default;
+            if (!isAuthenticated || tmp == null || tmp.Length != 1)
+            {
+                return false;
+            }
+
+            userId = tmp[0];
+            return true;
         }
 
         public static ISecurityRepository GetAssetSecurityRepository(this IServiceProvider services, ISecurityRepository decorated)

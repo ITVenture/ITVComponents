@@ -3999,6 +3999,34 @@ Mandant stand im Anzeigenamen, im Namen ein Literal. Das ist behoben. Auffallen 
 nicht, weil dieser Weg nie an einer Mandantenprüfung vorbeikam; mit dem Asset im Pfad hätte es einen
 404 auf genau der URL ergeben, die funktionieren soll.
 
+### 50.8 In einer Freigabe kann es **keinen Benutzer** geben — `GetUserId` ist dort die falsche Frage
+
+Ein anonymer Besucher mit einem Freigabe-Link ist für die Anwendung jemand: er ist authentifiziert,
+läuft im Mandanten der Freigabe und hat deren Rechte. Eine **Benutzerzeile** hat er nicht. Code, der
+`services.GetUserId<int>(out var isAuthenticated)` aufruft — typischerweise ein `DbContext`, der
+Änderungen stempelt —, bekommt in dieser Lage keinen Wert und **fliegt mit einer Ausnahme**.
+
+Ab PRE201 gibt es dafür `TryGetUserId`:
+
+```csharp
+// vorher: wirft, sobald jemand ohne Benutzerzeile hereinkommt
+CurrentUserId = services.GetUserId<int>(out var isAuthenticated);
+
+// nachher: "kein Benutzer" ist eine Antwort, keine Ausnahme
+if (!services.TryGetUserId<int>(out var userId, out var isAuthenticated))
+{
+    // Anonymer Freigabe-Zugriff: entscheidet hier, was ihr stempelt (nichts, ein Systembenutzer, …)
+}
+```
+
+Zwei Dinge sind dabei zusätzlich geradegezogen worden. `GetUserId` unterscheidet jetzt „gar kein
+Benutzer" von „mehrere Benutzer" — bisher liefen beide in dieselbe Meldung
+(*Use GetUserIds in Environment with User-Mappings!*), die im ersten Fall in die völlig falsche
+Richtung zeigt. Und ein **angemeldeter** Empfänger behält innerhalb einer Freigabe seine eigene
+Benutzerzeile: das Asset-Repository reichte die Frage bisher gar nicht erst weiter, wodurch die
+Anfrage niemandem mehr gehörte, obwohl da sehr wohl jemand sass. Für den anonymen Besucher ändert das
+nichts — zu seiner Kennung gibt es keine Zeile.
+
 ## 51. Wer welche Asset-Argumente versteht — **Pflicht-Migration (2 Tabellen)**
 
 Erster Schritt der Objektsicherheit für geteilte Assets (Plan:
