@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +35,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         /// Key under which the validated tenant segment is stored in <see cref="HttpContext.Items"/>.
         /// </summary>
         public const string TenantSegmentItemKey = "ITVComponents.WebCoreToolkit.Blazor.TenantSegment";
+
+        /// <summary>
+        /// Guards the "UseSharedAssetPath() is missing or too late" message: the cause is a startup
+        /// configuration and does not change at runtime, so it is worth exactly one line per process.
+        /// </summary>
+        private static int assetPipelineOrderWarned;
 
         private readonly RequestDelegate next;
         private readonly IOptions<ScopedPermissionScopeOptions> options;
@@ -86,6 +96,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             }
 
             var user = context.User;
+            if (user?.Identity == null || !user.Identity.IsAuthenticated)
+            {
+                // An anonymous shared-asset link has its principal, it just does not have it YET: the asset
+                // scheme is only reached through the authorization policy, which needs an endpoint, which
+                // needs routing - and routing happens after this middleware. So the request would arrive
+                // here anonymous, keep its tenant segment, and 404 before any asset logic ever runs. Asking
+                // the scheme directly is what turns that into the ordinary case one line further down.
+                user = await AuthenticateSharedAssetAsync(context, opts, path);
+            }
+
             if (user?.Identity == null || !user.Identity.IsAuthenticated)
             {
                 // Let downstream [Authorize] / authentication challenge decide; the segment will be
@@ -152,6 +172,73 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 : new PathString("/");
 
             await next(context);
+        }
+
+        /// <summary>
+        /// Fetches the principal of an anonymous shared-asset link for a request that arrived unauthenticated.
+        /// Only ever asked when the asset middleware has already recognized a segment for this request, so a
+        /// host without shared assets never reaches the scheme lookup at all.
+        /// <para>
+        /// Silence is the one outcome this must not produce. Both ways this can come up empty - the segment
+        /// was never processed (<c>UseSharedAssetPath()</c> missing or registered too late), or the scheme
+        /// answered with nothing - end in the same symptom: a 404 from routing that mentions no asset
+        /// anywhere. Each of them says so in the log, once resp. per request.
+        /// </para>
+        /// </summary>
+        /// <param name="context">the current request</param>
+        /// <param name="opts">the scope options, carrying the scheme name to ask</param>
+        /// <param name="path">the request path, for the log messages</param>
+        /// <returns>the asset principal when one could be established, otherwise the unchanged current user</returns>
+        private async Task<ClaimsPrincipal> AuthenticateSharedAssetAsync(HttpContext context, ScopedPermissionScopeOptions opts, string path)
+        {
+            if (SharedAssetPathMiddleware.HasUnprocessedSegment(context)
+                && Interlocked.Exchange(ref assetPipelineOrderWarned, 1) == 0)
+            {
+                logger.LogError(
+                    "TenantPathPrefix: request {Path} still carries an unprocessed shared-asset segment. UseSharedAssetPath() is either missing or registered too late: it must run BEFORE UseStaticFiles, UseAuthentication, UseRouting and UseTenantPathPrefix. Shared-asset links will 404 until that is fixed.",
+                    path);
+            }
+
+            if (!SharedAssetPathMiddleware.HasRun(context))
+            {
+                return context.User;
+            }
+
+            if (string.IsNullOrEmpty(opts.SharedAssetAuthenticationScheme))
+            {
+                logger.LogWarning(
+                    "TenantPathPrefix: request {Path} carries a shared-asset segment, but ScopedPermissionScopeOptions.SharedAssetAuthenticationScheme is empty. The tenant segment stays in the path, so the request will 404 without ever reaching the asset.",
+                    path);
+                return context.User;
+            }
+
+            var schemes = context.RequestServices.GetService<IAuthenticationSchemeProvider>();
+            if (schemes == null || await schemes.GetSchemeAsync(opts.SharedAssetAuthenticationScheme) == null)
+            {
+                // A host that shares assets only with signed-in recipients does not register the scheme, and
+                // for those links the cookie already delivered the principal - so this is a legitimate state
+                // and not an error. It is still worth a line, because it is indistinguishable from a
+                // forgotten web part when an anonymous link is what someone is holding.
+                logger.LogWarning(
+                    "TenantPathPrefix: request {Path} carries a shared-asset segment, but no authentication scheme '{Scheme}' is registered. Anonymous asset links need the AnonymousAssetShares web part; links for signed-in recipients are unaffected.",
+                    path, opts.SharedAssetAuthenticationScheme);
+                return context.User;
+            }
+
+            var result = await context.AuthenticateAsync(opts.SharedAssetAuthenticationScheme);
+            if (!result.Succeeded || result.Principal?.Identity?.IsAuthenticated != true)
+            {
+                logger.LogWarning(
+                    "TenantPathPrefix: the '{Scheme}' scheme established no principal for {Path} ({Reason}). The link is expired, revoked, carries a wrong access token, or is one for signed-in recipients opened by a visitor who is not signed in.",
+                    opts.SharedAssetAuthenticationScheme, path, result.Failure?.Message ?? "no result");
+                return context.User;
+            }
+
+            // The rest of this middleware - and everything downstream - now sees an ordinary authenticated
+            // request. The asset claims come from the claims transformation that AuthenticateAsync runs.
+            context.User = result.Principal;
+            logger.LogDebug("TenantPathPrefix: {Path} runs as an anonymous shared-asset request.", path);
+            return result.Principal;
         }
 
         /// <summary>

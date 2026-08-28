@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit;
 using ITVComponents.WebCoreToolkit.Blazor.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -221,6 +223,93 @@ namespace ITVComponents.WebCoreToolkit.Tests
         }
 
         [TestMethod]
+        public async Task Anonymous_Asset_Request_Is_Authenticated_Here_And_Strips_The_Tenant()
+        {
+            // BUG-PRE197: the principal of an anonymous asset link is only established by the authorization
+            // policy - which needs an endpoint, which needs routing, which happens after this middleware. So
+            // the request arrived anonymous, kept its tenant segment, and 404'd in routing before any asset
+            // logic ran. Asking the scheme here is what makes it an ordinary request again.
+            var (mw, ran) = NewMiddleware();
+            var ctx = NewContext("/ADM/CustomerCare/Customers/3", new ClaimsPrincipal(new ClaimsIdentity()));
+            ctx.Items[Global.SharedAssetKeyItemKey] = "f69ce06b";
+            var assetUser = AuthenticatedUser();
+            ctx.RequestServices = new ServiceProvider("ADM")
+            {
+                Schemes = SchemeProviderWith("Shared-Asset-Key"),
+                AuthenticationService = new FakeAuthenticationService("Shared-Asset-Key", assetUser)
+            };
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsTrue(ran.Value);
+            Assert.AreSame(assetUser, ctx.User, "the asset principal must be the user of this request from here on");
+            Assert.AreEqual("ADM", ctx.Items[TenantPathPrefixMiddleware.TenantSegmentItemKey]);
+            Assert.AreEqual("/ADM", ctx.Request.PathBase.Value);
+            Assert.AreEqual("/CustomerCare/Customers/3", ctx.Request.Path.Value);
+        }
+
+        [TestMethod]
+        public async Task Asset_Request_Without_Registered_Scheme_Passes_Through_And_Says_So()
+        {
+            // A host that never registered the anonymous-asset web part is a legitimate state - links for
+            // signed-in recipients work without it. It is indistinguishable from a forgotten web part for
+            // whoever is holding an anonymous link, though, so it must not be silent.
+            var (mw, ran, log) = NewMiddlewareWithLog();
+            var ctx = NewContext("/ADM/CustomerCare/Customers/3", new ClaimsPrincipal(new ClaimsIdentity()));
+            ctx.Items[Global.SharedAssetKeyItemKey] = "f69ce06b";
+            ctx.RequestServices = new ServiceProvider("ADM") { Schemes = SchemeProviderWith() };
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsTrue(ran.Value);
+            Assert.AreEqual("/ADM/CustomerCare/Customers/3", ctx.Request.Path.Value);
+            var entry = log.Entries.Single();
+            Assert.AreEqual(LogLevel.Warning, entry.Level);
+            StringAssert.Contains(entry.Message, "Shared-Asset-Key");
+        }
+
+        [TestMethod]
+        public async Task Asset_Request_Whose_Scheme_Yields_Nothing_Passes_Through_And_Says_So()
+        {
+            // Expired, revoked or wrong token: the visitor sees a 404 either way, but the log has to be able
+            // to tell "the link is dead" from "the wiring is wrong".
+            var (mw, ran, log) = NewMiddlewareWithLog();
+            var ctx = NewContext("/ADM/CustomerCare/Customers/3", new ClaimsPrincipal(new ClaimsIdentity()));
+            ctx.Items[Global.SharedAssetKeyItemKey] = "f69ce06b";
+            ctx.RequestServices = new ServiceProvider("ADM")
+            {
+                Schemes = SchemeProviderWith("Shared-Asset-Key"),
+                AuthenticationService = new FakeAuthenticationService("Shared-Asset-Key", null)
+            };
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsTrue(ran.Value);
+            Assert.AreEqual("/ADM/CustomerCare/Customers/3", ctx.Request.Path.Value);
+            Assert.AreEqual(LogLevel.Warning, log.Entries.Single().Level);
+        }
+
+        [TestMethod]
+        public async Task Unprocessed_Asset_Segment_Is_Reported_As_A_Pipeline_Order_Error()
+        {
+            // The diagnostic hole this closes: the message that names the wrong pipeline order lives in the
+            // asset authentication handler - which, in exactly this constellation, is never called. So the
+            // one hint for "the link does nothing" was silent whenever the link did nothing.
+            // The message is written once per process, so this stays the only test that feeds an
+            // unprocessed segment; a second one would find the flag already set.
+            var (mw, ran, log) = NewMiddlewareWithLog();
+            var ctx = NewContext("/~f69ce06b.tok/ADM/CustomerCare/Customers/3", new ClaimsPrincipal(new ClaimsIdentity()));
+            ctx.RequestServices = new ServiceProvider("ADM");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsTrue(ran.Value);
+            var entry = log.Entries.Single();
+            Assert.AreEqual(LogLevel.Error, entry.Level);
+            StringAssert.Contains(entry.Message, "UseSharedAssetPath()");
+        }
+
+        [TestMethod]
         public async Task Query_Mode_Is_NoOp()
         {
             var (mw, ran) = NewMiddleware(TenantSource.Query);
@@ -272,7 +361,68 @@ namespace ITVComponents.WebCoreToolkit.Tests
             return new ClaimsPrincipal(identity);
         }
 
+        /// <summary>
+        /// Builds a scheme provider that knows exactly the given scheme names. The real provider is used
+        /// rather than a double: whether a scheme counts as registered is precisely what is under test here.
+        /// </summary>
+        private static IAuthenticationSchemeProvider SchemeProviderWith(params string[] schemes)
+        {
+            var authOptions = new AuthenticationOptions();
+            foreach (var scheme in schemes)
+            {
+                authOptions.AddScheme(scheme, b => b.HandlerType = typeof(FakeAuthenticationHandler));
+            }
+
+            return new AuthenticationSchemeProvider(Microsoft.Extensions.Options.Options.Create(authOptions));
+        }
+
         private sealed class BoolBox { public bool Value; }
+
+        /// <summary>
+        /// Stands in for the asset authentication scheme: answers with the given principal for the given
+        /// scheme name, and with "no result" for everything else.
+        /// </summary>
+        private sealed class FakeAuthenticationService : IAuthenticationService
+        {
+            private readonly string scheme;
+            private readonly ClaimsPrincipal principal;
+
+            public FakeAuthenticationService(string scheme, ClaimsPrincipal principal)
+            {
+                this.scheme = scheme;
+                this.principal = principal;
+            }
+
+            public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string scheme)
+            {
+                if (principal == null || !string.Equals(scheme, this.scheme, StringComparison.Ordinal))
+                {
+                    return Task.FromResult(AuthenticateResult.NoResult());
+                }
+
+                return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, scheme)));
+            }
+
+            public Task ChallengeAsync(HttpContext context, string scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+
+            public Task ForbidAsync(HttpContext context, string scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+
+            public Task SignInAsync(HttpContext context, string scheme, ClaimsPrincipal principal, Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+
+            public Task SignOutAsync(HttpContext context, string scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+        }
+
+        /// <summary>Never invoked - it only gives the registered scheme a handler type.</summary>
+        private sealed class FakeAuthenticationHandler : IAuthenticationHandler
+        {
+            public Task InitializeAsync(AuthenticationScheme scheme, HttpContext context) => Task.CompletedTask;
+
+            public Task<AuthenticateResult> AuthenticateAsync() => Task.FromResult(AuthenticateResult.NoResult());
+
+            public Task ChallengeAsync(Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+
+            public Task ForbidAsync(Microsoft.AspNetCore.Authentication.AuthenticationProperties properties) => Task.CompletedTask;
+        }
 
         private sealed class CapturingLogger : ILogger<TenantPathPrefixMiddleware>
         {
@@ -296,10 +446,18 @@ namespace ITVComponents.WebCoreToolkit.Tests
                 repo = new FakeSecurityRepository(eligibleScopes);
             }
 
+            /// <summary>The scheme provider the middleware asks before it authenticates; null = none in DI.</summary>
+            public IAuthenticationSchemeProvider Schemes { get; set; }
+
+            /// <summary>Serves <c>context.AuthenticateAsync</c>; null = none in DI.</summary>
+            public IAuthenticationService AuthenticationService { get; set; }
+
             public object GetService(Type serviceType)
             {
                 if (serviceType == typeof(ITVComponents.WebCoreToolkit.Security.IUserNameMapper)) return mapper;
                 if (serviceType == typeof(ITVComponents.WebCoreToolkit.Security.ISecurityRepository)) return repo;
+                if (serviceType == typeof(IAuthenticationSchemeProvider)) return Schemes;
+                if (serviceType == typeof(IAuthenticationService)) return AuthenticationService;
                 return null;
             }
         }

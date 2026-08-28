@@ -3898,7 +3898,21 @@ soll den Mandanten wie immer als ersten Abschnitt sehen) — sind an dieser eine
 **Vergesst ihr es, sagt es das Log.** Sieht das Anmeldeschema eine Anfrage mit unbearbeitetem
 Asset-Abschnitt, schreibt es einmal je Prozess ein `LogError` mit der richtigen Reihenfolge. Stilles
 Nichtstun gibt es hier nicht — ein Link, der „einfach nichts macht", ist genau die Sorte Fehler, die
-einen Nachmittag kostet.
+einen Nachmittag kostet. Dieselbe Meldung schreibt seit PRE198 auch `UseTenantPathPrefix()`, denn
+genau dort fiel sie bisher aus: das Anmeldeschema wird in dieser Lage nie gefragt, und ausgerechnet
+die Diagnosehilfe für „der Link tut nichts" blieb stumm, wenn der Link nichts tat.
+
+**Anonyme Links auf Blazor-Hosts mit Mandant im Pfad: nichts zu tun, aber gut zu wissen.** Der
+Prinzipal eines anonymen Freigabe-Links entsteht über die Autorisierungs-Policy — also erst in
+`UseAuthorization`, und das ist nach `UseRouting`. `UseTenantPathPrefix()` läuft davor, sah einen
+anonymen Besucher, liess den Pfad ungestrippt durch, und das Routing fand für
+`/{mandant}/CustomerCare/Customers/3` keinen Endpunkt: 404, bevor irgendeine Asset-Logik lief
+(BUG-PRE197). Seit PRE198 holt die Mandanten-Middleware den Asset-Prinzipal selbst, sobald die
+Anfrage einen Asset-Abschnitt trägt und unangemeldet ankommt. Für euch ändert sich an `Program.cs`
+nichts. Nur wenn ihr das Schema umbenannt habt (`WebPartOptions.AuthenticationType`), gehört der
+neue Name in `ScopedPermissionScopeOptions.SharedAssetAuthenticationScheme` — Vorgabe ist
+`Shared-Asset-Key`. Ist das Schema gar nicht registriert (kein WebPart `AnonymousAssetShares`),
+passiert nichts ausser einer Zeile im Log; Links für **angemeldete** Empfänger waren nie betroffen.
 
 Die **Dienste** kommen weiterhin über `WebPartInitOptions.UseSharedAssets` — daran ändert sich
 nichts, ausser dass der Schalter jetzt zusätzlich den `ISharedAssetContext` registriert. Die
@@ -4295,7 +4309,17 @@ Freigaben ausschliesslich über eigenen Code oder direkt in der Datenbank.
 ```
 
 Der Knopf **erscheint nur, wenn hier überhaupt etwas zu teilen ist** — welche Vorlagen passen,
-entscheidet der Adapter aus Pfad, Berechtigung und Feature. Sonst rendert er nichts.
+entscheidet der Adapter aus Pfad, Berechtigung und Feature. Sonst rendert er nichts. Er entscheidet
+das bei **jedem** Seitenwechsel neu (seit PRE198): er hängt am Navigationsereignis, nicht bloss an
+seinen Parametern, sonst zeigte er im Mantel die Vorlagen der Seite, auf der man einmal war.
+
+**Beim Einrichten die häufigste Ursache für „der Knopf kommt nicht":** ein **abgelaufenes**
+`RequiredFeature` der Vorlage. `GetFeatures` filtert hart auf das Aktivierungsfenster der
+`TenantFeatureActivations` — eine abgelaufene Zeile ist im Datenbestand vorhanden und sieht auf den
+ersten Blick richtig aus, das Feature gilt aber nicht mehr, die Vorlage fällt aus der Auswahl und
+der Knopf rendert nichts. Nicht nur ein *fehlendes* Feature lässt ihn verschwinden, auch ein
+abgelaufenes. (`Features.Enabled` steht daneben und meint etwas anderes: den Katalogeintrag, nicht
+die Aktivierung beim Mandanten.)
 
 Der Dialog zeigt die Argumente der gewählten Vorlage in *deren* Reihenfolge und belegt sie aus
 `Context` vor. Genau dafür gibt es die Konsumenten-Registry aus §51: ohne Vorbelegung müsste der

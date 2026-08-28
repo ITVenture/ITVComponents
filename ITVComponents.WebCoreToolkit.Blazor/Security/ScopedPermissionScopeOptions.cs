@@ -43,6 +43,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
         public int RenewalMinutes { get; set; } = 30;
 
         /// <summary>
+        /// Gets or sets the name of the authentication scheme that turns a shared-asset link into a principal
+        /// (the anonymous-asset scheme from <c>ITVComponents.WebCoreToolkit.Extras</c>, registered by the
+        /// <c>AnonymousAssetShares</c> web part). <see cref="TenantPathPrefixMiddleware"/> asks it explicitly
+        /// when a request carries an asset segment but arrives unauthenticated — otherwise the tenant segment
+        /// would never be stripped for anonymous asset links and the request would 404 before any asset logic
+        /// runs. Set it when the host renamed the scheme; set it to null/empty to switch the lookup off.
+        /// <para>
+        /// The default is the scheme name shipped by that web part. It is a plain string on purpose: this
+        /// assembly does not reference <c>Extras</c>, and a host that does not use anonymous asset links must
+        /// not need it either — an unregistered scheme is skipped, not an error.
+        /// </para>
+        /// </summary>
+        public string? SharedAssetAuthenticationScheme { get; set; } = "Shared-Asset-Key";
+
+        /// <summary>
         /// Gets the list of (case-insensitive) URL-path prefixes that <see cref="TenantUrlGuard"/> must
         /// <em>not</em> rewrite. Defaults cover the common ASP.NET Core Identity / auth endpoints so the tenant
         /// query never leaks into login/logout/account flows. Add hosts-specific routes (e.g. callback paths)
