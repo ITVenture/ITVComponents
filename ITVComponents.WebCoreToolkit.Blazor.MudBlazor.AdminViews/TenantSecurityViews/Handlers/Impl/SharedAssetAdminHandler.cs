@@ -47,8 +47,11 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
             return Task.FromResult(new ShareResultViewModel { Success = true, Link = ticket });
         }
 
+        // Die Reichweite entscheidet der Haken hier - deshalb geht er mit in die Anlage und nicht erst in
+        // den Link. Ein anonymer Link auf eine Freigabe, die niemanden ohne Anmeldung einlaesst, sieht
+        // richtig aus und fuehrt in einen 404.
         var created = adapter.CreateSharedAsset(request.RequestPath ?? "/", template, request.Title,
-            request.ArgumentValues, request.RecipientLabel, out var error);
+            request.ArgumentValues, request.RecipientLabel, request.Anonymous, out var error);
         if (created == null)
         {
             logger.LogInformation("A share was not created: {Reason}", error);

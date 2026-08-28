@@ -243,10 +243,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         }
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
-            => CreateSharedAsset(requestPath, template, title, null, null, out _);
+            => CreateSharedAsset(requestPath, template, title, null, null, false, out _);
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
-            IDictionary<string, string> argumentValues, string recipientLabel, out string error)
+            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous, out string error)
         {
             error = null;
             requestPath = Canonical(requestPath);
@@ -283,8 +283,36 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     };
 
                     database.SharedAssets.Add(asset);
+
+                    // Die Reichweite gehoert zur Anlage, nicht in einen zweiten Schritt. Eine Freigabe ohne
+                    // Filter erreicht NIEMANDEN - auch nicht den, fuer den sie gemacht wurde: die Pruefung
+                    // laeuft ausschliesslich ueber diese beiden Listen, eine leere Liste stimmt nie zu. Der
+                    // Link entstand trotzdem und sah brauchbar aus, und der Aufruf endete in einem 404 ohne
+                    // erkennbaren Zusammenhang zur Freigabe.
+                    if (anonymous)
+                    {
+                        database.SharedAssetUserFilters.Add(new TSharedAssetUserFilter
+                        {
+                            LabelFilter = AnonymousTag,
+                            Asset = asset
+                        });
+                    }
+                    else
+                    {
+                        // Ohne Anmeldung geht es nicht, also braucht es jemanden, der angemeldet ist: die
+                        // Mitglieder des Mandanten, dem die Freigabe gehoert. Das ist die engste
+                        // Reichweite, mit der ein Link ueberhaupt funktioniert - die Empfaengerangabe
+                        // taugt dafuer nicht, sie ist ausdruecklich eine Notiz und kein Nachweis. Enger
+                        // ziehen laesst sich das nachtraeglich in der Maske.
+                        database.SharedAssetTenantFilters.Add(new TSharedAssetTenantFilter
+                        {
+                            LabelFilter = currentTenant.TenantName,
+                            Asset = asset
+                        });
+                    }
+
                     database.SaveChanges();
-                    return new FullAssetInfo()
+                    var created = new FullAssetInfo()
                     {
                         AssetTitle = asset.AssetTitle,
                         UserScopeName = currentTenant.TenantName,
@@ -295,8 +323,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                         AnonymousAccessTokenRaw = asset.AnonymousAccessTokenRaw,
                         Arguments = declarations,
                         Values = values,
-                        Enforcement = assetTmp.ArgumentEnforcement
+                        Enforcement = assetTmp.ArgumentEnforcement,
+                        RecipientLabel = asset.RecipientLabel
                     };
+
+                    if (anonymous)
+                    {
+                        created.UserShares.Add(AnonymousTag);
+                    }
+                    else
+                    {
+                        created.UserScopeShares.Add(currentTenant.TenantName);
+                    }
+
+                    return created;
             }
 
             error ??= "The template does not apply to this location, or you may not share here.";

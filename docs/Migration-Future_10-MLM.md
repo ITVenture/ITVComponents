@@ -4331,6 +4331,17 @@ Argument fehlt oder nicht passt — statt sich zu schliessen und den Benutzer ra
 Der fertige Link erscheint in einem eigenen Dialog mit Kopieren-Knopf. Absichtlich nicht als
 Meldung, die nach drei Sekunden verschwindet: der Link **ist** das Ergebnis.
 
+**Die Reichweite entsteht beim Anlegen** (ab PRE199). Der Haken *Works without signing in* setzt den
+Benutzerfilter `##ANONYMOUS`; ohne ihn bekommt die Freigabe den Mandantenfilter ihres eigenen
+Mandanten, gilt also für dessen angemeldete Mitglieder. Beides lässt sich in der Übersicht
+nachträglich ändern. Die Empfängerangabe ist daran **nicht** beteiligt — sie ist eine Notiz und kein
+Nachweis, und sie entscheidet über gar nichts.
+
+**Altbestand: Freigaben aus PRE197/PRE198 haben gar keine Reichweite** und funktionieren deshalb für
+niemanden — der Link entsteht, der Aufruf endet im 404. Sie sind nicht kaputt, nur leer: einmal in der
+Übersicht bearbeiten und die Filter setzen (oder neu anlegen) genügt. Im Log stand dazu
+`Shared asset '…' is not accessible for the current requestor`.
+
 ### 54.2 Die Übersicht: `/Account/Shares`
 
 Je Mandant, mit den Angaben, auf die es ankommt:

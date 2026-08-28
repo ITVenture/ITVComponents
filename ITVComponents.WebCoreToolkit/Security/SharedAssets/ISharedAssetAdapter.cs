@@ -29,11 +29,15 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <param name="template">die Vorlage</param>
         /// <param name="title">die Bezeichnung der Freigabe</param>
         /// <param name="argumentValues">die Werte der Argumente dieser Vorlage</param>
-        /// <param name="recipientLabel">an wen sie gerichtet ist, oder null</param>
+        /// <param name="recipientLabel">an wen sie gerichtet ist, oder null. Eine Notiz, kein Nachweis -
+        /// sie entscheidet ueber nichts</param>
+        /// <param name="anonymous">true, wenn die Freigabe ohne Anmeldung benutzbar sein soll. Das
+        /// entscheidet, WER sie erreicht, und muss deshalb schon beim Anlegen feststehen: eine Freigabe
+        /// ohne Reichweite erreicht niemanden - auch den Empfaenger nicht, fuer den sie gemacht wurde</param>
         /// <param name="error">benennt, was fehlt oder nicht passt, wenn nichts entsteht</param>
         /// <returns>die Freigabe oder null</returns>
         AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
-            IDictionary<string, string> argumentValues, string recipientLabel, out string error);
+            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous, out string error);
         bool UpdateSharedAsset(FullAssetInfo updateInfo);
         bool DeleteSharedAsset(FullAssetInfo assetInfo);
         string CreateAnonymousLink(AssetInfo info, HttpContext context);

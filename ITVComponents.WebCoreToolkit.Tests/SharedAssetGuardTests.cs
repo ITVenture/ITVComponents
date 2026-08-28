@@ -235,7 +235,7 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public AssetTemplateInfo[] GetEligibleShares(string requestPath) => Array.Empty<AssetTemplateInfo>();
             public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title) => null!;
             public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
-                IDictionary<string, string> argumentValues, string recipientLabel, out string error)
+                IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous, out string error)
             {
                 error = null!;
                 return null!;
