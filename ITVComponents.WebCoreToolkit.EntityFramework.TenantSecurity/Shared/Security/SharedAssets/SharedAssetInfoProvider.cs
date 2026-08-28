@@ -111,7 +111,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 bool accessible = AssetIsAccessible(database, assetKey, labels, tenants, out var asset);
                 AssetInfo retVal;
                 bool hasOwnerPrivileges = false;
-                if (asOwner)
+                if (asOwner && asset != null)
                 {
                     hasOwnerPrivileges = (asset.Template.RequiredFeature == null ||
                                           services.VerifyActivatedFeatures(
@@ -294,7 +294,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             using var lease = contextFactory.Lease<TContext>();
             var database = lease.Context;
-            var asset = database.SharedAssets.First(n => n.AssetKey == updatedInfo.AssetKey);
+            var asset = database.SharedAssets.FirstOrDefault(n => n.AssetKey == updatedInfo.AssetKey);
+            if (asset == null)
+            {
+                // Zwei offene Masken auf derselben Uebersicht genuegen dafuer: die andere hat sie geloescht.
+                LogEnvironment.LogEvent(
+                    $"Die Freigabe '{updatedInfo.AssetKey}' existiert nicht mehr - nichts geaendert.",
+                    LogSeverity.Warning);
+                return false;
+            }
+
             var ok = (asset.Template.RequiredFeature == null ||
                       services.VerifyActivatedFeatures(new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
                      (asset.Template.RequiredPermission == null ||
@@ -364,7 +373,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             using var lease = contextFactory.Lease<TContext>();
             var database = lease.Context;
-            var asset = database.SharedAssets.First(n => n.AssetKey == assetInfo.AssetKey);
+            var asset = database.SharedAssets.FirstOrDefault(n => n.AssetKey == assetInfo.AssetKey);
+            if (asset == null)
+            {
+                // Zweimal auf Loeschen geklickt ist kein Server-Fehler; die Freigabe ist weg, das war das Ziel.
+                LogEnvironment.LogEvent(
+                    $"Die Freigabe '{assetInfo.AssetKey}' existiert nicht mehr - nichts zu loeschen.",
+                    LogSeverity.Warning);
+                return false;
+            }
+
             var ok = (asset.Template.RequiredFeature == null ||
                       services.VerifyActivatedFeatures(new[] { asset.Template.RequiredFeature.FeatureName }, out _)) &&
                      (asset.Template.RequiredPermission == null ||
@@ -834,7 +852,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         private bool AssetIsAccessible(TContext database, string assetKey, IdentityInfo[] userLabels, string[] tenants, out TSharedAsset asset)
         {
-            asset = database.SharedAssets.First(n => n.AssetKey == assetKey);
+            asset = database.SharedAssets.FirstOrDefault(n => n.AssetKey == assetKey);
+            if (asset == null)
+            {
+                // Ein Schluessel, zu dem es keine Freigabe (mehr) gibt: geloescht, aus einer anderen
+                // Umgebung, oder von Hand zusammengebaut. Das ist die haeufigste Art, wie ein alter Link
+                // wiederkommt - und es ist kein Fehler des Servers, sondern schlicht kein Zugriff. Er kam
+                // hier aber als unbehandelte Ausnahme heraus, weil ueber den Schluessel eines BESUCHERS
+                // abgefragt wird und `First` verlangt, was der Besucher nicht garantieren kann.
+                LogEnvironment.LogEvent(
+                    $"Keine Freigabe mit dem Schluessel '{assetKey}' gefunden - kein Zugriff.",
+                    LogSeverity.Warning);
+                return false;
+            }
+
             var uf = asset.UserFilters.Select(n => n.LabelFilter).ToArray();
             var tf = asset.TenantFilters.Select(n => n.LabelFilter).ToArray();
             DateTime now = DateTime.UtcNow;
