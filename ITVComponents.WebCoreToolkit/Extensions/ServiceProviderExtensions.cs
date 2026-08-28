@@ -296,10 +296,13 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             var authUser = userProvider.User.Identities.FirstOrDefault(n => n.IsAuthenticated);
             var decorator = new SecurityRepository();
             decorator.PushRepo(decorated);
-            if (authUser != null &&
-                authUser.HasClaim(n => n.Type == ClaimTypes.FixedUserScope) &&
-                authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetFeature) &&
-                authUser.HasClaim(n => n.Type == ClaimTypes.FixedAssetPermission))
+            // Nur der Mandant der Freigabe entscheidet, ob diese Anfrage in einer Freigabe laeuft - er wird
+            // immer gesetzt, sobald eine gilt. Rechte und Features sind die Nutzlast und duerfen leer sein:
+            // eine Vorlage, die nur Rechte gewaehrt (oder gar keine, weil die Seite selber schon offen ist),
+            // ist voellig normal. Sie zusaetzlich zu verlangen hiess, dass ausgerechnet die schlichteste
+            // Freigabe keinen Mandanten bekam - und ohne Mandant strippt die Mandanten-Middleware nichts,
+            // das Routing findet nichts, und der Link endet im 404, an dem nichts nach Freigabe aussieht.
+            if (authUser != null && authUser.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
             {
                 var repo = new AssetSecurityRepository(userProvider.User, decorated);
                 decorator.PushRepo(repo);

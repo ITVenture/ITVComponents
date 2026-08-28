@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -57,10 +57,14 @@ namespace ITVComponents.WebCoreToolkit.Tests
             this.mapper = mapper;
         }
 
+        /// <summary>Der Benutzer der laufenden Anfrage, wo ein Test ihn braucht; sonst null.</summary>
+        public IContextUserProvider ContextUser { get; set; }
+
         public object GetService(Type serviceType)
         {
             if (serviceType == typeof(ISecurityRepository)) return repo;
             if (serviceType == typeof(IUserNameMapper)) return mapper;
+            if (serviceType == typeof(IContextUserProvider)) return ContextUser;
             return null;
         }
     }
