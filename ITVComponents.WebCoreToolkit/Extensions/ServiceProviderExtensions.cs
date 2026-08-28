@@ -328,20 +328,20 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         public static ISecurityRepository GetAssetSecurityRepository(this IServiceProvider services, ISecurityRepository decorated)
         {
             var userProvider = services.GetService<IContextUserProvider>();
-            var authUser = userProvider.User.Identities.FirstOrDefault(n => n.IsAuthenticated);
             var decorator = new SecurityRepository();
             decorator.PushRepo(decorated);
-            // Nur der Mandant der Freigabe entscheidet, ob diese Anfrage in einer Freigabe laeuft - er wird
-            // immer gesetzt, sobald eine gilt. Rechte und Features sind die Nutzlast und duerfen leer sein:
-            // eine Vorlage, die nur Rechte gewaehrt (oder gar keine, weil die Seite selber schon offen ist),
-            // ist voellig normal. Sie zusaetzlich zu verlangen hiess, dass ausgerechnet die schlichteste
-            // Freigabe keinen Mandanten bekam - und ohne Mandant strippt die Mandanten-Middleware nichts,
-            // das Routing findet nichts, und der Link endet im 404, an dem nichts nach Freigabe aussieht.
-            if (authUser != null && authUser.HasClaim(n => n.Type == ClaimTypes.FixedUserScope))
-            {
-                var repo = new AssetSecurityRepository(userProvider.User, decorated);
-                decorator.PushRepo(repo);
-            }
+
+            // Die Frage "laeuft diese Anfrage in einer Freigabe?" wird bei JEDEM Zugriff neu gestellt und
+            // nicht hier einmal beantwortet. Hier ist es dafuer zu frueh: der Prinzipal einer Freigabe
+            // entsteht mitten in der Pipeline, und beim anonymen Zugriff faellt diese Fabrik sogar in die
+            // Anmeldung selbst hinein - deren Schema braucht ein Repository, um das Zugangs-Token zu
+            // entschluesseln. Eine Entscheidung von hier waere also zwangslaeufig die von vorher.
+            //
+            // Massgeblich ist allein der Mandant der Freigabe: er wird gesetzt, sobald eine gilt. Rechte
+            // und Features sind die Nutzlast und duerfen leer sein - eine Vorlage, die nur Rechte gewaehrt
+            // oder gar nichts, weil die Seite ohnehin offen ist, ist der Normalfall.
+            var lateView = new LateAssetView(userProvider);
+            decorator.UseLateView(lateView.Resolve);
 
             return decorator;
         }

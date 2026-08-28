@@ -133,7 +133,21 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 // permission/feature checks (SecureView, [Authorize] policies, …) fail against the null scope
                 // and that module responds 403/redirect. Keeping the middleware transparent here makes
                 // tenant-gating a per-module concern instead of an all-or-nothing gate at the front door.
-                logger.LogDebug("TenantPathPrefix: authenticated user has no eligible scopes; passing {Path} through untouched", path);
+                if (SharedAssetPathMiddleware.HasRun(context))
+                {
+                    // Fuer einen gewoehnlichen Benutzer ohne Mandanten ist das ein Alltagszustand. Traegt
+                    // die Anfrage aber einen Asset-Abschnitt, ist es die letzte Abzweigung vor einem 404,
+                    // dem man nichts von einer Freigabe ansieht - und ein Host mit den ueblichen
+                    // Log-Filtern saehe an dieser Stelle sonst gar nichts.
+                    logger.LogWarning(
+                        "TenantPathPrefix: {Path} carries a shared-asset segment, but its principal has no eligible scope - the tenant segment stays in the path and the request will 404. The asset's tenant reaches this point through the asset security repository; check that ISecurityRepository is registered via GetAssetSecurityRepository.",
+                        path);
+                }
+                else
+                {
+                    logger.LogDebug("TenantPathPrefix: authenticated user has no eligible scopes; passing {Path} through untouched", path);
+                }
+
                 await next(context);
                 return;
             }

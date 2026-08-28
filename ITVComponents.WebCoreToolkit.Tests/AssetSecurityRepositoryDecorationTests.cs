@@ -40,6 +40,31 @@ namespace ITVComponents.WebCoreToolkit.Tests
         }
 
         [TestMethod]
+        public void Asset_Scope_Applies_When_The_Principal_Arrives_After_The_Repository()
+        {
+            // BUG-PRE201: beim anonymen Zugriff wird dieses Repository zum ersten Mal INNERHALB der
+            // Anmeldung aufgeloest - das Schema braucht es selbst, um das Zugangs-Token zu entschluesseln.
+            // Zu diesem Zeitpunkt ist der Besucher noch anonym. Wurde die Entscheidung dort getroffen und
+            // fuer die Anfrage festgehalten, blieb es fuer immer bei "keine Freigabe", obwohl der Prinzipal
+            // einen Satz spaeter alles trug: kein zulaessiger Mandant, kein Strip, 404.
+            var inner = new FakeSecurityRepository("abc");
+            var context = new FakeContextUserProvider { User = new ClaimsPrincipal(new ClaimsIdentity()) };
+            var services = new FakeServiceProvider(inner, new FakeUserNameMapper()) { ContextUser = context };
+
+            var repo = services.GetAssetSecurityRepository(inner);
+
+            // Erst jetzt entsteht der Prinzipal der Freigabe - so, wie es die Anmeldung mitten in der
+            // Pipeline tut.
+            context.User = AssetVisitor("xyz");
+
+            var scopes = repo.GetEligibleScopes(new[] { "tester" }, TestSecurity.AuthType)
+                .Select(n => n.ScopeName)
+                .ToArray();
+
+            CollectionAssert.AreEqual(new[] { "xyz" }, scopes);
+        }
+
+        [TestMethod]
         public void Without_An_Asset_The_Users_Own_Scopes_Remain()
         {
             // Ohne Freigabe darf der Dekorator nicht dazwischenfunken: es gelten die Mandanten des Benutzers.
@@ -47,6 +72,21 @@ namespace ITVComponents.WebCoreToolkit.Tests
 
             CollectionAssert.AreEqual(new[] { "abc" }, scopes);
         }
+
+        /// <summary>
+        /// Der Besucher, wie ihn eine geltende Freigabe hinterlaesst: derselbe Name, den der Mapper
+        /// vergibt, plus der Mandant der Freigabe.
+        /// </summary>
+        /// <param name="scope">der Mandant der Freigabe</param>
+        /// <returns>der Prinzipal</returns>
+        private static ClaimsPrincipal AssetVisitor(string scope)
+            => new ClaimsPrincipal(new ClaimsIdentity(
+                new[]
+                {
+                    new Claim(System.Security.Claims.ClaimTypes.Name, "tester"),
+                    new Claim(ToolkitClaimTypes.FixedUserScope, scope)
+                },
+                TestSecurity.AuthType));
 
         /// <summary>
         /// Baut den Dekorator ueber einem Repository, das dem Benutzer den Mandanten "abc" zugesteht, und

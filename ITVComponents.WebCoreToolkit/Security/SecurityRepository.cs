@@ -21,6 +21,18 @@ namespace ITVComponents.WebCoreToolkit.Security
 
         private int rootCallCount = 0;
 
+        /// <summary>
+        /// Eine Sicht, die erst waehrend der Anfrage entstehen kann und deshalb bei JEDEM Zugriff neu
+        /// gefragt wird, statt einmal beim Bauen des Stapels.
+        /// <para>
+        /// Der Grund ist die Freigabe: ihr Prinzipal entsteht mitten in der Pipeline, und die erste
+        /// Aufloesung dieses Repositories faellt beim anonymen Zugriff sogar in die Anmeldung selbst
+        /// hinein - also davor. Eine Entscheidung, die dort getroffen und dann fuer die ganze Anfrage
+        /// festgehalten wird, ist zwangslaeufig die von vorher.
+        /// </para>
+        /// </summary>
+        private Func<ISecurityRepository, ISecurityRepository> lateView;
+
         internal ISecurityRepository Current
         {
             get
@@ -32,11 +44,23 @@ namespace ITVComponents.WebCoreToolkit.Security
                 }
                 if (usePeek && repos.TryPeek(out var ret))
                 {
-                    return ret;
+                    // Nur hier: wer ausdruecklich die Wurzel verlangt (UseRoot), will an allen
+                    // Sichten vorbei - auch an dieser.
+                    return lateView != null ? lateView(ret) ?? ret : ret;
                 }
 
                 return rootRepo;
             }
+        }
+
+        /// <summary>
+        /// Legt die Sicht fest, die bei jedem Zugriff ueber den Stapel gelegt wird. Sie bekommt die
+        /// oberste Sicht und gibt entweder sie selbst oder eine daraufgesetzte zurueck.
+        /// </summary>
+        /// <param name="view">die Sicht, oder null</param>
+        internal void UseLateView(Func<ISecurityRepository, ISecurityRepository> view)
+        {
+            lateView = view;
         }
 
         internal bool ExplicitSuppressed
