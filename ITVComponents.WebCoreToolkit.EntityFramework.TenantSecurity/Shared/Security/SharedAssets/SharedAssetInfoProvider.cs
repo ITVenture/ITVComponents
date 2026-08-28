@@ -157,6 +157,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     retVal.RecipientLabel = asset.RecipientLabel;
                     return retVal;
                 }
+
+                if (hasOwnerPrivileges)
+                {
+                    // Verwalten ist nicht Benutzen. Wer eine Freigabe FUER JEMAND ANDEREN anlegt - anonym
+                    // oder an eine Empfaengerangabe - steht selber in keinem ihrer Filter und faellt damit
+                    // durch die Zugriffspruefung. Ohne diesen Zweig bekaeme ausgerechnet der Eigentuemer
+                    // nichts zurueck und koennte seine eigene Freigabe weder aendern noch loeschen noch
+                    // ihren Link zeigen - alles stillschweigend, weil "kein Zugriff" und "gibt es nicht"
+                    // beide null sind.
+                    retVal.AssetKey = asset.AssetKey;
+                    retVal.AssetTitle = asset.AssetTitle;
+                    retVal.UserScopeName = asset.AssetOwner.TenantName;
+                    retVal.AssetRootPath = asset.RootPath;
+                    retVal.Arguments = ReadArguments(database, asset.AssetTemplateId);
+                    retVal.Values = AssetArgumentValues.FromJson(asset.ArgumentValuesJson);
+                    retVal.Enforcement = asset.Template.ArgumentEnforcement;
+                    retVal.AuditMode = asset.Template.AuditMode;
+                    retVal.TemplateSystemKey = asset.Template.SystemKey;
+                    retVal.RecipientLabel = asset.RecipientLabel;
+                    // Ausdruecklich OHNE Permissions und Features: das sind die Rechte, die die Freigabe
+                    // ihrem EMPFAENGER verleiht. Der Eigentuemer verwaltet sie, er benutzt sie hier nicht.
+                    return retVal;
+                }
             }
 
             return null;
@@ -366,6 +389,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return true;
             }
 
+            LogEnvironment.LogEvent(
+                $"Die Freigabe '{updatedInfo.AssetKey}' wurde nicht geaendert: {DenialReason(database, asset, ok)}.",
+                LogSeverity.Warning);
             return false;
         }
 
@@ -394,7 +420,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return true;
             }
 
+            LogEnvironment.LogEvent(
+                $"Die Freigabe '{assetInfo.AssetKey}' wurde nicht geloescht: {DenialReason(database, asset, ok)}.",
+                LogSeverity.Warning);
             return false;
+        }
+
+        /// <summary>
+        /// Benennt, warum eine Verwaltungsaktion an einer vorhandenen Freigabe abgelehnt wurde. Die drei
+        /// Gruende sehen in der Maske identisch aus - es passiert nichts - kosten bei der Suche aber sehr
+        /// verschieden viel Zeit, und ohne diese Unterscheidung steht im Log nur, DASS abgelehnt wurde.
+        /// </summary>
+        /// <param name="database">der Kontext, aus dem der aktive Mandant kommt</param>
+        /// <param name="asset">die betroffene Freigabe</param>
+        /// <param name="ok">Ergebnis der Feature- und Berechtigungspruefung an der Vorlage</param>
+        /// <returns>der Grund, als Satzteil</returns>
+        private string DenialReason(TContext database, TSharedAsset asset, bool ok)
+        {
+            if (!ok)
+            {
+                return "die Vorlage verlangt ein Feature oder eine Berechtigung, die hier nicht gilt";
+            }
+
+            if (database.CurrentTenantId == null)
+            {
+                return "es ist kein Mandant aktiv";
+            }
+
+            return $"sie gehoert dem Mandanten {asset.TenantId}, aktiv ist {database.CurrentTenantId}";
         }
 
         /// <summary>
@@ -526,7 +579,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                       services.VerifyUserPermissions(new[] { asset.Template.RequiredPermission.PermissionName }, out _));
             if (!ok || database.CurrentTenantId == null || asset.TenantId != database.CurrentTenantId)
             {
-                LogEnvironment.LogEvent($"Das Geheimnis der Freigabe '{assetKey}' durfte nicht erneuert werden.", LogSeverity.Warning);
+                LogEnvironment.LogEvent(
+                    $"Das Geheimnis der Freigabe '{assetKey}' durfte nicht erneuert werden: {DenialReason(database, asset, ok)}.",
+                    LogSeverity.Warning);
                 return false;
             }
 
