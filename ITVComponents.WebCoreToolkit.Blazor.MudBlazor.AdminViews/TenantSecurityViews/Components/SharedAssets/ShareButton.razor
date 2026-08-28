@@ -1,11 +1,14 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
 
+@implements IDisposable
 @inject ISharedAssetAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject ILogger<ShareButton> Logger
 
 @* "Hier teilen" - auf der Seite, auf der geteilt wird, und nicht in der Administration.
 
@@ -33,13 +36,64 @@
 
     private AssetTemplateInfo[] templates = Array.Empty<AssetTemplateInfo>();
     private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private int resolveSequence;
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnInitialized()
     {
-        var auth = await AuthState.GetAuthenticationStateAsync();
-        currentUser = auth.User;
-        templates = await Handler.GetEligibleAsync(currentUser, EffectivePath);
+        // Der Knopf sitzt typischerweise im Mantel und wird beim Seitenwechsel nicht neu aufgebaut - seine
+        // Parameter aendern sich dabei nicht, also entschiede er ohne dieses Ereignis weiterhin fuer die
+        // Seite, auf der man einmal war. Genau wie der Hilfe-Knopf muss er beim Navigieren neu entscheiden.
+        Navigation.LocationChanged += OnLocationChanged;
     }
+
+    protected override async Task OnParametersSetAsync() => await ResolveAsync();
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await ResolveAsync();
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            // Wurde der Knopf waehrend des Wechsels abgeraeumt, ist das der Normalfall und kein Fehler.
+            Logger.LogDebug(ex, "Der Teilen-Knopf konnte nach dem Wechsel auf {Path} nicht neu gezeichnet werden.",
+                EffectivePath);
+        }
+    }
+
+    private async Task ResolveAsync()
+    {
+        var mine = ++resolveSequence;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var eligible = await Handler.GetEligibleAsync(user, EffectivePath);
+            if (mine != resolveSequence)
+            {
+                // Zwischenzeitlich wurde erneut navigiert: das ist die Antwort auf die alte Frage.
+                return;
+            }
+
+            currentUser = user;
+            templates = eligible;
+        }
+        catch (Exception ex)
+        {
+            if (mine == resolveSequence)
+            {
+                // Im Zweifel nichts anbieten - ein Knopf, der ins Leere fuehrt, ist schlimmer als keiner.
+                currentUser = null;
+                templates = Array.Empty<AssetTemplateInfo>();
+            }
+
+            Logger.LogError(ex, "Konnte die teilbaren Vorlagen fuer {Path} nicht ermitteln.", EffectivePath);
+        }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
     private string EffectivePath => Path ?? new Uri(Navigation.Uri).AbsolutePath;
 
