@@ -56,6 +56,35 @@
             </MudAlert>
         }
 
+        @* Die Reichweite entscheidet, wer an die Daten kommt - deshalb ohne Vorbelegung. Ein anonymer
+           Link braucht sie nicht: dort IST "ohne Anmeldung" die Reichweite. Ein Ad-hoc-Ticket auch
+           nicht: es wird nirgends gespeichert, seine Rechte kommen aus der Vorlage. *@
+        @if (!Model.Anonymous && !Model.AdHoc)
+        {
+            <MudSelect T="ShareReach?" Value="@Model.Reach" ValueChanged="ReachChanged" Label="Who can use this"
+                       Required="true" RequiredError="Pick who can use this" Class="mt-2">
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.AnyoneSignedIn)">Anyone signed in who has the link</MudSelectItem>
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Recipients)">Only these users</MudSelectItem>
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Tenants)">Only members of these tenants</MudSelectItem>
+            </MudSelect>
+
+            @if (Model.Reach == ShareReach.AnyoneSignedIn)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
+                    Anyone with an account gets in, no matter which tenant they belong to. They work inside
+                    this tenant while they are here.
+                </MudAlert>
+            }
+            else if (Model.Reach == ShareReach.Recipients)
+            {
+                <FilterList Values="Model.UserFilters" Placeholder="User identification" />
+            }
+            else if (Model.Reach == ShareReach.Tenants)
+            {
+                <FilterList Values="Model.TenantFilters" Placeholder="Tenant" />
+            }
+        }
+
         @if (!string.IsNullOrEmpty(error))
         {
             <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@error</MudAlert>
@@ -101,6 +130,33 @@
         error = null;
     }
 
+    private void ReachChanged(ShareReach? value)
+    {
+        Model.Reach = value;
+        error = null;
+    }
+
+    /// <summary>
+    /// Prueft, was die Datenannotationen nicht sehen: eine gewaehlte Reichweite, zu der niemand eingetragen
+    /// ist, ist genauso leer wie gar keine - und ergaebe eine Freigabe, die niemand benutzen kann.
+    /// </summary>
+    /// <returns>die Meldung, oder null, wenn die Reichweite steht</returns>
+    private string? ValidateReach()
+    {
+        if (Model.Anonymous || Model.AdHoc)
+        {
+            return null;
+        }
+
+        return Model.Reach switch
+        {
+            null => "Pick who can use this.",
+            ShareReach.Recipients when Model.UserFilters.Count == 0 => "Name at least one user, or pick another reach.",
+            ShareReach.Tenants when Model.TenantFilters.Count == 0 => "Name at least one tenant, or pick another reach.",
+            _ => null
+        };
+    }
+
     private string GetArgument(string name)
         => Model.ArgumentValues.TryGetValue(name, out var value) ? value : string.Empty;
 
@@ -108,6 +164,12 @@
 
     private async Task<bool> Share()
     {
+        error = ValidateReach();
+        if (error != null)
+        {
+            return false;
+        }
+
         busy = true;
         try
         {

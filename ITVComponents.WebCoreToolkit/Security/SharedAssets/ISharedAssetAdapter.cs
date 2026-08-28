@@ -31,13 +31,25 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <param name="argumentValues">die Werte der Argumente dieser Vorlage</param>
         /// <param name="recipientLabel">an wen sie gerichtet ist, oder null. Eine Notiz, kein Nachweis -
         /// sie entscheidet ueber nichts</param>
-        /// <param name="anonymous">true, wenn die Freigabe ohne Anmeldung benutzbar sein soll. Das
-        /// entscheidet, WER sie erreicht, und muss deshalb schon beim Anlegen feststehen: eine Freigabe
-        /// ohne Reichweite erreicht niemanden - auch den Empfaenger nicht, fuer den sie gemacht wurde</param>
+        /// <param name="anonymous">true, wenn die Freigabe ohne Anmeldung benutzbar sein soll</param>
+        /// <param name="userFilters">die Benutzerkennungen, die sie benutzen duerfen; <c>%</c> steht fuer
+        /// jeden Angemeldeten</param>
+        /// <param name="tenantFilters">die Mandanten, deren Mitglieder sie benutzen duerfen. Geprueft wird
+        /// gegen die Mandanten des AUFRUFERS, nicht gegen den der Freigabe</param>
         /// <param name="error">benennt, was fehlt oder nicht passt, wenn nichts entsteht</param>
         /// <returns>die Freigabe oder null</returns>
+        /// <remarks>
+        /// <b>Die Reichweite ist eine Pflichtangabe.</b> Bleiben <paramref name="anonymous"/>,
+        /// <paramref name="userFilters"/> und <paramref name="tenantFilters"/> alle leer, entsteht keine
+        /// Freigabe: die Zugriffspruefung laeuft ausschliesslich ueber diese Listen, und eine leere Liste
+        /// stimmt nie zu. Eine solche Freigabe erreichte niemanden - auch den Empfaenger nicht, fuer den
+        /// sie gemacht wurde -, der Link entstuende aber trotzdem und saehe brauchbar aus. Deshalb wird
+        /// sie hier abgelehnt und nicht stillschweigend angelegt. Aus demselben Grund kann die kurze
+        /// Ueberladung ohne Reichweite nichts anlegen.
+        /// </remarks>
         AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
-            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous, out string error);
+            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous,
+            IEnumerable<string> userFilters, IEnumerable<string> tenantFilters, out string error);
         bool UpdateSharedAsset(FullAssetInfo updateInfo);
         bool DeleteSharedAsset(FullAssetInfo assetInfo);
         string CreateAnonymousLink(AssetInfo info, HttpContext context);

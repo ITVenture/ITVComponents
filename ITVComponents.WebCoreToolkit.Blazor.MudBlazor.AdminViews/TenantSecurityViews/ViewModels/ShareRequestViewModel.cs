@@ -47,6 +47,39 @@ public class ShareRequestViewModel
     /// ist.
     /// </summary>
     public int? LifetimeMinutes { get; set; }
+
+    /// <summary>
+    /// Wen die Freigabe erreichen soll. <b>Pflichtangabe</b>, und ohne Vorbelegung: eine Vorgabe waere
+    /// hier eine unausgesprochene Entscheidung darueber, wer an fremde Daten kommt.
+    /// <para>
+    /// Ohne Bedeutung, wenn die Freigabe ohne Anmeldung funktionieren soll (dann ist das die Reichweite)
+    /// oder wenn sie ad hoc ist (die reist im Link und wird nirgends gespeichert).
+    /// </para>
+    /// </summary>
+    public ShareReach? Reach { get; set; }
+
+    /// <summary>Die Benutzerkennungen bei <see cref="ShareReach.Recipients"/>.</summary>
+    public List<string> UserFilters { get; set; } = new();
+
+    /// <summary>Die Mandanten bei <see cref="ShareReach.Tenants"/>.</summary>
+    public List<string> TenantFilters { get; set; } = new();
+}
+
+/// <summary>
+/// Wen eine gespeicherte Freigabe erreicht. Geprueft wird gegen den AUFRUFER - der Mandant der Freigabe
+/// selbst steht woanders und entscheidet nicht mit, sondern ist die Wirkung: wer hereinkommt, arbeitet
+/// fuer diese Anfrage im Mandanten der Freigabe.
+/// </summary>
+public enum ShareReach
+{
+    /// <summary>Jeder Angemeldete, der den Link hat - unabhaengig von seinen eigenen Mandanten.</summary>
+    AnyoneSignedIn,
+
+    /// <summary>Nur diese Benutzerkennungen.</summary>
+    Recipients,
+
+    /// <summary>Nur Mitglieder dieser Mandanten.</summary>
+    Tenants
 }
 
 /// <summary>

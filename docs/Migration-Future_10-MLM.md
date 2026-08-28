@@ -4331,11 +4331,29 @@ Argument fehlt oder nicht passt — statt sich zu schliessen und den Benutzer ra
 Der fertige Link erscheint in einem eigenen Dialog mit Kopieren-Knopf. Absichtlich nicht als
 Meldung, die nach drei Sekunden verschwindet: der Link **ist** das Ergebnis.
 
-**Die Reichweite entsteht beim Anlegen** (ab PRE199). Der Haken *Works without signing in* setzt den
-Benutzerfilter `##ANONYMOUS`; ohne ihn bekommt die Freigabe den Mandantenfilter ihres eigenen
-Mandanten, gilt also für dessen angemeldete Mitglieder. Beides lässt sich in der Übersicht
-nachträglich ändern. Die Empfängerangabe ist daran **nicht** beteiligt — sie ist eine Notiz und kein
-Nachweis, und sie entscheidet über gar nichts.
+**Die Reichweite ist ab PRE199 eine Pflichtangabe im Dialog** — ohne Vorbelegung, weil eine Vorgabe
+hier eine unausgesprochene Entscheidung darüber wäre, wer an fremde Daten kommt. Drei Möglichkeiten:
+
+| Auswahl | was gespeichert wird | wer hineinkommt |
+|---|---|---|
+| *Anyone signed in who has the link* | Benutzerfilter `%` | jeder angemeldete Benutzer mit dem Link, **auch aus fremden Mandanten** |
+| *Only these users* | die genannten Benutzerkennungen als Benutzerfilter | nur diese |
+| *Only members of these tenants* | die genannten Mandanten als Mandantenfilter | wer für einen davon berechtigt ist |
+
+Der Haken *Works without signing in* ersetzt die Auswahl: dort **ist** „ohne Anmeldung" die Reichweite
+(Benutzerfilter `##ANONYMOUS`). Ad-hoc-Tickets brauchen sie ebenfalls nicht — sie werden nirgends
+gespeichert und beziehen ihre Rechte aus der Vorlage.
+
+**Merke: der Mandantenfilter wird gegen die Mandanten des AUFRUFERS geprüft**, nicht gegen den der
+Freigabe. Wollt ihr, dass jemand aus einem fremden Mandanten hereinkommt, ist *Anyone signed in* die
+Wahl — der Mandant der Freigabe ist nicht das Tor, sondern die Wirkung dahinter: wer hereinkommt,
+arbeitet für diese Anfrage in ihm.
+
+Die Empfängerangabe ist an alledem **nicht** beteiligt — sie ist eine Notiz und kein Nachweis, und sie
+entscheidet über gar nichts. Alle Filter lassen sich in der Übersicht nachträglich ändern.
+
+Eine Freigabe **ohne** jede Reichweite entsteht nicht mehr: der Adapter lehnt sie ab, statt einen Link
+auszugeben, den niemand einlösen kann.
 
 **Altbestand: Freigaben aus PRE197/PRE198 haben gar keine Reichweite** und funktionieren deshalb für
 niemanden — der Link entsteht, der Aufruf endet im 404. Sie sind nicht kaputt, nur leer: einmal in der

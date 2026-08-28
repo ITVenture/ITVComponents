@@ -14,6 +14,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
 /// </summary>
 public class SharedAssetAdminHandler : ISharedAssetAdminHandler
 {
+    /// <summary>
+    /// Der Platzhalter, der auf jeden Angemeldeten passt. Derselbe Wert, den die Filterliste als Knopf
+    /// anbietet - er steht hier noch einmal, weil eine Maske keine Konstante fuer eine andere ist.
+    /// </summary>
+    private const string EveryonePlaceholder = "%";
+
     private readonly ISharedAssetAdapter adapter;
     private readonly ILogger<SharedAssetAdminHandler> logger;
 
@@ -47,11 +53,18 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
             return Task.FromResult(new ShareResultViewModel { Success = true, Link = ticket });
         }
 
-        // Die Reichweite entscheidet der Haken hier - deshalb geht er mit in die Anlage und nicht erst in
-        // den Link. Ein anonymer Link auf eine Freigabe, die niemanden ohne Anmeldung einlaesst, sieht
-        // richtig aus und fuehrt in einen 404.
+        // Die Reichweite geht mit in die Anlage und nicht erst in den Link. Ein anonymer Link auf eine
+        // Freigabe, die niemanden ohne Anmeldung einlaesst, sieht richtig aus und fuehrt in einen 404 -
+        // und dasselbe gilt fuer jede andere Freigabe ohne Reichweite.
+        var users = request.Reach switch
+        {
+            ShareReach.AnyoneSignedIn => new List<string> { EveryonePlaceholder },
+            ShareReach.Recipients => request.UserFilters,
+            _ => new List<string>()
+        };
+        var tenants = request.Reach == ShareReach.Tenants ? request.TenantFilters : new List<string>();
         var created = adapter.CreateSharedAsset(request.RequestPath ?? "/", template, request.Title,
-            request.ArgumentValues, request.RecipientLabel, request.Anonymous, out var error);
+            request.ArgumentValues, request.RecipientLabel, request.Anonymous, users, tenants, out var error);
         if (created == null)
         {
             logger.LogInformation("A share was not created: {Reason}", error);

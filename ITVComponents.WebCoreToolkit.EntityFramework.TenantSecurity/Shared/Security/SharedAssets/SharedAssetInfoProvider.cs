@@ -243,12 +243,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         }
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title)
-            => CreateSharedAsset(requestPath, template, title, null, null, false, out _);
+            => CreateSharedAsset(requestPath, template, title, null, null, false, null, null, out _);
 
         public AssetInfo CreateSharedAsset(string requestPath, AssetTemplateInfo template, string title,
-            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous, out string error)
+            IDictionary<string, string> argumentValues, string recipientLabel, bool anonymous,
+            IEnumerable<string> userFilters, IEnumerable<string> tenantFilters, out string error)
         {
             error = null;
+            var users = Clean(userFilters);
+            var scopes = Clean(tenantFilters);
+            if (!anonymous && users.Length == 0 && scopes.Length == 0)
+            {
+                // Ohne Reichweite gibt die Freigabe nichts frei: die Pruefung laeuft ausschliesslich ueber
+                // diese beiden Listen, und eine leere Liste stimmt nie zu. Der Link entstuende trotzdem und
+                // saehe brauchbar aus - der Aufruf endete in einem 404 ohne erkennbaren Zusammenhang zur
+                // Freigabe. Lieber hier ablehnen, wo noch jemand zuschaut.
+                error = "A share needs a reach: without it, nobody can use it.";
+                LogEnvironment.LogEvent($"Die Freigabe wurde nicht angelegt: {error}", LogSeverity.Warning);
+                return null;
+            }
+
             requestPath = Canonical(requestPath);
             using var lease = contextFactory.Lease<TContext>();
             var database = lease.Context;
@@ -284,11 +298,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
                     database.SharedAssets.Add(asset);
 
-                    // Die Reichweite gehoert zur Anlage, nicht in einen zweiten Schritt. Eine Freigabe ohne
-                    // Filter erreicht NIEMANDEN - auch nicht den, fuer den sie gemacht wurde: die Pruefung
-                    // laeuft ausschliesslich ueber diese beiden Listen, eine leere Liste stimmt nie zu. Der
-                    // Link entstand trotzdem und sah brauchbar aus, und der Aufruf endete in einem 404 ohne
-                    // erkennbaren Zusammenhang zur Freigabe.
+                    // Die Reichweite gehoert zur Anlage, nicht in einen zweiten Schritt: bis sie steht, ist
+                    // die Freigabe fuer niemanden benutzbar, und genau das sieht man ihr nicht an.
                     if (anonymous)
                     {
                         database.SharedAssetUserFilters.Add(new TSharedAssetUserFilter
@@ -297,16 +308,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                             Asset = asset
                         });
                     }
-                    else
+
+                    foreach (var user in users)
                     {
-                        // Ohne Anmeldung geht es nicht, also braucht es jemanden, der angemeldet ist: die
-                        // Mitglieder des Mandanten, dem die Freigabe gehoert. Das ist die engste
-                        // Reichweite, mit der ein Link ueberhaupt funktioniert - die Empfaengerangabe
-                        // taugt dafuer nicht, sie ist ausdruecklich eine Notiz und kein Nachweis. Enger
-                        // ziehen laesst sich das nachtraeglich in der Maske.
+                        database.SharedAssetUserFilters.Add(new TSharedAssetUserFilter
+                        {
+                            LabelFilter = user,
+                            Asset = asset
+                        });
+                    }
+
+                    foreach (var scope in scopes)
+                    {
                         database.SharedAssetTenantFilters.Add(new TSharedAssetTenantFilter
                         {
-                            LabelFilter = currentTenant.TenantName,
+                            LabelFilter = scope,
                             Asset = asset
                         });
                     }
@@ -331,11 +347,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     {
                         created.UserShares.Add(AnonymousTag);
                     }
-                    else
-                    {
-                        created.UserScopeShares.Add(currentTenant.TenantName);
-                    }
 
+                    created.UserShares.AddRange(users);
+                    created.UserScopeShares.AddRange(scopes);
                     return created;
             }
 
@@ -465,6 +479,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 LogSeverity.Warning);
             return false;
         }
+
+        /// <summary>
+        /// Bringt eine Filterliste aus der Maske auf die Form, in der sie gespeichert wird: ohne Leeres,
+        /// ohne Rand, ohne Doppelte. Gross- und Kleinschreibung entscheidet nicht - die Pruefung vergleicht
+        /// spaeter auch ohne sie, und zwei Zeilen, die dasselbe bedeuten, waeren beim Zurueckziehen eine
+        /// Falle: man entfernt die eine und die andere laesst weiter herein.
+        /// </summary>
+        /// <param name="values">die Werte aus der Maske, oder null</param>
+        /// <returns>die bereinigten Werte, nie null</returns>
+        private static string[] Clean(IEnumerable<string> values)
+            => values == null
+                ? Array.Empty<string>()
+                : values.Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Select(n => n.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
 
         /// <summary>
         /// Benennt, warum eine Verwaltungsaktion an einer vorhandenen Freigabe abgelehnt wurde. Die drei
