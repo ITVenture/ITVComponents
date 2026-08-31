@@ -33,7 +33,7 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
         /// miteinander verglichen.
         /// </para>
         /// </summary>
-        public const string AnonymousUserLabel = "#ANONYMOUS#";
+        public const string AnonymousUserLabel = Global.AnonymousAssetUserName;
         private readonly ISecurityRepository securityRepository;
         private readonly ISharedAssetAdapter assetAdapter;
         private readonly IOptions<AnonymousLinkSettings> options;

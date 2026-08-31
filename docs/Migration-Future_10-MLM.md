@@ -4945,6 +4945,99 @@ Rechnungsstellung".
   Stripe-Testkeys gehört zur Inbetriebnahme. Offen zu prüfen ist insbesondere, ob `customer_creation` sich
   auf einem Connected Account wie erwartet verhält.
 
+## 58. Wer einen anonymen Link benutzt, bleibt er selbst — **kein Schema-Change, nichts zu tun**
+
+Ein anonym geteilter Link durfte bisher jeden Besucher zu `#ANONYMOUS#` machen — auch den, der
+angemeldet war. Das war falsch: **dass ein Link ohne Anmeldung benutzt werden darf, heisst nicht,
+dass es egal ist, wer ihn benutzt.**
+
+### 58.1 Was war
+
+`AnonymousAssetAuthenticationHandler` sah den aktuellen Benutzer gar nicht an. Sobald Schlüssel und
+Token aufgingen, stellte er eine eigene Identität mit dem Namen `#ANONYMOUS#` aus. Das Schema hängt
+über den Shared-Heap-Eintrag `SignInSchemes` in `AuthorizationOptions.DefaultPolicy`; die
+Autorisierungs-Middleware authentifiziert **jedes** Schema der Policy und verschmilzt die Prinzipale
+— und welche Identität dabei vorne landet, entscheidet die Reihenfolge der WebPart-Registrierung.
+Stand die anonyme vorne, hiess der Besucher überall `#ANONYMOUS#`: im Zugriffsprotokoll
+(`AccessedBy`), im `AssetSecurityRepository` und in allem, was den Namen stempelt.
+
+### 58.2 Was jetzt gilt
+
+Trägt die Anfrage bereits einen **angemeldeten** Prinzipal, gibt das Asset-Schema `NoResult` zurück
+— der Besucher bleibt er selbst. Zusätzlich bevorzugt das Protokoll einen benannten Zugreifer
+gegenüber der anonymen Identität, damit es nicht von der Schema-Reihenfolge abhängt.
+
+**An den Rechten ändert das nichts.** Die Freigabe bleibt das Gesetz: ihre Permissions, Features und
+ihr Mandant sind weiterhin alles, was ein Benutzer dieses Links darf — auch der angemeldete. Die
+Rechte kommen unverändert aus `AssetDrivenClaimsTransformation`, und ein Benutzerfilter
+`##ANONYMOUS` passt dort auf jeden angemeldeten Aufrufer.
+
+**Was ihr davon merkt:** in `/Account/ShareLog` steht bei angemeldeten Besuchern ab sofort ihr Name
+statt `#ANONYMOUS#`. Alte Einträge bleiben, wie sie sind.
+
+> **Wissenswert, unverändert:** für angemeldete Besucher prüft das Zugangs-Token niemand. Ein anonym
+> geteilter Link (Filter `##ANONYMOUS`) ist über den Schlüssel allein für jeden Angemeldeten offen,
+> auch ohne Token und auch nach `RotateAnonymousToken`. „Geheimnis erneuern" sperrt damit anonyme
+> Besucher aus, angemeldete nicht.
+
+### 58.3 `AssetContext` — die Auskunft an die Seite
+
+Neu an `ISharedAssetContext` und, als bequeme Abkürzung, an `IContextUserProvider`:
+
+```csharp
+var asset = contextUser.AssetContext;      // null, wenn keine Freigabe läuft
+if (asset is { VisitorIsAnonymous: true })
+{
+    // wirklich niemand dahinter
+}
+```
+
+| Feld | sagt |
+|---|---|
+| `AssetKey` / `Segment` / `Kind` | welche Freigabe, und in welcher Form sie in der URL steht |
+| `IsAdHoc` | Ad-hoc-Ticket statt gespeicherter Freigabe |
+| `RootPath` | der Pfadbereich, auf dem geteilt wurde |
+| `TenantName`, `Title`, `TemplateSystemKey`, `RecipientLabel` | Herkunft und Beschriftung |
+| `AllowsAnonymousAccess` | die Freigabe **darf** ohne Anmeldung benutzt werden |
+| `ViaAnonymousLink` | der benutzte Link trägt sein Geheimnis selbst (Token oder Ticket) |
+| `VisitorIsAnonymous` | hinter diesem Zugriff steht **wirklich niemand** |
+| `NotBefore` / `NotAfter` | wie lange der Link noch trägt |
+
+Drei Dinge sind daran wichtig:
+
+- **`AllowsAnonymousAccess` und `VisitorIsAnonymous` sind zwei verschiedene Fragen.** Die erste
+  gehört der Freigabe, die zweite dem Zugriff.
+- **Rechte, Features und die Argumentwerte stehen bewusst nicht drin.** Das ist
+  `CurrentAsset` — die Arbeitsfassung für den Riegel und das Protokoll. Ebenso wenig steht der
+  Riegel-Zustand drin (`Confirmed`, `MustHoldBack`): der ändert sich während des Vorgangs, ein
+  Schnappschuss davon würde lügen. Diese Fragen gehen weiter an `ISharedAssetContext`.
+- **Die Property kostet einmal je Scope einen Zugriff auf die Ablage.** Wer nur wissen will, *ob*
+  eine Freigabe läuft, fragt `ISharedAssetContext.HasAsset` — das beantwortet der Pfad allein.
+
+`null` heisst „keine Freigabe" — und ebenso „ein Abschnitt, der auf keine gültige Freigabe (mehr)
+zeigt". Für eine Seite ist das dasselbe: es sind auch keine Rechte aus einer verliehen worden.
+
+Auf `IContextUserProvider` ist es eine **Default-Implementierung** über `Services` — an euren eigenen
+Implementierungen und Test-Attrappen ist deshalb nichts zu tun. Wo kein `ISharedAssetContext`
+registriert ist (Hintergrunddienste, Hosts ohne geteilte Assets), ist die Antwort null.
+
+### 58.4 Im Browser gab es das schon
+
+`@Html.ItvClientContext()` setzt `ITVenture.Ajax.assetSegment` (§50.3) — nicht-null heisst „läuft in
+einer Freigabe", ein führendes `~!` heisst Ad-hoc. Daran ändert sich nichts. In Blazor braucht es
+dafür kein JS: Komponenten injizieren `ISharedAssetContext`, und der Abschnitt steht über
+`TenantBaseHref` im `<base href>`.
+
+### 58.5 Verträge
+
+- `ISharedAssetContext` bekommt `AssetContext`. Betrifft euch nur bei eigener Implementierung.
+- `AssetInfo` bekommt `IsAnonymous`, `NotBefore`, `NotAfter`. Die beiden Fristen sind dabei von
+  `FullAssetInfo` an die Basis **gewandert** — quellkompatibel, `FullAssetInfo` erbt sie. Grund: die
+  Gültigkeit ist keine Eigentümer-Auskunft, sondern gehört zu dem, was auch ein Empfänger über
+  seinen Link wissen darf.
+- `Global.AnonymousAssetUserName` ist jetzt die eine Quelle für `#ANONYMOUS#`;
+  `DefaultAnonymousAssetUserResolver.AnonymousUserLabel` bleibt als Alias stehen.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |

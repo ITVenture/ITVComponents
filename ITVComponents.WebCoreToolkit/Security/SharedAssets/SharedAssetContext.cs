@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,9 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         private bool infoResolved;
         private AssetInfo info;
+
+        private bool publicContextResolved;
+        private AssetContext publicContext;
 
         private readonly Dictionary<string, string> confirmed = new(StringComparer.OrdinalIgnoreCase);
         private bool denied;
@@ -93,6 +97,67 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         /// <inheritdoc/>
         public AssetInfo CurrentAsset => Info;
+
+        /// <inheritdoc/>
+        public AssetContext AssetContext
+        {
+            get
+            {
+                if (publicContextResolved)
+                {
+                    return publicContext;
+                }
+
+                publicContextResolved = true;
+                var current = Info;
+                if (current == null)
+                {
+                    // Kein Abschnitt, oder einer, der auf keine gueltige Freigabe zeigt. Beides ist fuer
+                    // eine Seite dasselbe: sie laeuft nicht in einer Freigabe, und es sind auch keine
+                    // Rechte aus einer verliehen worden.
+                    return null;
+                }
+
+                publicContext = new AssetContext
+                {
+                    AssetKey = current.AssetKey ?? assetKey,
+                    Segment = segment,
+                    Kind = segmentKind,
+                    RootPath = current.AssetRootPath,
+                    TenantName = current.UserScopeName,
+                    Title = current.AssetTitle,
+                    TemplateSystemKey = current.TemplateSystemKey,
+                    RecipientLabel = current.RecipientLabel,
+                    AllowsAnonymousAccess = current.IsAnonymous,
+                    // Der Link traegt sein Geheimnis selbst: ein anonymer Link (Token) oder ein Ticket.
+                    ViaAnonymousLink = segmentKind == AssetSegmentKind.Ticket || !string.IsNullOrEmpty(accessToken),
+                    VisitorIsAnonymous = !HasNamedVisitor(),
+                    NotBefore = current.NotBefore,
+                    NotAfter = current.NotAfter
+                };
+
+                return publicContext;
+            }
+        }
+
+        /// <summary>
+        /// Steht hinter diesem Zugriff ein Benutzer, den der Server benennen kann?
+        /// <para>
+        /// Anonym ist genau dann, wenn KEINE angemeldete Identitaet uebrig bleibt, die einen anderen Namen
+        /// traegt als den des anonymen Freigabe-Besuchers. Die Frage geht ueber alle Identitaeten und
+        /// nicht nur ueber die vorderste: welche davon vorne steht, entscheidet die Reihenfolge, in der
+        /// die Anmeldeschemata der Policy verschmolzen werden - eine Reihenfolge, die von der
+        /// WebPart-Registrierung abhaengt und deshalb nichts beweist.
+        /// </para>
+        /// </summary>
+        private bool HasNamedVisitor()
+        {
+            var user = contextUser?.User;
+            return user?.Identities.Any(n => n.IsAuthenticated
+                                             && !string.IsNullOrEmpty(n.Name)
+                                             && !string.Equals(n.Name, Global.AnonymousAssetUserName,
+                                                 StringComparison.OrdinalIgnoreCase)) == true;
+        }
 
         /// <inheritdoc/>
         public AssetArgumentEnforcement Enforcement => Info?.Enforcement ?? AssetArgumentEnforcement.None;

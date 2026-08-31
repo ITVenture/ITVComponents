@@ -33,5 +33,23 @@ namespace ITVComponents.WebCoreToolkit.Security
         /// Gets the Service-Scope for the current action or service call
         /// </summary>
         IServiceProvider Services { get; }
+
+        /// <summary>
+        /// Die Freigabe, in der der aktuelle Kontext laeuft, oder <b>null</b>, wenn keine laeuft (und
+        /// ebenso ausserhalb einer Anfrage - im Hintergrunddienst gibt es keine).
+        /// <para>
+        /// Bewusst als Default-Implementierung ueber <see cref="Services"/>: der Wert gehoert dem
+        /// <see cref="SharedAssets.ISharedAssetContext"/>, hier steht nur die bequeme Abkuerzung dorthin.
+        /// Damit muss keine der Implementierungen dieses Vertrags angefasst werden - und keine der
+        /// Attrappen in den Tests, die sonst reihenweise nicht mehr uebersetzen.
+        /// </para>
+        /// <para>
+        /// Ein Host ohne geteilte Assets hat den Dienst nicht registriert; dann ist die Antwort null,
+        /// ohne dass jemand etwas konfigurieren muesste.
+        /// </para>
+        /// </summary>
+        SharedAssets.AssetContext AssetContext
+            => (Services?.GetService(typeof(SharedAssets.ISharedAssetContext)) as SharedAssets.ISharedAssetContext)
+                ?.AssetContext;
     }
 }

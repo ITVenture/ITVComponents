@@ -58,6 +58,17 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         AssetInfo CurrentAsset { get; }
 
         /// <summary>
+        /// Die Auskunft an eine Seite: in welcher Freigabe laeuft das hier gerade? <b>Null, wenn keine
+        /// laeuft</b> - und ebenso, wenn der Abschnitt zu keiner (mehr) gueltigen Freigabe gehoert; wo
+        /// keine Rechte verliehen werden, laeuft auch nichts in einer Freigabe.
+        /// <para>
+        /// <b>Kostet einmal je Scope einen Zugriff auf die Ablage.</b> Wer nur wissen will, OB eine
+        /// Freigabe laeuft, fragt <see cref="HasAsset"/> - das beantwortet der Pfad allein.
+        /// </para>
+        /// </summary>
+        AssetContext AssetContext { get; }
+
+        /// <summary>
         /// Wie streng die Vorlage die Bestaetigung ihrer Argumente verlangt. <c>None</c>, wenn kein Asset
         /// laeuft oder die Vorlage keine Argumente fuehrt.
         /// </summary>

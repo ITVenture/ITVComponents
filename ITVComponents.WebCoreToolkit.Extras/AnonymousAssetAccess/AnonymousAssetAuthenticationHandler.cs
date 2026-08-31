@@ -57,6 +57,25 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
+            if (KnownVisitor() is { } visitor)
+            {
+                // Eine Freigabe verleiht Rechte - sie nimmt keine Identitaet weg. Dass ein Link ohne
+                // Anmeldung benutzt werden DARF, heisst nicht, dass es egal ist, wer ihn benutzt: wer
+                // angemeldet ist, bleibt er selbst, sonst steht im Protokoll "#ANONYMOUS#", obwohl der
+                // Server genau weiss, wer da war.
+                //
+                // An den Rechten aendert das nichts. Sie kommen aus AssetDrivenClaimsTransformation, und
+                // ein Benutzerfilter ##ANONYMOUS passt dort auf JEDEN angemeldeten Aufrufer - die
+                // Freigabe bleibt also auch fuer ihn das Gesetz. Wuerden wir hier stattdessen eine
+                // zweite Identitaet ausstellen, entschiede die Reihenfolge der Anmeldeschemata in der
+                // Policy, welcher der beiden Namen vorne steht: die haengt an der WebPart-Registrierung
+                // und ist damit nicht einmal verlaesslich dieselbe.
+                Logger.LogDebug(
+                    "An anonymous shared-asset link was opened by the signed-in user '{User}'; their identity is kept. The rights of the asset apply unchanged.",
+                    visitor);
+                return Task.FromResult(AuthenticateResult.NoResult());
+            }
+
             var existingAsset = getAnonymousAssetQuery.Execute(assetContext.AssetKey, assetContext.AccessToken,
                 out bool denied);
             if (existingAsset == null && !denied)
@@ -83,6 +102,20 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
 
             return Task.FromResult(AuthenticateResult.Fail("Invalid Asset Access-Token provided."));
         }
+
+        /// <summary>
+        /// Der Name des angemeldeten Besuchers, oder null, wenn wirklich niemand dahintersteht.
+        /// <para>
+        /// Gefragt wird ueber alle Identitaeten, nicht nur ueber die vorderste - und der anonyme
+        /// Freigabe-Besucher zaehlt nicht als Benutzer, damit ein zweiter Durchlauf dieses Handlers
+        /// nicht seine eigene Ausgabe fuer einen Angemeldeten haelt.
+        /// </para>
+        /// </summary>
+        private string KnownVisitor()
+            => Context.User?.Identities.FirstOrDefault(n => n.IsAuthenticated
+                                                            && !string.IsNullOrEmpty(n.Name)
+                                                            && !string.Equals(n.Name, Global.AnonymousAssetUserName,
+                                                                StringComparison.OrdinalIgnoreCase))?.Name;
 
         /// <summary>
         /// Erkennt den einen Verdrahtungsfehler, der sich sonst als "der Link tut einfach nichts" aeussert:

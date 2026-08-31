@@ -155,6 +155,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     retVal.AuditMode = asset.Template.AuditMode;
                     retVal.TemplateSystemKey = asset.Template.SystemKey;
                     retVal.RecipientLabel = asset.RecipientLabel;
+                    // Wie lange der Link noch traegt und ob er ohne Anmeldung benutzt werden darf, gehoert
+                    // zu dem, was auch der Empfaenger ueber seine Freigabe wissen darf - bisher stand es
+                    // nur am FullAssetInfo und damit nur dem Eigentuemer zur Verfuegung.
+                    retVal.NotBefore = asset.NotBefore;
+                    retVal.NotAfter = asset.NotAfter;
+                    retVal.IsAnonymous = asset.UserFilters.Any(n => n.LabelFilter == AnonymousTag);
                     return retVal;
                 }
 
@@ -176,6 +182,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     retVal.AuditMode = asset.Template.AuditMode;
                     retVal.TemplateSystemKey = asset.Template.SystemKey;
                     retVal.RecipientLabel = asset.RecipientLabel;
+                    retVal.NotBefore = asset.NotBefore;
+                    retVal.NotAfter = asset.NotAfter;
+                    retVal.IsAnonymous = asset.UserFilters.Any(n => n.LabelFilter == AnonymousTag);
                     // Ausdruecklich OHNE Permissions und Features: das sind die Rechte, die die Freigabe
                     // ihrem EMPFAENGER verleiht. Der Eigentuemer verwaltet sie, er benutzt sie hier nicht.
                     return retVal;
@@ -830,7 +839,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 AuditMode = assetTmp.AuditMode,
                 TemplateSystemKey = assetTmp.SystemKey,
                 TicketNonce = ticket.Nonce,
-                RecipientLabel = ticket.RecipientLabel
+                RecipientLabel = ticket.RecipientLabel,
+                NotBefore = ticket.NotBefore,
+                NotAfter = ticket.NotAfter,
+                // Ein Ticket traegt sein Geheimnis selbst und kennt keine Filter - es ist per Bauart
+                // ohne Anmeldung benutzbar.
+                IsAnonymous = true
             };
         }
 

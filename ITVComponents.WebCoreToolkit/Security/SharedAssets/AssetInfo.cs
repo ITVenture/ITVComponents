@@ -54,5 +54,27 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// An wen die Freigabe gerichtet ist.
         /// </summary>
         public string RecipientLabel { get; set; }
+
+        /// <summary>
+        /// Ob die Freigabe ohne Anmeldung benutzt werden darf (Benutzerfilter <c>##ANONYMOUS</c>). Bei
+        /// einem Ad-hoc-Ticket immer true - es traegt sein Geheimnis selbst.
+        /// <para>
+        /// Sagt nichts darueber, WER gerade zugreift: ein anonym geteilter Link kann sehr wohl von einem
+        /// angemeldeten Benutzer benutzt werden. Diese Unterscheidung steht in
+        /// <see cref="AssetContext.VisitorIsAnonymous"/>.
+        /// </para>
+        /// </summary>
+        public bool IsAnonymous { get; set; }
+
+        /// <summary>
+        /// Ab wann die Freigabe gilt, oder null. Frueher nur am <see cref="FullAssetInfo"/> und damit nur
+        /// fuer den Eigentuemer sichtbar - der Empfaenger darf wissen, wie lange sein Link noch traegt.
+        /// </summary>
+        public DateTime? NotBefore { get; set; }
+
+        /// <summary>
+        /// Bis wann die Freigabe gilt, oder null.
+        /// </summary>
+        public DateTime? NotAfter { get; set; }
     }
 }

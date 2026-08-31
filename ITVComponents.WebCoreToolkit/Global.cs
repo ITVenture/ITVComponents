@@ -59,6 +59,21 @@
         /// </summary>
         public const string SharedAssetTicketPayloadItemKey = "ITVComponents.WebCoreToolkit.SharedAssetTicketPayload";
 
+        /// <summary>
+        /// Der Name, unter dem ein <b>wirklich</b> anonymer Besucher einer Freigabe auftritt.
+        /// <para>
+        /// Steht hier und nicht im Anonymous-WebPart, weil beide Seiten ihn brauchen: das WebPart stellt
+        /// die Identitaet aus, der Kern beantwortet damit die Frage "Benutzer oder anonym". Zwei Kopien
+        /// waeren zwei Wahrheiten.
+        /// </para>
+        /// <para>
+        /// <b>Nicht zu verwechseln mit dem Filter-Platzhalter</b> <c>##ANONYMOUS</c> am Asset, der sagt,
+        /// dass anonym zugegriffen werden DARF. Zwei verschiedene Zeichenketten, zwei verschiedene
+        /// Aufgaben; sie werden nirgends miteinander verglichen.
+        /// </para>
+        /// </summary>
+        public const string AnonymousAssetUserName = "#ANONYMOUS#";
+
 
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 

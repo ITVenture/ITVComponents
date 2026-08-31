@@ -44,7 +44,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 TemplateSystemKey = asset.TemplateSystemKey,
                 TenantName = asset.UserScopeName,
                 RecipientLabel = asset.RecipientLabel,
-                AccessedBy = user?.Identity?.Name,
+                AccessedBy = AccessedBy(user),
                 RequestPath = requestPath,
                 ArgumentSummary = Summarize(asset),
                 Granted = granted,
@@ -52,6 +52,23 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 // sind zwei verschiedene Vorfaelle, und nur der zweite ist ein Alarmzeichen.
                 DenyReason = granted ? null : context.Denied ? "Denied" : "NotConfirmed"
             });
+        }
+
+        /// <summary>
+        /// Unter welchem Namen der Zugriff im Protokoll steht.
+        /// <para>
+        /// Ein benannter Besucher schlaegt den anonymen: dass eine Freigabe ohne Anmeldung benutzt werden
+        /// darf, heisst nicht, dass es egal ist, wer sie benutzt. Und die vorderste Identitaet ist hier
+        /// kein Beweis - welche das ist, entscheidet die Reihenfolge der Anmeldeschemata in der Policy.
+        /// </para>
+        /// </summary>
+        private static string AccessedBy(ClaimsPrincipal user)
+        {
+            var named = user?.Identities.FirstOrDefault(n => n.IsAuthenticated
+                                                            && !string.IsNullOrEmpty(n.Name)
+                                                            && !string.Equals(n.Name, Global.AnonymousAssetUserName,
+                                                                StringComparison.OrdinalIgnoreCase));
+            return named?.Name ?? user?.Identity?.Name;
         }
 
         private static string Summarize(AssetInfo asset)

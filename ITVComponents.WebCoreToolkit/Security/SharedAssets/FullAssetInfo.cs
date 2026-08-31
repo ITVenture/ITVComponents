@@ -8,9 +8,8 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 {
     public class FullAssetInfo:AssetInfo
     {
-        public DateTime? NotBefore { get; set; }
-
-        public DateTime? NotAfter { get; set; }
+        // NotBefore/NotAfter sind an die Basis gewandert: die Gueltigkeit ist keine Eigentuemer-Auskunft,
+        // sondern gehoert zu dem, was auch ein Empfaenger ueber seinen Link wissen darf.
 
         public string AnonymousAccessTokenRaw { get; set; }
 

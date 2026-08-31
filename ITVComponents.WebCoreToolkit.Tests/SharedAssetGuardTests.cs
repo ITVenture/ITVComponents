@@ -164,6 +164,71 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.IsFalse(ctx.MustHoldBack);
         }
 
+        [TestMethod]
+        public void Outside_A_Share_There_Is_No_Asset_Context()
+        {
+            Assert.IsNull(NewContext(asset: null).AssetContext, "null is the answer a page can act on");
+        }
+
+        [TestMethod]
+        public void The_Asset_Context_Answers_Where_The_Page_Stands()
+        {
+            var asset = Asset(AssetArgumentEnforcement.None);
+            asset.AssetRootPath = "/sales/order/4711";
+            asset.AssetTitle = "Auftrag 4711";
+            asset.TemplateSystemKey = "sales-order";
+            asset.IsAnonymous = true;
+            asset.NotAfter = new DateTime(2026, 12, 31);
+
+            var ctx = NewContext(asset, Visitor("peter"), "tok").AssetContext;
+
+            Assert.IsNotNull(ctx);
+            Assert.AreEqual("abc", ctx!.AssetKey);
+            Assert.AreEqual("/sales/order/4711", ctx.RootPath);
+            Assert.AreEqual("TenantA", ctx.TenantName);
+            Assert.AreEqual("sales-order", ctx.TemplateSystemKey);
+            Assert.AreEqual(new DateTime(2026, 12, 31), ctx.NotAfter);
+            Assert.IsFalse(ctx.IsAdHoc);
+            Assert.IsTrue(ctx.AllowsAnonymousAccess);
+            Assert.IsTrue(ctx.ViaAnonymousLink, "the link carries its own secret");
+        }
+
+        [TestMethod]
+        public void An_Anonymous_Link_Used_By_A_Signed_In_Visitor_Is_Not_Anonymous()
+        {
+            // Der Kern der Unterscheidung: dass ein Link OHNE Anmeldung benutzt werden darf, heisst nicht,
+            // dass es egal ist, wer ihn benutzt.
+            var asset = Asset(AssetArgumentEnforcement.None);
+            asset.IsAnonymous = true;
+
+            var named = NewContext(asset, Visitor("peter"), "tok").AssetContext;
+            var nobody = NewContext(asset, Visitor(Global.AnonymousAssetUserName), "tok").AssetContext;
+
+            Assert.IsFalse(named!.VisitorIsAnonymous);
+            Assert.IsTrue(nobody!.VisitorIsAnonymous);
+            Assert.IsTrue(named.AllowsAnonymousAccess, "the share is anonymous in both cases - only the visitor differs");
+            Assert.IsTrue(nobody.AllowsAnonymousAccess);
+        }
+
+        [TestMethod]
+        public void The_Log_Prefers_The_Named_Visitor_Over_The_Anonymous_Identity()
+        {
+            // Welche Identitaet vorne steht, entscheidet die Reihenfolge der Anmeldeschemata in der
+            // Policy - und die haengt an der WebPart-Registrierung. Das Protokoll darf davon nicht
+            // abhaengen.
+            var principal = new ClaimsPrincipal(new[]
+            {
+                new ClaimsIdentity(new[] { new Claim(System.Security.Claims.ClaimTypes.Name, Global.AnonymousAssetUserName) }, "asset"),
+                new ClaimsIdentity(new[] { new Claim(System.Security.Claims.ClaimTypes.Name, "peter") }, "cookie")
+            });
+            var log = new StubLog();
+
+            AssetAccessRecorder.Record(log, NewContext(Asset(AssetArgumentEnforcement.None)), principal,
+                "/sales/order/4711");
+
+            Assert.AreEqual("peter", log.Last?.AccessedBy);
+        }
+
         private static AssetInfo Asset(AssetArgumentEnforcement enforcement,
             params (string Name, string Value)[] values)
         {
@@ -187,18 +252,41 @@ namespace ITVComponents.WebCoreToolkit.Tests
         }
 
         private static SharedAssetContext NewContext(AssetInfo? asset, params IAssetArgumentResolver[] resolvers)
+            => NewContext(asset, null, null, resolvers);
+
+        private static SharedAssetContext NewContext(AssetInfo? asset, ClaimsPrincipal? visitor, string? accessToken,
+            params IAssetArgumentResolver[] resolvers)
         {
             var httpContext = new DefaultHttpContext();
             if (asset != null)
             {
                 httpContext.Items[Global.SharedAssetKeyItemKey] = asset.AssetKey;
-                httpContext.Items[Global.SharedAssetSegmentItemKey] = SharedAssetPath.BuildSegment(asset.AssetKey);
+                httpContext.Items[Global.SharedAssetSegmentItemKey] =
+                    SharedAssetPath.BuildSegment(asset.AssetKey, accessToken);
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    httpContext.Items[Global.SharedAssetTokenItemKey] = accessToken;
+                }
             }
 
             var services = new StubServices(asset, resolvers);
             return new SharedAssetContext(new HttpContextAccessor { HttpContext = httpContext },
-                new StubContextUser(services), Microsoft.Extensions.Options.Options.Create(new SharedAssetPathOptions()), services,
+                new StubContextUser(services, visitor), Microsoft.Extensions.Options.Options.Create(new SharedAssetPathOptions()), services,
                 NullLogger<SharedAssetContext>.Instance);
+        }
+
+        /// <summary>
+        /// Ein Besucher mit Namen - <c>#ANONYMOUS#</c> ist einer wie jeder andere, das ist ja gerade der
+        /// Punkt: unterscheiden kann man sie nur am Namen.
+        /// </summary>
+        private static ClaimsPrincipal Visitor(string name)
+            => new(new ClaimsIdentity(new[] { new Claim(System.Security.Claims.ClaimTypes.Name, name) }, "test"));
+
+        private sealed class StubLog : IAssetAccessLog
+        {
+            public AssetAccessEntry? Last { get; private set; }
+
+            public void Record(AssetAccessEntry entry) => Last = entry;
         }
 
         private sealed class StubResolver : IAssetArgumentResolver
@@ -293,8 +381,13 @@ namespace ITVComponents.WebCoreToolkit.Tests
 
         private sealed class StubContextUser : IContextUserProvider
         {
-            public StubContextUser(IServiceProvider services) => Services = services;
-            public ClaimsPrincipal User { get; } = new(new ClaimsIdentity("test"));
+            public StubContextUser(IServiceProvider services, ClaimsPrincipal? user = null)
+            {
+                Services = services;
+                User = user ?? new ClaimsPrincipal(new ClaimsIdentity("test"));
+            }
+
+            public ClaimsPrincipal User { get; }
             public IDictionary<string, object> RouteData { get; } = new Dictionary<string, object>();
             public string RequestPath => "/";
             public IServiceProvider Services { get; }
