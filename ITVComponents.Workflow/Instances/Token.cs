@@ -148,6 +148,26 @@ namespace ITVComponents.Workflow.Instances
         public DateTime? TaskDueUtc { get; set; }
 
         /// <summary>
+        /// Bei einer wartenden Benutzer-Aufgabe: die <b>beim Parken festgeschriebenen</b> Argumente ihrer
+        /// ValueHandle-Bindungen - je Eingabeparameter der Argument-Satz im typerhaltenden
+        /// Variablen-Format. Sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Beschreiben und Abschliessen sind zwei getrennte Aufloesungen (ein Griff ueberlebt das Parken
+        /// nicht). Damit dabei <b>derselbe</b> Datensatz gemeint ist, den der Mensch gesehen hat, werden
+        /// die Argumente einmal beim Parken ausgewertet und hier festgehalten - genauso, wie es
+        /// <see cref="AssignedTo"/> mit der Zustaendigkeit tut. Ohne das koennte ein anderer Zweig den
+        /// Variablen-Stand zwischen Anzeige und Abschluss veraendern, und die Aufgabe schriebe in einen
+        /// anderen Datensatz, als sie gezeigt hat.
+        /// <para>
+        /// Als Text und nicht als verschachteltes Dictionary: die Ablage liest <c>object</c>-Werte sonst
+        /// als <c>JsonElement</c> zurueck. Dieselbe Serialisierung wie beim Variablen-Stack, damit die
+        /// Typen ueberleben.
+        /// </para>
+        /// </remarks>
+        public Dictionary<string, string> TaskValueHandleArguments { get; set; }
+
+        /// <summary>
         /// Die Herkunft dieses Zweigs: die Id des (verbrauchten) Tokens, das den AND-Split ausgefuehrt hat,
         /// aus dem dieses Token hervorgegangen ist; null ausserhalb einer parallelen Region.
         /// </summary>
@@ -303,6 +323,7 @@ namespace ITVComponents.Workflow.Instances
             TaskTitle = source.TaskTitle;
             TaskCreatedUtc = source.TaskCreatedUtc;
             TaskDueUtc = source.TaskDueUtc;
+            TaskValueHandleArguments = CopyArguments(source.TaskValueHandleArguments);
         }
 
         /// <summary>Ein neues Token mit derselben <see cref="Id"/> und einer eigenen Kopie des Zustands.</summary>
@@ -347,7 +368,42 @@ namespace ITVComponents.Workflow.Instances
                    && a.TaskKey == b.TaskKey && a.TaskPermission == b.TaskPermission
                    && a.AssignedTo == b.AssignedTo && a.TaskTitle == b.TaskTitle
                    && Nullable.Equals(a.TaskCreatedUtc, b.TaskCreatedUtc)
-                   && Nullable.Equals(a.TaskDueUtc, b.TaskDueUtc);
+                   && Nullable.Equals(a.TaskDueUtc, b.TaskDueUtc)
+                   && SameArguments(a.TaskValueHandleArguments, b.TaskValueHandleArguments);
+        }
+
+        /// <summary>Eine flache Kopie der festgeschriebenen Handler-Argumente, oder null.</summary>
+        private static Dictionary<string, string> CopyArguments(Dictionary<string, string> arguments)
+            => arguments == null ? null : new Dictionary<string, string>(arguments, StringComparer.Ordinal);
+
+        /// <summary>Vergleicht zwei Saetze festgeschriebener Handler-Argumente.</summary>
+        private static bool SameArguments(Dictionary<string, string> a, Dictionary<string, string> b)
+        {
+            if (ReferenceEquals(a, b))
+            {
+                return true;
+            }
+
+            if (a == null || b == null)
+            {
+                return (a?.Count ?? 0) == (b?.Count ?? 0);
+            }
+
+            if (a.Count != b.Count)
+            {
+                return false;
+            }
+
+            foreach (KeyValuePair<string, string> pair in a)
+            {
+                if (!b.TryGetValue(pair.Key, out string other) || !string.Equals(pair.Value, other,
+                        StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>Eine flache Kopie eines Zweig-Scopes, oder null.</summary>

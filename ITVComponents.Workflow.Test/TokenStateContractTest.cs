@@ -104,6 +104,11 @@ namespace ITVComponents.Workflow.Test
                 return new Dictionary<string, object> { { "k", "v" } };
             }
 
+            if (type == typeof(Dictionary<string, string>))
+            {
+                return new Dictionary<string, string> { { "k", "v" } };
+            }
+
             Assert.Fail($"The contract test has no distinct value for type '{type.FullName}' " +
                         $"(property '{property.Name}'). Extend DistinctValue.");
             return null;
@@ -111,8 +116,13 @@ namespace ITVComponents.Workflow.Test
 
         /// <summary>Vergleichbare Form - der Zweig-Scope wird kopiert, ist also nicht referenzgleich.</summary>
         private static object Comparable(object value)
-            => value is Dictionary<string, object> map
-                ? string.Join(";", map.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))
-                : value;
+            => value switch
+            {
+                Dictionary<string, object> map =>
+                    string.Join(";", map.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}")),
+                Dictionary<string, string> text =>
+                    string.Join(";", text.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}")),
+                _ => value
+            };
     }
 }

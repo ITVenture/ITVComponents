@@ -31,6 +31,16 @@ namespace ITVComponents.Workflow.Expressions
             this.policy = policy;
         }
 
+        /// <summary>
+        /// Die Policy, unter der dieser Auswerter laeuft - nie null.
+        /// </summary>
+        /// <remarks>
+        /// Oeffentlich, weil sie nicht nur fuer Ausdruecke gilt: die Feld-Pfade der Aufgaben-Masken laufen
+        /// ueber denselben Member-Zugriff und muessen unter derselben Latte stehen. Sonst waere
+        /// <c>user.Password</c> als Ausdruck verboten und als Masken-Pfad erlaubt.
+        /// </remarks>
+        public ScriptingPolicy Policy => policy ?? ScriptingPolicy.Default;
+
         /// <inheritdoc/>
         public object Evaluate(string expression, IReadOnlyDictionary<string, object> variables)
             => Evaluate(expression, variables, ScriptMode.Expression);

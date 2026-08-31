@@ -1,8 +1,23 @@
 # Plan: ValueHandle — grosse und fremde Daten im Workflow, ohne sie zu tragen
 
-Status: **Entwurf**, Stand 2026-08-31, Zweig Future_10. Nichts davon ist gebaut.
+Status: **umgesetzt** (Phasen 1-6), Stand 2026-08-31, Zweig Future_10.
 Loest den frueheren Entwurf „externe Daten ueber einen ObjectProvider" ab (nie geschrieben, nur als
 Notiz gefuehrt) — die Begruendung steht in Abschnitt 1.
+
+> **Zwei Korrekturen am Entwurf, die beim Bauen fielen.** Sie stehen hier und nicht nur im Code, weil der
+> Plan sonst falsch bliebe:
+>
+> 1. **`:2427` ist nicht die Aktivitaet, sondern `SendMessage`** — und dessen Payload wird kopiert, in
+>    der Outbox abgelegt und beim Empfaenger zu dessen Variablen. Die Stelle ist damit **verboten**, nicht
+>    erlaubt: es sind **vier** verbotene Wege, nicht drei. Die Aktivitaet ist `:3968` (`RunActivity`).
+> 2. **Das erste Pfad-Segment darf nicht ueber den Member-Zugriff laufen.** Der Payload ist ein
+>    `Dictionary<string,object>`; `MemberAccessor` faende dort zuerst ein gleichnamiges *Member*, und ein
+>    Parameter namens `Count` oder `Keys` liefe still auf die Zahl der Eintraege. Der Payload-Schluessel
+>    wird deshalb direkt nachgeschlagen, erst der Rest ist Pfad.
+>
+> Und eine Behauptung, die nicht stimmte: der Lesepfad packt **kein** `SmartProperty` aus (§3.4). Das
+> steckt im `Scope`, nicht im Member-Zugriff; die echte `ExtendedFormatting`-Abhaengigkeit des Helpers ist
+> `IBasicKeyValueProvider` — die ist mitgewandert.
 
 ## 1. Ausgangslage
 
@@ -336,16 +351,20 @@ Parametertyp deklariert ist.
 
 ## 10. Phasen
 
-| # | Inhalt | Abschluss |
+| # | Inhalt | Stand |
 |---|---|---|
-| 1 | Member-Zugriff auslagern (`MemberSlot`, `MemberAccessor`, `MemberPath`, Guard, Source); CScript delegiert | CScript-Test-Suite gruen, keine Verhaltensaenderung |
-| 2 | Bindungsart, `IWorkflowValueHandler`, `ValueHandle`, Aufloesung in `ResolveInputs`, Automated-Weg | Tests fuer Handle/Value, WriteBack, Fehlerfaelle |
-| 3 | Die Riegel: Validator (4 Stellen), Laufzeit, Serialisierung, parallele Regionen | Tests je Riegel |
-| 4 | Benutzer-Aufgabe: Pfade in `PayloadName`, `WriteBackParameters`, Zeitpunkt + Einmal-Riegel | Tests inkl. Konflikt-Wiederlauf und Schreibfehler |
-| 5 | Designer: Bindungs-Dialog (Handler, Argumente, Delivery, WriteBack), Feld-Dialog (Pfad), Knoten-Editor (Write-Back-Liste) | — |
-| 6 | History-Spur, Doku (Integration-Guide + Leitfaden) | — |
+| 1 | Member-Zugriff auslagern (`MemberSlot`, `MemberAccessor`, `MemberPath`, Guard, Source); CScript delegiert | **fertig** — CScript-Suite gruen, keine Verhaltensaenderung |
+| 2 | Bindungsart, `IWorkflowValueHandler`, `ValueHandle`, Aufloesung in `ResolveInputs`, Automated-Weg | **fertig** — inkl. Plugin-Host und WebCoreToolkit-Host |
+| 3 | Die Riegel: Validator, Laufzeit, Serialisierung, parallele Regionen | **fertig** — Tests je Riegel |
+| 4 | Benutzer-Aufgabe: Pfade in `PayloadName`, `WriteBackParameters`, Zeitpunkt + Einmal-Riegel | **fertig** |
+| 5 | Designer: Bindungs-Dialog (Handler, Argumente, Delivery, WriteBack), Feld-Dialog (Pfad), Knoten-Editor (Write-Back-Liste) | **fertig** |
+| 6 | History-Spur, Doku (Integration-Guide §25) | **fertig** |
 
 Phase 1 steht fuer sich und ist auch dann ein Gewinn, wenn der Rest liegen bleibt.
+
+**Nicht gebaut, bewusst:** die Validator-Warnung „`Value` + `WriteBack` bei Werttypen" (9.4). Sie ist nur
+dort erkennbar, wo der Parametertyp deklariert ist — der Validator kennt den Aktivitaets-Katalog nicht.
+Sie gehoert in den Designer, der ihn hat.
 
 ## 11. Geklaerte Randfragen
 

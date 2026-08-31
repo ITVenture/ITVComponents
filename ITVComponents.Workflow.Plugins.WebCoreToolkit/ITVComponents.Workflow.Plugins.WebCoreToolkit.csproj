@@ -11,5 +11,9 @@
     <ProjectReference Include="..\ITVComponents.Workflow.Plugins\ITVComponents.Workflow.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
+    <!-- Fuer den mitgelieferten Benutzer-Handler: IToolkitContextFactory (der Blazor-sichere
+         Kontext-Leihweg). Zieht EF Core in dieses Paket - bewusst, statt fuer zwei Klassen ein
+         eigenes Paket aufzumachen. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
   </ItemGroup>
 </Project>

@@ -73,7 +73,32 @@
                                   InputsTitle="Form inputs (payload)" OutputsTitle="Form outputs"
                                   AddInputLabel="Add payload value" AddOutputLabel="Add output"
                                   InputNameHeader="Payload name" InputNameLabel="Payload name"
-                                  OutputSourceLabel="Field / result" OutputTargetLabel="Variable" />
+                                  OutputSourceLabel="Field / result" OutputTargetLabel="Variable"
+                                  AllowValueHandle="true" HandleDeliveryUsable="false" />
+
+            @* Was zurueckgeschrieben wird, steht nur EINMAL da: hier stehen die Parameter, wohin im
+               Datensatz sagt der Feld-Pfad - und der ist zugleich das Lese-Ziel. *@
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Write back to the value handler</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Which payload values go back to their handler when the task is completed. <b>Where</b> in the
+                record they go is the field path itself (see the form fields) — so what the mask shows is what
+                it writes back, and there is no second mapping table to keep in step. Written once, inside the
+                completion, after all checks.
+            </MudText>
+            @foreach (string parameter in HandleParameters())
+            {
+                <MudSwitch T="bool" Color="Color.Primary"
+                           Value="@Node.WriteBackParameters.Contains(parameter)"
+                           ValueChanged="@(v => SetWriteBack(parameter, v))"
+                           Label="@parameter" />
+            }
+            @if (!HandleParameters().Any())
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    No payload value comes from a value handler yet — nothing to write back.
+                </MudText>
+            }
+
             <ScopeModeSection Mode="Node.ScopeMode" ModeChanged="@(m => Node.ScopeMode = m)"
                               RetainVariables="Node.RetainVariables"
                               SwitchLabel="Consolidate scope (replace)"
@@ -162,6 +187,37 @@
 
     private const string CultureHint =
         "Plain text, or a per-culture record like {\"de\":\"Freigabe\",\"fr\":\"Approbation\"} — the same convention as navigation entries.";
+
+    /// <summary>Die Payload-Parameter, die von einem Wert-Handler kommen - nur die koennen zurueck.</summary>
+    private IEnumerable<string> HandleParameters()
+        => Node?.Inputs?
+               .Where(b => b is { Kind: ParameterBindingKind.ValueHandle }
+                           && !string.IsNullOrWhiteSpace(b.Parameter))
+               .Select(b => b.Parameter!)
+               .Distinct()
+           ?? Enumerable.Empty<string>();
+
+    /// <summary>Nimmt einen Parameter in die Rueckschreib-Liste auf oder wieder heraus.</summary>
+    private void SetWriteBack(string parameter, bool writeBack)
+    {
+        if (Node is null)
+        {
+            return;
+        }
+
+        Node.WriteBackParameters ??= new List<string>();
+        if (writeBack)
+        {
+            if (!Node.WriteBackParameters.Contains(parameter))
+            {
+                Node.WriteBackParameters.Add(parameter);
+            }
+        }
+        else
+        {
+            Node.WriteBackParameters.Remove(parameter);
+        }
+    }
 
     private CScriptField? assignField;
     private CScriptField? titleJsonField;

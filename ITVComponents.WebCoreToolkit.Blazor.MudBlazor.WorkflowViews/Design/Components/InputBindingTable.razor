@@ -58,6 +58,16 @@
     /// <summary>Beschriftung des Namensfelds im Popup.</summary>
     [Parameter] public string NameLabel { get; set; } = "Parameter / name";
 
+    /// <summary>
+    /// Darf eine Bindung dieser Tabelle ihren Wert von einem Wert-Handler beziehen? Nur dort, wo das
+    /// Ergebnis den Schritt nicht ueberlebt - nicht bei Start-Signatur, Subworkflow-Aufruf,
+    /// Nachrichten-Payload und Kanten-Mapping.
+    /// </summary>
+    [Parameter] public bool AllowValueHandle { get; set; }
+
+    /// <summary>Bewirkt die Zustellart „Griff" hier etwas? Bei einer Aufgaben-Maske nicht.</summary>
+    [Parameter] public bool HandleDeliveryUsable { get; set; } = true;
+
     private async Task Add()
     {
         var fresh = new ActivityInputBinding { Kind = ParameterBindingKind.Literal };
@@ -66,7 +76,9 @@
             { nameof(BindingEditDialog.Binding), fresh },
             { nameof(BindingEditDialog.IsNew), true },
             { nameof(BindingEditDialog.NameLabel), NameLabel },
-            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions }
+            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions },
+            { nameof(BindingEditDialog.AllowValueHandle), AllowValueHandle },
+            { nameof(BindingEditDialog.HandleDeliveryUsable), HandleDeliveryUsable }
         };
         DialogResult? result = await ShowDialog(parameters);
         if (result?.Data is BindingEditDialog.Result r && !r.Delete
@@ -89,7 +101,9 @@
             { nameof(BindingEditDialog.Binding), Clone(binding) },
             { nameof(BindingEditDialog.IsNew), false },
             { nameof(BindingEditDialog.NameLabel), NameLabel },
-            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions }
+            { nameof(BindingEditDialog.ParameterOptions), ParameterOptions },
+            { nameof(BindingEditDialog.AllowValueHandle), AllowValueHandle },
+            { nameof(BindingEditDialog.HandleDeliveryUsable), HandleDeliveryUsable }
         };
         DialogResult? result = await ShowDialog(parameters);
         if (result?.Data is not BindingEditDialog.Result r)
@@ -114,15 +128,36 @@
         return await dialog.Result;
     }
 
+    // Jedes Feld der Bindung gehoert hierher: was hier fehlt, ist nach einem "Edit" still weg. Die
+    // Argumente werden mitkopiert und nicht geteilt - sonst bearbeitete der abgebrochene Dialog das
+    // Original mit.
     private static ActivityInputBinding Clone(ActivityInputBinding b)
-        => new() { Parameter = b.Parameter, Kind = b.Kind, Literal = b.Literal, Source = b.Source };
+        => new()
+        {
+            Parameter = b.Parameter, Kind = b.Kind, Literal = b.Literal, Source = b.Source,
+            SourceMode = b.SourceMode, HandlerName = b.HandlerName, Delivery = b.Delivery,
+            WriteBack = b.WriteBack, AllowInParallelRegion = b.AllowInParallelRegion,
+            HandlerArguments = b.HandlerArguments?.Select(Clone).ToList()
+        };
 
     private static string ValueSummary(ActivityInputBinding b) => b.Kind switch
     {
         ParameterBindingKind.Variable => "$" + (b.Source ?? string.Empty),
         ParameterBindingKind.Expression => "ƒ " + (b.Source ?? string.Empty),
+        ParameterBindingKind.ValueHandle => HandleSummary(b),
         _ => ToStr(b.Literal)
     };
+
+    /// <summary>Handler, Argumente und - falls zurueckgeschrieben wird - ein Pfeil dafuer.</summary>
+    private static string HandleSummary(ActivityInputBinding b)
+    {
+        string arguments = string.Join(", ",
+            (b.HandlerArguments ?? new List<ActivityInputBinding>()).Select(a => a?.Parameter ?? "?"));
+        string back = b.Delivery == ValueDelivery.Value && b.WriteBack == ValueWriteBackMode.OnSuccess
+            ? " ⇄"
+            : string.Empty;
+        return $"{b.HandlerName ?? "?"}({arguments}){back}";
+    }
 
     private static string ToStr(object? value) => value switch
     {

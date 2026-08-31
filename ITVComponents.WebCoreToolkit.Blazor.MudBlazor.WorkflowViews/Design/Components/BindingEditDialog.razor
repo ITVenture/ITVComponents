@@ -2,12 +2,17 @@
 @using ITVComponents.Workflow.Model
 
 @*
-    Bearbeitet EINE Eingabe-Bindung (Konstante / Variable / CScript-Ausdruck) in einem eigenen Popup.
-    Löst die enge Inline-Zeile ab: gerade ein Ausdruck braucht Platz, deshalb ist der Dialog
-    maximierbar und der Monaco-Editor gross. Der Dialog arbeitet auf der übergebenen Bindung (der
+    Bearbeitet EINE Eingabe-Bindung (Konstante / Variable / CScript-Ausdruck / Wert-Handler) in einem
+    eigenen Popup. Löst die enge Inline-Zeile ab: gerade ein Ausdruck braucht Platz, deshalb ist der
+    Dialog maximierbar und der Monaco-Editor gross. Der Dialog arbeitet auf der übergebenen Bindung (der
     Aufrufer reicht für „Add" eine frische, für „Edit" eine Kopie herein) und gibt sie über das
     Result zurück; bei <see cref="Result.Delete"/> soll der Aufrufer die Bindung entfernen.
     Von Automated-/User-/CallWorkflow-Editor gemeinsam genutzt.
+
+    Der Wert-Handler steht NICHT überall zur Wahl: sein Griff hält ein lebendes Objekt und überlebt den
+    Schritt nicht. Wo eine Bindung etwas Persistiertes füllt (Start-Signatur, Subworkflow-Aufruf,
+    Nachrichten-Payload, Kanten-Mapping), lässt der Aufrufer AllowValueHandle aus - dieselbe Regel, die
+    der Validator prüft, nur früher.
 *@
 
 <MudDialog>
@@ -35,6 +40,10 @@
             <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
             <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
             <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+            @if (AllowValueHandle)
+            {
+                <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.ValueHandle">Value handler</MudSelectItem>
+            }
         </MudSelect>
 
         @switch (Binding.Kind)
@@ -50,6 +59,106 @@
                 <MudTextField T="string" Value="@(Binding.Source ?? string.Empty)"
                               ValueChanged="@(v => Binding.Source = string.IsNullOrEmpty(v) ? null : v)"
                               Label="Variable name" Margin="Margin.Dense" Class="mt-2" />
+                break;
+            case ParameterBindingKind.ValueHandle:
+                <MudTextField T="string" Value="@(Binding.HandlerName ?? string.Empty)"
+                              ValueChanged="@(v => Binding.HandlerName = string.IsNullOrWhiteSpace(v) ? null : v)"
+                              Label="Value handler" Margin="Margin.Dense" Class="mt-2" />
+                <MudText Typo="Typo.caption">
+                    The configured plugin name. It is resolved among the executing tenant's plugins - in a
+                    public definition the same name can therefore mean a different handler per tenant.
+                </MudText>
+
+                @if (HandleDeliveryUsable)
+                {
+                    <MudSelect T="ValueDelivery" Value="@Binding.Delivery" ValueChanged="OnDeliveryChanged"
+                               Label="The step receives" Dense="true" Margin="Margin.Dense" Class="mt-3">
+                        <MudSelectItem T="ValueDelivery" Value="ValueDelivery.Handle">The handle - it reads, changes and writes back itself</MudSelectItem>
+                        <MudSelectItem T="ValueDelivery" Value="ValueDelivery.Value">The value - the step need not know about any of this</MudSelectItem>
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Class="mt-3">
+                        A task always receives the value: the mask never sees the handle, so its field paths
+                        address the real record.
+                    </MudText>
+                }
+
+                @if (Binding.Delivery == ValueDelivery.Value)
+                {
+                    <MudSelect T="ValueWriteBackMode" Value="@Binding.WriteBack"
+                               ValueChanged="@(m => Binding.WriteBack = m)"
+                               Label="Write back" Dense="true" Margin="Margin.Dense" Class="mt-2">
+                        <MudSelectItem T="ValueWriteBackMode" Value="ValueWriteBackMode.Never">Never - this is only fetching</MudSelectItem>
+                        <MudSelectItem T="ValueWriteBackMode" Value="ValueWriteBackMode.OnSuccess">After a successful run</MudSelectItem>
+                    </MudSelect>
+                    <MudText Typo="Typo.caption">
+                        Only worth it for records (reference types): the step changes the very object that
+                        will be written. A number or a text would be changed in a copy, and nothing of it
+                        would arrive.
+                    </MudText>
+                }
+
+                <MudSwitch T="bool" Value="@Binding.AllowInParallelRegion"
+                           ValueChanged="@(v => Binding.AllowInParallelRegion = v)"
+                           Label="Allow inside a parallel region" Color="Color.Warning" Class="mt-3" />
+                <MudText Typo="Typo.caption">
+                    Two branches writing the same record let the last one win, and the branch commit does
+                    not see it - it compares values from the variable blob, and there is nothing there for
+                    this kind of binding. Only switch this on if the handler carries version stamps.
+                </MudText>
+
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Arguments</MudText>
+                <MudText Typo="Typo.caption">
+                    At least one - they are what tells the handler which record is meant. They use the same
+                    sources as any other binding, but they can not themselves be a value handler.
+                </MudText>
+
+                @foreach (ActivityInputBinding argument in Arguments)
+                {
+                    <MudPaper Outlined="true" Class="pa-2 mt-2">
+                        <MudGrid Spacing="1">
+                            <MudItem xs="12" sm="4">
+                                <MudTextField T="string" Value="@(argument.Parameter ?? string.Empty)"
+                                              ValueChanged="@(v => argument.Parameter = v)"
+                                              Label="Name" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudSelect T="ParameterBindingKind" Value="@argument.Kind"
+                                           ValueChanged="@(k => ChangeArgumentKind(argument, k))"
+                                           Label="Source" Dense="true" Margin="Margin.Dense">
+                                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Literal">Constant</MudSelectItem>
+                                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Variable">Variable</MudSelectItem>
+                                    <MudSelectItem T="ParameterBindingKind" Value="ParameterBindingKind.Expression">Expression</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="10" sm="4">
+                                @if (argument.Kind == ParameterBindingKind.Literal)
+                                {
+                                    <MudTextField T="string" Value="@ToStr(argument.Literal)"
+                                                  ValueChanged="@(v => argument.Literal = string.IsNullOrEmpty(v) ? null : v)"
+                                                  Label="Value" Margin="Margin.Dense" />
+                                }
+                                else
+                                {
+                                    <MudTextField T="string" Value="@(argument.Source ?? string.Empty)"
+                                                  ValueChanged="@(v => argument.Source = string.IsNullOrEmpty(v) ? null : v)"
+                                                  Label="@(argument.Kind == ParameterBindingKind.Variable ? "Variable name" : "Expression")"
+                                                  Margin="Margin.Dense" />
+                                }
+                            </MudItem>
+                            <MudItem xs="2" sm="1" Class="d-flex align-center justify-end">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => Arguments.Remove(argument))" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Outlined"
+                           Color="Color.Primary" Class="mt-2" OnClick="AddArgument">Add argument</MudButton>
                 break;
             default:
                 <MudTextField T="string" Value="@LiteralString"
@@ -88,9 +197,27 @@
     /// <summary>Optionale Auswahlliste deklarierter Parameternamen (aus dem Activity-Katalog).</summary>
     [Parameter] public IReadOnlyList<string>? ParameterOptions { get; set; }
 
+    /// <summary>
+    /// Darf diese Bindung ihren Wert von einem Wert-Handler beziehen? Nur dort, wo das Ergebnis den
+    /// Schritt NICHT überlebt (Aktivität, Aufgaben-Maske).
+    /// </summary>
+    [Parameter] public bool AllowValueHandle { get; set; }
+
+    /// <summary>
+    /// Bewirkt die Zustellart „Griff" hier überhaupt etwas? Bei einer Aufgabe nicht - deren Maske
+    /// bekommt immer den ausgepackten Wert.
+    /// </summary>
+    [Parameter] public bool HandleDeliveryUsable { get; set; } = true;
+
     private CScriptField? exprField;
 
-    private string LiteralString => Binding.Literal switch
+    /// <summary>Die Argumente der Handler-Bindung - nie null, damit die Liste bearbeitbar ist.</summary>
+    private List<ActivityInputBinding> Arguments
+        => Binding.HandlerArguments ??= new List<ActivityInputBinding>();
+
+    private string LiteralString => ToStr(Binding.Literal);
+
+    private static string ToStr(object? value) => value switch
     {
         null => string.Empty,
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
@@ -111,7 +238,56 @@
         Binding.Kind = kind;
         Binding.Literal = null;
         Binding.Source = null;
+
+        if (kind == ParameterBindingKind.ValueHandle)
+        {
+            // Ohne Argument wüsste der Handler nicht, welchen Datensatz er liefern soll - deshalb steht
+            // gleich eine leere Zeile da, statt dass der Validator es später anmahnt.
+            if (Arguments.Count == 0)
+            {
+                AddArgument();
+            }
+
+            if (!HandleDeliveryUsable)
+            {
+                Binding.Delivery = ValueDelivery.Value;
+            }
+        }
+        else
+        {
+            Binding.HandlerName = null;
+            Binding.HandlerArguments = null;
+            Binding.Delivery = ValueDelivery.Handle;
+            Binding.WriteBack = ValueWriteBackMode.Never;
+            Binding.AllowInParallelRegion = false;
+        }
     }
+
+    private void OnDeliveryChanged(ValueDelivery delivery)
+    {
+        Binding.Delivery = delivery;
+        if (delivery == ValueDelivery.Handle)
+        {
+            // Beim Griff entscheidet die Aktivität selbst, was und wann sie schreibt - die Engine tut es
+            // dann nicht auch noch.
+            Binding.WriteBack = ValueWriteBackMode.Never;
+        }
+    }
+
+    private void ChangeArgumentKind(ActivityInputBinding argument, ParameterBindingKind kind)
+    {
+        if (argument.Kind == kind)
+        {
+            return;
+        }
+
+        argument.Kind = kind;
+        argument.Literal = null;
+        argument.Source = null;
+    }
+
+    private void AddArgument()
+        => Arguments.Add(new ActivityInputBinding { Kind = ParameterBindingKind.Literal });
 
     private async Task Done()
     {

@@ -7,6 +7,7 @@ using ITVComponents.Json;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
+using ITVComponents.Workflow.ValueHandles;
 
 namespace ITVComponents.Workflow.Serialization
 {
@@ -87,6 +88,7 @@ namespace ITVComponents.Workflow.Serialization
         /// </summary>
         public static string SerializeVariables(IDictionary<string, object> variables)
         {
+            GuardAgainstValueHandles(variables);
             var bag = new WorkflowVariableBag
             {
                 Values = variables == null
@@ -94,6 +96,41 @@ namespace ITVComponents.Workflow.Serialization
                     : new Dictionary<string, object>(variables, StringComparer.Ordinal)
             };
             return JsonHelper.ToJson<IManualSerializer>(bag, SerializationTypingMode.AssistedPolymorphism);
+        }
+
+        /// <summary>
+        /// Der <b>letzte</b> der drei Riegel gegen einen Griff im Variablen-Stack (die anderen beiden
+        /// sind der Validator zur Entwurfszeit und das Ziel-Flag in <c>ResolveInputs</c>).
+        /// </summary>
+        /// <remarks>
+        /// Faultend und nicht als Log-Zeile: ein persistierter <see cref="ValueHandle"/> waere nach dem
+        /// naechsten Neustart ein toter Verweis, und die naechsten Schritte arbeiteten damit weiter -
+        /// dass er tot ist, liesse sich dann nicht mehr rekonstruieren.
+        /// <para>
+        /// Bewusst nur eine Ebene tief: der Weg, auf dem ein Griff realistisch hierher kaeme, ist eine
+        /// Bindung, deren Ergebnis direkt in eine Variable geht. Ein rekursiver Durchlauf durch jeden
+        /// Wert bei jedem Commit waere ein hoher Preis fuer einen Fall, den es nicht gibt.
+        /// </para>
+        /// </remarks>
+        /// <param name="variables">der Variablen-Stack, der abgelegt werden soll</param>
+        private static void GuardAgainstValueHandles(IDictionary<string, object> variables)
+        {
+            if (variables == null)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<string, object> pair in variables)
+            {
+                if (pair.Value is ValueHandle handle)
+                {
+                    throw new InvalidOperationException(
+                        $"Variable '{pair.Key}' holds a value handle ({handle.Request}). A handle is a live " +
+                        "object with a plugin scope behind it - storing it would persist a reference that " +
+                        "is dead after the next restart. The validator and the runtime should have caught " +
+                        "this earlier; this is the last lock.");
+                }
+            }
         }
 
         /// <summary>

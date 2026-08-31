@@ -831,6 +831,24 @@ namespace ITVComponents.Workflow.Model
         public List<ActivityOutputBinding> Outputs { get; set; } = new List<ActivityOutputBinding>();
 
         /// <summary>
+        /// Datenfluss <b>zurueck in fremde Daten</b>: welche <see cref="Inputs"/> mit
+        /// <see cref="ParameterBindingKind.ValueHandle"/> nach dem Abschluss ueber ihren Handler
+        /// zurueckgeschrieben werden. Leer = keiner.
+        /// </summary>
+        /// <remarks>
+        /// <b>Was geschrieben wird, steht nur einmal da:</b> hier steht, welche Parameter ueberhaupt
+        /// zurueckgehen - <i>wohin</i> im Datensatz sagt der Feld-Pfad
+        /// (<see cref="UserTaskField.PayloadName"/>), und der ist zugleich das Lese-Ziel. Damit ist „was
+        /// ich sehe, schreibe ich zurueck" strukturell wahr statt Pflegedisziplin; eine zweite
+        /// Mapping-Tabelle gibt es bewusst nicht.
+        /// <para>
+        /// Geschrieben wird <b>im Commit-Delegaten</b> des Abschlusses, nach allen Gueltigkeitspruefungen
+        /// und genau einmal - auch wenn der Delegat wegen eines Versionskonflikts erneut laeuft.
+        /// </para>
+        /// </remarks>
+        public List<string> WriteBackParameters { get; set; } = new List<string>();
+
+        /// <summary>
         /// Wie das Ergebnis in den Scope einfliesst. Standard <see cref="ActivityScopeMode.Extend"/>
         /// (additiv), <see cref="ActivityScopeMode.Replace"/> konsolidiert wie bei der Aktivitaet.
         /// </summary>

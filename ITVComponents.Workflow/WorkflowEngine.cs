@@ -10,7 +10,10 @@ using System.Threading.Tasks;
 using ITVComponents.Formatting;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.MemberAccess;
 using ITVComponents.Scheduling;
+using ITVComponents.Scripting.CScript.Security;
+using ITVComponents.TypeConversion;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Expressions;
 using ITVComponents.Workflow.Instances;
@@ -18,6 +21,7 @@ using ITVComponents.Workflow.Model;
 using ITVComponents.Workflow.Runtime;
 using ITVComponents.Workflow.Serialization;
 using ITVComponents.Workflow.Stores;
+using ITVComponents.Workflow.ValueHandles;
 
 namespace ITVComponents.Workflow
 {
@@ -46,6 +50,7 @@ namespace ITVComponents.Workflow
         private readonly IActivityHost activities;
         private readonly IExpressionEvaluator evaluator;
         private readonly HashSet<string> hostTargets;
+        private readonly IValueHandlerHost valueHandlers;
 
         /// <summary>
         /// Initialisiert die Engine.
@@ -73,12 +78,19 @@ namespace ITVComponents.Workflow
         /// <see cref="WorkflowDefinition.RequiredFeature"/>). Null = <see cref="AlwaysEnabledFeatureGate"/>,
         /// also das Verhalten vor Einfuehrung der Bedingung.
         /// </param>
+        /// <param name="valueHandlers">
+        /// Vergibt die Aufloesungs-Kontexte fuer <see cref="ParameterBindingKind.ValueHandle"/>-Bindungen
+        /// (siehe <see cref="IValueHandlerHost"/>). Null = diese Engine kennt keine Wert-Handler; eine
+        /// Definition, die einen benutzt, faultet mit klarer Meldung, statt still ohne Wert zu laufen.
+        /// </param>
         public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
             IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null,
-            IWorkflowHistoryFilter historyFilter = null, IWorkflowTenantFeatureGate featureGate = null)
+            IWorkflowHistoryFilter historyFilter = null, IWorkflowTenantFeatureGate featureGate = null,
+            IValueHandlerHost valueHandlers = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
+            this.valueHandlers = valueHandlers;
             this.evaluator = evaluator ?? new CScriptExpressionEvaluator();
             this.hostTargets = new HashSet<string>(
                 hostTargets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
@@ -2922,8 +2934,26 @@ namespace ITVComponents.Workflow
                 }
             }
 
+            // Die Argumente der ValueHandle-Bindungen werden JETZT ausgewertet und am Token
+            // festgeschrieben - aus demselben Grund wie die Zustaendigkeit: beim Abschluss soll derselbe
+            // Datensatz gemeint sein, den der Mensch gesehen hat. Ein Fehler ist auch hier ein Fault: eine
+            // Aufgabe, deren Datensatz sich nicht bestimmen laesst, ist nicht bearbeitbar.
+            Dictionary<string, string> frozenArguments;
+            try
+            {
+                frozenArguments = FreezeValueHandleArguments(instance, scope, node);
+            }
+            catch (Exception ex)
+            {
+                Fault(instance,
+                    $"Value handler arguments of user task '{node.Id}' could not be resolved: " +
+                    $"{ex.OutlineException()}", node.Id);
+                return false;
+            }
+
             ClearWait(token);
             token.Status = TokenStatus.Waiting;
+            token.TaskValueHandleArguments = frozenArguments;
             token.TaskKey = node.TaskKey;
             // Leer wird zu null normalisiert - sonst waere "" eine Permission, die NIEMAND hat, und die
             // Aufgabe verschwaende aus jeder Arbeitsliste, obwohl der Knoten "keine Permission noetig"
@@ -3627,6 +3657,7 @@ namespace ITVComponents.Workflow
             token.TaskTitle = null;
             token.TaskCreatedUtc = null;
             token.TaskDueUtc = null;
+            token.TaskValueHandleArguments = null;
         }
 
         /// <summary>
@@ -3658,74 +3689,111 @@ namespace ITVComponents.Workflow
 
             UserTaskCompletionStatus outcome = UserTaskCompletionStatus.NotFound;
             bool endsAssistant = false;
-            IReadOnlyList<string> activated = ReactivateAndCommit(instanceId, "CompleteUserTask",
-                (fresh, definition) =>
+
+            // Der Einmal-Riegel. Die Aufloesungsrunde und dieses Flag leben AUSSERHALB des Delegaten -
+            // der kann bei einem Versionskonflikt erneut laufen, und ohne den Riegel ginge derselbe
+            // Datensatz zwei- oder dreimal raus.
+            ValueHandleSession handles = null;
+            bool valueHandlesWritten = false;
+
+            try
+            {
+                IReadOnlyList<string> activated = ReactivateAndCommit(instanceId, "CompleteUserTask",
+                    (fresh, definition) =>
+                    {
+                        // Der Delegat kann bei einem Versionskonflikt erneut laufen - der Ausgang wird deshalb
+                        // je Versuch neu bestimmt, nicht akkumuliert.
+                        outcome = UserTaskCompletionStatus.NotFound;
+                        endsAssistant = false;
+
+                        // Auch der Klick auf "Erledigen" ist ein Ereignis, das einen Wartepunkt weiterschiebt -
+                        // und ein stehender Vorgang liefe danach still weiter. Eigener Ausgang statt NotFound:
+                        // die Aufgabe gibt es noch, und nach einem Retry laesst sie sich auch erledigen.
+                        if (!MayResumeOnEvent(fresh, "CompleteUserTask"))
+                        {
+                            outcome = UserTaskCompletionStatus.InstanceNotResumable;
+                            return new List<string>();
+                        }
+
+                        Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
+                        if (token == null)
+                        {
+                            LogEnvironment.LogEvent(
+                                $"CompleteUserTask: token '{tokenId}' does not exist in instance '{instanceId}'.",
+                                LogSeverity.Warning);
+                            return new List<string>();
+                        }
+
+                        if (token.Status != TokenStatus.Waiting || token.TaskKey == null)
+                        {
+                            // Der Normalfall des Rennens: ein anderer war schneller. Kein Fehler, aber der
+                            // Aufrufer muss es unterscheiden koennen.
+                            outcome = UserTaskCompletionStatus.AlreadyCompleted;
+                            return new List<string>();
+                        }
+
+                        if (definition.GetNode(token.NodeId) is not UserActivityNode node)
+                        {
+                            LogEnvironment.LogEvent(
+                                $"CompleteUserTask: token '{tokenId}' of instance '{instanceId}' stands on node " +
+                                $"'{token.NodeId}', which is not a user task.", LogSeverity.Error);
+                            return new List<string>();
+                        }
+
+                        // JETZT - nach allen Gueltigkeitspruefungen und vor den Ausgaben. Frueher ginge nicht:
+                        // saemtliche Pruefungen liegen INNERHALB dieses Delegaten, ausserhalb weiss niemand,
+                        // ob die Aufgabe noch existiert (ein unterbrechender Fristen-Timer kann das Token
+                        // laengst auf den Eskalationspfad geschoben haben). Spaeter ginge auch nicht: dann
+                        // waere die Aufgabe zu, der Vorgang weitergelaufen, und der Schreibfehler kaeme zu
+                        // spaet.
+                        if (!valueHandlesWritten)
+                        {
+                            handles ??= OpenValueHandles(fresh, token);
+                            valueHandlesWritten = WriteBackUserTask(fresh, token, node, result, handles);
+                        }
+
+                        ApplyMappedOutputs(fresh, Scope(fresh, token), node.Id, node.Outputs, node.ScopeMode,
+                            node.RetainVariables,
+                            result ?? new Dictionary<string, object>(StringComparer.Ordinal));
+                        fresh.Log("UserTaskCompleted", node.Id,
+                            completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
+                        // NACH dem Uebernehmen der Ergebniswerte: die Antwort darf von dem abhaengen, was der
+                        // Benutzer gerade eingegeben hat. Und mit dem Scope von JETZT - ApplyMappedOutputs kann
+                        // ihn bei ScopeMode.Replace ersetzt haben.
+                        endsAssistant = EvaluateEndsAssistant(fresh, node, Scope(fresh, token));
+                        ClearUserTask(token);
+                        token.Status = TokenStatus.Active;
+                        // Eine erledigte Aufgabe kann ebenfalls etwas bewirkt haben (Freigabe erteilt,
+                        // Bestellung ausgeloest) - sie laeuft nur nicht ueber MoveAlongSuccessFlow.
+                        RecordCompensation(fresh, definition, token, node.Id);
+                        if (!MoveAlongSingleOutgoing(fresh, definition, token))
+                        {
+                            outcome = UserTaskCompletionStatus.Faulted;
+                            return new List<string>(); // gefaulted - der Commit persistiert den Fault.
+                        }
+
+                        outcome = UserTaskCompletionStatus.Completed;
+                        fresh.Status = WorkflowStatus.Running;
+                        return new List<string> { token.Id };
+                    });
+
+                if (valueHandlesWritten && outcome != UserTaskCompletionStatus.Completed)
                 {
-                    // Der Delegat kann bei einem Versionskonflikt erneut laufen - der Ausgang wird deshalb
-                    // je Versuch neu bestimmt, nicht akkumuliert.
-                    outcome = UserTaskCompletionStatus.NotFound;
-                    endsAssistant = false;
+                    // Der seltene Restfall: geschrieben wurde im ersten Anlauf, der Wiederlauf nach einem
+                    // Versionskonflikt bestand die Pruefungen nicht mehr. Geschrieben ist geschrieben - und
+                    // diesen Zustand biegt man nur mit einer Logzeile gerade, die alle Koordinaten nennt.
+                    LogEnvironment.LogEvent(
+                        $"CompleteUserTask: value handlers of task '{tokenId}' in instance '{instanceId}' had " +
+                        $"already written when the retry ended as '{outcome}'. The foreign data carries the " +
+                        "user's input, the workflow does not.", LogSeverity.Error);
+                }
 
-                    // Auch der Klick auf "Erledigen" ist ein Ereignis, das einen Wartepunkt weiterschiebt -
-                    // und ein stehender Vorgang liefe danach still weiter. Eigener Ausgang statt NotFound:
-                    // die Aufgabe gibt es noch, und nach einem Retry laesst sie sich auch erledigen.
-                    if (!MayResumeOnEvent(fresh, "CompleteUserTask"))
-                    {
-                        outcome = UserTaskCompletionStatus.InstanceNotResumable;
-                        return new List<string>();
-                    }
-
-                    Token token = fresh.Tokens.FirstOrDefault(t => t.Id == tokenId);
-                    if (token == null)
-                    {
-                        LogEnvironment.LogEvent(
-                            $"CompleteUserTask: token '{tokenId}' does not exist in instance '{instanceId}'.",
-                            LogSeverity.Warning);
-                        return new List<string>();
-                    }
-
-                    if (token.Status != TokenStatus.Waiting || token.TaskKey == null)
-                    {
-                        // Der Normalfall des Rennens: ein anderer war schneller. Kein Fehler, aber der
-                        // Aufrufer muss es unterscheiden koennen.
-                        outcome = UserTaskCompletionStatus.AlreadyCompleted;
-                        return new List<string>();
-                    }
-
-                    if (definition.GetNode(token.NodeId) is not UserActivityNode node)
-                    {
-                        LogEnvironment.LogEvent(
-                            $"CompleteUserTask: token '{tokenId}' of instance '{instanceId}' stands on node " +
-                            $"'{token.NodeId}', which is not a user task.", LogSeverity.Error);
-                        return new List<string>();
-                    }
-
-                    ApplyMappedOutputs(fresh, Scope(fresh, token), node.Id, node.Outputs, node.ScopeMode,
-                        node.RetainVariables,
-                        result ?? new Dictionary<string, object>(StringComparer.Ordinal));
-                    fresh.Log("UserTaskCompleted", node.Id,
-                        completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
-                    // NACH dem Uebernehmen der Ergebniswerte: die Antwort darf von dem abhaengen, was der
-                    // Benutzer gerade eingegeben hat. Und mit dem Scope von JETZT - ApplyMappedOutputs kann
-                    // ihn bei ScopeMode.Replace ersetzt haben.
-                    endsAssistant = EvaluateEndsAssistant(fresh, node, Scope(fresh, token));
-                    ClearUserTask(token);
-                    token.Status = TokenStatus.Active;
-                    // Eine erledigte Aufgabe kann ebenfalls etwas bewirkt haben (Freigabe erteilt,
-                    // Bestellung ausgeloest) - sie laeuft nur nicht ueber MoveAlongSuccessFlow.
-                    RecordCompensation(fresh, definition, token, node.Id);
-                    if (!MoveAlongSingleOutgoing(fresh, definition, token))
-                    {
-                        outcome = UserTaskCompletionStatus.Faulted;
-                        return new List<string>(); // gefaulted - der Commit persistiert den Fault.
-                    }
-
-                    outcome = UserTaskCompletionStatus.Completed;
-                    fresh.Status = WorkflowStatus.Running;
-                    return new List<string> { token.Id };
-                });
-
-            return new UserTaskCompletionResult(outcome, activated, endsAssistant);
+                return new UserTaskCompletionResult(outcome, activated, endsAssistant);
+            }
+            finally
+            {
+                handles?.Dispose();
+            }
         }
 
         /// <summary>
@@ -3809,7 +3877,21 @@ namespace ITVComponents.Workflow
             }
 
             Dictionary<string, object> taskScope = Scope(instance, token);
-            IDictionary<string, object> payload = ResolveInputs(instance, taskScope, node.Inputs, node.Id);
+
+            // Der Payload wird bei JEDEM Aufruf neu aufgeloest, und die Runde endet mit diesem Aufruf: die
+            // Maske bekommt den ausgepackten Wert, nie den Griff. Deshalb braucht auch der
+            // Assistenten-Modus keine eigene Regel - beschreiben und abschliessen sind schon innerhalb
+            // EINER Aufgabe zwei getrennte Aufloesungen.
+            IDictionary<string, object> payload;
+            using (ValueHandleSession handles = OpenValueHandles(instance, token))
+            {
+                payload = ResolveInputs(instance, taskScope, node.Inputs, node.Id,
+                    InputTarget.UserTaskPayload, handles);
+            }
+
+            // Was ueber einen Pfad adressiert ist, steht danach auch unter seinem Pfad im Payload - so
+            // findet jede Maske ihren Wert, ohne von Pfaden wissen zu muessen.
+            AddFieldPaths(instance, node, payload);
 
             // Datenobjekt fuer die Formatierung von Titel/Beschreibung (optional). Ein Fehler hier darf die
             // Aufgabe NICHT unanzeigbar machen - Titel/Beschreibung werden dann eben unformatiert gezeigt -,
@@ -3956,6 +4038,18 @@ namespace ITVComponents.Workflow
         private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             AutomatedActivityNode node, IActivityScope activityScope)
         {
+            // Die Aufloesungsrunde umschliesst die GANZE Ausfuehrung, Iteration eingeschlossen: ein Griff
+            // lebt genau so lange, wie mit ihm gearbeitet wird, und wird danach freigegeben. Solange keine
+            // Bindung einen Handler braucht, entsteht dahinter kein Plugin-Scope.
+            using (ValueHandleSession handles = OpenValueHandles(instance, token))
+            {
+                return RunActivity(instance, definition, token, node, activityScope, handles);
+            }
+        }
+
+        private bool RunActivity(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            AutomatedActivityNode node, IActivityScope activityScope, ValueHandleSession handles)
+        {
             instance.Log("Entered", node.Id, node.Name, HistorySeverity.Verbose);
             Dictionary<string, object> scope = Scope(instance, token);
 
@@ -3965,7 +4059,8 @@ namespace ITVComponents.Workflow
             IDictionary<string, object> inputs;
             try
             {
-                inputs = ResolveInputs(instance, scope, node.Inputs, node.Id);
+                inputs = ResolveInputs(instance, scope, node.Inputs, node.Id, InputTarget.ActivityPayload,
+                    handles);
             }
             catch (Exception ex)
             {
@@ -3998,7 +4093,7 @@ namespace ITVComponents.Workflow
             if (node.Iteration != null && node.Iteration.IsConfigured)
             {
                 return RunActivityIteration(instance, definition, token, node, node.Iteration, activity, inputs,
-                    outputs, scope);
+                    outputs, scope, handles);
             }
 
             var context = new WorkflowActivityContext(instance, node, inputs, outputs, scope);
@@ -4025,7 +4120,15 @@ namespace ITVComponents.Workflow
                     applyOutputs: true, outputs, context.FailureCode);
             }
 
-            // Erfolg: Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
+            // Erfolg: erst zurueckschreiben, was zurueckzuschreiben ist - VOR dem Uebernehmen der Ausgaben.
+            // Scheitert das, hat der Vorgang nichts geschrieben und darf auch nicht so tun.
+            bool? writeBackResult = WriteBackHandles(instance, definition, token, node, handles);
+            if (writeBackResult != null)
+            {
+                return writeBackResult.Value;
+            }
+
+            // Datenfluss heraus, Fehlversuchs-Zaehler zuruecksetzen, ueber den Erfolgs-Ausgang weiter.
             ApplyOutputs(instance, scope, node, outputs);
             ResetAttempts(scope, node.AttemptVariable);
             instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
@@ -4050,7 +4153,7 @@ namespace ITVComponents.Workflow
         private bool RunActivityIteration(WorkflowInstance instance, WorkflowDefinition definition, Token token,
             AutomatedActivityNode node, ActivityIteration iteration, IWorkflowActivity activity,
             IDictionary<string, object> inputs, Dictionary<string, object> outputs,
-            Dictionary<string, object> scope)
+            Dictionary<string, object> scope, ValueHandleSession handles)
         {
             if (!TryReadCollection(instance, node, inputs, iteration.ItemsInput, out List<object> items))
             {
@@ -4255,6 +4358,16 @@ namespace ITVComponents.Workflow
                         : $"{succeeded} item(s) succeeded ({carriedCount} carried over from earlier attempts, " +
                           $"{succeededItems.Count} in total)",
                     HistorySeverity.Verbose);
+
+                // Ein Griff, den alle Element-Laeufe geteilt haben, wird EINMAL zurueckgeschrieben - nach
+                // dem ganzen Knoten, nicht je Element. Der Knoten ist auch fuer die Persistenz ein
+                // einziger Schritt.
+                bool? writeBackResult = WriteBackHandles(instance, definition, token, node, handles);
+                if (writeBackResult != null)
+                {
+                    return writeBackResult.Value;
+                }
+
                 ApplyOutputs(instance, scope, node, outputs);
                 ResetAttempts(scope, node.AttemptVariable);
                 instance.Log("Completed", node.Id, node.Name, HistorySeverity.Verbose);
@@ -4606,8 +4719,21 @@ namespace ITVComponents.Workflow
         /// definierter Normalfall (der Wert ist dann null) - kein Fehler, aber protokolliert, damit er
         /// nachvollziehbar bleibt. Ein Ausdrucksfehler wird an den Aufrufer geworfen (der faultet).
         /// </summary>
+        /// <param name="instance">die laufende Instanz</param>
+        /// <param name="scope">der Variablen-Scope, gegen den aufgeloest wird</param>
+        /// <param name="inputs">die aufzuloesenden Bindungen, oder null</param>
+        /// <param name="nodeId">der Knoten (bzw. die Kante), zu dem die Bindungen gehoeren</param>
+        /// <param name="target">
+        /// Wohin das Ergebnis geht. Entscheidet, ob eine <see cref="ParameterBindingKind.ValueHandle"/>-
+        /// Bindung ueberhaupt erlaubt ist - siehe <see cref="InputTarget"/>. Vorgabe ist der strenge
+        /// Fall: wer nichts sagt, fuellt etwas Persistiertes.
+        /// </param>
+        /// <param name="handles">
+        /// die Aufloesungsrunde, in der die Griffe entstehen; nur noetig, wo Griffe erlaubt sind
+        /// </param>
         private IDictionary<string, object> ResolveInputs(WorkflowInstance instance,
-            Dictionary<string, object> scope, List<ActivityInputBinding> inputs, string nodeId)
+            Dictionary<string, object> scope, List<ActivityInputBinding> inputs, string nodeId,
+            InputTarget target = InputTarget.Persisted, ValueHandleSession handles = null)
         {
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
             if (inputs == null)
@@ -4649,6 +4775,11 @@ namespace ITVComponents.Workflow
                         result[binding.Parameter] = evaluator.Evaluate(binding.Source, scope, binding.SourceMode);
                         break;
 
+                    case ParameterBindingKind.ValueHandle:
+                        result[binding.Parameter] =
+                            ResolveValueHandle(instance, scope, binding, nodeId, target, handles);
+                        break;
+
                     default:
                         LogEnvironment.LogEvent(
                             $"Input '{binding.Parameter}' of node '{nodeId}' uses an unsupported binding " +
@@ -4659,6 +4790,476 @@ namespace ITVComponents.Workflow
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Wohin das Ergebnis einer Aufloesung geht - und damit, ob ein <see cref="ValueHandle"/> dort
+        /// ueberhaupt etwas zu suchen hat.
+        /// </summary>
+        /// <remarks>
+        /// Das ist der <b>Laufzeit-Riegel</b> der Regel „kein Griff im Variablen-Stack".
+        /// <c>ResolveInputs</c> ist EINE Methode mit sechs Aufrufstellen, und vier davon fuellen etwas,
+        /// das persistiert wird: die Start-Signatur (Instanz-Variablen), der Subworkflow-Aufruf
+        /// (Variablen der Kind-Instanz), das Kanten-Mapping (Zweig-Scope) und der Nachrichten-Payload
+        /// (er wird kopiert, in der Outbox abgelegt und beim Empfaenger zu dessen Variablen). Ueber
+        /// jeden dieser Wege landete ein Griff im Bestand, <b>ohne dass je eine Ausgabe-Bindung im
+        /// Spiel war</b> - und nach dem naechsten Neustart waere er ein toter Verweis.
+        /// </remarks>
+        private enum InputTarget
+        {
+            /// <summary>
+            /// Etwas, das den Vortrieb ueberlebt: Variablen, Kind-Instanz, Zweig-Scope,
+            /// Nachrichten-Payload. Ein Griff ist hier ein Fehler, und zwar ein faultender - still
+            /// weiterzulaufen hiesse, dass die naechsten Schritte mit einem Verweis arbeiten, dessen
+            /// Tod sich spaeter nicht mehr rekonstruieren laesst.
+            /// </summary>
+            Persisted,
+
+            /// <summary>
+            /// Der Payload einer Aktivitaet: lebt nur waehrend ihrer Ausfuehrung, wird nie persistiert.
+            /// Griffe sind erlaubt.
+            /// </summary>
+            ActivityPayload,
+
+            /// <summary>
+            /// Der Payload einer Benutzer-Aufgabe. Griffe sind erlaubt, aber die Maske bekommt sie
+            /// <b>nie</b> zu sehen: sie traegt den ausgepackten Wert, damit die Feld-Pfade das echte
+            /// Objekt adressieren - und damit kein Griff im Blazor-Circuit landet, den er ohnehin
+            /// keinen Reconnect ueberlebte.
+            /// </summary>
+            UserTaskPayload,
+
+            /// <summary>
+            /// Ein Argument einer ValueHandle-Bindung. Griffe sind hier verboten: die Argumente sind
+            /// die Frage an den Handler, nicht seine Antwort.
+            /// </summary>
+            HandlerArgument
+        }
+
+        /// <summary>
+        /// Loest eine <see cref="ParameterBindingKind.ValueHandle"/>-Bindung auf: Argumente
+        /// bestimmen, Handler fragen, Griff bauen - und je nach Ziel den Griff oder den ausgepackten
+        /// Wert liefern.
+        /// </summary>
+        /// <remarks>
+        /// Die Benutzer-Aufgabe bekommt <b>immer</b> den ausgepackten Wert, unabhaengig von
+        /// <see cref="ActivityInputBinding.Delivery"/>.
+        /// </remarks>
+        private object ResolveValueHandle(WorkflowInstance instance, Dictionary<string, object> scope,
+            ActivityInputBinding binding, string nodeId, InputTarget target, ValueHandleSession handles)
+        {
+            if (target == InputTarget.Persisted)
+            {
+                throw new InvalidOperationException(
+                    $"Input '{binding.Parameter}' of node '{nodeId}' is bound to value handler " +
+                    $"'{binding.HandlerName}', but this binding fills something that outlives the step " +
+                    "(instance variables, a child instance, a branch scope or a message payload). A value " +
+                    "handle holds a live object and a plugin scope - after the next restart it would be a " +
+                    "dead reference.");
+            }
+
+            if (target == InputTarget.HandlerArgument)
+            {
+                throw new InvalidOperationException(
+                    $"Argument '{binding.Parameter}' of a value handler binding at node '{nodeId}' is " +
+                    "itself bound to a value handler. Arguments are the question put to a handler, not " +
+                    "its answer - they can not nest.");
+            }
+
+            if (handles == null)
+            {
+                throw new InvalidOperationException(
+                    $"Input '{binding.Parameter}' of node '{nodeId}' is bound to value handler " +
+                    $"'{binding.HandlerName}', but this resolution was opened without a value handle " +
+                    "session.");
+            }
+
+            // Beim Abschluss einer Aufgabe zaehlt, was beim Parken galt - nicht der Variablen-Stand von
+            // jetzt: nur so meint der Abschluss denselben Datensatz, den der Mensch gesehen hat.
+            IReadOnlyDictionary<string, object> arguments = handles.FrozenArgumentsFor(binding.Parameter);
+            if (arguments == null)
+            {
+                if (binding.HandlerArguments == null || binding.HandlerArguments.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Input '{binding.Parameter}' of node '{nodeId}' is bound to value handler " +
+                        $"'{binding.HandlerName}' without a single argument - the handler would not know " +
+                        "which record to return.");
+                }
+
+                // Dieselbe Bindungs-Maschinerie wie ueberall, nur ohne Rekursion.
+                arguments = new Dictionary<string, object>(
+                    ResolveInputs(instance, scope, binding.HandlerArguments, nodeId,
+                        InputTarget.HandlerArgument), StringComparer.Ordinal);
+            }
+
+            ValueHandle handle = handles.Resolve(binding, nodeId, arguments);
+
+            if (target == InputTarget.UserTaskPayload || binding.Delivery == ValueDelivery.Value)
+            {
+                return handle.Value;
+            }
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Oeffnet eine Aufloesungsrunde fuer Wert-Handler. Der Plugin-Scope dahinter entsteht erst,
+        /// wenn eine Bindung wirklich einen Handler braucht.
+        /// </summary>
+        /// <param name="instance">die Instanz, in deren Namen aufgeloest wird</param>
+        /// <param name="token">der Zweig, in dem aufgeloest wird, oder null</param>
+        /// <returns>die Aufloesungsrunde</returns>
+        private ValueHandleSession OpenValueHandles(WorkflowInstance instance, Token token)
+        {
+            return new ValueHandleSession(valueHandlers, instance, token?.Id,
+                ReadFrozenArguments(instance, token));
+        }
+
+        /// <summary>
+        /// Liest die beim Parken festgeschriebenen Handler-Argumente eines Aufgaben-Tokens zurueck.
+        /// </summary>
+        /// <remarks>
+        /// Ein unlesbarer Satz ist kein Grund, still den aktuellen Variablen-Stand zu nehmen: das waere
+        /// genau die Verwechslung, gegen die das Festschreiben da ist. Er wird protokolliert und
+        /// uebergangen - die Aufloesung faellt dann sichtbar auf den regulaeren Weg zurueck.
+        /// </remarks>
+        /// <param name="instance">die Instanz (fuer die Meldung)</param>
+        /// <param name="token">das Token, oder null</param>
+        /// <returns>die festgeschriebenen Argumente je Parameter, oder null</returns>
+        private static IReadOnlyDictionary<string, Dictionary<string, object>> ReadFrozenArguments(
+            WorkflowInstance instance, Token token)
+        {
+            Dictionary<string, string> stored = token?.TaskValueHandleArguments;
+            if (stored == null || stored.Count == 0)
+            {
+                return null;
+            }
+
+            var result = new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, string> pair in stored)
+            {
+                try
+                {
+                    result[pair.Key] = WorkflowJson.DeserializeVariables(pair.Value);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Frozen value handler arguments of parameter '{pair.Key}' on token '{token.Id}' of " +
+                        $"instance '{instance?.Id}' could not be read: {ex.OutlineException()}. The binding " +
+                        "will be resolved against the current variables instead - it may address a " +
+                        "different record than the task showed.", LogSeverity.Error);
+                }
+            }
+
+            return result.Count == 0 ? null : result;
+        }
+
+        /// <summary>
+        /// Schreibt die Griffe zurueck, die nach erfolgreicher Ausfuehrung dran sind.
+        /// </summary>
+        /// <remarks>
+        /// Scheitert das Schreiben, wird die Aktivitaet behandelt, als waere sie gescheitert: die
+        /// Ausgaben werden NICHT uebernommen. Alles andere hiesse, der Vorgang liefe weiter, als sei
+        /// geschrieben worden - und genau das faende man erst viel spaeter.
+        /// </remarks>
+        /// <param name="instance">die laufende Instanz</param>
+        /// <param name="definition">die Definition</param>
+        /// <param name="token">der Zweig</param>
+        /// <param name="node">der Knoten</param>
+        /// <param name="handles">die Aufloesungsrunde</param>
+        /// <returns>null, wenn geschrieben wurde; sonst das Ergebnis, mit dem der Vortrieb weitergeht</returns>
+        private bool? WriteBackHandles(WorkflowInstance instance, WorkflowDefinition definition, Token token,
+            AutomatedActivityNode node, ValueHandleSession handles)
+        {
+            try
+            {
+                handles?.WriteBackPending();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Write-back of node '{node.Id}' (activity '{node.ActivityRef}') in workflow instance " +
+                    $"'{instance.Id}' failed: {ex.OutlineException()}", LogSeverity.Error);
+                return HandleActivityFailure(instance, definition, token, node,
+                    $"Write-back of node '{node.Id}' failed: {ex.Message}", applyOutputs: false, null);
+            }
+        }
+
+        /// <summary>
+        /// Wertet die Argumente der ValueHandle-Bindungen einer Aufgabe aus und macht sie fuer das Token
+        /// haltbar (siehe <see cref="Token.TaskValueHandleArguments"/>).
+        /// </summary>
+        /// <param name="instance">die laufende Instanz</param>
+        /// <param name="scope">der Variablen-Stand beim Parken</param>
+        /// <param name="node">der Aufgaben-Knoten</param>
+        /// <returns>die festgeschriebenen Argumente je Parameter, oder null</returns>
+        private Dictionary<string, string> FreezeValueHandleArguments(WorkflowInstance instance,
+            Dictionary<string, object> scope, UserActivityNode node)
+        {
+            if (node.Inputs == null)
+            {
+                return null;
+            }
+
+            Dictionary<string, string> frozen = null;
+            foreach (ActivityInputBinding binding in node.Inputs)
+            {
+                if (binding == null || binding.Kind != ParameterBindingKind.ValueHandle
+                    || string.IsNullOrEmpty(binding.Parameter))
+                {
+                    continue;
+                }
+
+                if (binding.HandlerArguments == null || binding.HandlerArguments.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Input '{binding.Parameter}' of user task '{node.Id}' is bound to value handler " +
+                        $"'{binding.HandlerName}' without a single argument.");
+                }
+
+                IDictionary<string, object> arguments = ResolveInputs(instance, scope,
+                    binding.HandlerArguments, node.Id, InputTarget.HandlerArgument);
+                frozen ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                frozen[binding.Parameter] = WorkflowJson.SerializeVariables(arguments);
+            }
+
+            return frozen;
+        }
+
+        /// <summary>
+        /// Der Wachposten fuer die Feld-Pfade der Masken: <b>dieselbe</b> Policy, unter der auch die
+        /// Ausdruecke laufen.
+        /// </summary>
+        /// <remarks>
+        /// Sonst gaebe es zwei Sicherheitsniveaus fuer dieselbe Frage - <c>user.Password</c> als Ausdruck
+        /// verboten, als Masken-Pfad erlaubt.
+        /// </remarks>
+        /// <returns>der Wachposten fuer den Member-Zugriff</returns>
+        private IMemberAccessGuard FieldPathGuard()
+        {
+            return ScriptingPolicyMemberAccessGuard.For((evaluator as CScriptExpressionEvaluator)?.Policy);
+        }
+
+        /// <summary>
+        /// Zerlegt ein Feld-Ziel in den Payload-Schluessel und den Pfad darin - oder meldet, dass es gar
+        /// kein Pfad ist.
+        /// </summary>
+        /// <remarks>
+        /// Das erste Segment wird <b>nicht</b> ueber den Member-Zugriff aufgeloest, sondern direkt im
+        /// Payload nachgeschlagen. Sonst gewaenne bei einem Parameter namens <c>Count</c> oder
+        /// <c>Keys</c> das gleichnamige Member des Dictionaries - und die Maske zeigte die Zahl der
+        /// Eintraege statt des Wertes.
+        /// </remarks>
+        /// <param name="target">das Feld-Ziel (Payload-Name oder Pfad)</param>
+        /// <param name="payload">der Payload der Maske</param>
+        /// <param name="root">der Wert, auf dem der Pfad ansetzt</param>
+        /// <param name="path">der Pfad ab dem zweiten Segment</param>
+        /// <returns>true, wenn das Ziel ein Pfad in einen Payload-Wert ist</returns>
+        private static bool TrySplitFieldPath(string target, IDictionary<string, object> payload,
+            out object root, out string path)
+        {
+            root = null;
+            path = null;
+            int dot = target.IndexOf(MemberPath.Separator);
+            if (dot <= 0 || dot == target.Length - 1)
+            {
+                return false;
+            }
+
+            if (!payload.TryGetValue(target.Substring(0, dot), out root) || root == null)
+            {
+                return false;
+            }
+
+            path = target.Substring(dot + 1);
+            return true;
+        }
+
+        /// <summary>
+        /// Das Ziel eines Maskenfeldes: der <see cref="UserTaskField.PayloadName"/>, sonst der Feldname.
+        /// </summary>
+        /// <param name="field">das Feld</param>
+        /// <returns>der Payload-Name bzw. Pfad des Feldes</returns>
+        private static string FieldTarget(UserTaskField field)
+            => string.IsNullOrWhiteSpace(field.PayloadName) ? field.Name : field.PayloadName;
+
+        /// <summary>
+        /// Legt die ueber einen <b>Pfad</b> adressierten Feldwerte zusaetzlich unter ihrem Pfad in den
+        /// Payload - so findet jede Maske ihren Wert, ohne von Pfaden wissen zu muessen.
+        /// </summary>
+        /// <remarks>
+        /// Gesucht wird <b>erst der exakte Schluessel</b> und erst dann als Pfad gedeutet: ein
+        /// Bestandsschluessel, der einen Punkt enthaelt, braeche sonst.
+        /// <para>
+        /// Ein Lesefehler macht die Aufgabe NICHT unanzeigbar - das Feld bleibt leer -, steht aber im Log:
+        /// ein leeres Feld, dessen Ursache man nicht sieht, ist teurer als eine Zeile.
+        /// </para>
+        /// </remarks>
+        /// <param name="instance">die laufende Instanz (fuer die Meldung)</param>
+        /// <param name="node">der Aufgaben-Knoten</param>
+        /// <param name="payload">der Payload der Maske</param>
+        private void AddFieldPaths(WorkflowInstance instance, UserActivityNode node,
+            IDictionary<string, object> payload)
+        {
+            if (node.FormFields == null || payload == null)
+            {
+                return;
+            }
+
+            IMemberAccessGuard guard = null;
+            foreach (UserTaskField field in node.FormFields)
+            {
+                if (field == null || string.IsNullOrWhiteSpace(field.Name))
+                {
+                    continue;
+                }
+
+                string target = FieldTarget(field);
+                if (payload.ContainsKey(target) || !TrySplitFieldPath(target, payload, out object root,
+                        out string path))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    guard ??= FieldPathGuard();
+                    payload[target] = MemberPath.Read(root, path, guard);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Field path '{target}' of user task '{node.Id}' in instance '{instance.Id}' could " +
+                        $"not be read: {ex.OutlineException()}. The field stays empty.", LogSeverity.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Schreibt die Eingaben einer abgeschlossenen Aufgabe ueber ihre Handler zurueck.
+        /// </summary>
+        /// <remarks>
+        /// Gelesen wird dafuer <b>frisch</b>: gesetzt werden nur die Pfade, die tatsaechlich in der Maske
+        /// stehen. Hat jemand anders inzwischen ein ANDERES Feld desselben Datensatzes geaendert, bleibt
+        /// es erhalten. Das ist die schonendste Variante, die ohne Mitwirkung des Handlers zu haben ist -
+        /// ein Lost-Update-Schutz auf Feldebene ist es nicht, dafuer braeuchte es Versionsstempel vom
+        /// Handler.
+        /// <para>
+        /// Geschrieben wird <b>ein</b> <see cref="ValueHandle.WriteBack"/> je Griff, nicht je Feld.
+        /// </para>
+        /// <para>
+        /// Ein Fehler wird geworfen: dann laeuft der Commit nicht, die Aufgabe bleibt offen und der Mensch
+        /// bekommt die Meldung. Das ist die einzige Variante, in der niemand seine Eingaben verliert.
+        /// </para>
+        /// </remarks>
+        /// <param name="fresh">die frisch geladene Instanz im Commit-Delegaten</param>
+        /// <param name="token">das Token der Aufgabe</param>
+        /// <param name="node">der Aufgaben-Knoten</param>
+        /// <param name="result">die Ergebniswerte der Maske</param>
+        /// <param name="handles">die Aufloesungsrunde dieses Abschlusses</param>
+        /// <returns>true, wenn tatsaechlich geschrieben wurde</returns>
+        private bool WriteBackUserTask(WorkflowInstance fresh, Token token, UserActivityNode node,
+            IDictionary<string, object> result, ValueHandleSession handles)
+        {
+            if (node.WriteBackParameters == null || node.Inputs == null)
+            {
+                return false;
+            }
+
+            var wanted = new HashSet<string>(
+                node.WriteBackParameters.Where(p => !string.IsNullOrWhiteSpace(p)), StringComparer.Ordinal);
+            List<ActivityInputBinding> bindings = node.Inputs
+                .Where(b => b != null && b.Kind == ParameterBindingKind.ValueHandle
+                            && b.Parameter != null && wanted.Contains(b.Parameter))
+                .ToList();
+            if (bindings.Count == 0)
+            {
+                return false;
+            }
+
+            IDictionary<string, object> payload = ResolveInputs(fresh, Scope(fresh, token), bindings,
+                node.Id, InputTarget.UserTaskPayload, handles);
+
+            IMemberAccessGuard guard = FieldPathGuard();
+            foreach (UserTaskField field in node.FormFields ?? new List<UserTaskField>())
+            {
+                if (field == null || string.IsNullOrWhiteSpace(field.Name) || field.ReadOnly
+                    || result == null || !result.TryGetValue(field.Name, out object value))
+                {
+                    continue;
+                }
+
+                string target = FieldTarget(field);
+
+                // Der exakte Schluessel: das Feld steht fuer den ganzen Parameter. Dann traegt der Griff
+                // den neuen Wert - im Payload allein waere er verloren.
+                if (payload.ContainsKey(target))
+                {
+                    ValueHandle handle = handles.HandleFor(target);
+                    if (handle != null)
+                    {
+                        handle.Value = value;
+                        payload[target] = value;
+                    }
+
+                    continue;
+                }
+
+                if (!TrySplitFieldPath(target, payload, out object root, out string path)
+                    || !wanted.Contains(target.Substring(0, target.IndexOf(MemberPath.Separator))))
+                {
+                    continue;
+                }
+
+                MemberSlot slot = MemberPath.Parse(path).GetSlot(root, guard);
+                slot.Write(ConvertForPath(value, slot.GetMemberType(), target, node.Id));
+            }
+
+            bool written = false;
+            foreach (ValueHandleBinding entry in handles.Handles)
+            {
+                if (!entry.Handle.Written)
+                {
+                    entry.Handle.WriteBack();
+                    written = true;
+                }
+            }
+
+            return written;
+        }
+
+        /// <summary>
+        /// Bringt einen Maskenwert auf den Typ, den das Ziel-Member verlangt.
+        /// </summary>
+        /// <remarks>
+        /// Die Engine erfindet hier nichts: schlaegt die Konvertierung fehl, nennt die Meldung Pfad,
+        /// Quelltyp und Zieltyp - und den Verdacht auf einen fehlenden Konverter, denn genau das ist die
+        /// haeufigste Ursache.
+        /// </remarks>
+        /// <param name="value">der Wert aus der Maske</param>
+        /// <param name="targetType">der Typ des Ziel-Members, oder null</param>
+        /// <param name="path">der Feld-Pfad (fuer die Meldung)</param>
+        /// <param name="nodeId">der Knoten (fuer die Meldung)</param>
+        /// <returns>der konvertierte Wert</returns>
+        private static object ConvertForPath(object value, Type targetType, string path, string nodeId)
+        {
+            if (targetType == null || value == null || targetType.IsInstanceOfType(value))
+            {
+                return value;
+            }
+
+            if (TypeConverter.TryConvert(value, targetType, out object converted))
+            {
+                return converted;
+            }
+
+            throw new InvalidOperationException(
+                $"Field path '{path}' of node '{nodeId}' expects {targetType.FullName}, but the mask " +
+                $"delivered {value.GetType().FullName}. No registered converter bridges that - the host " +
+                "may be missing the converter for this type.");
         }
 
         /// <summary>

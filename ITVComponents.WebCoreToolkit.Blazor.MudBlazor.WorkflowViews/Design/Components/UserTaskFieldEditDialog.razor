@@ -30,8 +30,13 @@
         </MudStack>
         @if (ShowPayloadOptions)
         {
-            <MudTextField @bind-Value="Field.PayloadName" Label="Payload name (prefill / display source)"
+            <MudTextField @bind-Value="Field.PayloadName" Label="Payload name or path"
                           Margin="Margin.Dense" Placeholder="(field name)" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Where the field reads from — and, for a value that comes from a value handler, where it
+                writes back to. A dotted path reaches into the record: <code>customer.Ship.Street</code>.
+                An exact payload key always wins, so an existing key that contains a dot keeps working.
+            </MudText>
         }
 
         <MudText Typo="Typo.caption" Class="mt-3">Label (plain text or culture JSON)</MudText>

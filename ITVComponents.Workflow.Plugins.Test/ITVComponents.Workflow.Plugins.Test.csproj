@@ -7,8 +7,12 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.3" />
     <PackageReference Include="MSTest.TestFramework" Version="3.6.3" />
+    <!-- Der mitgelieferte Benutzer-Handler wird gegen ein echtes Modell geprueft (SQLite in-memory) -
+         seine ganze Arbeit besteht aus Modell-Metadaten und Abfragen. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Workflow.Plugins\ITVComponents.Workflow.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.Workflow.Plugins.WebCoreToolkit\ITVComponents.Workflow.Plugins.WebCoreToolkit.csproj" />
   </ItemGroup>
 </Project>

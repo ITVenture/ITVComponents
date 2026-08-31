@@ -2165,3 +2165,219 @@ bleibt es beim eigenen Takt (und der Dialog sagt es beim Öffnen im Log):
 > Oberfläche als „Rechte ziehen nicht" und sucht es an ganz anderer Stelle.
 
 Kein Schema-Eingriff: es werden keine Spalten und keine Tabellen gebraucht.
+
+## 25. Grosse und fremde Daten: der Wert-Handler (`ValueHandle`)
+
+Ein Vorgang, der mit fremden oder grossen Daten hantiert, hatte bisher zwei Möglichkeiten: er zog sie in
+den Variablen-Stack (und trug sie damit in **jedem** Instanz-Blob, **jedem** Verlaufseintrag und **jedem**
+Archiv-Datensatz mit), oder er merkte sich einen Schlüssel — und dann stand „wie kommt man an den Auftrag"
+in jeder Aktivität noch einmal.
+
+Der Wert-Handler ist der dritte Weg: **eine Bindung sagt, dass ihr Wert von einem Handler kommt.** Der
+Stack trägt weiterhin nur Kleinkram — Schlüssel, Nummern, Entscheidungen. Was gross oder fremd ist, wird
+geholt, wenn es gebraucht wird, und geschrieben, wenn es sich geändert hat.
+
+### Der Vertrag
+
+```csharp
+public interface IWorkflowValueHandler
+{
+    object Read(ValueHandleRequest request);
+    void Write(ValueHandleRequest request, object value);
+}
+```
+
+Der Handler kann genau zwei Dinge. **Den Griff baut die Engine** — hätte ihn der Handler gebaut, hätte
+jede Implementierung ihr eigenes Backing-Feld, ihre eigene WriteBack-Semantik und ihr eigenes (oder gar
+kein) Protokoll.
+
+Der Handler hält **keinen Zustand** über einen Aufruf hinaus. Es gibt deshalb auch keine
+Lebenszyklus-Meldungen der Engine: ein aufgegebener Zweig (ein Fault anderswo, ein unterbrechender
+Fristen-Timer, ein Terminate-Ende) ist das häufigste und am schwersten zuverlässig zu meldende Ereignis —
+alles, was daran hinge, entfällt hier ersatzlos.
+
+Als Plugin: `IValueHandlerPlugin` (der Vertrag plus `IPlugin`), aufgelöst über den konfigurierten Namen.
+
+### Verdrahtung
+
+```csharp
+// stack-neutral
+services.AddSingleton<IValueHandlerHost>(sp => new PluginValueHandlerHost(factory));
+
+// WebCoreToolkit-nativ (Scope je Runde, auf den Mandanten der Instanz fixiert)
+services.AddSingleton<IValueHandlerHost>(sp => new WebToolkitValueHandlerHost(sp));
+```
+
+Der Worker (`AddWorkflowWebWorker`) reicht einen registrierten `IValueHandlerHost` von selbst an die
+Engine durch. Wer die Engine über eine eigene `WorkflowEngineFactory` baut (Web-Szenarien), gibt ihn dort
+mit — sonst **faultet** eine Definition, die einen Handler benutzt, mit klarer Meldung. Sie läuft nicht
+still ohne den Wert.
+
+> **Bei einer öffentlichen Definition (`TenantId = null`) wird der Handler-Name im Scope des
+> *ausführenden* Mandanten aufgelöst.** Das ist gewollt (gleicher Name, andere Konfiguration je Mandant),
+> heisst aber auch: eine öffentliche Definition trifft bei jedem Mandanten das, was dort unter diesem
+> Namen eingerichtet ist.
+
+### Die Bindung
+
+| Feld | Bedeutung |
+|---|---|
+| `Kind = ValueHandle` | der Wert kommt vom Handler |
+| `HandlerName` | der konfigurierte Plugin-Name |
+| `HandlerArguments` | mindestens eines, über dieselbe Bindungs-Maschinerie (Literal/Variable/Ausdruck) — **keine Rekursion** |
+| `Delivery` | `Handle` (die Aktivität kennt den Mechanismus) oder `Value` (sie weiss von nichts) |
+| `WriteBack` | `Never` oder `OnSuccess` — nur bei `Delivery = Value` |
+| `AllowInParallelRegion` | macht aus dem Validator-Fehler in einer parallelen Region eine Warnung |
+
+Bei **`Value`** ist der Gewinn ein Referenztyp: die Aktivität mutiert dasselbe Objekt, das im Backing-Feld
+liegt, und die Engine schreibt es danach zurück — der Mechanismus läuft damit auch mit Aktivitäten, die nie
+dafür geschrieben wurden. Bei Werttypen und Zeichenketten bliebe eine Änderung unsichtbar; dort muss der
+Griff durch.
+
+### Die Benutzer-Aufgabe
+
+Die Maske bekommt den Griff **nie** zu sehen: ihr Payload trägt den ausgepackten Wert (der Griff überlebte
+einen Reconnect ohnehin nicht). Damit adressieren die Feld-Pfade das echte Objekt:
+
+- **`UserTaskField.PayloadName` ist ein Pfad** (`customer.Ship.Street`) und damit Lese- *und* Schreibziel.
+  Erst wird der **exakte** Schlüssel im Payload gesucht, dann als Pfad gedeutet — ein Bestandsschlüssel mit
+  einem Punkt bricht also nicht.
+- **`UserActivityNode.WriteBackParameters`** nennt nur, *welche* Parameter überhaupt zurückgehen. Damit
+  steht die Deklaration nur einmal da, und „was ich sehe, schreibe ich zurück" ist strukturell wahr statt
+  Pflegedisziplin.
+- Die Argumente werden **beim Parken festgeschrieben** (`Token.TaskValueHandleArguments`) — genau wie die
+  Zuständigkeit. Sonst könnte der Abschluss einen anderen Datensatz treffen als die Anzeige.
+- Geschrieben wird **im Commit-Delegaten des Abschlusses**, nach allen Gültigkeitsprüfungen, mit einem
+  **Einmal-Riegel** (der Delegat läuft bei einem Versionskonflikt erneut). Vorher ginge nicht — ausserhalb
+  weiss niemand, ob die Aufgabe noch existiert; nachher auch nicht — dann wäre der Vorgang schon weiter.
+- Geschrieben wird in ein **frisch gelesenes** Objekt, und nur auf die Pfade, die in der Maske stehen. Hat
+  jemand anders inzwischen ein *anderes* Feld geändert, bleibt es erhalten. Ein Lost-Update-Schutz auf
+  Feldebene ist das nicht — dafür bräuchte es Versionsstempel vom Handler.
+- **Scheitert das Schreiben**, läuft der Commit nicht: die Aufgabe bleibt offen und der Mensch bekommt die
+  Meldung. Das ist die einzige Variante, in der niemand Eingaben verliert.
+
+### Kein Griff im Variablen-Stack
+
+Das ist die Regel, die den Mechanismus zusammenhält. Ein Griff hält ein lebendes Objekt und einen
+Plugin-Scope; persistiert wäre er nach dem nächsten Neustart ein toter Verweis. Verboten ist er deshalb
+überall, wo eine Bindung etwas füllt, das den Schritt überlebt:
+
+| Stelle | Ziel | erlaubt |
+|---|---|---|
+| Aktivität | Payload, nie persistiert | ja |
+| Benutzer-Aufgabe | Masken-Payload | ja (ausgepackt) |
+| Start-Signatur | `instance.Variables` | **nein** |
+| Subworkflow-Aufruf | Variablen der Kind-Instanz | **nein** |
+| Kanten-Mapping | Zweig-Scope | **nein** |
+| Nachrichten-Payload | Outbox, wird beim Empfänger zu dessen Daten | **nein** |
+
+Dreifach gesichert: **Validator** (Entwurfszeit), **Laufzeit** (`ResolveInputs` kennt sein Ziel) und
+**Serialisierung** (`WorkflowJson.SerializeVariables`). Alle drei faulten, keiner schreibt nur eine
+Log-Zeile: still weiterzulaufen hiesse, dass die nächsten Schritte mit einem Verweis arbeiten, dessen Tod
+sich später nicht mehr rekonstruieren lässt.
+
+### Was die Engine ausdrücklich *nicht* tut
+
+- **Sperren.** Zwei Zweige am selben Datensatz sind Sache des Handlers (Versionsstempel). In einer
+  parallelen Region ist eine schreibende Bindung deshalb ein Validator-Fehler; `AllowInParallelRegion`
+  macht daraus eine Warnung und verschiebt die Verantwortung sichtbar.
+- **Kompensation.** Kein automatischer Rücknahme-Eintrag: ein generisches „Restore" schriebe ein
+  komplettes, inzwischen veraltetes Objekt über alles, was zwischenzeitlich passiert ist — ein Lost Update,
+  verursacht von der Engine, die von den Daten nichts versteht. Wer zurücknehmen will, modelliert eine
+  Kompensations-Aktivität, die über **denselben Handler** ihren eigenen Griff holt.
+- **Retry-Politik.** Ein modellierter zweiter Durchlauf löst die Bindung neu auf, der Handler liest also
+  den aktuellen Stand. Die nicht-idempotente Änderung („Betrag += 100") kann die Engine nicht erkennen —
+  Idempotenz ist Handler-Sache.
+
+### Im Verlauf
+
+Jeder Schreibvorgang hinterlässt eine Spur: `ValueHandleWritten` bzw. `ValueHandleWriteFailed` mit
+Handler, Parameter und Knoten. **Nicht der Wert — nur die Koordinaten.** Das ist billig und genau das, was
+man braucht, wenn jemand fragt, wer was geschrieben hat.
+
+## 26. Der mitgelieferte Benutzer-Handler
+
+Für den häufigsten Fall gibt es einen Wert-Handler, den man nur noch konfigurieren muss: **zu einer
+Benutzer-, Mandanten-Benutzer- oder Mitarbeiter-Kennung trägt er zusammen, was die Ablage über den
+Benutzer hergibt.**
+
+```
+UserInfoValueHandler<TUser, TTenantUser, TUserProperty>                        (ohne Onboarding)
+EmployeeUserInfoValueHandler<TUser, TTenantUser, TUserProperty, TEmployee>     (mit Onboarding)
+```
+
+Zwei Typen statt eines Schalters: eine Umgebung ohne Onboarding hat keinen Mitarbeiter-Typ, den sie
+eintragen könnte, und ein Platzhalter dort wäre ein Fehler, den man erst spät findet.
+
+### Konfiguration: ein Eintrag, der den Rest erledigt
+
+Beide Typen sind offen generisch. Die Plugin-Factory finalisiert sie über die generischen Parameter des
+Web-Plugins — und der Eintrag mit dem Namen **`$$genericArgumentProvider`** benennt dabei keinen
+Typparameter, sondern einen *fertigen* Typ, aus dem die übrigen abgeleitet werden:
+
+| `GenericTypeName` | `TypeExpression` | ergibt |
+|---|---|---|
+| `$$genericArgumentProvider` | der konkrete `SecurityContext` | `TUser`, `TTenantUser`, `TUserProperty` |
+| `TEmployee` | `…Onboarding.Flat.Models.Employee` | nur beim Employee-Handler nötig |
+
+Zwei Dinge dazu, weil beide sonst als rätselhafter Fehler auftreten:
+
+- **Zugeordnet wird über den NAMEN des Typparameters.** Die Parameter dieser Handler heissen deshalb
+  genau so wie die von `ISecurityContext<…>`. Ein umbenannter Parameter sieht danach aus wie ein
+  fehlender.
+- **Abgeleitet wird nur über Interfaces, nicht über Basisklassen.** `TEmployee` lässt sich deshalb
+  *nicht* aus dem Kontext ableiten: die Onboarding-Kontext-Schnittstelle ist geschlossen und trägt gar
+  keine Typparameter. Er braucht die eigene Zeile.
+
+Der Konstruktor nimmt die `IToolkitContextFactory` (kommt aus dem DI-Scope) und optional
+`allowMissing`.
+
+### Die Argumente — es kommen nicht alle
+
+Vier Argumente, alle optional, mindestens eines nötig; Gross-/Kleinschreibung spielt keine Rolle:
+
+`employeeId` · `tenantUserId` · `userId` · `userName`
+
+Der Handler geht **vom Speziellen zum Allgemeinen**: der Mitarbeiter kennt seinen Benutzer und seine
+Mandanten-Zuordnung, die Zuordnung kennt ihren Benutzer — und was dann noch fehlt, wird ergänzt. Kommen
+mehrere und widersprechen sie sich, gewinnt das speziellere, und der Widerspruch steht als Warnung im
+Log: er ist ein Modellierungsfehler, der sonst unsichtbar bliebe (die Maske zeigte einen anderen
+Menschen als den, den der Vorgang meint).
+
+Die int-oder-string-Frage der Benutzer-Id stellt sich nicht: Schlüssel und Typ kommen aus dem
+EF-Modell, die Umwandlung des Arguments über `ITVComponents.TypeConversion`.
+
+### Das Ergebnis
+
+```
+UserInfo
+  Found, UserId, UserName, DisplayName, EMail, FirstName, LastName
+  TenantId, TenantUserId, Enabled, EmployeeId, InvitationStatus
+  Properties                     ← kunde.Properties.Kostenstelle
+  User / TenantUser / Employee   ← die konkreten Datensätze
+```
+
+**Die flachen Felder sind eine Verschmelzung mit Vorrang: der Mitarbeiter schlägt den Benutzer.** Ohne
+diese Regel bedeutete `EMail` je nach Ausprägung etwas anderes — am Mitarbeiter steht die
+Geschäftsadresse, am Identity-Benutzer die Anmeldeadresse, und der Basic-Benutzer hat gar keine. Genau
+darum sind die flachen Felder auch der Teil, auf den sich ein Feld-Pfad verlassen darf: `kunde.EMail`
+funktioniert in jeder Ausprägung. Wer mehr braucht, greift über `kunde.Employee.BillingProfile.…` durch
+und nimmt die Bindung an die Ausprägung bewusst in Kauf.
+
+### Drei Eigenschaften, die man kennen muss
+
+**Er schreibt nicht.** `Write` wirft. Der Grund ist eine Asymmetrie: der Handler löst im
+Hintergrund-Scope des Mandanten der Instanz auf, **nicht** mit den Rechten dessen, der eine Maske
+ausfüllt. Ein schreibender Handler liesse einen Vorgang damit Stammdaten ändern, die die handelnde
+Person selbst nicht ändern dürfte. Wer schreiben will, modelliert eine Aktivität mit einem eigenen
+Handler, der die Prüfung mitbringt.
+
+**Nicht gefunden ist ein Fehler.** Der Vorgang faultet, und die Meldung nennt die mitgegebenen
+Kennungen. Ist „kein Benutzer" an dieser Stelle ein normaler Zustand, wird der Handler mit
+`AllowMissing` konfiguriert — dann kommt ein Ergebnis mit `Found = false` zurück, und das steht als
+Zeile im Log.
+
+**Die Mandantengrenze gilt.** Der Host fixiert den Scope auf den Mandanten der Instanz, die
+Abfragefilter greifen. Ein Benutzer, der diesem Mandanten nicht zugeordnet ist, kommt deshalb mit
+`User`, aber **ohne** `TenantUser` und ohne `Employee` zurück — mit `Found = true`. Das ist gewollt: er
+existiert, er gehört nur nicht hierher.

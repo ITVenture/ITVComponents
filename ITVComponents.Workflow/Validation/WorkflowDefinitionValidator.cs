@@ -343,6 +343,10 @@ namespace ITVComponents.Workflow.Validation
             // entscheiden - das gehoert modelliert, nicht dem Zufall der Zweig-Reihenfolge ueberlassen.
             issues.AddRange(ParallelWriteConflicts(nodes, flows, byId, inCount, outCount));
 
+            // Der erste der drei Riegel gegen einen Griff im Variablen-Stack (die anderen beiden sind das
+            // Ziel-Flag in ResolveInputs und die Serialisierung). Hier ist es noch billig: im Editor.
+            issues.AddRange(ValueHandleIssues(nodes, flows, parallelRegion));
+
             // Die Aufbewahrungsfristen haengen an keinem Knoten - und ihre Fehler faellt sonst niemandem
             // auf: die Regel schweigt bei Unsinn, statt zu werfen, und was sie verwirft, verschwindet
             // wortlos. Hier ist die Stelle, an der es der Autor erfaehrt.
@@ -1420,6 +1424,190 @@ namespace ITVComponents.Workflow.Validation
             foreach (ActivityInputBinding b in flow.Inputs)
             {
                 record(b?.Parameter, branchIndex, $"connection '{FlowName(flow)}'");
+            }
+        }
+
+        /// <summary>
+        /// Prueft die <see cref="ParameterBindingKind.ValueHandle"/>-Bindungen: wo sie gar nichts zu
+        /// suchen haben, ob sie vollstaendig sind, und was sie in einer parallelen Region anrichten.
+        /// </summary>
+        /// <remarks>
+        /// Ein Griff haelt ein lebendes Objekt und einen Plugin-Scope. Er darf deshalb nur dort
+        /// entstehen, wo er den Schritt nicht ueberlebt: im Payload einer Aktivitaet und - ausgepackt -
+        /// im Payload einer Benutzer-Aufgabe. Ueber Start-Signatur, Subworkflow-Aufruf,
+        /// Nachrichten-Payload und Kanten-Mapping ginge er in etwas Persistiertes, <b>ohne dass je eine
+        /// Ausgabe-Bindung im Spiel war</b>.
+        /// <para>
+        /// Ausgabe-Bindungen brauchen keine Pruefung: <see cref="ActivityOutputBinding"/> hat gar keine
+        /// Bindungsart - eine Ausgabe kann nie ein Griff sein.
+        /// </para>
+        /// </remarks>
+        private static IEnumerable<ValidationIssue> ValueHandleIssues(List<WorkflowNode> nodes,
+            List<SequenceFlow> flows, HashSet<string> parallelRegion)
+        {
+            var issues = new List<ValidationIssue>();
+            foreach (WorkflowNode n in nodes)
+            {
+                switch (n)
+                {
+                    case null:
+                        continue;
+                    case StartNode st:
+                        ForbidValueHandles(issues, n.Id, st.Inputs, $"Start node '{Label(n)}'",
+                            "the instance variables");
+                        break;
+                    case CallWorkflowNode cw:
+                        ForbidValueHandles(issues, n.Id, cw.Inputs, $"Call node '{Label(n)}'",
+                            "the variables of the child instance");
+                        break;
+                    case SendMessageNode sm:
+                        ForbidValueHandles(issues, n.Id, sm.Inputs, $"Send node '{Label(n)}'",
+                            "a message payload that is stored in the outbox and becomes the receiver's data");
+                        break;
+                    case AutomatedActivityNode aa:
+                        HandlerBindingIssues(issues, n.Id, $"Activity '{Label(n)}'", aa.Inputs,
+                            parallelRegion.Contains(n.Id ?? ""), true);
+                        break;
+                    case UserActivityNode ua:
+                        HandlerBindingIssues(issues, n.Id, $"User task '{Label(n)}'", ua.Inputs,
+                            parallelRegion.Contains(n.Id ?? ""), false);
+                        break;
+                }
+            }
+
+            foreach (SequenceFlow f in flows)
+            {
+                if (f?.Inputs != null)
+                {
+                    ForbidValueHandles(issues, f.Id, f.Inputs, $"Connection '{FlowName(f)}'",
+                        "the branch scope");
+                }
+            }
+
+            return issues;
+        }
+
+        /// <summary>
+        /// Lehnt jede ValueHandle-Bindung an einer Stelle ab, deren Ergebnis den Schritt ueberlebt.
+        /// </summary>
+        private static void ForbidValueHandles(List<ValidationIssue> issues, string nodeId,
+            List<ActivityInputBinding> inputs, string what, string where)
+        {
+            if (inputs == null)
+            {
+                return;
+            }
+
+            foreach (ActivityInputBinding b in inputs)
+            {
+                if (b != null && b.Kind == ParameterBindingKind.ValueHandle)
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what} binds '{b.Parameter}' to value handler '{b.HandlerName}', but its bindings " +
+                        $"fill {where}. A value handle is a live object with a plugin scope behind it - " +
+                        "after the next restart it would be a dead reference. Let an activity fetch the " +
+                        "value and put what is small enough into a variable."));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Prueft die ValueHandle-Bindungen dort, wo sie erlaubt sind: Vollstaendigkeit, keine
+        /// Rekursion, und was in einer parallelen Region davon ueberlebt.
+        /// </summary>
+        /// <param name="issues">die Sammlung, in die Befunde gehen</param>
+        /// <param name="nodeId">der betroffene Knoten</param>
+        /// <param name="what">die Beschriftung des Knotens fuer die Meldung</param>
+        /// <param name="inputs">die Bindungen des Knotens</param>
+        /// <param name="inParallelRegion">ob der Knoten in einer parallelen Region liegt</param>
+        /// <param name="handleDeliveryUsable">
+        /// ob die Zustellart <see cref="ValueDelivery.Handle"/> hier ueberhaupt etwas bewirkt - bei einer
+        /// Benutzer-Aufgabe nicht: deren Maske bekommt den Griff nie zu sehen
+        /// </param>
+        private static void HandlerBindingIssues(List<ValidationIssue> issues, string nodeId, string what,
+            List<ActivityInputBinding> inputs, bool inParallelRegion, bool handleDeliveryUsable)
+        {
+            if (inputs == null)
+            {
+                return;
+            }
+
+            var seenHandlers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var reportedDuplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (ActivityInputBinding b in inputs)
+            {
+                if (b == null || b.Kind != ParameterBindingKind.ValueHandle)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(b.HandlerName))
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what} binds '{b.Parameter}' to a value handler without naming one."));
+                }
+                else if (!seenHandlers.Add(b.HandlerName) && reportedDuplicates.Add(b.HandlerName))
+                {
+                    // Erlaubt - aber es ergibt ZWEI Griffe auf dasselbe, und wer beide schreibt, schreibt
+                    // zweimal. Das soll man sehen.
+                    issues.Add(Warn(nodeId,
+                        $"{what} uses value handler '{b.HandlerName}' more than once. That is allowed, but " +
+                        "it yields one handle per binding - writing both writes twice."));
+                }
+
+                if (b.HandlerArguments == null || b.HandlerArguments.Count == 0)
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what} binds '{b.Parameter}' to value handler '{b.HandlerName}' without a single " +
+                        "argument - the handler would not know which record to return."));
+                }
+                else if (b.HandlerArguments.Any(a => a != null && a.Kind == ParameterBindingKind.ValueHandle))
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what}: an argument of value handler '{b.HandlerName}' is itself bound to a value " +
+                        "handler. Arguments are the question put to a handler, not its answer - they can " +
+                        "not nest."));
+                }
+
+                if (!handleDeliveryUsable && b.Delivery == ValueDelivery.Handle)
+                {
+                    issues.Add(Warn(nodeId,
+                        $"{what} delivers '{b.Parameter}' as a handle, but a user task never sees one: the " +
+                        "mask carries the unpacked value, so its field paths address the real object. The " +
+                        "setting has no effect here."));
+                }
+
+                if (!inParallelRegion)
+                {
+                    continue;
+                }
+
+                // In einer parallelen Region sieht der Zweig-Commit einen Schreibvorgang ueber einen
+                // Handler NICHT: die Konflikterkennung vergleicht Werte aus dem Variablen-Blob, und dort
+                // steht bei dieser Bindungsart nichts. Zwei Zweige, derselbe Handler, dieselben Argumente -
+                // der letzte gewinnt, lautlos.
+                bool writes = b.Delivery == ValueDelivery.Value && b.WriteBack == ValueWriteBackMode.OnSuccess;
+                if (writes && !b.AllowInParallelRegion)
+                {
+                    issues.Add(Error(nodeId,
+                        $"{what} writes '{b.Parameter}' back through value handler '{b.HandlerName}' inside " +
+                        "a parallel region. Two branches writing the same record let the last one win, and " +
+                        "the branch commit does not see it. Move it out of the region - or set " +
+                        "AllowInParallelRegion and make the handler carry version stamps."));
+                }
+                else if (writes)
+                {
+                    issues.Add(Warn(nodeId,
+                        $"{what} writes '{b.Parameter}' back through value handler '{b.HandlerName}' inside " +
+                        "a parallel region, explicitly allowed. Concurrent writes are now the handler's " +
+                        "responsibility - the branch commit will not detect them."));
+                }
+                else if (b.Delivery == ValueDelivery.Handle)
+                {
+                    issues.Add(Warn(nodeId,
+                        $"{what} hands '{b.Parameter}' to the activity as a handle inside a parallel region. " +
+                        "If the activity writes it back, the branch commit will not see the conflict."));
+                }
             }
         }
 
