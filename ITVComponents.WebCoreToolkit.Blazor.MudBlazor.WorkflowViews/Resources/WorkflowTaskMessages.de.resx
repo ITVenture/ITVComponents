@@ -172,6 +172,9 @@
   <data name="No" xml:space="preserve">
     <value>Nein</value>
   </data>
+  <data name="TimeOfDay" xml:space="preserve">
+    <value>Uhrzeit</value>
+  </data>
   <data name="WaitingForNextStep" xml:space="preserve">
     <value>Der Vorgang läuft - der nächste Schritt wird vorbereitet…</value>
   </data>

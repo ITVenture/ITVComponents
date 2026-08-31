@@ -16,7 +16,9 @@
 <MudGrid Spacing="2">
     @foreach (DeclaredField field in VisibleFields)
     {
-        <MudItem xs="12" sm="@(field.Kind == DeclaredFieldKind.MultilineText ? 12 : 6)">
+        @* Datum+Uhrzeit bekommt die volle Breite: zwei Waehler nebeneinander in einer halben Spalte
+           waeren auf jedem zweiten Bildschirm zu eng. *@
+        <MudItem xs="12" sm="@(field.Kind is DeclaredFieldKind.MultilineText or DeclaredFieldKind.DateTime ? 12 : 6)">
             @if (field.ReadOnly)
             {
                 <MudField Label="@Label(field)" Variant="Variant.Text" Disabled="true">
@@ -52,6 +54,25 @@
                                Required="@field.Required"
                                Date="@AsDate(field)"
                                DateChanged="@(d => Set(field, d))" />
+            }
+            else if (field.Kind == DeclaredFieldKind.DateTime)
+            {
+                @* Zwei Waehler, EIN Wert. MudBlazor hat keinen kombinierten - und zwei getrennte sind
+                   ohnehin die bessere Bedienung, weil beide Haelften einzeln korrigierbar bleiben. *@
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Baseline">
+                    <MudDatePicker Label="@Label(field)"
+                                   HelperText="@Help(field)"
+                                   Required="@field.Required"
+                                   Date="@AsDate(field)"
+                                   DateChanged="@(d => SetDatePart(field, d))"
+                                   Class="flex-grow-1" />
+                    <MudTimePicker Label="@(TimeText ?? "Time")"
+                                   Required="@field.Required"
+                                   TimeFormat="HH:mm"
+                                   Time="@TimePart(field)"
+                                   TimeChanged="@(t => SetTimePart(field, t))"
+                                   Style="max-width:10rem" />
+                </MudStack>
             }
             else if (field.Kind == DeclaredFieldKind.Choice)
             {
@@ -134,7 +155,25 @@
     /// <summary>Beschriftung fuer "falsch" in der Nur-Anzeige-Darstellung.</summary>
     [Parameter] public string? NoText { get; set; }
 
+    /// <summary>
+    /// Beschriftung des Uhrzeit-Waehlers bei Datum+Uhrzeit-Feldern. Das Feld selbst ist mit seiner
+    /// eigenen Beschriftung am Datum angeschrieben; die zweite Haelfte braucht trotzdem eine, sonst
+    /// steht dort ein namenloser Waehler.
+    /// </summary>
+    [Parameter] public string? TimeText { get; set; }
+
     private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Die Uhrzeit-Haelfte eines Datum+Uhrzeit-Feldes, solange (oder auch nachdem) sie gewaehlt wurde.
+    /// <para>
+    /// Noetig, weil die beiden Waehler in beliebiger Reihenfolge bedient werden: wer die Uhrzeit zuerst
+    /// setzt, hat noch keinen Wert, an den sie gehoerte. Sie hier zu merken ist ehrlicher, als dafuer
+    /// ein Datum zu erfinden - der Wert bleibt leer, bis wirklich beides dasteht, und ein Pflichtfeld
+    /// bleibt bis dahin offen.
+    /// </para>
+    /// </summary>
+    private readonly Dictionary<string, TimeSpan?> timeParts = new(StringComparer.Ordinal);
     private string? error;
     private bool initialized;
     private string? initializedFor;
@@ -157,6 +196,7 @@
         initialized = true;
         initializedFor = ResetKey;
         values.Clear();
+        timeParts.Clear();
         error = null;
 
         foreach (DeclaredField field in VisibleFields)
@@ -267,6 +307,9 @@
             DeclaredFieldKind.Boolean => AsBool(field) ? "true" : "false",
             DeclaredFieldKind.Number => AsDecimal(field)?.ToString(CultureInfo.InvariantCulture),
             DeclaredFieldKind.Date => AsDate(field)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            // Sortierbar, eindeutig und ohne Zeitzonen-Behauptung: es ist die Wanduhrzeit, die jemand
+            // eingegeben hat. Ein angehaengtes "Z" waere eine Aussage, die die Maske nicht treffen kann.
+            DeclaredFieldKind.DateTime => AsDate(field)?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
             _ => value.ToString()
         };
     }
@@ -298,7 +341,9 @@
         {
             null => string.Empty,
             bool b => (b ? YesText : NoText) ?? b.ToString(),
-            DateTime d => d.ToString("g", CultureInfo.CurrentCulture),
+            // Ein reines Datum ohne "00:00" dahinter: die Nullen sind keine Angabe, sondern das Fehlen
+            // einer - genau der Unterschied, den es mit dem eigenen Feldtyp jetzt gibt.
+            DateTime d => d.ToString(field.Kind == DeclaredFieldKind.Date ? "d" : "g", CultureInfo.CurrentCulture),
             IFormattable f => f.ToString(null, CultureInfo.CurrentCulture),
             _ => value.ToString() ?? string.Empty
         };
@@ -309,6 +354,40 @@
         values[field.Name] = value;
         error = null;
     }
+
+    /// <summary>
+    /// Setzt die Datums-Haelfte eines Datum+Uhrzeit-Feldes und haengt die Uhrzeit an, die bereits
+    /// gewaehlt wurde (sonst Mitternacht - dann steht sie im Waehler und laesst sich korrigieren).
+    /// </summary>
+    private void SetDatePart(DeclaredField field, DateTime? date)
+    {
+        values[field.Name] = date is null
+            ? null
+            : date.Value.Date.Add(TimePart(field) ?? TimeSpan.Zero);
+        error = null;
+    }
+
+    /// <summary>
+    /// Setzt die Uhrzeit-Haelfte. Ohne Datum bleibt der Wert leer: eines zu erfinden waere genau die
+    /// stille Annahme, wegen der es diesen Feldtyp ueberhaupt gibt.
+    /// </summary>
+    private void SetTimePart(DeclaredField field, TimeSpan? time)
+    {
+        timeParts[field.Name] = time;
+        DateTime? current = AsDate(field);
+        if (current is not null)
+        {
+            values[field.Name] = current.Value.Date.Add(time ?? TimeSpan.Zero);
+        }
+
+        error = null;
+    }
+
+    /// <summary>
+    /// Die Uhrzeit, die der Waehler zeigt: die zuletzt gewaehlte, sonst die des vorbelegten Wertes.
+    /// </summary>
+    private TimeSpan? TimePart(DeclaredField field)
+        => timeParts.TryGetValue(field.Name, out TimeSpan? part) ? part : AsDate(field)?.TimeOfDay;
 
     private string? AsString(DeclaredField field)
         => values.TryGetValue(field.Name, out object? v) ? v?.ToString() : null;

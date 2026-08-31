@@ -712,6 +712,34 @@ Die Komponente liest ihren Zustand über `[CascadingParameter] WorkflowTaskConte
 Parameter-Dictionary einer `DynamicComponent`: dessen Parameternamen werden erst zur Laufzeit geprüft,
 und dieselbe Komponente läuft so unverändert im Registry-Weg **und** direkt auf einer eigenen Seite.
 
+#### Die Feldarten der generischen Maske
+
+`UserTaskField.Kind` — dieselbe Liste für die Aufgaben-Maske und die Start-Maske:
+
+| `Kind` | Eingabe | Wert im Ergebnis |
+|---|---|---|
+| `Text` | einzeiliges Textfeld | `string` |
+| `MultilineText` | mehrzeilig, volle Breite | `string` |
+| `Number` | Zahlenfeld | `decimal?` |
+| `Boolean` | Schalter (immer beantwortet, Vorgabe „nein") | `bool` |
+| `Date` | Datumswähler | `DateTime` (Zeitanteil 00:00) |
+| `DateTime` | Datums- **und** Uhrzeitwähler nebeneinander | `DateTime` |
+| `Choice` | Auswahl aus `Choices` | `string` |
+
+`Date` und `DateTime` sind bewusst zwei Arten und nicht eine mit Schalter: bei einem reinen Datum ist
+die Uhrzeit **keine Angabe**, und ein Feld, das dafür „00:00" liefert, behauptet etwas. Wo die Minute
+zählt — Termin, Stichzeit, Schnittzeitpunkt —, fragt `DateTime` beide Hälften ab. Solange nur eine von
+beiden dasteht, bleibt der Wert leer; ein Pflichtfeld ist damit erst vollständig, wenn wirklich beides
+gewählt wurde. Ein Datum ohne Uhrzeit ergibt Mitternacht, und die steht dann sichtbar im Wähler.
+
+Der Wert ist die **Wanduhrzeit**, die jemand eingegeben hat (`DateTimeKind.Unspecified`) — die Maske
+kann keine Zeitzone behaupten. Wer in UTC rechnet, wandelt im Prozess um, wo der Bezug bekannt ist.
+
+> **Beim Erweitern:** Definitionen speichern die **Zahlen** dieser Aufzählung (`WorkflowJson` führt
+> bewusst keinen String-Konverter). Ein neuer Eintrag gehört ans **Ende** — einer in der Mitte macht
+> aus jedem gespeicherten `Choice` still ein `Date`. Festgehalten in
+> `UserTaskFieldKindTest.The_Numbers_Of_The_Field_Kinds_Are_The_Contract`.
+
 #### Der Vertrag: `IUserTaskView`
 
 Eine registrierte Maske **muss** `IUserTaskView` erfüllen — verlangt schon beim Übersetzen

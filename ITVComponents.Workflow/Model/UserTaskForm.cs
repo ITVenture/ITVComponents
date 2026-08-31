@@ -25,7 +25,19 @@ namespace ITVComponents.Workflow.Model
         Date,
 
         /// <summary>Auswahl aus <see cref="UserTaskField.Choices"/>.</summary>
-        Choice
+        Choice,
+
+        /// <summary>
+        /// Datum <b>und</b> Uhrzeit - fuer die Faelle, in denen die Minute zaehlt und ein blosses Datum
+        /// eine Auskunft schuldig bliebe (Termin, Stichzeit, Schnittzeitpunkt).
+        /// </summary>
+        /// <remarks>
+        /// Steht ans Ende angehaengt und nicht neben <see cref="Date"/>: Definitionen werden mit den
+        /// ZAHLEN dieser Aufzaehlung gespeichert (<c>WorkflowJson</c> fuehrt keinen String-Konverter).
+        /// Ein Eintrag in der Mitte haette aus jedem gespeicherten <see cref="Choice"/> still ein
+        /// <see cref="Date"/> gemacht.
+        /// </remarks>
+        DateTime
     }
 
     /// <summary>

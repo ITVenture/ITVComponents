@@ -19,7 +19,8 @@
                     ResetKey="@ResetKey"
                     RequiredFieldMessage="@(L["RequiredField"])"
                     YesText="@(L["Yes"])"
-                    NoText="@(L["No"])" />
+                    NoText="@(L["No"])"
+                    TimeText="@(L["TimeOfDay"])" />
 
 @code {
     /// <summary>Die zu rendernde Feld-Deklaration.</summary>
@@ -132,6 +133,7 @@
             UserTaskFieldKind.Number => DeclaredFieldKind.Number,
             UserTaskFieldKind.Boolean => DeclaredFieldKind.Boolean,
             UserTaskFieldKind.Date => DeclaredFieldKind.Date,
+            UserTaskFieldKind.DateTime => DeclaredFieldKind.DateTime,
             UserTaskFieldKind.Choice => DeclaredFieldKind.Choice,
             _ => DeclaredFieldKind.Text
         };

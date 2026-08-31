@@ -172,6 +172,9 @@
   <data name="No" xml:space="preserve">
     <value>No</value>
   </data>
+  <data name="TimeOfDay" xml:space="preserve">
+    <value>Time</value>
+  </data>
   <data name="WaitingForNextStep" xml:space="preserve">
     <value>The process is running - the next step is being prepared…</value>
   </data>

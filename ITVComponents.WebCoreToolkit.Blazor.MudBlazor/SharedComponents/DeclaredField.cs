@@ -24,7 +24,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         Date,
 
         /// <summary>Auswahl aus <see cref="DeclaredField.Choices"/>.</summary>
-        Choice
+        Choice,
+
+        /// <summary>
+        /// Datum und Uhrzeit. Gezeichnet als zwei Waehler nebeneinander - MudBlazor hat keinen
+        /// kombinierten, und zwei getrennte sind auf dem Telefon ohnehin die bessere Bedienung.
+        /// </summary>
+        /// <remarks>
+        /// Angehaengt und nicht neben <see cref="Date"/> eingereiht: die Aufzaehlungen der Konsumenten
+        /// werden numerisch gespeichert, und deren Reihenfolge folgt dieser hier.
+        /// </remarks>
+        DateTime
     }
 
     /// <summary>

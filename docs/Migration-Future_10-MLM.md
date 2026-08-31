@@ -5038,6 +5038,31 @@ dafür kein JS: Komponenten injizieren `ISharedAssetContext`, und der Abschnitt 
 - `Global.AnonymousAssetUserName` ist jetzt die eine Quelle für `#ANONYMOUS#`;
   `DefaultAnonymousAssetUserResolver.AnonymousUserLabel` bleibt als Alias stehen.
 
+## 59. Datum **und** Uhrzeit in den Aufgaben-Masken — **kein Schema-Change, nichts zu tun**
+
+Die generische Maske (Aufgabe wie Start) kannte bisher nur `Date` — ein Datum ohne Zeitanteil. Neu gibt
+es daneben `DateTime`, für die Fälle, in denen die Minute zählt: Termin, Stichzeit, Schnittzeitpunkt.
+
+Gezeichnet wird es als **Datums- und Uhrzeitwähler nebeneinander** (MudBlazor hat keinen kombinierten,
+und zwei getrennte sind auf dem Telefon ohnehin die bessere Bedienung); das Feld nimmt dafür die volle
+Breite ein. Solange nur eine der beiden Hälften dasteht, bleibt der Wert **leer** — ein Pflichtfeld ist
+also erst vollständig, wenn beides gewählt wurde. Wer das Datum zuerst setzt, bekommt Mitternacht, und
+die steht sichtbar im Wähler, statt sich still einzuschleichen.
+
+Im Ergebnis steht ein `DateTime` mit der **Wanduhrzeit** der Eingabe (`DateTimeKind.Unspecified`) — die
+Maske kann keine Zeitzone behaupten. Wer in UTC rechnet, wandelt im Prozess um, wo der Bezug bekannt ist.
+
+Im Designer erscheint der neue Typ von selbst in der Auswahl „Type" des Feld-Dialogs. Bestehende
+Definitionen sind nicht betroffen: `Date` bleibt `Date`, und die Nur-Anzeige-Darstellung eines
+`Date`-Feldes zeigt jetzt **kein** „00:00" mehr dahinter — die Nullen waren keine Angabe, sondern das
+Fehlen einer.
+
+**Wenn ihr eigene Feldarten ergänzt** (`UserTaskFieldKind`, `DeclaredFieldKind`): der neue Eintrag
+gehört ans **Ende** der Aufzählung. Definitionen speichern die Zahlen, nicht die Namen — ein Eintrag in
+der Mitte macht aus jedem gespeicherten `Choice` still ein `Date`. Ein Test hält das jetzt fest.
+
+Neuer Sprachschlüssel `TimeOfDay` in `WorkflowTaskMessages` (en/de/fr/it liegen bei).
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
