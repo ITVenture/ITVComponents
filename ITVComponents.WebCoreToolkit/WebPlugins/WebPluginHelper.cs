@@ -107,6 +107,15 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 throw new InvalidOperationException("The Plugin-Source does not support explicit user-scope-selections");
             }
 
+            if (factory != null)
+            {
+                // Gleicher Scope, Factory steht schon: die bestehende zurueckgeben - wie GetFactory().
+                // Ein Neubau wuerde 'factory' ueberschreiben, ohne die alte zu disposen, und dabei die
+                // AutoLoad-Plugins ein zweites Mal laden, waehrend die erste Factory noch offene
+                // Operations-Scopes haelt.
+                return factory;
+            }
+
             pluginProvider.ExplicitPluginPermissionScope = explicitPluginScope;
             factory = CreateFactory(false, true, out var tenantObjects);
             SetupFactory(factory, false, tenantObjects);

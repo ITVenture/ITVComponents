@@ -2,31 +2,32 @@ using System;
 using System.Collections.Generic;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Model;
 
 namespace ITVComponents.Workflow.ValueHandles
 {
     /// <summary>
-    /// Eine Aufloesungsrunde: alle Griffe, die dabei entstanden sind, und der Plugin-Scope, aus dem
-    /// ihre Handler stammen.
+    /// Eine Aufloesungsrunde: alle Griffe, die dabei entstanden sind.
     /// </summary>
     /// <remarks>
-    /// Der Scope wird <b>traege</b> geoeffnet - erst wenn eine Bindung wirklich einen Handler braucht.
-    /// Die weit ueberwiegende Zahl der Knoten hat keine ValueHandle-Bindung, und fuer die soll kein
-    /// Plugin-Scope entstehen.
+    /// Die Handler kommen aus dem <see cref="IActivityScope"/> der laufenden Arbeitseinheit - demselben
+    /// Scope, aus dem auch die Schritte kommen. Die Runde <b>besitzt ihn nicht</b>: sie loest darin auf
+    /// und laesst ihn stehen. Wer den Scope geoeffnet hat, schliesst ihn.
     /// <para>
-    /// Die Runde endet mit <see cref="Dispose"/>: danach sind die Griffe tot. Das ist der Grund, warum
-    /// eine Benutzer-Aufgabe zweimal aufloest (beim Parken fuer die Maske, beim Abschluss zum
-    /// Schreiben) - ein Griff ueberlebt die Persistierung nicht.
+    /// Die Runde endet mit <see cref="Dispose"/>: danach sind die Griffe tot - ein Schreibversuch aus
+    /// einem Griff, dessen Runde vorbei ist, wirft. Das ist der Grund, warum eine Benutzer-Aufgabe
+    /// zweimal aufloest (beim Parken fuer die Maske, beim Abschluss zum Schreiben) - ein Griff ueberlebt
+    /// die Persistierung nicht.
     /// </para>
     /// </remarks>
     internal sealed class ValueHandleSession : IDisposable
     {
         /// <summary>
-        /// der Host, der Aufloesungs-Kontexte vergibt; null, wenn diese Engine keinen hat
+        /// der Scope der laufenden Arbeitseinheit, aus dem die Handler aufgeloest werden
         /// </summary>
-        private readonly IValueHandlerHost host;
+        private readonly IActivityScope scope;
 
         /// <summary>
         /// die Instanz, in deren Namen aufgeloest wird
@@ -49,11 +50,6 @@ namespace ITVComponents.Workflow.ValueHandles
         private readonly IReadOnlyDictionary<string, Dictionary<string, object>> frozenArguments;
 
         /// <summary>
-        /// der Aufloesungs-Kontext - traege geoeffnet
-        /// </summary>
-        private IValueHandlerScope scope;
-
-        /// <summary>
         /// die bereits aufgeloesten Handler dieser Runde, je Name
         /// </summary>
         private Dictionary<string, IWorkflowValueHandler> resolved;
@@ -61,7 +57,10 @@ namespace ITVComponents.Workflow.ValueHandles
         /// <summary>
         /// Initialisiert eine Aufloesungsrunde.
         /// </summary>
-        /// <param name="host">der Host, der Aufloesungs-Kontexte vergibt, oder null</param>
+        /// <param name="scope">
+        /// der Scope der laufenden Arbeitseinheit, aus dem die Handler aufgeloest werden. Die Runde
+        /// besitzt ihn nicht und schliesst ihn nicht.
+        /// </param>
         /// <param name="instance">die Instanz, in deren Namen aufgeloest wird</param>
         /// <param name="tokenId">der Zweig, in dem aufgeloest wird, oder null</param>
         /// <param name="frozenArguments">
@@ -69,10 +68,10 @@ namespace ITVComponents.Workflow.ValueHandles
         /// wird er dem Variablen-Stand von jetzt vorgezogen - er benennt den Datensatz, den der Mensch
         /// gesehen hat.
         /// </param>
-        public ValueHandleSession(IValueHandlerHost host, WorkflowInstance instance, string tokenId,
+        public ValueHandleSession(IActivityScope scope, WorkflowInstance instance, string tokenId,
             IReadOnlyDictionary<string, Dictionary<string, object>> frozenArguments = null)
         {
-            this.host = host;
+            this.scope = scope ?? throw new ArgumentNullException(nameof(scope));
             this.instance = instance ?? throw new ArgumentNullException(nameof(instance));
             this.tokenId = tokenId;
             this.frozenArguments = frozenArguments;
@@ -137,7 +136,7 @@ namespace ITVComponents.Workflow.ValueHandles
                     "handler name is configured.");
             }
 
-            IWorkflowValueHandler handler = ResolveHandler(binding.HandlerName, binding.Parameter, nodeId);
+            IWorkflowValueHandler handler = ResolveHandler(binding.HandlerName, nodeId);
             var request = new ValueHandleRequest(binding.HandlerName, binding.Parameter, arguments,
                 instance.Id, instance.DefinitionId, instance.TenantId, tokenId, nodeId);
 
@@ -168,53 +167,40 @@ namespace ITVComponents.Workflow.ValueHandles
             }
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Beendet die Runde: die Griffe sind danach tot.
+        /// </summary>
+        /// <remarks>
+        /// Der Scope wird hier <b>nicht</b> geschlossen - er gehoert der Arbeitseinheit und ueberlebt die
+        /// Runde. Genau deshalb muessen die Griffe hier ausdruecklich zugemacht werden: ihr Handler lebt
+        /// noch, ein spaeteres <see cref="ValueHandle.WriteBack"/> wuerde also klaglos schreiben, obwohl
+        /// die Runde vorbei ist und niemand mehr protokolliert, was da rausgeht.
+        /// </remarks>
         public void Dispose()
         {
-            try
+            foreach (ValueHandleBinding entry in handles)
             {
-                scope?.Dispose();
+                entry.Handle.Close();
             }
-            catch (Exception ex)
-            {
-                // Der Scope gehoert der Runde; sein Ende darf den Vortrieb nicht aufhalten. Verschwiegen
-                // wird es trotzdem nicht - ein Handler, der beim Freigeben wirft, haelt sonst still
-                // Ressourcen fest, und man sucht die Ursache Wochen spaeter woanders.
-                LogEnvironment.LogEvent(
-                    $"Value handler scope of instance '{instance.Id}' could not be released: " +
-                    $"{ex.OutlineException()}", LogSeverity.Error);
-            }
-            finally
-            {
-                scope = null;
-                resolved = null;
-            }
+
+            resolved = null;
         }
 
         /// <summary>
         /// Holt den Handler zu einem Namen - je Runde einmal.
         /// </summary>
         /// <param name="handlerName">der konfigurierte Name des Handlers</param>
-        /// <param name="parameter">der Parameter, fuer den gefragt wird (fuer die Meldung)</param>
         /// <param name="nodeId">der Knoten, an dem gefragt wird (fuer die Meldung)</param>
         /// <returns>der aufgeloeste Handler</returns>
-        private IWorkflowValueHandler ResolveHandler(string handlerName, string parameter, string nodeId)
+        private IWorkflowValueHandler ResolveHandler(string handlerName, string nodeId)
         {
-            if (host == null)
-            {
-                throw new InvalidOperationException(
-                    $"Input '{parameter}' of node '{nodeId}' uses value handler '{handlerName}', but this " +
-                    "engine has no value handler host configured.");
-            }
-
             resolved ??= new Dictionary<string, IWorkflowValueHandler>(StringComparer.OrdinalIgnoreCase);
             if (resolved.TryGetValue(handlerName, out IWorkflowValueHandler known))
             {
                 return known;
             }
 
-            scope ??= host.OpenScope(instance);
-            IWorkflowValueHandler handler = scope.Resolve(handlerName)
+            IWorkflowValueHandler handler = scope.ResolveValueHandler(handlerName)
                                             ?? throw new InvalidOperationException(
                                                 $"Value handler '{handlerName}' of node '{nodeId}' resolved " +
                                                 "to nothing.");

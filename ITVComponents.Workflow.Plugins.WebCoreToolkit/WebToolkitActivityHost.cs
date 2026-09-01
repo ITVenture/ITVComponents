@@ -5,15 +5,21 @@ using ITVComponents.WebCoreToolkit.WebPlugins;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
 using ITVComponents.Workflow.Plugins;
+using ITVComponents.Workflow.ValueHandles;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
 {
     /// <summary>
-    /// Ein <see cref="IActivityHost"/> fuer den WebCoreToolkit-Stack: treibt jede Instanz je Vortrieb in
-    /// einem eigenen DI-Scope voran, der auf den Tenant der Instanz fixiert ist. So sehen die als Plugin
-    /// geladenen Aktivitaeten UND ihre tenant-abhaengigen (DB-)Kontexte konsistent den richtigen Tenant -
-    /// ein tenant-uebergreifender Runner arbeitet damit jede Instanz unter ihrem Tenant ab.
+    /// Ein <see cref="IActivityHost"/> fuer den WebCoreToolkit-Stack: arbeitet jede Instanz je
+    /// Arbeitseinheit in einem eigenen DI-Scope ab, der auf den Tenant der Instanz fixiert ist. So sehen
+    /// die als Plugin geladenen Aktivitaeten, die Wert-Handler UND ihre tenant-abhaengigen (DB-)Kontexte
+    /// konsistent den richtigen Tenant - ein tenant-uebergreifender Runner arbeitet damit jede Instanz
+    /// unter ihrem Tenant ab.
+    ///
+    /// Beim Wert-Handler ist das kein Beiwerk: er holt fremde Daten, und <b>wessen</b> Daten das sind,
+    /// entscheidet der fixierte Tenant. Ein Handler-Name in einer <b>oeffentlichen</b> Definition trifft
+    /// damit je Mandant das, was dort unter ihm eingerichtet ist.
     /// </summary>
     /// <remarks>
     /// Muster nach dem Toolkit-Hintergrunddienst (<c>BackgroundTaskProcessorService</c> /
@@ -83,12 +89,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
 
             public IWorkflowActivity Resolve(string activityRef)
             {
-                // Traege: erst beim ersten aufgeloesten Schritt die tenant-spezifische Plugin-Factory samt
-                // Operations-Scope oeffnen (Plugin-Auswahl + scope-owned Kontexte fuer den Tenant); beim
-                // Dispose des Scopes wird alles wieder freigegeben.
-                pluginScope ??= OpenPluginScope();
-
-                if (pluginScope[activityRef, true] is IActivityPlugin plugin)
+                if (PluginScope[activityRef, true] is IActivityPlugin plugin)
                 {
                     return plugin;
                 }
@@ -97,6 +98,32 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
                     $"Fuer den ActivityRef '{activityRef}' konnte im Tenant '{tenant ?? "(none)"}' kein " +
                     "Workflow-Aktivitaets-Plugin (IActivityPlugin) aufgeloest werden.");
             }
+
+            public IWorkflowValueHandler ResolveValueHandler(string handlerName)
+            {
+                // Derselbe Operations-Scope wie fuer die Schritte - und damit dieselben scope-owned
+                // Kontexte. Ein eigener Scope hiesse eine zweite Plugin-Factory und ein zweites Set
+                // Kontexte fuer denselben Knoten.
+                if (PluginScope[handlerName, true] is IValueHandlerPlugin plugin)
+                {
+                    return plugin;
+                }
+
+                throw new InvalidOperationException(
+                    $"Fuer den Handler-Namen '{handlerName}' konnte im Tenant '{tenant ?? "(none)"}' kein " +
+                    "Workflow-Wert-Handler (IValueHandlerPlugin) aufgeloest werden.");
+            }
+
+            /// <summary>
+            /// Die tenant-spezifische Plugin-Factory samt Operations-Scope - traege geoeffnet.
+            /// </summary>
+            /// <remarks>
+            /// Erst beim ersten aufgeloesten Plugin (Plugin-Auswahl + scope-owned Kontexte fuer den
+            /// Tenant); beim Dispose des Scopes wird alles wieder freigegeben. Genau EINMAL je
+            /// Arbeitseinheit: <c>CreateOperationScope(tenant)</c> baut je Aufruf eine neue Factory und
+            /// wuerde die vorige unbemerkt ersetzen.
+            /// </remarks>
+            private IPluginFactory PluginScope => pluginScope ??= OpenPluginScope();
 
             private IPluginFactory OpenPluginScope()
             {
@@ -108,8 +135,8 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
 
             public void Dispose()
             {
-                // Erst den Plugin-Operations-Scope (stoppt/disposed die geladenen Schritt-Plugins und die
-                // scope-owned Kontexte), dann den DI-Scope.
+                // Erst den Plugin-Operations-Scope (stoppt/disposed die geladenen Schritt- und
+                // Handler-Plugins und die scope-owned Kontexte), dann den DI-Scope.
                 pluginScope?.Dispose();
                 pluginScope = null;
                 diScope?.Dispose();

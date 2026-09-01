@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using ITVComponents.Plugins;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
+using ITVComponents.Workflow.ValueHandles;
 
 namespace ITVComponents.Workflow.Plugins
 {
     /// <summary>
-    /// Loest automatische Schritte als Plugins aus der PluginFactory auf. Je Vortrieb einer Instanz
-    /// wird ein Scope geoeffnet, die benoetigten Schritt-Plugins werden darin on demand geladen und
-    /// beim Schliessen des Scopes wieder freigegeben.
+    /// Loest automatische Schritte und Wert-Handler als Plugins aus der PluginFactory auf. Je
+    /// Arbeitseinheit an einer Instanz wird ein Scope geoeffnet, die benoetigten Plugins werden darin on
+    /// demand geladen und beim Schliessen des Scopes wieder freigegeben.
     /// </summary>
     /// <remarks>
     /// Die uebergebene <see cref="PluginFactory"/> sollte mit <see cref="ScopeMode.PerAsyncContext"/>
@@ -40,8 +41,8 @@ namespace ITVComponents.Workflow.Plugins
         }
 
         /// <summary>
-        /// Ein Aufloesungs-Kontext fuer einen Vortrieb. Oeffnet den PluginFactory-Scope traege beim
-        /// ersten aufgeloesten Schritt und schliesst ihn (samt der geladenen Plugins) beim Dispose.
+        /// Ein Aufloesungs-Kontext fuer eine Arbeitseinheit. Oeffnet den PluginFactory-Scope traege beim
+        /// ersten aufgeloesten Plugin und schliesst ihn (samt der geladenen Plugins) beim Dispose.
         /// </summary>
         private sealed class PluginActivityScope : IActivityScope
         {
@@ -58,19 +59,12 @@ namespace ITVComponents.Workflow.Plugins
 
             public IWorkflowActivity Resolve(string activityRef)
             {
-                // Scope erst jetzt oeffnen: ein Vortrieb ohne Aktivitaet zahlt nichts.
-                // transientLoadingScope: false, damit die geladenen Plugins beim Schliessen disposed
-                // werden.
-                scope ??= factory.NewScope(
-                    new Dictionary<string, object> { { "instanceId", instance.Id } },
-                    null,
-                    false);
-
                 // scope[name, true]: die Factory loest den ActivityRef ueber den IDynamicLoader des
                 // Scopes selbst auf (Konstruktions-String aus dessen Scoped-Plugin-Definition) und laedt
-                // das Plugin in den Scope-Collector - der cached pro Name, ein erneutes Resolve im selben
-                // Vortrieb liefert also dieselbe Instanz, und der Scope gibt sie beim Dispose frei.
-                if (scope[activityRef, true] is IActivityPlugin plugin)
+                // das Plugin in den Scope-Collector - der cached pro Name, ein erneutes Resolve in
+                // derselben Arbeitseinheit liefert also dieselbe Instanz, und der Scope gibt sie beim
+                // Dispose frei.
+                if (Scope[activityRef, true] is IActivityPlugin plugin)
                 {
                     return plugin;
                 }
@@ -80,6 +74,35 @@ namespace ITVComponents.Workflow.Plugins
                     "aufgeloest werden. Es muss ein Scoped-Plugin dieses Namens ueber einen IDynamicLoader " +
                     "der Factory bereitstehen (und IActivityPlugin implementieren).");
             }
+
+            public IWorkflowValueHandler ResolveValueHandler(string handlerName)
+            {
+                // Derselbe Scope wie fuer die Schritte - siehe IActivityScope: der Handler holt fremde
+                // Daten im Namen derselben Instanz und soll dabei an denselben Kontexten haengen wie die
+                // Aktivitaet, die den Wert danach benutzt.
+                if (Scope[handlerName, true] is IValueHandlerPlugin plugin)
+                {
+                    return plugin;
+                }
+
+                throw new InvalidOperationException(
+                    $"Fuer den Handler-Namen '{handlerName}' konnte kein Workflow-Wert-Handler aufgeloest " +
+                    "werden. Es muss ein Scoped-Plugin dieses Namens ueber einen IDynamicLoader der Factory " +
+                    "bereitstehen (und IValueHandlerPlugin implementieren).");
+            }
+
+            /// <summary>
+            /// Der PluginFactory-Scope dieser Arbeitseinheit - traege geoeffnet.
+            /// </summary>
+            /// <remarks>
+            /// Erst beim ersten aufgeloesten Plugin: eine Arbeitseinheit, die weder Aktivitaet noch
+            /// Wert-Handler braucht, zahlt nichts. <c>transientLoadingScope: false</c>, damit die
+            /// geladenen Plugins beim Schliessen disposed werden.
+            /// </remarks>
+            private IPluginFactory Scope => scope ??= factory.NewScope(
+                new Dictionary<string, object> { { "instanceId", instance.Id } },
+                null,
+                false);
 
             public void Dispose()
             {

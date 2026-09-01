@@ -50,13 +50,16 @@ namespace ITVComponents.Workflow
         private readonly IActivityHost activities;
         private readonly IExpressionEvaluator evaluator;
         private readonly HashSet<string> hostTargets;
-        private readonly IValueHandlerHost valueHandlers;
 
         /// <summary>
         /// Initialisiert die Engine.
         /// </summary>
         /// <param name="store">der Persistenz-Store</param>
-        /// <param name="activities">der Host, der je Vortrieb einen Aktivitaets-Scope vergibt</param>
+        /// <param name="activities">
+        /// Der Host, der je Arbeitseinheit einen <see cref="IActivityScope"/> vergibt. Aus diesem Scope
+        /// kommen die Schritte <b>und</b> die Wert-Handler
+        /// (<see cref="ParameterBindingKind.ValueHandle"/>) - siehe <see cref="IActivityScope"/>.
+        /// </param>
         /// <param name="evaluator">der Ausdrucks-Auswerter, oder null fuer den CScript-Standard</param>
         /// <param name="hostTargets">
         /// Die Ausfuehrungs-Ziele, die DIESER Host/diese Engine bedienen kann (freie Namen, siehe
@@ -78,19 +81,12 @@ namespace ITVComponents.Workflow
         /// <see cref="WorkflowDefinition.RequiredFeature"/>). Null = <see cref="AlwaysEnabledFeatureGate"/>,
         /// also das Verhalten vor Einfuehrung der Bedingung.
         /// </param>
-        /// <param name="valueHandlers">
-        /// Vergibt die Aufloesungs-Kontexte fuer <see cref="ParameterBindingKind.ValueHandle"/>-Bindungen
-        /// (siehe <see cref="IValueHandlerHost"/>). Null = diese Engine kennt keine Wert-Handler; eine
-        /// Definition, die einen benutzt, faultet mit klarer Meldung, statt still ohne Wert zu laufen.
-        /// </param>
         public WorkflowEngine(IWorkflowStore store, IActivityHost activities,
             IExpressionEvaluator evaluator = null, IEnumerable<string> hostTargets = null,
-            IWorkflowHistoryFilter historyFilter = null, IWorkflowTenantFeatureGate featureGate = null,
-            IValueHandlerHost valueHandlers = null)
+            IWorkflowHistoryFilter historyFilter = null, IWorkflowTenantFeatureGate featureGate = null)
         {
             this.store = store ?? throw new ArgumentNullException(nameof(store));
             this.activities = activities ?? throw new ArgumentNullException(nameof(activities));
-            this.valueHandlers = valueHandlers;
             this.evaluator = evaluator ?? new CScriptExpressionEvaluator();
             this.hostTargets = new HashSet<string>(
                 hostTargets ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
@@ -3690,9 +3686,10 @@ namespace ITVComponents.Workflow
             UserTaskCompletionStatus outcome = UserTaskCompletionStatus.NotFound;
             bool endsAssistant = false;
 
-            // Der Einmal-Riegel. Die Aufloesungsrunde und dieses Flag leben AUSSERHALB des Delegaten -
-            // der kann bei einem Versionskonflikt erneut laufen, und ohne den Riegel ginge derselbe
-            // Datensatz zwei- oder dreimal raus.
+            // Der Einmal-Riegel. Der Aufloesungs-Scope, die Runde und dieses Flag leben AUSSERHALB des
+            // Delegaten - der kann bei einem Versionskonflikt erneut laufen, und ohne den Riegel ginge
+            // derselbe Datensatz zwei- oder dreimal raus.
+            IActivityScope activityScope = null;
             ValueHandleSession handles = null;
             bool valueHandlesWritten = false;
 
@@ -3746,9 +3743,13 @@ namespace ITVComponents.Workflow
                         // laengst auf den Eskalationspfad geschoben haben). Spaeter ginge auch nicht: dann
                         // waere die Aufgabe zu, der Vorgang weitergelaufen, und der Schreibfehler kaeme zu
                         // spaet.
+                        // Der Scope entsteht hier und nicht weiter oben: erst ab diesem Punkt steht fest,
+                        // dass es die Aufgabe noch gibt - und erst hier gibt es mit 'fresh' die Instanz,
+                        // unter deren Mandanten aufgeloest werden muss.
                         if (!valueHandlesWritten)
                         {
-                            handles ??= OpenValueHandles(fresh, token);
+                            activityScope ??= activities.OpenScope(fresh);
+                            handles ??= OpenValueHandles(activityScope, fresh, token);
                             valueHandlesWritten = WriteBackUserTask(fresh, token, node, result, handles);
                         }
 
@@ -3792,7 +3793,11 @@ namespace ITVComponents.Workflow
             }
             finally
             {
+                // Erst die Runde beenden (die Griffe zumachen), dann den Scope schliessen (die Handler
+                // und ihre Kontexte freigeben) - die umgekehrte Reihenfolge waere ein Griff, der auf
+                // einen bereits freigegebenen Handler zeigt.
                 handles?.Dispose();
+                activityScope?.Dispose();
             }
         }
 
@@ -3882,8 +3887,12 @@ namespace ITVComponents.Workflow
             // Maske bekommt den ausgepackten Wert, nie den Griff. Deshalb braucht auch der
             // Assistenten-Modus keine eigene Regel - beschreiben und abschliessen sind schon innerhalb
             // EINER Aufgabe zwei getrennte Aufloesungen.
+            // Der Aufloesungs-Scope dieser Arbeitseinheit. Beschreiben treibt nichts voran - gebraucht
+            // wird er allein fuer die Wert-Handler der Maske, und zwar unter dem Mandanten der Instanz,
+            // nicht mit den Rechten dessen, der die Aufgabe gerade oeffnet.
             IDictionary<string, object> payload;
-            using (ValueHandleSession handles = OpenValueHandles(instance, token))
+            using (IActivityScope activityScope = activities.OpenScope(instance))
+            using (ValueHandleSession handles = OpenValueHandles(activityScope, instance, token))
             {
                 payload = ResolveInputs(instance, taskScope, node.Inputs, node.Id,
                     InputTarget.UserTaskPayload, handles);
@@ -4041,7 +4050,7 @@ namespace ITVComponents.Workflow
             // Die Aufloesungsrunde umschliesst die GANZE Ausfuehrung, Iteration eingeschlossen: ein Griff
             // lebt genau so lange, wie mit ihm gearbeitet wird, und wird danach freigegeben. Solange keine
             // Bindung einen Handler braucht, entsteht dahinter kein Plugin-Scope.
-            using (ValueHandleSession handles = OpenValueHandles(instance, token))
+            using (ValueHandleSession handles = OpenValueHandles(activityScope, instance, token))
             {
                 return RunActivity(instance, definition, token, node, activityScope, handles);
             }
@@ -4904,15 +4913,20 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
-        /// Oeffnet eine Aufloesungsrunde fuer Wert-Handler. Der Plugin-Scope dahinter entsteht erst,
-        /// wenn eine Bindung wirklich einen Handler braucht.
+        /// Oeffnet eine Aufloesungsrunde fuer Wert-Handler im Scope der laufenden Arbeitseinheit.
         /// </summary>
+        /// <remarks>
+        /// Die Runde besitzt den Scope nicht - sie loest darin auf. Aufgeloest wird erst, wenn eine
+        /// Bindung wirklich einen Handler braucht; eine Runde ohne ValueHandle-Bindung kostet nichts.
+        /// </remarks>
+        /// <param name="scope">der Scope der laufenden Arbeitseinheit</param>
         /// <param name="instance">die Instanz, in deren Namen aufgeloest wird</param>
         /// <param name="token">der Zweig, in dem aufgeloest wird, oder null</param>
         /// <returns>die Aufloesungsrunde</returns>
-        private ValueHandleSession OpenValueHandles(WorkflowInstance instance, Token token)
+        private ValueHandleSession OpenValueHandles(IActivityScope scope, WorkflowInstance instance,
+            Token token)
         {
-            return new ValueHandleSession(valueHandlers, instance, token?.Id,
+            return new ValueHandleSession(scope, instance, token?.Id,
                 ReadFrozenArguments(instance, token));
         }
 

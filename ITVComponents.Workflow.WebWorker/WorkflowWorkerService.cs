@@ -387,11 +387,10 @@ namespace ITVComponents.Workflow.WebWorker
                 // entscheidet bei jedem zeitgesteuerten und jedem nachrichten-getriebenen Start, ob der
                 // Mandant den Ablauf ueberhaupt (noch) haben darf - ohne Durchreichen bliebe es wirkungslos,
                 // und genau diese beiden Wege sind die einzigen, die es fragen.
-                // Der Wert-Handler-Host ist optional: ohne ihn faultet eine Definition, die einen benutzt,
-                // mit klarer Meldung - statt still ohne den Wert zu laufen.
+                // Die Wert-Handler kommen aus demselben IActivityScope wie die Schritte - der
+                // activityHost bedient beides, die Engine braucht dafuer keine eigene Verdrahtung.
                 var engine = new WorkflowEngine(store, activityHost, null, spec.HostTargets,
-                    sp.GetService<IWorkflowHistoryFilter>(), sp.GetService<IWorkflowTenantFeatureGate>(),
-                    sp.GetService<IValueHandlerHost>());
+                    sp.GetService<IWorkflowHistoryFilter>(), sp.GetService<IWorkflowTenantFeatureGate>());
 
                 // Deskriptor-spezifischer Lock-Owner: raeumt beim ersten Antrieb NUR die eigenen verwaisten
                 // Locks. Die Branch-Lock-Tabelle hat keinen TenantId (ReleaseLocksOfOwner ist global-by-Owner),

@@ -2191,27 +2191,84 @@ Der Handler kann genau zwei Dinge. **Den Griff baut die Engine** — hätte ihn 
 jede Implementierung ihr eigenes Backing-Feld, ihre eigene WriteBack-Semantik und ihr eigenes (oder gar
 kein) Protokoll.
 
-Der Handler hält **keinen Zustand** über einen Aufruf hinaus. Es gibt deshalb auch keine
-Lebenszyklus-Meldungen der Engine: ein aufgegebener Zweig (ein Fault anderswo, ein unterbrechender
-Fristen-Timer, ein Terminate-Ende) ist das häufigste und am schwersten zuverlässig zu meldende Ereignis —
-alles, was daran hinge, entfällt hier ersatzlos.
-
 Als Plugin: `IValueHandlerPlugin` (der Vertrag plus `IPlugin`), aufgelöst über den konfigurierten Namen.
 
-### Verdrahtung
+### Was ein Handler zusichern muss
+
+Drei Punkte. Sie klingen nach Stilfragen, sind aber alle drei Fehler, die erst im Mehrbenutzerbetrieb
+auffallen — und dort teuer sind.
+
+**1. Kein Zustand über einen Aufruf hinaus.** Es gibt keine Lebenszyklus-Meldungen der Engine: ein
+aufgegebener Zweig (ein Fault anderswo, ein unterbrechender Fristen-Timer, ein Terminate-Ende) ist das
+häufigste und am schwersten zuverlässig zu meldende Ereignis — alles, was daran hinge, entfällt ersatzlos.
+Es gibt also **keinen Ort, an dem ein Handler aufräumen könnte**. Was er zwischen zwei Aufrufen festhält,
+hält er unter Umständen für immer.
+
+**2. Kontexte je Aufruf leihen, nie im Konstruktor halten.** Der Handler wird je Arbeitseinheit aus dem
+`IActivityScope` geladen — wie lange *diese* Instanz lebt, entscheidet der Host, nicht der Handler. Ein
+`DbContext` im Konstruktor ist deshalb falsch, auch wenn es lokal funktioniert: er lebt dann entweder zu
+kurz (der Scope hat ihn längst freigegeben) oder viel zu lang (der Handler ist als **AutoLoad**-Plugin
+eingerichtet und wird damit prozessweit geteilt). Richtig ist eine **Fabrik** im Konstruktor und eine
+Leihgabe je Aufruf:
+
+```csharp
+public UserInfoValueHandler(IToolkitContextFactory contextFactory) { … }   // die Fabrik, nicht der Kontext
+
+public object Read(ValueHandleRequest request)
+{
+    using IContextLease<DbContext> lease = contextFactory.Lease<DbContext>();
+    DbContext db = lease.Context;
+    …
+}
+```
+
+Das ist der mitgelieferte `UserInfoValueHandler` (Abschnitt 26) — er lässt sich als Muster abschreiben.
+
+**3. Nicht davon ausgehen, allein zu sein.** Ein einzelner Vortrieb läuft einthreadig, aber derselbe
+Handler-Name kann in mehreren Instanzen *gleichzeitig* aufgelöst sein — und bei einer geteilten
+Einrichtung ist es dann dieselbe Instanz. Wer die ersten beiden Punkte einhält, muss sich darum nicht
+kümmern.
+
+> **Zur AutoLoad-Falle.** Ein Handler, der als AutoLoad-Plugin eingetragen ist, wird beim Aufbau der
+> Factory geladen und liegt danach in deren prozessweiter Sammlung — der Operations-Scope findet ihn dort
+> und lädt ihn *nicht* frisch. Das ist eine bewusste Konfigurationsentscheidung und für einen Handler, der
+> die drei Punkte oben einhält, völlig in Ordnung. Für einen, der sie verletzt, ist es der Unterschied
+> zwischen „läuft" und „läuft, bis zwei Mandanten gleichzeitig arbeiten". Die Engine prüft das nicht.
+
+### Verdrahtung — es gibt keine
+
+**Der Wert-Handler kommt aus demselben `IActivityScope` wie der Schritt.** Wer einen `IActivityHost`
+registriert hat, hat die Handler damit schon verdrahtet:
 
 ```csharp
 // stack-neutral
-services.AddSingleton<IValueHandlerHost>(sp => new PluginValueHandlerHost(factory));
+services.AddSingleton<IActivityHost>(sp => new PluginActivityHost(factory));
 
-// WebCoreToolkit-nativ (Scope je Runde, auf den Mandanten der Instanz fixiert)
-services.AddSingleton<IValueHandlerHost>(sp => new WebToolkitValueHandlerHost(sp));
+// WebCoreToolkit-nativ (Scope je Arbeitseinheit, auf den Mandanten der Instanz fixiert)
+services.AddSingleton<IActivityHost>(sp => new WebToolkitActivityHost(sp));
 ```
 
-Der Worker (`AddWorkflowWebWorker`) reicht einen registrierten `IValueHandlerHost` von selbst an die
-Engine durch. Wer die Engine über eine eigene `WorkflowEngineFactory` baut (Web-Szenarien), gibt ihn dort
-mit — sonst **faultet** eine Definition, die einen Handler benutzt, mit klarer Meldung. Sie läuft nicht
-still ohne den Wert.
+Aufgelöst wird über `IActivityScope.ResolveValueHandler(name)`, mit denselben Regeln wie beim
+`ActivityRef`: der konfigurierte Name im Scope des ausführenden Mandanten, Typprüfung auf
+`IValueHandlerPlugin`, kein zusätzliches Gatter. Findet sich unter dem Namen nichts, **faultet** die
+Instanz mit klarer Meldung — sie läuft nicht still ohne den Wert.
+
+Für Tests und feste Einrichtungen nimmt die `ActivityRegistry` beides auf:
+
+```csharp
+var activities = new ActivityRegistry()
+    .Register("sendMail", ctx => { /* … */ })
+    .RegisterValueHandler("orders", myHandler);
+```
+
+> **Warum ein Scope für beides.** Getrennte Scopes hiessen zwei Plugin-Factorys und zwei DB-Kontexte für
+> einen einzigen Knoten — und bei `Delivery = Value` würde die Aktivität dann ein Objekt mutieren, das an
+> einem fremden Kontext hängt. Ein Scope heisst: derselbe Mandant, dieselben Kontexte, eine Freigabe.
+
+**Die Arbeitseinheit** ist ein Vortrieb (`Advance`), ein Zweig-Task (`RunBranch`) oder — und das ist neu —
+das Beschreiben bzw. Abschliessen einer Benutzer-Aufgabe. Die beiden letzten kommen aus der Oberfläche und
+treiben nichts voran; sie öffnen den Scope allein für die Wert-Handler der Maske, unter dem Mandanten der
+Instanz und nicht mit den Rechten dessen, der die Aufgabe gerade offen hat.
 
 > **Bei einer öffentlichen Definition (`TenantId = null`) wird der Handler-Name im Scope des
 > *ausführenden* Mandanten aufgelöst.** Das ist gewollt (gleicher Name, andere Konfiguration je Mandant),
@@ -2258,9 +2315,10 @@ einen Reconnect ohnehin nicht). Damit adressieren die Feld-Pfade das echte Objek
 
 ### Kein Griff im Variablen-Stack
 
-Das ist die Regel, die den Mechanismus zusammenhält. Ein Griff hält ein lebendes Objekt und einen
-Plugin-Scope; persistiert wäre er nach dem nächsten Neustart ein toter Verweis. Verboten ist er deshalb
-überall, wo eine Bindung etwas füllt, das den Schritt überlebt:
+Das ist die Regel, die den Mechanismus zusammenhält. Ein Griff hält ein lebendes Objekt und einen Handler
+aus dem Scope der laufenden Arbeitseinheit; persistiert wäre er nach dem nächsten Neustart ein toter
+Verweis. Mit dem Ende der Auflösungsrunde wird er zugemacht — ein `WriteBack()` danach wirft. Verboten ist
+er deshalb überall, wo eine Bindung etwas füllt, das den Schritt überlebt:
 
 | Stelle | Ziel | erlaubt |
 |---|---|---|

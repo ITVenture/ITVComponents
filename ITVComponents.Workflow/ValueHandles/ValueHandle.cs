@@ -9,9 +9,9 @@ namespace ITVComponents.Workflow.ValueHandles
     /// <remarks>
     /// Gebaut wird der Griff <b>immer von der Engine</b>, nach einem erfolgreichen
     /// <see cref="IWorkflowValueHandler.Read"/>. Er lebt genau so lange wie die Aufloesung, in der er
-    /// entstanden ist: er haelt einen Plugin-Scope und ein lebendes Objekt und ueberlebt weder das
-    /// Parken einer Aufgabe noch einen Blazor-Reconnect. Deshalb gehoert er weder in den
-    /// Variablen-Stack noch in einen Verlaufs-Schnappschuss.
+    /// entstanden ist: er haelt ein lebendes Objekt und einen Handler aus dem Scope der laufenden
+    /// Arbeitseinheit und ueberlebt weder das Parken einer Aufgabe noch einen Blazor-Reconnect. Deshalb
+    /// gehoert er weder in den Variablen-Stack noch in einen Verlaufs-Schnappschuss.
     /// </remarks>
     public sealed class ValueHandle
     {
@@ -61,6 +61,23 @@ namespace ITVComponents.Workflow.ValueHandles
         /// <summary>Wie oft erfolgreich zurueckgeschrieben wurde.</summary>
         public int WriteCount { get; private set; }
 
+        /// <summary>Ob die Runde, in der dieser Griff entstanden ist, vorbei ist.</summary>
+        public bool Closed { get; private set; }
+
+        /// <summary>
+        /// Schliesst den Griff - gerufen von der Runde, wenn sie endet.
+        /// </summary>
+        /// <remarks>
+        /// Der Handler stammt aus dem Scope der Arbeitseinheit und lebt danach weiter. Ohne diesen Riegel
+        /// wuerde ein festgehaltener Griff also klaglos weiterschreiben, obwohl die Runde vorbei ist -
+        /// ausserhalb jeder Aufloesung, und damit ausserhalb dessen, was der Verlauf der Instanz
+        /// nachvollziehbar macht.
+        /// </remarks>
+        internal void Close()
+        {
+            Closed = true;
+        }
+
         /// <summary>
         /// Schreibt <see cref="Value"/> ueber den Handler zurueck.
         /// </summary>
@@ -70,6 +87,14 @@ namespace ITVComponents.Workflow.ValueHandles
         /// </remarks>
         public void WriteBack()
         {
+            if (Closed)
+            {
+                throw new InvalidOperationException(
+                    $"Value handle {Request} is written back after its resolution round has ended. The "
+                    + "handle only lives as long as the round that built it - a task that was parked in "
+                    + "the meantime resolves again on completion, and that is the handle to write.");
+            }
+
             if (Written)
             {
                 LogEnvironment.LogEvent(

@@ -28,8 +28,8 @@ namespace ITVComponents.Workflow.Test
         {
             store = new InMemoryWorkflowStore();
             handler = new RecordingValueHandler();
-            engine = new WorkflowEngine(store, new ActivityRegistry(),
-                valueHandlers: new ValueHandlerRegistry().Register("orders", handler));
+            engine = new WorkflowEngine(store,
+                new ActivityRegistry().RegisterValueHandler("orders", handler));
         }
 
         [TestMethod]

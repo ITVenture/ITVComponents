@@ -11,10 +11,28 @@ namespace ITVComponents.Workflow.ValueHandles
     /// baut die Engine - haette ihn der Handler gebaut, haette jede Implementierung ihr eigenes
     /// Backing-Feld, ihre eigene WriteBack-Semantik und ihr eigenes (oder gar kein) Protokoll.
     /// <para>
-    /// Der Handler haelt <b>keinen Zustand</b> ueber einen Aufruf hinaus. Es gibt bewusst keine
+    /// <b>Der Handler haelt keinen Zustand ueber einen Aufruf hinaus.</b> Es gibt bewusst keine
     /// Lebenszyklus-Meldungen der Engine (Zweig begonnen, Zweig aufgegeben, Instanz beendet): ein
     /// aufgegebener Zweig ist das haeufigste und am schwersten zuverlaessig zu meldende Ereignis, und
-    /// alles, was daran haengen wuerde, faellt hier ersatzlos weg.
+    /// alles, was daran haengen wuerde, faellt hier ersatzlos weg. Es gibt also keinen Ort, an dem ein
+    /// Handler etwas verlaesslich wieder aufraeumen koennte - was er zwischen zwei Aufrufen festhaelt,
+    /// haelt er unter Umstaenden fuer immer.
+    /// </para>
+    /// <para>
+    /// <b>Kontexte werden je Aufruf geliehen, nie im Konstruktor gehalten.</b> Der Handler wird als
+    /// Plugin aus dem <c>IActivityScope</c> der laufenden Arbeitseinheit geladen; wie lange diese Instanz
+    /// lebt, entscheidet der Host und nicht der Handler. Ein <c>DbContext</c> im Konstruktor ist deshalb
+    /// falsch, auch wenn es lokal funktioniert: er ueberlebt dann entweder zu kurz (der Scope hat ihn
+    /// bereits freigegeben) oder viel zu lang (der Handler ist als AutoLoad-Plugin eingerichtet und wird
+    /// prozessweit geteilt). Der richtige Weg ist eine <b>Fabrik</b> im Konstruktor und eine Leihgabe je
+    /// Aufruf - so macht es der mitgelieferte <c>UserInfoValueHandler</c> mit
+    /// <c>IToolkitContextFactory.Lease&lt;DbContext&gt;()</c>.
+    /// </para>
+    /// <para>
+    /// <b>Der Handler geht nicht davon aus, allein zu sein.</b> Ein einzelner Vortrieb laeuft einthreadig,
+    /// aber derselbe Handler-Name kann in mehreren Instanzen gleichzeitig aufgeloest sein - und bei einer
+    /// geteilten Einrichtung ist es dann dieselbe Instanz. Wer die drei Punkte oben einhaelt, muss sich
+    /// darum nicht kuemmern; wer sie verletzt, findet den Fehler erst im Mehrbenutzerbetrieb.
     /// </para>
     /// <para>
     /// <b>Idempotenz ist Handler-Sache.</b> Die Engine kennt keine Retry-Politik: ein modellierter

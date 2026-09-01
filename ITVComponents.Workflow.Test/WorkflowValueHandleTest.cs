@@ -29,10 +29,9 @@ namespace ITVComponents.Workflow.Test
         public void Setup()
         {
             store = new InMemoryWorkflowStore();
-            activities = new ActivityRegistry();
             handler = new RecordingValueHandler();
-            engine = new WorkflowEngine(store, activities,
-                valueHandlers: new ValueHandlerRegistry().Register("orders", handler));
+            activities = new ActivityRegistry().RegisterValueHandler("orders", handler);
+            engine = new WorkflowEngine(store, activities);
         }
 
         // --- Zustellung -----------------------------------------------------------------------------
@@ -158,18 +157,18 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
-        public void WithoutAConfiguredHost_TheNodeFaults_WithAClearMessage()
+        public void AnUnconfiguredHandlerName_FaultsTheNode()
         {
-            var bare = new WorkflowEngine(store, activities);
             activities.Register("touch", ctx => { });
 
+            // 'archive' ist nirgends eingerichtet - der Scope loest den Namen nicht auf.
             store.SaveDefinition(OneActivity("nh", "touch",
-                n => n.Inputs.Add(Handle("order", "orders", "o1"))));
+                n => n.Inputs.Add(Handle("order", "archive", "o1"))));
 
-            WorkflowInstance instance = bare.StartWorkflow("nh");
+            WorkflowInstance instance = engine.StartWorkflow("nh");
 
             Assert.AreEqual(WorkflowStatus.Faulted, instance.Status,
-                "an engine without a value handler host must say so, not run without the value.");
+                "a handler name that is set up nowhere must say so, not run without the value.");
         }
 
         [TestMethod]
