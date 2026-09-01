@@ -2356,16 +2356,24 @@ man braucht, wenn jemand fragt, wer was geschrieben hat.
 ## 26. Der mitgelieferte Benutzer-Handler
 
 Für den häufigsten Fall gibt es einen Wert-Handler, den man nur noch konfigurieren muss: **zu einer
-Benutzer-, Mandanten-Benutzer- oder Mitarbeiter-Kennung trägt er zusammen, was die Ablage über den
-Benutzer hergibt.**
+Benutzer-, Mandanten-Benutzer-, Mitarbeiter- oder Rechnungsprofil-Kennung trägt er zusammen, was die
+Ablage über den Benutzer hergibt.**
 
 ```
-UserInfoValueHandler<TUser, TTenantUser, TUserProperty>                        (ohne Onboarding)
-EmployeeUserInfoValueHandler<TUser, TTenantUser, TUserProperty, TEmployee>     (mit Onboarding)
+UserInfoValueHandler<TUser, TTenantUser, TUserProperty>                    (ohne Onboarding)
+EmployeeUserInfoValueHandler<TUser, TTenantUser, TUserProperty,
+                             TEmployee, TBillingProfile>                   (mit Onboarding)
 ```
 
-Zwei Typen statt eines Schalters: eine Umgebung ohne Onboarding hat keinen Mitarbeiter-Typ, den sie
-eintragen könnte, und ein Platzhalter dort wäre ein Fehler, den man erst spät findet.
+Zwei Typen statt eines Schalters: eine Umgebung ohne Onboarding hat weder einen Mitarbeiter- noch einen
+Rechnungsprofil-Typ, den sie eintragen könnte, und ein Platzhalter dort wäre ein Fehler, den man erst spät
+findet.
+
+> **Der Mandanten-Eigentümer hat keinen Mitarbeiter-Datensatz.** Wer einen Mandanten anlegt, wird im
+> Rechnungsprofil als `OwnerUser` hinterlegt — ein `Employee` entsteht für ihn nicht. Ohne diesen Weg
+> blieben Vor- und Nachname ausgerechnet bei der Person leer, der der Mandant gehört, und `DisplayName`
+> fiele auf den Anmeldenamen zurück. Herangezogen werden **nur Profile vom Typ `Personal`**: bei einem
+> Firmenprofil beschreiben die Namensfelder die Firma bzw. eine Kontaktperson, nicht diesen Benutzer.
 
 ### Konfiguration: ein Eintrag, der den Rest erledigt
 
@@ -2377,27 +2385,33 @@ Typparameter, sondern einen *fertigen* Typ, aus dem die übrigen abgeleitet werd
 |---|---|---|
 | `$$genericArgumentProvider` | der konkrete `SecurityContext` | `TUser`, `TTenantUser`, `TUserProperty` |
 | `TEmployee` | `…Onboarding.Flat.Models.Employee` | nur beim Employee-Handler nötig |
+| `TBillingProfile` | `…Onboarding.Flat.Models.BillingProfile` | nur beim Employee-Handler nötig |
 
 Zwei Dinge dazu, weil beide sonst als rätselhafter Fehler auftreten:
 
 - **Zugeordnet wird über den NAMEN des Typparameters.** Die Parameter dieser Handler heissen deshalb
   genau so wie die von `ISecurityContext<…>`. Ein umbenannter Parameter sieht danach aus wie ein
   fehlender.
-- **Abgeleitet wird nur über Interfaces, nicht über Basisklassen.** `TEmployee` lässt sich deshalb
-  *nicht* aus dem Kontext ableiten: die Onboarding-Kontext-Schnittstelle ist geschlossen und trägt gar
-  keine Typparameter. Er braucht die eigene Zeile.
+- **Abgeleitet wird nur über Interfaces, nicht über Basisklassen.** `TEmployee` und `TBillingProfile`
+  lassen sich deshalb *nicht* aus dem Kontext ableiten: die Onboarding-Kontext-Schnittstelle ist
+  geschlossen und trägt gar keine Typparameter. Beide brauchen ihre eigene Zeile.
+
+> **Breaking ab 5.0.0-PRE206:** `TBillingProfile` ist neu und **Pflicht**. Eine bestehende
+> `EmployeeUserInfoValueHandler`-Konfiguration ohne diese Zeile lässt sich nicht mehr finalisieren — der
+> Handler-Name löst dann nicht auf, und der Vorgang faultet mit der Meldung des Aktivitäts-Scopes.
 
 Der Konstruktor nimmt die `IToolkitContextFactory` (kommt aus dem DI-Scope) und optional
 `allowMissing`.
 
 ### Die Argumente — es kommen nicht alle
 
-Vier Argumente, alle optional, mindestens eines nötig; Gross-/Kleinschreibung spielt keine Rolle:
+Fünf Argumente, alle optional, mindestens eines nötig; Gross-/Kleinschreibung spielt keine Rolle:
 
-`employeeId` · `tenantUserId` · `userId` · `userName`
+`employeeId` · `tenantUserId` · `userId` · `userName` · `billingProfileId`
 
 Der Handler geht **vom Speziellen zum Allgemeinen**: der Mitarbeiter kennt seinen Benutzer und seine
-Mandanten-Zuordnung, die Zuordnung kennt ihren Benutzer — und was dann noch fehlt, wird ergänzt. Kommen
+Mandanten-Zuordnung, die Zuordnung kennt ihren Benutzer, das Rechnungsprofil seinen Eigentümer — und was
+dann noch fehlt, wird ergänzt. Kommen
 mehrere und widersprechen sie sich, gewinnt das speziellere, und der Widerspruch steht als Warnung im
 Log: er ist ein Modellierungsfehler, der sonst unsichtbar bliebe (die Maske zeigte einen anderen
 Menschen als den, den der Vorgang meint).

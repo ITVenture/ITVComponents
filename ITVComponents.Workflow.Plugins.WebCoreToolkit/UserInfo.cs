@@ -39,13 +39,23 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         /// <summary>Vor- und Nachname, sonst der Anmeldename - was man einem Menschen zeigt.</summary>
         public string DisplayName { get; set; }
 
-        /// <summary>Die Mailadresse (Mitarbeiter vor Benutzer).</summary>
+        /// <summary>Die Mailadresse (Mitarbeiter vor Benutzer vor Rechnungsprofil).</summary>
         public string EMail { get; set; }
 
-        /// <summary>Der Vorname, falls ein Mitarbeiter-Datensatz existiert.</summary>
+        /// <summary>
+        /// Die Telefonnummer. Kommt vom Mitarbeiter, sonst vom Rechnungsprofil - der Benutzer-Datensatz
+        /// selbst traegt keine.
+        /// </summary>
+        public string PhoneNumber { get; set; }
+
+        /// <summary>
+        /// Der Vorname - aus dem Mitarbeiter-Datensatz, sonst aus dem persoenlichen Rechnungsprofil.
+        /// </summary>
         public string FirstName { get; set; }
 
-        /// <summary>Der Nachname, falls ein Mitarbeiter-Datensatz existiert.</summary>
+        /// <summary>
+        /// Der Nachname - aus dem Mitarbeiter-Datensatz, sonst aus dem persoenlichen Rechnungsprofil.
+        /// </summary>
         public string LastName { get; set; }
 
         /// <summary>Der Mandant, in dem der Benutzer gefunden wurde.</summary>
@@ -64,6 +74,19 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         public string InvitationStatus { get; set; }
 
         /// <summary>
+        /// Das persoenliche Rechnungsprofil, als dessen Eigentuemer dieser Benutzer eingetragen ist -
+        /// falls es eines gibt.
+        /// </summary>
+        /// <remarks>
+        /// Der Weg fuer den <b>Mandanten-Eigentuemer</b>: wer einen Mandanten anlegt, wird im
+        /// Rechnungsprofil als <c>OwnerUser</c> hinterlegt, und ein Mitarbeiter-Datensatz entsteht dabei
+        /// nicht. Ohne diesen Weg blieben Vor- und Nachname genau bei der Person leer, die den Mandanten
+        /// besitzt. Nur Profile vom Typ <c>Personal</c> - bei einem Firmenprofil beschreiben die
+        /// Namensfelder nicht diesen Benutzer.
+        /// </remarks>
+        public int? BillingProfileId { get; set; }
+
+        /// <summary>
         /// Die benutzerdefinierten Eigenschaften, nach Namen. Ein Dictionary ist fuer den Member-Zugriff
         /// ein ganz normaler Traeger - <c>kunde.Properties.Kostenstelle</c> loest also auf.
         /// </summary>
@@ -78,6 +101,9 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
 
         /// <summary>Der konkrete Mitarbeiter-Datensatz, oder null.</summary>
         public object Employee { get; set; }
+
+        /// <summary>Der konkrete Rechnungsprofil-Datensatz (Typ <c>Personal</c>), oder null.</summary>
+        public object BillingProfile { get; set; }
 
         /// <summary>Nennt den beschriebenen Benutzer - fuer Protokoll und Fehlermeldungen.</summary>
         /// <returns>eine kurze Beschreibung dieses Ergebnisses</returns>

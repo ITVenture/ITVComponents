@@ -49,6 +49,34 @@ namespace ITVComponents.Workflow.Plugins.Test
                 PropertyType = CustomUserPropertyType.Literal
             });
 
+            // Der Mandanten-Eigentuemer: Benutzer und Mandanten-Zuordnung ja, Mitarbeiter NEIN - seine
+            // Angaben stehen ausschliesslich im persoenlichen Rechnungsprofil.
+            db.Users.Add(new TestUser { UserId = 9, UserName = "owner", Email = "owner@example.com" });
+            db.TenantUsers.Add(new TestTenantUser
+            {
+                TenantUserId = 90, UserId = 9, TenantId = 4, Enabled = true
+            });
+            db.BillingProfiles.Add(new TestBillingProfile
+            {
+                BillingProfileId = 900, ProfileType = TestProfileType.Personal, OwnerUserId = 9,
+                TenantId = 4, FirstName = "Olivia", LastName = "Owner", Email = "billing@example.com",
+                PhoneNumber = "+41 31 000 00 00"
+            });
+
+            // Ein Firmenprofil desselben Eigentuemers: die Namensfelder beschreiben hier NICHT ihn.
+            db.BillingProfiles.Add(new TestBillingProfile
+            {
+                BillingProfileId = 901, ProfileType = TestProfileType.Company, OwnerUserId = 9,
+                TenantId = 5, FirstName = "Contact", LastName = "Person", CompanyName = "Acme AG",
+                Email = "accounts@acme.example"
+            });
+
+            db.OddBillingProfiles.Add(new OddBillingProfile
+            {
+                BillingProfileId = 950, ProfileType = OddProfileType.Foundation, OwnerUserId = 9,
+                FirstName = "Odd", LastName = "One"
+            });
+
             db.TextUsers.Add(new TextUser
             {
                 Id = "a3f0-9c", UserName = "identity", Email = "identity@example.com"
@@ -207,7 +235,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         public void NobodyFound_WithAllowMissing_IsAnEmptyResult()
         {
             var handler = new EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty,
-                TestEmployee>(factory, true) { UniqueName = "users" };
+                TestEmployee, TestBillingProfile>(factory, true) { UniqueName = "users" };
 
             var info = (UserInfo)handler.Read(Request(("userId", 999)));
 
@@ -251,12 +279,124 @@ namespace ITVComponents.Workflow.Plugins.Test
                 "the reason is the rights asymmetry - it belongs in the message, not only in a document.");
         }
 
+        // --- Der Mandanten-Eigentuemer ---------------------------------------------------------------
+
+        [TestMethod]
+        public void TheTenantOwner_HasNoEmployee_AndIsDescribedByHisPersonalBillingProfile()
+        {
+            UserInfo info = Read(Employees(), ("userId", 9));
+
+            Assert.IsTrue(info.Found);
+            Assert.IsNull(info.Employee, "the owner has no employee record - that is the whole point.");
+            Assert.AreEqual("Olivia", info.FirstName);
+            Assert.AreEqual("Owner", info.LastName);
+            Assert.AreEqual("Olivia Owner", info.DisplayName,
+                "without the profile this would fall back to the user name.");
+            Assert.AreEqual(900, info.BillingProfileId);
+            Assert.IsNotNull(info.BillingProfile);
+        }
+
+        [TestMethod]
+        public void TheOwnersPhoneNumber_ComesFromTheProfile_BecauseNothingElseCarriesOne()
+        {
+            UserInfo info = Read(Employees(), ("userId", 9));
+
+            Assert.AreEqual("+41 31 000 00 00", info.PhoneNumber);
+        }
+
+        [TestMethod]
+        public void TheLoginAddress_Wins_OverTheBillingAddress()
+        {
+            UserInfo info = Read(Employees(), ("userId", 9));
+
+            Assert.AreEqual("owner@example.com", info.EMail,
+                "the billing address may be a different one - the login address is the binding one.");
+        }
+
+        [TestMethod]
+        public void ACompanyProfile_IsNeverUsedToDescribeTheOwner()
+        {
+            // Der Eigentuemer besitzt beide Profile; nur das persoenliche darf ihn beschreiben.
+            UserInfo info = Read(Employees(), ("userId", 9));
+
+            Assert.AreEqual(900, info.BillingProfileId);
+            Assert.AreNotEqual("Contact", info.FirstName,
+                "the names on a company profile describe a contact, not the owner.");
+        }
+
+        [TestMethod]
+        public void AnEmployee_Wins_OverTheBillingProfile()
+        {
+            // Benutzer 7 hat einen Mitarbeiter - das Profil wird gar nicht erst gesucht.
+            UserInfo info = Read(Employees(), ("userId", 7));
+
+            Assert.AreEqual("Matthias", info.FirstName);
+            Assert.IsNull(info.BillingProfile,
+                "who has an employee record does not need the billing profile - and it must not override it.");
+        }
+
+        [TestMethod]
+        public void ABillingProfileId_ResolvesTheOwnerBehindIt()
+        {
+            UserInfo info = Read(Employees(), ("billingProfileId", 900));
+
+            Assert.IsTrue(info.Found);
+            Assert.AreEqual(9, info.UserId);
+            Assert.AreEqual("owner", info.UserName);
+            Assert.AreEqual("Olivia", info.FirstName);
+        }
+
+        [TestMethod]
+        public void ACompanyBillingProfileId_Faults_WithTheReasonInTheMessage()
+        {
+            var ex = Assert.ThrowsException<InvalidOperationException>(
+                () => Read(Employees(), ("billingProfileId", 901)));
+
+            StringAssert.Contains(ex.Message, "Personal",
+                "the message must name the condition that was not met.");
+        }
+
+        [TestMethod]
+        public void ABillingProfileId_OnAHandlerWithoutProfiles_Faults()
+        {
+            var handler = new UserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty>(factory)
+            {
+                UniqueName = "plainUsers"
+            };
+
+            var ex = Assert.ThrowsException<InvalidOperationException>(
+                () => handler.Read(Request(("billingProfileId", 900))));
+
+            StringAssert.Contains(ex.Message, "without billing profiles");
+        }
+
+        [TestMethod]
+        public void AnUnknownProfileType_IsNotTreatedAsPersonal()
+        {
+            // Ein umbenanntes oder erweitertes Enum darf nicht still zum Personenprofil werden - sonst
+            // stuende der falsche Name in der Maske.
+            UserInfo info = Read(OddProfiles(), ("userId", 9));
+
+            Assert.IsNull(info.BillingProfile);
+            Assert.IsNull(info.FirstName);
+        }
+
         // --- Hilfsmittel ------------------------------------------------------------------------------
 
-        private EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee>
+        private EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee,
+                TestBillingProfile>
             Employees()
-            => new EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee>(
-                factory) { UniqueName = "users" };
+            => new EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee,
+                TestBillingProfile>(factory) { UniqueName = "users" };
+
+        /// <summary>
+        /// Ein Handler auf einem Rechnungsprofil, dessen Profiltyp weder 'Personal' noch 'Company' heisst.
+        /// </summary>
+        private EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee,
+                OddBillingProfile>
+            OddProfiles()
+            => new EmployeeUserInfoValueHandler<TestUser, TestTenantUser, TestUserProperty, TestEmployee,
+                OddBillingProfile>(factory) { UniqueName = "users" };
 
         private static UserInfo Read(IWorkflowValueHandler handler, params (string Name, object Value)[] args)
             => (UserInfo)handler.Read(Request(args));

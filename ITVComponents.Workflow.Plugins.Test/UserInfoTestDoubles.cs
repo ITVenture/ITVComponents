@@ -83,6 +83,81 @@ namespace ITVComponents.Workflow.Plugins.Test
         Committed
     }
 
+    /// <summary>
+    /// Das Rechnungsprofil eines Mandanten. Der <b>Eigentuemer</b> steht hier drin und hat keinen
+    /// Mitarbeiter-Datensatz - genau der Fall, den der Handler ueber dieses Profil abdeckt.
+    /// </summary>
+    public class TestBillingProfile
+    {
+        /// <summary>Der Primaerschluessel.</summary>
+        [Key]
+        public int BillingProfileId { get; set; }
+
+        /// <summary>Person oder Firma - nur beim Personenprofil beschreiben die Namen den Eigentuemer.</summary>
+        public TestProfileType ProfileType { get; set; }
+
+        /// <summary>Der Eigentuemer.</summary>
+        public int? OwnerUserId { get; set; }
+
+        /// <summary>Der Mandant.</summary>
+        public int? TenantId { get; set; }
+
+        /// <summary>Der Vorname.</summary>
+        public string FirstName { get; set; }
+
+        /// <summary>Der Nachname.</summary>
+        public string LastName { get; set; }
+
+        /// <summary>Die Rechnungsadresse.</summary>
+        public string Email { get; set; }
+
+        /// <summary>Die Telefonnummer - die einzige Quelle dafuer.</summary>
+        public string PhoneNumber { get; set; }
+
+        /// <summary>Der Firmenname (nur beim Firmenprofil gefuellt).</summary>
+        public string CompanyName { get; set; }
+    }
+
+    /// <summary>
+    /// Die Art eines Rechnungsprofils. Die NAMEN muessen denen des Onboarding-Modells entsprechen - der
+    /// Handler prueft sie ueber den Namen, nicht ueber den Typ.
+    /// </summary>
+    public enum TestProfileType
+    {
+        /// <summary>Eine natuerliche Person.</summary>
+        Personal = 0,
+
+        /// <summary>Eine Organisation.</summary>
+        Company = 1
+    }
+
+    /// <summary>Ein Profiltyp, den der Handler nicht kennt - fuer den Riegel gegen ein umbenanntes Enum.</summary>
+    public class OddBillingProfile
+    {
+        /// <summary>Der Primaerschluessel.</summary>
+        [Key]
+        public int BillingProfileId { get; set; }
+
+        /// <summary>Ein Wert, der weder 'Personal' noch 'Company' heisst.</summary>
+        public OddProfileType ProfileType { get; set; }
+
+        /// <summary>Der Eigentuemer.</summary>
+        public int? OwnerUserId { get; set; }
+
+        /// <summary>Der Vorname.</summary>
+        public string FirstName { get; set; }
+
+        /// <summary>Der Nachname.</summary>
+        public string LastName { get; set; }
+    }
+
+    /// <summary>Eine Aufzaehlung, deren Werte der Handler nicht kennt.</summary>
+    public enum OddProfileType
+    {
+        /// <summary>Weder Person noch Firma.</summary>
+        Foundation = 0
+    }
+
     /// <summary>Eine benutzerdefinierte Eigenschaft - mit demselben Zuschnitt wie im Toolkit.</summary>
     public class TestUserProperty : CustomUserProperty
     {
@@ -156,6 +231,12 @@ namespace ITVComponents.Workflow.Plugins.Test
 
         /// <summary>Die benutzerdefinierten Eigenschaften.</summary>
         public DbSet<TestUserProperty> UserProperties { get; set; }
+
+        /// <summary>Die Rechnungsprofile.</summary>
+        public DbSet<TestBillingProfile> BillingProfiles { get; set; }
+
+        /// <summary>Rechnungsprofile mit einem unbekannten Profiltyp.</summary>
+        public DbSet<OddBillingProfile> OddBillingProfiles { get; set; }
 
         /// <summary>Die Benutzer mit Text-Schluessel.</summary>
         public DbSet<TextUser> TextUsers { get; set; }

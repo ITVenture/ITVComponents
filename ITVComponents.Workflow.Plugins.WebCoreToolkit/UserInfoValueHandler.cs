@@ -61,6 +61,25 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         /// <summary>Der Name des Arguments, das einen Anmeldenamen traegt.</summary>
         public const string ArgumentUserName = "userName";
 
+        /// <summary>Der Name des Arguments, das eine Rechnungsprofil-Id traegt.</summary>
+        public const string ArgumentBillingProfileId = "billingProfileId";
+
+        /// <summary>
+        /// Der Name des <c>ProfileType</c>-Werts, der ein Profil einer <b>natuerlichen Person</b>
+        /// bezeichnet.
+        /// </summary>
+        /// <remarks>
+        /// Ueber den Namen und nicht ueber den Typ: dieser Handler spricht das ganze Modell ueber Namen an
+        /// (<c>UserId</c>, <c>TenantUserId</c>, <c>InvitationStatus</c> …), damit er mit dem Flat- und dem
+        /// Hierarchy-Modell laeuft. Fuer ein einzelnes Enum das Onboarding-Paket hereinzuziehen waere der
+        /// teurere Handel. Ein Wert, der weder hier noch bei <see cref="CompanyProfileType"/> steht, wird
+        /// protokolliert - ein umbenanntes Enum soll nicht still das Falsche tun.
+        /// </remarks>
+        protected const string PersonalProfileType = "Personal";
+
+        /// <summary>Der Name des <c>ProfileType</c>-Werts, der ein Firmenprofil bezeichnet.</summary>
+        protected const string CompanyProfileType = "Company";
+
         /// <summary>
         /// <c>EF.Property&lt;T&gt;(object, string)</c> - damit werden die Abfragen gebaut. Ueber die
         /// CLR-Eigenschaft zu gehen waere hier falsch: der Schluessel ist mal <c>int</c>, mal
@@ -108,9 +127,15 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
 
         /// <summary>
         /// Kennt diese Ausprägung Mitarbeiter? In der Grundform nicht - dafuer gibt es
-        /// <see cref="EmployeeUserInfoValueHandler{TUser,TTenantUser,TUserProperty,TEmployee}"/>.
+        /// <see cref="EmployeeUserInfoValueHandler{TUser,TTenantUser,TUserProperty,TEmployee,TBillingProfile}"/>.
         /// </summary>
         protected virtual bool SupportsEmployees => false;
+
+        /// <summary>
+        /// Kennt diese Auspraegung Rechnungsprofile? In der Grundform nicht - dafuer gibt es
+        /// <see cref="EmployeeUserInfoValueHandler{TUser,TTenantUser,TUserProperty,TEmployee,TBillingProfile}"/>.
+        /// </summary>
+        protected virtual bool SupportsBillingProfiles => false;
 
         /// <inheritdoc/>
         public object Read(ValueHandleRequest request)
@@ -119,13 +144,16 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
             object tenantUserId = Argument(request, ArgumentTenantUserId);
             object userId = Argument(request, ArgumentUserId);
             object userName = Argument(request, ArgumentUserName);
+            object billingProfileId = Argument(request, ArgumentBillingProfileId);
 
-            if (employeeId == null && tenantUserId == null && userId == null && userName == null)
+            if (employeeId == null && tenantUserId == null && userId == null && userName == null
+                && billingProfileId == null)
             {
                 throw new InvalidOperationException(
                     $"The user info handler '{UniqueName}' was asked without any of the arguments " +
-                    $"'{ArgumentEmployeeId}', '{ArgumentTenantUserId}', '{ArgumentUserId}' or " +
-                    $"'{ArgumentUserName}' - it would not know whom to describe. Request: {request}.");
+                    $"'{ArgumentEmployeeId}', '{ArgumentTenantUserId}', '{ArgumentUserId}', " +
+                    $"'{ArgumentUserName}' or '{ArgumentBillingProfileId}' - it would not know whom to " +
+                    $"describe. Request: {request}.");
             }
 
             if (employeeId != null && !SupportsEmployees)
@@ -136,16 +164,39 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
                     "generic parameter), or ask by user instead.");
             }
 
+            if (billingProfileId != null && !SupportsBillingProfiles)
+            {
+                throw new InvalidOperationException(
+                    $"The user info handler '{UniqueName}' was given a '{ArgumentBillingProfileId}', but it " +
+                    "is configured without billing profiles. Use the employee-aware handler (and give it a " +
+                    "TBillingProfile generic parameter), or ask by user instead.");
+            }
+
             using IContextLease<DbContext> lease = contextFactory.Lease<DbContext>();
             DbContext db = lease.Context;
 
             // Vom Speziellen zum Allgemeinen: der Mitarbeiter kennt seinen Benutzer und seine
-            // Mandanten-Zuordnung, die Mandanten-Zuordnung kennt ihren Benutzer.
+            // Mandanten-Zuordnung, die Mandanten-Zuordnung kennt ihren Benutzer, das Rechnungsprofil
+            // seinen Eigentuemer.
             object employee = employeeId != null ? EmployeeByKey(db, employeeId) : null;
+            object profile = billingProfileId != null ? OwnerProfileByKey(db, billingProfileId) : null;
+            if (profile != null && !IsPersonalProfile(profile))
+            {
+                // Ausdruecklich nach diesem Profil gefragt - und es ist ein Firmenprofil. Dessen
+                // Namensfelder beschreiben die Firma bzw. eine Kontaktperson, nicht den Eigentuemer.
+                // Sie hier auszugeben hiesse, einen anderen Menschen zu zeigen als den gemeinten.
+                throw new InvalidOperationException(
+                    $"The user info handler '{UniqueName}' was given the '{ArgumentBillingProfileId}' " +
+                    $"{billingProfileId}, but that profile is not of type '{PersonalProfileType}'. A company " +
+                    "profile does not describe a single person - ask by user, employee or tenant user " +
+                    "instead.");
+            }
+
             object tenantUser = tenantUserId != null ? ByKey<TTenantUser>(db, tenantUserId) : null;
             tenantUser ??= ByKey<TTenantUser>(db, Member(employee, "TenantUserId"));
 
-            object key = Member(employee, "UserId") ?? Member(tenantUser, "UserId");
+            object key = Member(employee, "UserId") ?? Member(tenantUser, "UserId")
+                                                    ?? Member(profile, "OwnerUserId");
 
             object user = null;
             if (key == null && userId != null)
@@ -165,9 +216,18 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
             tenantUser ??= FirstWhere<TTenantUser>(db, "UserId", key);
             employee ??= EmployeeByUser(db, key);
 
+            // Nur wenn es keinen Mitarbeiter gibt: genau das ist die Lage des Mandanten-Eigentuemers -
+            // er steht im Rechnungsprofil als OwnerUser, und ein Mitarbeiter-Datensatz wird fuer ihn nicht
+            // angelegt. Wer einen Mitarbeiter hat, braucht diese Abfrage nicht, und der Mitarbeiter
+            // gewinnt ohnehin (er ist der mandantenspezifische Datensatz).
+            if (employee == null)
+            {
+                profile ??= OwnerProfileByUser(db, key);
+            }
+
             var info = new UserInfo
             {
-                Found = user != null || tenantUser != null || employee != null
+                Found = user != null || tenantUser != null || employee != null || profile != null
             };
 
             if (!info.Found)
@@ -176,18 +236,19 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
                 {
                     throw new InvalidOperationException(
                         $"The user info handler '{UniqueName}' found nobody for {Describe(employeeId,
-                            tenantUserId, userId, userName)}. If that is a normal state here, configure the " +
-                        "handler with AllowMissing.");
+                            tenantUserId, userId, userName, billingProfileId)}. If that is a normal state " +
+                        "here, configure the handler with AllowMissing.");
                 }
 
                 LogEnvironment.LogEvent(
                     $"User info handler '{UniqueName}' found nobody for {Describe(employeeId, tenantUserId,
-                        userId, userName)} - continuing with an empty result because AllowMissing is set.",
+                        userId, userName, billingProfileId)} - continuing with an empty result because " +
+                    "AllowMissing is set.",
                     LogSeverity.Report);
                 return info;
             }
 
-            Fill(db, info, key, user, tenantUser, employee);
+            Fill(db, info, key, user, tenantUser, employee, profile);
             return info;
         }
 
@@ -227,6 +288,72 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         protected virtual object EmployeeByUser(DbContext db, object userKey)
         {
             return null;
+        }
+
+        /// <summary>
+        /// Sucht das Rechnungsprofil zu seiner Id. In der Grundform gibt es keine.
+        /// </summary>
+        /// <param name="db">der geliehene Kontext</param>
+        /// <param name="billingProfileId">die Rechnungsprofil-Id</param>
+        /// <returns>das Profil, oder null</returns>
+        protected virtual object OwnerProfileByKey(DbContext db, object billingProfileId)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Sucht das <b>persoenliche</b> Rechnungsprofil, als dessen Eigentuemer der Benutzer eingetragen
+        /// ist. In der Grundform gibt es keine.
+        /// </summary>
+        /// <param name="db">der geliehene Kontext</param>
+        /// <param name="userKey">die Benutzer-Id</param>
+        /// <returns>das Profil, oder null</returns>
+        protected virtual object OwnerProfileByUser(DbContext db, object userKey)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Beschreibt dieses Rechnungsprofil eine <b>natuerliche Person</b>?
+        /// </summary>
+        /// <remarks>
+        /// Geprueft wird im Speicher und nicht in der Abfrage: fuer ein <c>WHERE</c> auf das Enum braeuchte
+        /// es dessen konkreten Typ, und ein Eigentuemer hat hoechstens eine Handvoll Profile.
+        /// </remarks>
+        /// <param name="profile">das geladene Profil</param>
+        /// <returns>true, wenn der <c>ProfileType</c> eine Person bezeichnet</returns>
+        protected bool IsPersonalProfile(object profile)
+        {
+            object value = Member(profile, "ProfileType");
+            if (value == null)
+            {
+                // Ein Enum ist nie null - fehlt der Wert, fehlt das Member. Dann ist der konfigurierte
+                // Typ nicht der erwartete, und das ist ein Konfigurationsfehler, kein Datenfall.
+                throw new InvalidOperationException(
+                    $"The user info handler '{UniqueName}' got a billing profile without a 'ProfileType'. " +
+                    "The handler is configured with a type that does not have the expected shape - check " +
+                    "the TBillingProfile generic parameter of the plugin.");
+            }
+
+            string name = value.ToString();
+            if (string.Equals(name, PersonalProfileType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.Equals(name, CompanyProfileType, StringComparison.OrdinalIgnoreCase))
+            {
+                // Weder das eine noch das andere: entweder wurde die Aufzaehlung erweitert oder umbenannt.
+                // Als 'kein Personenprofil' zu behandeln ist die sichere Seite - aber still darf es nicht
+                // passieren, sonst sucht man den fehlenden Namen an der falschen Stelle.
+                LogEnvironment.LogEvent(
+                    $"User info handler '{UniqueName}': billing profile type '{name}' is neither " +
+                    $"'{PersonalProfileType}' nor '{CompanyProfileType}'. It is treated as NOT personal, so " +
+                    "no name is taken from it. The onboarding model has probably gained or renamed a " +
+                    "profile type.", LogSeverity.Error);
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -362,30 +489,42 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         /// <param name="user">der Benutzer-Datensatz, oder null</param>
         /// <param name="tenantUser">der Mandanten-Benutzer-Datensatz, oder null</param>
         /// <param name="employee">der Mitarbeiter-Datensatz, oder null</param>
+        /// <param name="profile">das persoenliche Rechnungsprofil, oder null</param>
         private void Fill(DbContext db, UserInfo info, object key, object user, object tenantUser,
-            object employee)
+            object employee, object profile)
         {
             info.User = user;
             info.TenantUser = tenantUser;
             info.Employee = employee;
+            info.BillingProfile = profile;
 
             info.UserId = key ?? KeyOf(db, user);
             info.UserName = Text(Member(user, "UserName"));
-            info.FirstName = Text(Member(employee, "FirstName"));
-            info.LastName = Text(Member(employee, "LastName"));
+
+            // Der Mitarbeiter schlaegt das Rechnungsprofil: er ist der mandantenspezifische Datensatz.
+            // Das Profil ist der Weg fuer den Mandanten-Eigentuemer, fuer den es gar keinen gibt.
+            info.FirstName = Text(Member(employee, "FirstName")) ?? Text(Member(profile, "FirstName"));
+            info.LastName = Text(Member(employee, "LastName")) ?? Text(Member(profile, "LastName"));
 
             // Der Mitarbeiter schlaegt den Benutzer; 'Email' und 'EMail' sind beide unterwegs (Identity
-            // schreibt es klein, das Onboarding-Modell gross).
+            // schreibt es klein, das Onboarding-Modell gross). Das Rechnungsprofil zuletzt: die
+            // Anmeldeadresse ist die verbindliche, die Rechnungsadresse darf eine andere sein.
             info.EMail = Text(Member(employee, "EMail"))
                          ?? Text(Member(user, "Email"))
-                         ?? Text(Member(user, "EMail"));
+                         ?? Text(Member(user, "EMail"))
+                         ?? Text(Member(profile, "Email"));
+
+            // Die einzige Angabe, die der Benutzer-Datensatz gar nicht kennt.
+            info.PhoneNumber = Text(Member(employee, "PhoneNumber")) ?? Text(Member(profile, "PhoneNumber"));
 
             info.DisplayName = Join(info.FirstName, info.LastName) ?? info.UserName;
 
-            info.TenantId = Number(Member(employee, "TenantId")) ?? Number(Member(tenantUser, "TenantId"));
+            info.TenantId = Number(Member(employee, "TenantId")) ?? Number(Member(tenantUser, "TenantId"))
+                            ?? Number(Member(profile, "TenantId"));
             info.TenantUserId = Number(Member(tenantUser, "TenantUserId"));
             info.Enabled = Member(tenantUser, "Enabled") as bool?;
             info.EmployeeId = Number(Member(employee, "EmployeeId"));
+            info.BillingProfileId = Number(Member(profile, "BillingProfileId"));
             info.InvitationStatus = Text(Member(employee, "InvitationStatus"));
 
             if (info.UserId == null)
@@ -450,7 +589,8 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
         }
 
         /// <summary>Nennt die mitgegebenen Kennungen - fuer die Meldung, wenn nichts gefunden wurde.</summary>
-        private static string Describe(object employeeId, object tenantUserId, object userId, object userName)
+        private static string Describe(object employeeId, object tenantUserId, object userId, object userName,
+            object billingProfileId)
         {
             var parts = new List<string>();
             if (employeeId != null)
@@ -471,6 +611,11 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit
             if (userName != null)
             {
                 parts.Add($"{ArgumentUserName}={userName}");
+            }
+
+            if (billingProfileId != null)
+            {
+                parts.Add($"{ArgumentBillingProfileId}={billingProfileId}");
             }
 
             return string.Join(", ", parts);
