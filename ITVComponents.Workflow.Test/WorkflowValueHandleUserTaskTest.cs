@@ -154,6 +154,98 @@ namespace ITVComponents.Workflow.Test
                 Ship = new Address { Street = "Old Street", City = "Bern" }
             };
 
+        // --- Berechnete Felder ------------------------------------------------------------------------
+
+        [TestMethod]
+        public void AComputedField_ShowsAValueThatNoPathCouldReach()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithComputedField("calc", editable: false));
+
+            WorkflowInstance instance = engine.StartWorkflow("calc");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+
+            UserTaskDescriptor descriptor = engine.DescribeUserTask(instance.Id, token.Id);
+
+            Assert.AreEqual("Bern, Old Street", descriptor.Payload["shipLine"],
+                "the expression is evaluated against the payload and lands under the key the mask reads.");
+        }
+
+        [TestMethod]
+        public void AComputedField_MayStillBeEdited_AndItsValueReachesTheVariables()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithComputedField("calcEdit", editable: true));
+
+            WorkflowInstance instance = engine.StartWorkflow("calcEdit");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(instance.Id, token.Id,
+                new Dictionary<string, object> { { "shipLine", "typed by hand" } });
+
+            Assert.AreEqual(UserTaskCompletionStatus.Completed, result.Status);
+            WorkflowInstance done = store.GetInstance(instance.Id);
+            Assert.AreEqual("typed by hand", done.Variables["line"],
+                "an expression replaces the READING - where the input goes is the output binding's job.");
+            Assert.AreEqual(0, handler.Writes.Count,
+                "a computed field cannot write back into the record - an expression has no inverse.");
+        }
+
+        [TestMethod]
+        public void ABrokenExpression_LeavesTheFieldEmpty_ButTheTaskStaysOpenable()
+        {
+            handler.With("o1", NewOrder());
+            WorkflowDefinition definition = TaskWithComputedField("broken", editable: false);
+            ((UserActivityNode)definition.Nodes[1]).FormFields[0].PayloadExpression = "customer.NoSuchThing.X";
+            store.SaveDefinition(definition);
+
+            WorkflowInstance instance = engine.StartWorkflow("broken");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+
+            UserTaskDescriptor descriptor = engine.DescribeUserTask(instance.Id, token.Id);
+
+            Assert.IsNotNull(descriptor, "a broken field expression must not make the task unopenable.");
+            Assert.IsFalse(descriptor.Payload.ContainsKey("shipLine"));
+        }
+
+        /// <summary>
+        /// Eine Aufgabe mit EINEM berechneten Feld: der Wert entsteht aus zwei Membern des Datensatzes und
+        /// steht so an keiner Stelle, die ein Pfad erreichen koennte.
+        /// </summary>
+        private static WorkflowDefinition TaskWithComputedField(string id, bool editable)
+        {
+            var node = new UserActivityNode { Id = "n", TaskKey = "ShowOrder" };
+            node.Inputs.Add(Handle("customer", "orders", "o1"));
+            node.FormFields.Add(new UserTaskField
+            {
+                Name = "shipLine",
+                Kind = UserTaskFieldKind.Text,
+                ReadOnly = !editable,
+                PayloadExpression =
+                    "'System.String'.Format(\"{0}, {1}\", customer.Ship.City, customer.Ship.Street)"
+            });
+            if (editable)
+            {
+                node.Outputs.Add(new ActivityOutputBinding { Parameter = "shipLine", Variable = "line" });
+            }
+
+            return new WorkflowDefinition
+            {
+                TechnicalName = id,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    node,
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->n", SourceId = "s", TargetId = "n" },
+                    new SequenceFlow { Id = "n->e", SourceId = "n", TargetId = "e" }
+                }
+            };
+        }
+
         private static WorkflowDefinition TaskWithPaths(string id, bool writeBack)
         {
             var node = new UserActivityNode { Id = "n", TaskKey = "EditOrder" };

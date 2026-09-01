@@ -859,9 +859,11 @@ Der `StartNode` hat zwei neue, rein beschreibende Eigenschaften:
 | `FormFields` (`List<UserTaskField>`) | Die Felder, die ein Mensch beim Start ausfüllt. **Dieselbe** Feldbeschreibung wie `UserActivityNode.FormFields` (Name, Label, Kind, Required, HelpText, Choices) — für „Formular aus Daten" gibt es damit nur eine Sprache und nur einen Renderer (`UserTaskFieldsForm`). |
 | `FormDescription` (`string`) | Optionale Anleitung über den Feldern. Klartext oder Kultur-JSON, wie die Aufgaben-Titel. |
 
-Zwei Eigenschaften des Feldes sind beim Start **ohne Bedeutung** und werden ignoriert: `ReadOnly` und
-`PayloadName`. Beide beziehen sich auf den Payload einer laufenden Aufgabe — beim Start gibt es noch
-keinen. Der Feld-Dialog blendet sie für den Start-Knoten deshalb aus.
+Drei Eigenschaften des Feldes sind beim Start **ohne Bedeutung**: `ReadOnly`, `PayloadName` und
+`PayloadExpression`. Alle drei beziehen sich auf den Payload einer laufenden Aufgabe — beim Start gibt es
+noch keinen. Der Feld-Dialog blendet sie für den Start-Knoten aus. Ein trotzdem gesetzter `PayloadExpression` ist ein
+**Validator-Fehler** — er hätte nichts, wogegen er ausgewertet werden könnte. `ReadOnly` gibt eine
+Warnung (das Feld würde gar nicht erst gezeigt), `PayloadName` wird stillschweigend ignoriert.
 
 **Die Engine liest die Felder nicht.** Sie sind eine Zusage der Oberfläche, kein Vertrag: ein
 programmatischer Start bleibt unverändert möglich und übergibt seine Werte direkt. Wer Werte
@@ -2299,6 +2301,26 @@ einen Reconnect ohnehin nicht). Damit adressieren die Feld-Pfade das echte Objek
 - **`UserTaskField.PayloadName` ist ein Pfad** (`customer.Ship.Street`) und damit Lese- *und* Schreibziel.
   Erst wird der **exakte** Schlüssel im Payload gesucht, dann als Pfad gedeutet — ein Bestandsschlüssel mit
   einem Punkt bricht also nicht.
+
+  > **Name und PayloadName teilen sich keine Arbeit — sie ersetzen einander.** `PayloadName` tritt nicht
+  > als „Quelle" neben `Name` als „Ziel": es *ersetzt* `Name` in der Pfad-Rolle (leer = „nimm den
+  > Feldnamen auch als Pfad"). Daneben behält `Name` seinen eigenen Job, den Schlüssel im Ergebnis, den
+  > die Ausgabe-Bindung auf eine Variable abbildet. Ein Feldwert hat deshalb **zwei** mögliche Empfänger:
+  > die Workflow-Variablen über `node.Outputs`, und den fremden Datensatz über den Pfad.
+
+- **`UserTaskField.PayloadExpression` berechnet den angezeigten Wert**, statt ihn zu lesen — ausgewertet
+  gegen den Payload, mit `PayloadExpressionMode` als Ausdruck oder Block:
+
+  ```
+  Name              = EmpFullName
+  PayloadExpression = 'System.String'.Format("{0}, {1}", Consultant.LastName, Consultant.FirstName)
+  ```
+
+  Das erreicht ein Pfad nicht — er zeigt auf genau ein Member. **Der Ausdruck ersetzt nur das Lesen:**
+  wohin die Eingabe geht, entscheidet unverändert die Ausgabe-Bindung über `Name`, ein solches Feld darf
+  also durchaus bearbeitbar sein. Nur *zurückschreiben* in einen fremden Datensatz kann es nicht — dafür
+  bräuchte es einen Pfad, und ein Ausdruck hat keine Umkehrung. Ein Auswertungsfehler lässt das Feld leer
+  und landet im Log; die Aufgabe bleibt anzeigbar.
 - **`UserActivityNode.WriteBackParameters`** nennt nur, *welche* Parameter überhaupt zurückgehen. Damit
   steht die Deklaration nur einmal da, und „was ich sehe, schreibe ich zurück" ist strukturell wahr statt
   Pflegedisziplin.

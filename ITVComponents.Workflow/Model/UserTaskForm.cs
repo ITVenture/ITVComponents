@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ITVComponents.Workflow.Expressions;
 
 namespace ITVComponents.Workflow.Model
 {
@@ -76,7 +77,47 @@ namespace ITVComponents.Workflow.Model
         /// Optionaler Name im Payload, aus dem das Feld vorbelegt wird (bzw. bei
         /// <see cref="ReadOnly"/> den anzuzeigenden Wert bezieht). Leer = <see cref="Name"/>.
         /// </summary>
+        /// <remarks>
+        /// Ein <b>Pfad</b> (<c>customer.Ship.Street</c>) greift in den Datensatz hinein - und ist damit
+        /// zugleich das <b>Rueckschreibziel</b>, wenn der Wert von einem Wert-Handler kommt. Der Pfad, aus
+        /// dem gelesen wird, ist der Pfad, in den geschrieben wird; so steht die Deklaration nur einmal da.
+        /// <para>
+        /// Diese Eigenschaft <b>ersetzt</b> <see cref="Name"/> in der Pfad-Rolle, sie tritt nicht daneben:
+        /// leer heisst „nimm den Feldnamen auch als Pfad". <see cref="Name"/> behaelt daneben seinen
+        /// eigenen Job - der Schluessel im Ergebnis, den die Ausgabe-Bindung auf eine Variable abbildet.
+        /// </para>
+        /// </remarks>
         public string PayloadName { get; set; }
+
+        /// <summary>
+        /// Optionaler CScript-Ausdruck, der den <b>angezeigten</b> Wert des Feldes berechnet - statt ihn
+        /// aus dem Payload zu lesen. Ausgewertet gegen den Payload der Maske.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Fuer Werte, die es so gar nicht gibt: <c>'System.String'.Format("{0}, {1}", Consultant.LastName,
+        /// Consultant.FirstName)</c>. Ein Pfad kann das nicht - er zeigt auf genau ein Member.
+        /// </para>
+        /// <para>
+        /// <b>Ersetzt nur das Lesen.</b> Wohin die Eingabe geht, entscheidet unveraendert die
+        /// Ausgabe-Bindung ueber <see cref="Name"/> - ein Feld mit Ausdruck darf also durchaus
+        /// bearbeitbar sein. Nur ein Rueckschreiben in einen fremden Datensatz kann es nicht ausloesen:
+        /// dafuer braeuchte es einen Pfad, und ein Ausdruck hat keine Umkehrung. Wer beides will, setzt
+        /// zusaetzlich einen <see cref="PayloadName"/> - dann wird woanders gelesen als geschrieben, und
+        /// der Validator sagt es.
+        /// </para>
+        /// <para>
+        /// Am <b>Start-Knoten</b> ohne Wirkung: dort gibt es noch keinen Payload, gegen den ausgewertet
+        /// werden koennte.
+        /// </para>
+        /// </remarks>
+        public string PayloadExpression { get; set; }
+
+        /// <summary>
+        /// Wie <see cref="PayloadExpression"/> zu lesen ist: EIN Ausdruck (Standard) oder ein ganzes
+        /// Skript mit <c>return</c>.
+        /// </summary>
+        public ScriptMode PayloadExpressionMode { get; set; } = ScriptMode.Expression;
 
         /// <summary>Optionaler Hinweistext unter dem Feld. Klartext oder Kultur-JSON.</summary>
         public string HelpText { get; set; }

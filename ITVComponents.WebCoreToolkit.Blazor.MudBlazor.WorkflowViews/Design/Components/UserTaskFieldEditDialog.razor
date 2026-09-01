@@ -36,7 +36,20 @@
                 Where the field reads from — and, for a value that comes from a value handler, where it
                 writes back to. A dotted path reaches into the record: <code>customer.Ship.Street</code>.
                 An exact payload key always wins, so an existing key that contains a dot keeps working.
+                It replaces the field name in that role; the field name stays the key in the result.
             </MudText>
+
+            <MudText Typo="Typo.caption" Class="mt-3">Computed value (optional)</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-1">
+                Replaces the reading: the shown value is computed from the payload instead of read from it —
+                <code>'System.String'.Format("{0}, {1}", Consultant.LastName, Consultant.FirstName)</code>.
+                The field may still be edited; where the input goes is decided by the output binding on the
+                field name. It cannot write back into a record, though — an expression has no inverse.
+            </MudText>
+            <CScriptField @ref="expressionField" Height="90" Value="@Field.PayloadExpression"
+                          ValueChanged="@(v => Field.PayloadExpression = v)"
+                          Mode="Field.PayloadExpressionMode"
+                          ModeChanged="@(m => Field.PayloadExpressionMode = m)" />
         }
 
         <MudText Typo="Typo.caption" Class="mt-3">Label (plain text or culture JSON)</MudText>
@@ -92,6 +105,7 @@
 
     private CScriptField? labelField;
     private CScriptField? helpField;
+    private CScriptField? expressionField;
 
     private string ChoiceText
         => string.Join(Environment.NewLine,
@@ -132,6 +146,14 @@
         {
             string v = await helpField.GetValueAsync();
             Field.HelpText = string.IsNullOrEmpty(v) ? null : v;
+        }
+
+        // Nur wenn die payload-bezogenen Optionen ueberhaupt gezeigt wurden - sonst steht das Feld nicht
+        // im Baum und ein hier gehaltener Wert waere ein Rest aus einer frueheren Bearbeitung.
+        if (expressionField is not null)
+        {
+            string v = await expressionField.GetValueAsync();
+            Field.PayloadExpression = string.IsNullOrWhiteSpace(v) ? null : v;
         }
 
         MudDialog.Close(DialogResult.Ok(new Result(Field, false)));

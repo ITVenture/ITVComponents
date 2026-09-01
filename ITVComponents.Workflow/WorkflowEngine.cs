@@ -5132,6 +5132,31 @@ namespace ITVComponents.Workflow
                 }
 
                 string target = FieldTarget(field);
+
+                // Ein Ausdruck ERSETZT das Lesen - auch dann, wenn unter dem Ziel schon etwas steht: er
+                // ist die ausdruecklichere Angabe. Geschrieben wird er unter dasselbe Ziel, unter dem die
+                // Maske ihn sucht (PrefillName, also PayloadName bzw. der Feldname).
+                if (!string.IsNullOrWhiteSpace(field.PayloadExpression))
+                {
+                    try
+                    {
+                        payload[target] = evaluator.Evaluate(field.PayloadExpression,
+                            new Dictionary<string, object>(payload, StringComparer.Ordinal),
+                            field.PayloadExpressionMode);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Wie beim Pfad: das Feld bleibt leer, die Aufgabe bleibt anzeigbar - aber die
+                        // Ursache steht im Log, sonst sucht man ein leeres Feld ohne jeden Anhaltspunkt.
+                        LogEnvironment.LogEvent(
+                            $"Field expression of '{field.Name}' in user task '{node.Id}' of instance " +
+                            $"'{instance.Id}' could not be evaluated: {ex.OutlineException()}. The field " +
+                            "stays empty.", LogSeverity.Error);
+                    }
+
+                    continue;
+                }
+
                 if (payload.ContainsKey(target) || !TrySplitFieldPath(target, payload, out object root,
                         out string path))
                 {
@@ -5222,8 +5247,30 @@ namespace ITVComponents.Workflow
                     continue;
                 }
 
-                if (!TrySplitFieldPath(target, payload, out object root, out string path)
-                    || !wanted.Contains(target.Substring(0, target.IndexOf(MemberPath.Separator))))
+                // Zeigt das Ziel ueberhaupt auf einen Parameter, der zurueckgeschrieben werden soll? Ein
+                // Feld ohne Punkt bzw. mit einem fremden ersten Segment ist schlicht kein Rueckschreibfeld
+                // - es geht ueber die Ausgabe-Bindung in die Variablen, und das ist der Normalfall.
+                int dot = target.IndexOf(MemberPath.Separator);
+                bool meantAsWriteBack = dot > 0 && dot < target.Length - 1
+                                                && wanted.Contains(target.Substring(0, dot));
+
+                if (!TrySplitFieldPath(target, payload, out object root, out string path))
+                {
+                    if (meantAsWriteBack)
+                    {
+                        // Der Pfad war als Rueckschreibziel gemeint, aber sein Parameter steht nicht im
+                        // Payload oder ist null. Ohne diese Zeile waere die Eingabe still verschwunden -
+                        // der Mensch klickt "Erledigen" und sein Wert erreicht den Datensatz nie.
+                        LogEnvironment.LogEvent(
+                            $"Field '{field.Name}' of user task '{node.Id}' in instance '{fresh.Id}' writes " +
+                            $"to '{target}', but that parameter is not in the payload or is null. The input " +
+                            "is NOT written back.", LogSeverity.Error);
+                    }
+
+                    continue;
+                }
+
+                if (!meantAsWriteBack)
                 {
                     continue;
                 }

@@ -1134,6 +1134,27 @@ namespace ITVComponents.Workflow.Validation
                     issues.Add(Warn(nodeId, $"{what} field '{field.Name}' is a choice without any options."));
                 }
 
+                if (!string.IsNullOrWhiteSpace(field.PayloadExpression))
+                {
+                    if (!readOnlyMeaningful)
+                    {
+                        // Am Start-Knoten gibt es noch keinen Payload - der Ausdruck haette gar nichts,
+                        // wogegen er ausgewertet werden koennte.
+                        issues.Add(Error(nodeId,
+                            $"{what} field '{field.Name}' has a payload expression - there is no payload " +
+                            "before the instance exists, so there is nothing to evaluate it against."));
+                    }
+                    else if (!string.IsNullOrWhiteSpace(field.PayloadName))
+                    {
+                        // Erlaubt und gelegentlich gewollt - aber nichts, was still passieren soll: gelesen
+                        // wird aus dem Ausdruck, zurueckgeschrieben in den Pfad.
+                        issues.Add(Warn(nodeId,
+                            $"{what} field '{field.Name}' has both a payload expression and the payload " +
+                            $"path '{field.PayloadName}'. It reads from the expression and writes back to " +
+                            "the path - so it writes something it did not read from there."));
+                    }
+                }
+
                 if (!field.ReadOnly)
                 {
                     continue;
