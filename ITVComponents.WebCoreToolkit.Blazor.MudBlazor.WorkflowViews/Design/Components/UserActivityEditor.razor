@@ -67,13 +67,16 @@
         <MudTabPanel Text="Variable mapping" Icon="@Icons.Material.Filled.SwapHoriz">
             <MudText Typo="Typo.caption" Class="mud-text-secondary mb-1">
                 Inputs are resolved when the task is opened (so the form shows the current state); outputs map the
-                form result (for the generic form: the field names) onto variables.
+                form result (for the generic form: the field names) onto variables. An output may also be a
+                <b>path</b> — into a result value (<code>order.Number</code>) or into a payload value
+                (<code>consultant.EMail</code>), which is how a value from the form's own data reaches a variable.
+                A payload value without a path stays out: it can be a value handle, and variables are persisted.
             </MudText>
             <BindingMappingTables Inputs="Node.Inputs" Outputs="Node.Outputs"
                                   InputsTitle="Form inputs (payload)" OutputsTitle="Form outputs"
                                   AddInputLabel="Add payload value" AddOutputLabel="Add output"
                                   InputNameHeader="Payload name" InputNameLabel="Payload name"
-                                  OutputSourceLabel="Field / result" OutputTargetLabel="Variable"
+                                  OutputSourceLabel="Field, result or path" OutputTargetLabel="Variable"
                                   AllowValueHandle="true" HandleDeliveryUsable="false" />
 
             @* Was zurueckgeschrieben wird, steht nur EINMAL da: hier stehen die Parameter, wohin im

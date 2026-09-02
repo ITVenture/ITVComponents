@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -3753,9 +3753,25 @@ namespace ITVComponents.Workflow
                             valueHandlesWritten = WriteBackUserTask(fresh, token, node, result, handles);
                         }
 
+                        // Die Maske hat ZWEI Haelften: den Payload, mit dem sie gefuellt wurde, und das
+                        // Ergebnis, das der Mensch zurueckgibt. Eine Ausgabe darf aus beiden lesen -
+                        // Ergebnis zuerst, Payload nur ueber einen Pfad ('consultant.EMail'). Der Payload
+                        // wird dafuer erst aufgeloest, wenn ihn wirklich ein Pfad braucht: sonst kostete
+                        // jeder Abschluss einen zusaetzlichen Handler-Zugriff fuer nichts.
                         ApplyMappedOutputs(fresh, Scope(fresh, token), node.Id, node.Outputs, node.ScopeMode,
                             node.RetainVariables,
-                            result ?? new Dictionary<string, object>(StringComparer.Ordinal));
+                            result ?? new Dictionary<string, object>(StringComparer.Ordinal),
+                            () =>
+                            {
+                                if (node.Inputs == null || node.Inputs.Count == 0)
+                                {
+                                    return null;
+                                }
+
+                                activityScope ??= activities.OpenScope(fresh);
+                                handles ??= OpenValueHandles(activityScope, fresh, token);
+                                return UserTaskOutputPayload(fresh, token, node, handles);
+                            });
                         fresh.Log("UserTaskCompleted", node.Id,
                             completedBy == null ? node.TaskKey : $"{node.TaskKey} by {completedBy}");
                         // NACH dem Uebernehmen der Ergebniswerte: die Antwort darf von dem abhaengen, was der
@@ -5293,6 +5309,45 @@ namespace ITVComponents.Workflow
         }
 
         /// <summary>
+        /// Loest den Payload einer eben abgeschlossenen Aufgabe noch einmal auf - fuer die
+        /// Ausgabe-Bindungen, die mit einem <b>Pfad</b> in einen Payload-Wert greifen
+        /// (<c>consultant.EMail</c>).
+        /// </summary>
+        /// <remarks>
+        /// Gelesen wird gegen die beim Parken festgeschriebenen Argumente (<paramref name="handles"/>) -
+        /// also derselbe Datensatz, den der Mensch gesehen hat -, aber im Stand von JETZT: das
+        /// Zurueckschreiben der Eingaben ist zu diesem Zeitpunkt schon gelaufen.
+        /// <para>
+        /// Ein Fehler des Handlers wird hier <b>nicht</b> geworfen: die Aufgabe ist an dieser Stelle
+        /// erledigt und ihre Eingaben sind geschrieben. Ein Abbruch wuerde den Abschluss zurueckrollen und
+        /// die Aufgabe offen lassen, obwohl der fremde Datensatz laengst steht. Die betroffenen Variablen
+        /// bleiben leer, die Ursache steht im Log.
+        /// </para>
+        /// </remarks>
+        /// <param name="fresh">die frisch geladene Instanz im Commit-Delegaten</param>
+        /// <param name="token">das Token der Aufgabe</param>
+        /// <param name="node">der Aufgaben-Knoten</param>
+        /// <param name="handles">die Aufloesungsrunde dieses Abschlusses</param>
+        /// <returns>der Payload der Maske, oder null</returns>
+        private IDictionary<string, object> UserTaskOutputPayload(WorkflowInstance fresh, Token token,
+            UserActivityNode node, ValueHandleSession handles)
+        {
+            try
+            {
+                return ResolveInputs(fresh, Scope(fresh, token), node.Inputs, node.Id,
+                    InputTarget.UserTaskPayload, handles);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"CompleteUserTask: the payload of task '{token.Id}' in instance '{fresh.Id}' could " +
+                    $"not be resolved for its output paths: {ex.OutlineException()}. The task itself is " +
+                    "completed; the variables fed from the payload stay empty.", LogSeverity.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Bringt einen Maskenwert auf den Typ, den das Ziel-Member verlangt.
         /// </summary>
         /// <remarks>
@@ -5333,7 +5388,7 @@ namespace ITVComponents.Workflow
         /// er besteht danach genau aus der Erhaltungs-Whitelist (<see cref="AutomatedActivityNode.RetainVariables"/>,
         /// soweit vorhanden) und den Ausgaben - alle uebrigen Variablen werden abgeraeumt.
         /// </remarks>
-        private static void ApplyOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
+        private void ApplyOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
             AutomatedActivityNode node, IDictionary<string, object> outputs)
         {
             ApplyMappedOutputs(instance, scope, node.Id, node.Outputs, node.ScopeMode, node.RetainVariables,
@@ -5352,15 +5407,32 @@ namespace ITVComponents.Workflow
         /// innerhalb einer parallelen Region - der Zweig-Scope des Tokens (<see cref="Token.Variables"/>).
         /// Auch die Konsolidierung (<see cref="ActivityScopeMode.Replace"/>) wirkt genau dort und damit
         /// zweig-lokal.
+        /// <para>
+        /// <see cref="ActivityOutputBinding.Parameter"/> darf ein <b>Pfad</b> sein
+        /// (<c>consultant.EMail</c>): das erste Segment ist der Schluessel in <paramref name="source"/>,
+        /// der Rest ein Member-Zugriff darauf - unter demselben Wachposten wie die Feld-Pfade der Masken
+        /// (<see cref="FieldPathGuard"/>). Gesucht wird <b>erst der exakte Schluessel</b>, damit ein
+        /// Ergebnisname, der einen Punkt enthaelt, weiter trifft.
+        /// </para>
         /// </remarks>
-        private static void ApplyMappedOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
+        /// <param name="payload">
+        /// Die zweite Quelle, aus der ein Pfad lesen darf, wenn sein erstes Segment nicht im Ergebnis
+        /// steht - bei der Benutzer-Aufgabe der Payload der Maske. Wird <b>faul</b> gerufen: nur, wenn ein
+        /// Pfad ihn wirklich braucht, und dann genau einmal. Null = keine zweite Quelle.
+        /// </param>
+        private void ApplyMappedOutputs(WorkflowInstance instance, Dictionary<string, object> scope,
             string nodeId, IEnumerable<ActivityOutputBinding> bindings, ActivityScopeMode mode,
-            IEnumerable<string> retainVariables, IDictionary<string, object> source)
+            IEnumerable<string> retainVariables, IDictionary<string, object> source,
+            Func<IDictionary<string, object>> payload = null)
         {
             // Zuerst die Ziel-Variablen aus den Output-Bindungen bestimmen (unabhaengig vom Scope-Modus).
             var mapped = new Dictionary<string, object>(StringComparer.Ordinal);
             if (bindings != null)
             {
+                IMemberAccessGuard guard = null;
+                IDictionary<string, object> payloadValues = null;
+                bool payloadAsked = false;
+
                 foreach (ActivityOutputBinding binding in bindings)
                 {
                     if (binding == null || string.IsNullOrEmpty(binding.Parameter)
@@ -5369,8 +5441,73 @@ namespace ITVComponents.Workflow
                         continue;
                     }
 
-                    source.TryGetValue(binding.Parameter, out object value);
-                    mapped[binding.Variable] = value;
+                    // Der exakte Schluessel zuerst - erst danach wird der Name als Pfad gedeutet.
+                    if (source.TryGetValue(binding.Parameter, out object value))
+                    {
+                        mapped[binding.Variable] = value;
+                        continue;
+                    }
+
+                    mapped[binding.Variable] = ReadOutputPath(binding.Parameter);
+                }
+
+                // Liest einen Ausgabe-Parameter, der kein Schluessel im Ergebnis ist, als Pfad - erst im
+                // Ergebnis selbst, dann in der zweiten Quelle. Ein Name OHNE Punkt bleibt, was er war:
+                // ein fehlender Wert, also null. Der Payload steht ihm bewusst NICHT offen - ein blanker
+                // Payload-Wert kann ein ausgepackter Griff sein, und in eine Variable geht, was
+                // persistiert wird (siehe InputTarget.Persisted). Ein AUS ihm gelesenes Member ist
+                // dagegen ein gewoehnlicher Wert.
+                object ReadOutputPath(string parameter)
+                {
+                    if (TrySplitFieldPath(parameter, source, out object root, out string path))
+                    {
+                        return ReadMember(root, path, parameter);
+                    }
+
+                    if (parameter.IndexOf(MemberPath.Separator) <= 0)
+                    {
+                        return null; // kein Pfad - der Payload wird dafuer gar nicht erst geoeffnet.
+                    }
+
+                    if (!payloadAsked)
+                    {
+                        payloadAsked = true;
+                        payloadValues = payload?.Invoke();
+                    }
+
+                    if (payloadValues != null
+                        && TrySplitFieldPath(parameter, payloadValues, out root, out path))
+                    {
+                        return ReadMember(root, path, parameter);
+                    }
+
+                    LogEnvironment.LogEvent(
+                        $"Output '{parameter}' of node '{nodeId}' in instance '{instance.Id}' addresses " +
+                        $"'{parameter.Substring(0, parameter.IndexOf(MemberPath.Separator))}', which is " +
+                        "no result and no payload value - or is empty. The variable stays empty.",
+                        LogSeverity.Warning);
+                    return null;
+                }
+
+                // Ein Lesefehler faultet den Vorgang ausdruecklich NICHT: die Aktivitaet ist gelaufen bzw.
+                // die Aufgabe erledigt und zurueckgeschrieben - daran darf eine Abbildung nichts mehr
+                // aendern, sonst bliebe eine erledigte Aufgabe fuer immer offen. Die Variable bleibt leer,
+                // die Ursache steht im Log.
+                object ReadMember(object root, string path, string parameter)
+                {
+                    try
+                    {
+                        guard ??= FieldPathGuard();
+                        return MemberPath.Read(root, path, guard);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Output path '{parameter}' of node '{nodeId}' in instance '{instance.Id}' " +
+                            $"could not be read: {ex.OutlineException()}. The variable stays empty.",
+                            LogSeverity.Error);
+                        return null;
+                    }
                 }
             }
 
@@ -5460,7 +5597,7 @@ namespace ITVComponents.Workflow
         /// Tokens: bei parallelen Zweigen wuerde sonst der erste ankommende Zweig den Stack abraeumen, den
         /// die uebrigen noch brauchen.
         /// </remarks>
-        private static void ApplyEndOutputs(WorkflowInstance instance, WorkflowDefinition definition)
+        private void ApplyEndOutputs(WorkflowInstance instance, WorkflowDefinition definition)
         {
             if (definition == null)
             {
@@ -5772,7 +5909,7 @@ namespace ITVComponents.Workflow
         /// Eltern-Scope besteht danach genau aus diesen Ausgaben plus
         /// <see cref="CallWorkflowNode.RetainVariables"/>.
         /// </summary>
-        private static void ApplyCallOutputs(WorkflowInstance parent, Dictionary<string, object> scope,
+        private void ApplyCallOutputs(WorkflowInstance parent, Dictionary<string, object> scope,
             CallWorkflowNode node, IDictionary<string, object> childVariables)
         {
             ApplyMappedOutputs(parent, scope, node.Id, node.Outputs, node.ScopeMode, node.RetainVariables,
@@ -6305,7 +6442,7 @@ namespace ITVComponents.Workflow
         /// das Abraeumen fuer die Region ist Sache des Joins.
         /// </para>
         /// </remarks>
-        private static Token MergeBranches(WorkflowInstance instance, IMergingGateway node, List<Token> joined)
+        private Token MergeBranches(WorkflowInstance instance, IMergingGateway node, List<Token> joined)
         {
             Token carrier = joined[0];
             Token parent = FindSplitParent(instance, node, joined);
@@ -6619,7 +6756,7 @@ namespace ITVComponents.Workflow
             return true;
         }
 
-        private static void UpdateTerminalStatus(WorkflowInstance instance, WorkflowDefinition definition)
+        private void UpdateTerminalStatus(WorkflowInstance instance, WorkflowDefinition definition)
         {
             // Erst aufraeumen, dann urteilen: ein verwaistes Timer-Token wuerde die Instanz sonst ewig
             // als "wartend" fuehren, obwohl sein Schritt laengst vorbei ist.

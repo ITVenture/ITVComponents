@@ -2321,6 +2321,34 @@ einen Reconnect ohnehin nicht). Damit adressieren die Feld-Pfade das echte Objek
   also durchaus bearbeitbar sein. Nur *zurückschreiben* in einen fremden Datensatz kann es nicht — dafür
   bräuchte es einen Pfad, und ein Ausdruck hat keine Umkehrung. Ein Auswertungsfehler lässt das Feld leer
   und landet im Log; die Aufgabe bleibt anzeigbar.
+- **Auch die Ausgabe-Bindung kann einen Pfad** — und greift damit in den Payload:
+
+  ```
+  Payload-Wert   consultant   (ValueHandle → UserInfo)
+  Ausgabe        consultant.EMail  →  Variable nextUserResponsible
+  ```
+
+  Das ist der Weg für einen Wert, der im Datensatz **schon steht** und den der Mensch deshalb gar nicht
+  eintippt. Die Regel dahinter: die Maske hat **zwei Hälften** — den Payload, mit dem sie gefüllt wurde,
+  und das Ergebnis, das sie zurückgibt; eine Ausgabe darf aus beiden lesen. Gefragt wird **das Ergebnis
+  zuerst** (es ist die Antwort genau dieser Aufgabe), und wie überall erst der *exakte* Schlüssel, dann
+  der Pfad.
+
+  > **Der blanke Payload-Wert bleibt draussen.** `consultant` allein ergibt keine Variable, nur
+  > `consultant.EMail`. Ein Payload-Wert kann ein ausgepackter Griff sein — und was in eine Variable
+  > geht, wird persistiert (siehe „Kein Griff im Variablen-Stack"). Ein daraus *gelesenes* Member ist
+  > dagegen ein gewöhnlicher Wert.
+
+  Der Payload wird dafür beim Abschluss **noch einmal** aufgelöst — aber nur, wenn wirklich ein Pfad ihn
+  braucht, und dann genau einmal; wer keinen benutzt, zahlt nichts. Gelesen wird gegen die beim Parken
+  festgeschriebenen Argumente, also derselbe Datensatz, den der Mensch gesehen hat, im Stand *nach* dem
+  Zurückschreiben. Ein Pfad, der nicht gelesen werden kann, lässt die Variable leer und steht im Log —
+  er faultet nicht: an dieser Stelle ist die Aufgabe erledigt und der fremde Datensatz geschrieben, ein
+  Abbruch liesse sie für immer offen.
+
+  Pfade in der Ausgabe gibt es an **jedem** Knoten mit `Outputs` (`order.Number` in das, was eine
+  Aktivität zurückgibt). Die zweite Quelle Payload ist die Besonderheit der Benutzer-Aufgabe.
+
 - **`UserActivityNode.WriteBackParameters`** nennt nur, *welche* Parameter überhaupt zurückgehen. Damit
   steht die Deklaration nur einmal da, und „was ich sehe, schreibe ich zurück" ist strukturell wahr statt
   Pflegedisziplin.

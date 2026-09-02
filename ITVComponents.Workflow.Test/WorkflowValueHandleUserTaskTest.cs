@@ -246,6 +246,118 @@ namespace ITVComponents.Workflow.Test
             };
         }
 
+        // --- Ausgabe-Pfade in den Payload ------------------------------------------------------------
+
+        [TestMethod]
+        public void AnOutputPath_ReachesIntoThePayload()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithOutputPath("outpath", "customer.Ship.City", "city"));
+
+            WorkflowInstance instance = engine.StartWorkflow("outpath");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+            int reads = handler.Reads.Count;
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(instance.Id, token.Id,
+                new Dictionary<string, object> { { "note", "done" } });
+
+            Assert.AreEqual(UserTaskCompletionStatus.Completed, result.Status);
+            WorkflowInstance done = store.GetInstance(instance.Id);
+            Assert.AreEqual("Bern", done.Variables["city"],
+                "the mask has two halves - what the human returns AND the payload it was filled from.");
+            Assert.AreEqual("done", done.Variables["note"]);
+            Assert.AreEqual(reads + 1, handler.Reads.Count,
+                "the payload is resolved exactly once, and only because a path asked for it.");
+        }
+
+        [TestMethod]
+        public void AResultValue_WinsOverThePayload_AndSparesTheHandler()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithOutputPath("resultwins", "customer.Ship.City", "city"));
+
+            WorkflowInstance instance = engine.StartWorkflow("resultwins");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+            int reads = handler.Reads.Count;
+
+            engine.CompleteUserTask(instance.Id, token.Id, new Dictionary<string, object>
+            {
+                { "note", "done" },
+                { "customer", new Order { Ship = new Address { City = "Zuerich" } } }
+            });
+
+            Assert.AreEqual("Zuerich", store.GetInstance(instance.Id).Variables["city"],
+                "the result is asked first - it is the answer of this very task.");
+            Assert.AreEqual(reads, handler.Reads.Count,
+                "and the payload is not opened at all when the result already carries the root.");
+        }
+
+        [TestMethod]
+        public void ABarePayloadValue_NeverBecomesAVariable()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithOutputPath("bare", "customer", "copy"));
+
+            WorkflowInstance instance = engine.StartWorkflow("bare");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+            int reads = handler.Reads.Count;
+
+            engine.CompleteUserTask(instance.Id, token.Id,
+                new Dictionary<string, object> { { "note", "done" } });
+
+            WorkflowInstance done = store.GetInstance(instance.Id);
+            Assert.IsNull(done.Variables["copy"],
+                "a payload value without a path can be an unwrapped handle - and a variable is persisted.");
+            Assert.AreEqual(reads, handler.Reads.Count,
+                "a name without a dot is no path, so the payload is not even opened for it.");
+        }
+
+        [TestMethod]
+        public void AnUnreadablePayloadPath_LeavesTheVariableEmpty_ButTheTaskIsDone()
+        {
+            handler.With("o1", NewOrder());
+            store.SaveDefinition(TaskWithOutputPath("badpath", "customer.NoSuchThing.X", "nothing"));
+
+            WorkflowInstance instance = engine.StartWorkflow("badpath");
+            Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
+
+            UserTaskCompletionResult result = engine.CompleteUserTask(instance.Id, token.Id,
+                new Dictionary<string, object> { { "note", "done" } });
+
+            Assert.AreEqual(UserTaskCompletionStatus.Completed, result.Status,
+                "the human is done and the record is written - a mapping must not reopen the task.");
+            Assert.IsNull(store.GetInstance(instance.Id).Variables["nothing"]);
+        }
+
+        /// <summary>
+        /// Eine Aufgabe mit EINEM erfassten Feld und einer zweiten Ausgabe, die den Payload adressiert -
+        /// der Wert, den der Mensch gar nicht eintippt, weil er im Datensatz schon steht.
+        /// </summary>
+        private static WorkflowDefinition TaskWithOutputPath(string id, string parameter, string variable)
+        {
+            var node = new UserActivityNode { Id = "n", TaskKey = "PickNext" };
+            node.Inputs.Add(Handle("customer", "orders", "o1"));
+            node.FormFields.Add(new UserTaskField { Name = "note", Kind = UserTaskFieldKind.Text });
+            node.Outputs.Add(new ActivityOutputBinding { Parameter = "note", Variable = "note" });
+            node.Outputs.Add(new ActivityOutputBinding { Parameter = parameter, Variable = variable });
+
+            return new WorkflowDefinition
+            {
+                TechnicalName = id,
+                Nodes = new List<WorkflowNode>
+                {
+                    new StartNode { Id = "s" },
+                    node,
+                    new EndNode { Id = "e" }
+                },
+                Flows = new List<SequenceFlow>
+                {
+                    new SequenceFlow { Id = "s->n", SourceId = "s", TargetId = "n" },
+                    new SequenceFlow { Id = "n->e", SourceId = "n", TargetId = "e" }
+                }
+            };
+        }
+
         private static WorkflowDefinition TaskWithPaths(string id, bool writeBack)
         {
             var node = new UserActivityNode { Id = "n", TaskKey = "EditOrder" };

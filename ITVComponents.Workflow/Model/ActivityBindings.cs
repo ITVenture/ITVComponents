@@ -173,7 +173,28 @@ namespace ITVComponents.Workflow.Model
     /// </summary>
     public class ActivityOutputBinding
     {
-        /// <summary>Der Name des deklarierten Ausgabeparameters.</summary>
+        /// <summary>
+        /// Der Name des deklarierten Ausgabeparameters - oder ein <b>Pfad</b> in ihn hinein
+        /// (<c>order.Number</c>).
+        /// </summary>
+        /// <remarks>
+        /// Gesucht wird <b>erst der exakte Name</b> und erst dann als Pfad: ein Ergebnisname, der einen
+        /// Punkt enthaelt, bleibt damit erreichbar. Das erste Segment ist der Schluessel im Ergebnis, der
+        /// Rest ein Member-Zugriff darauf - unter demselben Wachposten, unter dem auch die Feld-Pfade der
+        /// Masken und die Ausdruecke laufen.
+        /// <para>
+        /// Bei einer <b>Benutzer-Aufgabe</b> darf ein Pfad zusaetzlich in den <i>Payload</i> der Maske
+        /// greifen (<c>consultant.EMail</c>), wenn sein erstes Segment kein Feld des Ergebnisses ist -
+        /// die Maske hat zwei Haelften, und beide gehoeren zu derselben Aufgabe. Der <b>blanke</b>
+        /// Payload-Wert bleibt dagegen unerreichbar: er kann ein ausgepackter Wert-Griff sein, und was in
+        /// eine Variable geht, wird persistiert.
+        /// </para>
+        /// <para>
+        /// Ein Pfad, der nicht gelesen werden kann, laesst die Variable leer und steht im Log - er
+        /// faultet den Vorgang nicht: an dieser Stelle ist die Aktivitaet gelaufen bzw. die Aufgabe
+        /// erledigt.
+        /// </para>
+        /// </remarks>
         public string Parameter { get; set; }
 
         /// <summary>Die Ziel-Variable, in der das Ergebnis abgelegt wird.</summary>

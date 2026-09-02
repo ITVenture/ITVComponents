@@ -172,6 +172,70 @@ namespace ITVComponents.Workflow.Test
         }
 
         [TestMethod]
+        public void OutputPath_ReadsIntoTheReturnedObject()
+        {
+            activities.Register("produce", ctx => ctx.Outputs["order"] = new Order
+            {
+                Customer = "A", Ship = new Address { Street = "Old Street", City = "Bern" }
+            });
+
+            store.SaveDefinition(OneActivity("outpath", "produce", node =>
+                node.Outputs.Add(new ActivityOutputBinding
+                {
+                    Parameter = "order.Ship.City",
+                    Variable = "city"
+                })));
+
+            WorkflowInstance instance = engine.StartWorkflow("outpath");
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status);
+            Assert.AreEqual("Bern", instance.Variables["city"],
+                "the first segment is the result key, the rest a member access on it.");
+        }
+
+        [TestMethod]
+        public void AnExactResultName_WinsOverThePathReading()
+        {
+            // Ein Ergebnisname MIT Punkt bleibt erreichbar - sonst braeche jeder Bestandsname, der einen
+            // enthaelt, sobald die Pfade dazukommen.
+            activities.Register("dotted", ctx =>
+            {
+                ctx.Outputs["order.Ship"] = "the exact key";
+                ctx.Outputs["order"] = new Order { Ship = new Address { City = "Bern" } };
+            });
+
+            store.SaveDefinition(OneActivity("dotted", "dotted", node =>
+                node.Outputs.Add(new ActivityOutputBinding
+                {
+                    Parameter = "order.Ship",
+                    Variable = "ship"
+                })));
+
+            WorkflowInstance instance = engine.StartWorkflow("dotted");
+
+            Assert.AreEqual("the exact key", instance.Variables["ship"]);
+        }
+
+        [TestMethod]
+        public void AnUnreadableOutputPath_LeavesTheVariableEmpty_WithoutFaulting()
+        {
+            activities.Register("produce", ctx => ctx.Outputs["order"] = new Order { Customer = "A" });
+
+            store.SaveDefinition(OneActivity("badpath", "produce", node =>
+                node.Outputs.Add(new ActivityOutputBinding
+                {
+                    Parameter = "order.NoSuchThing.X",
+                    Variable = "nothing"
+                })));
+
+            WorkflowInstance instance = engine.StartWorkflow("badpath");
+
+            Assert.AreEqual(WorkflowStatus.Completed, instance.Status,
+                "the activity has run - a mapping must not undo that.");
+            Assert.IsNull(instance.Variables["nothing"]);
+        }
+
+        [TestMethod]
         public void OutputThenVariableInput_ChainsBetweenSteps()
         {
             // Szenario a) + b): Schritt x legt seine Ausgabe in Variable 'foo' ab; Schritt y bekommt
