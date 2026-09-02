@@ -5135,6 +5135,25 @@ bisher abgefragt.**
 > unverändert verhält. Solange sie dort steht, ist der Riegel wirkungslos und es gelten allein die
 > Pfadmuster: wer „Kunde 5" teilt, gibt alles frei, was das Muster zulässt.
 
+### Neue Vorgabe: das erste Argument schaltet den Riegel scharf
+
+Bekommt eine Vorlage über die Maske ihr **erstes** Argument und steht `ArgumentEnforcement` noch auf
+`None`, wird es auf **`Strict`** gehoben — mit einer Zeile im Log, die den Grund und den Weg zurück
+nennt.
+
+Der Grund: ab dem ersten Argument ist `None` die gefährlichste Einstellung, die es gibt. Die Argumente
+*sehen aus* wie Objektsicherheit, geprüft werden aber weiterhin allein die Pfadmuster.
+
+`Strict` und nicht `Confirmed`: in MVC sind die beiden gleich (jede Anfrage hat ihren Scope), im
+Blazor-Circuit deckte `Confirmed` mit **einer** Bestätigung alles Weitere mit ab. Der Unterschied kostet
+nichts und schliesst die Lücke, die man am schwersten sieht.
+
+> **Nur beim Übergang, nicht bei jedem Speichern.** Wer später bewusst auf `None` zurückstellt, behält
+> das. Hier wird eine Vorgabe gesetzt, keine Regel durchgesetzt.
+>
+> **Bestehende Vorlagen sind nicht betroffen** — auch solche, die heute schon Argumente führen. Die
+> müsst ihr einmal von Hand umstellen.
+
 ### Für den Host
 
 Nichts zu registrieren — `IShareArgumentSource` hängt an `UseSharedAssetPathContext()`, das ihr für die
@@ -5159,6 +5178,7 @@ Punkt 3 und 4 schliessen das Loch; 1 und 2 sorgen dafür, dass niemand beim Anle
 | 57f | Gebührenerlass (optional) | rückwirkend verdient, nach vorne gewährt; erster Monat nie gratis. `WaivablePlanKeys` ist fail-closed; bei `Sliding` muss `(Schwelle − Bandbeginn) × Satz ≥ Grundgebühr` gelten (§57.11) |
 | 57g | Ländercode am Konto | bei der Anlage fixiert und **nie mehr änderbar**; die Einrichtungsseite fragt ihn ab. Testmodus-Konten existieren im Livemodus nicht — beim Key-Wechsel `TenantPaymentAccounts` leeren (§57.12) |
 | 60a | **Teilen-Maske füllt sich selbst** | Kein Schema-Change. Die Seite meldet ihre Argumentwerte über `<AssetScope Args="…">` — **dieselbe Zeile, die der Riegel schon braucht**; der `<ShareButton />` im Mantel liest sie beim Klick. Zusätzlich liest er benannte Gruppen aus dem Pfadmuster der Vorlage (`^/CustomerCare/Customers/(?<CustomerId>\d+)$`) — **nur benannte**, nummerierte tragen keine Bedeutung. Rangfolge aufsteigend: Pfad → Seite → `Context`. **Merke: die Seite gewinnt gegen den Pfad**, sonst baut man Links, die der eigene Riegel ablehnt. Bekannte Werte stehen in der Maske sichtbar, aber nicht editierbar; offene werden wie bisher abgefragt. **Merke: das ist KEINE Schranke** — dass ein fremder Datensatz nicht durchkommt, entscheidet weiterhin `ArgumentEnforcement` (Vorgabe `None`!) plus die Bestätigung in der Seite |
+| 60b | **Erstes Argument setzt `Strict`** | Verhaltensänderung ohne Schema-Change: bekommt eine Vorlage über die Maske ihr ERSTES Argument und steht `ArgumentEnforcement` auf `None`, wird es auf `Strict` gehoben (mit Log-Zeile). **Nur beim Übergang** — ein späteres bewusstes `None` bleibt. **Bestehende Vorlagen mit Argumenten sind NICHT betroffen und bleiben auf `None`**, die müsst ihr von Hand umstellen. Ausserdem: die XML-Doku von `Strict` beschrieb bis hierher die verworfene Bedeutung („jede weitere Bestätigung muss dieselben Werte liefern" — kann nie auslösen); wirksam ist „die Bestätigung verfällt mit dem Vorgang" |
 | 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |

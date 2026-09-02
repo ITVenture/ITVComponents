@@ -3,7 +3,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Extensions;
+using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
@@ -379,6 +381,36 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             ResolverKey = string.IsNullOrWhiteSpace(input.ResolverKey) ? null : input.ResolverKey
         };
         db.AssetTemplateArguments.Add(entity);
+
+        // Das ERSTE Argument macht aus einer Vorlage eine, die auf ein Objekt zeigt - und ab da ist
+        // ArgumentEnforcement.None die gefaehrlichste Einstellung, die es gibt: die Argumente sehen aus
+        // wie Objektsicherheit, aber es gelten weiterhin allein die Pfadmuster. Wer "Kunde 5" teilt,
+        // gibt dann alles frei, was das Muster zulaesst.
+        //
+        // Strict und nicht Confirmed: in MVC sind die beiden gleich (jede Anfrage hat ihren Scope), im
+        // Blazor-Circuit deckte Confirmed mit EINER Bestaetigung alles Weitere mit ab. Der Unterschied
+        // kostet nichts und schliesst genau die Luecke, die man am schwersten sieht.
+        //
+        // Nur bei next == -1, also beim Uebergang - nicht bei jedem Speichern. Wer spaeter bewusst auf
+        // None zurueckstellt, soll das behalten duerfen; hier wird eine VORGABE gesetzt, keine Regel
+        // durchgesetzt.
+        if (next == -1)
+        {
+            var template = await db.AssetTemplates
+                .FirstOrDefaultAsync(t => t.AssetTemplateId == assetTemplateId);
+            if (template != null && template.ArgumentEnforcement == AssetArgumentEnforcement.None)
+            {
+                template.ArgumentEnforcement = AssetArgumentEnforcement.Strict;
+                // Sichtbar, nicht heimlich: die Vorlage verhaelt sich ab jetzt anders, und wer den
+                // Riegel ausdruecklich nicht will, soll wissen, wo er ihn wieder ausschaltet.
+                LogEnvironment.LogEvent(
+                    $"Die Vorlage '{template.SystemKey}' hat ihr erstes Argument bekommen; " +
+                    $"ArgumentEnforcement wurde von None auf Strict gesetzt. Ohne das wuerden die " +
+                    "Argumente zwar erfasst, aber nie geprueft - es gaelten weiterhin allein die " +
+                    "Pfadmuster. Umstellbar im Vorlagen-Dialog.", LogSeverity.Report);
+            }
+        }
+
         await db.SaveChangesAsync();
         input.AssetTemplateArgumentId = entity.AssetTemplateArgumentId;
         input.AssetTemplateId = assetTemplateId;

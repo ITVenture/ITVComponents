@@ -24,8 +24,20 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         Confirmed = 1,
 
         /// <summary>
-        /// Zusaetzlich muss jede weitere Bestaetigung im selben Kontext dieselben Werte liefern.
+        /// Zusaetzlich <b>verfaellt eine Bestaetigung mit dem Vorgang</b>: jeder neue Vorgang muss sie
+        /// erneut geben (<see cref="ISharedAssetContext.ResetConfirmation"/>).
         /// </summary>
+        /// <remarks>
+        /// <b>In MVC macht das keinen Unterschied</b> - jede Anfrage hat ihren eigenen Scope. Im
+        /// <b>Blazor-Circuit</b> schon: der lebt laenger als ein Vorgang, und unter
+        /// <see cref="Confirmed"/> deckte eine einmalige Bestaetigung alles Weitere mit ab. Der
+        /// <c>AssetScope</c> und der MVC-Filter rufen den Ruecksetzer von sich aus.
+        /// <para>
+        /// Der urspruengliche Entwurf meinte etwas anderes ("jede weitere Bestaetigung muss dieselben
+        /// Werte liefern") - das kann nie ausloesen, weil ohnehin JEDE Bestaetigung gegen den Wert der
+        /// Freigabe geprueft wird. Diese Fassung ist die wirksame.
+        /// </para>
+        /// </remarks>
         Strict = 2
     }
 
