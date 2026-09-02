@@ -8,7 +8,6 @@ using ITVComponents.WebCoreToolkit.ServiceShared.FileHandling;
 using ITVComponents.WebCoreToolkit.ServiceShared.Model;
 using ITVComponents.WebCoreToolkit.ServiceShared.Options;
 using ITVComponents.WebCoreToolkit.WebPlugins;
-using Microsoft.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -17,7 +17,6 @@
     <Exec Command="md &quot;$(solutiondir)bin\$(targetFramework)&quot;&#xD;&#xA;md &quot;$(solutiondir)symbols\$(targetFramework)&quot;&#xD;&#xA;copy &quot;$(TargetPath)&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).dll&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).deps.json&quot; &quot;$(solutiondir)bin\$(targetFramework)\$(targetName).deps.json&quot;&#xD;&#xA;copy &quot;$(targetDir)$(targetName).pdb&quot; &quot;$(solutiondir)symbols\$(targetFramework)\$(targetName).pdb&quot;" />
   </Target>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
     <PackageReference Include="Microsoft.OpenApi" Version="3.10.2" />
   </ItemGroup>
   <ItemGroup>

@@ -10,8 +10,6 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Hel
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.VirtualModels;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;

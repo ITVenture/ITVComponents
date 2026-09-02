@@ -12,7 +12,6 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.Comparers;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.WebPlugins;
-using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Options;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.WebPlugins

@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.CodeAnalysis;
 
 namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.Extensions
 {

@@ -10,7 +10,6 @@ using System.Security.AccessControl;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.InMemory.Hub.Communication.Native;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Win32.SafeHandles;
 
 namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Communication

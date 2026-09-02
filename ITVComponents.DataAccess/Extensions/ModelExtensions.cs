@@ -16,7 +16,6 @@ using ITVComponents.Helpers;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.TypeConversion;
-using Microsoft.CodeAnalysis;
 
 namespace ITVComponents.DataAccess.Extensions
 {

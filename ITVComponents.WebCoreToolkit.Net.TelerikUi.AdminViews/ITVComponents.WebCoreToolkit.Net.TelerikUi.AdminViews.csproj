@@ -33,8 +33,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Telerik.UI.for.AspNet.Core" Version="2026.2.520" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\js\" />

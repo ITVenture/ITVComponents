@@ -21,7 +21,5 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net\ITVComponents.WebCoreToolkit.Net.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
   </ItemGroup>
 </Project>

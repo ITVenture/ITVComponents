@@ -23,8 +23,6 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews\ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Areas\Security\Views\Tenant\Components\ShowTable\" />

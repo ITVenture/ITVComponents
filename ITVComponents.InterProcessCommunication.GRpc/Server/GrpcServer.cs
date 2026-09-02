@@ -15,7 +15,6 @@ using ITVComponents.InterProcessCommunication.Shared.Base;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ITVComponents.InterProcessCommunication.Grpc.Server
 {
