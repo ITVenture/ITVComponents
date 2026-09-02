@@ -822,6 +822,36 @@ die Sperren eines Runners auf und würde einen Oberflächen-Claim mitreißen.
 **Deep-Link** für Benachrichtigungs-Mails: `Workflow/Tasks?task={instanceId}:{tokenId}` — **relativ**
 (ohne führenden Slash), sonst 404 außerhalb des Tenants.
 
+#### Vorgefilterte Arbeitslisten in der Navigation
+
+Dieselbe Seite trägt zwei weitere Pfade — je Ausprägung, also mit und ohne Umgebungs-Segment:
+
+| Ausschnitt | Pfad |
+|---|---|
+| alles, was ich sehen darf | `/Workflow/Tasks` |
+| ein Ablauf | `/Workflow/Tasks/{workflow}` |
+| ein Ablauf, eine Aufgabenart | `/Workflow/Tasks/{workflow}/{TaskKey}` |
+
+Damit hängt eine Navigations-Position an genau einem Ausschnitt („Freigaben", „Meine Bestellungen"),
+ohne dass es dafür eine eigene Seite braucht. `{workflow}` ist die **fachliche** Id der Definition
+(`WorkflowInstance.DefinitionId`), nicht ihre Zeilenkennung: der Link soll eine Neupublikation
+überleben.
+
+> **Was der Pfad festlegt, kann die Maske nicht mehr aufweichen.** In einer vorgefilterten Ansicht
+> verschwinden Suche, Aufgabenart und „nur überfällig"; stehen bleibt allein **meine / nicht zugewiesen
+> / alle**. Das ist keine Einschränkung des Ausschnitts, sondern der Blick darauf — und die einzige
+> Unterscheidung, die man in einer Arbeitsliste täglich braucht. Der Ausschnitt selbst steht als Chip
+> daneben, damit niemand raten muss, was er vor sich hat.
+
+Die ausgeblendeten Filter gehen auch **nicht unsichtbar mit**: die Abfrage schickt sie in dieser
+Ansicht gar nicht erst mit. Sonst wirkte ein Suchbegriff aus einem früheren Besuch der allgemeinen
+Liste weiter, ohne dass ein Feld ihn zeigt.
+
+Der Wechsel zwischen zwei solchen Positionen ist eine reine Parameter-Änderung — Blazor hält die Seite
+am Leben, `OnInitializedAsync` läuft nicht noch einmal und das Grid lädt von sich aus nicht nach. Die
+Seite lauscht deshalb auf `OnParametersSetAsync`; ohne das zeigte die zweite Position die Aufgaben der
+ersten.
+
 **Schema-Änderung:** neun nullable Spalten auf `Tokens` (`TenantId`, `TaskKey`, `TaskPermission`,
 `AssignedTo`, `TaskTitle`, `TaskCreatedUtc`, `TaskDueUtc`, `ClaimedBy`, `ClaimedUntil`) plus die Indizes
 `(TenantId, TaskKey, Status)` und `(AssignedTo)` → Migration **`UserTasks`** je Provider-Projekt.

@@ -82,6 +82,9 @@
   <data name="TypeAll" xml:space="preserve">
     <value>Tutti i tipi</value>
   </data>
+  <data name="WorkflowLabel" xml:space="preserve">
+    <value>Processo</value>
+  </data>
   <data name="ColumnTitle" xml:space="preserve">
     <value>Attività</value>
   </data>

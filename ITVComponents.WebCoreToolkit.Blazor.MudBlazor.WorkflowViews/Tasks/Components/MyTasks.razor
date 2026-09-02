@@ -1,5 +1,9 @@
 @page "/Workflow/Tasks"
+@page "/Workflow/Tasks/{Workflow}"
+@page "/Workflow/Tasks/{Workflow}/{TaskKey}"
 @page "/Workflow/env/{Environment}/Tasks"
+@page "/Workflow/env/{Environment}/Tasks/{Workflow}"
+@page "/Workflow/env/{Environment}/Tasks/{Workflow}/{TaskKey}"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -13,7 +17,13 @@
 @inject IStringLocalizer<WorkflowTaskMessages> L
 
 @* Die zentrale Arbeitsliste. Sie ist die einzige Ansicht dieses Moduls, die ein normaler Benutzer
-   taeglich sieht - deshalb lokalisiert (Rahmen ueber resx, Inhalte ueber Kultur-JSON) und responsiv. *@
+   taeglich sieht - deshalb lokalisiert (Rahmen ueber resx, Inhalte ueber Kultur-JSON) und responsiv.
+
+   Dieselbe Seite dient als VORGEFILTERTE Ansicht: mit /{workflow} bzw. /{workflow}/{TaskKey} im Pfad
+   haengt eine Navigations-Position an genau einem Ausschnitt ("Freigaben", "Meine Bestellungen"). Dort
+   verschwinden Suche, Art und "nur ueberfaellig" - was der Pfad festlegt, soll die Maske nicht wieder
+   aufweichen koennen. Die Unterscheidung meine/Pool/alle bleibt: sie ist keine Einschraenkung des
+   Ausschnitts, sondern der Blick darauf. *@
 
 <PageTitle>@L["PageTitle"]</PageTitle>
 
@@ -153,11 +163,20 @@
     /// <summary>Die (optional) über das Nav-Segment vorgegebene Umgebung; null = Auswahl über den Picker.</summary>
     [Parameter] public string? Environment { get; set; }
 
+    /// <summary>
+    /// Die (optional) über den Pfad vorgegebene Definition — ihre <b>fachliche</b> Id, nicht die
+    /// Zeilenkennung: der Link soll eine Neupublikation überleben.
+    /// </summary>
+    [Parameter] public string? Workflow { get; set; }
+
+    /// <summary>Die (optional) über den Pfad vorgegebene Aufgabenart. Ohne <see cref="Workflow"/> nicht erreichbar.</summary>
+    [Parameter] public string? TaskKey { get; set; }
+
     private MudDataGrid<UserTaskListItem>? grid;
     private ClaimsPrincipal? currentUser;
     private IReadOnlyList<string> taskKeys = Array.Empty<string>();
     private string? search;
-    private string? taskKey;
+    private string? pickedTaskKey;
     private UserTaskScope scope = UserTaskScope.Mine;
     private bool overdueOnly;
     private bool deepLinkHandled;
@@ -172,6 +191,9 @@
     /// <summary>Schmales Geraet (sm und kleiner) - gesetzt vom MudHidden-Messpunkt oben.</summary>
     private bool narrow;
 
+    /// <summary>Der zuletzt verarbeitete Ausschnitt aus dem Pfad - zum Erkennen eines Wechsels.</summary>
+    private (string? Workflow, string? TaskKey) fixedFilter;
+
     /// <summary>Ob der Klappbereich mit den Filtern offen ist (nur auf schmalen Geraeten).</summary>
     private bool filtersOpen;
 
@@ -180,11 +202,25 @@
     /// mit, wenn er NICHT auf dem Standard steht; sonst zeigte der Knopf dauerhaft eine 1 und die
     /// Zahl saegte an ihrer eigenen Aussage.
     /// </summary>
+    /// <remarks>
+    /// In einer vorgefilterten Ansicht zaehlt nur der Bereich: die uebrigen Felder sind dort weder
+    /// sichtbar noch wirksam. Wuerden sie mitgezaehlt, meldete der Knopf einen Filter, den es auf dieser
+    /// Seite gar nicht gibt - und der eingeklappte Bereich zeigte beim Aufklappen nichts dazu.
+    /// </remarks>
     private int ActiveFilterCount
         => (scope != UserTaskScope.Mine ? 1 : 0)
-           + (string.IsNullOrEmpty(taskKey) ? 0 : 1)
-           + (overdueOnly ? 1 : 0)
-           + (string.IsNullOrWhiteSpace(search) ? 0 : 1);
+           + (Prefiltered
+               ? 0
+               : (string.IsNullOrEmpty(pickedTaskKey) ? 0 : 1)
+                 + (overdueOnly ? 1 : 0)
+                 + (string.IsNullOrWhiteSpace(search) ? 0 : 1));
+
+    /// <summary>
+    /// Ob der Pfad den Ausschnitt bestimmt. Dann bleibt von den Bedienelementen nur der Bereich
+    /// (meine/Pool/alle) — die übrigen Filter würden die Aussage der Navigations-Position wieder
+    /// auflösen, und ein Benutzer könnte nicht mehr erkennen, was er eigentlich vor sich hat.
+    /// </summary>
+    private bool Prefiltered => !string.IsNullOrEmpty(Workflow);
 
     /// <summary>
     /// Die Filter-Bedienelemente. EINMAL beschrieben und an beiden Stellen benutzt (in der Leiste auf
@@ -201,6 +237,18 @@
         {
             <MudChip T="string" Icon="@Icons.Material.Filled.Dns" Size="Size.Small">@Environment</MudChip>
         }
+        @* Was der Pfad festlegt, steht als Merkzettel da - nicht als Bedienelement. Sonst sieht eine
+           vorgefilterte Ansicht aus wie die allgemeine, in der jemand zufaellig etwas eingestellt hat. *@
+        @if (Workflow is not null)
+        {
+            <MudChip T="string" Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small"
+                     Title="@L["WorkflowLabel"]">@Workflow</MudChip>
+        }
+        @if (TaskKey is not null)
+        {
+            <MudChip T="string" Icon="@Icons.Material.Filled.Label" Size="Size.Small"
+                     Title="@L["TypeLabel"]">@TaskKey</MudChip>
+        }
         @* min-width statt nur max-width: nach oben begrenzen allein hat nicht verhindert, dass die
            Auswahl auf schmalem Schirm auf 0 px zusammenfiel. *@
         <MudSelect T="UserTaskScope" Value="scope" Label="@L["ScopeLabel"]" Dense="true"
@@ -210,26 +258,29 @@
             <MudSelectItem T="UserTaskScope" Value="UserTaskScope.Pool">@L["ScopePool"]</MudSelectItem>
             <MudSelectItem T="UserTaskScope" Value="UserTaskScope.All">@L["ScopeAll"]</MudSelectItem>
         </MudSelect>
-        <MudSelect T="string" Value="taskKey" Label="@L["TypeLabel"]" Dense="true" Clearable="true"
-                   Margin="Margin.Dense" Style="min-width:140px;max-width:190px"
-                   ValueChanged="OnTaskKeyChanged">
-            <MudSelectItem T="string" Value="@((string?)null)">@L["TypeAll"]</MudSelectItem>
-            @foreach (string key in taskKeys)
-            {
-                <MudSelectItem T="string" Value="@key">@key</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSwitch T="bool" Value="overdueOnly" ValueChanged="OnOverdueChanged" Color="Color.Warning"
-                   Size="Size.Small" Label="@L["OverdueOnly"]" />
-        <MudTextField @bind-Value="search"
-                      Placeholder="@L["SearchPlaceholder"]"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      Margin="Margin.Dense"
-                      Class="mt-0"
-                      Style="min-width:160px"
-                      DebounceInterval="300"
-                      OnDebounceIntervalElapsed="ReloadGrid" />
+        @if (!Prefiltered)
+        {
+            <MudSelect T="string" Value="pickedTaskKey" Label="@L["TypeLabel"]" Dense="true" Clearable="true"
+                       Margin="Margin.Dense" Style="min-width:140px;max-width:190px"
+                       ValueChanged="OnTaskKeyChanged">
+                <MudSelectItem T="string" Value="@((string?)null)">@L["TypeAll"]</MudSelectItem>
+                @foreach (string key in taskKeys)
+                {
+                    <MudSelectItem T="string" Value="@key">@key</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSwitch T="bool" Value="overdueOnly" ValueChanged="OnOverdueChanged" Color="Color.Warning"
+                       Size="Size.Small" Label="@L["OverdueOnly"]" />
+            <MudTextField @bind-Value="search"
+                          Placeholder="@L["SearchPlaceholder"]"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Margin="Margin.Dense"
+                          Class="mt-0"
+                          Style="min-width:160px"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="ReloadGrid" />
+        }
     </div>;
 
     /// <summary>Die wirksame Umgebung: das Nav-Segment gewinnt, sonst die Picker-Auswahl.</summary>
@@ -240,15 +291,48 @@
         AuthenticationState auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
         mayAssignForeign = Handler.HasPermission(WorkflowSecurity.AssignTasks);
-        taskKeys = await Handler.ListTaskKeysAsync(currentUser, Env);
+        await LoadTaskKeys();
+    }
+
+    /// <summary>
+    /// Reagiert auf einen Wechsel des über den Pfad vorgegebenen Ausschnitts.
+    /// </summary>
+    /// <remarks>
+    /// Blazor hält die Seite beim Sprung zwischen zwei vorgefilterten Navigations-Positionen am Leben und
+    /// setzt nur neue Parameter — <c>OnInitializedAsync</c> läuft dabei NICHT noch einmal, und das Grid
+    /// lädt von sich aus auch nicht nach. Ohne diesen Zweig zeigte die zweite Position die Aufgaben der
+    /// ersten.
+    /// </remarks>
+    protected override async Task OnParametersSetAsync()
+    {
+        (string? Workflow, string? TaskKey) current = (Workflow, TaskKey);
+        if (currentUser is null || current == fixedFilter)
+        {
+            return;
+        }
+
+        fixedFilter = current;
+        await LoadTaskKeys();
+        await ReloadGrid();
     }
 
     /// <summary>Umgebung im Picker gewechselt (nur ohne Nav-Segment) - Aufgabenarten und Liste neu laden.</summary>
     private async Task OnEnvChanged(string? environment)
     {
         pickedEnvironment = environment;
-        taskKeys = currentUser is null ? Array.Empty<string>() : await Handler.ListTaskKeysAsync(currentUser, Env);
+        await LoadTaskKeys();
         await ReloadGrid();
+    }
+
+    /// <summary>
+    /// Holt die Aufgabenarten für den Auswahlfilter — in einer vorgefilterten Ansicht gar nicht erst:
+    /// dort gibt es die Auswahl nicht, und die Abfrage wäre eine Datenbankrunde für nichts.
+    /// </summary>
+    private async Task LoadTaskKeys()
+    {
+        taskKeys = currentUser is null || Prefiltered
+            ? Array.Empty<string>()
+            : await Handler.ListTaskKeysAsync(currentUser, Env);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -291,10 +375,14 @@
             PageSize = state.PageSize,
             SortColumn = SortColumnName(sort?.SortBy),
             SortDescending = sort?.Descending ?? false,
-            Search = search,
-            TaskKey = taskKey,
+            // In einer vorgefilterten Ansicht zaehlt AUSSCHLIESSLICH, was im Pfad steht. Die uebrigen
+            // Felder sind dort nicht bedienbar - sie duerfen also auch nicht aus einem frueheren Besuch
+            // der allgemeinen Liste unsichtbar weiterwirken.
+            Search = Prefiltered ? null : search,
+            TaskKey = Prefiltered ? TaskKey : pickedTaskKey,
+            DefinitionId = Workflow,
             Scope = scope,
-            OverdueOnly = overdueOnly
+            OverdueOnly = !Prefiltered && overdueOnly
         };
 
         PagedResult<UserTaskListItem> result = await Handler.ListTasksAsync(currentUser, query, Env);
@@ -394,7 +482,7 @@
 
     private async Task OnTaskKeyChanged(string? value)
     {
-        taskKey = value;
+        pickedTaskKey = value;
         await ReloadGrid();
     }
 

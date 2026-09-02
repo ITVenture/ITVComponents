@@ -40,6 +40,17 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.View
         /// <summary>Nur eine bestimmte Aufgabenart, oder null fuer alle.</summary>
         public string? TaskKey { get; init; }
 
+        /// <summary>
+        /// Nur Aufgaben aus einer bestimmten Definition (deren fachliche Id, siehe
+        /// <see cref="UserTaskListItem.DefinitionId"/>), oder null fuer alle.
+        /// </summary>
+        /// <remarks>
+        /// Gefiltert wird ueber die <b>fachliche</b> Id und nicht ueber die Zeilenkennung der Definition:
+        /// die Id ist stabil ueber Versionen und Mandanten hinweg und steht damit auch in einem
+        /// Navigationslink (<c>/Workflow/Tasks/{workflow}</c>), der eine Neupublikation ueberleben soll.
+        /// </remarks>
+        public string? DefinitionId { get; init; }
+
         /// <summary>Welcher Ausschnitt (Standard: meine).</summary>
         public UserTaskScope Scope { get; init; } = UserTaskScope.Mine;
 

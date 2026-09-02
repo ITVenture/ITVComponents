@@ -89,6 +89,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                          join i in ctx.WorkflowInstances.AsNoTracking() on t.InstanceId equals i.Id
                          select new { Token = t, Instance = i };
 
+            // Erst NACH dem Join: die Definition steht an der Instanz, nicht am Token.
+            if (!string.IsNullOrWhiteSpace(query.DefinitionId))
+            {
+                string definition = query.DefinitionId!;
+                joined = joined.Where(x => x.Instance.DefinitionId == definition);
+            }
+
             int total = await joined.CountAsync();
             var page = await Sort(joined.Select(x => new UserTaskListItem
                 {

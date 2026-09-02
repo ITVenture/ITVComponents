@@ -212,6 +212,8 @@ Host-Registrierung nötig.
 | Graph | `/Workflow/Definitions/{id}/{v}` | `/Workflow/env/{Environment}/Definitions/{id}/{v}` |
 | Instanzen | `/Workflow/Instances` | `/Workflow/env/{Environment}/Instances` |
 | Aufgaben | `/Workflow/Tasks` | `/Workflow/env/{Environment}/Tasks` |
+| Aufgaben je Ablauf | `/Workflow/Tasks/{workflow}` | `/Workflow/env/{Environment}/Tasks/{workflow}` |
+| Aufgaben je Ablauf und Art | `/Workflow/Tasks/{workflow}/{TaskKey}` | `/Workflow/env/{Environment}/Tasks/{workflow}/{TaskKey}` |
 
 - Verweist ein Nav-Eintrag auf eine `…/env/{Environment}/…`-Route, ist die Umgebung **implizit** gesetzt — die
   View zeigt dann keinen Picker, sondern die Umgebung als Chip. Sub-Ansichten (Editor/Graph/Dialog) reichen die
