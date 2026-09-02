@@ -21,14 +21,14 @@
     <Compile Remove="Settings\XmlSettingsSection.cs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="microsoft.extensions.configuration" Version="10.0.10" />
-    <PackageReference Include="microsoft.extensions.configuration.binder" Version="10.0.10" />
-    <PackageReference Include="microsoft.extensions.configuration.Json" Version="10.0.10" />
-    <PackageReference Include="microsoft.extensions.primitives" Version="10.0.10" />
-    <!--PackageReference Include="newtonsoft.json" Version="13.0.3" /-->
-    <PackageReference Include="system.directoryservices" Version="10.0.10" />
-    <PackageReference Include="system.directoryservices.accountmanagement" Version="10.0.10" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.11" />
+    <!--PackageReference Include="Newtonsoft.Json" Version="13.0.3" /-->
+    <PackageReference Include="System.DirectoryServices" Version="10.0.11" />
+    <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.11" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
     <!-- Microsoft.CSharp and System.Security.Principal.Windows removed: in-box on net10.0
          (see dotnet/runtime#54365). -->
   </ItemGroup>

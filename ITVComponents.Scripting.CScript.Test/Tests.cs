@@ -222,11 +222,11 @@ return ret;", new Dictionary<string, object> { { "values", values } }));
         {
             Dictionary<string,object> tmp1 = new Dictionary<string, object>{{"TestKey", "TestVal"}};
             ExpressionParser.Parse("TestKey = 42", (object)tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
-            Assert.AreEqual(tmp1["TestKey"], 42);
+            Assert.AreEqual(42, tmp1["TestKey"]);
             var test = new TestClass();
             test.TestString = "TestVal";
             ExpressionParser.Parse("TestString = \"The Answer is 42\"", test, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
-            Assert.AreEqual(test.TestString, "The Answer is 42");
+            Assert.AreEqual("The Answer is 42", test.TestString);
             ExpressionParser.Parse("TestString = \"The Answer is 42\"", (object)tmp1, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
             Assert.IsFalse(tmp1.ContainsKey("TestString"));
         }
@@ -275,13 +275,13 @@ new TC{TestString:""FickiWicki""}],TC)
         {
             Dictionary<string, object> tmp1 = new Dictionary<string, object>( );
             var tmp = ExpressionParser.Parse("12 has ToString()", tmp1);
-            Assert.AreEqual(tmp, true);
+            Assert.AreEqual(true, tmp);
             tmp = ExpressionParser.Parse("12 has HornDampf(\"TEST\")", tmp1);
-            Assert.AreEqual(tmp, false);
+            Assert.AreEqual(false, tmp);
             tmp = ExpressionParser.Parse("12 has Length", tmp1);
-            Assert.AreEqual(tmp, false);
+            Assert.AreEqual(false, tmp);
             tmp = ExpressionParser.Parse("[] has Length", tmp1);
-            Assert.AreEqual(tmp, true);
+            Assert.AreEqual(true, tmp);
         }
 
         [TestMethod]
@@ -289,13 +289,13 @@ new TC{TestString:""FickiWicki""}],TC)
         {
             Dictionary<string, object> tmp1 = new Dictionary<string, object>();
             var tmp = ExpressionParser.Parse("12 is 'System.Int32'", tmp1);
-            Assert.AreEqual(tmp, true);
+            Assert.AreEqual(true, tmp);
 
             tmp = ExpressionParser.Parse("[12] is 'System.Array'", tmp1);
-            Assert.AreEqual(tmp, true);
+            Assert.AreEqual(true, tmp);
 
             tmp = ExpressionParser.Parse("12 is 'System.Array'", tmp1);
-            Assert.AreEqual(tmp, false);
+            Assert.AreEqual(false, tmp);
         }
         
         [TestMethod]
@@ -304,7 +304,7 @@ new TC{TestString:""FickiWicki""}],TC)
             var test = new TestClass();
             NativeScriptHelper.AddReference("DUMMY","--ROSLYN--");
             ExpressionParser.Parse("TestString = `E(\"A\" as hicks -> DUMMY)::\"return Global.GoFuckYourself();\" with {GoFuckYourself:function(){return \"hallo\";}}", test, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
-            Assert.AreEqual(test.TestString, "hallo");
+            Assert.AreEqual("hallo", test.TestString);
             ExpressionParser.Parse(@"TestString = `E(#DUMMY)::@#
 int a = -1;
 for (int i = 0; i< 100000; i++){
@@ -314,7 +314,7 @@ for (int i = 0; i< 100000; i++){
 
 return Global.GoFuckYourself(a);
 # with {GoFuckYourself:function(val){return 'System.String'.Format(""velo{0}"",val);}}", test, s => DefaultCallbacks.PrepareDefaultCallbacks(s.Scope, s.ReplSession));
-            Assert.AreEqual(test.TestString, "velo35");
+            Assert.AreEqual("velo35", test.TestString);
         }
 
         public class TestClass

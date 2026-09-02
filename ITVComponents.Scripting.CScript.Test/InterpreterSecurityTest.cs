@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ITVComponents.DataAccess;
 using ITVComponents.Scripting.CScript.Core;
@@ -102,7 +102,7 @@ namespace ITVComponents.Scripting.CScript.Test
                     PropertyAccessMode.Read, PolicyMode.Deny);
 
             Assert.AreEqual(0, ScriptInterpreter.Parse("foo.Count", Copy(vars)));
-            Assert.ThrowsException<ScriptSecurityException>(
+            Assert.ThrowsExactly<ScriptSecurityException>(
                 () => ScriptInterpreter.Parse("foo.Count", Copy(vars), policy: denied),
                 "Die Sperre muss auch fuer einen bereits uebersetzten Baum greifen.");
             Assert.AreEqual(0, ScriptInterpreter.Parse("foo.Count", Copy(vars)),
@@ -113,7 +113,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void ScriptMethodsCanBeDenied()
         {
             var denied = ScriptingPolicy.Default.Configure(n => n.ScriptMethods = PolicyMode.Deny);
-            Assert.ThrowsException<ScriptSecurityException>(
+            Assert.ThrowsExactly<ScriptSecurityException>(
                 () => ScriptInterpreter.ParseBlock("function f() { return 1; } return f();",
                     new Dictionary<string, object>(), policy: denied),
                 "Das Definieren von Script-Methoden muss unterbunden werden koennen.");
@@ -170,7 +170,7 @@ namespace ITVComponents.Scripting.CScript.Test
                 .WithMethodAccessRestriction<IDictionary<string, object>>(o => o.Add(default, default),
                     PolicyMode.Deny);
 
-            var fromInterpreter = Assert.ThrowsException<ScriptSecurityException>(
+            var fromInterpreter = Assert.ThrowsExactly<ScriptSecurityException>(
                 () => ScriptInterpreter.Parse("foo.Add(\"Hallo\",42)", Copy(vars), policy: policy),
                 "Der Interpreter soll den Sicherheitsgrund direkt melden.");
             Assert.IsTrue(fromInterpreter.Message.Contains("denied"),
@@ -178,7 +178,7 @@ namespace ITVComponents.Scripting.CScript.Test
 
             // ExpressionParser fuehrt ueber denselben Interpreter aus: auch hier kommt die
             // ScriptSecurityException unverpackt an, mit demselben Grund in der Meldung.
-            var fromExpressionParser = Assert.ThrowsException<ScriptSecurityException>(
+            var fromExpressionParser = Assert.ThrowsExactly<ScriptSecurityException>(
                 () => ExpressionParser.Parse("foo.Add(\"Hallo\",42)", Copy(vars), policy: policy),
                 "ExpressionParser soll den Sicherheitsgrund ebenfalls direkt melden.");
             Assert.IsTrue(fromExpressionParser.Message.Contains("denied"),

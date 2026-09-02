@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DataAnnotation;
@@ -96,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 .UseSqlite(connection).Options);
             ctx.Database.EnsureCreated();
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => TenantIdLookup.For<FlatBinderTenant>()(ctx, "ghost"));
 
             StringAssert.Contains(ex.Message, "ghost",
@@ -112,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             ctx.Database.EnsureCreated();
 
             // Die haeufigste Fehlbedienung: hierarchische Auspraegung an einem flachen Kontext.
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => TenantIdLookup.For<TreeBinderTenant>()(ctx, "acme"));
 
             StringAssert.Contains(ex.Message, "not part of the model");

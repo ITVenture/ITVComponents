@@ -541,7 +541,7 @@ namespace ITVComponents.Workflow.Test
             WorkflowInstance inst = engine.StartWorkflow("wf");
             engine.CancelWorkflow(inst.Id);
 
-            InvalidOperationException ex = Assert.ThrowsException<InvalidOperationException>(
+            InvalidOperationException ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => engine.RetryFaulted(inst.Id));
             StringAssert.Contains(ex.Message, "not faulted");
         }
@@ -554,7 +554,7 @@ namespace ITVComponents.Workflow.Test
             WorkflowInstance inst = engine.StartWorkflow("wf");
             Assert.AreEqual(WorkflowStatus.Completed, store.GetInstance(inst.Id).Status);
 
-            InvalidOperationException ex = Assert.ThrowsException<InvalidOperationException>(
+            InvalidOperationException ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => engine.RetryFaulted(inst.Id));
             StringAssert.Contains(ex.Message, "not faulted");
         }

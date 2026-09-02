@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Helpers;
@@ -241,7 +241,7 @@ namespace ITVComponents.Workflow.Plugins.WebCoreToolkit.Test
             var instance = new WorkflowInstance { TenantId = "tenantA" };
 
             using IActivityScope activityScope = host.OpenScope(instance);
-            Assert.ThrowsException<InvalidOperationException>(() => activityScope.Resolve("does-not-exist"));
+            Assert.ThrowsExactly<InvalidOperationException>(() => activityScope.Resolve("does-not-exist"));
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Model;
@@ -66,7 +66,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Entstehen ---------------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ATenantOwnedSchedule_GetsItsOwnActivationRightAway(string kind)
@@ -82,7 +82,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(WorkflowStartTriggerKind.Schedule, own.Kind);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void APublicSchedule_GetsNoActivation(string kind)
@@ -104,7 +104,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Ueberdauern -------------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void AnUnchangedSchedule_KeepsItsRunState(string kind)
@@ -125,7 +125,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual("old-instance", after.LastInstanceId, $"[{kind}] the last run belongs to it.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ANewVersion_KeepsTheActivation(string kind)
@@ -147,7 +147,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Neu anfangen ------------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ARewrittenSchedule_StartsOver(string kind)
@@ -170,7 +170,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreNotEqual(due, after.NextDueUtc, $"[{kind}] and the next date is recomputed.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ARewrittenSchedule_LeavesAnOwnPatternAlone(string kind)
@@ -210,7 +210,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Verschwinden ------------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ARemovedStartNode_DropsTheTriggerButKeepsTheAdoption(string kind)

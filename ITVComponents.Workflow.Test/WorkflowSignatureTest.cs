@@ -107,7 +107,7 @@ namespace ITVComponents.Workflow.Test
             store.SaveDefinition(Passthrough("bad", start =>
                 start.Inputs.Add(Input("x", ParameterBindingKind.Expression, source: "?!("))));
 
-            Assert.ThrowsException<InvalidOperationException>(() => engine.StartWorkflow("bad"),
+            Assert.ThrowsExactly<InvalidOperationException>(() => engine.StartWorkflow("bad"),
                 "a workflow whose parameters cannot be resolved must not start at all.");
             Assert.AreEqual(0, store.FindRunnable().Count(),
                 "no half-started instance may be left behind.");

@@ -274,7 +274,7 @@ namespace ITVComponents.Workflow.Test
         [TestMethod]
         public void ARunWithoutALimit_IsRefused()
         {
-            Assert.ThrowsException<ArgumentOutOfRangeException>(() => Run(maxPerGroup: 0),
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => Run(maxPerGroup: 0),
                 "a run that may archive nothing is not a run.");
         }
 

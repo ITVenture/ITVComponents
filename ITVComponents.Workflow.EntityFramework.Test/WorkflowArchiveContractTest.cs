@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Instances;
@@ -85,7 +85,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Der Endzeitpunkt --------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TheEnd_IsStampedWhenTheProcessEnds(string kind)
@@ -122,7 +122,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] a later change must not move the end - that is the whole reason for the field.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void AResumedProcess_LosesItsEndAgain(string kind)
@@ -141,7 +141,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Was archiviert wird und was nicht ----------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void OnlyEndedRoots_FormAGroup(string kind)
@@ -161,7 +161,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] the oldest end decides whether the group is worth reading at all.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void AnArchivedProcess_LeavesTheActiveTablesAndKeepsItsFacts(string kind)
@@ -193,7 +193,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] and the trail of what happened is part of the record.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TheWholeTree_GoesInOneGo(string kind)
@@ -210,7 +210,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.IsNull(store.GetInstance(child.Id), $"[{kind}] and none of them stayed behind.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void AStillRunningChild_LeavesTheWholeTreeAlone(string kind)
@@ -228,7 +228,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.IsNull(store.GetArchivedInstance(root.Id), $"[{kind}] nothing was half-written.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ArchivingWhatIsNoLongerThere_ReportsZeroInsteadOfThrowing(string kind)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Model;
@@ -71,7 +71,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Anlegen und Wiederfinden ------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ASavedObjection_IsFoundOnBothReadingPaths(string kind)
@@ -91,7 +91,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] the run reads by definition and needs to know whose objection it is.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void SavingTwice_ChangesTheOneRow_InsteadOfAddingASecond(string kind)
@@ -109,7 +109,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Die Identitaet ----------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TheOwnerIsPartOfTheIdentity_PublicAndOwnDefinitionAreNotTheSame(string kind)
@@ -132,7 +132,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] and so does the tenant's own.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void EachTenantHasItsOwnObjection_AndSeesOnlyIt(string kind)
@@ -149,7 +149,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] the retention run takes the definition and needs both at once.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void ATenantlessOperation_CanObjectToo(string kind)
@@ -167,7 +167,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Die Ruecknahme ----------------------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void Withdrawing_KeepsTheRow_AndLetsTheDefaultApplyAgain(string kind)
@@ -197,7 +197,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
 
         // --- Was die Ablage beisteuert -----------------------------------------------------------------
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TheStoreStampsTheTime_ButNeverOverwritesOne(string kind)
@@ -221,7 +221,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] a time the caller brings along stays - the import of an existing state is one.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void AnObjectionWithoutADefinition_IsRefused(string kind)
@@ -230,9 +230,9 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             WorkflowRetentionOverride nameless = Objection(null, "t1");
             nameless.DefinitionId = null;
 
-            Assert.ThrowsException<ArgumentException>(() => store.SaveRetentionOverride(nameless),
+            Assert.ThrowsExactly<ArgumentException>(() => store.SaveRetentionOverride(nameless),
                 $"[{kind}] without a definition it is not decidable whose deadline is contradicted.");
-            Assert.ThrowsException<ArgumentNullException>(() => store.SaveRetentionOverride(null),
+            Assert.ThrowsExactly<ArgumentNullException>(() => store.SaveRetentionOverride(null),
                 $"[{kind}] and nothing at all is not an objection either.");
         }
     }

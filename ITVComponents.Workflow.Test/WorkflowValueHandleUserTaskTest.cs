@@ -134,7 +134,7 @@ namespace ITVComponents.Workflow.Test
             WorkflowInstance instance = engine.StartWorkflow("fail");
             Token token = instance.Tokens.Single(t => t.Status == TokenStatus.Waiting);
 
-            Assert.ThrowsException<InvalidOperationException>(() => engine.CompleteUserTask(instance.Id,
+            Assert.ThrowsExactly<InvalidOperationException>(() => engine.CompleteUserTask(instance.Id,
                 token.Id, new Dictionary<string, object> { { "street", "New Street" } }));
 
             WorkflowInstance reloaded = store.GetInstance(instance.Id);

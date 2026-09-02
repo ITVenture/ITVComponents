@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Exceptions;
@@ -65,7 +65,7 @@ namespace ITVComponents.Scripting.CScript.Test
                 ScriptInterpreter.ParseBlock("Fubar = 'System.String'.$Type; return Fubar.Empty;", Vars()),
                 "Ein gespeicherter Type verhaelt sich wieder wie die Klasse.");
 
-            Assert.ThrowsException<ScriptException>(
+            Assert.ThrowsExactly<ScriptException>(
                 () => ScriptInterpreter.ParseBlock("Fubar = 'System.String'.$Type; return Fubar.Name;", Vars()),
                 "Name ist kein statisches Member von System.String - der Zugriff muss scheitern.");
 
@@ -136,7 +136,7 @@ namespace ITVComponents.Scripting.CScript.Test
 
         private static void AssertInterpreterThrows(string expression)
         {
-            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.Parse(expression, Vars()),
+            Assert.ThrowsExactly<ScriptException>(() => ScriptInterpreter.Parse(expression, Vars()),
                 $"Interpreter sollte '{expression}' abweisen.");
         }
     }

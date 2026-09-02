@@ -10,20 +10,14 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" version="5.0.0" />
-    <!-- Override the vulnerable System.Security.Cryptography.Xml pulled in transitively.
-         Keep this pinned to the newest patch: the advisories keep extending into later 10.0.x
-         releases, so a version that was "the fix" once does not stay one. 10.0.9 was itself
-         vulnerable (GHSA-cvvh-rhrc-wg4q / CVE-2026-47302, DoS in XML encryption handling);
-         10.0.10 is the current patched release. -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />

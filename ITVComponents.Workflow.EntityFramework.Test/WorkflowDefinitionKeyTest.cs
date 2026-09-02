@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Activities;
 using ITVComponents.Workflow.Instances;
@@ -119,7 +119,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             WorkflowDefinition definition = Linear("shared", isPublic: true);
             definition.TenantId = "acme";
 
-            Assert.ThrowsException<System.InvalidOperationException>(() => acme.SaveDefinition(definition),
+            Assert.ThrowsExactly<System.InvalidOperationException>(() => acme.SaveDefinition(definition),
                 "that is a contradiction, not something to interpret.");
         }
 
@@ -207,7 +207,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 DefinitionKey = 4711, DefinitionId = "ghost", DefinitionVersion = 1
             };
 
-            Assert.ThrowsException<DbUpdateException>(() => acme.SaveInstance(instance),
+            Assert.ThrowsExactly<DbUpdateException>(() => acme.SaveInstance(instance),
                 "the reference is a real foreign key - an instance without a definition cannot run, so it " +
                 "must not exist.");
         }

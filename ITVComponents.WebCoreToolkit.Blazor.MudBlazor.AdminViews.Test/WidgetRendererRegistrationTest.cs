@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -70,7 +70,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             var config = new WidgetRendererConfiguration();
             config.RegisterRenderer<ScribanWidgetRenderer>("chart");
 
-            Assert.ThrowsException<InvalidOperationException>(
+            Assert.ThrowsExactly<InvalidOperationException>(
                 () => config.RegisterRenderer<ScribanWidgetRenderer>("chart"));
         }
 
@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         {
             var config = new WidgetRendererConfiguration();
 
-            Assert.ThrowsException<ArgumentException>(() => config.RegisterRenderer(typeof(string), "nope"));
+            Assert.ThrowsExactly<ArgumentException>(() => config.RegisterRenderer(typeof(string), "nope"));
         }
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         {
             var config = new WidgetRendererConfiguration();
 
-            Assert.ThrowsException<ArgumentException>(() => config.RegisterRenderer(typeof(NoAttributeRenderer)));
+            Assert.ThrowsExactly<ArgumentException>(() => config.RegisterRenderer(typeof(NoAttributeRenderer)));
         }
 
         /// <summary>Die Meldung der Fehler-Kachel braucht die Liste der verfuegbaren Schluessel.</summary>

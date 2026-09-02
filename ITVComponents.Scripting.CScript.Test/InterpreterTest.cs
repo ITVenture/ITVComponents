@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Scripting.CScript.Core.Literals;
@@ -204,11 +204,11 @@ namespace ITVComponents.Scripting.CScript.Test
             // Der Erbauer kennt die lexikalische Verschachtelung und lehnt diese Faelle ab,
             // bevor irgendetwas ausgefuehrt wird. Der ScriptVisitor merkte es erst zur
             // Laufzeit - und nur, wenn die Stelle auch erreicht wurde.
-            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("break;"));
-            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("continue;"));
-            Assert.ThrowsException<ScriptException>(
+            Assert.ThrowsExactly<ScriptException>(() => ScriptInterpreter.CompileBlock("break;"));
+            Assert.ThrowsExactly<ScriptException>(() => ScriptInterpreter.CompileBlock("continue;"));
+            Assert.ThrowsExactly<ScriptException>(
                 () => ScriptInterpreter.CompileBlock("try { } finally { return 1; }"));
-            Assert.ThrowsException<ScriptException>(() => ScriptInterpreter.CompileBlock("throw;"));
+            Assert.ThrowsExactly<ScriptException>(() => ScriptInterpreter.CompileBlock("throw;"));
         }
 
         [TestMethod]
@@ -337,7 +337,7 @@ namespace ITVComponents.Scripting.CScript.Test
             // der Unterschied zwischen Ergebnis und Fehler.
             var vars = new Dictionary<string, object> { { "f", 99M }, { "e", .75F } };
             AssertInterpreterBlock(98.25M, "return f-e;", vars);
-            Assert.ThrowsException<ScriptException>(
+            Assert.ThrowsExactly<ScriptException>(
                 () => ScriptInterpreter.ParseBlock("\"@@TYPESAFETY OFF\"; return f-e;", Copy(vars)),
                 "Ohne Typpruefung muss die Operation an den unvereinbaren Typen scheitern.");
 
@@ -412,7 +412,7 @@ namespace ITVComponents.Scripting.CScript.Test
             // Die Policy-Pruefung liegt im Ausfuehrungspfad, nicht im Bauen: derselbe Baum kann
             // unter verschiedenen Policies laufen.
             var denied = ScriptingPolicy.Default.Configure(n => n.NativeScripting = PolicyMode.Deny);
-            Assert.ThrowsException<ScriptSecurityException>(
+            Assert.ThrowsExactly<ScriptSecurityException>(
                 () => ScriptInterpreter.Parse(script, Copy(vars), policy: denied),
                 "Natives Scripting muss von der Policy unterbunden werden koennen.");
 

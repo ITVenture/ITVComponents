@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -92,7 +92,7 @@ namespace ITVComponents.Scripting.CScript.Test
         public void BrokenScriptReportsWhereItFailed()
         {
             var script = ScriptFile<object>.FromText("a = ;;;");
-            var error = Assert.ThrowsException<ScriptException>(
+            var error = Assert.ThrowsExactly<ScriptException>(
                 () => script.Execute(new Dictionary<string, object>()));
             Assert.IsTrue(error.Message.Contains("not runnable"),
                 "Die Meldung soll sagen, dass das Script nicht lauffaehig ist.");

@@ -245,7 +245,7 @@ namespace ITVComponents.Workflow.Test
         [TestMethod]
         public void ImportDefinition_EmptyOrBlank_Throws()
         {
-            Assert.ThrowsException<ArgumentException>(() => WorkflowJson.ImportDefinition("  "));
+            Assert.ThrowsExactly<ArgumentException>(() => WorkflowJson.ImportDefinition("  "));
         }
     }
 }

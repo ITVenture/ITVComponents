@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.Workflow.Instances;
@@ -58,7 +58,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 ? new EfWorkflowStore(() => new WorkflowContext(options))
                 : new InMemoryWorkflowStore();
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void SignalLookup_FindsTheWaitingBranchOfARunningInstance(string kind)
@@ -77,7 +77,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(instance.Id, found[0].Id, $"[{kind}] wrong instance.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void BroadcastLookup_FindsTheWaitingBranchOfARunningInstance(string kind)
@@ -95,7 +95,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(instance.Id, found[0].Id, $"[{kind}] wrong instance.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void BroadcastLookup_IgnoresDirectedWaitPoints(string kind)
@@ -107,7 +107,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] a directed message wait point is not woken by a broadcast.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TimerLookup_FindsTheDueTimerOfARunningInstance(string kind)
@@ -125,7 +125,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
             Assert.AreEqual(instance.Id, found[0].Id, $"[{kind}] wrong instance.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TimerLookup_SkipsSuspendedInstances(string kind)
@@ -148,7 +148,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         /// gefaultete Instanz nicht bei jedem Takt aufgreift und wieder abweist. Ein faelliger Timer
         /// bleibt faellig; die Meldung darueber schriebe sich sonst endlos fort.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TimerLookup_SkipsFaultedInstances(string kind)
@@ -164,7 +164,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] the same goes for the claiming poll - otherwise it burns a maxInstances slot.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void TargetLookup_SkipsFaultedInstances(string kind)
@@ -189,7 +189,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
         /// Nachricht eine gefaultete Instanz nicht erreicht hat, ist eine Meldung, die man haben will.
         /// Abgewiesen wird sie danach in der Engine.
         /// </summary>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void SignalLookup_StillFindsFaultedInstances(string kind)
@@ -202,7 +202,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 + "and the refusal belongs in the engine, where it can be reported.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void SignalLookup_PrefersTheKeyAtTheWaitPointOverTheOneAtTheInstance(string kind)
@@ -220,7 +220,7 @@ namespace ITVComponents.Workflow.EntityFramework.Test
                 $"[{kind}] once the wait point carries its own key, the instance key no longer selects it.");
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(Memory)]
         [DataRow(Ef)]
         public void SignalLookup_FallsBackToTheKeyAtTheInstance(string kind)

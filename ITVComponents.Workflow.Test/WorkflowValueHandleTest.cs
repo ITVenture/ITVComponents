@@ -208,7 +208,7 @@ namespace ITVComponents.Workflow.Test
             };
             store.SaveDefinition(definition);
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(() => engine.StartWorkflow("sig"));
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => engine.StartWorkflow("sig"));
 
             StringAssert.Contains(ex.Message, "outlives the step",
                 "the message must name the reason - the handle would be a dead reference after a restart.");
@@ -242,7 +242,7 @@ namespace ITVComponents.Workflow.Test
             engine.StartWorkflow("ser");
 
             Assert.IsNotNull(captured);
-            var ex = Assert.ThrowsException<InvalidOperationException>(() =>
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
                 WorkflowJson.SerializeVariables(new Dictionary<string, object> { { "stash", captured } }));
 
             StringAssert.Contains(ex.Message, "value handle",

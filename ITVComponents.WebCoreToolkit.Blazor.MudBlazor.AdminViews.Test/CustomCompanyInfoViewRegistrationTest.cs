@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Extensibility;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.Samples;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -64,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             var config = new CustomCompanyInfoViewConfiguration();
             config.RegisterView<SiteSurveyView>("sample.sitesurvey");
 
-            Assert.ThrowsException<InvalidOperationException>(
+            Assert.ThrowsExactly<InvalidOperationException>(
                 () => config.RegisterView<SiteSurveyView>("sample.sitesurvey"));
         }
 

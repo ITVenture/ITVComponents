@@ -36,8 +36,8 @@ namespace ITVComponents.Formatting.Test
             var tokens2 = tokenizer.TokenizeString("Hello [[World]]!");
             var tokens3 = tokenizer.TokenizeString("Hallo [Schnork(World(123,ficken[2])?1:2,\"fuckoff)]\")] horst $[22,-12:000] £[honk:dd.MM.yyyy]{2} $£[return honk:dd.MM.yyyy]{3}-");
             Assert.AreEqual(tokens.Length, tokens2.Length);
-            Assert.AreEqual(tokens2[0].Content.ToString(),"Hello [World]!");
-            Assert.AreEqual(tokens3.Length, 9);
+            Assert.AreEqual("Hello [World]!", tokens2[0].Content.ToString());
+            Assert.AreEqual(9, tokens3.Length);
         }
 
         [TestMethod]

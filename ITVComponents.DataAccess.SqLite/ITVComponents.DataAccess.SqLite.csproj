@@ -18,7 +18,7 @@
     <Compile Update="Resources\SqlCommands.Designer.cs" AutoGen="True" DependentUpon="SqlCommands.resx" DesignTime="True" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <!-- Override the vulnerable SQLitePCLRaw.lib.e_sqlite3 2.1.11 that Microsoft.Data.Sqlite still
          pins (GHSA-2m69-gcr7-jv3q: memory corruption in SQLite before 3.50.2). Mind the version
          scheme: this package now follows the SQLite version, so 3.53.3 IS SQLite 3.53.3 - it is not

@@ -4,12 +4,12 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.6.3" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.6.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
     <!-- Der mitgelieferte Benutzer-Handler wird gegen ein echtes Modell geprueft (SQLite in-memory) -
          seine ganze Arbeit besteht aus Modell-Metadaten und Abfragen. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <!-- Override the vulnerable SQLitePCLRaw.lib.e_sqlite3 2.1.11 that Microsoft.Data.Sqlite still
          pins (GHSA-2m69-gcr7-jv3q: memory corruption in SQLite before 3.50.2). Mind the version
          scheme: this package now follows the SQLite version, so 3.53.3 IS SQLite 3.53.3 - it is not

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ITVComponents.Scripting.CScript.Exceptions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -73,7 +73,7 @@ namespace ITVComponents.Scripting.CScript.Test
         {
             // In einem Aufruf ist die offene Form weiterhin ein Fehler: dort sind die
             // Typargumente die Angabe selbst, eine Stelligkeit sagt nichts aus.
-            var ex = Assert.ThrowsException<ScriptException>(
+            var ex = Assert.ThrowsExactly<ScriptException>(
                 () => ScriptInterpreter.ParseBlock(
                     "Liste = new 'System.Collections.Generic.List<#t>'(); return Liste.ConvertAll`1();", Vars()),
                 "Ein Methodenaufruf mit offener Stelligkeit muss abgewiesen werden.");

@@ -19,7 +19,7 @@ namespace ITVComponents.Workflow.Test
     {
         // Die Reihenfolge der Teile liegt fest: Periode, Startdatum, Zeiten, Wochentage, Monatstage,
         // Monate, Takt. Sie ist NICHT frei - der Takt steht am Ende, nicht direkt hinter der Uhrzeit.
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("d20200101080001", DisplayName = "daily at 08:00")]
         [DataRow("d20200101080001t", DisplayName = "daily, first run immediately")]
         [DataRow("w202001010800mon01", DisplayName = "weekly on monday")]

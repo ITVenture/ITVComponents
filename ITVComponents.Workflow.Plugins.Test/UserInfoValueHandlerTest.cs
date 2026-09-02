@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.Workflow.Plugins.WebCoreToolkit;
@@ -223,7 +223,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         [TestMethod]
         public void NobodyFound_Faults()
         {
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => Read(Employees(), ("userId", 999)));
 
             StringAssert.Contains(ex.Message, "found nobody");
@@ -246,7 +246,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         [TestMethod]
         public void WithoutAnyArgument_Faults()
         {
-            var ex = Assert.ThrowsException<InvalidOperationException>(() => Read(Employees()));
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => Read(Employees()));
 
             StringAssert.Contains(ex.Message, "whom to describe");
         }
@@ -259,7 +259,7 @@ namespace ITVComponents.Workflow.Plugins.Test
                 UniqueName = "plainUsers"
             };
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => handler.Read(Request(("employeeId", 700))));
 
             StringAssert.Contains(ex.Message, "without employees",
@@ -271,7 +271,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         {
             var handler = Employees();
 
-            var ex = Assert.ThrowsException<NotSupportedException>(
+            var ex = Assert.ThrowsExactly<NotSupportedException>(
                 () => handler.Write(Request(("userId", 7)), new UserInfo()));
 
             StringAssert.Contains(ex.Message, "read-only");
@@ -349,7 +349,7 @@ namespace ITVComponents.Workflow.Plugins.Test
         [TestMethod]
         public void ACompanyBillingProfileId_Faults_WithTheReasonInTheMessage()
         {
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => Read(Employees(), ("billingProfileId", 901)));
 
             StringAssert.Contains(ex.Message, "Personal",
@@ -364,7 +364,7 @@ namespace ITVComponents.Workflow.Plugins.Test
                 UniqueName = "plainUsers"
             };
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => handler.Read(Request(("billingProfileId", 900))));
 
             StringAssert.Contains(ex.Message, "without billing profiles");

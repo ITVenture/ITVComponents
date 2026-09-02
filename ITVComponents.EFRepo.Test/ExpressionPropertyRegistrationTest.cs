@@ -46,7 +46,7 @@ namespace ITVComponents.EFRepo.Test
             var options = new DbContextModelBuilderOptions<TestContext>();
             var service = new TenantService { Tenant = "acme" };
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
                 () => options.ConfigureExpressionProperty(() => service.Tenant));
 
             StringAssert.Contains(ex.Message, "not rooted in the DbContext",
@@ -77,7 +77,7 @@ namespace ITVComponents.EFRepo.Test
 
             ctx.Register(options);
 
-            var ex = Assert.ThrowsException<InvalidOperationException>(() => ctx.RegisterImpostor(options));
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => ctx.RegisterImpostor(options));
             StringAssert.Contains(ex.Message, "already registered");
         }
 

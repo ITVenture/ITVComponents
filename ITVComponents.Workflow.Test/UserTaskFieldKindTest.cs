@@ -6,6 +6,13 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.Workflow.Test
 {
+    // MSTEST0032 ist hier bewusst aus: der Analyzer sieht eine Bedingung, die der Compiler
+    // konstant faltet, und haelt die Zusicherung fuer sinnlos. Genau das ist ihr Zweck - sie soll
+    // BRECHEN, wenn jemand einen Eintrag in der Mitte der Aufzaehlung einfuegt. Definitionen werden
+    // mit diesen Zahlen gespeichert; ohne diesen Riegel wuerde aus jeder gespeicherten Bindung still
+    // eine andere, und nichts wuerde rot.
+    #pragma warning disable MSTEST0032
+
     /// <summary>
     /// Haelt die Feldarten der generischen Maske fest - vor allem ihre ZAHLEN.
     /// </summary>
@@ -55,3 +62,4 @@ namespace ITVComponents.Workflow.Test
         }
     }
 }
+#pragma warning restore MSTEST0032

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -158,7 +158,7 @@ namespace ITVComponents.Scripting.CScript.Test
             var debugger = new ScriptDebugger(stop => DebugCommand.Stop);
             debugger.AddBreakpoint(2);
 
-            Assert.ThrowsException<ScriptAbortedException>(
+            Assert.ThrowsExactly<ScriptAbortedException>(
                 () => ScriptInterpreter.Debug(CountingScript, debugger, new Dictionary<string, object>()),
                 "Ein Abbruch muss die Ausfuehrung beenden.");
         }

@@ -18,7 +18,7 @@
   </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Common" version="5.0.0" />
-    <PackageReference Include="Microsoft.OpenApi" Version="3.8.0" />
+    <PackageReference Include="Microsoft.OpenApi" Version="3.10.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />

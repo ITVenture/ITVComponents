@@ -80,8 +80,8 @@ namespace ITVComponents.Scripting.CScript.Test
             Assert.AreEqual("Huhu!",((string)c1).Decrypt());
             var c2 = ExpressionParser.Parse("bar = 'ITVComponents.DataAccess.IDbWrapper@@\"ITVComponents.DataAccess.dll\"'",
                 tmp1, policy:policy);
-            Assert.AreEqual(c2, typeof(IDbWrapper));
-            Assert.ThrowsException<ScriptSecurityException>(() =>
+            Assert.AreEqual(typeof(IDbWrapper), c2);
+            Assert.ThrowsExactly<ScriptSecurityException>(() =>
             {
                 var tmp = ExpressionParser.Parse(
                     "bar = new 'ITVComponents.DataAccess.Where@@\"ITVComponents.DataAccess.dll\"'()",tmp1, policy:policy);
@@ -119,7 +119,7 @@ namespace ITVComponents.Scripting.CScript.Test
             var policy = ScriptingPolicy.Default.Configure(n => n.NativeScripting = PolicyMode.Deny);
             var s = ExpressionParser.Parse("`E(foo as list -> DEFAULT)::\"List<string>list = Global.list;return list.FirstOrDefault(n => n.Equals((string)Global.search));\" with {search:\"schimmel\"}",tmp1);
             Assert.AreEqual("schimmel",s);
-            Assert.ThrowsException<ScriptSecurityException>(() =>
+            Assert.ThrowsExactly<ScriptSecurityException>(() =>
             {
                 var tmp = ExpressionParser.Parse(
                     "`E(foo as list -> DEFAULT)::\"List<string>list = Global.list;return list.FirstOrDefault(n => n.Equals((string)Global.search));\" with {search:\"schimmel\"}",

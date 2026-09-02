@@ -199,7 +199,7 @@ return 'System.Convert'.ToInt64(Val3.Subtract(dt1).TotalDays);,-10:x] Tage verga
             PasswordSecurity.InitializeAes("Weneee e die Russn kommn!");
             string encrypted = "bladibla".Encrypt();
             var decrypted = new object().FormatText($"[\"{encrypted}\":decrypt]");
-            Assert.AreEqual(decrypted,"bladibla");
+            Assert.AreEqual("bladibla", decrypted);
         }
 
         [TestMethod]
