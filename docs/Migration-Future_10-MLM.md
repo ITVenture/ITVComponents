@@ -1,4 +1,4 @@
-# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
+﻿# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
 > **Stand: `5.0.0-PRE130`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
@@ -5063,6 +5063,90 @@ der Mitte macht aus jedem gespeicherten `Choice` still ein `Date`. Ein Test häl
 
 Neuer Sprachschlüssel `TimeOfDay` in `WorkflowTaskMessages` (en/de/fr/it liegen bei).
 
+## 60. Die Teilen-Maske füllt sich selbst — **kein Schema-Change, aber eine Konvention**
+
+Bisher musste die **Seite** dem Teilen-Knopf ihre Argumentwerte mitgeben (`<ShareButton Context="…" />`).
+Das ist genau dort unbequem, wo der Knopf üblicherweise sitzt: **im Mantel**. Die Werte kennt die
+Detail-Seite, und die beiden sehen sich nicht — der Mantel rendert die Seite, nicht umgekehrt. Wer es
+nicht verdrahtete, bekam eine Maske, in der man eine Nummer abtippt, die zwei Zentimeter weiter oben auf
+dem Bildschirm steht. **Und ein leer gelassenes Argumentfeld ist der häufigste Weg zu einer Freigabe, die
+mehr freigibt als gemeint.**
+
+Neu füllt sich die Maske aus **drei Quellen**, aufsteigend nach Verbindlichkeit — jede spätere
+überschreibt die frühere:
+
+| # | Quelle | Mitwirkung der Seite |
+|---|---|---|
+| 1 | **Der Pfad** — benannte Gruppen im Pfadmuster der Vorlage | keine |
+| 2 | **Die Seite** — was sie ihrem `<AssetScope>` erklärt | eine Zeile, die sie ohnehin hat |
+| 3 | `<ShareButton Context="…" />` | ausdrücklich |
+
+### Warum die Seite gewinnt und nicht der Pfad
+
+Was die Seite ihrem `AssetScope` erklärt, ist **dasselbe**, was der Riegel später bestätigt. Gewänne der
+Pfad, liessen sich Links bauen, die der eigene Riegel ablehnt — der Empfänger bekäme eine leere Seite,
+und niemand wüsste warum. Der Pfad ist eine Ablesung, die Seite eine Aussage.
+
+Deshalb ist die zweite Quelle auch die eigentliche: **die Seite erklärt ihre Werte genau einmal**, für
+Riegel und Teilen gemeinsam. Link und Riegel können damit nicht mehr auseinanderlaufen.
+
+```razor
+@* Diese eine Zeile bedient jetzt beides *@
+<AssetScope Args="@(new Dictionary<string, object> { { "CustomerId", CustomerId } })">
+    @* Seiteninhalt *@
+</AssetScope>
+```
+
+`<AssetScope>` meldet die Werte **bevor** es prüft, ob überhaupt eine Freigabe aktiv ist — geteilt wird
+ja von einer Seite, auf der noch keine läuft. Beim Wegnavigieren räumt es sie wieder weg, sonst belegte
+der Mantel die nächste Freigabe mit dem Datensatz der vorigen Seite vor.
+
+### Die Konvention: benannte Gruppen im Pfadmuster
+
+`AssetTemplatePath.PathTemplate` ist ein **regulärer Ausdruck**, kein Route-Template. Schreibt ihr ihn mit
+benannten Gruppen, trägt er die Argumentwerte selbst:
+
+```
+^/CustomerCare/Customers/(?<CustomerId>\d+)$
+```
+
+Der Gruppenname **ist** der Argumentname. **Nur benannte Gruppen zählen** — aus `(\d+)` lässt sich nicht
+ableiten, dass die Zahl eine Kundennummer ist. Ein Muster ohne Gruppen liefert nichts, und `.*` auch
+nicht: was keine Stelle bezeichnet, kann keinen Wert benennen.
+
+Bestehende Muster verhalten sich unverändert. Ein **kaputtes** Muster kippt jetzt nicht mehr die ganze
+Auswahl, sondern wird protokolliert und übergangen — eine Vorlage, die nie passt, suchte man sonst an der
+falschen Stelle.
+
+### Was in der Maske passiert
+
+Schon bekannte Werte stehen **sichtbar, aber nicht editierbar** in der Maske. Der Wert bestimmt, *worauf*
+der Link zeigt; ihn dort umbiegen zu können hiesse, von einer Seite aus etwas anderes zu teilen als das,
+was man vor sich hat — und der Riegel lehnte es später ohnehin ab. **Was danach noch offen ist, wird wie
+bisher abgefragt.**
+
+### Was das NICHT ist
+
+> **Die Vorbelegung ist keine Schranke.** Dass `/Customers/4` nicht durchkommt, entscheidet weiterhin
+> allein `AssetTemplate.ArgumentEnforcement` (mindestens `Confirmed`) plus die Bestätigung in der Seite.
+> Die Vorbelegung macht nur den häufigsten Fehler unwahrscheinlicher — ein leeres Argumentfeld.
+>
+> **Merke: `ArgumentEnforcement` steht per Vorgabe auf `None`**, damit sich jede bestehende Vorlage
+> unverändert verhält. Solange sie dort steht, ist der Riegel wirkungslos und es gelten allein die
+> Pfadmuster: wer „Kunde 5" teilt, gibt alles frei, was das Muster zulässt.
+
+### Für den Host
+
+Nichts zu registrieren — `IShareArgumentSource` hängt an `UseSharedAssetPathContext()`, das ihr für die
+Freigaben ohnehin ruft. Zu tun ist nur:
+
+1. Pfadmuster der Vorlage auf benannte Gruppen umstellen (optional, aber geschenkt)
+2. Die Argumente an der Vorlage deklarieren
+3. **`ArgumentEnforcement` auf `Confirmed`** — das ist der Riegel
+4. Die Detail-Seite in `<AssetScope Args="…">` wickeln
+
+Punkt 3 und 4 schliessen das Loch; 1 und 2 sorgen dafür, dass niemand beim Anlegen daran vorbeikommt.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
@@ -5074,6 +5158,7 @@ Neuer Sprachschlüssel `TimeOfDay` in `WorkflowTaskMessages` (en/de/fr/it liegen
 | 57e | Beträge in Minor Units | `AmountMinor`/`ApplicationFeeMinor` sind `long` in Rappen. Eigene Umrechnung über `CurrencyMinorUnits` — `* 100` ist für JPY, KRW, KWD und BHD still falsch (§57.3) |
 | 57f | Gebührenerlass (optional) | rückwirkend verdient, nach vorne gewährt; erster Monat nie gratis. `WaivablePlanKeys` ist fail-closed; bei `Sliding` muss `(Schwelle − Bandbeginn) × Satz ≥ Grundgebühr` gelten (§57.11) |
 | 57g | Ländercode am Konto | bei der Anlage fixiert und **nie mehr änderbar**; die Einrichtungsseite fragt ihn ab. Testmodus-Konten existieren im Livemodus nicht — beim Key-Wechsel `TenantPaymentAccounts` leeren (§57.12) |
+| 60a | **Teilen-Maske füllt sich selbst** | Kein Schema-Change. Die Seite meldet ihre Argumentwerte über `<AssetScope Args="…">` — **dieselbe Zeile, die der Riegel schon braucht**; der `<ShareButton />` im Mantel liest sie beim Klick. Zusätzlich liest er benannte Gruppen aus dem Pfadmuster der Vorlage (`^/CustomerCare/Customers/(?<CustomerId>\d+)$`) — **nur benannte**, nummerierte tragen keine Bedeutung. Rangfolge aufsteigend: Pfad → Seite → `Context`. **Merke: die Seite gewinnt gegen den Pfad**, sonst baut man Links, die der eigene Riegel ablehnt. Bekannte Werte stehen in der Maske sichtbar, aber nicht editierbar; offene werden wie bisher abgefragt. **Merke: das ist KEINE Schranke** — dass ein fremder Datensatz nicht durchkommt, entscheidet weiterhin `ArgumentEnforcement` (Vorgabe `None`!) plus die Bestätigung in der Seite |
 | 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |

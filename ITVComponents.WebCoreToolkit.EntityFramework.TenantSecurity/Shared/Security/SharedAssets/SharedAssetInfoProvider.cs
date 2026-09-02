@@ -234,13 +234,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 var retVal = new List<AssetTemplateInfo>();
                 foreach (var template in tmp)
                 {
-                    if (IsTemplateValidForPath(template, requestPath))
+                    if (IsTemplateValidForPath(template, requestPath, out var pathValues))
                     {
                         retVal.Add(new AssetTemplateInfo
                         {
                             AssetTemplateTitle = template.Name,
                             TemplateKey = template.SystemKey,
-                            Arguments = ReadArguments(database, template.AssetTemplateId)
+                            Arguments = ReadArguments(database, template.AssetTemplateId),
+                            PathValues = pathValues
                         });
                     }
                 }
@@ -1059,11 +1060,78 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         }
 
         private bool IsTemplateValidForPath(TAssetTemplate template, string requestPath)
+            => IsTemplateValidForPath(template, requestPath, out _);
+
+        /// <summary>
+        /// Wie oben, liefert aber zusaetzlich die Werte der BENANNTEN GRUPPEN des Musters, das gepasst hat.
+        /// </summary>
+        /// <remarks>
+        /// Der Match entsteht ohnehin - er wurde bisher nur weggeworfen. Wer sein Pfadmuster als
+        /// <c>^/CustomerCare/Customers/(?&lt;CustomerId&gt;\d+)$</c> schreibt, bekommt damit die
+        /// Argumentwerte der Stelle geschenkt, ohne dass eine Seite etwas dafuer tun muss.
+        /// <para>
+        /// <b>Nur benannte Gruppen.</b> Die automatisch nummerierten sind keine Aussage ueber Bedeutung -
+        /// aus <c>(\d+)</c> laesst sich nicht ableiten, dass die Zahl eine Kundennummer ist. Der Name
+        /// IST die Zuordnung.
+        /// </para>
+        /// </remarks>
+        /// <param name="template">die Vorlage</param>
+        /// <param name="requestPath">der aufgerufene, kanonische Pfad</param>
+        /// <param name="pathValues">die ablesbaren Werte; nie null, leer wenn keine benannten Gruppen</param>
+        /// <returns>true, wenn eines der Muster passt</returns>
+        private bool IsTemplateValidForPath(TAssetTemplate template, string requestPath,
+            out IReadOnlyDictionary<string, string> pathValues)
         {
-            var urls = template.PathTemplates.Select(n => n.PathTemplate).ToArray();
-            var retVal = urls.Any(n => Regex.IsMatch(requestPath, n,
-                RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline));
-            return retVal;
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            pathValues = values;
+            foreach (var pattern in template.PathTemplates.Select(n => n.PathTemplate))
+            {
+                Regex expression;
+                Match match;
+                try
+                {
+                    // EINE Instanz fuer beides: nur ueber sie sind die Gruppennamen erreichbar
+                    // (GetGroupNames ist keine statische Methode), und der Ausdruck wird ohnehin
+                    // gebraucht.
+                    expression = new Regex(pattern,
+                        RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
+                    match = expression.Match(requestPath);
+                }
+                catch (ArgumentException ex)
+                {
+                    // Ein kaputtes Muster darf nicht die ganze Auswahl kippen - die anderen Vorlagen und
+                    // die anderen Muster derselben Vorlage sind davon unberuehrt. Still uebergehen waere
+                    // aber falsch: eine Vorlage, die nie passt, sucht man sonst an der falschen Stelle.
+                    LogEnvironment.LogEvent(
+                        $"Das Pfadmuster '{pattern}' der Vorlage '{template.SystemKey}' ist kein gueltiger " +
+                        $"regulaerer Ausdruck und wird uebergangen: {ex.Message}", LogSeverity.Error);
+                    continue;
+                }
+
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                foreach (var name in expression.GetGroupNames())
+                {
+                    // Die nummerierten Gruppen heissen "0", "1", ... - die tragen keine Bedeutung.
+                    if (int.TryParse(name, out _))
+                    {
+                        continue;
+                    }
+
+                    var group = match.Groups[name];
+                    if (group.Success)
+                    {
+                        values[name] = group.Value;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
         }
     }
 }

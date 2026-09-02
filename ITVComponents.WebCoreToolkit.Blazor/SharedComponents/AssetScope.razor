@@ -2,6 +2,7 @@
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
 @using Microsoft.AspNetCore.Components.Authorization
 
+@implements IDisposable
 @inject ISharedAssetContext AssetContext
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
@@ -42,6 +43,15 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
+        // ZUERST melden, und ausdruecklich VOR dem Ausstieg ohne Asset: diese Werte sind es, mit denen
+        // der Teilen-Knopf im Mantel eine Freigabe vorbelegt - und geteilt wird von einer Seite, auf der
+        // noch KEINE Freigabe aktiv ist. Haenge die Meldung hinter den Ausstieg, und sie kaeme genau
+        // dann nie, wenn sie gebraucht wird.
+        //
+        // Dass es dieselben Werte sind, die der Riegel unten bestaetigt, ist der ganze Gewinn: Link und
+        // Riegel koennen nicht auseinanderlaufen, weil die Seite sie nur EINMAL erklaert.
+        (Services.GetService(typeof(IShareArgumentSource)) as IShareArgumentSource)?.Publish(Args);
+
         if (!AssetContext.HasAsset)
         {
             // Ohne Asset ist die Komponente durchsichtig: dieselbe Seite soll ohne Freigabe genauso
@@ -61,4 +71,11 @@ else
         AssetAccessRecorder.Record(Services.GetService(typeof(IAssetAccessLog)) as IAssetAccessLog,
             AssetContext, auth.User, new Uri(Navigation.Uri).AbsolutePath);
     }
+
+    /// <summary>
+    /// Raeumt die gemeldeten Werte weg. Ohne das behielte der Mantel die Auskunft einer Seite, die nicht
+    /// mehr da ist - und der Teilen-Knopf belegte die naechste Freigabe mit dem vorigen Datensatz vor.
+    /// </summary>
+    public void Dispose()
+        => (Services.GetService(typeof(IShareArgumentSource)) as IShareArgumentSource)?.Clear();
 }

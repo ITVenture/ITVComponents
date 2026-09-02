@@ -224,6 +224,9 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             }
 
             services.TryAddScoped<ISharedAssetContext, SharedAssetContext>();
+            // Der Weg von der Detail-Seite zum Teilen-Knopf im Mantel: die Seite meldet hier die Werte,
+            // die sie ohnehin dem Riegel erklaert, und der Knopf liest sie beim Klick.
+            services.TryAddScoped<IShareArgumentSource, ShareArgumentSource>();
             // Die Grundfassung der Registry, damit ein Endpunkt sie in JEDEM Host in den Konstruktor
             // nehmen kann. Wer die Deklarationen behalten will, ueberschreibt sie mit der
             // persistierenden Fassung aus dem EF-Paket.

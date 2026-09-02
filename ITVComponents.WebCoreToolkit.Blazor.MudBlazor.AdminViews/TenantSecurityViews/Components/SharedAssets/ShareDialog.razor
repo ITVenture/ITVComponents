@@ -21,15 +21,28 @@
                       MaxLength="512" Class="mt-2"
                       HelperText="What the recipient sees, and what you will recognise it by later." />
 
-        @* Die Felder kommen aus der Vorlage, in IHRER Reihenfolge - und sind aus dem laufenden Kontext
-           vorbelegt. Genau dafuer gibt es die Konsumenten-Registry: sonst muesste der Benutzer eine
-           Nummer abtippen, die zwei Zentimeter weiter oben auf dem Bildschirm steht. *@
+        @* Die Felder kommen aus der Vorlage, in IHRER Reihenfolge. Was die Stelle ueber sich selbst
+           weiss, steht schon drin - der Benutzer soll keine Nummer abtippen, die zwei Zentimeter
+           weiter oben auf dem Bildschirm steht. Abgefragt wird nur, was danach noch offen ist. *@
         @foreach (var argument in Selected?.Arguments ?? Array.Empty<AssetArgumentDeclaration>())
         {
             var name = argument.Name;
-            <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
-                          Required="@argument.Required" RequiredError="@($"{name} is required")"
-                          Value="@GetArgument(name)" ValueChanged="@(v => SetArgument(name, v))" />
+            if (IsKnown(name))
+            {
+                @* Sichtbar, aber nicht editierbar: der Wert bestimmt, WORAUF der Link zeigt. Ihn hier
+                   umbiegen zu koennen hiesse, von einer Seite aus etwas anderes zu teilen als das,
+                   was man vor sich hat - und der Riegel wuerde es spaeter ohnehin ablehnen. *@
+                <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
+                              Value="@GetArgument(name)" ReadOnly="true" Variant="Variant.Filled"
+                              Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Link"
+                              HelperText="Taken from the page you are sharing." />
+            }
+            else
+            {
+                <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
+                              Required="@argument.Required" RequiredError="@($"{name} is required")"
+                              Value="@GetArgument(name)" ValueChanged="@(v => SetArgument(name, v))" />
+            }
         }
 
         <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
@@ -122,12 +135,45 @@
             // Gibt es nur eine Moeglichkeit, ist die Auswahl keine Frage.
             Model.TemplateKey = Templates[0].TemplateKey;
         }
+
+        ApplyPathValues();
     }
 
     private void TemplateChanged(string value)
     {
         Model.TemplateKey = value;
         error = null;
+        ApplyPathValues();
+    }
+
+    /// <summary>
+    /// Uebernimmt die aus dem Pfad ablesbaren Werte der GEWAEHLTEN Vorlage ins Modell.
+    /// </summary>
+    /// <remarks>
+    /// Erst hier und nicht schon im Knopf: welche Namen der Pfad hergibt, bestimmen die benannten
+    /// Gruppen im Muster - und das gehoert der Vorlage. Ein Wechsel der Vorlage kann also andere Werte
+    /// bedeuten.
+    /// <para>
+    /// <b>Der Pfad ueberschreibt nichts.</b> Was schon im Modell steht, kommt von der Seite selbst oder
+    /// wurde ausdruecklich gesetzt - beides ist die genauere Aussage. Der Pfad fuellt nur Luecken.
+    /// </para>
+    /// </remarks>
+    private void ApplyPathValues()
+    {
+        var values = Selected?.PathValues;
+        if (values == null)
+        {
+            return;
+        }
+
+        foreach (var pair in values)
+        {
+            if (!Model.ArgumentValues.ContainsKey(pair.Key)
+                || string.IsNullOrEmpty(Model.ArgumentValues[pair.Key]))
+            {
+                Model.ArgumentValues[pair.Key] = pair.Value;
+            }
+        }
     }
 
     private void ReachChanged(ShareReach? value)
@@ -159,6 +205,16 @@
 
     private string GetArgument(string name)
         => Model.ArgumentValues.TryGetValue(name, out var value) ? value : string.Empty;
+
+    /// <summary>
+    /// Steht dieser Wert schon fest, weil die Stelle ihn hergibt?
+    /// </summary>
+    /// <remarks>
+    /// Zu diesem Zeitpunkt sind beide Quellen schon im Modell: was die Seite ueber ihren
+    /// <c>AssetScope</c> gemeldet hat (der Knopf), und was der Pfad hergab (<see cref="ApplyPathValues"/>).
+    /// Was danach noch leer ist, muss der Benutzer beantworten.
+    /// </remarks>
+    private bool IsKnown(string name) => !string.IsNullOrEmpty(GetArgument(name));
 
     private void SetArgument(string name, string value) => Model.ArgumentValues[name] = value;
 

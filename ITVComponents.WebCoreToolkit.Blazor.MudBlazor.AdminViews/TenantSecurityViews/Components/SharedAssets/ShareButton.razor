@@ -8,6 +8,7 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 @inject ILogger<ShareButton> Logger
 
 @* "Hier teilen" - auf der Seite, auf der geteilt wird, und nicht in der Administration.
@@ -24,8 +25,9 @@
 
 @code {
     /// <summary>
-    /// Die Argumentwerte dieser Stelle - typischerweise die Route-Parameter der Seite. Sie belegen die
-    /// Maske vor; ohne sie muesste der Benutzer abtippen, was er vor sich sieht.
+    /// Die Argumentwerte dieser Stelle, ausdruecklich gesetzt. <b>Meist unnoetig</b> - was die Seite
+    /// ohnehin ihrem <c>AssetScope</c> erklaert und was im Pfad steht, findet der Knopf allein. Diese
+    /// Angabe ist die Uebersteuerung fuer den Rest.
     /// </summary>
     [Parameter] public IDictionary<string, string>? Context { get; set; }
 
@@ -102,6 +104,26 @@
     private async Task Open()
     {
         var model = new ShareRequestViewModel { RequestPath = EffectivePath };
+
+        // Drei Quellen, aufsteigend nach Verbindlichkeit - jede spaetere ueberschreibt die fruehere:
+        //
+        //  1. der PFAD (benannte Gruppen im Muster der Vorlage) - eine Ablesung, ohne Mitwirkung
+        //     der Seite, und deshalb die schwaechste Aussage.
+        //  2. die SEITE (was sie ihrem AssetScope erklaert) - dieselben Werte, die der Riegel spaeter
+        //     bestaetigt. Sie muessen gewinnen, sonst baut man Links, die der eigene Riegel ablehnt.
+        //  3. der Parameter Context - jemand hat es ausdruecklich hingeschrieben.
+        //
+        // Die Vorlagen-abhaengige Quelle (1) wird erst im Dialog je gewaehlter Vorlage aufgeloest; hier
+        // steht der gemeinsame Anteil.
+        var fromPage = (Services.GetService(typeof(IShareArgumentSource)) as IShareArgumentSource)?.Current;
+        if (fromPage != null)
+        {
+            foreach (var pair in fromPage)
+            {
+                model.ArgumentValues[pair.Key] = pair.Value;
+            }
+        }
+
         if (Context != null)
         {
             foreach (var pair in Context)
