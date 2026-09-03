@@ -159,7 +159,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
                 // valid tenant context. First eligible is the v1 choice; richer default-selection can be
                 // layered on later (e.g. last-used-tenant from a user-property store).
                 var defaultScope = eligible[0].ScopeName;
-                context.Response.Redirect($"/{defaultScope}/", permanent: false);
+                // PathBase gehoert davor. Root-absolut geredirected verlaesst die Antwort jeden Praefix,
+                // den eine vorgelagerte Middleware bereits aus dem Pfad genommen hat - die Kultur aus
+                // UseCulturePath(), den Asset-Abschnitt, ein virtuelles Verzeichnis -, und der Besucher
+                // landet unbemerkt ausserhalb des Kontextes, in dem er seinen Link geoeffnet hat.
+                var basePath = context.Request.PathBase.Value ?? string.Empty;
+                context.Response.Redirect($"{basePath}/{defaultScope}/", permanent: false);
                 return;
             }
 

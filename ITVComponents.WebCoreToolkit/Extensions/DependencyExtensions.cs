@@ -12,6 +12,7 @@ using ITVComponents.WebCoreToolkit.Configuration.Impl;
 using ITVComponents.WebCoreToolkit.DependencyInjection;
 using ITVComponents.WebCoreToolkit.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl;
+using ITVComponents.WebCoreToolkit.Globalization;
 using ITVComponents.WebCoreToolkit.Localization;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
@@ -42,6 +43,42 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 {
     public static class DependencyExtensions
     {
+        /// <summary>
+        /// Enables the culture prefix <c>/c/{culture}/…</c>: configures it and puts
+        /// <see cref="CulturePathRequestCultureProvider"/> in FRONT of the other request-culture providers,
+        /// so a language chosen in a URL beats the cookie and <c>Accept-Language</c>.
+        /// <para>
+        /// The pipeline half belongs to <c>app.UseCulturePath()</c>, which has to run as the very first
+        /// middleware. Both are needed; neither works alone.
+        /// </para>
+        /// <para>
+        /// This configures the <c>RequestLocalizationOptions</c> taken from DI - the ones
+        /// <c>app.UseRequestLocalization()</c> uses when called without arguments. A host that passes its
+        /// own options instance to <c>UseRequestLocalization()</c> has to insert the provider there
+        /// itself; the middleware says so in the log when it notices.
+        /// </para>
+        /// </summary>
+        /// <param name="services">the services to configure</param>
+        /// <param name="options">an optional configuration callback for the culture path</param>
+        /// <returns>the service collection for chaining</returns>
+        public static IServiceCollection AddCulturePath(this IServiceCollection services, Action<CulturePathOptions> options = null)
+        {
+            if (options != null)
+            {
+                services.Configure(options);
+            }
+
+            services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(o =>
+            {
+                if (!o.RequestCultureProviders.OfType<CulturePathRequestCultureProvider>().Any())
+                {
+                    o.RequestCultureProviders.Insert(0, new CulturePathRequestCultureProvider());
+                }
+            });
+
+            return services;
+        }
+
         /// <summary>
         /// Uses the simple UserName mapper
         /// </summary>

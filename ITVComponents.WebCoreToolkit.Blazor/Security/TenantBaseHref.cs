@@ -25,7 +25,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             // relative Verweise und der NavigationManager den Asset-Kontext, statt beim ersten Klick
             // herauszufallen. Er steht in der URL ohnehin an dieser Stelle.
             var assetSegment = HttpContextAccessor.HttpContext?.Items[Global.SharedAssetSegmentItemKey] as string;
-            var prefix = SharedAssetPath.BuildPrefix(assetSegment, segment);
+            // Die Kultur fuehrt die URL an, noch vor dem Asset - und aus demselben Grund gehoert sie in den
+            // base-href: sonst faellt die erste relative Navigation aus der Sprache heraus. Der Abschnitt
+            // steht hier so, wie er in der URL stand; eine andere Schreibweise waere kein Praefix der
+            // aktuellen Adresse mehr und der Circuit koennte sich selbst nicht mehr einordnen.
+            var culturePrefix = HttpContextAccessor.HttpContext?.Items[Global.CulturePathPrefixItemKey] as string ?? string.Empty;
+            var prefix = culturePrefix + SharedAssetPath.BuildPrefix(assetSegment, segment);
             var href = prefix.Length == 0 ? "/" : $"{prefix}/";
 
             builder.OpenElement(0, "base");

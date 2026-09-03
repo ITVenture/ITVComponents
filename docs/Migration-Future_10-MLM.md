@@ -5166,10 +5166,138 @@ Freigaben ohnehin ruft. Zu tun ist nur:
 
 Punkt 3 und 4 schliessen das Loch; 1 und 2 sorgen dafür, dass niemand beim Anlegen daran vorbeikommt.
 
+## 61. Die Sprache in der URL — **kein Schema-Change, aber Pipeline-Reihenfolge**
+
+Die Sprache kann als Präfix mitreisen, ganz vorne, vor Asset und Mandant:
+
+```
+/c/de-CH/~QWJjZGVm/ADM/CustomerCare/Customers/3
+ └─────┘ └────────┘ └─┘
+ Sprache   Asset    Mandant
+```
+
+Die Reihenfolge folgt dem, was wovon abhängt: die Sprache gehört zum **Leser** und steht fest, bevor
+klar ist, wer er ist (Asset) und wo er hin will (Mandant). Wer einen Link verschickt, kann deshalb jeder
+beliebigen URL eine Sprache voranstellen, ohne vom Rest etwas zu wissen.
+
+### 61.1 Verdrahtung
+
+```csharp
+builder.Services.AddCulturePath();          // Provider VOR Cookie und Accept-Language
+builder.Services.AddCultureSwitcher();      // nur für die Sprachauswahl (Blazor)
+builder.Services.Configure<RequestLocalizationOptions>(o =>
+{
+    o.SetDefaultCulture("de-CH");
+    o.AddSupportedCultures("de-CH", "fr", "it");
+    o.AddSupportedUICultures("de-CH", "fr", "it");
+});
+
+app.UseCulturePath();          // <- NEU, als ALLERERSTES
+app.UseSharedAssetPath();      // §50.2
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+app.UseRequestLocalization();
+app.EnableThreadCultures();
+app.UseAuthentication();
+app.UseTenantPathPrefix();
+app.UseRouting();
+```
+
+`UseCulturePath()` muss **vor** `UseStaticFiles`, `UseRequestLocalization`, `UseRouting`,
+`UseSharedAssetPath` und `UseTenantPathPrefix` stehen. Es schiebt die zwei Segmente aus `Request.Path`
+nach `Request.PathBase` — genau der Trick, den Asset und Mandant schon benutzen. Alles dahinter sieht
+dadurch **denselben Pfad wie bisher**: die Asset-Middleware findet ihren Abschnitt wieder an erster
+Stelle, `/_blazor` kommt als `/_blazor` an, und keine Route ändert sich.
+
+Die Liste der erlaubten Sprachen ist die der `RequestLocalizationOptions` — **eine** Liste, nicht zwei.
+`CulturePathOptions.SupportedCultures` gibt es nur, falls in der URL bewusst weniger erlaubt sein soll
+als per `Accept-Language`. Den Segmentnamen ändert ihr über `AddCulturePath(o => o.SegmentName = "lang")`.
+
+### 61.2 Was von selbst funktioniert
+
+Weil das Präfix in `PathBase` liegt, tragen **alle relativen Links, Redirects und Sub-Ressourcen** die
+Sprache ohne Zutun weiter: `PathBase` ist das, was `IUrlHelper` voranstellt und woraus der Blazor-
+`<base href>` gebaut wird (`<TenantBaseHref />` setzt Sprache → Asset → Mandant in dieser Reihenfolge).
+Auf der MVC-Seite gilt dasselbe über `ItvClientContext()`. **Nichts davon müsst ihr anfassen.**
+
+Der `TenantUrlGuard` nimmt die Sprache auf allen Wegen mit, die er sieht — auch beim Mandantenwechsel
+und auf dem Weg zu einer Auth-Ausnahme (`/Identity/Account/Login`), die beide vorher nur den Mandanten
+im Blick hatten.
+
+### 61.3 Die Sprachauswahl
+
+Ein Sprachwechsel ist **keine gewöhnliche Navigation**, und von Hand geschrieben geht dreierlei schief:
+das Präfix wird angehängt statt ersetzt (beim zweiten Wechsel steht `/c/de/c/fr/…` da und der Mandant
+liegt ein Segment zu tief), Query und Fragment gehen verloren, und die Navigation ist zu weich — der
+`<base href>` ändert sich mit der Sprache, das Ziel liegt also ausserhalb des Raums, für den der aktuelle
+Circuit gebaut wurde. Deshalb gibt es `ICultureSwitcher` (aus `AddCultureSwitcher()`):
+
+```razor
+@inject ICultureSwitcher Cultures
+
+<MudMenu Label="@Cultures.CurrentCulture">
+    @foreach (var culture in Cultures.AvailableCultures)
+    {
+        <MudMenuItem Href="@Cultures.BuildUrlFor(culture.Name)">
+            @culture.NativeName
+        </MudMenuItem>
+    }
+</MudMenu>
+```
+
+`BuildUrlFor` ist einem `SwitchTo` **vorzuziehen**: echte `<a href>`-Ziele funktionieren ohne Skript und
+lassen sich in einem neuen Tab öffnen. Ein `ForceLoad` braucht es dort nicht — das Ziel liegt ausserhalb
+des base-URI-Raums, Blazors JS fängt solche Klicks gar nicht erst ab, der Browser lädt also ohnehin neu.
+Wer den Wechsel aus Code auslöst, ruft `Cultures.SwitchTo("fr")`; das navigiert mit `forceLoad: true`,
+und dort ist es Pflicht und nicht Geschmackssache.
+
+> **Das ist die eine Stelle, an der ein root-absoluter Link richtig ist.** Die Konvention aus §PRE141
+> („Navigationsziele immer relativ") zielt darauf, den Mandanten nicht zu verlieren. Beim Sprachwechsel
+> ist das Verlassen des base-URI-Raums genau der Zweck. `BuildUrlFor` liefert deshalb bewusst einen
+> absoluten Pfad, und der `TenantUrlGuard` lässt ihn unangetastet durch: ein Ziel, das seine eigene
+> Sprache mitbringt, ist ein gewollter Wechsel und wird nicht auf die aktuelle zurückgeschrieben.
+
+Ein Eintrag „Systemsprache" mit `BuildUrlFor(null)` entfernt das Präfix wieder — danach entscheiden
+wieder Cookie und `Accept-Language`.
+
+### 61.4 Was die Auswahl **nicht** tut
+
+Sie setzt **kein Cookie**, und das ist so gewollt: eine per Link geteilte Sprache soll nicht am
+Empfänger kleben bleiben.
+
+Das ist auch kein Verlust, den man ausgleichen müsste. **Kommt eine URL ohne Präfix — gleich ob
+`https://mlm.example/` oder `https://mlm.example/ADM/orders` —, entscheidet die gewohnte Aushandlung:**
+Cookie, sonst `Accept-Language`, abgeglichen mit den `SupportedUICultures` und dem üblichen
+Eltern-Fallback (`de-AT` landet auf `de`, wenn nur `de` konfiguriert ist). Das läuft bei **jedem**
+Request neu; es geht nichts verloren. Das Präfix ist der zusätzliche Provider davor und wird nur
+gebraucht, wenn jemand eine Sprache *festnageln* will — ein geteilter Link, ein Lesezeichen, eine
+bewusste Wahl gegen die Browser-Einstellung.
+
+Wer die Wahl trotzdem über prefixlose Aufrufe hinweg festhalten wollte, bräuchte zusätzlich das übliche
+`.AspNetCore.Culture`-Cookie über einen kleinen Endpunkt (aus dem Circuit heraus geht das nicht) — für
+das MLM ist das **bewusst nicht vorgesehen**.
+
+### 61.5 Fallstricke
+
+* **Ein Mandant namens `c`** kollidiert nur scheinbar: das Präfix wird ausschliesslich erkannt, wenn das
+  **zweite** Segment die Form einer Sprache hat. `/c/orders` bleibt ein Seitenpfad. Echte Kollision
+  entstünde erst bei Mandant `c` **plus** oberster Seite `de` — dann `SegmentName` umstellen.
+* **Eine nicht unterstützte Sprache** (`/c/es/…`, wenn `es` nicht konfiguriert ist) führt **nicht** zu
+  404: das Präfix wird abgestreift, die Seite erscheint in der Standardsprache, und im Log steht eine
+  Warnung. Ein alter Link soll die Seite zeigen, nicht ins Leere laufen.
+* **Schreibweise:** `PathBase` trägt das Präfix so, wie es in der URL stand (`/c/DE-ch`), nicht in der
+  kanonischen Form — sonst wäre der `<base href>` kein Präfix der Browser-Adresse mehr. An die
+  Lokalisierung geht die konfigurierte Schreibweise.
+* **Fehlt `AddCulturePath()`**, während `UseCulturePath()` läuft, sieht die URL richtig aus und die Seite
+  bleibt hartnäckig in der falschen Sprache. Genau dafür schreibt die Middleware einmal pro Prozess eine
+  `LogError`-Zeile — die erste Stelle, an der man nachsieht.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 61a | **Sprache als URL-Präfix** | Kein Schema-Change. `AddCulturePath()` + `app.UseCulturePath()` **als allererste Middleware**, vor `UseSharedAssetPath`/`UseStaticFiles`/`UseRequestLocalization`/`UseRouting`/`UseTenantPathPrefix`. Ohne die Registrierung bleibt die Seite in der falschen Sprache (Log sagt es, einmal pro Prozess). Optional — wer kein Präfix will, ändert nichts (§61.1) |
+| 61b | **Sprachauswahl** | `AddCultureSwitcher()` + `ICultureSwitcher.BuildUrlFor(...)` in der Dropdown. **Nicht von Hand bauen**: Präfix muss ersetzt statt angehängt werden, Query/Fragment müssen überleben, und der Wechsel muss ein voller Seitenladevorgang sein. Die Wahl setzt **kein Cookie** — sie lebt in der URL (§61.3, §61.4) |
 | 57a | **Zahlungen an den Mandanten** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: `TenantPaymentAccounts`, `TenantSales`, `TenantSaleRefunds`, `TenantFeeWaivers` + `modelBuilder.ConfigurePayments()`. Wer den Zweig nicht will, implementiert den Vertrag nicht — `IBillingContext` ist unverändert (§57.2) |
 | 57b | **Zweiter Webhook, zweites Secret** | `/billing/connect/webhook` mit `StripePayments:ConnectWebhookSecret` — **nicht** das Plattform-Secret. Zusätzlich `invoice.created` am bestehenden Plattform-Endpunkt abonnieren, wenn ihr den Gebührenerlass nutzt (§57.5) |
 | 57c | **`AddPaymentFeatureGate`** | ohne diese Registrierung wird **jeder Verkauf abgelehnt** (fail-closed). Dazu Feature `StripePayments` im Katalog anlegen und mindestens einen `ITenantSaleObserver` registrieren, sonst erfährt der Shop nie von einer Zahlung (§57.6, §57.9) |

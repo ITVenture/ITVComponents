@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.Globalization;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Components;
@@ -269,6 +270,11 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             {
                 var path = new Uri(baseUri).AbsolutePath;
                 if (string.IsNullOrEmpty(path)) return Array.Empty<string>();
+                // Die Kultur fuehrt den base-href an, noch vor dem Asset (siehe CulturePath). Sie kommt hier
+                // ab, damit die Zaehlung dahinter dieselbe bleibt: die Aufrufer fragen nach dem ERSTEN
+                // Abschnitt und meinen das Asset bzw. den Mandanten. Ohne diesen Schnitt wuerde auf einem
+                // Host mit Sprach-Praefix ploetzlich "de-CH" als Mandant gelten.
+                path = CulturePath.Strip(path);
                 var trimmed = path.Trim('/');
                 if (trimmed.Length == 0) return Array.Empty<string>();
                 return trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);

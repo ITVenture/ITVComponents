@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using ITVComponents.WebCoreToolkit.Globalization;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
@@ -261,6 +262,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public static string Canonicalize(string path, string assetSegment, string tenant)
         {
             var retVal = string.IsNullOrEmpty(path) ? "/" : path;
+            // The culture prefix leads the URL in front of the asset (see CulturePath), so it comes off
+            // first. It is stripped unconditionally rather than against a value the caller passes in,
+            // because a path that carries it always carries it in the same place - and because the callers
+            // that reach here from a Blazor circuit have nothing but the path to go by. A host without the
+            // culture prefix is unaffected: nothing leads with the reserved segment there.
+            retVal = CulturePath.Strip(retVal);
             retVal = StripLeadingSegment(retVal, assetSegment);
             retVal = StripLeadingSegment(retVal, tenant);
             return retVal;

@@ -75,6 +75,20 @@
         public const string AnonymousAssetUserName = "#ANONYMOUS#";
 
 
+        /// <summary>
+        /// Key under which the culture read from the URL prefix (<c>/c/{culture}/…</c>) is stored in
+        /// <c>HttpContext.Items</c>, in the spelling the localization is configured with.
+        /// <c>CulturePathRequestCultureProvider</c> is what turns it into the request's culture.
+        /// </summary>
+        public const string CulturePathCultureItemKey = "ITVComponents.WebCoreToolkit.CulturePathCulture";
+
+        /// <summary>
+        /// Key under which the raw culture prefix (e.g. <c>/c/de-CH</c>, exactly as written in the URL) is
+        /// stored in <c>HttpContext.Items</c>. It is what a Blazor base href has to lead with, so that
+        /// relative links keep the language.
+        /// </summary>
+        public const string CulturePathPrefixItemKey = "ITVComponents.WebCoreToolkit.CulturePathPrefix";
+
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 
         public const string AppUserKeyPattern = "^##APPUSER##(?<appUserKey>[^#]+)#$";

@@ -126,6 +126,111 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.AreEqual("/T001/users?id=42#top", result);
         }
 
+        [TestMethod]
+        public void Culture_Prefixed_Base_Passes_A_Target_That_Already_Matches()
+        {
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/c/de-CH/T001/users"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001", "ADM"));
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        public void Escape_Is_Rewritten_Under_Culture_And_Tenant()
+        {
+            // A tenant-unaware NavigateTo("/users") has to come back under BOTH prefixes.
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/users?id=42#top"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001", "ADM"));
+
+            Assert.AreEqual("/c/de-CH/T001/users?id=42#top", result);
+        }
+
+        [TestMethod]
+        public void Cross_Tenant_Switch_Keeps_The_Language()
+        {
+            // Without the tenant prefix this is a legitimate switch and passes through - but passing it
+            // through unchanged would drop the language, and the visitor would land in the tenant of
+            // their choice speaking a different one.
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/ADM/counter"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001", "ADM"));
+
+            Assert.AreEqual("/c/de-CH/ADM/counter", result);
+        }
+
+        [TestMethod]
+        public void Deliberate_Language_Switch_Is_Left_Alone()
+        {
+            // The target brings its own language: that IS the navigation. Rewriting it under the current
+            // one would make switching the language impossible.
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/c/fr/T001/users"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001", "ADM"));
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        public void Language_From_The_Target_Wins_While_The_Tenant_Comes_From_The_Base()
+        {
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/c/fr/users"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001", "ADM"));
+
+            Assert.AreEqual("/c/fr/T001/users", result);
+        }
+
+        [TestMethod]
+        public void Auth_Excluded_Path_Keeps_The_Language_But_Not_The_Tenant()
+        {
+            // The login page is deliberately tenant-neutral - it is not language-neutral.
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/Identity/Account/Login"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001"));
+
+            Assert.AreEqual("/c/de-CH/Identity/Account/Login", result);
+        }
+
+        [TestMethod]
+        public void Blazor_Internals_Do_Not_Even_Get_A_Language()
+        {
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/T001/",
+                target: new Uri("https://app/_blazor/initializers"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible("T001"));
+
+            Assert.IsNull(result);
+        }
+
+        [TestMethod]
+        public void Tenantless_User_Still_Keeps_The_Language()
+        {
+            // A user who is a member of no tenant has a base path of "/c/de-CH/" - there is no tenant to
+            // enforce, but there is still a language to preserve.
+            var result = TenantUrlGuardLogic.PlanPathSegmentRewrite(
+                basePath: "/c/de-CH/",
+                target: new Uri("https://app/home"),
+                authExclusions: AuthExclusions,
+                eligibleScopes: Eligible());
+
+            Assert.AreEqual("/c/de-CH/home", result);
+        }
+
         private static ISet<string> Eligible(params string[] scopes)
             => new HashSet<string>(scopes, StringComparer.Ordinal);
     }

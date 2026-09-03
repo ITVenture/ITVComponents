@@ -29,6 +29,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
         }
 
         /// <summary>
+        /// Registers the <see cref="ICultureSwitcher"/> a language picker builds on. Circuit-scoped,
+        /// because it answers from the address of the page currently showing.
+        /// <para>
+        /// Belongs to a host that runs <c>services.AddCulturePath()</c> and <c>app.UseCulturePath()</c>:
+        /// the switcher exchanges the URL's culture prefix and reloads. Without the culture path there is
+        /// no prefix to exchange, and the picker would have nothing to do.
+        /// </para>
+        /// </summary>
+        /// <param name="services">the service collection to register into</param>
+        /// <returns>the service collection for chaining</returns>
+        public static IServiceCollection AddCultureSwitcher(this IServiceCollection services)
+        {
+            services.AddScoped<ICultureSwitcher, CultureSwitcher>();
+            return services;
+        }
+
+        /// <summary>
         /// Registers the circuit-scoped <see cref="BlazorContextUserProvider"/> as the host-neutral
         /// <see cref="IContextUserProvider"/> for a Blazor host. Place a single
         /// <c>&lt;ContextUserInitializer /&gt;</c> near the application root so the synchronous
