@@ -62,12 +62,47 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.AreEqual(string.Empty, NewFormat("TenantA", null, string.Empty).FormatUrl("[SlashAssetSegment]"));
         }
 
-        private static UrlFormatImpl NewFormat(string tenant, string assetSegment, string pathBase)
+        [TestMethod]
+        public void The_Full_Prefix_Leads_With_The_Language()
+        {
+            // Root-absolute output has to carry the language too - it is the outermost prefix in the URL, and
+            // nothing downstream will put it back. Behind a ~ it must NOT appear: there the client script
+            // prepends the base url, which already has it.
+            var format = NewFormat("TenantA", "~abc", pathBase: "/c/de-CH/~abc", culturePrefix: "/c/de-CH");
+
+            Assert.AreEqual("/c/de-CH/~abc/TenantA", format.FormatUrl("[SlashPermissionScope]"));
+            Assert.AreEqual("/TenantA", format.FormatUrl("[SlashScopeUnderBase]"));
+        }
+
+        [TestMethod]
+        public void A_Language_Alone_Still_Fills_The_Placeholder()
+        {
+            // An installation with neither assets nor a tenant in the path used to leave the placeholder
+            // standing in the text, because nothing had a prefix to offer.
+            var format = NewFormat(null, null, pathBase: "/c/fr", culturePrefix: "/c/fr");
+
+            Assert.AreEqual("/c/fr", format.FormatUrl("[SlashPermissionScope]"));
+        }
+
+        private static UrlFormatImpl NewFormat(string tenant, string assetSegment, string pathBase,
+            string culturePrefix = null)
         {
             var ctx = new DefaultHttpContext();
             ctx.Request.PathBase = new PathString(pathBase);
             return new UrlFormatImpl(new FakeHttpContextUserProvider(ctx), new FakeScope(tenant),
-                new FakeAssetContext(assetSegment));
+                new FakeAssetContext(assetSegment), new FakeAppLink(culturePrefix));
+        }
+
+        /// <summary>
+        /// Only the culture prefix matters here - the formatter asks the host for it and has nothing to do
+        /// with how links are built otherwise.
+        /// </summary>
+        private sealed class FakeAppLink : ITVComponents.WebCoreToolkit.Routing.IAppLink
+        {
+            public FakeAppLink(string culturePrefix) => CulturePrefix = culturePrefix ?? string.Empty;
+            public string CulturePrefix { get; }
+            public string CurrentModuleUrl => "/";
+            public string Resolve(string moduleUrl) => moduleUrl;
         }
 
         private sealed class FakeHttpContextUserProvider : IHttpContextUserProvider

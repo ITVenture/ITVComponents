@@ -5292,10 +5292,61 @@ das MLM ist das **bewusst nicht vorgesehen**.
   bleibt hartnäckig in der falschen Sprache. Genau dafür schreibt die Middleware einmal pro Prozess eine
   `LogError`-Zeile — die erste Stelle, an der man nachsieht.
 
+## 62. Menü-Links tragen die Sprache mit — **kein Schema-Change, aber ein neues Vertragsfeld**
+
+**Der Fehler, den das behebt:** Sprache fest gewählt (`/c/de-CH/…`), über die Navigation in ein anderes
+Modul gewechselt — und die Sprache ist weg. Über einen Knopf in dasselbe Modul gesprungen: Sprache bleibt.
+
+**Warum:** Die Menü-Urls wurden von Hand zusammengesetzt, als `/{Mandant}/{Url}` — root-absolut. Unter
+einem `<base href="/c/de-CH/T001/">` liegt ein root-absoluter Link **ausserhalb** des base-URI-Raums.
+Blazor fängt den Klick deshalb nicht ab, der Browser lädt das Dokument ganz neu, und alles, was in
+`PathBase` lag, ist aus der Anfrage verschwunden. Der Mandant überlebte das nur, weil ihn jemand von Hand
+vorangestellt hatte; für die Sprache tat das niemand, und die Aushandlung (Cookie, `Accept-Language`)
+übernahm wieder. Ein Knopf dagegen ist ein `NavigateTo` im Circuit — der `TenantUrlGuard` sieht ihn, und
+der base href erledigt den Rest.
+
+**Was jetzt passiert:** Die Links baut nicht mehr der Navigations-Builder, sondern der Host — über den
+neuen Dienst `IAppLink`:
+
+* **Blazor** (`CircuitAppLink`): der Link ist **relativ** (`Workflow/Tasks`, ohne führenden Schrägstrich).
+  Der base href trägt Sprache, Asset und Mandant, der Link erbt alle drei, ohne einen davon zu kennen —
+  und bleibt im base-URI-Raum, wird also als Navigation im Circuit abgefangen statt als Neuladen.
+* **MVC / Razor Pages** (`HttpAppLink`): dort gibt es keinen base href, ein relativer Link löste gegen die
+  **aktuelle Seite** auf. Deshalb bleibt er root-absolut und trägt den vollen Präfix: `PathBase` (Sprache +
+  Asset) plus Mandant, falls der nicht schon darin steckt. Das ist auch der Weg, den die Nicht-Blazor-
+  Endpunkte eines Blazor-Hosts nehmen (Identity-Seiten) — die Entscheidung fällt **je Aufruf**, nicht je
+  Registrierung.
+
+**Zu tun:** nichts, wenn ihr `AddBlazorContextUser()` aufruft — dort wird `CircuitAppLink` mitregistriert.
+Der Kern registriert `HttpAppLink` als Vorgabe (`UseAppLinks()`, hängt an `UseNavigator()` und
+`UseUrlFormatter()`).
+
+**Merke: `NavigationMenu` hat ein zweites Url-Feld.** `Url` ist ab jetzt *der Link, wie dieser Host ihn
+braucht* — im Blazor-Fall **relativ**. Wer ihn irgendwo mit einem Request-Pfad **vergleicht** oder einen
+Präfix davorsetzt, muss auf das neue `ModuleUrl` wechseln: die gespeicherte Url, frei von jedem Präfix,
+mit genau einem führenden Schrägstrich. Sie ist die stabile Identität des Eintrags und ändert sich nicht,
+wenn Sprache, Asset oder Mandant wechseln. **Rendern: `Url`. Vergleichen: `ModuleUrl`.**
+
+**Nebenwirkung, die damit verschwindet:** `INavigator.SelectedNavigationItem` verglich die gerenderte Url
+gegen den Request-Pfad. Sobald eine Sprache fest gewählt war, passte nichts mehr zusammen — die
+Aktiv-Markierung im Menü blieb aus, und der `<HelpButton />`, der am ausgewählten Eintrag hängt,
+verschwand still. Verglichen wird jetzt `ModuleUrl` gegen `IAppLink.CurrentModuleUrl`, beide präfixfrei.
+
+**Ebenfalls gerichtet:** `[SlashPermissionScope]` / `[permissionScope]` in `IUrlFormat` führten den
+root-absoluten Präfix ohne die Sprache an. Jetzt steht sie vorne — Sprache, Asset, Mandant, in der
+Reihenfolge der URL. **`[scopeUnderBase]` bleibt unverändert:** hinter einem `~` löst der Aufrufer gegen
+die Basis auf, und die trägt die Sprache bereits; sie dort einzusetzen hiesse, sie doppelt zu schreiben.
+
+**Warum nicht einfach die Sprache auch von Hand voranstellen:** Das war die kleinere Änderung und hätte
+diesen einen Fehler behoben. Es hätte aber (a) den Menüklick weiterhin zu einem vollen Neuladen gemacht,
+statt ihn im Circuit zu halten, und (b) beim nächsten Präfix dieselbe Runde erzwungen — die Sprache war
+schon das dritte. Ein relativer Link kennt keinen Präfix und muss deshalb bei keinem nachgezogen werden.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 62 | **Menü-Links tragen die Sprache** | Kein Schema-Change. `NavigationMenu.Url` ist ab jetzt der Link **in der Form, die dieser Host braucht** - unter Blazor **relativ**, weil ein root-absoluter Link den base-URI-Raum verlässt und dabei jeden Praefix aus `PathBase` verliert (so ging die fest gewählte Sprache bei jedem Menüklick verloren). Neu daneben `NavigationMenu.ModuleUrl`: die gespeicherte Url ohne jeden Präfix. **Rendern: `Url`. Vergleichen: `ModuleUrl`** - wer `Url` gegen einen Request-Pfad prüft oder etwas davorsetzt, muss umstellen. Gebaut wird über den neuen `IAppLink`; unter `AddBlazorContextUser()` ist er mitregistriert, sonst über `UseAppLinks()`. `[SlashPermissionScope]` führt jetzt die Sprache mit, `[scopeUnderBase]` bewusst nicht (§62) |
 | 61a | **Sprache als URL-Präfix** | Kein Schema-Change. `AddCulturePath()` + `app.UseCulturePath()` **als allererste Middleware**, vor `UseSharedAssetPath`/`UseStaticFiles`/`UseRequestLocalization`/`UseRouting`/`UseTenantPathPrefix`. Ohne die Registrierung bleibt die Seite in der falschen Sprache (Log sagt es, einmal pro Prozess). Optional — wer kein Präfix will, ändert nichts (§61.1) |
 | 61b | **Sprachauswahl** | `AddCultureSwitcher()` + `ICultureSwitcher.BuildUrlFor(...)` in der Dropdown. **Nicht von Hand bauen**: Präfix muss ersetzt statt angehängt werden, Query/Fragment müssen überleben, und der Wechsel muss ein voller Seitenladevorgang sein. Die Wahl setzt **kein Cookie** — sie lebt in der URL (§61.3, §61.4) |
 | 57a | **Zahlungen an den Mandanten** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: `TenantPaymentAccounts`, `TenantSales`, `TenantSaleRefunds`, `TenantFeeWaivers` + `modelBuilder.ConfigurePayments()`. Wer den Zweig nicht will, implementiert den Vertrag nicht — `IBillingContext` ist unverändert (§57.2) |

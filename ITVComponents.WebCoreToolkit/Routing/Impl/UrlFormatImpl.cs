@@ -15,6 +15,7 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
         private readonly IContextUserProvider userProvider;
         private readonly IPermissionScope permissionScope;
         private readonly ISharedAssetContext assetContext;
+        private readonly IAppLink appLink;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="UrlFormatImpl"/> class.
@@ -22,12 +23,15 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
         /// <param name="userProvider">the ambient context whose route data feeds the placeholders</param>
         /// <param name="permissionScope">the current scope</param>
         /// <param name="assetContext">the shared asset of the current context, when there is one</param>
+        /// <param name="appLink">the host's link builder; supplies the culture prefix, which is the one part
+        /// of a root-absolute prefix that can not be read off the scope or the asset</param>
         public UrlFormatImpl(IContextUserProvider userProvider, IPermissionScope permissionScope,
-            ISharedAssetContext assetContext)
+            ISharedAssetContext assetContext, IAppLink appLink = null)
         {
             this.userProvider = userProvider;
             this.permissionScope = permissionScope;
             this.assetContext = assetContext;
+            this.appLink = appLink;
         }
 
         /// <summary>
@@ -37,7 +41,8 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
         /// Two families of scope placeholders, because two kinds of caller need two different answers:
         /// <list type="bullet">
         /// <item><c>[permissionScope]</c> / <c>[SlashPermissionScope]</c> yield the <b>full</b> prefix
-        /// (shared-asset segment plus tenant) and belong in root-absolute output such as an <c>href</c>.</item>
+        /// (culture, shared-asset segment and tenant, in that order) and belong in root-absolute output such
+        /// as an <c>href</c>.</item>
         /// <item><c>[scopeUnderBase]</c> / <c>[SlashScopeUnderBase]</c> yield only what is <b>not</b> already
         /// in <c>PathBase</c> and belong behind a <c>~</c>, which the client script resolves against the
         /// base url. Using the first family there would prepend the prefix twice.</item>
@@ -68,9 +73,14 @@ namespace ITVComponents.WebCoreToolkit.Routing.Impl
             }
 
             var tenant = permissionScope.IsScopeExplicit ? permissionScope.PermissionPrefix : null;
-            if (!string.IsNullOrEmpty(tenant) || !string.IsNullOrEmpty(assetSegment))
+            // Die Sprache fuehrt den root-absoluten Praefix an - vor Asset und Mandant, so wie sie in der URL
+            // steht. Hinter einem ~ hat sie nichts zu suchen: dort loest der Aufrufer gegen die Basis auf,
+            // und die traegt sie bereits. Sie steht auch dann alleine im Praefix, wenn es weder Asset noch
+            // Mandant gibt - sonst bliebe der Platzhalter in einer reinen Sprach-Installation unersetzt.
+            var culturePrefix = appLink?.CulturePrefix ?? string.Empty;
+            if (!string.IsNullOrEmpty(tenant) || !string.IsNullOrEmpty(assetSegment) || culturePrefix.Length != 0)
             {
-                var full = SharedAssetPath.BuildPrefix(assetSegment, tenant);
+                var full = culturePrefix + SharedAssetPath.BuildPrefix(assetSegment, tenant);
                 var underBase = ScopeUnderBase(tenant);
                 values.Add("permissionScope", full.TrimStart('/'));
                 values.Add("permissionScopeSlash", $"{full.TrimStart('/')}/");

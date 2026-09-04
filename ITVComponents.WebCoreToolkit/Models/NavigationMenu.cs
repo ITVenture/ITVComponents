@@ -17,7 +17,22 @@ namespace ITVComponents.WebCoreToolkit.Models
 
         public string DisplayName { get; set; }
 
+        /// <summary>
+        /// The link to render, in the form the CURRENT host resolves correctly: relative where a
+        /// <c>&lt;base href&gt;</c> carries the prefixes (Blazor), root-absolute and fully prefixed where
+        /// there is none (MVC). Built by <see cref="Routing.IAppLink"/>; do not prepend anything to it and do
+        /// not compare it against a request path - <see cref="ModuleUrl"/> is what comparisons are for.
+        /// </summary>
         public string Url { get; set; }
+
+        /// <summary>
+        /// The entry's url as it is stored, free of every prefix (culture, shared asset, tenant) and with a
+        /// single leading slash. This is the stable identity of the menu entry: it does not change when the
+        /// language, the asset context or the tenant changes, which is exactly why the "am I the active
+        /// entry?" question is asked on it rather than on <see cref="Url"/>. Every prefix that was ever added
+        /// to the URL broke that comparison once; this is the last time.
+        /// </summary>
+        public string ModuleUrl { get; set; }
 
         public string SpanClass { get; set; }
 
@@ -87,7 +102,14 @@ namespace ITVComponents.WebCoreToolkit.Models
             return result;
         }
 
-        public void CleanUp(string currentPath, string jsonLanguageRecord)
+        /// <summary>
+        /// Drops entries that lead nowhere, marks the active branch and translates the display names.
+        /// </summary>
+        /// <param name="currentModuleUrl">the module url of the page showing, i.e.
+        /// <see cref="Routing.IAppLink.CurrentModuleUrl"/> - NOT the raw request path, which carries prefixes
+        /// the stored urls never had</param>
+        /// <param name="jsonLanguageRecord">the language record used to translate the display names</param>
+        public void CleanUp(string currentModuleUrl, string jsonLanguageRecord)
         {
             var invalids = Children.Where(n => !n.IsValid).ToArray();
             foreach (var inv in invalids)
@@ -95,8 +117,9 @@ namespace ITVComponents.WebCoreToolkit.Models
                 Children.Remove(inv);
             }
 
-            Active = Url?.Equals(currentPath, StringComparison.OrdinalIgnoreCase) ?? false;
-            Children.ForEach(n => n.CleanUp(currentPath, jsonLanguageRecord));
+            Active = !string.IsNullOrEmpty(ModuleUrl)
+                     && (ModuleUrl?.Equals(currentModuleUrl, StringComparison.OrdinalIgnoreCase) ?? false);
+            Children.ForEach(n => n.CleanUp(currentModuleUrl, jsonLanguageRecord));
             if (!Active)
             {
                 Active = Children.Any(c => c.Active);

@@ -297,7 +297,21 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// <returns>the servicesCollection that was passed as parameter</returns>
         public static IServiceCollection UseNavigator(this IServiceCollection services)
         {
-            return services.AddScoped<INavigator, Navigator>();
+            return services.UseAppLinks()
+                .AddScoped<INavigator, Navigator>();
+        }
+
+        /// <summary>
+        /// Registers the <see cref="IAppLink"/> that turns a stored module url into a link the current host
+        /// resolves correctly. <c>TryAdd</c> on purpose: a Blazor host registers its own implementation (see
+        /// <c>AddBlazorContextUser</c>) and must keep it no matter in which order the two calls happen.
+        /// </summary>
+        /// <param name="services">the service collection to register into</param>
+        /// <returns>the servicesCollection that was passed as parameter</returns>
+        public static IServiceCollection UseAppLinks(this IServiceCollection services)
+        {
+            services.TryAddScoped<IAppLink, HttpAppLink>();
+            return services;
         }
 
         /// <summary>
@@ -382,6 +396,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             // Konstruktor-Parametern NICHT beruecksichtigt - ein Host ohne geteilte Assets bekaeme sonst
             // beim Aufloesen einen Fehler statt eines leeren Kontexts.
             return services.UseSharedAssetPathContext()
+                .UseAppLinks()
                 .AddScoped<IUrlFormat, UrlFormatImpl>();
         }
 

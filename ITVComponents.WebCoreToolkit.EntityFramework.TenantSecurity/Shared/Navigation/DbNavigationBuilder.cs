@@ -12,6 +12,8 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Navigation;
 using ITVComponents.WebCoreToolkit.Options;
+using ITVComponents.WebCoreToolkit.Routing;
+using ITVComponents.WebCoreToolkit.Routing.Impl;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.AspNetCore.Http;
@@ -84,6 +86,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
             this.options = options;
         }
 
+        /// <summary>
+        /// The host's link builder. Resolved per call rather than injected, so this builder keeps working in
+        /// the hosts (and tests) that never registered one - the fallback is literally the behaviour this
+        /// class had before: root-absolute, prefixed with the tenant.
+        /// </summary>
+        private IAppLink AppLink
+            => services.GetService<IAppLink>() ?? new HttpAppLink(contextUser, permissionScope);
+
         public NavigationMenu GetNavigationRoot()
         {
             // Build the navigation on a dedicated, short-lived context instance instead of the shared
@@ -97,14 +107,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
             using (navContext as IDisposable)
             {
                 using var tmp = ConfigureNavigationAccess(navContext);
-                string explicitTenant = null;
-                if (permissionScope.IsScopeExplicit)
-                {
-                    explicitTenant = permissionScope.PermissionPrefix;
-                }
-
                 NavigationMenu retVal = new NavigationMenu();
-                retVal.Children.AddRange(SelectNavigation(navContext, null, explicitTenant).ToArray());
+                retVal.Children.AddRange(SelectNavigation(navContext, null).ToArray());
                 return retVal;
             }
         }
@@ -120,11 +124,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
         private ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> CreateDetachedContext()
             => contextFactory.Create<ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
 
-        private IEnumerable<NavigationMenu> SelectNavigation(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, int? parent, string explicitTenant)
+        private IEnumerable<NavigationMenu> SelectNavigation(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppUser, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> context, int? parent)
         {
             var items = SelectNavigationLevelRaw(context, parent);
             foreach (var item in items)
             {
+                var moduleUrl = AppLinkPath.Normalize(item.Url);
                 NavigationMenu ret = new NavigationMenu
                 {
                     DisplayName = item.DisplayName,
@@ -133,13 +138,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Nav
                     SortOrder = item.SortOrder ?? 0,
                     SpanClass = item.SpanClass,
                     Metadata = item.Metadata,
-                    Url = !string.IsNullOrEmpty(item.Url) ? $"{(!string.IsNullOrEmpty(explicitTenant) ? $"/{explicitTenant}" : "")}{(!item.Url.StartsWith("/") ? "/" : "")}{item.Url}" : ""
+                    ModuleUrl = moduleUrl,
+                    // Prefixing by hand is what used to happen here, and it only ever knew about the tenant:
+                    // culture and asset segment were silently dropped, which is how a pinned language did not
+                    // survive a menu click. The host knows how ITS links have to look - ask it.
+                    Url = AppLink.Resolve(moduleUrl)
                 };
                 
                 if ((!options.Value.CheckPermissions || string.IsNullOrEmpty(ret.RequiredPermission) || services.VerifyUserPermissions(new[] {ret.RequiredPermission})) &&
                     (!options.Value.CheckFeatures || string.IsNullOrEmpty(ret.RequiredFeature) || services.VerifyActivatedFeatures(new[]{ret.RequiredFeature}, out _)))
                 {
-                    ret.Children.AddRange(SelectNavigation(context, item.NavigationMenuId,explicitTenant).ToArray());
+                    ret.Children.AddRange(SelectNavigation(context, item.NavigationMenuId).ToArray());
                     if (!string.IsNullOrEmpty(item.Url))
                     {
                         var queryName = $"counter4{item.Url.Replace("/","_")}";

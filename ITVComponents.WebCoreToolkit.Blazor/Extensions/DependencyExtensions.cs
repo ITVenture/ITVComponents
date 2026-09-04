@@ -4,6 +4,7 @@ using ITVComponents.WebCoreToolkit.Blazor.Configuration;
 using ITVComponents.WebCoreToolkit.Blazor.Localization;
 using ITVComponents.WebCoreToolkit.Blazor.Resources;
 using ITVComponents.WebCoreToolkit.Blazor.Routing;
+using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Blazor.Security;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Builder;
@@ -60,6 +61,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Extensions
             services.AddHttpContextAccessor();
             services.AddScoped<BlazorContextUserProvider>();
             services.AddScoped<IContextUserProvider>(sp => sp.GetRequiredService<BlazorContextUserProvider>());
+            // Links built from stored data have to be relative on this host, because the base href carries
+            // every prefix and a root-absolute link would escape it (see CircuitAppLink). Registered here
+            // rather than in a call of its own: a host that has a Blazor context user IS the host whose links
+            // resolve against a base href. AddScoped, not TryAdd - it deliberately wins over the HTTP default
+            // the core package registers.
+            services.AddScoped<IAppLink, CircuitAppLink>();
             return services;
         }
 

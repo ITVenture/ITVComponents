@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Models;
+using ITVComponents.WebCoreToolkit.Routing;
 using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
@@ -18,6 +19,7 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         private readonly INavigationBuilder builder;
         private readonly IContextUserProvider userProvider;
         private readonly IEntityChangeSignal changeSignal;
+        private readonly IAppLink appLink;
         private NavigationMenu rootObject;
         private DateTime builtAtUtc;
 
@@ -31,6 +33,10 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         {
             this.builder = builder;
             this.userProvider = userProvider;
+            // Answers "which module is showing" in the same terms the menu entries are stored in, so the
+            // comparison stays immune to whatever prefixes the URL happens to carry. Optional for the same
+            // reason the builder's is: a host that never registered one keeps the old, path-based answer.
+            this.appLink = services.GetService<IAppLink>();
             // Optional: only present when the EntityWriteTracker is active (ActivationSettings.UseEntityTracker).
             this.changeSignal = services.GetService<IEntityChangeSignal>();
         }
@@ -59,9 +65,17 @@ namespace ITVComponents.WebCoreToolkit.Navigation
             get
             {
                 EnsureBuilt();
-                return FindByPath(rootObject.Children, userProvider.RequestPath);
+                return FindByPath(rootObject.Children, CurrentModuleUrl);
             }
         }
+
+        /// <summary>
+        /// The module url of the page showing - prefix-free, so it can be compared to a stored menu url.
+        /// Falls back to the raw request path where no <see cref="IAppLink"/> is registered, which is what
+        /// this used to be unconditionally: correct only as long as no prefix (culture, asset, tenant) stood
+        /// in front of the path.
+        /// </summary>
+        private string CurrentModuleUrl => appLink?.CurrentModuleUrl ?? userProvider.RequestPath;
 
         private void EnsureBuilt()
         {
@@ -94,8 +108,9 @@ namespace ITVComponents.WebCoreToolkit.Navigation
                     return childMatch;
                 }
 
-                if (!string.IsNullOrEmpty(node.Url) &&
-                    string.Equals(node.Url.TrimEnd('/'), path.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                var nodePath = string.IsNullOrEmpty(node.ModuleUrl) ? node.Url : node.ModuleUrl;
+                if (!string.IsNullOrEmpty(nodePath) &&
+                    string.Equals(nodePath.TrimEnd('/'), path.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
                 {
                     return node;
                 }
@@ -110,7 +125,7 @@ namespace ITVComponents.WebCoreToolkit.Navigation
         /// <returns>the root of the site-navigation</returns>
         private NavigationMenu BuildRootObject()
         {
-            var currentPath = userProvider.RequestPath;
+            var currentPath = CurrentModuleUrl;
             var retVal = builder.GetNavigationRoot();
             // Host-neutral: the request-localization middleware (MVC) and the Blazor circuit both set
             // CultureInfo.CurrentUICulture, so we no longer reach into HttpContext.Features here.
