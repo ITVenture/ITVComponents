@@ -209,6 +209,8 @@ select * from @vld", new SqlParameter("@name", name),
                 migrationBuilder.Sql($@"DROP PROCEDURE if exists [{schema}].[GetChildTenantsWithPermsByVpIdProc]");
                 // Effective-role closure TVF is referenced by the role-tree functions/procs above -> drop it after them.
                 migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetEffectiveTenantUserRoles]");
+                // Anchored downwards tree: used by the two role-tree procedures above -> drop it after them, too.
+                migrationBuilder.Sql($@"DROP FUNCTION if exists [{schema}].[GetDownwardsTenantTreeByTopmostId]");
 
             migrationBuilder.Sql($@"CREATE VIEW [{schema}].[UpwardsTenantTree]
 AS
@@ -233,6 +235,32 @@ WITH r AS (SELECT   TenantId AS TopmostTenantId, TenantName AS TopmostTenantName
                                                       r  ON r.ChildTenantId = u.ParentTenantId)
     SELECT   TopmostTenantId,TopmostTenantName, ChildTenantId, ChildTenantName, ChildLevel
      FROM         r");
+
+            // Derselbe Baum nach unten, aber mit dem obersten Mandanten als PARAMETER - also mit der
+            // Bedingung im ANKER statt hinterher.
+            //
+            // Die Sicht daneben bleibt, wie sie ist: kommt der Filter als Konstante, zieht der Planer
+            // ihn von sich aus in den Anker. Kommt er aus einem JOIN - so in den beiden
+            // Rollenbaum-Prozeduren, wo der Blickpunkt aus einer Tabellenvariablen stammt -, gelingt
+            // ihm das nicht, und er baut den ganzen Baum. Gemessen an 10 000 Mandanten: der Schritt,
+            // der die Kind-Mandanten des Blickpunkts einsammelt, kostete so 2,5 s statt 75 ms.
+            //
+            // Inline-TVF und nicht multi-statement: nur so wird sie in die aufrufende Abfrage
+            // hineingezogen und der Parameter wirkt bis in den Anker.
+            migrationBuilder.Sql($$"""
+                                   CREATE FUNCTION [{{schema}}].[GetDownwardsTenantTreeByTopmostId] (@topmostTenantId int)
+                                   RETURNS TABLE
+                                   AS RETURN (
+                                       WITH r AS (SELECT   TenantId AS TopmostTenantId, TenantName AS TopmostTenantName, TenantId AS ChildTenantId, TenantName AS ChildTenantName, 1 AS ChildLevel
+                                                  FROM         {{schema}}.Tenants
+                                                  WHERE        TenantId = @topmostTenantId
+                                                  UNION ALL
+                                                  SELECT   r_2.TopmostTenantId, r_2.TopmostTenantName, u.TenantId AS ChildTenantId, u.TenantName AS ChildTenantName, r_2.ChildLevel + 1 AS ChildLevel
+                                                  FROM         {{schema}}.Tenants AS u INNER JOIN
+                                                               r AS r_2 ON r_2.ChildTenantId = u.ParentTenantId)
+                                       SELECT   TopmostTenantId, TopmostTenantName, ChildTenantId, ChildTenantName, ChildLevel
+                                       FROM         r)
+                                   """);
 
             migrationBuilder.Sql($$"""
                                    create view [{{schema}}].[TenantAccessTreeDown] as 
@@ -373,7 +401,10 @@ inner join users u on u.id = tu.UserId");
                              	insert into @rawTree
                              	SELECT   ParentTenantId TopmostTenantId, ParentTenantName TopmostTenantName, ParentRoleId TopMostRoleId, a.OutermostLeafTenantId ViewpointTenantId, a.OutermostLeafTenantName ViewpointTenantName, d.childtenantid, d.ChildTenantName, d.ChildLevel, UserId, OutermostRoleId--OutermostLeafTenantId, OutermostLeafTenantName, ParentTenantId, parenttenantname, parentlevel, tu.TenantUserId, u.id as UserId, OutermostRole OutermostRoleId
                              	from @resultingUpTree a
-                             	inner join downwardstenanttree d on d.TopmostTenantId = OutermostLeafTenantId
+                             	-- Anker-Fix: cross apply statt join auf die Sicht. Der Blickpunkt steht in einer
+                             	-- Tabellenvariablen, und aus einem Join heraus zieht der Planer die Bedingung nicht in
+                             	-- den Anker - er baute den ganzen Abwaertsbaum (2,5 s statt 75 ms bei 10 000 Mandanten).
+                             	cross apply [{{schema}}].[GetDownwardsTenantTreeByTopmostId](a.OutermostLeafTenantId) d
                              	;
                              
                              	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where s.TenantId in (select ChildTenantId from @rawtree)
@@ -385,14 +416,20 @@ inner join users u on u.id = tu.UserId");
                              inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent)
                              
                              
-                             SELECT   d.ViewpointTenantId, d.ViewpointTenantName, r.ParentTenantId TopmostTenantId, parenttenantname TopmostTenantName, OutermostLeafTenantId ChildTenantId, OutermostLeafTenantName ChildTenantName, tu.TenantUserId, u.id as UserId, r.RoleId ResultingChildRoleId, d.ChildLevel, parentlevel TopmostParentLevel from UpwardsTenantTree t
-                             inner join r on r.TenantId = t.OutermostLeafTenantId and r.ParentTenantId = t.ParentTenantId
-                             inner join TenantUsers tu on tu.TenantId = t.ParentTenantId
+                             -- Ohne Join auf den Aufwaertsbaum: r geht je Rekursionsschritt genau eine
+                             -- Mandanten-Ebene hoch (pr.TenantId = r_2.nextparent), also IST r.level der
+                             -- ParentLevel des Paares (r.TenantId, r.ParentTenantId), und die beiden Namen stehen
+                             -- in Tenants. Der Join holte nur diese drei Werte - und kostete dafuer den ganzen
+                             -- Baum: 2,0 s statt 105 ms bei 10 000 Mandanten, bei zeilengleichem Ergebnis.
+                             SELECT   d.ViewpointTenantId, d.ViewpointTenantName, r.ParentTenantId TopmostTenantId, ptn.TenantName TopmostTenantName, r.TenantId ChildTenantId, ctn.TenantName ChildTenantName, tu.TenantUserId, u.id as UserId, r.RoleId ResultingChildRoleId, d.ChildLevel, r.level TopmostParentLevel from r
+                             inner join Tenants ctn on ctn.TenantId = r.TenantId
+                             inner join Tenants ptn on ptn.TenantId = r.ParentTenantId
+                             inner join TenantUsers tu on tu.TenantId = r.ParentTenantId
                              inner join Users u on u.id = tu.UserId
                              inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
                              inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
                              cross apply (select top 1 1 as m from [{{schema}}].[GetEffectiveTenantUserRoles](tu.TenantUserId) er where er.RoleId = pr.RoleId) tur
-                             inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = OutermostLeafTenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
+                             inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = r.TenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
                              
                              end
                              """;
@@ -527,7 +564,8 @@ inner join users u on u.id = tu.UserId");
                 	insert into @rawTree
                 	SELECT   ParentTenantId TopmostTenantId, ParentTenantName TopmostTenantName, ParentRoleId TopMostRoleId, a.OutermostLeafTenantId ViewpointTenantId, a.OutermostLeafTenantName ViewpointTenantName, d.childtenantid, d.ChildTenantName, d.ChildLevel, UserId, OutermostRoleId--OutermostLeafTenantId, OutermostLeafTenantName, ParentTenantId, parenttenantname, parentlevel, tu.TenantUserId, u.id as UserId, OutermostRole OutermostRoleId
                 	from @resultingUpTree a
-                	inner join downwardstenanttree d on d.TopmostTenantId = OutermostLeafTenantId
+                	-- Anker-Fix, siehe GetDownwardsRoleTreeProc.
+                	cross apply [{{schema}}].[GetDownwardsTenantTreeByTopmostId](a.OutermostLeafTenantId) d
                 	;
              
                 	with r as (select s.RoleId, s.RoleId ParentRoleId, s.TenantId, s.TenantId ParentTenantId, st.ParentTenantId as nextparent, s.RoleId as nextChildRole, level = 1 from SecurityRoles s inner join Tenants st on st.TenantId = s.TenantId where s.TenantId in (select ChildTenantId from @rawtree)
@@ -539,14 +577,16 @@ inner join users u on u.id = tu.UserId");
              inner join Tenants pt on pt.TenantId = pr.TenantId and pr.TenantId = r_2.nextparent)
              
              
-             SELECT   d.ViewpointTenantId, d.ViewpointTenantName, r.ParentTenantId TopmostTenantId, parenttenantname TopmostTenantName, OutermostLeafTenantId ChildTenantId, OutermostLeafTenantName ChildTenantName, tu.TenantUserId, u.id as UserId, r.RoleId ResultingChildRoleId, d.ChildLevel, parentlevel TopmostParentLevel from UpwardsTenantTree t
-             inner join r on r.TenantId = t.OutermostLeafTenantId and r.ParentTenantId = t.ParentTenantId
-             inner join TenantUsers tu on tu.TenantId = t.ParentTenantId
+             -- Ohne Join auf den Aufwaertsbaum, siehe GetDownwardsRoleTreeProc.
+             SELECT   d.ViewpointTenantId, d.ViewpointTenantName, r.ParentTenantId TopmostTenantId, ptn.TenantName TopmostTenantName, r.TenantId ChildTenantId, ctn.TenantName ChildTenantName, tu.TenantUserId, u.id as UserId, r.RoleId ResultingChildRoleId, d.ChildLevel, r.level TopmostParentLevel from r
+             inner join Tenants ctn on ctn.TenantId = r.TenantId
+             inner join Tenants ptn on ptn.TenantId = r.ParentTenantId
+             inner join TenantUsers tu on tu.TenantId = r.ParentTenantId
              inner join Users u on u.id = tu.UserId
              inner join SecurityRoles cr on cr.TenantId = r.TenantId and cr.RoleId = r.RoleId
              inner join SecurityRoles pr on pr.TenantId = r.ParentTenantId and pr.RoleId = r.ParentRoleId
              cross apply (select top 1 1 as m from [{{schema}}].[GetEffectiveTenantUserRoles](tu.TenantUserId) er where er.RoleId = pr.RoleId) tur
-             inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = OutermostLeafTenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
+             inner join @rawtree d on d.TopmostTenantId = r.ParentTenantId and d.ChildTenantId = r.TenantId and d.UserId = u.Id and d.TopmostRoleId = pr.RoleId
              
              end
              """;
