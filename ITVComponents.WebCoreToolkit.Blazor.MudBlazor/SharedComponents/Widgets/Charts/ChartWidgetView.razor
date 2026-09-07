@@ -36,7 +36,7 @@ else if (Panels.Count == 1 && Panels[0].DeclaredWidth == null)
 {
     @* Der Regelfall - ein Diagramm, dessen Breite sich nach der Kachel richtet. Ohne Mantel, damit eine
        bestehende Kachel exakt so aussieht wie vorher. *@
-    @Panel(Panels[0])
+    @Panel(0)
 }
 else if (Panels.Count == 1)
 {
@@ -44,7 +44,7 @@ else if (Panels.Count == 1)
        ganze Kachelbreite ein, und die mittig gesetzte Ueberschrift stuende ueber der Kachel statt ueber
        dem Diagramm. *@
     <div style="@SizeStyle(Panels[0], flexChild: false)">
-        @Panel(Panels[0])
+        @Panel(0)
     </div>
 }
 else
@@ -53,10 +53,13 @@ else
        ausrichten (siehe RowStyle). Es bricht genauso um wie vorher, nur eben in Rasterzeilen - und
        innerhalb einer solchen Zeile teilen sich alle Diagramme dieselben zwei Baender. *@
     <div style="@RowStyle">
-        @foreach (ChartWidgetPanel panel in Panels)
+        @for (int i = 0; i < Panels.Count; i++)
         {
-            <div class="pa-1" style="@SizeStyle(panel, flexChild: true)">
-                @Panel(panel)
+            @* Die Stelle in einer eigenen Variablen: sie geht in ein Lambda (siehe Panel), und die
+               Laufvariable einer for-Schleife traegt beim Auswerten schon den naechsten Wert. *@
+            int position = i;
+            <div class="pa-1" style="@SizeStyle(Panels[position], flexChild: true)">
+                @Panel(position)
             </div>
         }
     </div>
@@ -238,8 +241,9 @@ else
     /// Ein einzelnes Diagramm - oder, wenn an ihm etwas nicht stimmt, dessen Meldung an seinem Platz. Die
     /// uebrigen Diagramme der Kachel bleiben davon unberuehrt.
     /// </summary>
-    private RenderFragment<ChartWidgetPanel> Panel => panel =>
+    private RenderFragment<int> Panel => position =>
         @<text>
+            @{ ChartWidgetPanel panel = Panels[position]; }
             @* Die Ueberschrift steht IMMER in einem eigenen Block - auch wenn es keine gibt. Er ist der
                Ausgleich, mit dem die Diagramme einer Zeile buendig werden (siehe CaptionStyle). *@
             <div style="@CaptionStyle">
@@ -274,7 +278,8 @@ else
                               ChartType="@panel.Declaration.Type"
                               ChartLabels="@panel.LabelTexts"
                               ChartSeries="@panel.Declaration.Series"
-                              SelectedIndexChanged="@(index => OnSelected(panel, index))"
+                              SelectedIndex="@SelectionOf(position)"
+                              SelectedIndexChanged="@(index => OnSelected(position, index))"
                               @attributes="@panel.Parameters">
                         @* Immer gesetzt, auch wenn die Liste leer ist: eine zweite Markup-Fassung "mit"
                            und "ohne" waere derselbe Aufruf zweimal - und beim naechsten Parameter waere
@@ -326,12 +331,69 @@ else
     private const string ChartBlockStyle = "align-self: start;";
 
     /// <summary>
+    /// Was wir dem jeweiligen Diagramm als Auswahl HINEINgeben - nie eine echte Kategorie, sondern
+    /// abwechselnd <c>-1</c> und <c>-2</c>, damit der naechste Klick als Aenderung ankommt.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// MudBlazor meldet einen Klick nur ueber <c>SelectedIndexChanged</c>, und das feuert ausschliesslich
+    /// bei einem GEAENDERTEN Index: <c>Donut.razor</c> ruft <c>SetSelectedIndexAsync(i)</c>, das landet in
+    /// <c>ParameterStateInternal.SetValueAsync</c>, und dort steht
+    /// <c>if (!_comparer.Equals(_value, value))</c>. Ohne eigenen Wert startet <c>SelectedIndex</c> bei 0 -
+    /// der Klick auf die ERSTE Kategorie kam damit nie an. Bei einem Diagramm, dessen Kategorien auf
+    /// verschiedene Seiten zeigen, ist das der Unterschied zwischen "der Ring reagiert nicht" und "er
+    /// reagiert".
+    /// </para>
+    /// <para>
+    /// <b>Warum abwechselnd und nicht einfach immer -1:</b> was von aussen hereinkommt, vergleicht
+    /// MudBlazor gegen den ZULETZT GELIEFERTEN Parameterwert und nicht gegen den inneren Stand
+    /// (<c>ParameterStateInternal.OnParametersSet</c>: <c>if (!_comparer.Equals(_lastValue,
+    /// currentParameterValue))</c>). Ein unveraendertes -1 waere also gar keine Aenderung, der innere Wert
+    /// bliebe auf der geklickten Kategorie stehen - und der naechste Klick auf DIESELBE waere wieder
+    /// stumm. Erst der Wechsel zwischen zwei ungueltigen Werten setzt ihn verlaesslich zurueck.
+    /// </para>
+    /// <para>
+    /// Negative Werte sind gefahrlos: der Donut vergleicht die Auswahl nirgends und greift mit ihr auf
+    /// nichts zu - er meldet sie nur. Eine Hervorhebung des geklickten Segments geht also nicht verloren,
+    /// es gibt keine.
+    /// </para>
+    /// </remarks>
+    private int[] selection = Array.Empty<int>();
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Die Auswahl gehoert zur Anzahl der Diagramme: kommt eine andere Konfiguration herein, faengt sie
+    /// wieder bei -1 an. Gleich viele Diagramme lassen sie stehen - ein Neuaufbau derselben Kachel soll
+    /// den gerade laufenden Klick nicht ueberholen.
+    /// </remarks>
+    protected override void OnParametersSet()
+    {
+        if (selection.Length != Panels.Count)
+        {
+            selection = new int[Panels.Count];
+            Array.Fill(selection, -1);
+        }
+    }
+
+    /// <summary>Was das Diagramm an dieser Stelle gerade als Auswahl bekommt.</summary>
+    private int SelectionOf(int position)
+        => position >= 0 && position < selection.Length ? selection[position] : -1;
+
+    /// <summary>
     /// Klick auf ein Segment oder einen Legendeneintrag. Der Regelfall ist der Sprung auf eine Seite;
     /// ohne Ziel bleibt es bei der Aktion, die eine Anwendung ueber OnWidgetAction bekommt - dasselbe,
     /// was ein HTML-Template ueber data-widget-action ausloest.
     /// </summary>
-    private void OnSelected(ChartWidgetPanel panel, int index)
+    private void OnSelected(int position, int index)
     {
+        // VOR jedem Ausstieg: auch ein Klick, der hier nichts ausloest (kein Ziel, keine Aktion), muss die
+        // Auswahl zuruecksetzen - sonst ist genau diese Kategorie fuer den Rest der Sitzung stumm.
+        if (position >= 0 && position < selection.Length)
+        {
+            selection[position] = selection[position] == -1 ? -2 : -1;
+        }
+
+        ChartWidgetPanel panel = Panels[position];
         ChartWidgetDeclaration? declaration = panel.Declaration;
         if (declaration is null || index < 0 || index >= declaration.Labels.Count)
         {

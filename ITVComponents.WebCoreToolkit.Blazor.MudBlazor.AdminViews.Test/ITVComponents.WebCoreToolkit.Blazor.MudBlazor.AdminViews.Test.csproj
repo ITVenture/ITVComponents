@@ -14,6 +14,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <!-- bUnit rendert eine Komponente wirklich und laesst sich anklicken. Noetig, weil die Fehler dieser
+         Schicht genau dort sitzen, wo eine Deklaration allein nichts mehr beweist: der Klickweg eines
+         Diagramms lief ueber MudBlazor, und die Deklaration war dabei die ganze Zeit richtig. -->
+    <PackageReference Include="bunit" Version="2.9.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.csproj" />
