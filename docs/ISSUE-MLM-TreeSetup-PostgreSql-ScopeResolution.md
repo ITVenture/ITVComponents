@@ -229,9 +229,22 @@ lesenden liefern `null` und schreiben den Grund ins Log. Zusätzlich prüft
 klemmt mit einer Warnung auf den ersten zulässigen Scope, statt den Wert ungeprüft weiterzureichen.
 
 **b) Leer wird neu ermittelt** — `eligibles is not { Length: > 0 }` statt `== null`. Kommt die
-Auflösung erneut leer zurück, steht das jetzt als Warnung im Log, mit den Kennzeichen. Ein Benutzer,
+Auflösung erneut leer zurück, steht das als Warnung im Log, mit den Kennzeichen. Ein Benutzer,
 der wirklich in keinem Mandanten ist, zahlt dafür mit einer Abfrage je Auflösung — der seltene Fall,
 und der ehrliche.
+
+Diese Warnung war zunächst zu breit gefasst und feuerte bei **jeder anonymen Anfrage** mit leerer
+Kennzeichen-Liste — also genau die harmlose Meldung, die eine Fehlersuche an die falsche Stelle
+schickt. Nachgezogen: `GetUserLabels` meldet nur AUTHENTIFIZIERTE Identitäten, leere Kennzeichen
+heissen also „niemand angemeldet“ — das bleibt stumm. Ist dagegen jemand angemeldet und es kommt
+trotzdem kein Kennzeichen heraus, gibt es dafür eine eigene Meldung, die den `IUserNameMapper`,
+die Authentifizierungsarten und die `IIdentity.Name` der Identitäten nennt. Das ist der Fall, der
+vorher gar keine Spur hinterliess, weil beide Wege dasselbe `null` zurückgeben.
+
+**Zum Lesen der Meldung:** eine leere Kennzeichen-Liste bedeutet, dass die Datenbank gar nicht
+gefragt wurde — `GetEligibleScopes` iteriert über genau diese Liste. Wer `[]` im Log sieht, sucht
+also nicht im Mandantenbaum, sondern beim Benutzer im Kontext. Die Meldung, die auf die Datenbank
+zeigt, ist die mit ausgeschriebenen Kennzeichen.
 
 **c) Gleiche Frage, gleiche Antwort** — der case-sensitive Vergleich auf `:218` ist weg; alle drei
 Stellen vergleichen `OrdinalIgnoreCase`.

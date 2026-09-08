@@ -194,6 +194,26 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 string retVal = scopeToken.ScopeName;
                 if (scopeToken.UserLabels.Length == 0)
                 {
+                    // No labels is the normal state of an anonymous request and stays quiet. If somebody IS
+                    // signed in and there is still no label, the IUserNameMapper yielded nothing for that
+                    // identity — a misconfiguration that locks the user out of every tenant and would
+                    // otherwise leave no trace whatsoever, because this returns the same null either way.
+                    if (identities != null && identities.Any(n => n.IsAuthenticated))
+                    {
+                        // Name the mapper and the identity's Name: with SimpleUserNameMapper the label IS
+                        // IIdentity.Name, so an empty label means that name is empty — which for a
+                        // ClaimsIdentity means its NameClaimType names a claim the identity does not carry.
+                        // That is a configuration detail nobody would guess from a missing tenant.
+                        var mapper = contextUser.Services.GetService<IUserNameMapper>();
+                        logger.LogWarning(
+                            "A signed-in user produced no user labels. {Mapper} returned nothing for the authenticated identities (authentication types: {AuthenticationTypes}; identity names: {IdentityNames}), so no scope can be resolved.",
+                            mapper?.GetType().Name ?? "No IUserNameMapper",
+                            string.Join(", ", identities.Where(n => n.IsAuthenticated)
+                                .Select(n => n.AuthenticationType ?? "<none>")),
+                            string.Join(", ", identities.Where(n => n.IsAuthenticated)
+                                .Select(n => string.IsNullOrEmpty(n.Name) ? "<empty>" : n.Name)));
+                    }
+
                     return null;
                 }
 
@@ -372,11 +392,18 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 scopeToken.UserLabels = lbl;
                 eligibles = GetEligibleScopes(out secc, lbl);
                 scopeToken.EligibleScopes = eligibles;
-                if (eligibles is not { Length: > 0 })
+
+                // Only worth a word when there was somebody to look up. GetUserLabels reports
+                // AUTHENTICATED identities only, so no labels means nobody is signed in — the ordinary
+                // anonymous request, which every page serves before a login and which is not a lookup that
+                // failed. Warning on those buries the case that does deserve attention: a signed-in user
+                // for whom the database returns no tenant at all.
+                var labels = lbl.SelectMany(n => n.UserLabels).ToArray();
+                if (eligibles is not { Length: > 0 } && labels.Length != 0)
                 {
                     logger.LogWarning(
                         "No eligible scopes for user labels [{UserLabels}]. The user cannot switch to any tenant; only tenant-neutral pages remain reachable.",
-                        string.Join(", ", lbl.SelectMany(n => n.UserLabels)));
+                        string.Join(", ", labels));
                 }
             }
             return scopeToken;
