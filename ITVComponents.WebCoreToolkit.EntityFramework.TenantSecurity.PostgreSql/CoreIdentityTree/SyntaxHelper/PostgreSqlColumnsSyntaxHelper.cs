@@ -326,6 +326,16 @@ WHERE x.""__rnk"" = 1"));
         }
 
         /// <summary>
+        /// Raeumt die Baum-Objekte weg. Oeffentlich, weil das <c>Down</c> der Migration sie loswerden muss,
+        /// bevor es an die Tabellen geht: PostgreSQL verweigert das Loeschen einer Tabelle, solange eine
+        /// Sicht darauf steht.
+        /// </summary>
+        public static void DropViews(MigrationBuilder migrationBuilder, string schema = "public")
+        {
+            DropExistingObjects(migrationBuilder, schema);
+        }
+
+        /// <summary>
         /// Raeumt die Objekte weg, bevor sie neu entstehen - damit ein erneuter Lauf auf einer
         /// bestehenden Datenbank durchgeht und nicht an einem schon vorhandenen Objekt scheitert.
         /// </summary>
@@ -653,9 +663,22 @@ WHERE x.""__rnk"" = 1"));
 
             // Ueber Kennzeichen: die Liste kommt als JSON-Feld herein und wird zu Zeilen aufgefaltet.
             // openjson(@UserId) with ([value] nvarchar(150) '$') heisst hier json_array_elements_text.
+            //
+            // Das upper() ist NICHT Zierde. Verglichen werden hier zwei verschiedene Spalten-Welten: links
+            // steht "NormalizedUserName" (die grossgeschriebene Fassung), rechts kommt an, was
+            // IIdentity.Name liefert - der Benutzername in seiner GESPEICHERTEN Schreibweise, in aller
+            // Regel klein. Die T-SQL-Vorlage vergleicht genauso roh und kommt nur davon, weil ihre
+            // Standard-Sortierfolge case-insensitiv ist. PostgreSQL vergleicht exakt: ohne upper() liefert
+            // die Funktion null Zeilen, die Liste der zulaessigen Mandanten bleibt leer, und der Benutzer
+            // kann in keinen einzigen Mandanten wechseln.
+            //
+            // upper() und nicht lower() auf beiden Seiten, damit ein Index auf "NormalizedUserName"
+            // benutzbar bleibt. Das setzt voraus, dass der ILookupNormalizer grossschreibt - das tut der
+            // UpperInvariantLookupNormalizer von ASP.NET Core Identity, der Standard. Wer einen eigenen
+            // Normalizer einhaengt, der anders normalisiert, muss diese Zeile mitziehen.
             var labelJoin = byLabels
                 ? $@"
-    INNER JOIN json_array_elements_text(p_user_id::json) uta ON u.""NormalizedUserName"" = uta.value"
+    INNER JOIN json_array_elements_text(p_user_id::json) uta ON u.""NormalizedUserName"" = upper(uta.value)"
                 : string.Empty;
             var userFilter = byLabels
                 ? $"({resultLeafFilter})"

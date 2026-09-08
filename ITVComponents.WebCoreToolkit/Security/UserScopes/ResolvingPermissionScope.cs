@@ -205,23 +205,61 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 {
                     // The route may only override to a scope the user is actually eligible for. This check is
                     // the tenant-isolation gate and is intentionally identical for every strategy.
-                    if (scopeToken.EligibleScopes.Any(n =>
-                            n.ScopeName.Equals(ov, StringComparison.OrdinalIgnoreCase)))
+                    //
+                    // What travels on from here is the ELIGIBLE scope's own spelling, not the one the route
+                    // happened to use. The gate is deliberately case-insensitive, but everything downstream
+                    // compares the scope name as a plain value — above all the tree functions in the
+                    // database, and PostgreSQL compares exactly. A route saying "t001" for a tenant stored
+                    // as "T001" would otherwise pass the gate here and resolve to nothing at all further
+                    // down, which reads like a permission problem and is none.
+                    var routeScope = scopeToken.EligibleScopes.FirstOrDefault(n =>
+                        n.ScopeName.Equals(ov, StringComparison.OrdinalIgnoreCase));
+                    if (routeScope != null)
                     {
-                        UpdateToken(ov, scopeToken, secc, isNew, false, true);
+                        UpdateToken(routeScope.ScopeName, scopeToken, secc, isNew, false, true);
                         IsScopeExplicit = true;
-                        return ov;
+                        return routeScope.ScopeName;
                     }
                 }
 
                 IsScopeExplicit = false;
-                var invalidTenant = scopeToken.EligibleScopes.All(n => n.ScopeName != retVal);
+                // Case-insensitively, like the route gate above and like every lookup in UserScope. This
+                // comparison used to be the one case-SENSITIVE answer to a question the same request
+                // answers three times; on PostgreSQL, where names keep their spelling reliably, that
+                // difference is the one that shows.
+                var currentEligible = scopeToken.EligibleScopes.FirstOrDefault(n =>
+                    n.ScopeName.Equals(retVal, StringComparison.OrdinalIgnoreCase));
                 if (string.IsNullOrEmpty(retVal) ||
-                    invalidTenant)
+                    currentEligible == null)
                 {
                     retVal = DefaultScopeExpression(contextUser, scopeToken.EligibleScopes);
                     logger.LogDebug($"Default-Value of current scope: {retVal}");
+
+                    // DefaultScopeExpression is a HOST delegate — nothing about it guarantees that what it
+                    // yields is one of the eligible scopes. The common implementation reads a claim (a
+                    // "default tenant"), while eligibility comes from the database; the two disagree as soon
+                    // as the claim outlives the membership, or as soon as the eligible set comes back empty
+                    // for an unrelated reason. Unchecked, that mismatch did not surface here at all: it
+                    // travelled on into UserScope.First and came out as "Sequence contains no matching
+                    // element", naming neither the scope asked for nor the ones on offer, on whichever
+                    // component happened to ask first.
+                    currentEligible = scopeToken.EligibleScopes.FirstOrDefault(n =>
+                        n.ScopeName.Equals(retVal, StringComparison.OrdinalIgnoreCase));
+                    if (!string.IsNullOrEmpty(retVal) && currentEligible == null)
+                    {
+                        currentEligible = scopeToken.EligibleScopes.FirstOrDefault();
+                        logger.LogWarning(
+                            "The default scope '{RequestedScope}' is not among the eligible scopes ({EligibleScopes}). Falling back to '{FallbackScope}'.",
+                            retVal,
+                            scopeToken.EligibleScopes.Length != 0
+                                ? string.Join(", ", scopeToken.EligibleScopes.Select(n => n.ScopeName))
+                                : "none",
+                            currentEligible?.ScopeName ?? "<none>");
+                    }
                 }
+
+                // Either way the canonical spelling wins from here on.
+                retVal = currentEligible?.ScopeName;
 
                 // A user who is a member of no tenant has no eligible scope to resolve to (the default
                 // expression yields null/empty over an empty EligibleScopes set). There is nothing to push to
@@ -323,11 +361,23 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
                 secc = GetSecurityRepo();
             }
 
-            if (eligibles == null)
+            // Empty is not the same as "resolved, nothing to do" — it is a lookup that came back with
+            // nothing, and asking again is the only way to tell the two apart. Treating a non-null but
+            // EMPTY set as an answer meant it stayed put until the token expired (RenewalMinutes), so a
+            // single failed lookup locked the user out of every tenant for that whole window and repeated
+            // the same unhelpful error instead of recovering. A user who really is in no tenant pays for
+            // this with one query per resolution — which is the rare case, and the honest one.
+            if (eligibles is not { Length: > 0 })
             {
                 scopeToken.UserLabels = lbl;
                 eligibles = GetEligibleScopes(out secc, lbl);
                 scopeToken.EligibleScopes = eligibles;
+                if (eligibles is not { Length: > 0 })
+                {
+                    logger.LogWarning(
+                        "No eligible scopes for user labels [{UserLabels}]. The user cannot switch to any tenant; only tenant-neutral pages remain reachable.",
+                        string.Join(", ", lbl.SelectMany(n => n.UserLabels)));
+                }
             }
             return scopeToken;
         }

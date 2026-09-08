@@ -1,4 +1,5 @@
 ﻿using System;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.PostgreSql.SyntaxHelper;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -2268,11 +2269,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.PostgreSql
                 name: "IX_Widgets_DiagnosticsQueryId",
                 table: "Widgets",
                 column: "DiagnosticsQueryId");
+
+            // Die 17 Baum-Objekte gehoeren zum selben Schritt wie die Tabellen. Ohne sie steht zwar das
+            // Schema, aber jede Mandanten-Aufloesung laeuft ins Leere - GetEligibleScopes verbindet gegen
+            // GetUpwardsRoleTreeForLabels, und die gibt es dann gar nicht. Auf SQL Server liegt derselbe
+            // Aufruf in einer eigenen Migration (SetViewCode), weil er dort nachtraeglich dazukam; hier
+            // steht er im Initial-Build, damit eine frische Datenbank in einem Zug vollstaendig ist.
+            //
+            // ConfigureViews raeumt zuerst weg und legt dann neu an, ist also auch auf einer bestehenden
+            // Datenbank wiederholbar. Aenderungen an den Objekten gehoeren deshalb in den Syntax-Helper und
+            // brauchen keine eigene Migration - ein erneuter Lauf traegt sie mit.
+            PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Zuerst die Sichten und Funktionen: PostgreSQL verweigert das Loeschen einer Tabelle,
+            // solange eine Sicht darauf steht.
+            PostgreSqlColumnsSyntaxHelper.DropViews(migrationBuilder);
+
             migrationBuilder.DropTable(
                 name: "AppPermissions");
 

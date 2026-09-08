@@ -83,17 +83,27 @@ namespace ITVComponents.WebCoreToolkit.Tests
     /// </summary>
     internal sealed class FakeSecurityRepository : ISecurityRepository
     {
-        private readonly string[] eligible;
-
         public FakeSecurityRepository(params string[] eligibleScopes)
         {
-            eligible = eligibleScopes;
+            EligibleScopeNames = eligibleScopes;
         }
+
+        /// <summary>
+        /// The eligible scopes this repository reports. Settable so a test can model a lookup that comes
+        /// back empty once and yields something on the next attempt.
+        /// </summary>
+        public string[] EligibleScopeNames { get; set; }
+
+        /// <summary>How often the eligible scopes were actually asked for.</summary>
+        public int EligibleScopeQueries { get; private set; }
 
         public List<string> PermissionScopesQueried { get; } = new List<string>();
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
-            => eligible.Select(s => new ScopeInfo { ScopeName = s, ScopeDisplayName = s });
+        {
+            EligibleScopeQueries++;
+            return EligibleScopeNames.Select(s => new ScopeInfo { ScopeName = s, ScopeDisplayName = s });
+        }
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
         {
