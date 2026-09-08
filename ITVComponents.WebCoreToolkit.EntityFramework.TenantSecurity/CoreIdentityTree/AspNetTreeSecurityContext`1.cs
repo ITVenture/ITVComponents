@@ -1000,7 +1000,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         [ExpressionPropertyRedirect("CurrentTenantTree")]
         public IQueryable<int> CurrentTenantTree => IncludeParentTree
             ? (from t in UpwardsTenantTreeView
-                where t.OutermostLeafTenantName == CurrentTenant
+                where t.OutermostLeafTenantName.ToLower() == CurrentTenant
                 orderby t.ParentLevel
                 select t.ParentTenantId)
             : Array.Empty<int>().AsQueryable();

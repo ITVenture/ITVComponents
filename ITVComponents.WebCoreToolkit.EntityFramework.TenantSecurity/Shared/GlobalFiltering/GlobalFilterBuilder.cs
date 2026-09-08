@@ -83,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Glo
                 o.ConfigureGlobalFilter<TWebPluginConstant>(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName.ToLower() == CurrentTenant || wc.TenantId == null && !HideGlobals);
                 o.ConfigureGlobalFilter<TWidget>(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
                 o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) && uw.Tenant.TenantName == CurrentTenant && uw.UserName == CurrentUserName));
+                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) && uw.Tenant.TenantName.ToLower() == CurrentTenant && uw.UserName == CurrentUserName));
                 o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TClientAppUser>(ca => ShowAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);

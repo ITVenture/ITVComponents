@@ -212,7 +212,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
                     return currentTenantId;
                 }
 
-                bufferedTenantName = tenantProvider.PermissionPrefix;
+                // Store what the comparison above reads: CurrentTenant is lowered, PermissionPrefix is not.
+                // Buffering the raw name made the check always false for any tenant that is not written in
+                // lower case - the buffer never hit and every read went to the database.
+                bufferedTenantName = CurrentTenant;
                 return currentTenantId = Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantProvider.PermissionPrefix.ToLower())?.TenantId;
             }
         }
