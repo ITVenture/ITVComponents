@@ -113,7 +113,7 @@ namespace ITVComponents.SettingsExtensions
                     }
                     else
                     {
-                        LogEnvironment.LogEvent($"Settings-Verweis ':-->{key}' konnte nicht aufgeloest werden: der Schluessel ist nicht gesetzt und es wurde kein Vorgabewert (??) angegeben.", LogSeverity.Warning);
+                        LogEnvironment.LogEvent($"Unable to resolve settings-reference ':-->{key}': the key is not set and no default (??) was provided.", LogSeverity.Warning);
                     }
                 }
 

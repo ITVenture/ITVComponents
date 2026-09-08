@@ -1,7 +1,7 @@
 # Issue: `:-->`-Auflösung auch für die WebPart-Assembly-Liste (Anstoß aus MLM)
 
 **Status:** UMGESETZT (2026-09-08) — alle vier Punkte inkl. Nebenbefund umgesetzt,
-siehe „Umsetzung“ am Ende. Enthalten ab der auf `5.0.0-PRE214` folgenden Version. Offen ist nur noch
+siehe „Umsetzung“ am Ende. Enthalten ab `5.0.0-PRE215`. Offen ist nur noch
 konsumentenseitig: der Behelf in `MLMManager.Web/Program.cs` kann ersatzlos entfallen, sobald MLM auf
 das neue Paket zieht.
 **Datum:** 2026-09-08
