@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
@@ -8,6 +10,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Settings
 {
@@ -57,11 +60,61 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             using var lease = LeaseDb();
             var dbContext = lease.Context;
-            return (from t in dbContext.UpwardsTenantTreeView
+            var retVal = (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                 where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                 orderby t.ParentLevel
                 select s).FirstOrDefault()?.SettingsValue;
+            if (retVal == null)
+            {
+                DescribeMiss(dbContext, key, true);
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Writes down WHY a settings lookup came back with nothing. The join has three inputs that can each be
+        /// empty on their own - the upwards tree, the settings rows for the key, and the current tenant the tree
+        /// is walked from - and from the outside all three produce the same silence, which a caller then reports
+        /// as "the setting is not configured".
+        /// </summary>
+        /// <remarks>
+        /// Deliberately only on the miss path: the counting queries are not free, and on the hit path there is
+        /// nothing to explain. Both counts are taken twice, once as the caller sees them and once with
+        /// <c>IgnoreQueryFilters</c>. That pair is the point of the whole method - if the row appears only in
+        /// the unfiltered count, the setting exists and something is filtering it away, which is a different
+        /// problem entirely from a row that is not there.
+        /// </remarks>
+        private void DescribeMiss(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext, string key, bool jsonSetting)
+        {
+            try
+            {
+                var treeRows = dbContext.UpwardsTenantTreeView.Count();
+                var treeRowsUnfiltered = dbContext.UpwardsTenantTreeView.IgnoreQueryFilters().Count();
+                var keyRows = dbContext.TenantSettings.Count(n => n.SettingsKey == key && n.JsonSetting == jsonSetting);
+                var keyRowsUnfiltered = dbContext.TenantSettings.IgnoreQueryFilters()
+                    .Count(n => n.SettingsKey == key && n.JsonSetting == jsonSetting);
+                var matches = string.Join("; ", dbContext.TenantSettings.IgnoreQueryFilters()
+                    .Where(n => n.SettingsKey == key)
+                    .Select(n => new { n.TenantId, n.JsonSetting, n.Inheritable })
+                    .Take(10).ToList()
+                    .Select(n => $"TenantId={n.TenantId},Json={n.JsonSetting},Inheritable={n.Inheritable}"));
+
+                LogEnvironment.LogDebugEvent(
+                    $"Tenant-setting '{key}' (JsonSetting={jsonSetting}) resolved to nothing. CurrentTenantId={dbContext.CurrentTenantId?.ToString() ?? "<null>"}; " +
+                    $"UpwardsTenantTree rows={treeRows} (unfiltered {treeRowsUnfiltered}); matching TenantSettings rows={keyRows} (unfiltered {keyRowsUnfiltered}); " +
+                    $"rows for that key: [{(string.IsNullOrEmpty(matches) ? "none" : matches)}]",
+                    LogSeverity.Report);
+            }
+            catch (Exception ex)
+            {
+                // The explanation must never be worse than the thing it explains: a caller asking for an
+                // optional setting is not going to be failed because the diagnosis could not be produced.
+                LogEnvironment.LogEvent(
+                    $"Unable to diagnose why tenant-setting '{key}' resolved to nothing: {ex.OutlineException()}",
+                    LogSeverity.Warning);
+            }
         }
 
         /// <summary>
@@ -73,11 +126,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             using var lease = LeaseDb();
             var dbContext = lease.Context;
-            return (from t in dbContext.UpwardsTenantTreeView
+            var retVal = (from t in dbContext.UpwardsTenantTreeView
                 join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                 where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                     orderby t.ParentLevel
                 select s).FirstOrDefault()?.SettingsValue;
+            if (retVal == null)
+            {
+                DescribeMiss(dbContext, key, false);
+            }
+
+            return retVal;
         }
 
         /// <summary>

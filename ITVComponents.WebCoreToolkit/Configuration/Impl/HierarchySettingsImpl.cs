@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 {
@@ -10,14 +11,16 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
     {
         private readonly IScopedSettings<TSettings> scoped;
         private readonly IGlobalSettings<TSettings> global;
+        private readonly ILogger<HierarchySettingsImpl<TSettings>> logger;
         private TSettings valueOrDefault;
         private TSettings value;
         private HierarchyScope scope = HierarchyScope.None;
 
-        public HierarchySettingsImpl(IScopedSettings<TSettings> scoped, IGlobalSettings<TSettings> global)
+        public HierarchySettingsImpl(IScopedSettings<TSettings> scoped, IGlobalSettings<TSettings> global, ILogger<HierarchySettingsImpl<TSettings>> logger)
         {
             this.scoped = scoped;
             this.global = global;
+            this.logger = logger;
         }
 
         public TSettings Value => value ??= ValueOrDefault ?? new TSettings();
@@ -43,6 +46,24 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
                     {
                         scope = HierarchyScope.Global;
                     }
+                }
+
+                // Value hands out a fresh default when nothing was found, which is indistinguishable from a
+                // setting that IS configured and simply says false everywhere. A feature that stays switched
+                // off then looks like a decision instead of a missing row, and the only way to tell them apart
+                // is to ask the database by hand. So the outcome gets written down once, here, where both
+                // providers have already had their turn.
+                if (retVal == null)
+                {
+                    logger?.LogDebug(
+                        "Settings '{SettingsKey}' ({SettingsType}) were found on neither the scoped ({ScopedProvider}) nor the global ({GlobalProvider}) provider. Callers asking for Value will get a default instance.",
+                        SettingsKeyOf(), typeof(TSettings).FullName,
+                        scoped?.GetType().Name ?? "<not registered>",
+                        global?.GetType().Name ?? "<not registered>");
+                }
+                else
+                {
+                    logger?.LogDebug("Settings '{SettingsKey}' resolved from {Scope}.", SettingsKeyOf(), scope);
                 }
 
                 return valueOrDefault = retVal;
@@ -85,6 +106,16 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             }
 
             return retVal;
+        }
+
+        /// <summary>
+        /// The key these settings are stored under - the type name unless a <see cref="SettingNameAttribute"/>
+        /// says otherwise. Only used for log messages; the providers derive it the same way for themselves.
+        /// </summary>
+        private static string SettingsKeyOf()
+        {
+            var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings), typeof(SettingNameAttribute), true);
+            return att?.SettingsKeyName ?? typeof(TSettings).Name;
         }
 
         /// <summary>

@@ -1,5 +1,6 @@
 ﻿using System;
 using ITVComponents.Json;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 {
@@ -9,6 +10,11 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// the underlaying settings-provider
         /// </summary>
         private readonly IGlobalSettingsProvider settingsProvider;
+
+        /// <summary>
+        /// the logger used to make a missing or unusable setting visible
+        /// </summary>
+        private readonly ILogger<GlobalSettingsImpl<TSettings>> logger;
 
         /// <summary>
         /// the configured value
@@ -23,10 +29,12 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// <summary>
         /// Injector Constructor for this scoped settings
         /// </summary>
-        /// <param name="settingsProvider"></param>
-        public GlobalSettingsImpl(IGlobalSettingsProvider settingsProvider)
+        /// <param name="settingsProvider">the provider that reads the raw setting</param>
+        /// <param name="logger">the logger that records whether a setting was found and usable</param>
+        public GlobalSettingsImpl(IGlobalSettingsProvider settingsProvider, ILogger<GlobalSettingsImpl<TSettings>> logger)
         {
             this.settingsProvider = settingsProvider;
+            this.logger = logger;
         }
 
         /// <summary>
@@ -72,9 +80,22 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             if (!string.IsNullOrEmpty(tmp))
             {
                 var retVal = JsonHelper.FromJsonString<TSettings>(tmp, SerializationTypingMode.StaticTyping);
+                if (retVal == null)
+                {
+                    logger?.LogWarning(
+                        "Global setting '{SettingsKey}' was found ({Length} characters) but deserialized to nothing. The stored value does not match {SettingsType}.",
+                        typeName, tmp.Length, typeof(TSettings).FullName);
+                }
+                else
+                {
+                    logger?.LogDebug("Global setting '{SettingsKey}' resolved from the global provider ({Length} characters).", typeName, tmp.Length);
+                }
+
                 return retVal;
             }
 
+            logger?.LogDebug("Global setting '{SettingsKey}' is not configured on the global provider ({Provider}).",
+                typeName, settingsProvider?.GetType().Name ?? "<none>");
             return default;
         }
     }

@@ -129,9 +129,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             var trustingType = trustingObject.GetType();
             if (type.Assembly == trustingType.Assembly)
             {
+                // Same assembly as the trusting object: full desired trust, no lookup. This is the rule that
+                // moving a class between assemblies silently changes - the caller keeps compiling and keeps
+                // working, only it now needs a trust component it never needed before, and the consequence
+                // shows up far away as data that is simply not there.
+                LogEnvironment.LogDebugEvent(
+                    $"Trust granted implicitly: caller {type.FullName} shares assembly {type.Assembly.GetName().Name} with {trustingType.FullName}.",
+                    LogSeverity.Report);
                 return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, desiredTrust ?? new TTrustConfig());
             }
 
+            LogEnvironment.LogDebugEvent(
+                $"Trust looked up: caller {type.FullName} ({type.Assembly.GetName().Name}) is external to {trustingType.FullName} ({trustingType.Assembly.GetName().Name}).",
+                LogSeverity.Report);
             return CreateForCallerInternal(SecurityDb, trustingObject, trustingType, type, desiredTrust);
         }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.Security;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 {
@@ -13,6 +14,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
 
         private readonly ISecurityRepository securityRepo;
         private readonly IPermissionScope permissionScope;
+        private readonly ILogger<ScopedSettingsImpl<TSettings>> logger;
 
         /// <summary>
         /// the name of the setting represented by this instance
@@ -29,12 +31,16 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// <summary>
         /// Injector Constructor for this scoped settings
         /// </summary>
-        /// <param name="settingsProvider"></param>
-        public ScopedSettingsImpl(IScopedSettingsProvider settingsProvider, ISecurityRepository securityRepo, IPermissionScope permissionScope)
+        /// <param name="settingsProvider">the provider that reads the raw setting for the current scope</param>
+        /// <param name="securityRepo">the security repository used for tenant-driven encryption on write</param>
+        /// <param name="permissionScope">the scope a written setting is attributed to</param>
+        /// <param name="logger">the logger that records whether a setting was found and usable</param>
+        public ScopedSettingsImpl(IScopedSettingsProvider settingsProvider, ISecurityRepository securityRepo, IPermissionScope permissionScope, ILogger<ScopedSettingsImpl<TSettings>> logger)
         {
             this.settingsProvider = settingsProvider;
             this.securityRepo = securityRepo;
             this.permissionScope = permissionScope;
+            this.logger = logger;
             typeName = typeof(TSettings).Name;
             var att = (SettingNameAttribute)Attribute.GetCustomAttribute(typeof(TSettings), typeof(SettingNameAttribute), true);
             if (att != null)
@@ -108,13 +114,31 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
         /// <returns>the configured settings-instance or its default-value</returns>
         private TSettings GetSettingsValue(string? explicitSettingName)
         {
-            var tmp = settingsProvider.GetJsonSetting(explicitSettingName??typeName);
+            // Three outcomes that all end up as the same null for the caller: nothing stored under the key,
+            // something stored that deserializes to nothing, and a value that came back fine. Only the last is
+            // ordinary, so say which one it was - a settings-driven feature that stays switched off gives no
+            // other clue, and the caller cannot tell "not configured" from "configured to false".
+            var key = explicitSettingName ?? typeName;
+            var tmp = settingsProvider.GetJsonSetting(key);
             if (!string.IsNullOrEmpty(tmp))
             {
                 var retVal = JsonHelper.FromJsonString<TSettings>(tmp, SerializationTypingMode.StaticTyping);
+                if (retVal == null)
+                {
+                    logger?.LogWarning(
+                        "Scoped setting '{SettingsKey}' was found ({Length} characters) but deserialized to nothing. The stored value does not match {SettingsType}.",
+                        key, tmp.Length, typeof(TSettings).FullName);
+                }
+                else
+                {
+                    logger?.LogDebug("Scoped setting '{SettingsKey}' resolved from the scoped provider ({Length} characters).", key, tmp.Length);
+                }
+
                 return retVal;
             }
 
+            logger?.LogDebug("Scoped setting '{SettingsKey}' is not configured on the scoped provider ({Provider}).",
+                key, settingsProvider?.GetType().Name ?? "<none>");
             return null;
         }
     }
