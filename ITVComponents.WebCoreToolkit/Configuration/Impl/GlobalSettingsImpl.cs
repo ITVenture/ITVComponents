@@ -95,7 +95,7 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
             }
 
             logger?.LogDebug("Global setting '{SettingsKey}' is not configured on the global provider ({Provider}).",
-                typeName, settingsProvider?.GetType().Name ?? "<none>");
+                typeName, settingsProvider?.GetType().FullName ?? "<none>");
             return default;
         }
     }

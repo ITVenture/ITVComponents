@@ -58,8 +58,8 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
                     logger?.LogDebug(
                         "Settings '{SettingsKey}' ({SettingsType}) were found on neither the scoped ({ScopedProvider}) nor the global ({GlobalProvider}) provider. Callers asking for Value will get a default instance.",
                         SettingsKeyOf(), typeof(TSettings).FullName,
-                        scoped?.GetType().Name ?? "<not registered>",
-                        global?.GetType().Name ?? "<not registered>");
+                        scoped?.GetType().FullName ?? "<not registered>",
+                        global?.GetType().FullName ?? "<not registered>");
                 }
                 else
                 {

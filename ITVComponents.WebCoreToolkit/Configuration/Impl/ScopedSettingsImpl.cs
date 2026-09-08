@@ -137,8 +137,11 @@ namespace ITVComponents.WebCoreToolkit.Configuration.Impl
                 return retVal;
             }
 
+            // FullName, not Name: the flat and the tree-capable settings provider are both called
+            // TenantSettingsProvider and both take eleven type arguments, so the short name says nothing about
+            // which of the two answered - and they answer very differently.
             logger?.LogDebug("Scoped setting '{SettingsKey}' is not configured on the scoped provider ({Provider}).",
-                key, settingsProvider?.GetType().Name ?? "<none>");
+                key, settingsProvider?.GetType().FullName ?? "<none>");
             return null;
         }
     }

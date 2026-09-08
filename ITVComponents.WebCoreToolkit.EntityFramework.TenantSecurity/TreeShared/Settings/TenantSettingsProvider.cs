@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Hel
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Settings
 {
@@ -37,12 +38,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         private readonly IToolkitContextFactory contextFactory;
 
         /// <summary>
+        /// Records why a lookup came back with nothing.
+        /// </summary>
+        /// <remarks>
+        /// Built from an <see cref="ILoggerFactory"/> under a fixed category rather than injected as
+        /// <c>ILogger&lt;TenantSettingsProvider&lt;…&gt;&gt;</c>: this type carries eleven type arguments, and the
+        /// generic category name that would produce is unusable in a log-level filter.
+        /// </remarks>
+        private readonly ILogger logger;
+
+        /// <summary>
         /// Initializes a new instance of the TenantSettinsgProvider class
         /// </summary>
         /// <param name="contextFactory">factory yielding a fresh per-operation tenant-settings context</param>
-        public TenantSettingsProvider(IToolkitContextFactory contextFactory)
+        /// <param name="loggerFactory">factory for the logger that explains an empty lookup</param>
+        public TenantSettingsProvider(IToolkitContextFactory contextFactory, ILoggerFactory loggerFactory)
         {
             this.contextFactory = contextFactory;
+            logger = loggerFactory?.CreateLogger(
+                "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Settings.TenantSettingsProvider");
         }
 
         /// <summary>
@@ -88,6 +102,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// </remarks>
         private void DescribeMiss(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> dbContext, string key, bool jsonSetting)
         {
+            if (logger?.IsEnabled(LogLevel.Debug) != true)
+            {
+                return;
+            }
+
             try
             {
                 var treeRows = dbContext.UpwardsTenantTreeView.Count();
@@ -101,11 +120,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .Take(10).ToList()
                     .Select(n => $"TenantId={n.TenantId},Json={n.JsonSetting},Inheritable={n.Inheritable}"));
 
-                LogEnvironment.LogDebugEvent(
-                    $"Tenant-setting '{key}' (JsonSetting={jsonSetting}) resolved to nothing. CurrentTenantId={dbContext.CurrentTenantId?.ToString() ?? "<null>"}; " +
-                    $"UpwardsTenantTree rows={treeRows} (unfiltered {treeRowsUnfiltered}); matching TenantSettings rows={keyRows} (unfiltered {keyRowsUnfiltered}); " +
-                    $"rows for that key: [{(string.IsNullOrEmpty(matches) ? "none" : matches)}]",
-                    LogSeverity.Report);
+                logger.LogDebug(
+                    "Tenant-setting '{SettingsKey}' (JsonSetting={JsonSetting}) resolved to nothing on the TREE provider. " +
+                    "CurrentTenantId={CurrentTenantId}; UpwardsTenantTree rows={TreeRows} (unfiltered {TreeRowsUnfiltered}); " +
+                    "matching TenantSettings rows={KeyRows} (unfiltered {KeyRowsUnfiltered}); rows for that key: [{Matches}]",
+                    key, jsonSetting, dbContext.CurrentTenantId?.ToString() ?? "<null>",
+                    treeRows, treeRowsUnfiltered, keyRows, keyRowsUnfiltered,
+                    string.IsNullOrEmpty(matches) ? "none" : matches);
             }
             catch (Exception ex)
             {

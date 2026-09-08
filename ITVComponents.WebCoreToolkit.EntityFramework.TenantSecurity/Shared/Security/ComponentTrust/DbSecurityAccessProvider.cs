@@ -4,6 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -30,12 +31,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private ConcurrentDictionary<(string trusted, string target), string> trustConfigCache;
         private readonly object trustCacheLock = new();
 
+        // Resolved once, not per call: CreateForCaller runs dozens of times per render, and pulling a logger
+        // out of the container each time would cost more than the message it writes.
+        private ILogger callLogger;
+        private bool callLoggerResolved;
+
         public DbSecurityAccessProvider(IServiceProvider services)
         {
             this.services = services;
         }
 
         private ICoreSystemContext SecurityDb => (securityDb ??= services.GetService<ICoreSystemContext>());
+
+        /// <summary>
+        /// The logger for the trust decision, under a fixed category so a log-level filter can name it.
+        /// </summary>
+        private ILogger CallLogger
+        {
+            get
+            {
+                if (!callLoggerResolved)
+                {
+                    callLoggerResolved = true;
+                    callLogger = services.GetService<ILoggerFactory>()?.CreateLogger(
+                        "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.ComponentTrust.DbSecurityAccessProvider");
+                }
+
+                return callLogger;
+            }
+        }
 
         /// <summary>
         /// Resolves the real caller type when the stack-frame's declaring type is a compiler-generated container.
@@ -133,15 +157,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 // moving a class between assemblies silently changes - the caller keeps compiling and keeps
                 // working, only it now needs a trust component it never needed before, and the consequence
                 // shows up far away as data that is simply not there.
-                LogEnvironment.LogDebugEvent(
-                    $"Trust granted implicitly: caller {type.FullName} shares assembly {type.Assembly.GetName().Name} with {trustingType.FullName}.",
-                    LogSeverity.Report);
+                CallLogger?.LogDebug(
+                    "Trust granted implicitly: caller {Caller} shares assembly {Assembly} with {TrustingType}.",
+                    type.FullName, type.Assembly.GetName().Name, trustingType.FullName);
                 return new FullSecurityAccessHelper<TTrustConfig>(trustingObject, desiredTrust ?? new TTrustConfig());
             }
 
-            LogEnvironment.LogDebugEvent(
-                $"Trust looked up: caller {type.FullName} ({type.Assembly.GetName().Name}) is external to {trustingType.FullName} ({trustingType.Assembly.GetName().Name}).",
-                LogSeverity.Report);
+            CallLogger?.LogDebug(
+                "Trust looked up: caller {Caller} ({CallerAssembly}) is external to {TrustingType} ({TrustingAssembly}).",
+                type.FullName, type.Assembly.GetName().Name, trustingType.FullName, trustingType.Assembly.GetName().Name);
             return CreateForCallerInternal(SecurityDb, trustingObject, trustingType, type, desiredTrust);
         }
 
