@@ -13,6 +13,7 @@ using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core.Methods;
 using ITVComponents.Scripting.CScript.Helpers;
 using ITVComponents.Settings.Native;
+using ITVComponents.SettingsExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Helpers;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
@@ -67,6 +68,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             sharedHeap.Property<WebPartManager>("WebPartManager").Value = this;
             this.config = config;
             var options = config.GetSection<WebPartOptions>("ITVenture:WebParts");
+            config.RefResolve(options);
             var webPartTypes = (from t in options.Assemblies
                 select new {Types = GetAssembly(t.AssemblyName).GetTypes()
                     .Where(n => n.IsPublic && n.IsAbstract && n.IsSealed &&  Attribute.IsDefined(n, typeof(WebPartAttribute))),

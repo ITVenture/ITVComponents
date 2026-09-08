@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.Formatting;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Security;
 using Microsoft.Extensions.Configuration;
 
@@ -20,7 +21,35 @@ namespace ITVComponents.SettingsExtensions
 
         private static void ResolveObjProps(IConfiguration configuration, Type t, object model)
         {
-            if (model is not IDictionary<string, object> dc)
+            if (model is IDictionary<string, object> dc)
+            {
+                foreach (var combo in dc.ToArray())
+                {
+                    if (combo.Value is string s && !string.IsNullOrEmpty(s))
+                    {
+                        s = GetValue(s, configuration, combo, out var apply);
+                        if (apply)
+                        {
+                            dc[combo.Key] = s;
+                        }
+                    }
+                }
+            }
+            else if (model is IDictionary weakDic)
+            {
+                foreach (var key in weakDic.Keys.Cast<object>().ToArray())
+                {
+                    if (weakDic[key] is string s && !string.IsNullOrEmpty(s))
+                    {
+                        s = GetValue(s, configuration, new KeyValuePair<string, object>(key as string ?? key?.ToString(), s), out var apply);
+                        if (apply)
+                        {
+                            weakDic[key] = s;
+                        }
+                    }
+                }
+            }
+            else
             {
                 var allMembers =
                     t.GetProperties(BindingFlags.GetProperty | BindingFlags.Instance | BindingFlags.Public);
@@ -41,7 +70,7 @@ namespace ITVComponents.SettingsExtensions
                     else if (Attribute.IsDefined(member, typeof(AutoResolveChildrenAttribute)))
                     {
                         var raw = member.GetValue(model);
-                        if (raw is IEnumerable i && raw is not IDictionary<string,object>)
+                        if (raw is IEnumerable i && raw is not IDictionary<string, object> && raw is not IDictionary)
                         {
                             foreach (var item in i)
                             {
@@ -54,20 +83,6 @@ namespace ITVComponents.SettingsExtensions
                         else if (raw != null)
                         {
                             ResolveObjProps(configuration, raw.GetType(), raw);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                foreach (var combo in dc.ToArray())
-                {
-                    if (combo.Value is string s && !string.IsNullOrEmpty(s))
-                    {
-                        s = GetValue(s, configuration, combo, out var apply);
-                        if (apply)
-                        {
-                            dc[combo.Key] = s;
                         }
                     }
                 }
@@ -88,10 +103,18 @@ namespace ITVComponents.SettingsExtensions
                     expression = expression.Substring(0, defaultId);
                 }
 
-                expression = configuration[expression];
-                if (string.IsNullOrEmpty(expression) && !string.IsNullOrEmpty(defaultValue))
+                var key = expression;
+                expression = configuration[key];
+                if (string.IsNullOrEmpty(expression))
                 {
-                    expression = defaultValue;
+                    if (!string.IsNullOrEmpty(defaultValue))
+                    {
+                        expression = defaultValue;
+                    }
+                    else
+                    {
+                        LogEnvironment.LogEvent($"Settings-Verweis ':-->{key}' konnte nicht aufgeloest werden: der Schluessel ist nicht gesetzt und es wurde kein Vorgabewert (??) angegeben.", LogSeverity.Warning);
+                    }
                 }
 
                 applyValue = true;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.SettingsExtensions;
 
 namespace ITVComponents.WebCoreToolkit.AspExtensions.Options
 {
@@ -12,6 +13,7 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions.Options
 
         public string DetailConfigPath { get; set; }
 
+        [AutoResolveChildren]
         public Dictionary<string,string> DetailConfigPaths { get; set; }
     }
 }

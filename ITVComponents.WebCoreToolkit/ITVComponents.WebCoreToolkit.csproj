@@ -18,6 +18,7 @@
     <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />
     <ProjectReference Include="..\ITVComponents.IO\ITVComponents.IO.csproj" />
     <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.SettingsExtensions\ITVComponents.SettingsExtensions.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
   </ItemGroup>
   <ItemGroup>
