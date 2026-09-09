@@ -9,7 +9,7 @@
          templates). All components/types use explicit namespaces, so this only renames _Imports. -->
     <RootNamespace>ITVComponents.WebCoreToolkit.Blazor.MudBlazorLib</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE220</Version>
+    <Version>5.0.0-PRE221</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
