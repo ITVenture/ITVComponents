@@ -5342,10 +5342,60 @@ diesen einen Fehler behoben. Es hätte aber (a) den Menüklick weiterhin zu eine
 statt ihn im Circuit zu halten, und (b) beim nächsten Präfix dieselbe Runde erzwungen — die Sprache war
 schon das dritte. Ein relativer Link kennt keinen Präfix und muss deshalb bei keinem nachgezogen werden.
 
+## 63. Hilfe-Ordner tragen eine Kennung — **Pflicht-Migration (1 Spalte), wenn ihr das Hilfesystem nutzt**
+
+Die Ordner der Ressourcen-Bibliothek reisten im Konfigurations-Export bisher über ihren **Pfad**
+(`handbuecher/screenshots`). Über einen Pfad-Schlüssel sind „umbenannt" und „verschoben" aber nicht von
+„ein anderer Ordner" zu unterscheiden: nach einer Umbenennung im Quellsystem legte der Import drüben den
+neuen Pfad an, die Ressourcen zogen um — und der alte Ordner blieb leer stehen. Ordner werden bewusst nie
+gelöscht, also blieb er auch.
+
+Ordner haben jetzt dieselbe Kennung wie die Navigationseinträge: `RefTag`.
+
+### 63.1 Die Migration
+
+```
+HelpResourceFolders  + RefTag (nvarchar(1024), NULL)
+```
+
+`dotnet ef migrations add HelpResourceFolderRefTag` → `database update`.
+
+**Kein Backfill von Hand nötig.** Der erste Export trägt fehlende Kennungen nach und speichert sie —
+genau wie `EnsureNavUniqueness` es für das Menü tut. Neue Ordner bekommen ihre Kennung schon beim Anlegen.
+
+### 63.2 Was sich am Dateiformat ändert
+
+| Feld | vorher | jetzt |
+|---|---|---|
+| `ResourceFolders[]` | `Path` | `RefTag`, `Name`, `ParentRef`, dazu `Path` (nur zum Lesen) |
+| `Resources[].FolderPath` | der Schlüssel | nur noch Anzeige |
+| `Resources[].FolderRef` | — | der Schlüssel |
+
+**Eine Datei aus einem älteren Stand trägt keine Kennungen.** Solche Ordner werden nicht angelegt, und
+Ressourcen aus ihnen behalten ihre bisherige Ablage; der Vergleich nennt sie in einem Sammel-Hinweis
+(„help resource folder(s) without a reference tag"). Der Ausweg ist eine neue Ausgabe aus dem Quellsystem
+— dort werden die Kennungen beim Exportieren nachgetragen.
+
+### 63.3 Reihenfolge
+
+Der Export gibt die Ordner nach Tiefe aus, Wurzel zuerst, und der Vergleich sortiert die Anlagen ebenso —
+sonst suchte ein Kind seinen Elternteil, den es noch nicht gibt. Dieselbe Regel gilt im selben Abschnitt
+schon für den Themenbaum.
+
+### 63.4 Nebenbei behoben
+
+Die Ordnernamen standen bisher **im Suchausdruck**, mit dem der Import den Elternordner auflöste. Ein Name
+mit einem Anführungszeichen hätte den Ausdruck zerlegt, deshalb wurde so ein Ordner still übersprungen.
+Über die Kennung — eine GUID — steht kein Name mehr in einem Ausdruck, und der Sonderfall entfällt.
+
+Weiterhin **kein Eindeutigkeits-Index** auf `(ParentId, Name)`: über eine NULL-Spalte verhalten sich SQL
+Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
+
 ## Schnellübersicht der Breaking Changes
 
 | # | Was | Aktion |
 |---|---|---|
+| 63 | **Hilfe-Ordner tragen eine Kennung** | **Pflicht-Migration, wenn ihr das Hilfesystem nutzt**: `HelpResourceFolders + RefTag (nvarchar(1024), NULL)`. Der Konfigurations-Export vergleicht Ordner ab jetzt über diese Kennung statt über den Pfad — damit reisen Umbenennen und Verschieben als das, was sie sind, statt als zweiter Ordner neben dem alten. Kennungen werden beim ersten Export nachgetragen, kein Backfill von Hand. **Dateiformat geändert**: `ResourceFolders[]` trägt `RefTag`/`Name`/`ParentRef` statt `Path`, die Ressource `FolderRef` statt `FolderPath` — eine ältere Ausgabe legt keine Ordner mehr an und sagt das im Vergleich (§63) |
 | 62 | **Menü-Links tragen die Sprache** | Kein Schema-Change. `NavigationMenu.Url` ist ab jetzt der Link **in der Form, die dieser Host braucht** - unter Blazor **relativ**, weil ein root-absoluter Link den base-URI-Raum verlässt und dabei jeden Praefix aus `PathBase` verliert (so ging die fest gewählte Sprache bei jedem Menüklick verloren). Neu daneben `NavigationMenu.ModuleUrl`: die gespeicherte Url ohne jeden Präfix. **Rendern: `Url`. Vergleichen: `ModuleUrl`** - wer `Url` gegen einen Request-Pfad prüft oder etwas davorsetzt, muss umstellen. Gebaut wird über den neuen `IAppLink`; unter `AddBlazorContextUser()` ist er mitregistriert, sonst über `UseAppLinks()`. `[SlashPermissionScope]` führt jetzt die Sprache mit, `[scopeUnderBase]` bewusst nicht (§62) |
 | 61a | **Sprache als URL-Präfix** | Kein Schema-Change. `AddCulturePath()` + `app.UseCulturePath()` **als allererste Middleware**, vor `UseSharedAssetPath`/`UseStaticFiles`/`UseRequestLocalization`/`UseRouting`/`UseTenantPathPrefix`. Ohne die Registrierung bleibt die Seite in der falschen Sprache (Log sagt es, einmal pro Prozess). Optional — wer kein Präfix will, ändert nichts (§61.1) |
 | 61b | **Sprachauswahl** | `AddCultureSwitcher()` + `ICultureSwitcher.BuildUrlFor(...)` in der Dropdown. **Nicht von Hand bauen**: Präfix muss ersetzt statt angehängt werden, Query/Fragment müssen überleben, und der Wechsel muss ein voller Seitenladevorgang sein. Die Wahl setzt **kein Cookie** — sie lebt in der URL (§61.3, §61.4) |

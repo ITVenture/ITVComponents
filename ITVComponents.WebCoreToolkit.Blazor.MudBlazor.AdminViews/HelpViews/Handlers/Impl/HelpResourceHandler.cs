@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -217,7 +217,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
 
             if (helpResourceFolderId == 0)
             {
-                db.HelpResourceFolders.Add(new HelpResourceFolder { ParentId = parentId, Name = name });
+                db.HelpResourceFolders.Add(new HelpResourceFolder
+                    { ParentId = parentId, Name = name, RefTag = Guid.NewGuid().ToString("D") });
             }
             else
             {

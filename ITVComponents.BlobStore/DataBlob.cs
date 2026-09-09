@@ -304,7 +304,7 @@ namespace ITVComponents.BlobStore
             }
 
             obj.Hash = hash;
-            obj.ModifiedUtc = DateTime.Now;
+            obj.ModifiedUtc = DateTime.UtcNow;
             obj.MarkDirty();
         }
 

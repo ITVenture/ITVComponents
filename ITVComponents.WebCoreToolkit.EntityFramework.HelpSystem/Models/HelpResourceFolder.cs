@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -27,6 +27,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Models
     {
         [Key]
         public int HelpResourceFolderId { get; set; }
+
+        /// <summary>
+        /// Stable identity of this folder beyond the local database. The configuration export compares folders by
+        /// this tag instead of by their path, so a renamed or moved folder arrives as exactly that - over a path
+        /// key it would be indistinguishable from a different folder and land next to the one it replaced.
+        /// </summary>
+        /// <remarks>
+        /// Derselbe Mechanismus wie <c>NavigationMenu.RefTag</c>: wo der Wert fehlt, wird beim naechsten Export
+        /// eine GUID nachgetragen. Weiterhin kein Eindeutigkeits-Index - die Vergabe liegt beim Code.
+        /// </remarks>
+        [MaxLength(1024)]
+        public string? RefTag { get; set; }
 
         /// <summary>Parent folder; null for a folder at the root.</summary>
         public int? ParentId { get; set; }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -15,7 +15,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
     /// Contributes the global help system (topic tree, localized contents, resource library) to the
     /// system-configuration export and diff. Describe reads the current state into <see cref="HelpConfigMarkup"/>;
     /// Compare emits standard <see cref="Change"/> objects that the generic apply engine persists. References are
-    /// resolved by natural name — topic slug, resource name, folder path — because ids differ per system.
+    /// resolved by a stable handle — topic slug, resource name, folder reference tag — because ids differ per
+    /// system.
     /// </summary>
     public class HelpConfigExtension : IConfigExtension
     {
@@ -41,11 +42,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
             }
 
             var topics = ctx.HelpTopics.Include(t => t.Contents).AsNoTracking().ToList();
+            EnsureFolderRefTags(db, ctx);
             var folders = ctx.HelpResourceFolders.AsNoTracking().ToList();
             var resources = ctx.HelpResources.Include(r => r.Files).AsNoTracking().ToList();
 
             var slugById = topics.ToDictionary(t => t.HelpTopicId, t => t.Slug);
             var folderPathById = BuildFolderPaths(folders);
+            var refTagById = folders.ToDictionary(f => f.HelpResourceFolderId, f => f.RefTag);
             var blobs = ReadBlobs(ctx, resources.SelectMany(r => r.Files).ToList());
 
             return new HelpConfigMarkup
@@ -70,10 +73,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
                             .Select(c => new HelpTopicContentMarkup { Culture = c.Culture, Title = c.Title, Body = c.Body })
                             .ToArray()
                     }).ToArray(),
-                ResourceFolders = folderPathById.Values
-                    .OrderBy(p => p.Count(c => c == PathSeparator))
-                    .ThenBy(p => p, StringComparer.OrdinalIgnoreCase)
-                    .Select(p => new HelpResourceFolderMarkup { Path = p })
+                // Parents before children, for the same reason as the topics: a child folder resolves its
+                // parent through the row the apply engine added a moment earlier.
+                ResourceFolders = folders
+                    .OrderBy(f => FolderDepth(f, folders))
+                    .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(f => new HelpResourceFolderMarkup
+                    {
+                        RefTag = f.RefTag,
+                        Name = f.Name,
+                        ParentRef = f.ParentId.HasValue && refTagById.TryGetValue(f.ParentId.Value, out var pr) ? pr : null,
+                        Path = folderPathById.TryGetValue(f.HelpResourceFolderId, out var op) ? op : f.Name
+                    })
                     .ToArray(),
                 Resources = resources
                     .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
@@ -82,6 +93,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
                         Name = r.Name,
                         Description = r.Description,
                         Kind = r.Kind,
+                        FolderRef = r.FolderId.HasValue && refTagById.TryGetValue(r.FolderId.Value, out var fr) ? fr : null,
                         FolderPath = r.FolderId.HasValue && folderPathById.TryGetValue(r.FolderId.Value, out var fp) ? fp : null,
                         Files = r.Files
                             .OrderBy(f => f.Culture, StringComparer.OrdinalIgnoreCase)
@@ -105,12 +117,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
             var up = uploaded as HelpConfigMarkup ?? new HelpConfigMarkup();
             var result = new List<Change>();
             var unresolved = new List<string>();
+            var untaggedFolders = new List<string>();
 
             // Folders first (resources are filed into them), then the topic tree, then the resources.
-            CompareFolders(cur.ResourceFolders ?? Array.Empty<HelpResourceFolderMarkup>(), up.ResourceFolders ?? Array.Empty<HelpResourceFolderMarkup>(), changes, result);
+            CompareFolders(cur.ResourceFolders ?? Array.Empty<HelpResourceFolderMarkup>(), up.ResourceFolders ?? Array.Empty<HelpResourceFolderMarkup>(), changes, result, untaggedFolders);
             CompareTopics(cur.Topics ?? Array.Empty<HelpTopicMarkup>(), up.Topics ?? Array.Empty<HelpTopicMarkup>(), changes, result);
-            CompareResources(cur.Resources ?? Array.Empty<HelpResourceMarkup>(), up.Resources ?? Array.Empty<HelpResourceMarkup>(), changes, result, unresolved);
+            CompareResources(cur.Resources ?? Array.Empty<HelpResourceMarkup>(), up.Resources ?? Array.Empty<HelpResourceMarkup>(), changes, result, unresolved, untaggedFolders);
             ReportUnresolvedContents(unresolved, changes, result);
+            ReportUntaggedFolders(untaggedFolders, changes, result);
             return result;
         }
 
@@ -211,40 +225,99 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
         // -- folders ---------------------------------------------------------------------------------------
 
         /// <summary>
-        /// Folders are created when missing and otherwise left alone — never updated, never deleted. They carry
-        /// nothing but a name and a parent, so "renamed" and "moved" are indistinguishable from "a different
-        /// folder" over a path key; and deleting one would silently move another system's resources to the root.
-        /// Being pure organisation (resources resolve by their flat global name), that is the harmless side to
-        /// err on.
+        /// Folders are matched by their reference tag, so a rename and a move travel as what they are. They are
+        /// created and updated, but never deleted: the tag says which folder is meant, not whether the receiving
+        /// system still wants it, and dropping one would move its resources to the root behind the librarian's
+        /// back. Being pure organisation (resources resolve by their flat global name), that is the harmless
+        /// side to err on.
         /// </summary>
-        private static void CompareFolders(HelpResourceFolderMarkup[] cur, HelpResourceFolderMarkup[] up, IConfigChangeContext ch, List<Change> result)
+        private static void CompareFolders(HelpResourceFolderMarkup[] cur, HelpResourceFolderMarkup[] up,
+            IConfigChangeContext ch, List<Change> result, List<string> untagged)
         {
-            var existing = new HashSet<string>(cur.Where(f => f?.Path != null).Select(f => f.Path!), StringComparer.OrdinalIgnoreCase);
+            var curByRef = ToDictionary(cur, f => f.RefTag);
+            var upByRef = ToDictionary(up, f => f.RefTag);
 
-            foreach (var path in up.Where(f => !string.IsNullOrWhiteSpace(f?.Path))
-                         .Select(f => f.Path!)
-                         .Distinct(StringComparer.OrdinalIgnoreCase)
-                         .OrderBy(p => p.Count(c => c == PathSeparator))
-                         .ThenBy(p => p, StringComparer.OrdinalIgnoreCase))
+            // Parents before children: an inserted child resolves its parent through the row added just before it.
+            foreach (var upF in up.Where(f => f != null)
+                         .OrderBy(f => MarkupFolderDepth(f, upByRef))
+                         .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
             {
-                if (existing.Contains(path) || !IsExpressionSafe(path))
+                if (string.IsNullOrWhiteSpace(upF.RefTag))
                 {
+                    // Written by a system that did not know the tag yet. Matching by name would merge two
+                    // unrelated folders as readily as it would hit the right one, so the folder is named in the
+                    // diff instead of being passed over.
+                    untagged.Add(upF.Path ?? upF.Name ?? "(unnamed)");
                     continue;
                 }
 
-                var segments = path.Split(PathSeparator);
-                var c = new Change { ChangeType = ChangeType.Insert, EntityName = "HelpResourceFolders", Apply = true };
-                c.Details.Add(ch.MakeDetail("Name", segments[^1]));
-                if (segments.Length > 1)
+                if (!curByRef.TryGetValue(upF.RefTag!, out var curF))
                 {
-                    var parentSegments = segments[..^1];
-                    c.Details.Add(ch.MakeDetail("Parent", parentSegments[^1],
-                        ch.MakeLinqAssign("Parent", "HelpResourceFolders", "Name", FolderChainWhere(parentSegments))));
+                    var c = new Change { ChangeType = ChangeType.Insert, EntityName = "HelpResourceFolders", Apply = true };
+                    c.Details.Add(ch.MakeDetail("RefTag", upF.RefTag));
+                    c.Details.Add(ch.MakeDetail("Name", upF.Name ?? string.Empty));
+                    AddParentAssignment(c, ch, upF, upByRef, null);
+                    result.Add(c);
+                    continue;
                 }
 
-                result.Add(c);
-                existing.Add(path);
+                var u = new Change
+                {
+                    ChangeType = ChangeType.Update, EntityName = "HelpResourceFolders", Apply = true,
+                    Key = Key(("RefTag", upF.RefTag!))
+                };
+
+                if (TextChanged(upF.Name, curF.Name))
+                {
+                    u.Details.Add(ch.MakeDetail("Name", upF.Name ?? string.Empty, currentValue: curF.Name));
+                }
+
+                if (!string.Equals(upF.ParentRef, curF.ParentRef, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddParentAssignment(u, ch, upF, upByRef, curF.Path);
+                }
+
+                if (u.Details.Count != 0)
+                {
+                    result.Add(u);
+                }
             }
+        }
+
+        /// <summary>Adds the parent assignment (or its removal) to a folder change.</summary>
+        private static void AddParentAssignment(Change c, IConfigChangeContext ch, HelpResourceFolderMarkup folder,
+            Dictionary<string, HelpResourceFolderMarkup> upByRef, string? currentPath)
+        {
+            if (string.IsNullOrWhiteSpace(folder.ParentRef))
+            {
+                if (!string.IsNullOrWhiteSpace(currentPath))
+                {
+                    c.Details.Add(ch.MakeDetail("ParentId", null, $"Entity.{nameof(HelpResourceFolder.ParentId)}=null", currentPath));
+                }
+
+                return;
+            }
+
+            var detail = ch.MakeDetail("Parent", folder.ParentRef,
+                ch.MakeLinqAssign("Parent", "HelpResourceFolders", "RefTag"), currentPath);
+            detail.DisplayValue = upByRef.TryGetValue(folder.ParentRef!, out var parent)
+                ? parent.Path ?? parent.Name
+                : folder.ParentRef;
+            c.Details.Add(detail);
+        }
+
+        /// <summary>Depth of a folder in the uploaded tree (root = 0), guarded against a cyclic parent chain.</summary>
+        private static int MarkupFolderDepth(HelpResourceFolderMarkup folder, Dictionary<string, HelpResourceFolderMarkup> byRef)
+        {
+            var depth = 0;
+            var cursor = folder;
+            while (!string.IsNullOrEmpty(cursor?.ParentRef) && byRef.TryGetValue(cursor.ParentRef!, out var parent) && depth <= byRef.Count)
+            {
+                depth++;
+                cursor = parent;
+            }
+
+            return depth;
         }
 
         // -- topics ----------------------------------------------------------------------------------------
@@ -401,7 +474,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
 
         // -- resources -------------------------------------------------------------------------------------
 
-        private static void CompareResources(HelpResourceMarkup[] cur, HelpResourceMarkup[] up, IConfigChangeContext ch, List<Change> result, List<string> unresolved)
+        private static void CompareResources(HelpResourceMarkup[] cur, HelpResourceMarkup[] up, IConfigChangeContext ch,
+            List<Change> result, List<string> unresolved, List<string> untagged)
         {
             foreach (var (curR, upR) in JoinBy(cur, up, r => r.Name))
             {
@@ -427,7 +501,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
                     c.Details.Add(ch.MakeDetail("Name", upR.Name));
                     c.Details.Add(ch.MakeDetail("Description", upR.Description ?? string.Empty));
                     c.Details.Add(ch.MakeDetail("Kind", upR.Kind.ToString()));
-                    AddFolderAssignment(c, ch, upR.FolderPath, null);
+                    AddFolderAssignment(c, ch, upR, null, untagged);
                     result.Add(c);
                     CompareResourceFiles(upR.Name!, Array.Empty<HelpResourceFileMarkup>(), upR.Files ?? Array.Empty<HelpResourceFileMarkup>(), ch, result, unresolved);
                 }
@@ -449,9 +523,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
                         c.Details.Add(ch.MakeDetail("Kind", upR.Kind.ToString(), currentValue: curR.Kind.ToString()));
                     }
 
-                    if (!string.Equals(upR.FolderPath, curR.FolderPath, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(upR.FolderRef, curR.FolderRef, StringComparison.OrdinalIgnoreCase))
                     {
-                        AddFolderAssignment(c, ch, upR.FolderPath, curR.FolderPath);
+                        AddFolderAssignment(c, ch, upR, curR.FolderPath, untagged);
                     }
 
                     if (c.Details.Count != 0)
@@ -561,7 +635,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
             blob.Details.Add(ch.MakeDetail("ContentType", file.ContentType ?? string.Empty));
             blob.Details.Add(ch.MakeDetail("DownloadName", file.OriginalName ?? string.Empty));
             blob.Details.Add(ContentDetail(file, ch, null));
-            blob.Details.Add(ch.MakeDetail("Created", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
+            // The stamp travels as text and comes back through the generic value conversion, which parses with
+            // the current culture and hands back Kind=Local - PostgreSQL refuses that on a "timestamp with time
+            // zone". It is "now" either way, so the apply side takes it in UTC directly instead of parsing.
+            blob.Details.Add(ch.MakeDetail("Created", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+                "Entity.Created='System.DateTime'.UtcNow"));
             return blob;
         }
 
@@ -620,10 +698,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
         }
 
         /// <summary>Adds the folder assignment (or its removal) to a resource change.</summary>
-        private static void AddFolderAssignment(Change c, IConfigChangeContext ch, string? folderPath, string? currentPath)
+        private static void AddFolderAssignment(Change c, IConfigChangeContext ch, HelpResourceMarkup resource,
+            string? currentPath, List<string> untagged)
         {
-            if (string.IsNullOrWhiteSpace(folderPath))
+            if (string.IsNullOrWhiteSpace(resource.FolderRef))
             {
+                if (!string.IsNullOrWhiteSpace(resource.FolderPath))
+                {
+                    // An older export named the folder but not its tag. Leaving the resource where it is beats
+                    // guessing, and the note says which filing did not arrive.
+                    untagged.Add(resource.FolderPath!);
+                    return;
+                }
+
                 if (!string.IsNullOrWhiteSpace(currentPath))
                 {
                     c.Details.Add(ch.MakeDetail("FolderId", null, $"Entity.{nameof(HelpResource.FolderId)}=null", currentPath));
@@ -632,14 +719,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
                 return;
             }
 
-            if (!IsExpressionSafe(folderPath))
-            {
-                return;
-            }
-
-            var segments = folderPath.Split(PathSeparator);
-            c.Details.Add(ch.MakeDetail("Folder", segments[^1],
-                ch.MakeLinqAssign("Folder", "HelpResourceFolders", "Name", FolderChainWhere(segments)), currentPath));
+            var detail = ch.MakeDetail("Folder", resource.FolderRef,
+                ch.MakeLinqAssign("Folder", "HelpResourceFolders", "RefTag"), currentPath);
+            detail.DisplayValue = resource.FolderPath;
+            c.Details.Add(detail);
         }
 
         /// <summary>
@@ -667,6 +750,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
             result.Add(c);
         }
 
+        /// <summary>
+        /// One collected note for the folders an older export could not address: without a reference tag there is
+        /// nothing to match them by, and a match on the name would merge unrelated folders. Better said out loud
+        /// than passed over.
+        /// </summary>
+        private static void ReportUntaggedFolders(List<string> untagged, IConfigChangeContext ch, List<Change> result)
+        {
+            if (untagged.Count == 0)
+            {
+                return;
+            }
+
+            var names = untagged.Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+            var c = new Change
+            {
+                ChangeType = ChangeType.Warning,
+                EntityName = $"{names.Length} help resource folder(s) without a reference tag"
+            };
+            c.Details.Add(ch.MakeDetail("Consequence",
+                "These folders are not created, and resources filed in them keep the folder they have here. Export again from a system that assigns reference tags.",
+                apply: false));
+            c.Details.Add(ch.MakeDetail("Affected", string.Join(Environment.NewLine, names), apply: false, multiline: true));
+            result.Add(c);
+        }
+
         // -- helpers ---------------------------------------------------------------------------------------
 
         // Delete order across the whole section: blobs and bindings first, then contents and resources, then the
@@ -679,33 +788,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
 
         /// <summary>Assignment expression for a bool — the generic value conversion does not cover them.</summary>
         private static string BoolAssign(string property) => $"Entity.{property}=(NewValueRaw==\"True\")";
-
-        /// <summary>
-        /// Builds the ancestor condition for a folder looked up by its leaf name: every level above the leaf is
-        /// pinned by name and the chain is closed with a null parent, so an identically named folder elsewhere in
-        /// the tree cannot match. The null checks matter — an entity whose parent is not loaded yields false here
-        /// and falls through to the database lookup instead of failing the expression.
-        /// </summary>
-        private static string FolderChainWhere(string[] segments)
-        {
-            var conditions = new List<string>();
-            var prefix = "n.Parent";
-            for (var i = segments.Length - 2; i >= 0; i--)
-            {
-                conditions.Add($"{prefix} != null");
-                conditions.Add($"{prefix}.Name == \"{segments[i]}\"");
-                prefix += ".Parent";
-            }
-
-            conditions.Add($"{prefix} == null");
-            return string.Join(" && ", conditions);
-        }
-
-        /// <summary>
-        /// Folder names travel inside a generated lookup expression. A name containing a quote would break that
-        /// expression, so such a folder is skipped rather than allowed to produce something unparseable.
-        /// </summary>
-        private static bool IsExpressionSafe(string? path) => path != null && !path.Contains('"');
 
         /// <summary>Depth of a topic in the live tree (root = 0), guarded against a cyclic parent chain.</summary>
         private static int TopicDepth(HelpTopic topic, List<HelpTopic> all)
@@ -728,6 +810,43 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
             var depth = 0;
             var cursor = topic;
             while (!string.IsNullOrEmpty(cursor?.ParentSlug) && bySlug.TryGetValue(cursor.ParentSlug!, out var parent) && depth <= bySlug.Count)
+            {
+                depth++;
+                cursor = parent;
+            }
+
+            return depth;
+        }
+
+        /// <summary>
+        /// Gives every folder that still has none a reference tag — the same move <c>EnsureNavUniqueness</c> makes
+        /// for the navigation menu. Folders created before the tag existed would otherwise travel without a key,
+        /// and a system that already received them would keep creating them again on every import. Runs before
+        /// the folders are read, so an export never carries an empty tag.
+        /// </summary>
+        private static void EnsureFolderRefTags(DbContext db, IHelpSystemContext ctx)
+        {
+            var untagged = ctx.HelpResourceFolders.Where(f => string.IsNullOrEmpty(f.RefTag)).ToList();
+            if (untagged.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var folder in untagged)
+            {
+                folder.RefTag = Guid.NewGuid().ToString("D");
+            }
+
+            db.SaveChanges();
+        }
+
+        /// <summary>Depth of a folder in the live tree (root = 0), guarded against a cyclic parent chain.</summary>
+        private static int FolderDepth(HelpResourceFolder folder, List<HelpResourceFolder> all)
+        {
+            var byId = all.ToDictionary(f => f.HelpResourceFolderId);
+            var depth = 0;
+            var cursor = folder;
+            while (cursor?.ParentId != null && byId.TryGetValue(cursor.ParentId.Value, out var parent) && depth <= byId.Count)
             {
                 depth++;
                 cursor = parent;

@@ -6,7 +6,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
     /// <summary>
     /// System-config export section for the global help system: the topic tree with its localized contents, the
     /// resource library's folders and the resource entries. Cross-references travel by natural name (slug, resource
-    /// name, folder path) because the numeric ids differ per system.
+    /// name, folder reference tag) because the numeric ids differ per system.
     /// </summary>
     /// <remarks>
     /// The bytes behind a resource travel inline as base64 (see <see cref="HelpResourceFileMarkup.Content"/>),
@@ -23,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
         /// <summary>The topic tree, parents before children.</summary>
         public HelpTopicMarkup[]? Topics { get; set; }
 
-        /// <summary>Folders of the resource library, shallow paths before deep ones.</summary>
+        /// <summary>Folders of the resource library, parents before children.</summary>
         public HelpResourceFolderMarkup[]? ResourceFolders { get; set; }
 
         /// <summary>The resource entries with their per-culture file bindings.</summary>
@@ -72,12 +72,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
     }
 
     /// <summary>
-    /// A folder of the resource library, identified by its full path (<c>manuals/screenshots</c>). Folders are
-    /// pure organisation — a resource is addressed by its flat global name regardless of where it sits.
+    /// A folder of the resource library, identified by its <see cref="RefTag"/>. Folders are pure organisation —
+    /// a resource is addressed by its flat global name regardless of where it sits.
     /// </summary>
+    /// <remarks>
+    /// The tag and not the path is the key, so a folder that was renamed or moved on the exporting system
+    /// arrives as a rename or a move. Over a path key the two would be indistinguishable from "a different
+    /// folder", and the receiving system would end up with the new one beside the one it was meant to replace.
+    /// </remarks>
     public class HelpResourceFolderMarkup
     {
-        /// <summary>Full path from the root, separated by <c>/</c>.</summary>
+        /// <summary>Stable identity of the folder; the key this section compares folders by.</summary>
+        public string? RefTag { get; set; }
+
+        /// <summary>The folder's own name, without its ancestors.</summary>
+        public string? Name { get; set; }
+
+        /// <summary>Reference tag of the parent folder; null for a folder at the root.</summary>
+        public string? ParentRef { get; set; }
+
+        /// <summary>
+        /// Full path from the root, separated by <c>/</c>. For reading only — the diff shows it in place of the
+        /// bare tag. Nothing is resolved through it.
+        /// </summary>
         public string? Path { get; set; }
     }
 
@@ -93,7 +110,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Configuration
         /// <summary>Image, video or other.</summary>
         public HelpResourceKind Kind { get; set; }
 
-        /// <summary>Full path of the folder the resource is filed in; null when it sits at the root.</summary>
+        /// <summary>Reference tag of the folder the resource is filed in; null when it sits at the root.</summary>
+        public string? FolderRef { get; set; }
+
+        /// <summary>Full path of that folder, for reading only; the assignment travels through <see cref="FolderRef"/>.</summary>
         public string? FolderPath { get; set; }
 
         /// <summary>One binding per culture.</summary>
