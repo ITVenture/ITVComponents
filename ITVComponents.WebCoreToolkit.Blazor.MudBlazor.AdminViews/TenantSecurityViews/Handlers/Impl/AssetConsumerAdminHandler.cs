@@ -44,10 +44,10 @@ public class AssetConsumerAdminHandler : IAssetConsumerAdminHandler
             }
 
             var total = await q.CountAsync();
-            q = query.SortDescending
+            var sorted = query.SortDescending
                 ? q.OrderByDescending(n => n.DeclarationKey)
                 : q.OrderBy(n => n.DeclarationKey);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await sorted.Page(n => n.AssetConsumerId, query)
                 .Select(n => new AssetConsumerViewModel
                 {
                     AssetConsumerId = n.AssetConsumerId,
@@ -76,7 +76,7 @@ public class AssetConsumerAdminHandler : IAssetConsumerAdminHandler
             var total = await q.CountAsync();
             // Nach SortOrder, nicht alphabetisch: das ist die Reihenfolge, in der der Endpunkt seine
             // Argumente nennt, und die soll der Betrachter sehen.
-            var items = await q.OrderBy(n => n.SortOrder).Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(n => n.SortOrder).Page(n => n.AssetConsumerArgumentId, query)
                 .Select(n => new AssetConsumerArgumentViewModel
                 {
                     AssetConsumerArgumentId = n.AssetConsumerArgumentId,

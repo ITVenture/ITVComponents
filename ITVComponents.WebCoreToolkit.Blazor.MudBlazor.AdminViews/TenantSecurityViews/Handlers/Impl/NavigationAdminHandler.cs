@@ -108,7 +108,7 @@ public class NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         var total = await q.CountAsync();
         var sorted = q.OrderBy(n => n.SortOrder ?? int.MaxValue).ThenBy(n => n.DisplayName);
 
-        var rawItems = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var rawItems = await sorted.Page(n => n.NavigationMenuId, query)
             .Select(n => new
             {
                 n.NavigationMenuId,

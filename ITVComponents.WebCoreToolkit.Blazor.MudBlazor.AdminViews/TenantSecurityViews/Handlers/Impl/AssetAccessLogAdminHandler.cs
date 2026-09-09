@@ -57,8 +57,7 @@ public class AssetAccessLogAdminHandler : IAssetAccessLogAdminHandler
             }
 
             var total = await q.CountAsync();
-            var items = await q.OrderByDescending(n => n.SharedAssetAccessId)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderByDescending(n => n.SharedAssetAccessId).Page(n => n.SharedAssetAccessId, query)
                 .Select(n => new AssetAccessViewModel
                 {
                     SharedAssetAccessId = n.SharedAssetAccessId,

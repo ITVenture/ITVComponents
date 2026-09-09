@@ -112,8 +112,8 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             q = q.Where(r => r.RoleName.Contains(s));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(r => r.RoleName) : q.OrderBy(r => r.RoleName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(r => r.RoleName) : q.OrderBy(r => r.RoleName);
+        var items = await sorted.Page(r => r.GlobalRoleId, query)
             .Select(r => new GlobalRoleViewModel
             {
                 GlobalRoleId = r.GlobalRoleId,
@@ -181,8 +181,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             q = q.Where(p => p.PermissionName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.PermissionName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.PermissionName).Page(p => p.PermissionId, query)
             .Select(p => new GlobalPermissionAssignmentViewModel
             {
                 GlobalRoleId = globalRoleId,
@@ -245,8 +244,7 @@ public class GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
             q = q.Where(g => g.RoleName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(g => g.RoleName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(g => g.RoleName).Page(g => g.GlobalRoleId, query)
             .Select(g => new GlobalRoleForLocalRoleAssignmentViewModel
             {
                 GlobalRoleId = g.GlobalRoleId,

@@ -119,41 +119,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
             db.EnsureNavUniqueness();
             using (new FullSecurityAccessHelper<TTrustConfig>(db, new() { ShowAllTenants = true, HideGlobals = false }))
             {
+                // Jede Abfrage hier materialisiert mit ToList(): die Auswahl-Methoden greifen auf Navigationen
+                // zu, und ein Nachladen mitten im noch offenen Reader beantwortet PostgreSQL mit "A command is
+                // already in progress". Die Include-Angaben ersparen das Nachladen, das ToList() faengt es ab.
                 var roles = (from t in db.SecurityRoles.Include(n => n.RolePermissions).Include(n => n.PermittedRoles)
                             .Include(n => n.PermittedGlobalRoles).ThenInclude(g => g.GlobalRole)
-                    where t.TenantId == tenant.TenantId select t).AsEnumerable()
+                    where t.TenantId == tenant.TenantId select t).ToList()
                     .Select(SelectRoleTemplateMarkup).ToArray();
                 var settings = (from t in db.TenantSettings
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectSettingTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectSettingTemplateMarkup).ToArray();
                 var now = DateTime.Now;
-                var features = (from t in db.TenantFeatureActivations
+                var features = (from t in db.TenantFeatureActivations.Include(t => t.Feature)
                     where
                         t.TenantId == tenant.TenantId &&
                         (t.ActivationEnd ?? now) >= now && (t.ActivationStart ?? now) <= now
-                    select t).AsEnumerable().Select(SelectFeatureTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectFeatureTemplateMarkup).ToArray();
                 var plugIns = (from t in db.WebPlugins.Include(p => p.Parameters)
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectPlugInTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectPlugInTemplateMarkup).ToArray();
                 var constants = (from t in db.WebPluginConstants
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectConstTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectConstTemplateMarkup).ToArray();
 
-                var menus = (from t in db.TenantNavigation
+                var menus = (from t in db.TenantNavigation.Include(t => t.NavigationMenu).Include(t => t.Permission)
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectNavigationTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectNavigationTemplateMarkup).ToArray();
 
-                var queries = (from t in db.TenantDiagnosticsQueries
+                var queries = (from t in db.TenantDiagnosticsQueries.Include(t => t.DiagnosticsQuery)
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectQueryTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectQueryTemplateMarkup).ToArray();
 
                 var permissions = (from t in db.Permissions
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectPermissionTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectPermissionTemplateMarkup).ToArray();
 
                 var externalServices = (from t in db.ExternalOAuthServices
                     where t.TenantId == tenant.TenantId
-                    select t).AsEnumerable().Select(SelectExternalOAuthServiceTemplateMarkup).ToArray();
+                    select t).ToList().Select(SelectExternalOAuthServiceTemplateMarkup).ToArray();
                 var markup = new TenantTemplateMarkup
                 {
                     Features = features,

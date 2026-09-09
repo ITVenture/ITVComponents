@@ -108,10 +108,10 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         var total = await q.CountAsync();
         // SortOrder zuerst: das ist die Reihenfolge, in der die Standard-Sammlung fuer einen neuen
         // Benutzer angelegt wird - im Editor soll sie genauso zu sehen sein.
-        q = query.SortDescending
+        var sorted = query.SortDescending
             ? q.OrderByDescending(w => w.SortOrder).ThenByDescending(w => w.SystemName)
             : q.OrderBy(w => w.SortOrder).ThenBy(w => w.SystemName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await sorted.Page(w => w.DashboardWidgetId, query)
             .Select(w => new DashboardWidgetViewModel
             {
                 DashboardWidgetId = w.DashboardWidgetId,
@@ -225,8 +225,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         using var db = CreateDb();
         var q = db.WidgetParams.AsNoTracking().Where(p => p.DashboardWidgetId == dashboardWidgetId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.ParameterName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.ParameterName).Page(p => p.DashboardParamId, query)
             .Select(p => new DashboardParamViewModel
             {
                 DashboardParamId = p.DashboardParamId,
@@ -288,8 +287,7 @@ public class DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         using var db = CreateDb();
         var q = db.WidgetLocales.AsNoTracking().Where(l => l.DashboardWidgetId == dashboardWidgetId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(l => l.LocaleName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(l => l.LocaleName).Page(l => l.DashboardWidgetLocalizationId, query)
             .Select(l => new DashboardWidgetLocalizationViewModel
             {
                 DashboardWidgetLocalizationId = l.DashboardWidgetLocalizationId,

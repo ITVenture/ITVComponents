@@ -42,8 +42,8 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
                 q = q.Where(a => a.AuthenticationTypeName.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(a => a.AuthenticationTypeName) : q.OrderBy(a => a.AuthenticationTypeName);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(a => a.AuthenticationTypeName) : q.OrderBy(a => a.AuthenticationTypeName);
+            var items = await sorted.Page(a => a.AuthenticationTypeId, query)
                 .Select(a => new AuthenticationTypeViewModel
                 {
                     AuthenticationTypeId = a.AuthenticationTypeId,
@@ -106,7 +106,7 @@ public class AuthenticationTypeAdminHandler : IAuthenticationTypeAdminHandler
                 .Where(c => c.AuthenticationTypeId == authenticationTypeId);
             var total = await q.CountAsync();
             var sorted = query.SortDescending ? q.OrderByDescending(c => c.IncomingClaimName) : q.OrderBy(c => c.IncomingClaimName);
-            var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var page = await sorted.Page(c => c.AuthenticationClaimMappingId, query)
                 .Select(c => new AuthenticationClaimMappingViewModel
                 {
                     AuthenticationClaimMappingId = c.AuthenticationClaimMappingId,

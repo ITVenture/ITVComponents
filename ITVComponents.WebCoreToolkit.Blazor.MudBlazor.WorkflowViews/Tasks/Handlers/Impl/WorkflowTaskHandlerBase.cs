@@ -113,8 +113,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                     ClaimedUntil = x.Token.ClaimedUntil,
                     CorrelationKey = x.Instance.CorrelationKey
                 }), query.SortColumn, query.SortDescending)
-                .Skip(query.Page * query.PageSize)
-                .Take(query.PageSize)
+                .Page(t => t.TokenId, query.Page, query.PageSize)
                 .ToListAsync();
 
             return new PagedResult<UserTaskListItem> { Items = page, TotalCount = total };
@@ -793,7 +792,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Tasks.Hand
                    || Services.VerifyUserPermissions(new[] { found.TaskPermission });
         }
 
-        private static IQueryable<UserTaskListItem> Sort(IQueryable<UserTaskListItem> q, string? column,
+        private static IOrderedQueryable<UserTaskListItem> Sort(IQueryable<UserTaskListItem> q, string? column,
             bool descending)
         {
             switch (column)

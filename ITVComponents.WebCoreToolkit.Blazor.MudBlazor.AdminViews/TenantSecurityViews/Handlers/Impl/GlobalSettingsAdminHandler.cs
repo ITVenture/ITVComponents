@@ -39,8 +39,8 @@ public class GlobalSettingsAdminHandler : IGlobalSettingsAdminHandler
                 q = q.Where(g => g.SettingsKey.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(g => g.SettingsKey) : q.OrderBy(g => g.SettingsKey);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(g => g.SettingsKey) : q.OrderBy(g => g.SettingsKey);
+            var items = await sorted.Page(g => g.GlobalSettingId, query)
                 .Select(g => new GlobalSettingViewModel
                 {
                     GlobalSettingId = g.GlobalSettingId,

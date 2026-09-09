@@ -109,8 +109,8 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             q = q.Where(t => t.Name.Contains(s) || t.SystemKey.Contains(s));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(t => t.SystemKey) : q.OrderBy(t => t.SystemKey);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(t => t.SystemKey) : q.OrderBy(t => t.SystemKey);
+        var items = await sorted.Page(t => t.AssetTemplateId, query)
             .Select(t => new AssetTemplateViewModel
             {
                 AssetTemplateId = t.AssetTemplateId,
@@ -189,8 +189,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         using var db = CreateDb();
         var q = db.AssetTemplatePathFilters.AsNoTracking().Where(p => p.AssetTemplateId == assetTemplateId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.PathTemplate)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.PathTemplate).Page(p => p.AssetTemplatePathId, query)
             .Select(p => new AssetTemplatePathViewModel
             {
                 AssetTemplatePathId = p.AssetTemplatePathId,
@@ -253,8 +252,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             q = q.Where(p => p.PermissionName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.PermissionName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.PermissionName).Page(p => p.PermissionId, query)
             .Select(p => new AssetTemplatePermissionAssignmentViewModel
             {
                 PermissionId = p.PermissionId,
@@ -308,8 +306,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             q = q.Where(f => f.FeatureName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(f => f.FeatureName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(f => f.FeatureName).Page(f => f.FeatureId, query)
             .Select(f => new AssetTemplateFeatureAssignmentViewModel
             {
                 FeatureId = f.FeatureId,
@@ -351,7 +348,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         using var db = CreateDb();
         var q = db.AssetTemplateArguments.AsNoTracking().Where(n => n.AssetTemplateId == assetTemplateId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(n => n.SortOrder).Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(n => n.SortOrder).Page(n => n.AssetTemplateArgumentId, query)
             .Select(n => new AssetTemplateArgumentViewModel
             {
                 AssetTemplateArgumentId = n.AssetTemplateArgumentId,
@@ -452,7 +449,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         var q = db.AssetTemplateConsumers.AsNoTracking().Where(n => n.AssetTemplateId == assetTemplateId);
         var total = await q.CountAsync();
         var items = await q.OrderByDescending(n => n.IsEntryPoint).ThenBy(n => n.DeclarationKey)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Page(n => n.AssetTemplateConsumerId, query)
             .Select(n => new AssetTemplateConsumerViewModel
             {
                 AssetTemplateConsumerId = n.AssetTemplateConsumerId,
@@ -508,7 +505,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         }
 
         var total = await q.CountAsync();
-        var items = await q.OrderBy(n => n.DeclarationKey).Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(n => n.DeclarationKey).Page(n => n.AssetConsumerId, query)
             .Select(n => new AssetConsumerViewModel
             {
                 AssetConsumerId = n.AssetConsumerId,

@@ -117,7 +117,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
                 q = q.Where(u => u.UserName!.Contains(s) || (u.Email != null && u.Email.Contains(s)));
             }
 
-            q = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
+            var sorted = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
             {
                 ("email", false) => q.OrderBy(u => u.Email),
                 ("email", true) => q.OrderByDescending(u => u.Email),
@@ -126,7 +126,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
             };
 
             var total = await q.CountAsync();
-            var page = await q.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+            var page = await sorted.Page(u => u.Id, query).ToListAsync();
             return new PagedResult<UserViewModel>
             {
                 Items = page.Select(MapUser).ToList(),
@@ -149,7 +149,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         // Sortieren VOR dem Blaettern - und zwar immer. Ohne ORDER BY steht die Reihenfolge einer
         // Seite der Datenbank frei: derselbe Benutzer kann auf Seite 1 und auf Seite 2 auftauchen,
         // ein anderer auf keiner. Der sysadmin-Zweig oben macht das bereits richtig.
-        tenantQuery = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
+        var sortedTenant = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
         {
             ("email", false) => tenantQuery.OrderBy(x => x.u.Email),
             ("email", true) => tenantQuery.OrderByDescending(x => x.u.Email),
@@ -158,8 +158,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         };
 
         var totalTenant = await tenantQuery.CountAsync();
-        var paged = await tenantQuery
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var paged = await sortedTenant.Page(x => x.u.Id, query)
             .Select(x => new UserViewModel
             {
                 Id = x.tu.TenantUserId.ToString(),
@@ -282,7 +281,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         var q = db.UserProperties.AsNoTracking().Where(p => p.UserId == userId);
         var total = await q.CountAsync();
         var sorted = query.SortDescending ? q.OrderByDescending(p => p.PropertyName) : q.OrderBy(p => p.PropertyName);
-        var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var page = await sorted.Page(p => p.CustomUserPropertyId, query).ToListAsync();
         return new PagedResult<CustomUserPropertyViewModel>
         {
             Items = page.Select(p => new CustomUserPropertyViewModel
@@ -348,7 +347,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         var q = db.Set<IdentityUserLogin<string>>().AsNoTracking().Where(l => l.UserId == userId);
         var total = await q.CountAsync();
         var sorted = query.SortDescending ? q.OrderByDescending(l => l.ProviderDisplayName) : q.OrderBy(l => l.ProviderDisplayName);
-        var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var page = await sorted.Page(l => l.LoginProvider, l => l.ProviderKey, query).ToListAsync();
         return new PagedResult<UserLoginViewModel>
         {
             Items = page.Select(l => new UserLoginViewModel
@@ -383,7 +382,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         var q = db.Set<IdentityUserToken<string>>().AsNoTracking().Where(t => t.UserId == userId);
         var total = await q.CountAsync();
         var sorted = query.SortDescending ? q.OrderByDescending(t => t.Name) : q.OrderBy(t => t.Name);
-        var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var page = await sorted.Page(t => t.LoginProvider, query).ToListAsync();
         return new PagedResult<UserTokenViewModel>
         {
             Items = page.Select(t => new UserTokenViewModel
@@ -418,7 +417,7 @@ public class UserAdminHandler<TContext, TTenant, TUser, TRole, TPermission, TUse
         var q = db.Set<IdentityUserClaim<string>>().AsNoTracking().Where(c => c.UserId == userId);
         var total = await q.CountAsync();
         var sorted = query.SortDescending ? q.OrderByDescending(c => c.ClaimType) : q.OrderBy(c => c.ClaimType);
-        var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var page = await sorted.Page(c => c.Id, query).ToListAsync();
         return new PagedResult<UserClaimViewModel>
         {
             Items = page.Select(c => new UserClaimViewModel

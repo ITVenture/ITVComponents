@@ -61,11 +61,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             }
 
             int total = await q.CountAsync();
-            q = Sort(q, query.SortColumn, query.SortDescending)
-                .Skip(query.Page * query.PageSize)
-                .Take(query.PageSize);
+            var page = Sort(q, query.SortColumn, query.SortDescending)
+                .Page(r => r.DefinitionKey, query.Page, query.PageSize);
 
-            var items = (await q.ToListAsync()).Select(ToListItem).ToList();
+            var items = (await page.ToListAsync()).Select(ToListItem).ToList();
             return new PagedResult<WorkflowDefinitionListItem> { Items = items, TotalCount = total };
         }
 
@@ -252,7 +251,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Design.Han
             };
         }
 
-        private static IQueryable<WorkflowDefinitionRow> Sort(IQueryable<WorkflowDefinitionRow> q, string? column,
+        private static IOrderedQueryable<WorkflowDefinitionRow> Sort(IQueryable<WorkflowDefinitionRow> q, string? column,
             bool descending)
         {
             switch (column)

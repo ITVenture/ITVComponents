@@ -38,8 +38,8 @@ public class FeatureAdminHandler : IFeatureAdminHandler
                 q = q.Where(f => f.FeatureName.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(f => f.FeatureName) : q.OrderBy(f => f.FeatureName);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(f => f.FeatureName) : q.OrderBy(f => f.FeatureName);
+            var items = await sorted.Page(f => f.FeatureId, query)
                 .Select(f => new FeatureViewModel
                 {
                     FeatureId = f.FeatureId,
@@ -114,8 +114,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
                 q = q.Where(m => m.TemplateModuleName.Contains(s));
             }
             var total = await q.CountAsync();
-            var items = await q.OrderBy(m => m.TemplateModuleName)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(m => m.TemplateModuleName).Page(m => m.TemplateModuleId, query)
                 .Select(m => new TemplateModuleViewModel
                 {
                     TemplateModuleId = m.TemplateModuleId,
@@ -187,8 +186,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
                 q = q.Where(c => c.Name.Contains(s));
             }
             var total = await q.CountAsync();
-            var items = await q.OrderBy(c => c.Name)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(c => c.Name).Page(c => c.TemplateModuleConfiguratorId, query)
                 .Select(c => new TemplateModuleConfiguratorViewModel
                 {
                     TemplateModuleConfiguratorId = c.TemplateModuleConfiguratorId,
@@ -269,8 +267,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
                 q = q.Where(x => x.ScriptFile.Contains(s));
             }
             var total = await q.CountAsync();
-            var items = await q.OrderBy(s => s.ScriptFile)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(s => s.ScriptFile).Page(s => s.TemplateModuleScriptId, query)
                 .Select(s => new TemplateModuleScriptViewModel
                 {
                     TemplateModuleScriptId = s.TemplateModuleScriptId,
@@ -343,8 +340,7 @@ public class FeatureAdminHandler : IFeatureAdminHandler
                 q = q.Where(p => p.ParameterName.Contains(s));
             }
             var total = await q.CountAsync();
-            var items = await q.OrderBy(p => p.ParameterName)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(p => p.ParameterName).Page(p => p.TemplateModuleCfgParameterId, query)
                 .Select(p => new TemplateModuleConfiguratorParameterViewModel
                 {
                     TemplateModuleCfgParameterId = p.TemplateModuleCfgParameterId,

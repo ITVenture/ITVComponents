@@ -38,8 +38,8 @@ public class TenantTemplateAdminHandler : ITenantTemplateAdminHandler
                 q = q.Where(t => t.Name.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(t => t.Name) : q.OrderBy(t => t.Name);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(t => t.Name) : q.OrderBy(t => t.Name);
+            var items = await sorted.Page(t => t.TenantTemplateId, query)
                 .Select(t => new TenantTemplateViewModel
                 {
                     TenantTemplateId = t.TenantTemplateId,

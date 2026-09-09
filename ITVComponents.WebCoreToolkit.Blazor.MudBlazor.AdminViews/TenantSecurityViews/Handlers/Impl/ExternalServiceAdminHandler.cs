@@ -131,8 +131,8 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             q = q.Where(n => n.UniqueConnectionName.Contains(s));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(n => n.UniqueConnectionName) : q.OrderBy(n => n.UniqueConnectionName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(n => n.UniqueConnectionName) : q.OrderBy(n => n.UniqueConnectionName);
+        var items = await sorted.Page(n => n.OAuthServiceId, query)
             .Select(n => new ExternalOAuthServiceViewModel
             {
                 OAuthServiceId = n.OAuthServiceId,
@@ -229,8 +229,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                     Revoked = l.Revoked
                 };
         var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.TenantName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(x => x.TenantName).Page(x => x.TenantId, query)
             .ToListAsync();
         return new PagedResult<ExternalOAuthServiceTenantLoginViewModel> { Items = items, TotalCount = total };
     }

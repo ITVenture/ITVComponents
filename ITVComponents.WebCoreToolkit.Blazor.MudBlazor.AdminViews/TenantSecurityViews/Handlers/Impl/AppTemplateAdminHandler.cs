@@ -106,8 +106,8 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
             q = q.Where(t => t.Name.Contains(s));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(t => t.Name) : q.OrderBy(t => t.Name);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(t => t.Name) : q.OrderBy(t => t.Name);
+        var items = await sorted.Page(t => t.ClientAppTemplateId, query)
             .Select(t => new ClientAppTemplateViewModel
             {
                 ClientAppTemplateId = t.ClientAppTemplateId,
@@ -170,8 +170,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         }
 
         var total = await q.CountAsync();
-        var items = await q.OrderBy(ps => ps.Name)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(ps => ps.Name).Page(ps => ps.AppPermissionSetId, query)
             .Select(ps => new AppPermissionSetAssignmentViewModel
             {
                 AppPermissionSetId = ps.AppPermissionSetId,

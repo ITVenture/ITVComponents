@@ -37,8 +37,8 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
                 q = q.Where(t => t.FullQualifiedTypeName.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(t => t.FullQualifiedTypeName) : q.OrderBy(t => t.FullQualifiedTypeName);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(t => t.FullQualifiedTypeName) : q.OrderBy(t => t.FullQualifiedTypeName);
+            var items = await sorted.Page(t => t.TrustedFullAccessComponentId, query)
                 .Select(t => new TrustedComponentViewModel
                 {
                     TrustedFullAccessComponentId = t.TrustedFullAccessComponentId,

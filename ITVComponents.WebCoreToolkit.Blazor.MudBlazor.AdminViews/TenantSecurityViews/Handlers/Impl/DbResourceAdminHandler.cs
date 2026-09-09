@@ -32,8 +32,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
             var q = db.Cultures.AsNoTracking().AsQueryable();
             if (!string.IsNullOrWhiteSpace(query.Search)) q = q.Where(c => c.Name.Contains(query.Search.Trim()));
             var total = await q.CountAsync();
-            var items = await q.OrderBy(c => c.Name)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(c => c.Name).Page(c => c.CultureId, query)
                 .Select(c => new CultureViewModel { CultureId = c.CultureId, Name = c.Name })
                 .ToListAsync();
             return new PagedResult<CultureViewModel> { Items = items, TotalCount = total };
@@ -87,8 +86,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
             var q = db.Localizations.AsNoTracking().AsQueryable();
             if (!string.IsNullOrWhiteSpace(query.Search)) q = q.Where(l => l.Identifier.Contains(query.Search.Trim()));
             var total = await q.CountAsync();
-            var items = await q.OrderBy(l => l.Identifier)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(l => l.Identifier).Page(l => l.LocalizationId, query)
                 .Select(l => new LocalizationViewModel { LocalizationId = l.LocalizationId, Identifier = l.Identifier })
                 .ToListAsync();
             return new PagedResult<LocalizationViewModel> { Items = items, TotalCount = total };
@@ -150,8 +148,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
                         CultureName = c.Name
                     };
             var total = await q.CountAsync();
-            var items = await q.OrderBy(x => x.CultureName)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+            var items = await q.OrderBy(x => x.CultureName).Page(x => x.LocalizationCultureId, query).ToListAsync();
             return new PagedResult<LocalizationCultureViewModel> { Items = items, TotalCount = total };
         }, showAllTenants: false);
     }
@@ -191,8 +188,7 @@ public class DbResourceAdminHandler : IDbResourceAdminHandler
             var q = db.LocalizationCultureStrings.AsNoTracking().Where(s => s.LocalizationCultureId == localizationCultureId);
             if (!string.IsNullOrWhiteSpace(query.Search)) q = q.Where(s => s.LocalizationKey.Contains(query.Search.Trim()));
             var total = await q.CountAsync();
-            var items = await q.OrderBy(s => s.LocalizationKey)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(s => s.LocalizationKey).Page(s => s.LocalizationStringId, query)
                 .Select(s => new LocalizationStringViewModel
                 {
                     LocalizationStringId = s.LocalizationStringId,

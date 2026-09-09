@@ -120,8 +120,8 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         }
 
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(r => r.RoleName) : q.OrderBy(r => r.RoleName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(r => r.RoleName) : q.OrderBy(r => r.RoleName);
+        var items = await sorted.Page(r => r.RoleId, query)
             .Select(r => new RoleViewModel
             {
                 RoleId = r.RoleId,
@@ -207,7 +207,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         var q = db.SecurityRoles.AsNoTracking()
             .Where(r => r.TenantId == effectiveTenantId)
             .OrderBy(r => r.RoleName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Page(r => r.RoleId, query)
             .Select(r => new RoleAssignmentViewModel
             {
                 RoleId = r.RoleId,
@@ -285,8 +285,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
         }
 
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.PermissionName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.PermissionName).Page(p => p.PermissionId, query)
             .Select(p => new PermissionAssignmentViewModel
             {
                 PermissionId = p.PermissionId,
@@ -382,8 +381,7 @@ public class RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermiss
 
             var total = await q.CountAsync();
             var defaultTn = effectiveTenantId[0];
-            var items = await q.OrderBy(r => r.RoleName)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(r => r.RoleName).Page(r => r.RoleId, query)
                 .Select(r => new RoleRoleAssignmentViewModel
                 {
                     PermissiveRoleId = permissiveRoleId,

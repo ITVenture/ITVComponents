@@ -71,11 +71,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             }
 
             int total = await q.CountAsync();
-            q = Sort(q, query.SortColumn, query.SortDescending)
-                .Skip(query.Page * query.PageSize)
-                .Take(query.PageSize);
+            var page = Sort(q, query.SortColumn, query.SortDescending)
+                .Page(r => r.Id, query.Page, query.PageSize);
 
-            var items = (await q.ToListAsync()).Select(ToListItem).ToList();
+            var items = (await page.ToListAsync()).Select(ToListItem).ToList();
             return new PagedResult<WorkflowInstanceListItem> { Items = items, TotalCount = total };
         }
 
@@ -962,7 +961,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
             // Vorgabe ist das Ende, absteigend: was zuletzt geendet hat, sucht man zuerst. Nach dem
             // Archivierungs-Zeitpunkt zu sortieren waere die Reihenfolge des Aufraeum-Laufs, nicht die
             // des Geschehens.
-            q = query.SortColumn switch
+            var sorted = query.SortColumn switch
             {
                 nameof(ArchivedInstanceListItem.CreatedUtc) => query.SortDescending
                     ? q.OrderByDescending(r => r.CreatedUtc)
@@ -978,8 +977,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
                     : q.OrderBy(r => r.EndedUtc)
             };
 
-            List<WorkflowArchivedInstanceRow> rows = await q
-                .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+            List<WorkflowArchivedInstanceRow> rows = await sorted
+                .Page(r => r.InstanceId, query.Page, query.PageSize).ToListAsync();
             return new PagedResult<ArchivedInstanceListItem>
             {
                 Items = rows.Select(ToArchivedListItem).ToList(),
@@ -1140,7 +1139,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.WorkflowViews.Monitoring
         }
 
         /// <summary>Der Anmeldename des Benutzers - er steht im Verlauf, wenn jemand eingreift.</summary>
-        private static IQueryable<WorkflowInstanceRow> Sort(IQueryable<WorkflowInstanceRow> q, string? column,
+        private static IOrderedQueryable<WorkflowInstanceRow> Sort(IQueryable<WorkflowInstanceRow> q, string? column,
             bool descending)
         {
             switch (column)

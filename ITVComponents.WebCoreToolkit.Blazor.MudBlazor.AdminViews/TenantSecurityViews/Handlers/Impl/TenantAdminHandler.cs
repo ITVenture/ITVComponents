@@ -122,7 +122,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(t => t.TenantName.Contains(s) || (t.DisplayName != null && t.DisplayName.Contains(s)));
         }
         var total = await q.CountAsync();
-        q = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
+        var sorted = (query.SortColumn?.ToLowerInvariant(), query.SortDescending) switch
         {
             ("displayname", true) => q.OrderByDescending(t => t.DisplayName),
             ("displayname", false) => q.OrderBy(t => t.DisplayName),
@@ -141,7 +141,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
                 TenantTypeId = t.TenantTypeId
             };
         }
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await sorted.Page(t => t.TenantId, query)
             .Select(tenantSelect).ToListAsync();
 
         // Flag which tenants can have their TenantType's template re-applied (type assigned + type carries a template).
@@ -241,7 +241,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         var total = await db.Tenants.CountAsync();
         var items = await db.Tenants.AsNoTracking()
             .OrderBy(t => t.TenantName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            .Page(t => t.TenantId, query)
             .Select(t => new TenantAssignmentViewModel
             {
                 TenantId = t.TenantId,
@@ -298,8 +298,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(x => x.SettingsKey.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(s => s.SettingsKey)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(s => s.SettingsKey).Page(s => s.TenantSettingId, query)
             .Select(s => new TenantSettingViewModel
             {
                 TenantSettingId = s.TenantSettingId,
@@ -405,8 +404,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(x => x.FeatureName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.FeatureName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var items = await q.OrderBy(x => x.FeatureName).Page(x => x.FeatureId, query).ToListAsync();
         return new PagedResult<TenantFeatureActivationAssignmentViewModel> { Items = items, TotalCount = total };
     }
 
@@ -476,8 +474,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(x => x.DisplayName.Contains(s) || (x.Url != null && x.Url.Contains(s)));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.DisplayName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var items = await q.OrderBy(x => x.DisplayName).Page(x => x.NavigationMenuId, query).ToListAsync();
         return new PagedResult<TenantNavigationAssignmentViewModel> { Items = items, TotalCount = total };
     }
 

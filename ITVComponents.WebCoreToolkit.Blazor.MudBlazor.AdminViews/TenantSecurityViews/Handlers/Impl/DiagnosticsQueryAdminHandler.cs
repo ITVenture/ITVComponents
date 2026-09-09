@@ -107,9 +107,9 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
             q = q.Where(d => d.DiagnosticsQueryName.Contains(s));
         }
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(d => d.DiagnosticsQueryName) : q.OrderBy(d => d.DiagnosticsQueryName);
+        var sorted = query.SortDescending ? q.OrderByDescending(d => d.DiagnosticsQueryName) : q.OrderBy(d => d.DiagnosticsQueryName);
 
-        var rawItems = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var rawItems = await sorted.Page(d => d.DiagnosticsQueryId, query)
             .Select(d => new
             {
                 d.DiagnosticsQueryId,
@@ -200,8 +200,7 @@ public class DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRo
         using var db = CreateDb();
         var q = db.DiagnosticsQueryParameters.AsNoTracking().Where(p => p.DiagnosticsQueryId == diagnosticsQueryId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(p => p.ParameterName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(p => p.ParameterName).Page(p => p.DiagnosticsQueryParameterId, query)
             .Select(p => new DiagnosticsQueryParameterViewModel
             {
                 DiagnosticsQueryParameterId = p.DiagnosticsQueryParameterId,

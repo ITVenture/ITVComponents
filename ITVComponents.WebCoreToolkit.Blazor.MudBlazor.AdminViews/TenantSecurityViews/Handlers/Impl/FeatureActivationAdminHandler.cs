@@ -113,8 +113,7 @@ public class FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TR
                 };
 
         var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.TenantDisplayName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(x => x.TenantDisplayName).Page(x => x.TenantFeatureActivationId, query)
             .ToListAsync();
         return new PagedResult<FeatureActivationViewModel> { Items = items, TotalCount = total };
     }

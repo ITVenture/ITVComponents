@@ -415,45 +415,53 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         }
 
         /// <summary>Reads every base (non-extension) section of the system configuration.</summary>
+        /// <remarks>
+        /// <b>Jede Abfrage hier materialisiert mit <c>ToList()</c>, nicht mit <c>AsEnumerable()</c>.</b> Die
+        /// Auswahl-Methoden sind <c>protected virtual</c> und greifen auf Navigationen zu; wird eine davon nicht
+        /// mitgeladen, laedt EF sie nach - und zwar mitten im noch offenen Reader der aeusseren Abfrage. Ein
+        /// Provider ohne MARS (PostgreSQL) antwortet darauf mit "A command is already in progress". Materialisiert
+        /// man vorher, kostet eine vergessene <c>Include</c>-Angabe nur eine Abfrage je Zeile statt eines
+        /// Abbruchs - und ein Host, der eine Auswahl-Methode ueberschreibt, kann das Loch nicht wieder aufreissen.
+        /// </remarks>
         private SystemTemplateMarkup DescribeBasicData()
         {
             DbContext.EnsureNavUniqueness();
             return new SystemTemplateMarkup
             {
-                Permissions = DbContext.Permissions.Where(n => n.TenantId == null).AsEnumerable().Select(n =>
+                Permissions = DbContext.Permissions.Where(n => n.TenantId == null).ToList().Select(n =>
                     SelectPermissionTemplateMarkup(n)).ToArray(),
                 GlobalRoles = DbContext.GlobalRoles.Include(n => n.RolePermissions).ThenInclude(n => n.Permission)
-                    .AsEnumerable()
+                    .ToList()
                     .Select(r => SelectGlobalRoleTemplateMarkup(r)).ToArray(),
-                AuthenticationTypes = DbContext.AuthenticationTypes.AsEnumerable().Select(n => SelectAuthenticationTypeTemplateMarkup(n)).ToArray(),
-                AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.AsEnumerable().Select(n => SelectAuthenticationTypeClaimTemplateMarkup(n)).ToArray(),
-                Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null).AsEnumerable()
+                AuthenticationTypes = DbContext.AuthenticationTypes.ToList().Select(n => SelectAuthenticationTypeTemplateMarkup(n)).ToArray(),
+                AuthenticationTypeClaimTemplates = DbContext.AuthenticationClaimMappings.Include(n => n.AuthenticationType).ToList().Select(n => SelectAuthenticationTypeClaimTemplateMarkup(n)).ToArray(),
+                Constants = DbContext.WebPluginConstants.Where(n => n.TenantId == null).ToList()
                     .Select(n => SelectConstTemplateMarkup(n)).ToArray(),
-                PlugIns = DbContext.WebPlugins.Include(n => n.Parameters).Where(n => n.TenantId == null).AsEnumerable().Select(n => SelectPlugInTemplateMarkup(n)).ToArray(),
-                Settings = DbContext.GlobalSettings.AsEnumerable().Select(n => SelectSettingTemplateMarkup(n))
+                PlugIns = DbContext.WebPlugins.Include(n => n.Parameters).Where(n => n.TenantId == null).ToList().Select(n => SelectPlugInTemplateMarkup(n)).ToArray(),
+                Settings = DbContext.GlobalSettings.ToList().Select(n => SelectSettingTemplateMarkup(n))
                     .ToArray(),
-                TenantTemplates = DbContext.TenantTemplates.AsEnumerable().Select(n => SelectTenantTemplateDefinitionMarkup(n)).ToArray(),
-                Features = DbContext.Features.AsEnumerable().Select(n => SelectSystemFeatureTemplateMarkup(n))
+                TenantTemplates = DbContext.TenantTemplates.ToList().Select(n => SelectTenantTemplateDefinitionMarkup(n)).ToArray(),
+                Features = DbContext.Features.ToList().Select(n => SelectSystemFeatureTemplateMarkup(n))
                     .ToArray(),
-                DiagnosticsQueries = DbContext.DiagnosticsQueries.Include(n => n.Parameters).AsEnumerable().Select(n => SelectDiagnosticsQueryTemplateMarkup(n)).ToArray(),
-                DashboardWidgets = DbContext.Widgets.AsEnumerable().Select(n => SelectDashboardWidgetTemplateMarkup(n)).ToArray(),
-                DashboardWidgetLocales = DbContext.WidgetLocales.AsEnumerable().Select(l => SelectDashboardWidgetLocaleTemplateMarkup(l))
+                DiagnosticsQueries = DbContext.DiagnosticsQueries.Include(n => n.Parameters).Include(n => n.Permission).ToList().Select(n => SelectDiagnosticsQueryTemplateMarkup(n)).ToArray(),
+                DashboardWidgets = DbContext.Widgets.Include(n => n.DiagnosticsQuery).Include(n => n.Params).ToList().Select(n => SelectDashboardWidgetTemplateMarkup(n)).ToArray(),
+                DashboardWidgetLocales = DbContext.WidgetLocales.Include(l => l.Widget).ToList().Select(l => SelectDashboardWidgetLocaleTemplateMarkup(l))
                     .ToArray(),
                 Navigation = GetSortedNav(),
-                TrustedModules = DbContext.TrustedFullAccessComponents.AsEnumerable().Select(n =>
+                TrustedModules = DbContext.TrustedFullAccessComponents.ToList().Select(n =>
                     SelectTrustedModuleTemplateMarkup(n)
                 ).ToArray(),
-                HealthScripts = DbContext.HealthScripts.AsEnumerable().Select(n => SelectHealthScriptTemplateMarkup(n)).ToArray(),
+                HealthScripts = DbContext.HealthScripts.ToList().Select(n => SelectHealthScriptTemplateMarkup(n)).ToArray(),
                 AssetTemplates = DbContext.AssetTemplates.Include(n => n.FeatureGrants).ThenInclude(n => n.Feature)
                     .Include(n => n.Grants).ThenInclude(n => n.Permission)
                     .Include(n => n.PathTemplates)
                     .Include(n => n.RequiredFeature)
-                    .Include(n => n.RequiredPermission).AsEnumerable().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
-                ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).AsEnumerable()
+                    .Include(n => n.RequiredPermission).ToList().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
+                ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).ToList()
                     .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
                 TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
                     .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
-                    .Include(n => n.Scripts).AsEnumerable().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
+                    .Include(n => n.Scripts).ToList().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
             };
         }
 
@@ -617,9 +625,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             return new PlugInTemplateMarkup
             {
                 AutoLoad = plugInInst.AutoLoad, Constructor = plugInInst.Constructor, UniqueName = plugInInst.UniqueName,
-                // The parameters come from the already-loaded navigation, not from a second query: the caller
-                // reads the plug-ins streaming (AsEnumerable), so its reader is still open here. A provider
-                // without MARS - PostgreSQL - answers a nested query with "A command is already in progress".
+                // The parameters come from the already-loaded navigation, never from a second query: a query
+                // here would hit the database once per plug-in, and it did so while the caller's reader was
+                // still open - which a provider without MARS (PostgreSQL) refuses outright.
                 GenericArguments = plugInInst.Parameters
                     .Select(c => new PlugInGenericArgumentTemplateMarkup
                         { GenericTypeName = c.GenericTypeName, TypeExpression = c.TypeExpression }).ToArray()
@@ -667,7 +675,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
 
         private NavigationMenuTemplateMarkup[] GetSortedNav()
         {
-            var allNav = DbContext.Navigation.ToList();
+            var allNav = DbContext.Navigation.Include(n => n.Parent).Include(n => n.EntryPoint).Include(n => n.Feature).ToList();
             var sortedNav = new List<TNavigationMenu>();
             var lastCt = 0;
             while (allNav.Count != 0 && lastCt != allNav.Count)

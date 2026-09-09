@@ -124,8 +124,8 @@ public class PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TP
         }
 
         var total = await q.CountAsync();
-        q = query.SortDescending ? q.OrderByDescending(p => p.PermissionName) : q.OrderBy(p => p.PermissionName);
-        var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var sorted = query.SortDescending ? q.OrderByDescending(p => p.PermissionName) : q.OrderBy(p => p.PermissionName);
+        var items = await sorted.Page(p => p.PermissionId, query)
             .Select(p => new PermissionViewModel
             {
                 PermissionId = p.PermissionId,

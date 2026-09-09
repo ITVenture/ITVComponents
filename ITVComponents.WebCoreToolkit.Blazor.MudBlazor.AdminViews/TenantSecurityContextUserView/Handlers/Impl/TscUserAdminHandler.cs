@@ -123,9 +123,9 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
                 var s = query.Search.Trim();
                 q = q.Where(u => u.UserName.Contains(s));
             }
-            q = query.SortDescending ? q.OrderByDescending(u => u.UserName) : q.OrderBy(u => u.UserName);
+            var sorted = query.SortDescending ? q.OrderByDescending(u => u.UserName) : q.OrderBy(u => u.UserName);
             var total = await q.CountAsync();
-            var page = await q.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+            var page = await sorted.Page(u => u.UserId, query).ToListAsync();
             return new PagedResult<UserViewModel>
             {
                 Items = page.Select(MapUser).ToList(),
@@ -149,13 +149,12 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
         // der Datenbank frei: derselbe Benutzer kann auf Seite 1 und auf Seite 2 auftauchen, ein anderer
         // auf keiner. Nur nach dem Namen: dieses Modell hat kein weiteres sortierbares Feld (die
         // Mail-Spalten blendet die Maske ueber SupportsEmail = false aus).
-        tenantQuery = query.SortDescending
+        var sortedTenant = query.SortDescending
             ? tenantQuery.OrderByDescending(x => x.u.UserName)
             : tenantQuery.OrderBy(x => x.u.UserName);
 
         var totalTenant = await tenantQuery.CountAsync();
-        var paged = await tenantQuery
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var paged = await sortedTenant.Page(x => x.u.UserId, query)
             .Select(x => new UserViewModel
             {
                 Id = x.tu.TenantUserId.ToString(),
@@ -252,7 +251,7 @@ public class TscUserAdminHandler<TContext, TTenant, TRole, TPermission, TUserRol
         var q = db.UserProperties.AsNoTracking().Where(p => p.UserId == uid);
         var total = await q.CountAsync();
         var sorted = query.SortDescending ? q.OrderByDescending(p => p.PropertyName) : q.OrderBy(p => p.PropertyName);
-        var page = await sorted.Skip(query.Page * query.PageSize).Take(query.PageSize).ToListAsync();
+        var page = await sorted.Page(p => p.CustomUserPropertyId, query).ToListAsync();
         return new PagedResult<CustomUserPropertyViewModel>
         {
             Items = page.Select(p => new CustomUserPropertyViewModel

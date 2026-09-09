@@ -31,8 +31,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
             var q = db.Tutorials.AsNoTracking().AsQueryable();
             if (!string.IsNullOrWhiteSpace(query.Search)) q = q.Where(t => t.DisplayName.Contains(query.Search.Trim()) || t.SortableName.Contains(query.Search.Trim()));
             var total = await q.CountAsync();
-            var items = await q.OrderBy(t => t.SortableName)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(t => t.SortableName).Page(t => t.VideoTutorialId, query)
                 .Select(t => new VideoTutorialViewModel
                 {
                     VideoTutorialId = t.VideoTutorialId,
@@ -101,8 +100,7 @@ public class ModuleVideoAdminHandler : IModuleVideoAdminHandler
         {
             var q = db.TutorialStreams.AsNoTracking().Where(s => s.VideoTutorialId == videoTutorialId);
             var total = await q.CountAsync();
-            var items = await q.OrderBy(s => s.LanguageTag)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderBy(s => s.LanguageTag).Page(s => s.TutorialStreamId, query)
                 .Select(s => new TutorialStreamViewModel
                 {
                     TutorialStreamId = s.TutorialStreamId,

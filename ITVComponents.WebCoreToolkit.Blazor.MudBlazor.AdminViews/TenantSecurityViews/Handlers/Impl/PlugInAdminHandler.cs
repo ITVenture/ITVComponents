@@ -113,8 +113,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(n => n.UniqueName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(n => n.UniqueName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(n => n.UniqueName).Page(n => n.WebPluginId, query)
             .Select(n => new WebPluginViewModel
             {
                 WebPluginId = n.WebPluginId,
@@ -197,8 +196,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
         var q = db.GenericPluginParams.AsNoTracking().Where(n => n.WebPluginId == webPluginId);
         var total = await q.CountAsync();
-        var items = await q.OrderBy(n => n.GenericTypeName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(n => n.GenericTypeName).Page(n => n.WebPluginGenericParameterId, query)
             .Select(n => new WebPluginGenericParameterViewModel
             {
                 WebPluginGenericParameterId = n.WebPluginGenericParameterId,
@@ -269,8 +267,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             q = q.Where(n => n.Name.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(n => n.Name)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(n => n.Name).Page(n => n.WebPluginConstantId, query)
             .Select(n => new WebPluginConstantViewModel
             {
                 WebPluginConstantId = n.WebPluginConstantId,

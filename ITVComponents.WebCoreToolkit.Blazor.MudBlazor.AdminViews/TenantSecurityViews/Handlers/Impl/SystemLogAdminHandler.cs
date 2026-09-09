@@ -70,8 +70,7 @@ public class SystemLogAdminHandler : ISystemLogAdminHandler
             }
 
             var total = await q.CountAsync();
-            var items = await q.OrderByDescending(e => e.EventTime)
-                .Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var items = await q.OrderByDescending(e => e.EventTime).Page(e => e.SystemEventId, query.Page, query.PageSize)
                 .Select(ToViewModel)
                 .ToListAsync();
             return new PagedResult<SystemEventViewModel> { Items = items, TotalCount = total };

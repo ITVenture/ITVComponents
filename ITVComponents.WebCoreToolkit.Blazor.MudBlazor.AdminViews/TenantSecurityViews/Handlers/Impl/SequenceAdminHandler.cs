@@ -106,8 +106,7 @@ public class SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPer
             q = q.Where(x => x.SequenceName.Contains(s));
         }
         var total = await q.CountAsync();
-        var items = await q.OrderBy(s => s.SequenceName)
-            .Skip(query.Page * query.PageSize).Take(query.PageSize)
+        var items = await q.OrderBy(s => s.SequenceName).Page(s => s.SequenceId, query)
             .Select(s => new SequenceViewModel
             {
                 SequenceId = s.SequenceId,

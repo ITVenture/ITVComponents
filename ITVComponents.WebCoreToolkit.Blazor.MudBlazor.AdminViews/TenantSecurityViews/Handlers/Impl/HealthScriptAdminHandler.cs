@@ -37,8 +37,8 @@ public class HealthScriptAdminHandler : IHealthScriptAdminHandler
                 q = q.Where(h => h.HealthScriptName.Contains(s));
             }
             var total = await q.CountAsync();
-            q = query.SortDescending ? q.OrderByDescending(h => h.HealthScriptName) : q.OrderBy(h => h.HealthScriptName);
-            var items = await q.Skip(query.Page * query.PageSize).Take(query.PageSize)
+            var sorted = query.SortDescending ? q.OrderByDescending(h => h.HealthScriptName) : q.OrderBy(h => h.HealthScriptName);
+            var items = await sorted.Page(h => h.HealthScriptId, query)
                 .Select(h => new HealthScriptViewModel
                 {
                     HealthScriptId = h.HealthScriptId,
