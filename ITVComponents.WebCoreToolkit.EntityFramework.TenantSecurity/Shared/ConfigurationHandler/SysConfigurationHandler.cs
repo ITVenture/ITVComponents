@@ -1299,7 +1299,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 else if (c.Original == null && c.New != null)
                 {
                     change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
-                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[0], "AssetTemplates", "SystemKey")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
                     RegisterChange(change);
                 }
@@ -1350,8 +1350,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 else if (c.Original == null && c.New != null)
                 {
                     change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
-                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
-                    change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[0], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New, MakeLinqAssign<TContext>(keyNames[1], "Features", "FeatureName")));
                     RegisterChange(change);
                 }
 
@@ -1366,7 +1366,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         {
             originalFilters ??= Array.Empty<string>();
             var keyNames = new string[] { "Template", "PathTemplate" };
-            var entityName = "AssetTemplateFeatures";
+            var entityName = "AssetTemplatePathFilters";
             var keyExp = new Dictionary<string, string>
             {
                 {keyNames[0], MakeLinqQuery<TContext>("AssetTemplates", "SystemKey", filterValueVariable: "Value")}
@@ -1400,7 +1400,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 else if (c.Original == null && c.New != null)
                 {
                     change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
-                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[1], "AssetTemplates", "SystemKey")));
+                    change.Details.Add(MakeDetail(keyNames[0], systemKey, MakeLinqAssign<TContext>(keyNames[0], "AssetTemplates", "SystemKey")));
                     change.Details.Add(MakeDetail(keyNames[1], c.New));
                     RegisterChange(change);
                 }
@@ -2741,7 +2741,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
 
         protected virtual void PostProcessAssetPermissionChange(string systemKey, Change change, string @new, string original)
         {
-            throw new NotImplementedException();
         }
 
         protected virtual void PostProcessWidgetParameterChange(string dashboardName, Change change, DashboardParamTemplateMarkup @new, DashboardParamTemplateMarkup original)
