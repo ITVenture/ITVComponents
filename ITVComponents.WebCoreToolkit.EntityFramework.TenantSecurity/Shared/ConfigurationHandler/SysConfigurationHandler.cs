@@ -139,8 +139,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         private void CompareExtensions(List<ConfigExtensionMarkup> current, List<ConfigExtensionMarkup> uploaded)
         {
             var opts = ExtensionOptions;
-            if (services == null || uploaded == null || opts.Handlers.Count == 0)
+            if (uploaded == null)
             {
+                return;
+            }
+
+            if (services == null || opts.Handlers.Count == 0)
+            {
+                // The file carries feature-library sections, this system has nobody to compare them with. Saying
+                // so beats a diff that quietly comes out one section short.
+                foreach (var orphan in uploaded)
+                {
+                    RegisterUnknownSection(orphan.SectionKey);
+                }
+
                 return;
             }
 
@@ -150,7 +162,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 var reg = opts.Handlers.FirstOrDefault(h => string.Equals(h.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
                 if (reg == null)
                 {
-                    continue; // section whose contributing library isn't installed here -> skip
+                    // Section whose contributing library isn't installed here. Skipping is correct, doing it
+                    // silently is not: the section simply would not show up in the diff at all.
+                    RegisterUnknownSection(up.SectionKey);
+                    continue;
                 }
 
                 var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
@@ -160,6 +175,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     RegisterChange(change);
                 }
             }
+        }
+
+        /// <summary>
+        /// Notes an uploaded extension section that no installed library claims — as a visible warning in the diff
+        /// and in the log, never as silence.
+        /// </summary>
+        private void RegisterUnknownSection(string sectionKey)
+        {
+            RegisterChange(new Change
+            {
+                ChangeType = ChangeType.Warning,
+                EntityName = $"Section '{sectionKey}' was ignored",
+                Details =
+                {
+                    MakeDetail("Reason",
+                        "No installed feature-library handles this section on this system. Its content was not compared and will not be applied.",
+                        apply: false)
+                }
+            });
+            LogEnvironment.LogEvent(
+                $"An uploaded system-configuration carries the extension-section '{sectionKey}', for which no handler is registered on this system; the section was ignored.",
+                LogSeverity.Warning);
         }
 
         /// <summary>

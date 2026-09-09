@@ -830,7 +830,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TGlobalRole SelectGlobalRole(string roleName)
         {
-            var ret = db.GlobalRoles.LocalFirstOrDefault(n => n.RoleName == roleName);
+            var name = roleName?.ToLower();
+            var ret = db.GlobalRoles.LocalFirstOrDefault(n => n.RoleName.ToLower() == name);
             if (ret == null)
             {
                 throw new Exception($"Role {roleName} was not found!");
@@ -841,10 +842,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TRole SelectPermittedRole(TTenant tenant, string s)
         {
-            var ret = db.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == s);
+            // Kleingeschrieben wie in GetRole - sonst findet der Zugriffs-Abgleich die Rolle nicht, die dieselbe
+            // Vorlage kurz zuvor unter abweichender Schreibweise angelegt hat.
+            var name = s?.ToLower();
+            var ret = db.SecurityRoles.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName.ToLower() == name);
             if (ret == null)
             {
-                ret = db.SecurityRoles.Local.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName == s);
+                ret = db.SecurityRoles.Local.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.RoleName.ToLower() == name);
             }
 
             if (ret == null)
@@ -1095,8 +1099,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         {
             var nowU = DateTime.UtcNow;
             var ftu = db.Features.First(n => n.FeatureName.ToLower() == feature.FeatureName.ToLower());
+            // Die Freischaltung wird am Merkmal gesucht, nicht nur am Mandanten: ohne diese Bedingung liefert
+            // eine Vorlage mit mehreren Merkmalen ab dem zweiten die Zeile des ersten zurueck - das zweite
+            // Merkmal wird nie angelegt und seine Laufzeit landet auf dem ersten.
+            var featureId = ftu.FeatureId;
             var retVal = db.TenantFeatureActivations.LocalFirstOrDefault(n =>
-                n.TenantId == tenantId);
+                n.TenantId == tenantId && n.FeatureId == featureId);
             if (retVal == null && addIfMissing)
             {
                 retVal = new TTenantFeatureActivation()
@@ -1133,7 +1141,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         protected virtual TTenantNavigation GetNavigationMenu(int tenantId, NavigationTemplateMarkup menu,
             bool addIfMissing, List<string> urlUqs)
         {
-            var mnu = db.Navigation.First(n => n.UrlUniqueness == menu.UniqueKey);
+            // Schluesselvergleiche in dieser Klasse laufen durchgaengig kleingeschrieben: die Local-Haelfte von
+            // LocalFirstOrDefault vergleicht immer ordinal, und ein Provider mit case-sensitiver Sortierung
+            // (PostgreSQL) tut es der DB-Haelfte gleich. Ein roher Vergleich wuerde denselben Eintrag hier nicht
+            // finden, den die Aufraeum-Abfragen weiter oben kleingeschrieben sehr wohl treffen.
+            var uniqueKey = menu.UniqueKey?.ToLower();
+            var mnu = db.Navigation.First(n => n.UrlUniqueness.ToLower() == uniqueKey);
             urlUqs.AddIfMissing(mnu.UrlUniqueness);
             var retVal = db.TenantNavigation.LocalFirstOrDefault(n =>
                 n.TenantId == tenantId && n.NavigationMenuId == mnu.NavigationMenuId);
@@ -1160,7 +1173,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TWebPlugin GetPlugIn(int tenantId, PlugInTemplateMarkup plugIn, bool addIfMissing)
         {
-            var retVal = db.WebPlugins.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueName == plugIn.UniqueName);
+            var uniqueName = plugIn.UniqueName?.ToLower();
+            var retVal = db.WebPlugins.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueName.ToLower() == uniqueName);
             if (retVal == null && addIfMissing)
             {
                 retVal = new TWebPlugin()
@@ -1207,7 +1221,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TExternalOAuthService GetExternalOAuthService(int tenantId, ExternalOAuthServiceTemplateMarkup service, bool addIfMissing)
         {
-            var retVal = db.ExternalOAuthServices.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueConnectionName == service.UniqueConnectionName);
+            var connectionName = service.UniqueConnectionName?.ToLower();
+            var retVal = db.ExternalOAuthServices.LocalFirstOrDefault(n => n.TenantId == tenantId && n.UniqueConnectionName.ToLower() == connectionName);
             if (retVal == null && addIfMissing)
             {
                 retVal = new TExternalOAuthService
@@ -1231,7 +1246,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TWebPluginConstant GetConst(int tenantId, ConstTemplateMarkup constant, bool addIfMissing)
         {
-            var retVal = db.WebPluginConstants.LocalFirstOrDefault(n => n.TenantId == tenantId && n.Name == constant.Name);
+            var constName = constant.Name?.ToLower();
+            var retVal = db.WebPluginConstants.LocalFirstOrDefault(n => n.TenantId == tenantId && n.Name.ToLower() == constName);
             if (retVal == null && addIfMissing)
             {
                 retVal = new TWebPluginConstant
@@ -1249,8 +1265,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TTenantSetting GetSetting(int tenantId, SettingTemplateMarkup setting, bool addIfMissing)
         {
+            var settingsKey = setting.ParamName?.ToLower();
             var retVal = db.TenantSettings.LocalFirstOrDefault(n =>
-                n.TenantId == tenantId && n.SettingsKey == setting.ParamName);
+                n.TenantId == tenantId && n.SettingsKey.ToLower() == settingsKey);
             if (retVal == null && addIfMissing)
             {
                 retVal = new TTenantSetting()
@@ -1304,10 +1321,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         protected virtual TPermission GetPermission(int tenantId, string perm)
         {
+            // Nur die Spalte kleinzuschreiben und den uebergebenen Namen roh zu lassen, hiesse: jedes Recht mit
+            // einem Grossbuchstaben im Namen - also praktisch jedes - wird nicht gefunden. Die Vorlage traegt den
+            // Namen in Originalschreibweise (siehe SelectNavigationTemplateMarkup).
+            var permName = perm?.ToLower();
             var retVal = db.Permissions.LocalFirstOrDefault(n =>
-                n.PermissionName.ToLower() == perm && n.TenantId == tenantId)??
+                n.PermissionName.ToLower() == permName && n.TenantId == tenantId)??
                          db.Permissions.LocalFirstOrDefault(n =>
-                             n.PermissionName.ToLower() == perm && n.TenantId == null);
+                             n.PermissionName.ToLower() == permName && n.TenantId == null);
             if (retVal== null)
             {
                 throw new InvalidOperationException($"Global Permission {perm} was not found!");
