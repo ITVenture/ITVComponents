@@ -617,7 +617,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             return new PlugInTemplateMarkup
             {
                 AutoLoad = plugInInst.AutoLoad, Constructor = plugInInst.Constructor, UniqueName = plugInInst.UniqueName,
-                GenericArguments = DbContext.GenericPluginParams.Where(c => c.WebPluginId == plugInInst.WebPluginId)
+                // The parameters come from the already-loaded navigation, not from a second query: the caller
+                // reads the plug-ins streaming (AsEnumerable), so its reader is still open here. A provider
+                // without MARS - PostgreSQL - answers a nested query with "A command is already in progress".
+                GenericArguments = plugInInst.Parameters
                     .Select(c => new PlugInGenericArgumentTemplateMarkup
                         { GenericTypeName = c.GenericTypeName, TypeExpression = c.TypeExpression }).ToArray()
             };
