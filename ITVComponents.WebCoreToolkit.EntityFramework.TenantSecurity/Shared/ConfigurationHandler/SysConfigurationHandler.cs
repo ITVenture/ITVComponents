@@ -1842,7 +1842,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             var keyExp = new Dictionary<string, string>
             {
             };
-            var groups = (from t in sysSettings select t.ParamName.ToLower()).Union(from t in upSysSettings select t.ParamName).Distinct().ToArray();
+            var groups = (from t in sysSettings select t.ParamName.ToLower()).Union(from t in upSysSettings select t.ParamName.ToLower()).Distinct().ToArray();
             var cmp = (from c in groups
                        join a1 in sysSettings on c equals a1.ParamName.ToLower() into ja1
                        from na1 in ja1.DefaultIfEmpty()
