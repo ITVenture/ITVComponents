@@ -139,6 +139,19 @@ namespace ITVComponents.EFRepo.DataSync
         /// <returns></returns>
         protected string MakeLinqAssign<TContext>(string targetProperty, string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null)
         where TContext:DbContext
+            => MakeLinqAssign(typeof(TContext), targetProperty, sourceEntity, filterProperty, additionalWhere, ignoreFail, managedFilterType, scriptedFilterType);
+
+        /// <summary>
+        /// Dasselbe fuer einen erst zur Laufzeit bekannten Kontext-Typ.
+        /// </summary>
+        /// <remarks>
+        /// Gebraucht fuer Sektionen, deren Entitaeten in einem EIGENEN Kontext liegen: der Typname geht
+        /// als Variablendeklaration in den Skripttext (<c>XyzDbContext db = Global.Db;</c>), muss dort
+        /// also der Kontext sein, gegen den der Change spaeter laeuft. Den Namensraum dazu braucht
+        /// niemand zu registrieren - die Skript-Umgebung referenziert Assembly und Namensraum des
+        /// tatsaechlich uebergebenen Kontexts von selbst (NativeScriptHelper, AutoReferences).
+        /// </remarks>
+        protected string MakeLinqAssign(Type contextType, string targetProperty, string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null)
         {
             if (!string.IsNullOrEmpty(additionalWhere))
             {
@@ -146,7 +159,7 @@ namespace ITVComponents.EFRepo.DataSync
             }
 
             return
-                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
+                @$"Entity.{targetProperty} = (!'System.String'.IsNullOrEmpty(NewValueRaw))?`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {contextType.Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? "NewValueRaw" : $"ChangeType(NewValueRaw,{scriptedFilterType})")}}}:null";
         }
 
         /// <summary>
@@ -169,25 +182,80 @@ namespace ITVComponents.EFRepo.DataSync
         /// <summary>
         /// Creates a Script-Linq query that will resolve a foreign-key value for a dependent entity
         /// </summary>
-        /// <param name="targetProperty">the target-property to assign the value to</param>
         /// <param name="sourceEntity">the source-entity that contains the pk-value</param>
         /// <param name="filterProperty">the property that is used to filter the entity</param>
         /// <param name="additionalWhere">an additional where clause that can be used when the uniqueness of a query requires further filtering. Reference the source-entity with 'n'</param>
         /// <param name="ignoreFail">indicates whether to return null when the pk-value was not found</param>
         /// <param name="managedFilterType">the managed filter-type</param>
         /// <param name="scriptedFilterType">the scripted filter-type</param>
+        /// <param name="filterValueVariable">the context-variable the filter-value is read from</param>
         /// <returns></returns>
         protected string MakeLinqQuery<TContext>(string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null, string filterValueVariable = "Value")
             where TContext:DbContext
+            => MakeLinqQuery(typeof(TContext), sourceEntity, filterProperty, additionalWhere, ignoreFail, managedFilterType, scriptedFilterType, filterValueVariable);
+
+        /// <summary>Dasselbe fuer einen erst zur Laufzeit bekannten Kontext-Typ (siehe MakeLinqAssign).</summary>
+        protected string MakeLinqQuery(Type contextType, string sourceEntity, string filterProperty, string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null, string filterValueVariable = "Value")
         {
             if (!string.IsNullOrEmpty(additionalWhere))
             {
                 additionalWhere = additionalWhere.Replace(@"""", @"""""");
             }
 
-            return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {typeof(TContext).Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
+            return @$"`E(Db as Db->SysQry{UniqueName})::@""{managedFilterType ?? "string"} filterVal = Global.filterValue; {contextType.Name} db = Global.Db; return db.{sourceEntity}.Local.ToArray().FirstOrDefault(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")})??db.{sourceEntity}.First{(ignoreFail ? "OrDefault" : "")}(n => n.{filterProperty} == filterVal{(additionalWhere == null ? "" : $" && {additionalWhere}")});"" with {{filterValue:{(scriptedFilterType == null ? filterValueVariable : $"ChangeType({filterValueVariable},{scriptedFilterType})")}}}";
         }
 
+
+        /// <summary>
+        /// Liefert einer Extension die Change-Bau-Helfer, gebunden an DEN Kontext, in dem ihre
+        /// Entitaeten liegen.
+        /// </summary>
+        /// <param name="contextType">
+        /// der Kontext-Typ der Sektion; ueblicherweise der des Hosts, fuer eine Sektion mit eigenem
+        /// Kontext deren eigener
+        /// </param>
+        /// <remarks>
+        /// Die Bindung steckt im Skripttext der Fremdschluessel-Aufloesung: dort steht der Typname als
+        /// Variablendeklaration. Zeigte er auf den Host-Kontext, waehrend der Change gegen einen
+        /// anderen laeuft, scheiterte die Aufloesung erst beim Einspielen - und zwar je Datensatz.
+        /// </remarks>
+        protected IConfigChangeContext CreateChangeContext(Type contextType)
+            => new BoundChangeContext(this, contextType);
+
+        /// <summary>
+        /// Reicht die geschuetzten Helfer der Basis nach aussen - gebunden an einen Kontext-Typ.
+        /// </summary>
+        /// <remarks>
+        /// Eine eigene kleine Klasse, weil MakeDetail/MakeLinq* <c>protected</c> sind: eine Extension
+        /// ist selbst keine <see cref="ConfigurationHandlerBase"/> und kann die Ausdruecke nicht bauen.
+        /// </remarks>
+        private sealed class BoundChangeContext : IConfigChangeContext
+        {
+            private readonly ConfigurationHandlerBase owner;
+            private readonly Type contextType;
+
+            public BoundChangeContext(ConfigurationHandlerBase owner, Type contextType)
+            {
+                this.owner = owner;
+                this.contextType = contextType;
+            }
+
+            public ChangeDetail MakeDetail(string columnName, string value, string valueExpression = null,
+                string currentValue = null, bool multiline = false, bool apply = true)
+                => owner.MakeDetail(columnName, value, valueExpression, currentValue, multiline, apply);
+
+            public string MakeLinqAssign(string targetProperty, string sourceEntity, string filterProperty,
+                string additionalWhere = null, bool ignoreFail = false, string managedFilterType = null,
+                string scriptedFilterType = null)
+                => owner.MakeLinqAssign(contextType, targetProperty, sourceEntity, filterProperty, additionalWhere,
+                    ignoreFail, managedFilterType, scriptedFilterType);
+
+            public string MakeLinqQuery(string sourceEntity, string filterProperty, string additionalWhere = null,
+                bool ignoreFail = false, string managedFilterType = null, string scriptedFilterType = null,
+                string filterValueVariable = "Value")
+                => owner.MakeLinqQuery(contextType, sourceEntity, filterProperty, additionalWhere, ignoreFail,
+                    managedFilterType, scriptedFilterType, filterValueVariable);
+        }
 
         /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
         protected virtual void Dispose(bool disposing)

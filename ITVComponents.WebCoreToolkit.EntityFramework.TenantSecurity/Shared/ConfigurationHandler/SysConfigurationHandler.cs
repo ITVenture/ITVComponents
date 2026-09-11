@@ -115,7 +115,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             }
 
             var result = new List<ConfigExtensionMarkup>();
-            using var scope = services.CreateScope();
             foreach (var reg in opts.Handlers)
             {
                 if (profile != null && !profile.IncludesExtension(reg.SectionKey))
@@ -123,12 +122,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     continue;
                 }
 
+                // Ein Bereich JE Sektion: was eine Sektion aufloest, stirbt mit ihr, und eine
+                // scheiternde nimmt nichts mit in die naechste.
+                using var scope = services.CreateScope();
                 var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
-                var markup = handler.Describe(DbContext);
-                if (markup != null)
+                var section = OpenSectionContext(handler, scope.ServiceProvider, reg.SectionKey);
+                if (section.Missing)
                 {
-                    markup.SectionKey = reg.SectionKey;
-                    result.Add(markup);
+                    continue;
+                }
+
+                try
+                {
+                    var markup = handler.Describe(section.Context);
+                    if (markup != null)
+                    {
+                        markup.SectionKey = reg.SectionKey;
+                        result.Add(markup);
+                    }
+                }
+                finally
+                {
+                    section.Dispose();
                 }
             }
 
@@ -156,7 +171,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 return;
             }
 
-            using var scope = services.CreateScope();
             foreach (var up in uploaded)
             {
                 var reg = opts.Handlers.FirstOrDefault(h => string.Equals(h.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
@@ -168,13 +182,122 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     continue;
                 }
 
+                using var scope = services.CreateScope();
                 var handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
-                var cur = current?.FirstOrDefault(c => string.Equals(c.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
-                foreach (var change in handler.Compare(DbContext, cur, up, this))
+                var section = OpenSectionContext(handler, scope.ServiceProvider, reg.SectionKey);
+                if (section.Missing)
                 {
-                    RegisterChange(change);
+                    RegisterBrokenSection(reg.SectionKey);
+                    continue;
+                }
+
+                try
+                {
+                    var cur = current?.FirstOrDefault(c => string.Equals(c.SectionKey, up.SectionKey, StringComparison.OrdinalIgnoreCase));
+
+                    // Die Change-Bau-Helfer werden an DEN Kontext gebunden, in dem die Entitaeten der
+                    // Sektion liegen - ihr Typname steht im Skripttext der Fremdschluessel-Aufloesung.
+                    var changeContext = section.Owned ? CreateChangeContext(section.Context.GetType()) : (IConfigChangeContext)this;
+                    foreach (var change in handler.Compare(section.Context, cur, up, changeContext))
+                    {
+                        // Zentral gestempelt, nicht von der Extension: beim Einspielen entscheidet der
+                        // Schluessel, gegen welchen Kontext der Change laeuft.
+                        change.SectionKey = reg.SectionKey;
+                        RegisterChange(change);
+                    }
+                }
+                finally
+                {
+                    section.Dispose();
                 }
             }
+        }
+
+        /// <summary>
+        /// Oeffnet den Kontext einer Sektion: ihren eigenen, wenn sie einen nennt, sonst den des Hosts.
+        /// </summary>
+        /// <remarks>
+        /// Ein selbst erzeugter Kontext gehoert dem Aufrufer und wird ueber <c>Dispose</c> wieder
+        /// geschlossen - deshalb traegt das Ergebnis mit, ob es einer ist. Liefert eine Extension null,
+        /// wird die Sektion NICHT ersatzweise im Host-Kontext bearbeitet: dort waeren ihre Entitaeten
+        /// nicht aufloesbar, und ein stiller Fehlschlag je Datensatz ist das schlechtere Ergebnis als
+        /// eine ausgelassene Sektion mit Eintrag im Log.
+        /// </remarks>
+        private SectionContext OpenSectionContext(IConfigExtension handler, IServiceProvider scopeServices, string sectionKey)
+        {
+            if (handler is not IConfigExtensionContext own)
+            {
+                return new SectionContext(DbContext, false, false);
+            }
+
+            DbContext ctx = null;
+            try
+            {
+                ctx = own.CreateContext(scopeServices);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"The configuration section '{sectionKey}' could not open its own DbContext and was skipped: {ex.OutlineException()}",
+                    LogSeverity.Error);
+                return new SectionContext(null, false, true);
+            }
+
+            if (ctx == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"The configuration section '{sectionKey}' declares its own DbContext but returned none; the section was skipped.",
+                    LogSeverity.Error);
+                return new SectionContext(null, false, true);
+            }
+
+            return new SectionContext(ctx, true, false);
+        }
+
+        /// <summary>Der Kontext einer Sektion samt der Frage, wer ihn schliesst.</summary>
+        private readonly struct SectionContext
+        {
+            public SectionContext(DbContext context, bool owned, bool missing)
+            {
+                Context = context;
+                Owned = owned;
+                Missing = missing;
+            }
+
+            public DbContext Context { get; }
+
+            /// <summary>true, wenn die Sektion ihn selbst erzeugt hat - dann wird er hier geschlossen.</summary>
+            public bool Owned { get; }
+
+            /// <summary>true, wenn kein Kontext zustande kam; die Sektion wird dann ausgelassen.</summary>
+            public bool Missing { get; }
+
+            public void Dispose()
+            {
+                if (Owned)
+                {
+                    Context?.Dispose();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Notes a section whose handler is installed but could not open its own context - visible in the diff,
+        /// for the same reason as an unknown section: a diff that is quietly one section short is worse.
+        /// </summary>
+        private void RegisterBrokenSection(string sectionKey)
+        {
+            RegisterChange(new Change
+            {
+                ChangeType = ChangeType.Warning,
+                EntityName = $"Section '{sectionKey}' was ignored",
+                Details =
+                {
+                    MakeDetail("Reason",
+                        "Its handler could not open the database-context it works on (see the log). The section was not compared and will not be applied.",
+                        apply: false)
+                }
+            });
         }
 
         /// <summary>
@@ -423,9 +546,127 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         /// <param name="extendQuery">an action that can provide query extensions if required</param>
         public override void ApplyChanges(IEnumerable<Change> changes, StringBuilder messages, Action<string, Dictionary<string, object>> extendQuery = null)
         {
+            var all = changes?.ToArray() ?? Array.Empty<Change>();
+            var opts = ExtensionOptions;
+
+            // Sektionen, deren Entitaeten in einem EIGENEN Kontext liegen. Am Typ ablesbar, ohne den
+            // Handler dafuer bauen zu muessen.
+            // Ueber GroupBy und nicht ueber ToDictionary: zwei Registrierungen mit demselben Schluessel
+            // sind ein Verdrahtungsfehler, aber keiner, der das Einspielen als Ganzes umwerfen darf.
+            var ownContext = opts.Handlers
+                .Where(h => typeof(IConfigExtensionContext).IsAssignableFrom(h.HandlerType))
+                .GroupBy(h => h.SectionKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var hostChanges = new List<Change>();
+            var foreignChanges = new Dictionary<string, List<Change>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var change in all)
+            {
+                if (string.IsNullOrEmpty(change.SectionKey))
+                {
+                    hostChanges.Add(change);
+                }
+                else if (ownContext.ContainsKey(change.SectionKey))
+                {
+                    if (!foreignChanges.TryGetValue(change.SectionKey, out var sectionChanges))
+                    {
+                        sectionChanges = new List<Change>();
+                        foreignChanges.Add(change.SectionKey, sectionChanges);
+                    }
+
+                    sectionChanges.Add(change);
+                }
+                else if (opts.Handlers.Any(h => string.Equals(h.SectionKey, change.SectionKey, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Registrierte Sektion ohne eigenen Kontext - ihre Entitaeten liegen im Host-Modell.
+                    hostChanges.Add(change);
+                }
+                else
+                {
+                    // Kann aus einem eigenen Vergleich nicht stammen. Der MVC-Weg reicht die Changes
+                    // aber als JSON zum Client und zurueck; ein erfundener Schluessel landet hier und
+                    // wird gemeldet statt ersatzweise im Host-Kontext ausgefuehrt.
+                    messages.AppendLine(
+                        $"Change on Entity {change.EntityName} names the unknown section '{change.SectionKey}' and was skipped.");
+                    LogEnvironment.LogEvent(
+                        $"A change to apply names the section '{change.SectionKey}', for which no handler is registered on this system; it was skipped.",
+                        LogSeverity.Warning);
+                }
+            }
+
+            // Der Host zuerst: die anderen Sektionen tragen Referenzdaten, die auf seinem Stand
+            // aufsetzen koennen - umgekehrt gilt das nicht.
             using (var h = new FullSecurityAccessHelper<TTrustConfig>(DbContext, new(){ShowAllTenants = true,HideGlobals = false}))
             {
-                DbContext.ApplyData(changes.ToArray(), messages, extendQuery, null);
+                DbContext.ApplyData(hostChanges.ToArray(), messages, extendQuery, null);
+            }
+
+            foreach (var section in foreignChanges.OrderBy(n => n.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                ApplyForeignSection(ownContext[section.Key], section.Value, messages, extendQuery);
+            }
+        }
+
+        /// <summary>
+        /// Spielt die Changes einer Sektion in DEREN Kontext ein.
+        /// </summary>
+        /// <remarks>
+        /// Je Sektion ein eigener Bereich, ein eigener Kontext und damit ein eigenes SaveChanges -
+        /// bewusst KEINE uebergreifende Transaktion: zwei Kontexte koennen zwei Datenbanken sein, und
+        /// eine gemeinsame Transaktion waere eine Annahme, die nur dann stimmt, wenn sie es zufaellig
+        /// tut. Der Applyer arbeitet ohnehin best-effort; die Meldungen sagen je Sektion, was durchging.
+        /// </remarks>
+        private void ApplyForeignSection(ConfigExtensionRegistration reg, List<Change> sectionChanges,
+            StringBuilder messages, Action<string, Dictionary<string, object>> extendQuery)
+        {
+            messages.AppendLine($"--- Section '{reg.SectionKey}' ---");
+            if (services == null)
+            {
+                messages.AppendLine($"Section '{reg.SectionKey}' was skipped: no service-provider available.");
+                LogEnvironment.LogEvent(
+                    $"The configuration section '{reg.SectionKey}' could not be applied: the handler has no service-provider to build it from.",
+                    LogSeverity.Error);
+                return;
+            }
+
+            using var scope = services.CreateScope();
+            IConfigExtension handler;
+            try
+            {
+                handler = (IConfigExtension)ActivatorUtilities.CreateInstance(scope.ServiceProvider, reg.HandlerType);
+            }
+            catch (Exception ex)
+            {
+                messages.AppendLine($"Section '{reg.SectionKey}' was skipped: its handler could not be created.");
+                LogEnvironment.LogEvent(
+                    $"The handler of the configuration section '{reg.SectionKey}' could not be created; its changes were not applied: {ex.OutlineException()}",
+                    LogSeverity.Error);
+                return;
+            }
+
+            var section = OpenSectionContext(handler, scope.ServiceProvider, reg.SectionKey);
+            if (section.Missing)
+            {
+                messages.AppendLine($"Section '{reg.SectionKey}' was skipped: its database-context could not be opened (see log).");
+                return;
+            }
+
+            try
+            {
+                section.Context.ApplyData(sectionChanges.ToArray(), messages, extendQuery, null);
+            }
+            catch (Exception ex)
+            {
+                // Eine scheiternde Sektion darf die uebrigen nicht mitnehmen - der Host-Teil ist an
+                // dieser Stelle bereits geschrieben.
+                messages.AppendLine($"Section '{reg.SectionKey}' failed: {ex.Message}");
+                LogEnvironment.LogEvent(
+                    $"Applying the configuration section '{reg.SectionKey}' failed: {ex.OutlineException()}",
+                    LogSeverity.Error);
+            }
+            finally
+            {
+                section.Dispose();
             }
         }
 
