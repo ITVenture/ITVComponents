@@ -3,6 +3,7 @@ using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Handlers;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Rendering;
+using ITVComponents.WebCoreToolkit.Blazor.SharedComponents;
 using ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem;
 using ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Impl;
@@ -35,6 +36,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Ext
             if (partTypeLoadBehavior.ShouldLoadType(typeof(HelpResourceHandler<>)))
             {
                 services.AddScoped<IHelpResourceHandler, HelpResourceHandler<TContext>>();
+
+                // Die Bruecke vom allgemeinen MarkdownEditor der Basis zur Ressourcen-Bibliothek: ab
+                // hier hat JEDES Markdown-Feld der Anwendung den Knopf "Bild aus der Bibliothek" und
+                // nimmt eingefuegte Bilder auf. Bewusst an DIESE Bedingung gehaengt - ohne den
+                // Ressourcen-Handler haette die Bruecke nichts, worauf sie zeigen koennte.
+                services.TryAddScoped<IMarkdownResourcePicker, HelpMarkdownResourcePicker>();
             }
 
             if (partTypeLoadBehavior.ShouldLoadType(typeof(HelpViewerHandler<>)))

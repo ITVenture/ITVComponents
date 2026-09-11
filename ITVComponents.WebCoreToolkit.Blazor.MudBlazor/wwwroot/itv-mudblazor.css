@@ -1,4 +1,4 @@
-/*
+﻿/*
     Globale Korrekturen am Mud-Layout, die das Toolkit fuer seine eigenen Komponenten braucht.
 
     WARUM HIER UND NICHT ALS SCOPED CSS: Dialoge rendert der MudDialogProvider in einen EIGENEN
@@ -207,4 +207,28 @@
 
 .itv-check-label {
     color: var(--mud-palette-text-primary);
+}
+
+/* Markdown-Editor (SharedComponents/MarkdownEditor.razor, TOAST UI).
+
+   Hier und nicht als scoped CSS: der Editor steht meist in einem MudDialog, und der rendert in einen
+   eigenen DOM-Teilbaum ausserhalb der aufrufenden Komponente - .razor.css erreicht ihn nicht. */
+.itv-markdown-editor {
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: var(--mud-default-borderradius);
+    overflow: hidden;
+}
+
+/* Der Editor bringt keinen Nur-Lesen-Modus mit; das Feld bleibt sonst trotz ReadOnly beschreibbar. */
+.itv-markdown-editor.itv-markdown-readonly .toastui-editor-main,
+.itv-markdown-editor.itv-markdown-readonly .toastui-editor-toolbar {
+    pointer-events: none;
+    opacity: .75;
+}
+
+/* Eigene Werkzeugleisten-Knoepfe (Bild/Video aus der Bibliothek). Sie leihen sich das Symbol des
+   eingebauten Bild- bzw. Verweis-Werkzeugs aus der Sprite-Datei des Editors; abgesetzt werden sie
+   durch die Trennlinie, die der Editor ohnehin zwischen die Gruppen der Leiste setzt. */
+.toastui-editor-toolbar-icons.itv-md-picker {
+    cursor: pointer;
 }

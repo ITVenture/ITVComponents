@@ -138,10 +138,16 @@ still übersprungen. Ohne WebPart-Nutzung geht auch direktes DI:
     "Enabled": true,
     "AnonymousResourceAccess": true,
     "MaxUploadBytes": 26214400,
-    "AllowedContentTypePrefixes": ["image/", "video/"]
+    "AllowedContentTypePrefixes": ["image/", "video/"],
+    "PastedMediaFolder": "Pasted"
   }
 }
 ```
+
+`PastedMediaFolder` ist der Ordner der Ressourcen-Ablage, in dem Bilder landen, die jemand direkt im
+Markdown-Editor einfügt oder hineinzieht (leer = Wurzel). Sie tragen einen erfundenen Namen (Dateiname
+bzw. Zeitstempel) und brauchen meist eine Nacharbeit — in einem eigenen Ordner sind sie dafür auffindbar,
+statt sich unter die von Hand gepflegten Ressourcen zu mischen.
 
 ## 4. Ressourcen-Storage
 
@@ -176,17 +182,26 @@ unveränderte Inhalte nicht neu geschrieben werden.
 
 Details und die Profil-Konfiguration: MLM-Leitfaden §27/§28.
 
-## 6. Host-Page-Skripte (Monaco)
+## 6. Host-Page-Skripte
 
-Der Markdown-Editor nutzt BlazorMonaco; die AdminViews-WebPart registriert die Client-Skripte bereits
-(`AddToolkitClientScript`) — sofern die Host-Page `<ITVentureReferences />` rendert, ist nichts weiter nötig.
+Der Inhalts-Editor ist seit 2026-09 ein **WYSIWYG-Markdown-Editor** (`MarkdownEditor`, TOAST UI, im
+Basis-Paket `…Blazor.MudBlazor` mitgeliefert); gespeichert wird weiterhin Markdown. Für ihn ist in der
+Host-Page **nichts** einzutragen: er lädt seinen JS-Wirt beim ersten Aufbau per `import()` und das
+Editor-Bundle (~700 KB js+css, `wwwroot/vendor/toastui`) gleich mit. Der Initial-Load einer Anwendung
+wächst dadurch nicht; wer nie ein Markdown-Feld öffnet, lädt nichts davon.
+
+`<ITVentureReferences />` in der statisch gerenderten Host-Page bleibt trotzdem Pflicht — daran hängen
+Monaco (für die Code-Dialoge) und `itv-mudblazor.css`, worin auch die Regeln für den Editor-Rahmen
+stehen. Details und die Fallen: `docs/Plan-Markdown-Editor-ResourcePicker.md`.
 
 ## Nutzung
 
-- Admin: `/Help/Admin/Topics` (Baum: Container/Content-Pages, pro Sprache Titel + Markdown mit Vorschau),
-  `/Help/Admin/Resources` (Medien, pro Sprache Datei).
+- Admin: `/Help/Admin/Topics` (Baum: Container/Content-Pages, pro Sprache Titel + Inhalt im
+  WYSIWYG-Editor, dazu die server-gerenderte Vorschau), `/Help/Admin/Resources` (Medien, pro Sprache Datei).
 - Content-Embeds: im Markdown `resource:{name}` bzw. `/resource/{name}` → beim Rendern automatisch auf
-  `/help/res/{name}?c={culture}` umgeschrieben (Range-fähig für Video).
+  `/help/res/{name}?c={culture}` umgeschrieben (Range-fähig für Video). Von Hand tippen muss man das
+  nicht mehr: der Bild-Knopf in der Werkzeugleiste des Editors wählt aus der Ablage aus, und ein
+  eingefügtes oder hineingezogenes Bild landet dort (statt als `data:`-URI im Text).
 - Modul-Links: im Markdown `[Titel](module:/MasterData/Customers)`. Beim Rendern:
   - **angemeldet** → echter Link, mit aktuellem Tenant präfixiert (`/TENANT1234/MasterData/Customers` im
     Path-Segment-Modus bzw. `/MasterData/Customers` im Cookie-Modus, via `IUrlFormat`/`[SlashPermissionScope]`);

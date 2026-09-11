@@ -1,0 +1,502 @@
+﻿@*
+    Markdown editor with WYSIWYG, built on the vendored TOAST UI editor (wwwroot/vendor/toastui, MIT).
+    Gespeichert wird weiterhin **Markdown**, nicht HTML: dasselbe Format, das das Hilfesystem seit jeher
+    fuehrt, es uebersteht Export/Import unveraendert und macht keine Sanitizing-Frage auf, die
+    gespeichertes HTML mitbraechte.
+
+    **Der Editor besitzt seinen Text.** Er meldet ihn gebuendelt (600 ms) und beim Verlassen des
+    Feldes an Blazor; unter Blazor Server waere eine Rueckbindung je Tastendruck ein Server-Roundtrip
+    je Zeichen. Wer den Wert im selben Klick braucht, in dem gespeichert wird, holt ihn ueber
+    GetValueAsync() - das ist der einzige Weg, der den Stand des Editors liefert und nicht den zuletzt
+    gemeldeten.
+
+    **Bilder** kommen ueber IMarkdownResourcePicker aus einer Ablage (im Toolkit: die Ressourcen-
+    Bibliothek des Hilfesystems). Ist kein solcher Dienst registriert, fehlen Knopf und Einfuege-Haken -
+    die Maske bleibt vollstaendig benutzbar.
+*@
+@namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using System.Globalization
+@using System.Threading
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using global::MudBlazor
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IServiceProvider Services
+@inject ISnackbar Snackbar
+@inject ILogger<MarkdownEditor> Logger
+
+@if (!string.IsNullOrWhiteSpace(Label))
+{
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">@Label</MudText>
+}
+
+@if (fallback)
+{
+    @* Kein JavaScript, kein Editor - dann lieber ein Textfeld mit rohem Markdown als eine leere
+       Flaeche. Der Hinweis sagt, warum es anders aussieht als sonst. *@
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-1">
+        The rich editor could not be loaded - editing raw Markdown instead.
+    </MudAlert>
+    <MudTextField T="string" Value="@Value" ValueChanged="OnTextChanged" ReadOnly="@ReadOnly"
+                  Margin="Margin.Dense" Lines="@Lines" Immediate="false" />
+}
+else
+{
+    <div id="@editorId" class="itv-markdown-editor"></div>
+}
+
+@code {
+    private const string AssetBase = "_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/vendor/toastui/";
+
+    /// <summary>
+    /// Der Wirt des Editors - als ES-Modul geholt und nicht als Host-Skript eingebunden.
+    /// </summary>
+    /// <remarks>
+    /// Damit waechst der Initial-Load einer Anwendung durch dieses Feld um nichts: wer nie ein
+    /// Markdown-Feld oeffnet, laedt weder den Wirt noch das Editor-Bundle dahinter. Derselbe Weg wie
+    /// bei FileUpload/FileDownload nebenan.
+    /// </remarks>
+    private const string ModulePath = "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor/markdown-editor.js";
+
+    /// <summary>Der Markdown-Text. Wird EINMAL hineingereicht; zurueck kommt er ueber ValueChanged.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    /// <summary>Beschriftung ueber dem Editor (optional).</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Ungefaehre Hoehe in Textzeilen - daraus wird die Pixelhoehe gerechnet.</summary>
+    [Parameter] public int Lines { get; set; } = 12;
+
+    /// <summary>
+    /// Womit der Editor aufgeht: <c>wysiwyg</c> im Normalfall, <c>markdown</c> fuer Masken, in denen
+    /// der Quelltext das Eigentliche ist. Umschalten kann der Benutzer jederzeit selbst.
+    /// </summary>
+    [Parameter] public string InitialEditType { get; set; } = "wysiwyg";
+
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>
+    /// Dunkles Thema erzwingen. Ohne Angabe misst der Editor die Helligkeit der Seite - MudBlazors
+    /// Dunkel-Modus haengt am ThemeProvider und wird sonst von jedem Aufrufer neu durchgereicht.
+    /// </summary>
+    [Parameter] public bool? Dark { get; set; }
+
+    /// <summary>Ob der Knopf fuer die Medien-Auswahl erscheinen darf (wenn ein Dienst da ist).</summary>
+    [Parameter] public bool AllowResourcePicker { get; set; } = true;
+
+    /// <summary>
+    /// Obergrenze fuer eine eingefuegte Datei. Nur die Notbremse dieser Komponente - die eigentliche
+    /// Regel steht in der Ablage (HelpSystemOptions.MaxUploadBytes) und meldet sich mit eigenem Text.
+    /// </summary>
+    [Parameter] public long MaxUploadBytes { get; set; } = 32L * 1024 * 1024;
+
+    /// <summary>
+    /// Eigene Id je Instanz: das JavaScript braucht eine, um seinen Wirt zu finden, und zwei Editoren
+    /// auf derselben Seite duerfen sich nicht gegenseitig ueberschreiben.
+    /// </summary>
+    private readonly string editorId = $"itv-md-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// Kultur-Kuerzel -> Name der Sprachdatei. Die beiden sind NICHT dasselbe: die Datei heisst nach
+    /// dem Gebietsschema (<c>de-de.js</c>), registriert sich im Editor aber unter <c>de</c>/<c>de-DE</c>.
+    /// Wer den Dateinamen als Sprachschluessel uebergibt, bekommt wortlos Englisch.
+    /// </summary>
+    private static readonly Dictionary<string, string> LanguageFiles =
+        new(StringComparer.OrdinalIgnoreCase) { ["de"] = "de-de", ["fr"] = "fr-fr", ["it"] = "it-it" };
+
+    private static string NeutralCulture
+    {
+        get
+        {
+            CultureInfo culture = CultureInfo.CurrentUICulture;
+            return (culture.IsNeutralCulture ? culture : culture.Parent).Name;
+        }
+    }
+
+    private static string? LanguageFile
+        => LanguageFiles.TryGetValue(NeutralCulture, out string? file) ? file : null;
+
+    private static string LanguageCode
+        => LanguageFiles.ContainsKey(NeutralCulture) ? NeutralCulture : "en-US";
+
+    private IJSObjectReference? module;
+    private DotNetObjectReference<MarkdownEditor>? selfRef;
+    private IMarkdownResourcePicker? picker;
+    private bool canUpload;
+    private bool initialized;
+    private bool fallback;
+
+    /// <summary>
+    /// Der Stand, den Editor und Komponente zuletzt gemeinsam hatten. Ohne ihn schoebe jedes Rendern
+    /// denselben Text wieder in den Editor - und die Einfuegemarke spraenge dabei ans Ende.
+    /// </summary>
+    private string? syncedValue;
+
+    /// <summary>
+    /// Der Wert, wie ihn der Aufrufer zuletzt HEREINGEREICHT hat.
+    /// </summary>
+    /// <remarks>
+    /// Noetig, weil der Editor seinen Text besitzt: bei einfacher Bindung bleibt <see cref="Value"/>
+    /// beim Aufrufer auf dem alten Stand, waehrend der Editor laengst weiter ist. Ohne diesen
+    /// Vergleich schoebe das naechste Rendern den alten Text zurueck in den Editor - und das Getippte
+    /// waere weg. Verglichen wird also NICHT mit dem Editor-Stand, sondern mit dem, was zuletzt von
+    /// aussen kam.
+    /// </remarks>
+    private string? lastParameterValue;
+
+    private bool parameterValueChanged;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(lastParameterValue, Value, StringComparison.Ordinal))
+        {
+            lastParameterValue = Value;
+            parameterValueChanged = true;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Optional aufgeloest: eine Anwendung ohne Medien-Ablage soll den Editor trotzdem bekommen.
+        // Mit Fangnetz, weil GetService nur bei einem UNREGISTRIERTEN Dienst null liefert - ist er
+        // registriert, aber eine seiner Abhaengigkeiten fehlt (etwa weil das Hilfesystem nur teilweise
+        // verdrahtet ist), wirft es. Das duerfte die Maske nicht mitreissen.
+        try
+        {
+            picker = Services.GetService<IMarkdownResourcePicker>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The registered media picker could not be resolved; the picker stays hidden.");
+            picker = null;
+        }
+
+        if (picker is not null && AllowResourcePicker)
+        {
+            try
+            {
+                if (!await picker.CanPickAsync())
+                {
+                    picker = null;
+                }
+                else
+                {
+                    canUpload = await picker.CanUploadAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Ohne diese Zeile suchte man den Grund fuer "der Bild-Knopf fehlt" in der Oberflaeche.
+                Logger.LogError(ex, "Could not determine the media picker permissions; the picker stays hidden.");
+                picker = null;
+            }
+        }
+        else
+        {
+            picker = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !fallback)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            syncedValue = Value;
+            lastParameterValue = Value;
+            parameterValueChanged = false;
+
+            bool ok;
+            try
+            {
+                module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
+                ok = await module.InvokeAsync<bool>("init", editorId, selfRef, new
+                {
+                    value = Value ?? string.Empty,
+                    height = $"{Math.Max(Lines, 4) * 24 + 90}px",
+                    initialEditType = InitialEditType,
+                    language = LanguageCode,
+                    dark = Dark,
+                    readOnly = ReadOnly,
+                    allowUpload = canUpload,
+                    schemes = picker?.UrlPrefixes,
+                    pickers = PickerDescriptors(),
+                    // Die Adressen kommen von HIER, nicht aus dem Skript: im PathSegment-Modus setzt
+                    // der Wirt ein <base href="/{mandant}/">, an dem ein im Skript gebauter absoluter
+                    // Pfad vorbeizielte. Relativ angegeben loesen sie wie jede andere Datei auf.
+                    assets = new
+                    {
+                        css = AssetBase + "toastui-editor.min.css",
+                        darkCss = AssetBase + "toastui-editor-dark.min.css",
+                        js = AssetBase + "toastui-editor.min.js",
+                        languageJs = LanguageFile is null ? null : $"{AssetBase}i18n/{LanguageFile}.js"
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                // Ein fehlendes/kaputtes Skript darf die Maske nicht unbrauchbar machen - aber es muss
+                // im Log stehen, sonst sucht man den Grund fuer "das Feld sieht anders aus" im Code.
+                Logger.LogError(ex, "The Markdown editor {EditorId} could not be created.", editorId);
+                ok = false;
+            }
+
+            if (!ok)
+            {
+                Logger.LogWarning("Markdown editor {EditorId} falls back to a plain text field.", editorId);
+                fallback = true;
+                StateHasChanged();
+                return;
+            }
+
+            initialized = true;
+            return;
+        }
+
+        // Von aussen NEU gesetzter Wert (Formular zurueckgesetzt, anderer Datensatz geladen):
+        // nachziehen. Nur dann - siehe lastParameterValue.
+        if (initialized && parameterValueChanged)
+        {
+            parameterValueChanged = false;
+            if (!string.Equals(syncedValue, Value, StringComparison.Ordinal))
+            {
+                await PushToEditorAsync(Value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Laedt einen anderen Text in den Editor - der Weg fuer Masken, die zwischen Datensaetzen (z.B.
+    /// Sprachen) umschalten, ohne die Komponente neu aufzubauen.
+    /// </summary>
+    /// <remarks>
+    /// Ausdruecklich und nicht ueber den Parameter: der Editor kann seinen eigenen Stand nicht von dem
+    /// unterscheiden, den der Aufrufer noch nicht abgeholt hat. Ein Umschalten zwischen zwei Sprachen
+    /// mit gleichem (etwa leerem) Text saehe an den Werten wie "nichts passiert" aus - und der Text
+    /// der einen Sprache bliebe in der anderen stehen.
+    /// </remarks>
+    public async Task SetValueAsync(string? value)
+    {
+        Value = value;
+        lastParameterValue = value;
+        parameterValueChanged = false;
+        await PushToEditorAsync(value);
+    }
+
+    private async Task PushToEditorAsync(string? value)
+    {
+        syncedValue = value;
+        if (fallback || !initialized)
+        {
+            return;
+        }
+
+        try
+        {
+            await module!.InvokeVoidAsync("setMarkdown", editorId, value ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            // Der Editor zeigte danach den falschen Datensatz an - das darf nicht stumm bleiben.
+            Logger.LogError(ex, "The Markdown editor {EditorId} could not take over the new text.", editorId);
+        }
+    }
+
+    /// <summary>Die Knoepfe, die das Skript in die Werkzeugleiste haengen soll.</summary>
+    private object[] PickerDescriptors()
+        => picker is null
+            ? Array.Empty<object>()
+            : new object[]
+            {
+                new { kind = nameof(MarkdownResourceKind.Image), tooltip = "Insert image from the library" },
+                new { kind = nameof(MarkdownResourceKind.Video), tooltip = "Insert video link from the library" }
+            };
+
+    /// <summary>Meldung des Editors: der Text hat sich geaendert (gebuendelt bzw. beim Verlassen).</summary>
+    [JSInvokable]
+    public async Task OnEditorChanged(string? markdown)
+    {
+        syncedValue = markdown;
+        Value = markdown;
+        await ValueChanged.InvokeAsync(markdown);
+    }
+
+    /// <summary>Der Knopf in der Werkzeugleiste: Auswahl oeffnen, fertiges Markdown zurueckgeben.</summary>
+    [JSInvokable]
+    public async Task<string?> PickResource(string kind)
+    {
+        if (picker is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var parsed = Enum.TryParse<MarkdownResourceKind>(kind, ignoreCase: true, out var k)
+                ? k
+                : MarkdownResourceKind.Image;
+            return await picker.PickAsync(parsed);
+        }
+        catch (Exception ex)
+        {
+            // Ohne diese Zeile suchte man den Grund fuer "der Knopf tut nichts" im Dialog.
+            Logger.LogError(ex, "The media picker failed for editor {EditorId}.", editorId);
+            Snackbar.Add("The media library could not be opened.", Severity.Error);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Ein eingefuegtes/gezogenes Bild. Kommt als JS-Stream-Referenz und nicht als Argument: eine
+    /// Blazor-Server-Verbindung nimmt je Nachricht standardmaessig nur 32 KB an, ein Screenshot risse
+    /// sie ab. Liefert den Namen der neuen Ressource, oder null.
+    /// </summary>
+    [JSInvokable]
+    public async Task<string?> UploadResource(string? fileName, string? contentType, IJSStreamReference content)
+    {
+        if (picker is null || !canUpload)
+        {
+            return null;
+        }
+
+        try
+        {
+            await using var stream = await content.OpenReadStreamAsync(MaxUploadBytes);
+            var name = await picker.UploadAsync(new MarkdownResourceUpload
+            {
+                Content = stream,
+                ContentType = contentType,
+                FileName = fileName
+            });
+
+            if (name is not null)
+            {
+                Snackbar.Add($"Stored in the media library as '{name}'.", Severity.Success);
+            }
+
+            return name;
+        }
+        catch (Exception ex)
+        {
+            // Das Bild ist dann NICHT abgelegt und der Text bleibt, wie er war. Stumm bleiben hiesse:
+            // der Benutzer sieht ein verschwundenes Bild und hat keinen Anhaltspunkt.
+            Logger.LogError(ex, "A pasted image could not be stored (editor {EditorId}).", editorId);
+            Snackbar.Add("The image could not be stored in the media library.", Severity.Error);
+            return null;
+        }
+    }
+
+    /// <summary>Der Editor hat ein eingefuegtes Bild abgelehnt, weil es keine Ablage gibt.</summary>
+    [JSInvokable]
+    public void OnUploadRejected()
+    {
+        Logger.LogWarning("Editor {EditorId} rejected a pasted image: no writable media library.", editorId);
+        Snackbar.Add("Pasted images cannot be stored here - add them to the media library first.",
+            Severity.Warning);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Holt den Text direkt aus dem Editor. Das ist der Weg fuer Speichern-Knoepfe: der Klick kann
+    /// schneller sein als die gebuendelte Meldung, und dann fehlten die zuletzt getippten Zeichen.
+    /// Faellt auf den bekannten Stand zurueck, wenn der Editor nicht antwortet.
+    /// </summary>
+    public async Task<string?> GetValueAsync()
+    {
+        if (fallback || !initialized)
+        {
+            return Value;
+        }
+
+        try
+        {
+            string? markdown = await module!.InvokeAsync<string?>("getMarkdown", editorId);
+            if (markdown is not null)
+            {
+                syncedValue = markdown;
+                Value = markdown;
+            }
+
+            return Value;
+        }
+        catch (Exception ex)
+        {
+            // Lieber der zuletzt gemeldete Stand als ein Abbruch beim Speichern - aber protokolliert,
+            // denn genau hier entstuende sonst stiller Datenverlust.
+            Logger.LogError(ex, "The Markdown editor {EditorId} could not deliver its text; "
+                                + "saving the last reported state instead.", editorId);
+            return Value;
+        }
+    }
+
+    /// <summary>
+    /// Fuegt Markdown an der Einfuegemarke ein. Im Rueckfall-Textfeld wird angehaengt: dort gibt es
+    /// keine Einfuegemarke, die dieser Code kennen koennte, und anhaengen ist besser als nichts.
+    /// </summary>
+    public async Task InsertAsync(string markdown)
+    {
+        if (string.IsNullOrEmpty(markdown))
+        {
+            return;
+        }
+
+        if (fallback || !initialized)
+        {
+            await OnTextChanged(string.IsNullOrEmpty(Value) ? markdown : Value + markdown);
+            return;
+        }
+
+        try
+        {
+            string? updated = await module!.InvokeAsync<string?>("insert", editorId, markdown);
+            if (updated is not null)
+            {
+                syncedValue = updated;
+                Value = updated;
+                await ValueChanged.InvokeAsync(updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The Markdown editor {EditorId} could not insert the text.", editorId);
+        }
+    }
+
+    private async Task OnTextChanged(string? value)
+    {
+        Value = value;
+        syncedValue = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                if (initialized)
+                {
+                    await module.InvokeVoidAsync("destroy", editorId);
+                }
+
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Der Circuit ist bereits weg (Seite geschlossen) - dann gibt es auch nichts mehr
+                // abzuraeumen. Kein Fehlerfall, deshalb nur eine Notiz auf Debug-Ebene.
+                Logger.LogDebug("Markdown editor {EditorId}: circuit already closed while disposing.", editorId);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Markdown editor {EditorId} could not be disposed.", editorId);
+            }
+        }
+
+        selfRef?.Dispose();
+    }
+}

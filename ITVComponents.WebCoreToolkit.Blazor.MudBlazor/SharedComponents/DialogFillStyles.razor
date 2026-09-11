@@ -92,4 +92,12 @@
     .itv-fill-editor.mud-dialog-fullscreen .itv-code-editor-host {
         min-height: 55vh;
     }
+
+    /* Dasselbe fuer den Markdown-Editor - hier mit !important und fester Hoehe, weil TOAST UI seine
+       Hoehe als Inline-Stil an den eigenen Wirt schreibt; eine Mindesthoehe im Stylesheet verloere
+       dagegen. */
+    .itv-fill-editor.mud-dialog-fullscreen .itv-markdown-editor,
+    .itv-fill-editor.mud-dialog-fullscreen .itv-markdown-editor .toastui-editor-defaultUI {
+        height: 60vh !important;
+    }
 </style>

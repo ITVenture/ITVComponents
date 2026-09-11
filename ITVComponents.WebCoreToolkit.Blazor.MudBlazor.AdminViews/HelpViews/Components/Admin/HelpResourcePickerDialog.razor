@@ -1,0 +1,218 @@
+@using System.Security.Claims
+@using ITVComponents.WebCoreToolkit.Routing
+@using Microsoft.Extensions.Logging
+@inject IHelpResourceHandler Handler
+@inject IUrlFormat UrlFormat
+@inject AuthenticationStateProvider AuthState
+@inject ILogger<HelpResourcePickerDialog> Logger
+
+@* Waehlt eine Ressource aus der Bibliothek des Hilfesystems und liefert den fertigen Markdown-Verweis
+   zurueck - <c>![name](resource:name)</c> fuer Bilder, <c>[name](resource:name)</c> fuer Videos.
+
+   **Warum es diesen Dialog gibt.** Die Bibliothek kann Bilder laengst; was fehlte, war die Bruecke
+   beim SCHREIBEN. Wer einen Hilfe-Text verfasst, musste den Ressourcen-Namen aus dem Kopf oder aus
+   einem zweiten Browserfenster holen und den Verweis von Hand tippen. Ein Tippfehler fiel erst in der
+   Vorschau auf - und dort nur als fehlendes Bild, ohne Hinweis, welcher Name gemeint war.
+
+   **Nur eine Art je Aufruf.** Bilder, Videos und "Sonstiges" liegen in derselben Bibliothek, gehoeren
+   aber nicht in dieselbe Schreibweise: ein Video in einem `![...]` saehe im Text aus wie ein kaputtes
+   Bild.
+
+   **Die Vorschau kommt vom echten Endpunkt**, nicht aus einem eigenen Vorschau-Weg. Das macht den
+   Dialog zu seinem eigenen Selbsttest: was hier nicht angezeigt wird, wird im Hilfe-Text auch nicht
+   angezeigt - und man sieht es, BEVOR der Verweis im Text steht.
+
+   **Ebene fuer Ebene geladen** (ListNodesAsync), nicht der ganze Baum: die Bibliothek waechst mit
+   jedem Hilfe-Thema, und ein Dialog, der beim Oeffnen alles holt, wird genau dann langsam, wenn er
+   sich gelohnt haette. *@
+
+<MudDialog>
+    <DialogContent>
+        @if (!canBrowse)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true">
+                You are not allowed to browse the help resource library.
+            </MudAlert>
+        }
+        else
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-2">
+                @* Der Pfad als Knopfreihe und nicht als MudBreadcrumbs: dessen ItemTemplate rendert
+                   einen MudLink, und der bringt sein eigenes onclick mit - ein zweites daneben laesst
+                   Razor gar nicht erst uebersetzen (RZ10010). Passt ohnehin besser: geklickt wird
+                   nicht navigiert, sondern nachgeladen. *@
+                <div class="d-flex align-center flex-wrap">
+                    @for (int i = 0; i < path.Count; i++)
+                    {
+                        int level = i;
+                        @if (level > 0)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small"
+                                     Class="mud-text-secondary" />
+                        }
+                        <MudButton Variant="Variant.Text" Size="Size.Small"
+                                   Disabled="@(level == path.Count - 1)"
+                                   OnClick="@(() => NavigateToAsync(level))">@path[level].Name</MudButton>
+                    }
+                </div>
+                <MudSpacer />
+                <MudTextField @bind-Value="search" Placeholder="Search this folder" DebounceInterval="300"
+                              Clearable="true" Margin="Margin.Dense" Class="mt-0" Style="max-width:260px" />
+            </MudStack>
+
+            @if (loading)
+            {
+                <MudProgressLinear Indeterminate="true" Class="my-2" />
+            }
+            else if (Visible.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Nothing here. Upload media under Help &rsaquo; Resources first.
+                </MudText>
+            }
+            else
+            {
+                @* Eigener Scroller statt eines wachsenden Dialogs: eine Ebene mit fuenfzig Kacheln
+                   schoebe die Pfadzeile sonst aus dem Bild, und die braucht man zum Zurueckgehen. *@
+                <div class="d-flex flex-wrap gap-2" style="max-height:55vh;overflow-y:auto;">
+                    @foreach (HelpResourceNodeViewModel node in Visible)
+                    {
+                        @if (node.IsFolder)
+                        {
+                            <MudPaper Outlined="true" Class="pa-2 cursor-pointer" Style="width:150px"
+                                      @onclick="@(() => EnterFolderAsync(node))">
+                                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Large" Color="Color.Warning" />
+                                    <MudText Typo="Typo.caption" Align="Align.Center">@node.Name</MudText>
+                                </MudStack>
+                            </MudPaper>
+                        }
+                        else
+                        {
+                            <MudPaper Outlined="true" Class="pa-2 cursor-pointer" Style="width:150px"
+                                      @onclick="@(() => Choose(node))">
+                                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                                    @if (node.Kind == HelpResourceKind.Image)
+                                    {
+                                        <MudImage Src="@PreviewUrl(node.Name)" Height="90" ObjectFit="ObjectFit.Contain"
+                                                  Alt="@node.Name" Class="rounded" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Large" />
+                                    }
+                                    <MudText Typo="Typo.caption" Align="Align.Center">@node.Name</MudText>
+                                    @if (node.FileCount <= 1)
+                                    {
+                                        @* Sagt beim Schreiben eines fremdsprachigen Themas sofort, dass
+                                           der Screenshot dort noch der der Ausgangssprache ist. *@
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">one language only</MudText>
+                                    }
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    }
+                </div>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary ml-4">
+            Manage the library under Help &rsaquo; Resources.
+        </MudText>
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Welche Art gesucht wird. Bilder werden eingebettet, alles andere verlinkt.</summary>
+    [Parameter] public HelpResourceKind Kind { get; set; } = HelpResourceKind.Image;
+
+    private readonly List<(int? Id, string Name)> path = new() { (null, "Library") };
+    private HelpResourceNodeViewModel[] nodes = Array.Empty<HelpResourceNodeViewModel>();
+    private ClaimsPrincipal? currentUser;
+    private string? search;
+    private bool canBrowse;
+    private bool loading = true;
+
+    private List<HelpResourceNodeViewModel> Visible
+        => nodes.Where(n => n.IsFolder || n.Kind == Kind)
+            .Where(n => string.IsNullOrWhiteSpace(search)
+                        || n.Name.Contains(search!, StringComparison.OrdinalIgnoreCase)
+                        || (n.Description ?? string.Empty).Contains(search!, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        canBrowse = Handler.CanManage(currentUser);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!canBrowse || currentUser is null)
+        {
+            loading = false;
+            return;
+        }
+
+        loading = true;
+        try
+        {
+            nodes = await Handler.ListNodesAsync(currentUser, path[^1].Id);
+        }
+        catch (Exception ex)
+        {
+            // Stumm bliebe hier ein leerer Dialog stehen, der wie eine leere Bibliothek aussieht.
+            Logger.LogError(ex, "Could not list the help resource library for folder {FolderId}.", path[^1].Id);
+            nodes = Array.Empty<HelpResourceNodeViewModel>();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task EnterFolderAsync(HelpResourceNodeViewModel folder)
+    {
+        path.Add((folder.Id, folder.Name));
+        search = null;
+        await LoadAsync();
+    }
+
+    private async Task NavigateToAsync(int level)
+    {
+        if (level < 0 || level >= path.Count - 1)
+        {
+            return;
+        }
+
+        path.RemoveRange(level + 1, path.Count - level - 1);
+        search = null;
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Die Vorschau geht ueber denselben Endpunkt wie der Verweis spaeter - inklusive Mandanten-Praefix,
+    /// das [SlashPermissionScope] im PathSegment-Modus zu /{mandant} aufloest (und sonst zu nichts).
+    /// </summary>
+    private string PreviewUrl(string name)
+        => UrlFormat.FormatUrl("[SlashPermissionScope]" + HelpRoutes.ResourceUrl(name));
+
+    /// <summary>
+    /// Der Name wird zum Alt-Text. Er ist das Einzige, was ein Vorlese-Programm zu hoeren bekommt,
+    /// wenn das Bild fehlt - und besser als ein leeres ![], das beim Einfuegen niemand mehr ausfuellt.
+    /// </summary>
+    private void Choose(HelpResourceNodeViewModel node)
+    {
+        var mark = node.Kind == HelpResourceKind.Image ? "!" : string.Empty;
+        MudDialog.Close(DialogResult.Ok($"{mark}[{node.Name}](resource:{node.Name})"));
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}

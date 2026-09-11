@@ -28,5 +28,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.HelpSystem.Options
         /// Null or empty accepts any type.
         /// </summary>
         public string[]? AllowedContentTypePrefixes { get; set; }
+
+        /// <summary>
+        /// Ordner der Ressourcen-Bibliothek, in dem Bilder landen, die jemand direkt im Markdown-Editor
+        /// einfuegt oder hineinzieht. Leer = die Wurzel.
+        /// </summary>
+        /// <remarks>
+        /// Eingefuegte Bilder tragen einen erfundenen Namen (Dateiname bzw. Zeitstempel) und brauchen
+        /// spaeter meist eine Nacharbeit. In einem eigenen Ordner sind sie dafuer auffindbar, statt
+        /// sich unter die von Hand gepflegten Ressourcen zu mischen.
+        /// </remarks>
+        public string? PastedMediaFolder { get; set; } = "Pasted";
     }
 }

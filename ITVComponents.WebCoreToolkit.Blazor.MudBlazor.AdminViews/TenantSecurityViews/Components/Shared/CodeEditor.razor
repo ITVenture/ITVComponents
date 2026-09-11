@@ -74,6 +74,57 @@
         }
     }
 
+    /// <summary>
+    /// Fuegt Text an der Einfuegemarke ein (ersetzt dabei eine bestehende Auswahl).
+    /// </summary>
+    /// <remarks>
+    /// Der Weg fuer Knoepfe, die eine Vorlage, einen Platzhalter oder einen Verweis beisteuern. Der
+    /// naheliegende Umweg ueber <see cref="SetValueAsync"/> haengte den Text stattdessen ans Ende und
+    /// verloere die Einfuegemarke; ausserdem zerrisse er die Rueckgaengig-Kette des Editors.
+    /// Ist der Editor noch nicht da, wird an den Anfangswert angehaengt - besser als nichts zu tun.
+    /// </remarks>
+    public async Task InsertAsync(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        if (editor is null)
+        {
+            Value = (Value ?? string.Empty) + text;
+            return;
+        }
+
+        var selection = await editor.GetSelection();
+        var range = selection is null
+            ? null
+            : new BlazorMonaco.Range
+            {
+                StartLineNumber = selection.StartLineNumber,
+                StartColumn = selection.StartColumn,
+                EndLineNumber = selection.EndLineNumber,
+                EndColumn = selection.EndColumn
+            };
+
+        if (range is null)
+        {
+            // Ohne Auswahl gibt es keine Stelle, an die eingefuegt werden koennte - dann lieber
+            // anhaengen als still nichts tun.
+            var current = await editor.GetValue();
+            await editor.SetValue(current + text);
+            return;
+        }
+
+        await editor.ExecuteEdits("itv-insert", new List<IdentifiedSingleEditOperation>
+        {
+            new IdentifiedSingleEditOperation { Range = range, Text = text, ForceMoveMarkers = true }
+        // Der getypte null-Wert ist noetig: ExecuteEdits gibt es auch mit einem CursorStateComputer an
+        // dieser Stelle, und ein blankes null traefe beide Ueberladungen gleich gut (CS0121).
+        }, (List<BlazorMonaco.Selection>?)null);
+        await editor.Focus();
+    }
+
     /// <summary>Switches the syntax highlighting language at runtime without losing the current text.</summary>
     public async Task SetLanguageAsync(string languageId)
     {

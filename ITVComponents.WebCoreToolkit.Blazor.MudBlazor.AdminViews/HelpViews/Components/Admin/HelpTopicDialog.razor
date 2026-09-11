@@ -1,12 +1,17 @@
-@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Rendering
+﻿@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Rendering
 @inject IHelpAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 @inject IHelpContentRenderer Renderer
 
 @* Create/edit a help topic. Metadata plus a per-language editor: pick or add a language, enter the title and
-   (for content pages) the Markdown body in the Monaco editor with a server-rendered preview. Editing one
-   language at a time keeps a single editor instance; switching flushes the current text into the model first. *@
+   (for content pages) the body in the WYSIWYG Markdown editor, with a server-rendered preview. Editing one
+   language at a time keeps a single editor instance; switching flushes the current text into the model first
+   and loads the other language explicitly (SetValueAsync) - see SwitchCultureAsync.
+
+   Die Vorschau bleibt neben dem Editor bestehen, obwohl der WYSIWYG-Modus schon zeigt, was dasteht: sie
+   rendert ueber IHelpContentRenderer und ist damit die WAHRHEIT - dieselbe Pipeline, die der Leser
+   spaeter sieht (kein rohes HTML, module:-Verweise nur fuer Angemeldete). *@
 
 <style>
     /* Preview media is injected via MarkupString, so scoped CSS cannot reach it.
@@ -88,12 +93,16 @@
                     {
                         <MudItem xs="12">
                             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-1">
-                                <MudText Typo="Typo.subtitle2">Markdown</MudText>
-                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Embed media as <code>resource:{name}</code></MudText>
+                                <MudText Typo="Typo.subtitle2">Content</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    Insert media with the camera button; paste or drop an image to add it to the library.
+                                </MudText>
                                 <MudSpacer />
                                 <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Visibility" OnClick="Preview">Preview</MudButton>
                             </MudStack>
-                            <CodeEditor @ref="bodyEditor" @key="selectedCulture" Value="@CurrentContent.Body" Language="markdown" Height="320" Fill="true" />
+                            @* Bewusst ohne @key: ein Sprachwechsel tauscht nur den Text (siehe
+                               SwitchCultureAsync), statt den Editor wegzuwerfen und neu aufzubauen. *@
+                            <MarkdownEditor @ref="bodyEditor" Value="@CurrentContent.Body" Lines="14" />
                         </MudItem>
                         @if (!string.IsNullOrEmpty(previewHtml))
                         {
@@ -126,7 +135,7 @@
     [Parameter, EditorRequired] public HelpTopicEditViewModel Model { get; set; } = default!;
 
     private System.Security.Claims.ClaimsPrincipal? currentUser;
-    private CodeEditor? bodyEditor;
+    private MarkdownEditor? bodyEditor;
     private MudForm? form;
     private bool busy;
     private string selectedCulture = string.Empty;
@@ -143,19 +152,35 @@
         selectedCulture = Model.Contents.FirstOrDefault()?.Culture ?? string.Empty;
     }
 
-    private async Task OnCultureChanged(string culture)
+    private async Task OnCultureChanged(string culture) => await SwitchCultureAsync(culture);
+
+    /// <summary>
+    /// Wechselt die bearbeitete Sprache: den aktuellen Text sichern, umschalten, den anderen Text in
+    /// den Editor laden.
+    /// </summary>
+    /// <remarks>
+    /// Das Laden ist ausdruecklich und nicht der Bindung ueberlassen: der Editor besitzt seinen Text
+    /// und meldet ihn nur gebuendelt zurueck - fuer die Maske sehen zwei Sprachen mit (noch) gleichem
+    /// Inhalt deshalb aus wie "nichts zu tun", und der Text der einen bliebe in der anderen stehen.
+    /// </remarks>
+    private async Task SwitchCultureAsync(string culture)
     {
         await FlushAsync();
         selectedCulture = culture;
         previewHtml = null;
+
+        if (bodyEditor is not null && Model.Kind == HelpTopicKind.ContentPage)
+        {
+            await bodyEditor.SetValueAsync(CurrentContent?.Body);
+        }
     }
 
-    // Pull the live Monaco text into the model before we swap the editor or save (editor is not two-way bound).
+    // Pull the live editor text into the model before we swap the language or save (not two-way bound).
     private async Task FlushAsync()
     {
         if (bodyEditor is not null && CurrentContent is not null && Model.Kind == HelpTopicKind.ContentPage)
         {
-            CurrentContent.Body = await bodyEditor.GetValueAsync();
+            CurrentContent.Body = await bodyEditor.GetValueAsync() ?? string.Empty;
         }
     }
 
@@ -169,26 +194,35 @@
 
         if (Model.Contents.Any(c => string.Equals(c.Culture, culture, StringComparison.OrdinalIgnoreCase)))
         {
-            selectedCulture = culture;
+            // Die Sprache gibt es schon - dann ist "hinzufuegen" ein Umschalten, und zwar ueber
+            // denselben Weg: sonst behielte der Editor den Text der vorigen Sprache.
+            await SwitchCultureAsync(culture);
             newCulture = string.Empty;
             return;
         }
 
-        await FlushAsync();
         Model.Contents.Add(new HelpTopicContentViewModel { Culture = culture, Title = string.Empty });
-        selectedCulture = culture;
+        await SwitchCultureAsync(culture);
         newCulture = string.Empty;
-        previewHtml = null;
     }
 
-    private void RemoveCurrentCulture()
+    private async Task RemoveCurrentCulture()
     {
         var current = CurrentContent;
-        if (current is not null)
+        if (current is null)
         {
-            Model.Contents.Remove(current);
-            selectedCulture = Model.Contents.FirstOrDefault()?.Culture ?? string.Empty;
-            previewHtml = null;
+            return;
+        }
+
+        Model.Contents.Remove(current);
+        selectedCulture = Model.Contents.FirstOrDefault()?.Culture ?? string.Empty;
+        previewHtml = null;
+
+        // Ohne dieses Nachladen zeigte der Editor weiter den Text der geloeschten Sprache - und
+        // schriebe ihn beim Speichern in die nun ausgewaehlte.
+        if (bodyEditor is not null && Model.Kind == HelpTopicKind.ContentPage)
+        {
+            await bodyEditor.SetValueAsync(CurrentContent?.Body);
         }
     }
 
