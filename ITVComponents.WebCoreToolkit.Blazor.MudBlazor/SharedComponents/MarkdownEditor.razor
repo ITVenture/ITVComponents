@@ -324,9 +324,15 @@ else
         await ValueChanged.InvokeAsync(markdown);
     }
 
-    /// <summary>Der Knopf in der Werkzeugleiste: Auswahl oeffnen, fertiges Markdown zurueckgeben.</summary>
+    /// <summary>
+    /// Der Knopf in der Werkzeugleiste: Auswahl oeffnen, den gewaehlten Verweis zurueckgeben.
+    /// </summary>
+    /// <remarks>
+    /// Zerlegt (Art/Adresse/Text) und nicht als fertiges Markdown: der Editor setzt ihn ueber seine
+    /// eigenen Befehle ein, damit er im WYSIWYG-Modus ein Bild wird und nicht escapter Text.
+    /// </remarks>
     [JSInvokable]
-    public async Task<string?> PickResource(string kind)
+    public async Task<object?> PickResource(string kind)
     {
         if (picker is null)
         {
@@ -338,7 +344,10 @@ else
             var parsed = Enum.TryParse<MarkdownResourceKind>(kind, ignoreCase: true, out var k)
                 ? k
                 : MarkdownResourceKind.Image;
-            return await picker.PickAsync(parsed);
+            var reference = await picker.PickAsync(parsed);
+            return reference is null
+                ? null
+                : new { kind = reference.Kind.ToString(), url = reference.Url, text = reference.Text };
         }
         catch (Exception ex)
         {
@@ -433,9 +442,52 @@ else
     }
 
     /// <summary>
-    /// Fuegt Markdown an der Einfuegemarke ein. Im Rueckfall-Textfeld wird angehaengt: dort gibt es
-    /// keine Einfuegemarke, die dieser Code kennen koennte, und anhaengen ist besser als nichts.
+    /// Setzt einen Bild- oder Verweis-Eintrag an der Einfuegemarke ein.
     /// </summary>
+    /// <remarks>
+    /// Der richtige Weg fuer Verweise - <see cref="InsertAsync"/> schoebe sie als ROHTEXT hinein, und
+    /// der bliebe im WYSIWYG-Modus Text: beim Speichern escaped der Editor die Sonderzeichen, und im
+    /// fertigen Dokument stuende statt des Bildes sein Alt-Text.
+    /// </remarks>
+    public async Task InsertResourceAsync(MarkdownResourceReference reference)
+    {
+        if (reference is null || string.IsNullOrEmpty(reference.Url))
+        {
+            return;
+        }
+
+        if (fallback || !initialized)
+        {
+            await OnTextChanged(string.IsNullOrEmpty(Value) ? reference.Markdown : Value + reference.Markdown);
+            return;
+        }
+
+        try
+        {
+            string? updated = await module!.InvokeAsync<string?>("insertResource", editorId,
+                reference.Kind.ToString(), reference.Url, reference.Text);
+            if (updated is not null)
+            {
+                syncedValue = updated;
+                Value = updated;
+                await ValueChanged.InvokeAsync(updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The Markdown editor {EditorId} could not insert the reference to {Url}.",
+                editorId, reference.Url);
+        }
+    }
+
+    /// <summary>
+    /// Schiebt ROHTEXT an die Einfuegemarke. Im Rueckfall-Textfeld wird angehaengt: dort gibt es keine
+    /// Einfuegemarke, die dieser Code kennen koennte, und anhaengen ist besser als nichts.
+    /// </summary>
+    /// <remarks>
+    /// Kein Markdown-Einfuegen: im WYSIWYG-Modus bleibt eine Auszeichnung darin Text und wird beim
+    /// Speichern escaped. Fuer Bilder und Verweise ist <see cref="InsertResourceAsync"/> der Weg.
+    /// </remarks>
     public async Task InsertAsync(string markdown)
     {
         if (string.IsNullOrEmpty(markdown))

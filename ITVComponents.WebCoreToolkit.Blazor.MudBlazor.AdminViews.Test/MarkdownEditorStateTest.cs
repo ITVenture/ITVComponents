@@ -159,6 +159,28 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
                 "Ohne die Praefix-Tabelle zeigte der Editor beim Schreiben lauter kaputte Bilder.");
         }
 
+        [TestMethod]
+        public void InsertResourceAsync_GoesThroughTheEditorsOwnCommand()
+        {
+            ArrangeWorkingEditor();
+            var cut = Render<MarkdownEditor>(p => p.Add(x => x.Value, string.Empty));
+
+            cut.InvokeAsync(() => cut.Instance.InsertResourceAsync(new MarkdownResourceReference
+            {
+                Kind = MarkdownResourceKind.Image, Url = "resource:logo", Text = "logo"
+            })).GetAwaiter().GetResult();
+
+            // Nicht ueber "insert": das schiebt Rohtext an die Einfuegemarke, und der bleibt im
+            // WYSIWYG-Modus Text - beim Speichern escaped der Editor ihn, und im fertigen Dokument
+            // steht statt des Bildes sein Alt-Text.
+            Assert.AreEqual(0, editorModule.Invocations["insert"].Count, "Rohtext waere der falsche Weg.");
+
+            var call = editorModule.Invocations["insertResource"].Single();
+            Assert.AreEqual("Image", call.Arguments[1]);
+            Assert.AreEqual("resource:logo", call.Arguments[2]);
+            Assert.AreEqual("logo", call.Arguments[3]);
+        }
+
         /// <summary>Die Optionen, mit denen die Komponente den Editor aufgebaut hat.</summary>
         private object InitOptions()
         {
@@ -183,8 +205,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
 
             public Task<bool> CanUploadAsync(CancellationToken ct = default) => Task.FromResult(true);
 
-            public Task<string?> PickAsync(MarkdownResourceKind kind, CancellationToken ct = default)
-                => Task.FromResult<string?>("![x](resource:x)");
+            public Task<MarkdownResourceReference?> PickAsync(MarkdownResourceKind kind,
+                CancellationToken ct = default)
+                => Task.FromResult<MarkdownResourceReference?>(new MarkdownResourceReference
+                {
+                    Kind = kind, Url = "resource:x", Text = "x"
+                });
 
             public Task<string?> UploadAsync(MarkdownResourceUpload upload, CancellationToken ct = default)
                 => Task.FromResult<string?>("x");

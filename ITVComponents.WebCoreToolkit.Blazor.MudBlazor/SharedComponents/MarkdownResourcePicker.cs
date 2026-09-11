@@ -16,6 +16,31 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         Video
     }
 
+    /// <summary>Ein ausgewaehlter Verweis auf eine Ressource - zerlegt, nicht als fertiger Text.</summary>
+    /// <remarks>
+    /// **Warum zerlegt und nicht als Markdown-Zeichenkette.** Der Editor fuegt einen Verweis ueber
+    /// seine eigenen Befehle ein (<c>addImage</c>/<c>addLink</c>), und die brauchen Adresse und Text
+    /// getrennt. Rohtext an die Einfuegemarke zu schieben sieht zwar im Quelltext-Modus richtig aus,
+    /// landet im WYSIWYG-Modus aber als TEXT im Dokument - beim Speichern wird er dann escaped
+    /// (<c>!\[name\](resource:name)</c>), und im fertigen Dokument steht statt des Bildes sein
+    /// Alt-Text. <see cref="Markdown"/> gibt es weiterhin fuer Wege ohne Editor.
+    /// </remarks>
+    public class MarkdownResourceReference
+    {
+        /// <summary>Bild oder Video - entscheidet ueber Einbettung oder Verweis.</summary>
+        public MarkdownResourceKind Kind { get; set; }
+
+        /// <summary>Die Adresse im Text, z.B. <c>resource:handbuch-start</c>.</summary>
+        public string Url { get; set; } = string.Empty;
+
+        /// <summary>Alt-Text bzw. Beschriftung des Verweises.</summary>
+        public string Text { get; set; } = string.Empty;
+
+        /// <summary>Der fertige Markdown-Verweis - fuer das Rueckfall-Textfeld.</summary>
+        public string Markdown
+            => Kind == MarkdownResourceKind.Image ? $"![{Text}]({Url})" : $"[{Text}]({Url})";
+    }
+
     /// <summary>Eine hochzuladende Datei aus dem Editor (eingefuegt oder hineingezogen).</summary>
     public class MarkdownResourceUpload
     {
@@ -65,10 +90,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
         Task<bool> CanUploadAsync(CancellationToken ct = default);
 
         /// <summary>
-        /// Oeffnet die Auswahl und liefert fertiges Markdown (z.B. <c>![name](resource:name)</c>),
-        /// oder null, wenn abgebrochen wurde.
+        /// Oeffnet die Auswahl und liefert den gewaehlten Verweis, oder null, wenn abgebrochen wurde.
         /// </summary>
-        Task<string?> PickAsync(MarkdownResourceKind kind, CancellationToken ct = default);
+        Task<MarkdownResourceReference?> PickAsync(MarkdownResourceKind kind, CancellationToken ct = default);
 
         /// <summary>
         /// Legt eine eingefuegte Datei in der Ablage ab und liefert den NAMEN der neuen Ressource

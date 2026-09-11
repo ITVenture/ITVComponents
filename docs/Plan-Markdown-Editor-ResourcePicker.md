@@ -1,6 +1,8 @@
 # Markdown-Editor mit WYSIWYG und Ressourcen-Auswahl
 
-**Stand:** gebaut, vom Anwender noch nicht getestet (2026-09-11, Zweig Future_10).
+**Stand:** gebaut und vom Anwender durchgetestet (2026-09-11, Zweig Future_10). Aus dem Test kamen
+zwei Nachtraege, beide eingearbeitet: der Namensdialog beim Einfuegen und der Einfuegeweg ueber die
+Editor-Befehle (Falle 6).
 
 **Anlass:** Der Hilfe-Editor (`HelpTopicDialog`) war ein reiner Markdown-Quelltext-Editor (Monaco).
 Wer ein Bild einbetten wollte, musste den Ressourcen-Namen aus dem Kopf oder aus einem zweiten
@@ -52,7 +54,7 @@ muss** (die liegt in den AdminViews und bringt EF-Kontext und Berechtigungen mit
 |---|---|
 | `UrlPrefixes` | `"resource:"` -> `"/{mandant}/help/res/"`, fuer die Anzeige im Editor |
 | `CanPickAsync` / `CanUploadAsync` | ob Knopf und Einfuege-Haken ueberhaupt erscheinen |
-| `PickAsync(kind)` | oeffnet die Auswahl, liefert fertiges Markdown |
+| `PickAsync(kind)` | oeffnet die Auswahl, liefert den Verweis zerlegt (`MarkdownResourceReference`) |
 | `UploadAsync(upload)` | legt eine eingefuegte Datei ab, liefert den Ressourcen-Namen |
 
 Ist kein Dienst registriert, fehlen Knopf und Haken - die Maske bleibt vollstaendig benutzbar.
@@ -60,8 +62,12 @@ Ist kein Dienst registriert, fehlen Knopf und Haken - die Maske bleibt vollstaen
 ### 3. Auswahl und Umsetzung im Hilfesystem
 
 - `HelpViews/Components/Admin/HelpResourcePickerDialog.razor` - Pfadzeile, Suche, Kacheln mit
-  Vorschau; Ebene fuer Ebene geladen (`ListNodesAsync`). Ein Klick liefert
-  `![name](resource:name)` (Bild) bzw. `[name](resource:name)` (Video).
+  Vorschau; Ebene fuer Ebene geladen (`ListNodesAsync`). Ein Klick liefert Art, Adresse
+  (`resource:name`) und Text getrennt - siehe Falle 6.
+- `HelpViews/Components/Admin/HelpResourceImportDialog.razor` - fragt den Namen ab, BEVOR ein
+  eingefuegtes Bild in der Bibliothek landet. Vorgeschlagen wird der Dateiname, sonst `Image`, und
+  zwar bereits auf einen freien hochgezaehlt (`Image-2`, `Image-3`); vergebene Namen meldet der
+  Dialog sofort statt erst beim Speichern.
 - `HelpViews/Handlers/Impl/HelpMarkdownResourcePicker.cs` - die Umsetzung; registriert in
   `AddMudBlazorHelpViews`. Ab dieser Registrierung hat **jedes** Markdown-Feld der Anwendung den
   Knopf.
@@ -86,6 +92,12 @@ es, bevor der Verweis im Text steht.
 **Der Name wird zum Alt-Text.** Er ist das Einzige, was ein Vorlese-Programm zu hoeren bekommt, wenn
 das Bild fehlt - und besser als ein leeres `![]`, das beim Einfuegen niemand mehr ausfuellt.
 
+**Der Name wird VOR dem Hochladen erfragt, nicht danach vergeben.** Er ist der Schluessel der
+Ressource und steht unmittelbar danach als `resource:name` im Text. Ein spaeteres Umbenennen kostet
+den Gang in die Ressourcen-Verwaltung UND das Nachziehen jedes Verweises im Text - und beim vierten
+Screenshot weiss niemand mehr, welcher welcher war. Das Feld im Dialog kostet dagegen einen
+Tastendruck. (Aus dem ersten Anwendertest.)
+
 **Eine Art je Aufruf.** Bilder, Videos und "Sonstiges" liegen in derselben Bibliothek, gehoeren aber
 nicht in dieselbe Schreibweise: ein Video in einem `![...]` saehe im Text aus wie ein kaputtes Bild.
 
@@ -98,7 +110,7 @@ Leser, mit abgeschaltetem Roh-HTML und `module:`-Verweisen nur fuer Angemeldete.
 
 ---
 
-## Fuenf Fallen, die hier schon eingebaut sind
+## Sechs Fallen, die hier schon eingebaut sind
 
 **1. UMD neben Monacos AMD-Loader.** Die Host-Seite bindet fuer den `CodeEditor` Monacos `loader.js`
 ein, und der setzt ein globales `define` mit `define.amd`. Das TOAST-UI-Bundle prueft genau darauf,
@@ -131,6 +143,23 @@ landete beim Speichern dort. Deshalb laedt `HelpTopicDialog.SwitchCultureAsync` 
 **ausdruecklich** ueber `MarkdownEditor.SetValueAsync`; der Parameter-Weg zieht nur nach, wenn der
 Aufrufer wirklich einen neuen Wert hereingibt (`lastParameterValue`).
 
+**6. Rohtext an der Einfuegemarke ist kein Markdown-Einfuegen.** `editor.insertText()` ruft in BEIDEN
+Modi `replaceSelection`, und das legt einen Text-Knoten an. Im Quelltext-Modus faellt das nicht auf -
+dort IST der Inhalt Text. Im WYSIWYG-Modus steht der Verweis danach als Text im Dokument, und beim
+Serialisieren escaped der Editor die Sonderzeichen: aus `![name](resource:name)` wird
+`!\[name\](resource:name)`, und im fertigen Dokument erscheint statt des Bildes sein Alt-Text. Wer
+den Fehler sucht, sieht im Quelltext etwas, das fast richtig aussieht.
+
+Der Weg ist stattdessen `editor.exec('addImage' | 'addLink', ...)`: der geht an den Befehl der
+jeweiligen Betriebsart - im Quelltext-Modus schreibt er rohes Markdown, im WYSIWYG-Modus legt er
+einen echten Bild- bzw. Verweis-Knoten an, und escapen tun beide nur den Alt- bzw. Verweistext, wie
+es sich gehoert. Deshalb reicht die Auswahl den Verweis **zerlegt** zurueck (Art/Adresse/Text) und
+nicht als fertige Zeichenkette. `MarkdownEditor.InsertResourceAsync` ist der oeffentliche Weg dafuer;
+`InsertAsync(string)` bleibt, was es ist - Rohtext, mit dieser Einschraenkung dokumentiert.
+
+(Gefunden im ersten Anwendertest; die Designstudie hatte `insertText` fuer beide Modi als richtig
+beschrieben - das war nie geprueft worden.)
+
 ---
 
 ## Einstellungen
@@ -154,8 +183,13 @@ auch die Regeln fuer den Editor-Rahmen).
 ## Was offen bleibt
 
 - **Hochladen aus dem Auswahldialog.** Die Datei kommt heute ueber Einfuegen/Ziehen in den Text oder
-  ueber `/Help/Admin/Resources` in die Bibliothek. Ein "Neu hochladen"-Knopf im Dialog (mit Name und
-  Zielordner) waere die naechstliegende Erweiterung.
+  ueber `/Help/Admin/Resources` in die Bibliothek. Ein "Neu hochladen"-Knopf im Dialog waere die
+  naechstliegende Erweiterung - den Namensdialog dafuer gibt es inzwischen.
+- **Zielordner im Namensdialog waehlen.** Heute nennt er den Ordner nur; gesetzt wird er ueber
+  `PastedMediaFolder`.
 - **Ein `module:`-Picker nach demselben Muster.** Dieselbe Luecke: der Pfad wird heute von Hand
   getippt. Eine Auswahl ueber die Navigations-Eintraege waere die Entsprechung.
-- **Vom Anwender getestet** ist noch nichts davon.
+- **Der Weg ueber `insertText`** bleibt fuer Rohtext bestehen und ist damit weiterhin der falsche
+  Weg fuer Auszeichnungen im WYSIWYG-Modus. Eine allgemeine "Markdown an der Einfuegemarke einfuegen"-
+  Funktion gaebe es nur ueber einen Moduswechsel mit Neuaufbau des Dokuments - dabei geht die
+  Einfuegemarke verloren, und das waere der schlechtere Tausch.

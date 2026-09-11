@@ -86,7 +86,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             => resources.CanWrite(await CurrentUserAsync());
 
         /// <inheritdoc />
-        public async Task<string?> PickAsync(MarkdownResourceKind kind, CancellationToken ct = default)
+        public async Task<MarkdownResourceReference?> PickAsync(MarkdownResourceKind kind,
+            CancellationToken ct = default)
         {
             var parameters = new DialogParameters<HelpResourcePickerDialog>
             {
@@ -98,7 +99,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true });
 
             var result = await dialog.Result;
-            return result is { Canceled: false, Data: string markdown } ? markdown : null;
+            return result is { Canceled: false, Data: MarkdownResourceReference reference } ? reference : null;
         }
 
         /// <inheritdoc />
@@ -120,13 +121,23 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             }
 
             var kind = KindOf(upload.ContentType);
-            var baseName = BuildName(upload.FileName);
+            var folderName = (options.ValueOrDefault ?? new HelpSystemOptions()).PastedMediaFolder?.Trim();
 
-            // Der Name ist der Schluessel der Bibliothek und muss eindeutig sein. SaveResourceAsync
-            // meldet eine Namenskollision mit null - die Rechtefrage ist oben bereits geklaert, also
-            // ist null hier genau das.
+            // Der Name ist der Schluessel der Ressource und steht gleich als `resource:name` im Text.
+            // Ihn hier zu erfragen kostet einen Tastendruck; ihn nachtraeglich zu aendern kostet einen
+            // Gang in die Ressourcen-Verwaltung UND das Nachziehen jedes Verweises im Text.
+            var name = await AskForNameAsync(user, upload, bytes.Length, folderName, ct);
+            if (name is null)
+            {
+                // Abgebrochen - der Editor fuegt dann auch nichts ein.
+                return null;
+            }
+
+            // SaveResourceAsync meldet eine Namenskollision mit null. Der Dialog hat freie Namen
+            // angeboten, aber zwischen Vorschlag und Speichern kann jemand anderes einen belegt haben;
+            // deshalb zaehlt dieser Weg im Notfall weiter hoch, statt den Vorgang wegzuwerfen.
+            var baseName = name;
             int? resourceId = null;
-            var name = baseName;
             for (var attempt = 1; attempt <= NameAttempts && resourceId is null; attempt++)
             {
                 name = attempt == 1 ? baseName : $"{baseName}-{attempt}";
@@ -163,7 +174,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 return null;
             }
 
-            await MoveToUploadFolderAsync(user, resourceId.Value, name, ct);
+            await MoveToUploadFolderAsync(user, resourceId.Value, name, folderName, ct);
             return name;
         }
 
@@ -176,15 +187,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         /// Einfuegevorgang waere der teurere Ausgang.
         /// </remarks>
         private async Task MoveToUploadFolderAsync(ClaimsPrincipal user, int resourceId, string name,
-            CancellationToken ct)
+            string? folderName, CancellationToken ct)
         {
-            var folderName = (options.ValueOrDefault ?? new HelpSystemOptions()).PastedMediaFolder;
             if (string.IsNullOrWhiteSpace(folderName))
             {
                 return;
             }
 
-            folderName = folderName.Trim();
             try
             {
                 var roots = await resources.ListNodesAsync(user, null, ct);
@@ -227,6 +236,79 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
             }
         }
 
+        /// <summary>
+        /// Erfragt den Namen der neuen Ressource - mit einem Vorschlag, der schon frei ist.
+        /// </summary>
+        /// <returns>der gewaehlte Name, oder null bei Abbruch</returns>
+        /// <remarks>
+        /// Die vergebenen Namen werden EINMAL geholt und dem Dialog mitgegeben, statt je Tastendruck
+        /// nachzufragen: die Liste ist klein genug, und eine Kollisionsmeldung, die erst beim Speichern
+        /// kommt, kostet den Anwender den ganzen Vorgang.
+        /// </remarks>
+        private async Task<string?> AskForNameAsync(ClaimsPrincipal user, MarkdownResourceUpload upload,
+            int byteCount, string? folderName, CancellationToken ct)
+        {
+            var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var existing in await resources.ListResourcesAsync(user, ct))
+                {
+                    taken.Add(existing.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Ohne die Liste ist der Vorschlag nur schlechter geraten - der Dialog erscheint
+                // trotzdem, und das Speichern faengt eine Kollision ohnehin ab.
+                logger.LogError(ex, "Could not read the existing resource names; the suggested name may "
+                                    + "already be taken.");
+            }
+
+            var parameters = new DialogParameters<HelpResourceImportDialog>
+            {
+                { x => x.SuggestedName, FreeName(BuildName(upload.FileName), taken) },
+                { x => x.TakenNames, taken },
+                { x => x.Description, Describe(upload, byteCount, folderName) }
+            };
+
+            var dialog = await dialogs.ShowAsync<HelpResourceImportDialog>("Add image to the library",
+                parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, CloseButton = true });
+
+            var result = await dialog.Result;
+            return result is { Canceled: false, Data: string chosen } ? chosen : null;
+        }
+
+        /// <summary>Der erste freie Name: "Image", sonst "Image-2", "Image-3", ...</summary>
+        private static string FreeName(string baseName, ICollection<string> taken)
+        {
+            if (!taken.Contains(baseName))
+            {
+                return baseName;
+            }
+
+            for (var i = 2; i < 1000; i++)
+            {
+                var candidate = $"{baseName}-{i}";
+                if (!taken.Contains(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            // Tausend gleichnamige Bilder sind kein realer Fall - aber ein Vorschlag muss trotzdem
+            // herauskommen, und das Speichern prueft ohnehin noch einmal.
+            return $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+        }
+
+        /// <summary>Was da hochgeladen wird - damit im Dialog nicht nur ein nacktes Feld steht.</summary>
+        private static string Describe(MarkdownResourceUpload upload, int byteCount, string? folderName)
+        {
+            var type = string.IsNullOrWhiteSpace(upload.ContentType) ? "unknown type" : upload.ContentType;
+            var size = byteCount < 1024 ? $"{byteCount} bytes" : $"{byteCount / 1024} KB";
+            var where = string.IsNullOrWhiteSpace(folderName) ? "the root of the library" : $"folder '{folderName}'";
+            return $"{type}, {size} - goes into {where}.";
+        }
+
         private async Task<ClaimsPrincipal> CurrentUserAsync()
             => (await authState.GetAuthenticationStateAsync()).User;
 
@@ -253,8 +335,8 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
         /// <remarks>
         /// Der Name ist zugleich der Alt-Text des eingefuegten Bildes - er soll also lesbar bleiben und
         /// nicht nur eindeutig sein. Aus der Zwischenablage eingefuegte Bilder bringen keinen
-        /// Dateinamen mit; fuer sie tritt ein Zeitstempel an seine Stelle, den man in der Bibliothek
-        /// jederzeit umbenennen kann.
+        /// Dateinamen mit; fuer sie ist "Image" der Anfang, den der Dialog zu einem freien Namen
+        /// hochzaehlt und den der Anwender dort ueberschreiben kann.
         /// </remarks>
         private static string BuildName(string? fileName)
         {
@@ -264,7 +346,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
 
             if (string.IsNullOrEmpty(raw))
             {
-                return $"pasted-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+                return "Image";
             }
 
             var builder = new StringBuilder(raw.Length);
@@ -286,7 +368,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.HelpViews.Han
                 name = name.Substring(0, 80).TrimEnd('-');
             }
 
-            return name.Length == 0 ? $"pasted-{DateTime.UtcNow:yyyyMMdd-HHmmss}" : name;
+            return name.Length == 0 ? "Image" : name;
         }
     }
 }

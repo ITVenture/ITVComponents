@@ -1,0 +1,83 @@
+@using System.Collections.Generic
+
+@* Fragt den Namen ab, BEVOR ein eingefuegtes oder hineingezogenes Bild in der Bibliothek landet.
+
+   **Warum vorher und nicht nachher.** Der Name ist der Schluessel der Ressource und steht nach dem
+   Einfuegen als `resource:name` im Text. Wer ihn spaeter in der Ressourcen-Verwaltung aendert, muss
+   jeden Verweis im Text nachziehen - und weiss beim vierten Screenshot nicht mehr, welcher welcher
+   war. Ein Feld an dieser Stelle kostet einen Tastendruck und erspart genau das.
+
+   Vorgeschlagen wird der Dateiname, sonst "Image"; ist er vergeben, zaehlt der Vorschlag hoch
+   ("Image-2"). Bereits vergebene Namen kennt der Dialog, er meldet sie sofort statt erst beim
+   Speichern. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="2" Style="min-width:360px">
+            <MudTextField @bind-Value="name" Label="Name" Immediate="true" AutoFocus="true"
+                          Error="@(Problem is not null)" ErrorText="@Problem"
+                          HelperText="Referenced from the text as resource:{name}" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                @Description
+            </MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(Problem is not null)"
+                   OnClick="Accept">Add to library</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Der Vorschlag - Dateiname bzw. "Image", bereits auf einen freien hochgezaehlt.</summary>
+    [Parameter, EditorRequired] public string SuggestedName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Die bereits vergebenen Namen. Hier statt einer Rueckfrage je Tastendruck: die Liste ist beim
+    /// Oeffnen ohnehin geholt, und eine Meldung, die erst beim Speichern kommt, kostet den Anwender
+    /// den ganzen Vorgang.
+    /// </summary>
+    [Parameter] public ISet<string>? TakenNames { get; set; }
+
+    /// <summary>Was da hochgeladen wird - Dateityp, Groesse, Zielordner.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    private string? name;
+
+    protected override void OnInitialized() => name = SuggestedName;
+
+    /// <summary>Der Grund, warum es so nicht geht - oder null.</summary>
+    private string? Problem
+    {
+        get
+        {
+            var trimmed = name?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return "A name is required.";
+            }
+
+            if (trimmed.Length > 200)
+            {
+                return "At most 200 characters.";
+            }
+
+            return TakenNames is not null && TakenNames.Contains(trimmed)
+                ? "A resource with this name already exists."
+                : null;
+        }
+    }
+
+    private void Accept()
+    {
+        if (Problem is null)
+        {
+            MudDialog.Close(DialogResult.Ok(name!.Trim()));
+        }
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}

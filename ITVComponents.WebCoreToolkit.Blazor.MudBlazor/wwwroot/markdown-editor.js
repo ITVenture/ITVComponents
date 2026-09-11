@@ -221,6 +221,36 @@ function observeImages(root, schemes) {
 }
 
 /**
+ * Setzt einen ausgewaehlten Verweis ueber die BEFEHLE des Editors ein - reference = {kind, url, text}.
+ *
+ * **Und nicht ueber insertText.** Das schiebt in beiden Modi bloss Text an die Einfuegemarke
+ * (`replaceSelection` legt einen Text-Knoten an). Im Quelltext-Modus faellt das nicht auf, im
+ * WYSIWYG-Modus steht der Verweis danach als Text im Dokument - und beim Serialisieren escaped der
+ * Editor die Sonderzeichen (`!\[name\](resource:name)`). Im fertigen Dokument erscheint dann statt
+ * des Bildes sein Alt-Text, und wer den Fehler sucht, sieht im Quelltext etwas, das fast richtig
+ * aussieht.
+ *
+ * `exec` geht dagegen an den Befehl der jeweiligen Betriebsart: im Quelltext-Modus schreibt der rohes
+ * Markdown, im WYSIWYG-Modus legt er einen echten Bild- bzw. Verweis-Knoten an. Beide escapen nur den
+ * Alt-/Verweistext, wie es sich gehoert.
+ */
+function applyReference(editor, reference) {
+    const url = reference.url || '';
+    const text = reference.text || '';
+    if (!url) {
+        return;
+    }
+
+    if (reference.kind === 'Image') {
+        editor.exec('addImage', { imageUrl: url, altText: text });
+    } else {
+        editor.exec('addLink', { linkUrl: url, linkText: text });
+    }
+
+    editor.focus();
+}
+
+/**
  * Baut die Knoepfe fuer die Ressourcen-Auswahl als eigene Werkzeugleisten-Eintraege.
  *
  * Bewusst IN der Leiste und nicht daneben: ein Knopf ausserhalb des Editors sieht aus wie eine
@@ -288,10 +318,9 @@ export async function init(id, dotNetRef, options) {
         const pickerItems = Array.isArray(opts.pickers) && opts.pickers.length !== 0
             ? buildPickerButtons(opts.pickers, async kind => {
                 try {
-                    const markdown = await dotNetRef.invokeMethodAsync('PickResource', kind);
-                    if (markdown) {
-                        entry.editor.insertText(markdown);
-                        entry.editor.focus();
+                    const reference = await dotNetRef.invokeMethodAsync('PickResource', kind);
+                    if (reference) {
+                        applyReference(entry.editor, reference);
                         push();
                     }
                 } catch (e) {
@@ -394,12 +423,11 @@ export function setMarkdown(id, value) {
 }
 
 /**
- * Fuegt Markdown an der Einfuegemarke ein - der Weg fuer "Bild einfuegen".
+ * Schiebt ROHTEXT an die Einfuegemarke.
  *
- * `insertText` ist die einzige Editor-Schnittstelle, die in BEIDEN Modi (WYSIWYG und Markdown)
- * dasselbe tut: sie schiebt Rohtext an die aktuelle Stelle und laesst ihn im WYSIWYG-Modus vom Editor
- * selbst deuten. Der Umweg ueber setMarkdown(getMarkdown() + ...) haengte ihn stattdessen ans Ende und
- * verloere die Einfuegemarke.
+ * **Achtung, das ist kein Markdown-Einfuegen.** `insertText` legt in beiden Modi einen Text-Knoten an;
+ * im WYSIWYG-Modus bleibt eine Auszeichnung darin also Text und wird beim Speichern escaped. Fuer
+ * Bilder und Verweise gibt es deshalb insertResource() - siehe die Notiz dort.
  *
  * Liefert den Text NACH dem Einfuegen zurueck, damit Blazor seinen Stand nachziehen kann, ohne auf die
  * gebuendelte Meldung zu warten.
@@ -411,6 +439,19 @@ export function insert(id, markdown) {
     }
     entry.editor.insertText(markdown || '');
     entry.editor.focus();
+    return entry.editor.getMarkdown();
+}
+
+/**
+ * Setzt einen Verweis ein - der Weg fuer InsertImageAsync/InsertLinkAsync der Komponente.
+ * Liefert den Text NACH dem Einsetzen zurueck, damit Blazor seinen Stand nachziehen kann.
+ */
+export function insertResource(id, kind, url, text) {
+    const entry = editors[id];
+    if (!entry) {
+        return null;
+    }
+    applyReference(entry.editor, { kind: kind, url: url, text: text });
     return entry.editor.getMarkdown();
 }
 

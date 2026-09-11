@@ -205,14 +205,22 @@
         => UrlFormat.FormatUrl("[SlashPermissionScope]" + HelpRoutes.ResourceUrl(name));
 
     /// <summary>
+    /// Liefert den Verweis zerlegt zurueck - Art, Adresse, Text.
+    /// </summary>
+    /// <remarks>
+    /// Und nicht als fertiges Markdown: der Editor setzt ihn ueber seine eigenen Befehle ein, damit im
+    /// WYSIWYG-Modus ein Bild daraus wird und nicht escapter Text.
+    ///
     /// Der Name wird zum Alt-Text. Er ist das Einzige, was ein Vorlese-Programm zu hoeren bekommt,
     /// wenn das Bild fehlt - und besser als ein leeres ![], das beim Einfuegen niemand mehr ausfuellt.
-    /// </summary>
+    /// </remarks>
     private void Choose(HelpResourceNodeViewModel node)
-    {
-        var mark = node.Kind == HelpResourceKind.Image ? "!" : string.Empty;
-        MudDialog.Close(DialogResult.Ok($"{mark}[{node.Name}](resource:{node.Name})"));
-    }
+        => MudDialog.Close(DialogResult.Ok(new MarkdownResourceReference
+        {
+            Kind = node.Kind == HelpResourceKind.Video ? MarkdownResourceKind.Video : MarkdownResourceKind.Image,
+            Url = $"resource:{node.Name}",
+            Text = node.Name
+        }));
 
     private void Cancel() => MudDialog.Close(DialogResult.Cancel());
 }
