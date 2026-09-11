@@ -128,26 +128,45 @@ namespace ITVComponents.EFRepo.DataSync
                                 bool any = false;
                                 foreach (var detail in change.Details.Where(n => n.Apply))
                                 {
-                                    var xp = string.IsNullOrEmpty(detail.ValueExpression)
-                                        ? $"Entity.{detail.TargetProp}=ChangeType(NewValueRaw,Type)"
+                                    // Without an explicit expression the value is converted here rather than in the
+                                    // expression itself: the generic ChangeType-callback that used to do it parses
+                                    // under the culture of the applying user (12.50 -> 1250 on a de-UI) and throws on
+                                    // enum- and nullable-targets, which costs the entire record.
+                                    var useDefaultAssignment = string.IsNullOrEmpty(detail.ValueExpression);
+                                    var xp = useDefaultAssignment
+                                        ? $"Entity.{detail.TargetProp}=NewValue"
                                         : detail.ValueExpression;
+                                    object propertyType = null;
                                     try
                                     {
-                                        ExpressionParser.Parse(xp, BuildContext(
+                                        propertyType = entity.GetValueType(detail.TargetProp);
+                                        var context = BuildContext(
                                             entity: entity,
                                             db: db,
                                             change: change,
                                             newValue: detail.NewValue,
-                                            propertyType: entity.GetValueType(detail.TargetProp),
-                                            extendContext: extendQueryVariables));
+                                            propertyType: propertyType,
+                                            extendContext: extendQueryVariables);
+                                        if (useDefaultAssignment)
+                                        {
+                                            context["NewValue"] =
+                                                ChangeValueConverter.ToTypedValue(detail.NewValue, propertyType as Type);
+                                        }
+
+                                        ExpressionParser.Parse(xp, context);
                                         any = true;
                                     }
                                     catch (Exception ex)
                                     {
-                                        LogEnvironment.LogDebugEvent(null,
-                                            $@"Assignment-Expression failed!. ({ex.OutlineException()})
-Expression: {xp}",
-                                            (int)LogSeverity.Error, "EFRepo:SimpleDataApplyer");
+                                        // This is what makes the whole change fail below, so it must be visible in the
+                                        // protocol and in the log - not only when debug-logging happens to be on.
+                                        var failure =
+                                            $"Assignment of '{detail.TargetProp}' ({(propertyType as Type)?.FullName ?? "unknown type"}) on {change.EntityName} failed: {ex.Message}";
+                                        messages.AppendLine(failure);
+                                        LogEnvironment.LogEvent($@"{failure}
+Expression: {xp}
+{ex.OutlineException()}",
+                                            LogSeverity.Error, "EFRepo:SimpleDataApplyer");
                                         throw;
                                     }
                                 }
