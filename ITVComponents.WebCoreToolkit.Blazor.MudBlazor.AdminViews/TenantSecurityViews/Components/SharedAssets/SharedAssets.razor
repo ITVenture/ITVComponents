@@ -143,7 +143,11 @@ else
             return;
         }
 
-        var parameters = new DialogParameters<ShareLinkDialog> { { d => d.Link, link } };
+        var parameters = new DialogParameters<ShareLinkDialog>
+        {
+            { d => d.Link, link },
+            { d => d.Title, item.AssetTitle }
+        };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
     }
 

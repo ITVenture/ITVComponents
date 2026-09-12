@@ -1,5 +1,10 @@
+@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl
+
+@implements IAsyncDisposable
 @inject IJSRuntime Js
 @inject ISnackbar Snackbar
+@inject ILogger<ShareLinkDialog> Logger
 
 @* Der Link ist das Ergebnis des Teilens - er gehoert dorthin, wo man ihn in Ruhe kopieren kann, und
    nicht in eine Meldung, die nach drei Sekunden verschwindet. *@
@@ -10,6 +15,36 @@
         <MudText Typo="Typo.caption" Class="mt-2">
             Anyone holding this link uses the share. Send it the way you would send a password.
         </MudText>
+
+        @* Der QR-Code entsteht erst auf Wunsch: die meisten Freigaben werden verschickt, und wer sie
+           verschickt, braucht kein Bild. Gefragt ist er dort, wo der Link auf ein Mobilgeraet oder auf
+           Papier soll - beides ohne Abtippen. *@
+        @if (qr is null)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.QrCode2" OnClick="ShowQr" Class="mt-3">
+                Show QR code
+            </MudButton>
+        }
+        else if (!qr.Success)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@qr.Error</MudAlert>
+        }
+        else
+        {
+            <MudPaper Outlined="true" Class="mt-3 pa-3 d-flex flex-column align-center">
+                @* Weisser Grund fest verdrahtet, unabhaengig vom Farbschema: ein invertierter QR-Code wird
+                   von vielen Kameras nicht gelesen, und gedruckt wird er ohnehin schwarz auf weiss. Die
+                   Angaben stehen hier und nicht in einer .razor.css - scoped CSS erreicht den Dialog nicht,
+                   weil der MudDialogProvider ihn ausserhalb dieser Komponente zeichnet. *@
+                <img src="@qr.DataUri" alt="QR code for this link" width="220" height="220"
+                     style="max-width:100%;height:auto;background:#fff;padding:8px;border-radius:4px;image-rendering:pixelated" />
+                <MudStack Row="true" Spacing="1" Class="mt-2">
+                    <MudButton StartIcon="@Icons.Material.Filled.Download" OnClick="SaveQr">Save as PNG</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQr">Print</MudButton>
+                    <MudButton OnClick="HideQr">Hide</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="Copy">Copy</MudButton>
@@ -18,10 +53,28 @@
 </MudDialog>
 
 @code {
+    /// <summary>Der Pfad des Moduls, das Speichern und Drucken uebernimmt.</summary>
+    private const string ModulePath =
+        "./_content/ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews/share-qr.js";
+
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
     [Parameter, EditorRequired] public string Link { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Der Titel der Freigabe. Er benennt die gespeicherte Datei und steht auf dem Ausdruck - ein Blatt
+    /// mit nichts als einem Quadrat darauf sagt niemandem, wohin es fuehrt.
+    /// </summary>
+    [Parameter] public string? Title { get; set; }
+
+    private ShareQrResult? qr;
+    private IJSObjectReference? module;
+
     private void Close() => MudDialog.Close();
+
+    private void ShowQr() => qr = ShareQrCode.Create(Link, Logger);
+
+    private void HideQr() => qr = null;
 
     private async Task Copy()
     {
@@ -36,7 +89,74 @@
             // Berechtigung). Das Feld daneben zeigt den Link weiterhin - der Benutzer ist also nicht
             // aufgeschmissen, aber wir verschweigen den Grund nicht.
             Snackbar.Add("Could not copy - select the link and copy it yourself.", Severity.Warning);
-            Console.WriteLine($"Clipboard access failed: {ex.Message}");
+            Logger.LogWarning(ex, "Could not write a share link to the clipboard.");
+        }
+    }
+
+    private async Task SaveQr()
+    {
+        if (qr is not { Success: true })
+        {
+            return;
+        }
+
+        try
+        {
+            var js = await LoadModuleAsync();
+            await js.InvokeVoidAsync("save", ShareQrCode.FileName(Title), qr.PngBase64);
+        }
+        catch (Exception ex)
+        {
+            // Das Bild bleibt sichtbar - es laesst sich immer noch ueber das Kontextmenue des Browsers
+            // sichern. Warum der bequeme Weg nicht ging, gehoert trotzdem ins Log.
+            Snackbar.Add("Could not save the picture - use your browser to save it instead.", Severity.Warning);
+            Logger.LogError(ex, "Could not hand the QR code of a share link to the browser for saving.");
+        }
+    }
+
+    private async Task PrintQr()
+    {
+        if (qr is not { Success: true })
+        {
+            return;
+        }
+
+        try
+        {
+            var js = await LoadModuleAsync();
+            await js.InvokeVoidAsync("printCode", Title ?? string.Empty, Link, qr.PngBase64);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Could not open the print dialog - save the picture and print it from there.",
+                Severity.Warning);
+            Logger.LogError(ex, "Could not open the print view for the QR code of a share link.");
+        }
+    }
+
+    private async Task<IJSObjectReference> LoadModuleAsync()
+        => module ??= await Js.InvokeAsync<IJSObjectReference>("import", ModulePath);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await module.DisposeAsync();
+        }
+        catch (JSDisconnectedException ex)
+        {
+            // Wurde der Circuit schon abgebaut (Seite geschlossen, Verbindung weg), gibt es nichts mehr
+            // freizugeben. Das ist der Normalfall beim Beenden und kein Fehler.
+            Logger.LogDebug(ex, "The QR helper module was already gone when the share link dialog closed.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not release the QR helper module of the share link dialog.");
         }
     }
 }

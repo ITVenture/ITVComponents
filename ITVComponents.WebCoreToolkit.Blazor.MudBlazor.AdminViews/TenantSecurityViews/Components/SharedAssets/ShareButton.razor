@@ -144,11 +144,11 @@
         {
             // Der Link kommt aus dem Ergebnis und wird nicht neu geholt - und er gehoert dorthin, wo man
             // ihn kopieren kann, nicht in eine Meldung, die nach drei Sekunden verschwindet.
-            await ShowLink(created.Link ?? string.Empty);
+            await ShowLink(created.Link ?? string.Empty, model.Title);
         }
     }
 
-    private async Task ShowLink(string link)
+    private async Task ShowLink(string link, string? title)
     {
         if (string.IsNullOrEmpty(link))
         {
@@ -156,7 +156,13 @@
             return;
         }
 
-        var parameters = new DialogParameters<ShareLinkDialog> { { d => d.Link, link } };
+        // Der Titel geht mit: er benennt die Datei, wenn der QR-Code gespeichert wird, und steht auf dem
+        // Ausdruck.
+        var parameters = new DialogParameters<ShareLinkDialog>
+        {
+            { d => d.Link, link },
+            { d => d.Title, title }
+        };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
     }
 }

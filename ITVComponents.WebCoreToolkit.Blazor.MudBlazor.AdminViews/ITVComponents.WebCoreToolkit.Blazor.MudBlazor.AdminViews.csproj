@@ -27,6 +27,10 @@
   <ItemGroup>
     <PackageReference Include="BlazorMonaco" Version="3.5.0" />
     <PackageReference Include="Markdig" Version="1.3.2" />
+    <!-- Der QR-Code einer Asset-Freigabe (ShareLinkDialog). Dieselbe Bibliothek liefert schon die
+         Authenticator-Maske der IdentityPages - eine zweite waere eine Abhaengigkeit mehr fuer
+         dasselbe. -->
+    <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.Formatting\ITVComponents.Formatting.csproj" />

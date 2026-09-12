@@ -4458,6 +4458,41 @@ Beim Bauen der Übersicht aufgefallen und hier festgehalten, weil es sonst jeman
 Sie werden **nirgends miteinander verglichen**. Wer eine Freigabe anonym zugänglich machen will,
 trägt `##ANONYMOUS` in die Benutzerfilter ein.
 
+### 54.7 Der QR-Code zum Link
+
+Im Link-Dialog — dem beim Anlegen **und** dem aus der Übersicht — steht der Knopf *Show QR code*. Er
+zeigt den Code, lässt ihn als **PNG speichern** und **drucken**. Gedacht für den Weg, den ein Link
+sonst nicht geht: auf ein Mobilgerät, an dem niemand eine solche URL abtippt, und auf ein Blatt, an
+dem nichts anklickbar ist.
+
+Der Ausdruck trägt den **Titel der Freigabe** und den Link im Klartext unter dem Code — damit ein
+Aushang auch dann brauchbar bleibt, wenn die Kamera nicht mitspielt. Der Titel benennt auch die
+gespeicherte Datei (`auftrag-4711-lieferschein-qr.png`).
+
+**Kein Schema-Change, keine Registrierung.** Das Bild entsteht auf dem Server (QRCoder, dieselbe
+Bibliothek wie in der Authenticator-Maske), das Speichern und Drucken übernimmt ein Modul, das der
+Dialog bei Bedarf lädt — es gehört zu den statischen Dateien des AdminViews-Pakets und braucht weder
+`AddToolkitClientScript` noch `<ITVentureReferences />`.
+
+**Wie gross wird so ein Code?** Gemessen, nicht geschätzt — die Linklänge folgt aus
+`SharedAssetPath.BuildSegment`:
+
+| Linkform | Zeichen | Module | woher die Länge kommt |
+|---|---|---|---|
+| angemeldeter Empfänger | ~96 | 49 × 49 | Ursprung + `/~` + Base64Url des AssetKey (Guid `"N"` → 43) + Mandant + Pfad |
+| anonym | ~250–271 | 69–73 | zusätzlich `.` + das verschlüsselte Token: 2 Byte Längen + 32 Byte Salt + 16 Byte IV + 80 Byte Nutzlast → 174 Zeichen |
+| Ad-hoc-Ticket, kleine Nutzlast | ~535 | 97 × 97 | `/~!` + Mandant + das verschlüsselte Ticket-JSON |
+| Ad-hoc-Ticket, viele Argumentwerte | ~940 | 125 × 125 | dito, mit grösserem JSON |
+
+**Der anonyme Link ist der Normalfall für ein Mobilgerät, und er ist mit ~70 Modulen völlig
+unauffällig.** Die Grenze liegt bei dieser Fehlerkorrekturstufe (ECC M) erst bei rund **2300
+Zeichen** — mehr als doppelt so viel, wie das grösste Ticket braucht. Auch Tickets passen also;
+ihr Code wird nur dichter und will entsprechend gross gedruckt werden (der Ausdruck setzt 90 mm an,
+das sind bei 125 Modulen noch 0,7 mm je Modul).
+
+Reicht es doch einmal nicht — ein Ticket mit sehr vielen oder sehr langen Argumentwerten —, sagt der
+Dialog das als Satz und zeigt weiterhin den Link. Er wirft nichts um.
+
 ## 55. Freigaben, die nirgends stehen — **Pflicht-Migration (1 Tabelle, 3 Spalten)**
 
 Fünfter Schritt: **Ad-hoc-Tickets**. Eine Freigabe, die nicht in der Datenbank landet, sondern
@@ -5408,6 +5443,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 57g | Ländercode am Konto | bei der Anlage fixiert und **nie mehr änderbar**; die Einrichtungsseite fragt ihn ab. Testmodus-Konten existieren im Livemodus nicht — beim Key-Wechsel `TenantPaymentAccounts` leeren (§57.12) |
 | 60a | **Teilen-Maske füllt sich selbst** | Kein Schema-Change. Die Seite meldet ihre Argumentwerte über `<AssetScope Args="…">` — **dieselbe Zeile, die der Riegel schon braucht**; der `<ShareButton />` im Mantel liest sie beim Klick. Zusätzlich liest er benannte Gruppen aus dem Pfadmuster der Vorlage (`^/CustomerCare/Customers/(?<CustomerId>\d+)$`) — **nur benannte**, nummerierte tragen keine Bedeutung. Rangfolge aufsteigend: Pfad → Seite → `Context`. **Merke: die Seite gewinnt gegen den Pfad**, sonst baut man Links, die der eigene Riegel ablehnt. Bekannte Werte stehen in der Maske sichtbar, aber nicht editierbar; offene werden wie bisher abgefragt. **Merke: das ist KEINE Schranke** — dass ein fremder Datensatz nicht durchkommt, entscheidet weiterhin `ArgumentEnforcement` (Vorgabe `None`!) plus die Bestätigung in der Seite |
 | 60b | **Erstes Argument setzt `Strict`** | Verhaltensänderung ohne Schema-Change: bekommt eine Vorlage über die Maske ihr ERSTES Argument und steht `ArgumentEnforcement` auf `None`, wird es auf `Strict` gehoben (mit Log-Zeile). **Nur beim Übergang** — ein späteres bewusstes `None` bleibt. **Bestehende Vorlagen mit Argumenten sind NICHT betroffen und bleiben auf `None`**, die müsst ihr von Hand umstellen. Ausserdem: die XML-Doku von `Strict` beschrieb bis hierher die verworfene Bedeutung („jede weitere Bestätigung muss dieselben Werte liefern" — kann nie auslösen); wirksam ist „die Bestätigung verfällt mit dem Vorgang" |
+| 54e | QR-Code zum Link | Kein Schema-Change, keine Registrierung. Der Link-Dialog zeigt den Code auf Knopfdruck, speichert ihn als PNG und druckt ihn mit Titel und Link im Klartext. Die Länge ist unkritisch: angemeldet ~96 Zeichen (49 Module), anonym ~270 (73), Ad-hoc-Ticket ~535–940 (97–125); die Grenze liegt bei ~2300 (§54.7) |
 | 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
