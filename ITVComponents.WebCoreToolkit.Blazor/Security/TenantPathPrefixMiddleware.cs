@@ -248,7 +248,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             if (!result.Succeeded || result.Principal?.Identity?.IsAuthenticated != true)
             {
                 logger.LogWarning(
-                    "TenantPathPrefix: the '{Scheme}' scheme established no principal for {Path} ({Reason}). The link is expired, revoked, carries a wrong access token, or is one for signed-in recipients opened by a visitor who is not signed in.",
+                    "TenantPathPrefix: the '{Scheme}' scheme established no principal for {Path} ({Reason}). The link is expired, revoked, carries a wrong access token, belongs to a different tenant than the one in the URL, or is one for signed-in recipients opened by a visitor who is not signed in. An ad-hoc ticket additionally logs its own reason from GetTicketInfo.",
                     opts.SharedAssetAuthenticationScheme, path, result.Failure?.Message ?? "no result");
                 return context.User;
             }

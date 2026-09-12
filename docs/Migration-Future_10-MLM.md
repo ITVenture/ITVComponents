@@ -4528,8 +4528,17 @@ Der **zweite Marker** `!` sagt dem Parser vor jedem Datenbankzugriff, ob es übe
 nachzuschlagen gibt. Der **Mandant steht im Klartext** — ohne ihn liesse sich der Schlüssel zum
 Entschlüsseln nicht bestimmen; bei Hosts mit Mandant im Pfad steht er ohnehin in derselben URL.
 
-In der Nutzlast: Vorlage, Argumentwerte, Pfad, Gültigkeitsfenster, eine Kennung und optional der
-Empfänger. Verschlüsselt mit dem Mandantenschlüssel — dasselbe Primitiv wie beim anonymen Token.
+In der Nutzlast: Vorlage, **Mandant**, Argumentwerte, Pfad, Gültigkeitsfenster, eine Kennung und
+optional der Empfänger. Verschlüsselt mit dem Mandantenschlüssel — dasselbe Primitiv wie beim anonymen
+Token.
+
+**Merke: „Mandantenschlüssel" ist eine Kette, kein Versprechen.** `EncryptForScope` nimmt
+`Tenants.TenantPassword`, wenn es gesetzt ist, und fällt sonst auf die **anwendungsweite**
+Verschlüsselung zurück. Ob ein Mandant einen eigenen Schlüssel hat, entscheidet sein Entstehungsweg:
+das Onboarding legt immer einen an, die Mandanten-Maske der AdminViews **nie**, die Telerik-Masken nur
+mit `UseExplicitTenantPasswords`. Deshalb steht der Mandant seit PRE231 **auch in der Nutzlast** und
+wird nach dem Entschlüsseln gegen den Namen aus der URL geprüft — sonst wäre die Zugehörigkeit eines
+Tickets im Fallback-Fall gar nicht gesichert (§55.3).
 
 **Rechte reisen nicht mit.** Im Ticket steht nur, *welche Vorlage* gemeint ist; die Rechte stehen an
 der Vorlage. Das hält die URL kurz — und gibt einen Grob-Widerruf: **wer `AllowAdHoc` an der Vorlage
@@ -4540,6 +4549,7 @@ abschaltet, entwertet alle Tickets, die auf sie zeigen.**
 | Prüfung | wenn sie fehlschlägt |
 |---|---|
 | Entschlüsseln und Lesen | abgelehnt — verändert, mit fremdem Schlüssel erzeugt oder kaputt; die Unterscheidung wäre nur für einen Angreifer nützlich |
+| **Mandant der Nutzlast = Mandant der URL** | abgelehnt — der Name in der URL hat nur den Schlüssel *gewählt*, bewiesen hat er nichts |
 | Gültigkeitsfenster | abgelehnt |
 | Sperrliste | abgelehnt |
 | Vorlage vorhanden **und** erlaubt Tickets | abgelehnt |
@@ -4597,6 +4607,61 @@ bool RevokeTicket(string nonce, DateTime expiresUtc);
 
 Ebenso neu am `ISharedAssetContext`: `SegmentKind`, `TicketTenant`, `TicketPayload`. Betrifft euch
 nur bei eigener Implementierung.
+
+### 55.8 BEHOBEN (PRE231): anonyme Ad-hoc-Tickets meldeten niemanden an — **alle Tickets neu ausgeben**
+
+Gemeldet aus einem Host beim ersten Durchstich (`BUG-PRE230-AdHocTicket-Anonymous-Authentication.md`).
+**Jedes anonyme Ticket endete im 404.** Gespeicherte anonyme Freigaben funktionierten in derselben
+Anwendung, mit derselben Vorlage und denselben Rechten — was die Suche in die falsche Richtung schickte.
+
+**Ursache:** `AnonymousAssetAuthenticationHandler` authentifizierte ausschliesslich über
+`AssetKey` + `AccessToken`. Bei einem Ticket sind **beide `null`** — der Kontext füllt dort
+`TicketTenant`/`TicketPayload`. Der Aufruf lautete also `Execute(null, null)`, fand nichts, meldete
+kein `denied`, und der Handler antwortete `NoResult`. `GetTicketInfo` hing allein an
+`SharedAssetContext.Info` und lief damit erst *nach* der Anmeldung, die es nie gab.
+
+**Das Tückische war die Stille.** Der `NoResult`-Zweig protokollierte nichts, während `GetTicketInfo`
+jeden seiner Fehlerpfade sauber meldet — das Ausbleiben dieser Meldungen las sich wie „Prüfung
+bestanden", nicht wie „Methode lief nie". Übrig blieb eine Zeile aus `TenantPathPrefixMiddleware`, die
+vier Ursachen nannte, von denen keine zutraf.
+
+Behoben:
+
+| | |
+|---|---|
+| **Der Handler löst Ticket-Abschnitte selbst auf** | vor dem Zweig für gespeicherte Freigaben; er geht über `ISharedAssetContext.CurrentAsset`, das für ein Ticket `GetTicketInfo` bemüht |
+| **Ein ungültiges Ticket ist eine Ablehnung**, kein `NoResult` | `NoResult` hiesse „dieses Schema ist nicht zuständig" und schickt den Suchenden woanders hin |
+| **Der Besucher heisst `#ANONYMOUS#`** | **nicht** die Nonce des Tickets, auch wenn die naheliegt: drei Stellen unterscheiden den anonymen Besucher genau an diesem Namen von einem echten Benutzer (`KnownVisitor`, `SharedAssetContext`, `AssetAccessRecorder`). Die Nonce steht ohnehin im Protokoll — `SharedAssetAccess.TicketNonce` trägt sie, dafür war die Spalte da |
+| **Der stille Zweig spricht** | der `NoResult` für Links an angemeldete Empfänger schreibt jetzt eine Debug-Zeile, und die Ursachenliste der `TenantPathPrefixMiddleware` nennt den Mandantenfall mit |
+| **Der erste Guard in `GetTicketInfo`** | kehrte ohne Logzeile zurück; er unterscheidet jetzt „Übernahme abgeschaltet" (Debug) von „Abschnitt unvollständig" (Warning) |
+
+**Was ihr tun müsst: alle ausgegebenen Ad-hoc-Tickets neu erzeugen.** Nicht wegen des Handlers — der
+ändert am Format nichts —, sondern wegen der Mandantenbindung aus §55.2/§55.3: ein Ticket ohne
+`TenantName` in der Nutzlast wird ab jetzt abgelehnt. Gespeicherte Freigaben sind **nicht** betroffen,
+ihre Links bleiben gültig. Da Tickets ohnehin kurzlebig sind (`MaxAdHocMinutes`), erledigt sich das in
+den meisten Anwendungen von selbst.
+
+### 55.9 Vier Dinge, die beim Einrichten Zeit kosten
+
+Alles aus demselben Bericht, alles kein Fehler — aber nirgends zusammenhängend aufgeschrieben:
+
+1. **Ein Feature braucht beide Hälften.** Der anonyme Besucher bringt nur mit, was die Vorlage
+   *gewährt*. `AssetTemplates.FeatureId` ist die **Voraussetzung** („hier darf geteilt werden"),
+   `AssetTemplateFeatures` die **Gewährung** („der Besucher bekommt es"). Wer nur die erste setzt,
+   bekommt einen Link, der sich öffnen lässt und dann an einem Feature-Gate scheitert. Bei
+   Berechtigungen ist es dasselbe Paar: `RequiredPermission` gegen `AssetTemplateGrants`.
+2. **`SharedAssetInfoProvider` gehört in `TrustedFullAccessComponents`** (mit `ShowAllTenants`). Ohne
+   den Eintrag steht je Anfrage *„No Trust Configuration found for the caller … No special permissions
+   will be granted."* im Log. Das ist nicht die Ursache eines 404, aber es verrauscht das Log genau
+   dann, wenn man es liest.
+3. **`origin` ist die Autorität, nicht `BaseUri`.** `CreateAsync(user, request, origin)` hängt seine
+   Segmente an, was ihr hereinreicht. Auf einer Seite, die selbst hinter einer Freigabe läuft, ergibt
+   `NavigationManager.BaseUri` eine Adresse mit zwei Freigabe- und zwei Mandantensegmenten. Richtig ist
+   `new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority)` — so macht es `<ShareButton />`.
+4. **Einen Freigabe-Link nicht über den Circuit ansteuern.** `TenantUrlGuard` hält das aktuelle Präfix
+   fest, auch gegen `NavigateTo(link, forceLoad: true)`. Das Ergebnis sieht aus wie der `origin`-Fehler
+   aus Punkt 3 — doppeltes Präfix, 404 —, hat aber eine andere Ursache. Für den Sprung auf eine
+   **andere** Freigabe ist `window.location.replace` der Weg.
 
 ## 56. Wer hat eine Freigabe benutzt — **Pflicht-Migration (1 Tabelle, 1 Spalte)**
 
@@ -5448,6 +5513,8 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
 | 56c | Eigene Abfragen auf `SharedAssetAccess` | die Tabelle ist **mandantenfrei** — `TenantName` selbst einschränken, sonst liest man über Mandanten hinweg (§56.6) |
+| 55d | **BEHOBEN: anonyme Tickets meldeten niemanden an** | Kein Schema-Change. `AnonymousAssetAuthenticationHandler` kannte nur `AssetKey`+`AccessToken`; bei einem Ticket sind beide `null`, also endete **jeder** anonyme Ticket-Link lautlos im 404. Der Handler löst Ticket-Abschnitte jetzt selbst über `CurrentAsset` auf, ein ungültiges Ticket ist eine Ablehnung statt `NoResult`, und der Besucher heisst `#ANONYMOUS#` — **nicht** die Nonce (§55.8) |
+| 55e | **Tickets tragen ihren Mandanten** | Kein Schema-Change, aber **alle ausgegebenen Tickets neu erzeugen**: `AssetTicket.TenantName` ist Pflicht und wird gegen den Mandanten aus der URL geprüft. Nötig, weil `EncryptForScope` ohne `Tenants.TenantPassword` auf die anwendungsweite Verschlüsselung zurückfällt — dann entschlüsselt dieselbe Nutzlast unter JEDEM Mandantennamen. Gespeicherte Freigaben sind nicht betroffen (§55.2, §55.3) |
 | 55a | **Ad-hoc-Tickets** | **Pflicht-Migration**: `RevokedAssetTicket` + `AssetTemplates.AllowAdHoc` / `MaxAdHocMinutes` / `ValidityRuleKey`. Bestehende Vorlagen erlauben KEINE Tickets (§55) |
 | 55b | **`ISharedAssetAdapter`** | neu `CreateAdHocTicket`, `GetTicketInfo`, `RevokeTicket`; `ISharedAssetContext` neu `SegmentKind`, `TicketTenant`, `TicketPayload`. Nur bei eigener Implementierung (§55.7) |
 | 55c | `IAssetValidityRule` | optional — für "gilt, bis der Auftrag abgeschlossen ist". **Merke: eine benannte, aber nicht registrierte Regel lehnt ab** (§55.4) |

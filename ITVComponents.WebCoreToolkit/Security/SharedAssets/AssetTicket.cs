@@ -23,6 +23,20 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         [JsonPropertyName("t")]
         public string TemplateKey { get; set; }
 
+        /// <summary>
+        /// Der Mandant, dem das Ticket gehoert.
+        /// </summary>
+        /// <remarks>
+        /// Steht hier <b>zusaetzlich</b> zum Klartext-Mandanten im Abschnitt - und das ist der Sinn der
+        /// Sache: der Name im Abschnitt waehlt den Schluessel, dieser hier wird nach dem Entschluesseln
+        /// dagegen geprueft. Nur so ist die Zugehoerigkeit unabhaengig davon gesichert, OB der Mandant
+        /// einen eigenen Schluessel hat. Hat er keinen, greift die anwendungsweite Verschluesselung, und
+        /// dann entschluesselt dieselbe Nutzlast unter jedem beliebigen Mandantennamen - ohne diese
+        /// Angabe liefe das Ticket in dem Mandanten, den der Empfaenger in die URL schreibt.
+        /// </remarks>
+        [JsonPropertyName("tn")]
+        public string TenantName { get; set; }
+
         /// <summary>Worauf das Ticket zeigt.</summary>
         [JsonPropertyName("a")]
         public Dictionary<string, string> ArgumentValues { get; set; } = new();

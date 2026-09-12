@@ -723,6 +723,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             var ticket = new AssetTicket
             {
                 TemplateKey = assetTmp.SystemKey,
+                // Der Mandant reist MIT, nicht nur im Klartext-Abschnitt: siehe AssetTicket.TenantName.
+                TenantName = currentTenant.TenantName,
                 RootPath = requestPath,
                 ArgumentValues = values.Names.ToDictionary(n => n, n => values[n]),
                 NotBefore = null,
@@ -751,8 +753,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// </summary>
         public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor)
         {
-            if (ImpersonationDeactivated || string.IsNullOrEmpty(tenantName) || string.IsNullOrEmpty(payload))
+            if (ImpersonationDeactivated)
             {
+                // Kein Fehler: wer die Uebernahme abgeschaltet hat, will genau das. Trotzdem eine Zeile -
+                // von aussen sieht dieser Fall aus wie ein ungueltiges Ticket.
+                LogEnvironment.LogEvent(
+                    "Ad-hoc tickets are not resolved while impersonation is deactivated.", LogSeverity.Report);
+                return null;
+            }
+
+            if (string.IsNullOrEmpty(tenantName) || string.IsNullOrEmpty(payload))
+            {
+                // Der Abschnitt wurde geparst, aber eine Haelfte fehlt - das ist ein verstuemmelter Link.
+                LogEnvironment.LogEvent(
+                    $"An ad-hoc ticket segment was incomplete (tenant: {(string.IsNullOrEmpty(tenantName) ? "missing" : "present")}, payload: {(string.IsNullOrEmpty(payload) ? "missing" : "present")}).",
+                    LogSeverity.Warning);
                 return null;
             }
 
@@ -775,6 +790,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             if (ticket == null || string.IsNullOrEmpty(ticket.TemplateKey))
             {
                 LogEnvironment.LogEvent("Ein Ad-hoc-Ticket war leer oder nannte keine Vorlage.", LogSeverity.Warning);
+                return null;
+            }
+
+            // Der Mandant aus dem Abschnitt hat nur den Schluessel gewaehlt - beweisen tut er nichts.
+            // Hat dieser Mandant einen eigenen Schluessel, scheitert ein ausgetauschter Name schon beim
+            // Entschluesseln; hat er keinen, greift die anwendungsweite Verschluesselung, und dann kaeme
+            // dieselbe Nutzlast unter JEDEM Mandantennamen bis hierher. Ab hier zaehlt deshalb, was IM
+            // Ticket steht.
+            if (string.IsNullOrEmpty(ticket.TenantName)
+                || !string.Equals(ticket.TenantName, tenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                LogEnvironment.LogEvent(
+                    $"Das Ad-hoc-Ticket '{ticket.Nonce}' gehoert dem Mandanten '{ticket.TenantName ?? "(none)"}', wurde aber unter '{tenantName}' aufgerufen.",
+                    LogSeverity.Error);
                 return null;
             }
 

@@ -16,5 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor\ITVComponents.WebCoreToolkit.Blazor.csproj" />
+    <!-- Der Anmeldeweg anonymer Freigaben und Ad-hoc-Tickets liegt in Extras; ohne diese Referenz
+         liesse sich AnonymousAssetAuthenticationHandler nur beschreiben, nicht pruefen. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Extras\ITVComponents.WebCoreToolkit.Extras.csproj" />
   </ItemGroup>
 </Project>

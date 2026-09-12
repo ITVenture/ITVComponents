@@ -76,12 +76,24 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
+            if (assetContext.SegmentKind == AssetSegmentKind.Ticket)
+            {
+                // Ein Ticket steht NIRGENDS - es gibt weder AssetKey noch Zugangs-Token, die man abfragen
+                // koennte. Sein Geheimnis ist die verschluesselte Nutzlast selbst, und die loest
+                // GetTicketInfo auf. Ohne diesen Zweig liefe die Abfrage unten mit zwei null-Argumenten,
+                // faende nichts, meldete kein "denied" - und der Link endete lautlos im 404.
+                return Task.FromResult(AuthenticateTicket());
+            }
+
             var existingAsset = getAnonymousAssetQuery.Execute(assetContext.AssetKey, assetContext.AccessToken,
                 out bool denied);
             if (existingAsset == null && !denied)
             {
                 // Ein Asset ohne Zugangs-Token ist ein Link fuer angemeldete Empfaenger - dieses Schema ist
                 // dafuer nicht zustaendig, die Claims-Transformation uebernimmt.
+                Logger.LogDebug(
+                    "The shared-asset segment of {Path} carries no access token; this is a link for signed-in recipients and the claims transformation takes over.",
+                    Context.Request.Path.Value);
                 return Task.FromResult(AuthenticateResult.NoResult());
             }
 
@@ -101,6 +113,44 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
             }
 
             return Task.FromResult(AuthenticateResult.Fail("Invalid Asset Access-Token provided."));
+        }
+
+        /// <summary>
+        /// Stellt den Prinzipal eines Ad-hoc-Tickets aus.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="ISharedAssetContext.CurrentAsset"/> laeuft fuer einen Ticket-Abschnitt ueber
+        /// <c>GetTicketInfo</c>: dort haengen Mandantenbindung, Frist, Widerruf, Vorlage, Pfadmuster und
+        /// Gueltigkeitsregel, und jeder Fehlschlag ist dort bereits mit seinem Grund protokolliert. Hier
+        /// bleibt nur die Entscheidung.
+        /// <para>
+        /// <b>Der Name ist <see cref="Global.AnonymousAssetUserName"/>, nicht die Nonce des Tickets.</b>
+        /// Drei Stellen unterscheiden den anonymen Besucher genau an diesem Namen von einem echten
+        /// Benutzer (<see cref="KnownVisitor"/>, <c>SharedAssetContext</c>, <c>AssetAccessRecorder</c>);
+        /// eine Nonce an dieser Stelle liesse den zweiten Durchlauf den eigenen Besucher fuer einen
+        /// Angemeldeten halten und schriebe sie als Benutzernamen ins Protokoll. Die Nonce steht ohnehin
+        /// schon im Protokoll - <c>AssetAccessEntry.TicketNonce</c> traegt sie.
+        /// </para>
+        /// </remarks>
+        /// <returns>der ausgestellte Prinzipal, oder eine Ablehnung</returns>
+        private AuthenticateResult AuthenticateTicket()
+        {
+            var info = assetContext.CurrentAsset;
+            if (info == null)
+            {
+                // Kein zweiter Logeintrag: GetTicketInfo hat den Grund schon benannt, und zwar genauer,
+                // als es hier moeglich waere.
+                return AuthenticateResult.Fail("The ad-hoc ticket is not valid.");
+            }
+
+            var identity = new ClaimsIdentity(
+                new[] { new Claim(System.Security.Claims.ClaimTypes.Name, Global.AnonymousAssetUserName) },
+                Options.AuthenticationType);
+            var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Options.Scheme);
+            ticket.Properties.SetString("##ANONYMOUS_ASSET", "true");
+            Logger.LogDebug("An ad-hoc ticket was accepted for tenant '{Tenant}' on {Path}.",
+                info.UserScopeName, Context.Request.Path.Value);
+            return AuthenticateResult.Success(ticket);
         }
 
         /// <summary>

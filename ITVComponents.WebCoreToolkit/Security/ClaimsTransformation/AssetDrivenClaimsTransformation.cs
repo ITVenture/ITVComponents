@@ -69,20 +69,28 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
                 if (assetManager == null)
                 {
                     logger.LogError(
-                        "A request runs inside shared asset '{AssetKey}', but no ISharedAssetAdapter is registered - no asset permissions are applied.",
-                        assetContext.AssetKey);
+                        "A request runs inside shared asset '{Asset}', but no ISharedAssetAdapter is registered - no asset permissions are applied.",
+                        Describe());
                     return Task.FromResult(principal);
                 }
 
-                var assetInfo = assetManager.GetAssetInfo(assetContext.AssetKey, principal);
+                // Ein Ad-hoc-Ticket hat KEINEN AssetKey - es steht nirgends, seine Angaben kommen aus der
+                // Nutzlast. Ohne diese Unterscheidung liefe hier GetAssetInfo(null), und der Besucher
+                // kaeme zwar herein, aber ohne jedes Recht: der Link scheiterte dann am Berechtigungs-
+                // oder Feature-Riegel statt am 404 - derselbe Fehler wie im Anmeldeschema, nur eine
+                // Schicht spaeter (BUG-PRE230).
+                var assetInfo = assetContext.SegmentKind == AssetSegmentKind.Ticket
+                    ? assetManager.GetTicketInfo(assetContext.TicketTenant, assetContext.TicketPayload, principal)
+                    : assetManager.GetAssetInfo(assetContext.AssetKey, principal);
                 if (assetInfo == null)
                 {
-                    // Kein Zugriff (Filter, Gueltigkeitsfenster, unbekannter Schluessel). Das ist eine
-                    // legitime Antwort - aber eine, die man im Log sehen muss, weil der Besucher nur eine
-                    // Seite ohne Inhalt sieht und "der Link geht nicht" meldet.
+                    // Kein Zugriff (Filter, Gueltigkeitsfenster, unbekannter Schluessel, abgelaufenes oder
+                    // widerrufenes Ticket). Das ist eine legitime Antwort - aber eine, die man im Log sehen
+                    // muss, weil der Besucher nur eine Seite ohne Inhalt sieht und "der Link geht nicht"
+                    // meldet.
                     logger.LogInformation(
-                        "Shared asset '{AssetKey}' is not accessible for the current requestor; no asset claims are applied.",
-                        assetContext.AssetKey);
+                        "Shared asset '{Asset}' is not accessible for the current requestor; no asset claims are applied.",
+                        Describe());
                     return Task.FromResult(principal);
                 }
 
@@ -93,5 +101,14 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
 
             return Task.FromResult(principal);
         }
+
+        /// <summary>
+        /// Wie die laufende Freigabe im Log heisst. Fuer ein Ticket gibt es keinen Schluessel - dort ist
+        /// der Mandant das Einzige, was sich ohne Entschluesseln benennen laesst.
+        /// </summary>
+        private string Describe()
+            => assetContext.SegmentKind == AssetSegmentKind.Ticket
+                ? $"ad-hoc ticket of tenant '{assetContext.TicketTenant}'"
+                : assetContext.AssetKey;
     }
 }
