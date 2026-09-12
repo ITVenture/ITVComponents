@@ -1,0 +1,110 @@
+﻿@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@implements IDisposable
+@inject ISharedAssetContext Assets
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ILogger<ShareCurrentButton> Logger
+
+@* "Gib das weiter, worauf du gerade sitzt."
+
+   Der Unterschied zum <ShareButton /> daneben ist keine Kleinigkeit: DER stellt eine NEUE Freigabe
+   aus, dieser reicht die BESTEHENDE herum. Fuer den Fall, dass zwei Leute an demselben Vorgang
+   arbeiten sollen - derselbe Warenkorb auf einem zweiten Telefon -, ist eine zweite Freigabe die
+   falsche Antwort: sie waere ein zweites Geheimnis mit eigener Frist, das beim Aufraeumen einzeln
+   eingezogen werden muss, sie stuende als zweite Zeile im Protokoll, wo ein Vorgang stattgefunden
+   hat, und sie setzte voraus, dass der Weitergebende ueberhaupt ausstellen DARF. Fuer "hier, mein
+   Link" ist diese Frage unnoetig: wer den Link hat, hat ihn. *@
+
+@if (visible)
+{
+    <MudTooltip Text="@Tooltip">
+        <MudIconButton Icon="@Icons.Material.Filled.QrCode2" Size="@Size" OnClick="Open" />
+    </MudTooltip>
+}
+
+@code {
+    [Parameter] public Size Size { get; set; } = Size.Small;
+
+    /// <summary>
+    /// Was im Tooltip steht. Vorgabe passt fuer den Regelfall.
+    /// </summary>
+    [Parameter] public string Tooltip { get; set; } = "Show this link as a QR code";
+
+    private bool visible;
+    private AssetContext? current;
+
+    protected override void OnInitialized()
+    {
+        // Wie der <ShareButton /> sitzt auch dieser typischerweise im Mantel und wird beim Seitenwechsel
+        // nicht neu aufgebaut. Ob hier eine Freigabe laeuft, kann sich dabei aendern.
+        Navigation.LocationChanged += OnLocationChanged;
+        Resolve();
+    }
+
+    protected override void OnParametersSet() => Resolve();
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        Resolve();
+        try
+        {
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Wurde der Knopf waehrend des Wechsels abgeraeumt, ist das der Normalfall und kein Fehler.
+            Logger.LogDebug(ex, "The pass-along button could not be redrawn after navigating to {Uri}.",
+                Navigation.Uri);
+        }
+    }
+
+    /// <summary>
+    /// Laeuft hier gerade eine Freigabe, die sich weiterreichen laesst?
+    /// </summary>
+    /// <remarks>
+    /// <c>AssetContext</c> und nicht <c>HasAsset</c>: Letzteres beantwortet der Pfad allein und sagt nur,
+    /// dass ein Abschnitt DA ist - nicht, dass er noch auf etwas Gueltiges zeigt. Ein Knopf, der den Link
+    /// einer abgelaufenen, widerrufenen oder von der Gueltigkeitsregel beendeten Freigabe weiterreicht,
+    /// verschickt eine Sackgasse.
+    /// </remarks>
+    private void Resolve()
+    {
+        try
+        {
+            current = Assets.AssetContext;
+            visible = current != null;
+        }
+        catch (Exception ex)
+        {
+            // Im Zweifel nichts anbieten - ein Knopf, der ins Leere fuehrt, ist schlimmer als keiner.
+            current = null;
+            visible = false;
+            Logger.LogError(ex, "Could not determine whether {Uri} runs inside a shared asset.",
+                Navigation.Uri);
+        }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    /// <summary>
+    /// Zeigt die laufende Adresse. Sie traegt Abschnitt, Mandant und Pfad bereits - es gibt nichts zu
+    /// bauen und nichts auszustellen.
+    /// </summary>
+    private async Task Open()
+    {
+        if (current == null)
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters<ShareLinkDialog>
+        {
+            { d => d.Link, Navigation.Uri },
+            { d => d.Title, current.Title },
+            { d => d.ValidUntil, current.NotAfter }
+        };
+        await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+    }
+}

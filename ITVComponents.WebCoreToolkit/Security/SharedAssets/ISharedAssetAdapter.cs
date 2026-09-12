@@ -146,6 +146,30 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             bool forAuthentication = false);
 
         /// <summary>
+        /// Fragt die Gueltigkeitsregel der Vorlage: gilt diese Freigabe noch?
+        /// </summary>
+        /// <param name="info">die Freigabe, wie sie aufgeloest wurde</param>
+        /// <returns>false beendet den Zugriff - genauso hart wie ein abgelaufenes Datum</returns>
+        /// <remarks>
+        /// <b>Ein eigener Schritt, und das mit Absicht.</b> Die Regel gehoert dem Wirt, und ihre Frage
+        /// ("ist der Auftrag noch offen?") ist fast immer eine an Fachdaten - sie braucht also den
+        /// Mandanten-Geltungsbereich und die Plugin-Fabrik.
+        /// <para>
+        /// Beides gibt es nicht ueberall, wo eine Freigabe aufgeloest wird. Insbesondere haengt jede
+        /// Berechtigungs- und Feature-Pruefung des Toolkits an <c>IsLegitSharedAssetPath</c>, und die
+        /// laeuft beim Laden JEDES Plugins (<c>WebPluginHelper</c>) - also INNERHALB eines
+        /// Ladevorgangs. Eine Regel, die dort ihrerseits ein Plugin leasen will, laeuft in die
+        /// Wiedereintrittssperre der <c>PluginFactory</c>. Steckte die Regel in der Aufloesung,
+        /// bekaeme sie diesen Aufrufweg unvermeidlich ab.
+        /// </para>
+        /// <para>
+        /// Deshalb ruft sie nur der seitenzugewandte Weg, einmal je Vorgang: <c>AssetContext</c> und der
+        /// Riegel. Dort steht der Geltungsbereich, und es laeuft kein Plugin-Ladevorgang.
+        /// </para>
+        /// </remarks>
+        bool VerifyAssetValidity(AssetInfo info);
+
+        /// <summary>
         /// Zieht ein Ad-hoc-Ticket zurueck. Die Kennung landet auf der Sperrliste, bis das Ticket ohnehin
         /// abgelaufen waere.
         /// </summary>

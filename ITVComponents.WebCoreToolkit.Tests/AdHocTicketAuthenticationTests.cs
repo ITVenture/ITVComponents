@@ -172,12 +172,65 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.IsTrue(result.Succeeded, "without its scripts the page stays white");
         }
 
+        /// <summary>
+        /// BUG-PRE232: die Gueltigkeitsregel hing hinter jeder Berechtigungspruefung.
+        /// </summary>
+        /// <remarks>
+        /// Der Weg war <c>WebPluginHelper</c> -> <c>VerifyUserPermissions</c> ->
+        /// <c>IsLegitSharedAssetPath</c> -> <c>VerifyRequestLocation</c> -> Aufloesung -> Regel. Weil das
+        /// beim Laden JEDES Plugins passiert, kam die Regel 138-mal je Seitenaufruf dran - und lief dabei
+        /// INNERHALB eines Plugin-Ladevorgangs, wo sie selbst kein Plugin leasen kann. Die Anmeldung darf
+        /// sie deshalb gar nicht ausloesen.
+        /// </remarks>
+        [TestMethod]
+        public async Task Authentication_Does_Not_Ask_The_Validity_Rule()
+        {
+            var adapter = new StubAdapter(TicketInfo());
+            var http = TicketHttpContext();
+            var handler = await Handler((NewContext(http, adapter), http), new StubQuery());
+
+            await handler.AuthenticateAsync();
+
+            Assert.AreEqual(0, adapter.ValidityAsked,
+                "the login path runs inside a plugin load - a rule can not read anything there");
+        }
+
+        /// <summary>
+        /// Der seitenzugewandte Weg fragt sie - aber genau einmal je Vorgang, egal wie oft er gefragt wird.
+        /// </summary>
+        [TestMethod]
+        public void The_Page_Asks_The_Validity_Rule_Once()
+        {
+            var adapter = new StubAdapter(TicketInfo());
+            var context = NewContext(TicketHttpContext(), adapter);
+
+            _ = context.AssetContext;
+            _ = context.AssetContext;
+            _ = context.MustHoldBack;
+
+            Assert.AreEqual(1, adapter.ValidityAsked);
+        }
+
+        /// <summary>
+        /// Sagt die Regel nein, haelt der Riegel zurueck und die Seite laeuft in keiner Freigabe mehr.
+        /// </summary>
+        [TestMethod]
+        public void A_Rule_That_Says_No_Ends_The_Share()
+        {
+            var adapter = new StubAdapter(TicketInfo()) { ValidityAnswer = false };
+            var context = NewContext(TicketHttpContext(), adapter);
+
+            Assert.IsTrue(context.MustHoldBack);
+            Assert.IsNull(context.AssetContext, "a share that has ended is no share to run in");
+        }
+
         private static AssetInfo TicketInfo() => new()
         {
             AssetKey = null,
             TicketNonce = "0123456789abcdef",
             UserScopeName = "TenantA",
             TemplateSystemKey = "pos-checkout",
+            ValidityRuleKey = "order-open",
             IsAnonymous = true
         };
 
@@ -355,6 +408,17 @@ namespace ITVComponents.WebCoreToolkit.Tests
             }
 
             public bool RevokeTicket(string nonce, DateTime expiresUtc) => false;
+
+            /// <summary>Wie oft die Gueltigkeitsregel gefragt wurde - je VORGANG, nicht je Anfrage.</summary>
+            public int ValidityAsked { get; private set; }
+
+            public bool VerifyAssetValidity(AssetInfo info)
+            {
+                ValidityAsked++;
+                return ValidityAnswer;
+            }
+
+            public bool ValidityAnswer { get; set; } = true;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null;
             void ISharedAssetAdapter.SetImpersonationOff() { }
             void ISharedAssetAdapter.SetImpersonationOn() { }

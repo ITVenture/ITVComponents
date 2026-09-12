@@ -37,6 +37,8 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         private AssetInfo info;
         private bool authInfoResolved;
         private AssetInfo authInfo;
+        private bool validityResolved;
+        private bool valid;
 
         private bool publicContextResolved;
         private AssetContext publicContext;
@@ -138,6 +140,47 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             }
         }
 
+        /// <summary>
+        /// Gilt die laufende Freigabe noch? Die Gueltigkeitsregel des Wirts, einmal je Scope gefragt.
+        /// </summary>
+        /// <remarks>
+        /// <b>Nur von hier aus, und nur seitenzugewandt.</b> Die Regel beantwortet eine fachliche Frage
+        /// und liest dafuer fast immer Daten - sie braucht Geltungsbereich und Plugin-Fabrik. Beim
+        /// Aufloesen der Freigabe gibt es beides nicht verlaesslich: jede Berechtigungspruefung des
+        /// Toolkits laeuft ueber <c>IsLegitSharedAssetPath</c>, und die wird beim Laden jedes Plugins
+        /// gerufen - eine Regel, die dort selbst ein Plugin leasen will, faellt in die
+        /// Wiedereintrittssperre. Siehe <see cref="ISharedAssetAdapter.VerifyAssetValidity"/>.
+        /// </remarks>
+        private bool StillValid
+        {
+            get
+            {
+                if (validityResolved)
+                {
+                    return valid;
+                }
+
+                validityResolved = true;
+                valid = true;
+                var current = Info;
+                if (current == null || string.IsNullOrEmpty(current.ValidityRuleKey))
+                {
+                    return valid;
+                }
+
+                var adapter = services?.GetService(typeof(ISharedAssetAdapter)) as ISharedAssetAdapter;
+                if (adapter == null)
+                {
+                    logger.LogDebug(
+                        "No ISharedAssetAdapter is registered; the validity rule of the shared asset can not be asked.");
+                    return valid;
+                }
+
+                valid = adapter.VerifyAssetValidity(current);
+                return valid;
+            }
+        }
+
         /// <inheritdoc/>
         public AssetContext AssetContext
         {
@@ -149,7 +192,7 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
                 }
 
                 publicContextResolved = true;
-                var current = Info;
+                var current = StillValid ? Info : null;
                 if (current == null)
                 {
                     // Kein Abschnitt, oder einer, der auf keine gueltige Freigabe zeigt. Beides ist fuer
@@ -247,6 +290,13 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
                 if (denied)
                 {
+                    return true;
+                }
+
+                if (!StillValid)
+                {
+                    // Die Regel des Wirts hat die Freigabe beendet - was danach noch bestaetigt wird,
+                    // aendert daran nichts.
                     return true;
                 }
 

@@ -121,8 +121,17 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
                 ArgumentEnforcement = t.ArgumentEnforcement,
                 AllowAdHoc = t.AllowAdHoc,
                 MaxAdHocMinutes = t.MaxAdHocMinutes,
-                ValidityRuleKey = t.ValidityRuleKey
+                ValidityRuleKey = t.ValidityRuleKey,
+                // Roh mitnehmen: gedeutet wird nach der Abfrage. In einem Ausdrucksbaum gibt es weder
+                // Discards noch out-Parameter - und uebersetzen liesse sich das ohnehin nicht.
+                ShareDialogConfigRaw = t.ShareDialogConfig
             }).ToListAsync();
+
+        foreach (var item in items)
+        {
+            item.DialogOptions = ShareDialogOptions.Parse(item.ShareDialogConfigRaw, out _);
+        }
+
         return new PagedResult<AssetTemplateViewModel> { Items = items, TotalCount = total };
     }
 
@@ -139,7 +148,8 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             ArgumentEnforcement = input.ArgumentEnforcement,
             AllowAdHoc = input.AllowAdHoc,
             MaxAdHocMinutes = input.MaxAdHocMinutes,
-            ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey
+            ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey,
+            ShareDialogConfig = input.DialogOptions?.ToJson()
         };
         db.AssetTemplates.Add(entity);
         await db.SaveChangesAsync();
@@ -161,6 +171,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         entity.AllowAdHoc = input.AllowAdHoc;
         entity.MaxAdHocMinutes = input.MaxAdHocMinutes;
         entity.ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey;
+        entity.ShareDialogConfig = input.DialogOptions?.ToJson();
         await db.SaveChangesAsync();
         return input;
     }

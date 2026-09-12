@@ -4458,6 +4458,90 @@ Beim Bauen der Übersicht aufgefallen und hier festgehalten, weil es sonst jeman
 Sie werden **nirgends miteinander verglichen**. Wer eine Freigabe anonym zugänglich machen will,
 trägt `##ANONYMOUS` in die Benutzerfilter ein.
 
+### 54.5a Die Vorlage bestimmt die Teilen-Maske — **Pflicht-Migration (1 Spalte)**
+
+```
+AssetTemplates  + ShareDialogConfig (nvarchar(max) / text, null)
+```
+
+`dotnet ef migrations add AssetTemplateShareDialog` → `database update`. **Eine Vorlage ohne diese
+Angabe verhält sich unverändert** — alles sichtbar, alles mit den bisherigen Vorgaben.
+
+Der Fall dahinter: eine Vorlage, bei der alles vorher feststeht. Der QR-Code am Ladeneingang ist immer
+anonym, immer gespeichert, führt kein Argument und heisst immer gleich — übrig bleibt eine einzige
+Entscheidung, nämlich „ja, jetzt ausstellen". Wer dafür eine Meinung über *„Temporary — store nothing"*
+bilden muss, kreuzt es irgendwann versehentlich an und druckt einen Aushang, der nach einer Stunde tot
+ist.
+
+Gepflegt wird das in der Vorlagen-Maske, je Feld eine Zeile: **wird gezeigt** und **Vorbelegung**. Die
+beiden Angaben stehen nebeneinander, weil sie nur zusammen eine Aussage ergeben. Gespeichert wird JSON:
+
+```json
+{
+  "Title":     { "Value": "Self-Checkout", "Visible": false },
+  "AdHoc":     { "Value": false,           "Visible": false },
+  "Anonymous": { "Value": true,            "Visible": false },
+  "Recipient": { "Visible": false },
+  "Lifetime":  { "Value": 60,              "Visible": false },
+  "Reach":     { "Visible": false }
+}
+```
+
+| | |
+|---|---|
+| `Visible` fehlt | sichtbar, wie heute |
+| `Value` fehlt | die bisherige Vorgabe |
+| **`Visible: false`** | **fest** — nicht gezeigt und beim Teilen nicht änderbar. Ausgeblendet heisst „die Vorlage hat entschieden", nicht „eingeklappt" |
+| Vorbelegung bei sichtbarem Feld | ein Angebot: der Benutzer darf es ändern |
+
+**Merke: ein ausgeblendetes Pflichtfeld ohne Vorbelegung ist ein Konfigurationsfehler** — Titel immer,
+Reichweite dann, wenn die Freigabe weder anonym noch temporär ist. Er wird in **beiden** Masken
+angezeigt: beim Bearbeiten der Vorlage, wo er entsteht, und beim Öffnen der Teilen-Maske, wo er wirkt.
+Nicht erst beim Ausstellen, wo er nur noch „geht nicht" bedeutet.
+
+**Merke: unlesbares JSON verhindert nichts.** Es steuert die *Bedienung*, nicht den Zugriff — wer wegen
+eines Tippfehlers die Maske gar nicht mehr öffnen kann, hat ein grösseres Problem als eine fehlende
+Vorbelegung. Es gilt dann der heutige Dialog, und der Grund steht im Log.
+
+**Zum Schnitt:** der Kern reicht den Text ungedeutet durch (`AssetTemplateInfo.ShareDialogConfig`);
+ausgewertet wird er in den AdminViews (`ShareDialogOptions`). Welche Bedienelemente eine Maske hat, ist
+ihre Sache — und eines davon, die **Reichweite**, existiert überhaupt nur dort: sie fasst Benutzer- und
+Mandantenfilter zu einer Frage zusammen, die man einem Menschen stellen kann.
+
+### 54.6a Einen laufenden Link weiterreichen: `<ShareCurrentButton />`
+
+```razor
+@* im Mantel, neben dem <ShareButton /> *@
+<ShareCurrentButton />
+```
+
+**Nicht zu verwechseln mit `<ShareButton />`** — der stellt eine **neue** Freigabe aus, dieser reicht
+die **bestehende** herum:
+
+| | `<ShareButton />` | `<ShareCurrentButton />` |
+|---|---|---|
+| Was passiert | `CreateAsync` legt eine Freigabe an | nichts wird angelegt |
+| Was der Benutzer sieht | Vorlagenwahl, Titel, Reichweite … | direkt den Link mit QR-Code |
+| Sichtbar wenn | an dieser Stelle etwas teilbar ist | hier gerade eine **gültige** Freigabe läuft |
+| Braucht Ausstellungsrecht | ja (Vorlage) | nein — wer den Link hat, hat ihn |
+
+Der Fall dahinter: zwei Leute sollen an **demselben** Vorgang arbeiten — derselbe Warenkorb auf einem
+zweiten Telefon. Eine zweite Freigabe wäre dafür die falsche Antwort. Sie wäre ein zweites Geheimnis
+mit eigener Frist, das beim Aufräumen einzeln eingezogen werden muss; sie stünde als zweite Zeile im
+Protokoll, wo ein Vorgang stattgefunden hat; und sie setzte voraus, dass der Weitergebende überhaupt
+ausstellen darf — was bei einem anonymen Besucher an der Vorlage hängt und für „hier, mein Link"
+niemanden interessiert.
+
+Gezeigt wird die **laufende Adresse** (`NavigationManager.Uri`); sie trägt Abschnitt, Mandant und
+Pfad bereits. Der Dialog ist derselbe wie beim Ausstellen, also mit Kopieren, QR-Code, PNG und Druck
+(§54.7) — und bei einer befristeten Freigabe **mit der Restlaufzeit**, denn das ist die nächste Frage,
+die der Empfänger hat.
+
+**Merke: sichtbar wird der Knopf über `AssetContext`, nicht über `HasAsset`.** Letzteres beantwortet
+der Pfad allein und sagt nur, dass ein Abschnitt *da* ist — nicht, dass er noch auf etwas Gültiges
+zeigt. Sonst reichte man den Link einer abgelaufenen, widerrufenen oder von der Gültigkeitsregel
+beendeten Freigabe weiter, also eine Sackgasse.
+
 ### 54.7 Der QR-Code zum Link
 
 Im Link-Dialog — dem beim Anlegen **und** dem aus der Übersicht — steht der Knopf *Show QR code*. Er
@@ -4554,7 +4638,7 @@ abschaltet, entwertet alle Tickets, die auf sie zeigen.**
 | Gültigkeitsfenster | abgelehnt |
 | Sperrliste | abgelehnt |
 | Vorlage vorhanden **und** erlaubt Tickets | abgelehnt |
-| Gültigkeitsregel des Hosts — **nur im Riegel**, siehe §55.10 | abgelehnt |
+| Gültigkeitsregel des Hosts — **nicht hier**, sondern beim Seitenaufruf, siehe §55.11 | abgelehnt |
 
 Jede Ablehnung schreibt eine Zeile ins Log. Der Empfänger sieht sonst nur eine Seite ohne Inhalt und
 meldet „der Link geht nicht".
@@ -4700,6 +4784,50 @@ Beide Stellen unterscheiden jetzt nach `SegmentKind`.
 Implementierung. **Wer selbst authentifiziert, nimmt `AuthenticationAsset` und nicht `CurrentAsset`** —
 für eine gespeicherte Freigabe ist beides dasselbe, bei einem Ticket ist es der Unterschied zwischen
 einer Seite und einer weissen Seite.
+
+### 55.11 BEHOBEN (PRE233): die Gültigkeitsregel lief im Plugin-Ladevorgang
+
+Folgefehler von §55.10 (`BUG-PRE232-ValidityRule-Inside-PluginLoad.md`). Die Regel dorthin zu
+verschieben, wo Geltungsbereich und Pfad stehen, war richtig — die gewählte Stelle war es nicht:
+
+```
+WebPluginHelper   VerifyUserPermissions([plugin.UniqueName], …)   ← beim Laden JEDES Plugins
+  → IsLegitSharedAssetPath → VerifyRequestLocation → GetTicketInfo → Gültigkeitsregel
+      → Lease() → PluginFactory: "There already is a plugin-load in progress in this thread!"
+```
+
+**`IsLegitSharedAssetPath` hängt an jeder Berechtigungs- und Feature-Prüfung des Toolkits**
+(`VerifyActivatedFeatures`, `VerifyUserPermissions`, `GetUserPermissions`, `GetUserIds`) — und die
+läuft beim Laden jedes Plugins. Die Regel bekam damit 138 Aufrufe je Seitenaufruf ab und lief dabei
+**innerhalb** eines Ladevorgangs, wo sie per Bauart selbst kein Plugin leasen kann. Sie muss `false`
+liefern (fail closed), und die Freigabe fällt: wieder eine weisse Seite.
+
+**Die Regel wird ab jetzt beim Auflösen einer Freigabe überhaupt nicht mehr gefragt.** Sie ist ein
+eigener Schritt am Adapter:
+
+```csharp
+// neu in ISharedAssetAdapter
+bool VerifyAssetValidity(AssetInfo info);
+```
+
+Gerufen wird er von genau einer Stelle — dem seitenzugewandten Weg des `SharedAssetContext`
+(`AssetContext` und der Riegel), **einmal je Vorgang**. Dort steht der Geltungsbereich, und es läuft
+kein Plugin-Ladevorgang. `AssetInfo` trägt dafür neu `ValidityRuleKey` — nur den *Namen* der Regel;
+gefragt wird sie woanders.
+
+**Was das für eine Regel bedeutet — und das ist die eigentliche Zusage:** eine `IAssetValidityRule`
+darf ihren Fachkontext auf dem **normalen** Weg leasen (`IFreshInjectablePlugin<T>`) und braucht
+weder eigene Verbindung noch eigenen `Npgsql`-Verweis. Sie wird einmal je Vorgang gefragt, nicht je
+Anfrage, und **nicht für Unterressourcen** einer Seite. Das steht jetzt auch an der Schnittstelle.
+
+**Die Grenze, die dabei bleibt:** die Regel läuft auf dem Weg, den die Seite geht. Eine Seite, die
+weder `AssetContext` liest noch den Riegel bemüht, fragt sie nicht. Unter `ArgumentEnforcement` ab
+`Confirmed` kann das nicht passieren — der Riegel hält ohnehin zurück und fragt dabei mit. Bei
+`None` ist es möglich; wer sich auf eine Gültigkeitsregel verlässt, sollte die Vorlage deshalb nicht
+auf `None` stehen lassen.
+
+**Breaking am Vertrag:** `ISharedAssetAdapter.VerifyAssetValidity`. Betrifft euch nur bei eigener
+Implementierung.
 
 ## 56. Wer hat eine Freigabe benutzt — **Pflicht-Migration (1 Tabelle, 1 Spalte)**
 
@@ -5546,11 +5674,14 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 57g | Ländercode am Konto | bei der Anlage fixiert und **nie mehr änderbar**; die Einrichtungsseite fragt ihn ab. Testmodus-Konten existieren im Livemodus nicht — beim Key-Wechsel `TenantPaymentAccounts` leeren (§57.12) |
 | 60a | **Teilen-Maske füllt sich selbst** | Kein Schema-Change. Die Seite meldet ihre Argumentwerte über `<AssetScope Args="…">` — **dieselbe Zeile, die der Riegel schon braucht**; der `<ShareButton />` im Mantel liest sie beim Klick. Zusätzlich liest er benannte Gruppen aus dem Pfadmuster der Vorlage (`^/CustomerCare/Customers/(?<CustomerId>\d+)$`) — **nur benannte**, nummerierte tragen keine Bedeutung. Rangfolge aufsteigend: Pfad → Seite → `Context`. **Merke: die Seite gewinnt gegen den Pfad**, sonst baut man Links, die der eigene Riegel ablehnt. Bekannte Werte stehen in der Maske sichtbar, aber nicht editierbar; offene werden wie bisher abgefragt. **Merke: das ist KEINE Schranke** — dass ein fremder Datensatz nicht durchkommt, entscheidet weiterhin `ArgumentEnforcement` (Vorgabe `None`!) plus die Bestätigung in der Seite |
 | 60b | **Erstes Argument setzt `Strict`** | Verhaltensänderung ohne Schema-Change: bekommt eine Vorlage über die Maske ihr ERSTES Argument und steht `ArgumentEnforcement` auf `None`, wird es auf `Strict` gehoben (mit Log-Zeile). **Nur beim Übergang** — ein späteres bewusstes `None` bleibt. **Bestehende Vorlagen mit Argumenten sind NICHT betroffen und bleiben auf `None`**, die müsst ihr von Hand umstellen. Ausserdem: die XML-Doku von `Strict` beschrieb bis hierher die verworfene Bedeutung („jede weitere Bestätigung muss dieselben Werte liefern" — kann nie auslösen); wirksam ist „die Bestätigung verfällt mit dem Vorgang" |
+| 54g | **Vorlage bestimmt die Teilen-Maske** | **Pflicht-Migration**: `AssetTemplates + ShareDialogConfig` (nullable). Je Feld „wird gezeigt" und „Vorbelegung", gepflegt in der Vorlagen-Maske. **Eine Vorlage ohne die Angabe verhält sich unverändert.** `Visible: false` heisst **fest**, nicht eingeklappt; ein ausgeblendetes Pflichtfeld ohne Vorbelegung ist ein Konfigurationsfehler und wird in beiden Masken angezeigt. Unlesbares JSON gibt nichts vor, verhindert aber nichts (§54.5a) |
+| 54f | **Laufenden Link weiterreichen** | Kein Schema-Change, keine Registrierung. `<ShareCurrentButton />` zeigt die laufende Adresse als QR-Code — **ohne** neue Freigabe, ohne Vorlagenwahl, ohne Ausstellungsrecht. Für „derselbe Vorgang auf einem zweiten Gerät". Sichtbar nur, wenn hier eine **gültige** Freigabe läuft (§54.6a) |
 | 54e | QR-Code zum Link | Kein Schema-Change, keine Registrierung. Der Link-Dialog zeigt den Code auf Knopfdruck, speichert ihn als PNG und druckt ihn mit Titel und Link im Klartext. Die Länge ist unkritisch: angemeldet ~96 Zeichen (49 Module), anonym ~270 (73), Ad-hoc-Ticket ~535–940 (97–125); die Grenze liegt bei ~2300 (§54.7) |
 | 54d | Freigaben bearbeiten | Titel, Gültigkeit, Empfänger und Filter lassen sich nachträglich ändern — **worauf eine Freigabe zeigt, nicht** (§54.5) |
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
 | 56c | Eigene Abfragen auf `SharedAssetAccess` | die Tabelle ist **mandantenfrei** — `TenantName` selbst einschränken, sonst liest man über Mandanten hinweg (§56.6) |
+| 55g | **BEHOBEN: Gültigkeitsregel im Plugin-Ladevorgang** | Kein Schema-Change. Die Regel hing über `IsLegitSharedAssetPath` hinter JEDER Berechtigungsprüfung — also auch im Laden jedes Plugins, wo sie selbst nichts laden kann (138 Aufrufe je Seitenaufruf, Wiedereintrittssperre, weisse Seite). Sie ist jetzt ein eigener Schritt `ISharedAssetAdapter.VerifyAssetValidity`, gerufen einmal je Vorgang vom seitenzugewandten Weg. **Eine Regel darf damit `IFreshInjectablePlugin<T>` benutzen** — kein Notbehelf mit eigener Verbindung nötig. `AssetInfo` trägt neu `ValidityRuleKey` (§55.11) |
 | 55f | **BEHOBEN: die Ticket-Anmeldung prüfte zu viel** | Kein Schema-Change. Ortsprüfung gegen den laufenden Pfad und Gültigkeitsregel liefen je ANFRAGE — also auch für `blazor.web.js`, CSS und Bilder, und vor Kanonisierung und Geltungsbereich: **weisse Seite** plus leere Verbindungszeichenfolge in der Gültigkeitsregel. Anmeldung prüft jetzt das Ticket samt seinem `RootPath`, der Riegel den laufenden Pfad und die Regel. **Breaking am Vertrag**: `GetTicketInfo(..., bool forAuthentication)` und `ISharedAssetContext.AuthenticationAsset`; wer selbst authentifiziert, nimmt `AuthenticationAsset` statt `CurrentAsset` (§55.10) |
 | 55d | **BEHOBEN: anonyme Tickets meldeten niemanden an** | Kein Schema-Change. `AnonymousAssetAuthenticationHandler` kannte nur `AssetKey`+`AccessToken`; bei einem Ticket sind beide `null`, also endete **jeder** anonyme Ticket-Link lautlos im 404. Der Handler löst Ticket-Abschnitte jetzt selbst über `CurrentAsset` auf, ein ungültiges Ticket ist eine Ablehnung statt `NoResult`, und der Besucher heisst `#ANONYMOUS#` — **nicht** die Nonce (§55.8) |
 | 55e | **Tickets tragen ihren Mandanten** | Kein Schema-Change, aber **alle ausgegebenen Tickets neu erzeugen**: `AssetTicket.TenantName` ist Pflicht und wird gegen den Mandanten aus der URL geprüft. Nötig, weil `EncryptForScope` ohne `Tenants.TenantPassword` auf die anwendungsweite Verschlüsselung zurückfällt — dann entschlüsselt dieselbe Nutzlast unter JEDEM Mandantennamen. Gespeicherte Freigaben sind nicht betroffen (§55.2, §55.3) |

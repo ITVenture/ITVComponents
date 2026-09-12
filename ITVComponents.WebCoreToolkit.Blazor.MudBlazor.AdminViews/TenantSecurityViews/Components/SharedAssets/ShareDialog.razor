@@ -1,4 +1,7 @@
-﻿@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+﻿@using Microsoft.Extensions.Logging
+@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@inject ILogger<ShareDialog> Logger
 
 <EditDialogShell Model="Model" IsCreate="true" CreateLabel="Create link" OnValidated="Share" Result="@(() => created)" Busy="@busy">
     @if (Templates.Length == 0)
@@ -17,9 +20,19 @@
             }
         </MudSelect>
 
-        <MudTextField @bind-Value="Model.Title" Label="Title" Required="true" RequiredError="A title is required"
-                      MaxLength="512" Class="mt-2"
-                      HelperText="What the recipient sees, and what you will recognise it by later." />
+        @* Ein ausgeblendetes Pflichtfeld ohne Vorgabe ist ein Fehler AN DER VORLAGE. Er gehoert hierhin,
+           wo jemand ihn beim Oeffnen sieht - und nicht ans Ende, wo das Ausstellen wortlos scheitert. *@
+        @foreach (var problem in Options.Validate())
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@problem</MudAlert>
+        }
+
+        @if (Options.Title.Shown)
+        {
+            <MudTextField @bind-Value="Model.Title" Label="Title" Required="true" RequiredError="A title is required"
+                          MaxLength="512" Class="mt-2"
+                          HelperText="What the recipient sees, and what you will recognise it by later." />
+        }
 
         @* Die Felder kommen aus der Vorlage, in IHRER Reihenfolge. Was die Stelle ueber sich selbst
            weiss, steht schon drin - der Benutzer soll keine Nummer abtippen, die zwei Zentimeter
@@ -45,23 +58,35 @@
             }
         }
 
-        <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
-                      HelperText="Optional, for your own records. It is a note, not a proof of identity." />
+        @if (Options.Recipient.Shown)
+        {
+            <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
+                          HelperText="Optional, for your own records. It is a note, not a proof of identity." />
+        }
 
-        <MudSwitch T="bool" @bind-Value="Model.AdHoc" Label="Temporary - store nothing" Color="Color.Warning"
-                   Class="mt-2" />
+        @if (Options.AdHoc.Shown)
+        {
+            <MudSwitch T="bool" @bind-Value="Model.AdHoc" Label="Temporary - store nothing" Color="Color.Warning"
+                       Class="mt-2" />
+        }
         @if (Model.AdHoc)
         {
-            <MudNumericField T="int?" @bind-Value="Model.LifetimeMinutes" Label="Valid for (minutes)" Min="1"
-                             HelperText="Empty uses the template's maximum, which is also the upper limit." />
+            @if (Options.Lifetime.Shown)
+            {
+                <MudNumericField T="int?" @bind-Value="Model.LifetimeMinutes" Label="Valid for (minutes)" Min="1"
+                                 HelperText="Empty uses the template's maximum, which is also the upper limit." />
+            }
             <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">
                 Nothing is stored: the whole share travels encrypted inside the link. It can not be taken
                 back one by one - it ends on its own.
             </MudAlert>
         }
 
-        <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="Works without signing in" Color="Color.Warning"
-                   Class="mt-2" />
+        @if (Options.Anonymous.Shown)
+        {
+            <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="Works without signing in" Color="Color.Warning"
+                       Class="mt-2" />
+        }
         @if (Model.Anonymous)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
@@ -72,7 +97,7 @@
         @* Die Reichweite entscheidet, wer an die Daten kommt - deshalb ohne Vorbelegung. Ein anonymer
            Link braucht sie nicht: dort IST "ohne Anmeldung" die Reichweite. Ein Ad-hoc-Ticket auch
            nicht: es wird nirgends gespeichert, seine Rechte kommen aus der Vorlage. *@
-        @if (!Model.Anonymous && !Model.AdHoc)
+        @if (!Model.Anonymous && !Model.AdHoc && Options.Reach.Shown)
         {
             <MudSelect T="ShareReach?" Value="@Model.Reach" ValueChanged="ReachChanged" Label="Who can use this"
                        Required="true" RequiredError="Pick who can use this" Class="mt-2">
@@ -118,8 +143,47 @@
     private AssetTemplateInfo? Selected =>
         Array.Find(Templates, n => n.TemplateKey == Model.TemplateKey);
 
+    /// <summary>
+    /// Was die GEWAEHLTE Vorlage vorgibt. Ohne Auswahl der heutige Dialog - dann steht ohnehin nur die
+    /// Vorlagenauswahl da.
+    /// </summary>
+    /// <remarks>
+    /// Einmal je Vorlage gedeutet und gemerkt: die Eigenschaft wird beim Zeichnen mehrfach gelesen, und
+    /// jedes Lesen waere sonst ein JSON-Durchgang.
+    /// </remarks>
+    private ShareDialogOptions Options
+    {
+        get
+        {
+            var key = Selected?.TemplateKey;
+            if (optionsResolved && key == optionsFor)
+            {
+                return options;
+            }
+
+            optionsResolved = true;
+            optionsFor = key;
+            options = ShareDialogOptions.Parse(Selected?.ShareDialogConfig, out var optionError);
+            if (optionError != null)
+            {
+                // Fehlertolerant gedeutet - aber nicht stillschweigend. Sonst sucht jemand lange, warum
+                // seine Vorgaben nicht ankommen.
+                Logger.LogError("The sharing-form settings of template '{Template}' could not be read and are ignored: {Reason}",
+                    key, optionError);
+            }
+
+            return options;
+        }
+    }
+
+    /// <summary>Fuer welche Vorlage <c>options</c> gilt - und ob ueberhaupt schon fuer eine.</summary>
+    private bool optionsResolved;
+    private string? optionsFor;
+    private ShareDialogOptions options = ShareDialogOptions.Default;
+
     private string? error;
     private bool busy;
+    private bool defaultsApplied;
 
     /// <summary>
     /// Das Ergebnis der Freigabe - es ist die Nutzlast beim Schliessen. Der Link entsteht hier und wird
@@ -136,6 +200,14 @@
             Model.TemplateKey = Templates[0].TemplateKey;
         }
 
+        if (!defaultsApplied)
+        {
+            // Einmal beim Oeffnen. OnParametersSet laeuft mehrfach, und ein zweiter Durchgang wuerde
+            // zurueckschreiben, was der Benutzer inzwischen geaendert hat.
+            defaultsApplied = true;
+            ApplyTemplateDefaults();
+        }
+
         ApplyPathValues();
     }
 
@@ -143,7 +215,55 @@
     {
         Model.TemplateKey = value;
         error = null;
+        ApplyTemplateDefaults();
         ApplyPathValues();
+    }
+
+    /// <summary>
+    /// Uebernimmt die Vorgaben der gewaehlten Vorlage ins Modell.
+    /// </summary>
+    /// <remarks>
+    /// <b>Auch fuer die ausgeblendeten Felder</b> - ausgeblendet heisst ja nicht "ohne Wert", sondern
+    /// "die Vorlage hat schon entschieden". Genau deshalb ist ein ausgeblendetes Pflichtfeld ohne
+    /// Vorgabe ein Konfigurationsfehler und keine leere Eingabe.
+    /// <para>
+    /// Gesetzt wird nur, was die Vorlage auch sagt: ein fehlender Wert laesst die bisherige Vorgabe
+    /// stehen. Und was sichtbar ist, darf der Benutzer hinterher aendern - die Vorbelegung ist dort ein
+    /// Angebot, kein Riegel.
+    /// </para>
+    /// </remarks>
+    private void ApplyTemplateDefaults()
+    {
+        var options = Options;
+        if (options.Title.Value != null)
+        {
+            Model.Title = options.Title.Value;
+        }
+
+        if (options.Recipient.Value != null)
+        {
+            Model.RecipientLabel = options.Recipient.Value;
+        }
+
+        if (options.AdHoc.Value != null)
+        {
+            Model.AdHoc = options.AdHoc.Value.Value;
+        }
+
+        if (options.Lifetime.Value != null)
+        {
+            Model.LifetimeMinutes = options.Lifetime.Value;
+        }
+
+        if (options.Anonymous.Value != null)
+        {
+            Model.Anonymous = options.Anonymous.Value.Value;
+        }
+
+        if (options.Reach.Value != null)
+        {
+            Model.Reach = options.Reach.Value;
+        }
     }
 
     /// <summary>

@@ -21,7 +21,10 @@
     }
 
     <MudTextField @bind-Value="Model.ValidityRuleKey" Label="Validity rule" MaxLength="128" Class="mt-2"
-                  HelperText="Key of a host-side rule ('the order is still open'). A named rule that is not registered refuses access - deliberately." />
+                  HelperText="Key of a host-side rule ('the order is still open'). A named rule that is not registered refuses access - deliberately. It is asked once per operation, from the page - a rule may lease its own business context." />
+
+    <MudDivider Class="my-4" />
+    <ShareDialogOptionsEditor Model="Model.DialogOptions" />
 </EditDialogShell>
 
 @code {

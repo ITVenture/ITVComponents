@@ -51,6 +51,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         public string TicketNonce { get; set; }
 
         /// <summary>
+        /// Die Gueltigkeitsregel der Vorlage, oder null. <b>Hier steht nur ihr Name</b> - gefragt wird sie
+        /// woanders, siehe <see cref="ISharedAssetAdapter.VerifyAssetValidity"/>.
+        /// </summary>
+        public string ValidityRuleKey { get; set; }
+
+        /// <summary>
         /// An wen die Freigabe gerichtet ist.
         /// </summary>
         public string RecipientLabel { get; set; }

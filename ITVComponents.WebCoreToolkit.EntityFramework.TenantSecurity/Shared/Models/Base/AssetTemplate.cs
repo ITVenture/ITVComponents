@@ -65,6 +65,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public string ValidityRuleKey { get; set; }
 
         /// <summary>
+        /// Was die Teilen-Maske fuer diese Vorlage zeigen und vorbelegen soll, als JSON. Null = der
+        /// heutige Dialog, unveraendert.
+        /// </summary>
+        /// <remarks>
+        /// JSON und keine eigenen Spalten, weil es eine Angabe ueber die BEDIENUNG ist und keine, nach der
+        /// je jemand filtert oder sortiert - dieselbe Abwaegung wie bei <c>TrustLevelConfig</c> und dem
+        /// Markup der Mandanten-Vorlagen. Gelesen wird es ueber
+        /// <see cref="ShareDialogOptions.Parse"/>, und zwar <b>fehlertolerant</b>: was sich nicht lesen
+        /// laesst, gibt nichts vor, verhindert aber nichts.
+        /// </remarks>
+        public string ShareDialogConfig { get; set; }
+
+        /// <summary>
         /// Wie ausfuehrlich Zugriffe auf Freigaben dieser Vorlage protokolliert werden. Vorgabe:
         /// Einstiege und Verweigerungen - eine Freigabe ist etwas, das man aus der Hand gibt, und ob sie
         /// benutzt wurde, ist genau die Frage, die spaeter gestellt wird.

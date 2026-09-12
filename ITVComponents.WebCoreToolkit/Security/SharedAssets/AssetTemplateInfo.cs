@@ -29,5 +29,17 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// </remarks>
         public IReadOnlyDictionary<string, string> PathValues { get; set; }
             = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Was diese Vorlage ueber die Teilen-Maske vorgibt - <b>als Text, ungedeutet</b>. Null, wenn sie
+        /// nichts vorgibt; dann sieht die Maske aus wie bisher.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst nicht ausgewertet: welche Felder eine Teilen-Maske hat, ist die Sache dieser Maske und
+        /// nicht die des Kerns - eines davon (die Reichweite) existiert ueberhaupt nur dort, als
+        /// Zusammenfassung der Benutzer- und Mandantenfilter. Gedeutet wird das hier von
+        /// <c>ShareDialogOptions.Parse</c> in den AdminViews.
+        /// </remarks>
+        public string ShareDialogConfig { get; set; }
     }
 }

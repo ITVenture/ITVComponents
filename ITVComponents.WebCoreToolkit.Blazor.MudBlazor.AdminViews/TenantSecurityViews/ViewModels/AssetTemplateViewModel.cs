@@ -36,6 +36,21 @@ public class AssetTemplateViewModel
     /// </summary>
     [MaxLength(128)]
     public string? ValidityRuleKey { get; set; }
+
+    /// <summary>
+    /// Was die Teilen-Maske fuer diese Vorlage zeigen und vorbelegen soll.
+    /// </summary>
+    /// <remarks>
+    /// Als Objekt und nicht als JSON-Text: die Maske bearbeitet Felder, nicht Zeichenketten. Umgewandelt
+    /// wird erst im Handler - so kann eine unlesbare gespeicherte Angabe die Maske nicht blockieren.
+    /// </remarks>
+    public ShareDialogOptions DialogOptions { get; set; } = new();
+
+    /// <summary>
+    /// Der gespeicherte Text, so wie er in der Datenbank steht. Nur der Uebergabepunkt zwischen Abfrage
+    /// und Deutung - eine Abfrage kann nicht deuten, ein Ausdrucksbaum kennt keine out-Parameter.
+    /// </summary>
+    public string? ShareDialogConfigRaw { get; set; }
 }
 
 /// <summary>

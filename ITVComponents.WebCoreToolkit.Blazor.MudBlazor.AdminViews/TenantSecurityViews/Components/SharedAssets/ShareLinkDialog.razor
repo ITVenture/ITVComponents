@@ -16,6 +16,16 @@
             Anyone holding this link uses the share. Send it the way you would send a password.
         </MudText>
 
+        @* Die Restlaufzeit ist die naechste Frage, die ein Empfaenger hat - und bei einem Ad-hoc-Ticket
+           die einzige Antwort darauf, denn zurueckziehen laesst es sich nicht einzeln. *@
+        @if (Remaining is { } left)
+        {
+            <MudAlert Severity="@(left.TotalMinutes <= 5 ? Severity.Warning : Severity.Info)" Dense="true"
+                      Class="mt-2">
+                @Describe(left)
+            </MudAlert>
+        }
+
         @* Der QR-Code entsteht erst auf Wunsch: die meisten Freigaben werden verschickt, und wer sie
            verschickt, braucht kein Bild. Gefragt ist er dort, wo der Link auf ein Mobilgeraet oder auf
            Papier soll - beides ohne Abtippen. *@
@@ -66,6 +76,40 @@
     /// mit nichts als einem Quadrat darauf sagt niemandem, wohin es fuehrt.
     /// </summary>
     [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// Wann die Freigabe endet, oder null, wenn sie unbefristet ist.
+    /// </summary>
+    [Parameter] public DateTime? ValidUntil { get; set; }
+
+    /// <summary>
+    /// Wie lange sie noch gilt. Null, wenn unbefristet - abgelaufen ergibt <see cref="TimeSpan.Zero"/>,
+    /// damit der Dialog es sagen kann, statt die Angabe wegzulassen.
+    /// </summary>
+    /// <remarks>
+    /// Einmal beim Zeichnen gerechnet und nicht mitlaufend: der Dialog steht Sekunden, nicht Minuten,
+    /// und eine tickende Anzeige waere ein Timer je geoeffnetem Dialog fuer nichts.
+    /// </remarks>
+    private TimeSpan? Remaining
+    {
+        get
+        {
+            if (ValidUntil == null)
+            {
+                return null;
+            }
+
+            var left = ValidUntil.Value - DateTime.UtcNow;
+            return left < TimeSpan.Zero ? TimeSpan.Zero : left;
+        }
+    }
+
+    private static string Describe(TimeSpan left)
+        => left == TimeSpan.Zero ? "This link has expired."
+            : left.TotalMinutes < 1 ? "This link expires in less than a minute."
+            : left.TotalHours < 1 ? $"This link works for another {(int)left.TotalMinutes} minutes."
+            : left.TotalDays < 1 ? $"This link works for another {(int)left.TotalHours} hours."
+            : $"This link works for another {(int)left.TotalDays} days.";
 
     private ShareQrResult? qr;
     private IJSObjectReference? module;

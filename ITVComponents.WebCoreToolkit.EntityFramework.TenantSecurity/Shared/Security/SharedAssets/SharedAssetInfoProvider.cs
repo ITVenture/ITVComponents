@@ -257,7 +257,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                             AssetTemplateTitle = template.Name,
                             TemplateKey = template.SystemKey,
                             Arguments = ReadArguments(database, template.AssetTemplateId),
-                            PathValues = pathValues
+                            PathValues = pathValues,
+                            // Ungedeutet weitergereicht - siehe AssetTemplateInfo.ShareDialogConfig.
+                            ShareDialogConfig = template.ShareDialogConfig
                         });
                     }
                 }
@@ -883,15 +885,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
             var values = AssetArgumentValues.FromJson(JsonSerializer.Serialize(ticket.ArgumentValues));
 
-            // Die Gueltigkeitsregel des Wirts liest fast immer Fachdaten ("gilt, bis der Auftrag
-            // abgeschlossen ist"). Dafuer braucht sie den Mandanten-Geltungsbereich - und den gibt es zur
-            // Anmeldezeit nicht: die Konstantenaufloesung der Plugin-Fabrik liefert dann eine leere
-            // Verbindungszeichenfolge. Sie gehoert deshalb an den Riegel, wo der Bereich steht und wo sie
-            // einmal je Vorgang laeuft statt je Datei.
-            if (!forAuthentication && !IsStillValid(assetTmp.ValidityRuleKey, values, ticket.Nonce))
-            {
-                return null;
-            }
+            // HIER wird die Gueltigkeitsregel NICHT gefragt - siehe VerifyAssetValidity. Sie braucht
+            // Geltungsbereich und Plugin-Fabrik, und das Aufloesen einer Freigabe passiert unter anderem
+            // mitten im Laden eines Plugins. Ihr Name reist im Ergebnis mit, gefragt wird sie vom
+            // seitenzugewandten Weg.
 
             return new AssetInfo
             {
@@ -907,6 +904,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 AuditMode = assetTmp.AuditMode,
                 TemplateSystemKey = assetTmp.SystemKey,
                 TicketNonce = ticket.Nonce,
+                ValidityRuleKey = assetTmp.ValidityRuleKey,
                 RecipientLabel = ticket.RecipientLabel,
                 NotBefore = ticket.NotBefore,
                 NotAfter = ticket.NotAfter,
@@ -944,6 +942,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             database.SaveChanges();
             return true;
         }
+
+        /// <inheritdoc/>
+        public bool VerifyAssetValidity(AssetInfo info)
+            => info == null || IsStillValid(info.ValidityRuleKey, info.Values,
+                info.TicketNonce ?? info.AssetKey);
 
         /// <summary>
         /// Fragt die Gueltigkeitsregel der Vorlage - "gilt das noch?" ist manchmal keine Frage des

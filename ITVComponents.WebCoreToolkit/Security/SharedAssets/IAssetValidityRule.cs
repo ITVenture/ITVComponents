@@ -7,6 +7,18 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
     /// daneben: mal ist der Auftrag frueher fertig, mal spaeter. Deshalb benennt die Vorlage eine Regel,
     /// die der Host implementiert - er ist der Einzige, der die Frage beantworten kann.
     /// </para>
+    /// <para>
+    /// <b>Was zur Verfuegung steht:</b> der Mandanten-Geltungsbereich ist gesetzt, und die Plugin-Fabrik
+    /// ist benutzbar - eine Regel darf also ihren Fachkontext auf dem normalen Weg leasen
+    /// (<c>IFreshInjectablePlugin&lt;T&gt;</c>) und braucht keine eigene Verbindung. Gefragt wird sie
+    /// <b>einmal je Vorgang</b>, vom seitenzugewandten Weg aus - nicht je Anfrage und nicht beim
+    /// Aufloesen der Freigabe. Wer sie anderswoher ruft, nimmt ihr genau diese Zusage; siehe die
+    /// Bemerkung an <see cref="ISharedAssetAdapter.VerifyAssetValidity"/>.
+    /// </para>
+    /// <para>
+    /// <b>Sie wird nicht fuer Unterressourcen gefragt.</b> Skripte, Stylesheets und Bilder einer Seite
+    /// tragen denselben Freigabe-Abschnitt, loesen aber keinen Vorgang aus.
+    /// </para>
     /// </summary>
     public interface IAssetValidityRule
     {

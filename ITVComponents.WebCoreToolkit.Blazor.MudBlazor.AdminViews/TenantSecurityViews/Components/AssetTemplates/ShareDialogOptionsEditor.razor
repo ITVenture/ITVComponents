@@ -1,0 +1,111 @@
+﻿@using ITVComponents.WebCoreToolkit.Security.SharedAssets
+
+@* Was die Teilen-Maske fuer DIESE Vorlage zeigt und womit sie belegt ist.
+
+   Je Zeile ein Feld: links der Schalter "wird gezeigt", rechts die Vorbelegung. Beides nebeneinander,
+   weil die zwei Angaben nur zusammen eine Aussage ergeben - ein ausgeblendetes Pflichtfeld ohne
+   Vorbelegung ist ein Fehler, und den sieht man nur, wenn beides im Blick ist.
+
+   Bewusst ausgeschrieben statt ueber eine Hilfskomponente: die sechs Felder haben vier verschiedene
+   Werttypen, und eine generische Zeile waere mehr Bauwerk als die Wiederholung kostet. *@
+
+<MudText Typo="Typo.subtitle2">The sharing form</MudText>
+<MudText Typo="Typo.caption">
+    Leave everything shown to keep the form as it is today. Switching a field off means the template
+    decides it: it is then neither shown nor changeable while sharing — so it needs a preset.
+</MudText>
+
+@foreach (var problem in Model.Validate())
+{
+    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@problem</MudAlert>
+}
+
+<MudSimpleTable Dense="true" Striped="false" Class="mt-2">
+    <thead>
+        <tr>
+            <th style="width:12rem">Field</th>
+            <th style="width:6rem">Shown</th>
+            <th>Preset</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Title</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.Title.Shown"
+                           ValueChanged="@(v => Model.Title.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudTextField T="string" @bind-Value="Model.Title.Value" MaxLength="512"
+                              Margin="Margin.Dense" Placeholder="no preset" />
+            </td>
+        </tr>
+        <tr>
+            <td>Recipient</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.Recipient.Shown"
+                           ValueChanged="@(v => Model.Recipient.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudTextField T="string" @bind-Value="Model.Recipient.Value" MaxLength="256"
+                              Margin="Margin.Dense" Placeholder="no preset" />
+            </td>
+        </tr>
+        <tr>
+            <td>Temporary (ad-hoc)</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.AdHoc.Shown"
+                           ValueChanged="@(v => Model.AdHoc.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudSelect T="bool?" @bind-Value="Model.AdHoc.Value" Margin="Margin.Dense" Clearable="true">
+                    <MudSelectItem T="bool?" Value="@(true)">temporary</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">stored</MudSelectItem>
+                </MudSelect>
+            </td>
+        </tr>
+        <tr>
+            <td>Lifetime (minutes)</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.Lifetime.Shown"
+                           ValueChanged="@(v => Model.Lifetime.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudNumericField T="int?" @bind-Value="Model.Lifetime.Value" Min="1"
+                                 Margin="Margin.Dense" Placeholder="no preset" />
+            </td>
+        </tr>
+        <tr>
+            <td>Works without signing in</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.Anonymous.Shown"
+                           ValueChanged="@(v => Model.Anonymous.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudSelect T="bool?" @bind-Value="Model.Anonymous.Value" Margin="Margin.Dense" Clearable="true">
+                    <MudSelectItem T="bool?" Value="@(true)">anonymous</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@(false)">sign-in required</MudSelectItem>
+                </MudSelect>
+            </td>
+        </tr>
+        <tr>
+            <td>Who can use this</td>
+            <td>
+                <MudSwitch T="bool" Value="@Model.Reach.Shown"
+                           ValueChanged="@(v => Model.Reach.Visible = v)" Color="Color.Primary" />
+            </td>
+            <td>
+                <MudSelect T="ShareReach?" @bind-Value="Model.Reach.Value" Margin="Margin.Dense" Clearable="true">
+                    @foreach (var reach in Enum.GetValues<ShareReach>())
+                    {
+                        <MudSelectItem T="ShareReach?" Value="@((ShareReach?)reach)">@reach</MudSelectItem>
+                    }
+                </MudSelect>
+            </td>
+        </tr>
+    </tbody>
+</MudSimpleTable>
+
+@code {
+    [Parameter, EditorRequired] public ShareDialogOptions Model { get; set; } = default!;
+}

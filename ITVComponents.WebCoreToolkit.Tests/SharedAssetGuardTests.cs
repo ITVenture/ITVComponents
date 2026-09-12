@@ -356,6 +356,17 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor,
                 bool forAuthentication = false) => null!;
             public bool RevokeTicket(string nonce, DateTime expiresUtc) => false;
+
+            /// <summary>Wie oft die Gueltigkeitsregel gefragt wurde - je VORGANG, nicht je Anfrage.</summary>
+            public int ValidityAsked { get; private set; }
+
+            public bool VerifyAssetValidity(AssetInfo info)
+            {
+                ValidityAsked++;
+                return ValidityAnswer;
+            }
+
+            public bool ValidityAnswer { get; set; } = true;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null!;
             void ISharedAssetAdapter.SetImpersonationOff() { }
             void ISharedAssetAdapter.SetImpersonationOn() { }
