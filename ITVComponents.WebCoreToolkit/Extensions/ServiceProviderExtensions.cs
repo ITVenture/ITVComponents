@@ -394,7 +394,11 @@ namespace ITVComponents.WebCoreToolkit.Extensions
 
                 if (seco.Current is not AssetSecurityRepository)
                 {
-                    seco.PushRepo(new AssetSecurityRepository(userProvider.User, seco.Current, assetProvider.GetAssetInfo(assetKey, userProvider.User)));
+                    // CurrentAsset statt GetAssetInfo(assetKey): ein Ad-hoc-Ticket hat keinen Schluessel,
+                    // und die Nachschlagerei ueber ihn lieferte fuer ein Ticket null - die Sicht haette
+                    // dann keine Rechte getragen. Fuer eine gespeicherte Freigabe ist es dasselbe
+                    // Ergebnis, nur einmal statt zweimal geholt.
+                    seco.PushRepo(new AssetSecurityRepository(userProvider.User, seco.Current, assetContext.CurrentAsset));
                 }
                 securityRepository = seco;
                 return true;

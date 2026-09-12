@@ -80,7 +80,8 @@ namespace ITVComponents.WebCoreToolkit.Security.ClaimsTransformation
                 // oder Feature-Riegel statt am 404 - derselbe Fehler wie im Anmeldeschema, nur eine
                 // Schicht spaeter (BUG-PRE230).
                 var assetInfo = assetContext.SegmentKind == AssetSegmentKind.Ticket
-                    ? assetManager.GetTicketInfo(assetContext.TicketTenant, assetContext.TicketPayload, principal)
+                    ? assetManager.GetTicketInfo(assetContext.TicketTenant, assetContext.TicketPayload, principal,
+                        forAuthentication: true)
                     : assetManager.GetAssetInfo(assetContext.AssetKey, principal);
                 if (assetInfo == null)
                 {

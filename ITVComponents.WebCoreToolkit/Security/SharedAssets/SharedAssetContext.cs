@@ -35,6 +35,8 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         private bool infoResolved;
         private AssetInfo info;
+        private bool authInfoResolved;
+        private AssetInfo authInfo;
 
         private bool publicContextResolved;
         private AssetContext publicContext;
@@ -97,6 +99,44 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
 
         /// <inheritdoc/>
         public AssetInfo CurrentAsset => Info;
+
+        /// <inheritdoc/>
+        public AssetInfo AuthenticationAsset
+        {
+            get
+            {
+                if (authInfoResolved)
+                {
+                    return authInfo;
+                }
+
+                authInfoResolved = true;
+                if (!HasAsset)
+                {
+                    return null;
+                }
+
+                if (segmentKind != AssetSegmentKind.Ticket)
+                {
+                    // Eine gespeicherte Freigabe prueft nichts, was am Vorgang haengt - die beiden Fragen
+                    // fallen dort zusammen.
+                    authInfo = Info;
+                    return authInfo;
+                }
+
+                var adapter = services?.GetService(typeof(ISharedAssetAdapter)) as ISharedAssetAdapter;
+                if (adapter == null)
+                {
+                    logger.LogDebug(
+                        "No ISharedAssetAdapter is registered; the ad-hoc ticket can not be resolved for authentication.");
+                    return null;
+                }
+
+                authInfo = adapter.GetTicketInfo(ticketTenant, ticketPayload, contextUser?.User,
+                    forAuthentication: true);
+                return authInfo;
+            }
+        }
 
         /// <inheritdoc/>
         public AssetContext AssetContext

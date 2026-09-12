@@ -196,6 +196,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         public bool VerifyRequestLocation(string requestPath, string assetKey, string userScope, ClaimsPrincipal requestor)
         {
+            // Ein Ad-hoc-Ticket hat keinen AssetKey - es steht nirgends, und die Nachschlagerei unten
+            // koennte es nie finden. Seine Angaben stehen in der Nutzlast, und GetTicketInfo prueft im
+            // Riegel-Fall den laufenden Pfad ohnehin schon mit: faellt er durch, gibt es kein Ergebnis.
+            var ticketContext = services.GetService<ISharedAssetContext>();
+            if (ticketContext is { SegmentKind: AssetSegmentKind.Ticket })
+            {
+                var info = GetTicketInfo(ticketContext.TicketTenant, ticketContext.TicketPayload, requestor);
+                if (info == null)
+                {
+                    // Den Grund hat GetTicketInfo bereits benannt.
+                    return false;
+                }
+
+                return true;
+            }
+
             requestPath = Canonical(requestPath);
             if (!ImpersonationDeactivated)
             {
@@ -751,7 +767,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// Loest ein Ad-hoc-Ticket auf. Jede Pruefung, die fehlschlaegt, ergibt null - und einen Eintrag
         /// im Log, denn der Empfaenger sieht sonst nur eine Seite ohne Inhalt.
         /// </summary>
-        public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor)
+        public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor,
+            bool forAuthentication = false)
         {
             if (ImpersonationDeactivated)
             {
@@ -841,16 +858,37 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return null;
             }
 
-            if (!IsTemplateValidForPath(assetTmp, Canonical(services.GetService<IContextUserProvider>()?.RequestPath)))
+            // Die Ortspruefung stellt je nach Aufrufer eine ANDERE Frage - siehe die Bemerkung an
+            // ISharedAssetAdapter.GetTicketInfo.
+            //
+            // Anmeldung: gegen den RootPath des Tickets. Er steht im Ticket, ist beim Ausstellen kanonisch
+            // gespeichert und haengt nicht an der laufenden Anfrage. Der laufende Pfad taugt hier nicht:
+            // der Mandanten-Praefix wird erst NACH der Anmeldung abgetrennt, das Muster einer Vorlage ist
+            // aber gegen die kanonische Form geschrieben - es koennte nie passen. Und die Anmeldung laeuft
+            // je Anfrage, also auch fuer blazor.web.js, CSS und Bilder: gegen das Muster DER SEITE
+            // geprueft fallen die alle durch, und uebrig bliebe eine weisse Seite.
+            //
+            // Riegel: gegen den laufenden Pfad, wie bisher. Dort ist er kanonisch, und es passiert einmal
+            // je Vorgang.
+            var location = forAuthentication
+                ? ticket.RootPath
+                : Canonical(services.GetService<IContextUserProvider>()?.RequestPath);
+            if (!IsTemplateValidForPath(assetTmp, location))
             {
                 LogEnvironment.LogEvent(
-                    $"Das Ad-hoc-Ticket '{ticket.Nonce}' gilt an dieser Stelle nicht.", LogSeverity.Warning);
+                    $"Das Ad-hoc-Ticket '{ticket.Nonce}' gilt nicht fuer '{location}'.", LogSeverity.Warning);
                 return null;
             }
 
             var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
             var values = AssetArgumentValues.FromJson(JsonSerializer.Serialize(ticket.ArgumentValues));
-            if (!IsStillValid(assetTmp.ValidityRuleKey, values, ticket.Nonce))
+
+            // Die Gueltigkeitsregel des Wirts liest fast immer Fachdaten ("gilt, bis der Auftrag
+            // abgeschlossen ist"). Dafuer braucht sie den Mandanten-Geltungsbereich - und den gibt es zur
+            // Anmeldezeit nicht: die Konstantenaufloesung der Plugin-Fabrik liefert dann eine leere
+            // Verbindungszeichenfolge. Sie gehoert deshalb an den Riegel, wo der Bereich steht und wo sie
+            // einmal je Vorgang laeuft statt je Datei.
+            if (!forAuthentication && !IsStillValid(assetTmp.ValidityRuleKey, values, ticket.Nonce))
             {
                 return null;
             }

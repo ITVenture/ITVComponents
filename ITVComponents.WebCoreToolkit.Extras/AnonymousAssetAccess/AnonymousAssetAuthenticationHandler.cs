@@ -119,10 +119,10 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
         /// Stellt den Prinzipal eines Ad-hoc-Tickets aus.
         /// </summary>
         /// <remarks>
-        /// <see cref="ISharedAssetContext.CurrentAsset"/> laeuft fuer einen Ticket-Abschnitt ueber
-        /// <c>GetTicketInfo</c>: dort haengen Mandantenbindung, Frist, Widerruf, Vorlage, Pfadmuster und
-        /// Gueltigkeitsregel, und jeder Fehlschlag ist dort bereits mit seinem Grund protokolliert. Hier
-        /// bleibt nur die Entscheidung.
+        /// <see cref="ISharedAssetContext.AuthenticationAsset"/> laeuft fuer einen Ticket-Abschnitt ueber
+        /// <c>GetTicketInfo</c>: dort haengen Mandantenbindung, Frist, Widerruf, Vorlage und die Bindung an
+        /// den <c>RootPath</c> des Tickets, und jeder Fehlschlag ist dort bereits mit seinem Grund
+        /// protokolliert. Hier bleibt nur die Entscheidung.
         /// <para>
         /// <b>Der Name ist <see cref="Global.AnonymousAssetUserName"/>, nicht die Nonce des Tickets.</b>
         /// Drei Stellen unterscheiden den anonymen Besucher genau an diesem Namen von einem echten
@@ -135,7 +135,10 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
         /// <returns>der ausgestellte Prinzipal, oder eine Ablehnung</returns>
         private AuthenticateResult AuthenticateTicket()
         {
-            var info = assetContext.CurrentAsset;
+            // AuthenticationAsset und nicht CurrentAsset: das hier laeuft je ANFRAGE, also auch fuer
+            // blazor.web.js, CSS und Bilder. CurrentAsset pruefte sie alle gegen das Pfadmuster DER SEITE,
+            // und uebrig bliebe eine angemeldete Seite ohne ihre Bestandteile - eine weisse Seite.
+            var info = assetContext.AuthenticationAsset;
             if (info == null)
             {
                 // Kein zweiter Logeintrag: GetTicketInfo hat den Grund schon benannt, und zwar genauer,

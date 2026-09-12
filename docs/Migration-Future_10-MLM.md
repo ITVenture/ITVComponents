@@ -4550,11 +4550,11 @@ abschaltet, entwertet alle Tickets, die auf sie zeigen.**
 |---|---|
 | Entschlüsseln und Lesen | abgelehnt — verändert, mit fremdem Schlüssel erzeugt oder kaputt; die Unterscheidung wäre nur für einen Angreifer nützlich |
 | **Mandant der Nutzlast = Mandant der URL** | abgelehnt — der Name in der URL hat nur den Schlüssel *gewählt*, bewiesen hat er nichts |
+| Ortsbindung — **je nach Frager verschieden**, siehe §55.10 | abgelehnt |
 | Gültigkeitsfenster | abgelehnt |
 | Sperrliste | abgelehnt |
 | Vorlage vorhanden **und** erlaubt Tickets | abgelehnt |
-| Ortsbindung (Pfadmuster) | abgelehnt |
-| Gültigkeitsregel des Hosts | abgelehnt |
+| Gültigkeitsregel des Hosts — **nur im Riegel**, siehe §55.10 | abgelehnt |
 
 Jede Ablehnung schreibt eine Zeile ins Log. Der Empfänger sieht sonst nur eine Seite ohne Inhalt und
 meldet „der Link geht nicht".
@@ -4662,6 +4662,44 @@ Alles aus demselben Bericht, alles kein Fehler — aber nirgends zusammenhängen
    fest, auch gegen `NavigateTo(link, forceLoad: true)`. Das Ergebnis sieht aus wie der `origin`-Fehler
    aus Punkt 3 — doppeltes Präfix, 404 —, hat aber eine andere Ursache. Für den Sprung auf eine
    **andere** Freigabe ist `window.location.replace` der Weg.
+
+### 55.10 BEHOBEN (PRE232): die Anmeldung prüfte zu viel
+
+Direkte Folge von §55.8: der Anmeldeweg lief über `CurrentAsset` und damit durch die **volle**
+Prüfung von `GetTicketInfo` — Ortsprüfung gegen den laufenden Pfad und Gültigkeitsregel. Beides kann
+dort nicht stehen (`BUG-PRE231-AdHocTicket-Location-And-Scope.md`):
+
+| | |
+|---|---|
+| Der Pfad ist **noch nicht kanonisch** | `Canonical()` schneidet den Mandanten über `IPermissionScope.PermissionPrefix` ab, und der wird erst von `UseTenantPathPrefix` gesetzt — also **nach** der Anmeldung. Ein Muster wie `^/checkout/\d+$` konnte nie passen |
+| Die Anmeldung läuft je **Anfrage**, nicht je Vorgang | `blazor.web.js`, CSS, Bilder tragen denselben Freigabe-Abschnitt und wurden gegen das Pfadmuster **der Seite** geprüft. Sie fielen alle durch: die Seite meldete sich an, ihre Bestandteile nicht — bei `prerender: false` eine **weisse Seite** ohne Fehlermeldung |
+| Es gibt noch keinen **Geltungsbereich** | die Gültigkeitsregel des Hosts liest fast immer Fachdaten; ohne Geltungsbereich bleibt die Verbindungskonstante unaufgelöst, und sie bekommt eine **leere Verbindungszeichenfolge** |
+
+Die Aufteilung ab jetzt — **zwei Frager, zwei Fragen**:
+
+| | fragt | prüft |
+|---|---|---|
+| **Anmeldung** (`AnonymousAssetAuthenticationHandler`, `AssetDrivenClaimsTransformation`) | „ist dieses Ticket echt und gültig?" | entschlüsseln, Mandant, `NotBefore`/`NotAfter`, Widerruf, Vorlage samt `AllowAdHoc` — und den **`RootPath` des Tickets** gegen das Pfadmuster |
+| **Riegel** (`IsLegitSharedAssetPath` → `VerifyRequestLocation`, `AssetScope`) | „darf hier und jetzt etwas herausgehen?" | zusätzlich den **laufenden** Pfad und die **Gültigkeitsregel**, einmal je Vorgang |
+
+Der `RootPath` steht im Ticket, ist beim Ausstellen kanonisch gespeichert und hängt nicht an der
+laufenden Anfrage. Damit bleibt das Ticket an das gebunden, wofür es ausgestellt wurde, ohne über die
+Unterressourcen der Seite zu stolpern — und die Ortsbindung ist **nicht** bloss verschoben, sondern an
+beiden Stellen da.
+
+**Dazu eine vierte Blindstelle derselben Familie**, die im Bericht fehlt und den Fix erst tragfähig
+macht: **alles, was am `AssetKey` hängt, kannte Tickets nicht.** `VerifyRequestLocation` schlägt über
+`AssetIsAccessible` in `SharedAssets` nach — ein Ticket hat dort keine Zeile —, und
+`IsLegitSharedAssetPath` baute die Asset-Sicht über `GetAssetInfo(assetKey)`, was für ein Ticket
+`null` ergab. Der Riegel konnte den Ort für ein Ticket also gar nicht prüfen; „in den Riegel
+verschieben" war das Nachrüsten einer fehlenden Prüfung, nicht das Verschieben einer vorhandenen.
+Beide Stellen unterscheiden jetzt nach `SegmentKind`.
+
+**Breaking am Vertrag:** `ISharedAssetAdapter.GetTicketInfo` bekommt `bool forAuthentication = false`,
+`ISharedAssetContext` die Eigenschaft `AuthenticationAsset`. Betrifft euch nur bei eigener
+Implementierung. **Wer selbst authentifiziert, nimmt `AuthenticationAsset` und nicht `CurrentAsset`** —
+für eine gespeicherte Freigabe ist beides dasselbe, bei einem Ticket ist es der Unterschied zwischen
+einer Seite und einer weissen Seite.
 
 ## 56. Wer hat eine Freigabe benutzt — **Pflicht-Migration (1 Tabelle, 1 Spalte)**
 
@@ -5513,6 +5551,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 56a | **Zugriffsprotokoll** | **Pflicht-Migration**: `SharedAssetAccess` + `AssetTemplates.AuditMode` (Vorgabe `All`). Geschrieben wird je VORGANG, nicht je Anfrage; Ansicht `/Account/ShareLog` (§56) |
 | 56b | **`IAssetAccessLog`** | neu im Kern; die DB-Fassung kommt mit `UseDbSharedAssets`, sonst greift eine Null-Fassung. `ISharedAssetContext` neu `CurrentAsset`. Nur bei eigener Implementierung (§56.8) |
 | 56c | Eigene Abfragen auf `SharedAssetAccess` | die Tabelle ist **mandantenfrei** — `TenantName` selbst einschränken, sonst liest man über Mandanten hinweg (§56.6) |
+| 55f | **BEHOBEN: die Ticket-Anmeldung prüfte zu viel** | Kein Schema-Change. Ortsprüfung gegen den laufenden Pfad und Gültigkeitsregel liefen je ANFRAGE — also auch für `blazor.web.js`, CSS und Bilder, und vor Kanonisierung und Geltungsbereich: **weisse Seite** plus leere Verbindungszeichenfolge in der Gültigkeitsregel. Anmeldung prüft jetzt das Ticket samt seinem `RootPath`, der Riegel den laufenden Pfad und die Regel. **Breaking am Vertrag**: `GetTicketInfo(..., bool forAuthentication)` und `ISharedAssetContext.AuthenticationAsset`; wer selbst authentifiziert, nimmt `AuthenticationAsset` statt `CurrentAsset` (§55.10) |
 | 55d | **BEHOBEN: anonyme Tickets meldeten niemanden an** | Kein Schema-Change. `AnonymousAssetAuthenticationHandler` kannte nur `AssetKey`+`AccessToken`; bei einem Ticket sind beide `null`, also endete **jeder** anonyme Ticket-Link lautlos im 404. Der Handler löst Ticket-Abschnitte jetzt selbst über `CurrentAsset` auf, ein ungültiges Ticket ist eine Ablehnung statt `NoResult`, und der Besucher heisst `#ANONYMOUS#` — **nicht** die Nonce (§55.8) |
 | 55e | **Tickets tragen ihren Mandanten** | Kein Schema-Change, aber **alle ausgegebenen Tickets neu erzeugen**: `AssetTicket.TenantName` ist Pflicht und wird gegen den Mandanten aus der URL geprüft. Nötig, weil `EncryptForScope` ohne `Tenants.TenantPassword` auf die anwendungsweite Verschlüsselung zurückfällt — dann entschlüsselt dieselbe Nutzlast unter JEDEM Mandantennamen. Gespeicherte Freigaben sind nicht betroffen (§55.2, §55.3) |
 | 55a | **Ad-hoc-Tickets** | **Pflicht-Migration**: `RevokedAssetTicket` + `AssetTemplates.AllowAdHoc` / `MaxAdHocMinutes` / `ValidityRuleKey`. Bestehende Vorlagen erlauben KEINE Tickets (§55) |

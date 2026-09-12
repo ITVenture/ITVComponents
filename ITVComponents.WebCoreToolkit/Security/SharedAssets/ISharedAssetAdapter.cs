@@ -123,8 +123,27 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <param name="tenantName">der Mandant aus dem Abschnitt</param>
         /// <param name="payload">die verschluesselte Nutzlast</param>
         /// <param name="requestor">wer anfragt</param>
+        /// <param name="forAuthentication">
+        /// true, wenn der Aufruf aus der ANMELDUNG kommt - dann wird geprueft, was am Ticket selbst
+        /// haengt, aber nichts, was den laufenden Vorgang voraussetzt. Siehe die Bemerkung.
+        /// </param>
         /// <returns>die Angaben zur Freigabe oder null</returns>
-        AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor);
+        /// <remarks>
+        /// <b>Zwei Aufrufer mit zwei verschiedenen Fragen.</b> Die <b>Anmeldung</b> fragt „ist dieses
+        /// Ticket echt und gueltig?" - sie laeuft je ANFRAGE, also auch fuer jedes Skript, Bild und
+        /// Stylesheet einer Seite, und zu ihrem Zeitpunkt gibt es weder einen kanonischen Pfad (der
+        /// Mandanten-Praefix wird erst danach abgetrennt) noch einen Geltungsbereich. Der <b>Riegel</b>
+        /// fragt „darf hier und jetzt etwas herausgehen?" - er laeuft je VORGANG, und dort steht beides.
+        /// <para>
+        /// Deshalb bleiben im Anmeldefall die Ortspruefung gegen den laufenden Pfad und die
+        /// Gueltigkeitsregel aussen vor. An ihrer Stelle wird der <see cref="AssetTicket.RootPath"/> des
+        /// Tickets gegen das Muster der Vorlage geprueft: die Angabe steht im Ticket, ist beim Ausstellen
+        /// kanonisch gespeichert und von der laufenden Anfrage unabhaengig. Damit bleibt das Ticket an das
+        /// gebunden, wofuer es ausgestellt wurde, ohne ueber die Unterressourcen der Seite zu stolpern.
+        /// </para>
+        /// </remarks>
+        AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor,
+            bool forAuthentication = false);
 
         /// <summary>
         /// Zieht ein Ad-hoc-Ticket zurueck. Die Kennung landet auf der Sperrliste, bis das Ticket ohnehin

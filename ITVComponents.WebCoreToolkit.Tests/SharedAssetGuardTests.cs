@@ -353,7 +353,8 @@ namespace ITVComponents.WebCoreToolkit.Tests
                 return null!;
             }
 
-            public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor) => null!;
+            public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor,
+                bool forAuthentication = false) => null!;
             public bool RevokeTicket(string nonce, DateTime expiresUtc) => false;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null!;
             void ISharedAssetAdapter.SetImpersonationOff() { }

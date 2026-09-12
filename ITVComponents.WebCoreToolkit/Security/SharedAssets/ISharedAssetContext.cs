@@ -58,6 +58,22 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         AssetInfo CurrentAsset { get; }
 
         /// <summary>
+        /// Dasselbe fuer die ANMELDUNG: geprueft wird, was am Abschnitt selbst haengt, aber nichts, was den
+        /// laufenden Vorgang voraussetzt.
+        /// </summary>
+        /// <remarks>
+        /// Zur Anmeldezeit gibt es weder einen kanonischen Pfad - der Mandanten-Praefix wird erst danach
+        /// abgetrennt - noch einen Geltungsbereich, und sie laeuft je ANFRAGE statt je Vorgang, also auch
+        /// fuer jedes Skript, Bild und Stylesheet einer Seite. Wer hier <see cref="CurrentAsset"/> nimmt,
+        /// prueft die Unterressourcen gegen das Pfadmuster der Seite und bekommt eine weisse Seite.
+        /// <para>
+        /// Fuer eine gespeicherte Freigabe ist das dasselbe Ergebnis wie <see cref="CurrentAsset"/> - dort
+        /// haengt ohnehin nichts am Vorgang. Der Unterschied betrifft nur Ad-hoc-Tickets.
+        /// </para>
+        /// </remarks>
+        AssetInfo AuthenticationAsset { get; }
+
+        /// <summary>
         /// Die Auskunft an eine Seite: in welcher Freigabe laeuft das hier gerade? <b>Null, wenn keine
         /// laeuft</b> - und ebenso, wenn der Abschnitt zu keiner (mehr) gueltigen Freigabe gehoert; wo
         /// keine Rechte verliehen werden, laeuft auch nichts in einer Freigabe.

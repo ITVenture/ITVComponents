@@ -101,18 +101,75 @@ namespace ITVComponents.WebCoreToolkit.Tests
             info.Permissions = new[] { "Checkout.Use" };
             info.Features = new[] { "MiniStore.Core" };
 
-            var (context, _) = TicketContext(info);
+            var adapter = new StubAdapter(info);
+            var (context, _) = (NewContext(TicketHttpContext(), adapter), (HttpContext)null);
             var principal = new ClaimsPrincipal(new ClaimsIdentity("test"));
             var transformation = new AssetDrivenClaimsTransformation(context,
-                new StubScopeFactory(new StubServices(new StubAdapter(info))),
+                new StubScopeFactory(new StubServices(adapter)),
                 NullLogger<AssetDrivenClaimsTransformation>.Instance);
 
             var transformed = await transformation.TransformAsync(principal);
+
+            // Auch die Claims-Transformation laeuft je Anfrage - sie muss dieselbe Frage stellen wie die
+            // Anmeldung, sonst faellt jede Unterressource durch die volle Pruefung.
+            Assert.AreEqual(true, adapter.AskedForAuthentication);
 
             Assert.IsTrue(transformed.HasClaim(WebCoreToolkit.ClaimTypes.FixedAssetPermission, "Checkout.Use"));
             Assert.IsTrue(transformed.HasClaim(WebCoreToolkit.ClaimTypes.FixedAssetFeature, "MiniStore.Core"));
             Assert.IsTrue(transformed.HasClaim(WebCoreToolkit.ClaimTypes.FixedUserScope, "TenantA"),
                 "without the scope claim the visitor is in no tenant at all");
+        }
+
+        /// <summary>
+        /// BUG-PRE231: die Anmeldung lief ueber CurrentAsset und damit durch die VOLLE Pruefung - Ort
+        /// gegen den laufenden Pfad und Gueltigkeitsregel. Beides kann dort nicht stehen: der Pfad ist
+        /// noch nicht kanonisch, ein Geltungsbereich existiert nicht, und die Anmeldung laeuft je
+        /// Anfrage statt je Vorgang.
+        /// </summary>
+        [TestMethod]
+        public async Task Authentication_Asks_The_Authentication_Question_Not_The_Guard_One()
+        {
+            var adapter = new StubAdapter(TicketInfo());
+            var http = TicketHttpContext();
+            var handler = await Handler((NewContext(http, adapter), http), new StubQuery());
+
+            var result = await handler.AuthenticateAsync();
+
+            Assert.IsTrue(result.Succeeded);
+            Assert.AreEqual(true, adapter.AskedForAuthentication,
+                "the login path must not run the checks that presuppose a running operation");
+        }
+
+        /// <summary>
+        /// Der Gegenpol: der Riegel fragt weiterhin vollstaendig. Sonst waere die Ortspruefung gegen den
+        /// laufenden Pfad ersatzlos weg.
+        /// </summary>
+        [TestMethod]
+        public void The_Guard_Still_Asks_The_Full_Question()
+        {
+            var adapter = new StubAdapter(TicketInfo());
+            var context = NewContext(TicketHttpContext(), adapter);
+
+            Assert.IsNotNull(context.CurrentAsset);
+            Assert.AreEqual(false, adapter.AskedForAuthentication);
+        }
+
+        /// <summary>
+        /// Eine Unterressource der Seite - blazor.web.js, CSS, ein Bild - traegt denselben Abschnitt und
+        /// muss sich genauso anmelden. Genau daran starb die Seite: gegen das Pfadmuster DER SEITE
+        /// geprueft fielen alle durch, und uebrig blieb eine weisse Seite ohne Fehlermeldung.
+        /// </summary>
+        [TestMethod]
+        public async Task A_Sub_Resource_Of_The_Page_Authenticates_Too()
+        {
+            var adapter = new StubAdapter(TicketInfo());
+            var http = TicketHttpContext();
+            http.Request.Path = "/ADM/_framework/blazor.web.js";
+            var handler = await Handler((NewContext(http, adapter), http), new StubQuery());
+
+            var result = await handler.AuthenticateAsync();
+
+            Assert.IsTrue(result.Succeeded, "without its scripts the page stays white");
         }
 
         private static AssetInfo TicketInfo() => new()
@@ -146,12 +203,19 @@ namespace ITVComponents.WebCoreToolkit.Tests
 
         private static (ISharedAssetContext, HttpContext) TicketContext(AssetInfo ticket)
         {
+            var http = TicketHttpContext();
+            return (NewContext(http, new StubAdapter(ticket)), http);
+        }
+
+        private static DefaultHttpContext TicketHttpContext()
+        {
             var http = new DefaultHttpContext();
             http.Items[Global.SharedAssetTicketPayloadItemKey] = Payload;
             http.Items[Global.SharedAssetTicketTenantItemKey] = "TenantA";
             http.Items[Global.SharedAssetSegmentItemKey] =
                 SharedAssetPath.BuildTicketSegment("TenantA", Payload);
-            return (NewContext(http, ticket), http);
+            http.Request.Path = "/ADM/checkout/12";
+            return http;
         }
 
         private static (ISharedAssetContext, HttpContext) StoredContext()
@@ -159,12 +223,12 @@ namespace ITVComponents.WebCoreToolkit.Tests
             var http = new DefaultHttpContext();
             http.Items[Global.SharedAssetKeyItemKey] = "abc";
             http.Items[Global.SharedAssetSegmentItemKey] = SharedAssetPath.BuildSegment("abc");
-            return (NewContext(http, null), http);
+            return (NewContext(http, new StubAdapter(null)), http);
         }
 
-        private static ISharedAssetContext NewContext(HttpContext http, AssetInfo ticket)
+        private static ISharedAssetContext NewContext(HttpContext http, StubAdapter adapter)
         {
-            var services = new StubServices(new StubAdapter(ticket));
+            var services = new StubServices(adapter);
             return new SharedAssetContext(new HttpContextAccessor { HttpContext = http },
                 new StubContextUser(services),
                 Microsoft.Extensions.Options.Options.Create(new SharedAssetPathOptions()), services,
@@ -242,10 +306,15 @@ namespace ITVComponents.WebCoreToolkit.Tests
 
             public StubAdapter(AssetInfo ticket) => this.ticket = ticket;
 
-            public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor)
+            /// <summary>Wie zuletzt gefragt wurde - Anmeldung oder Riegel.</summary>
+            public bool? AskedForAuthentication { get; private set; }
+
+            public AssetInfo GetTicketInfo(string tenantName, string payload, ClaimsPrincipal requestor,
+                bool forAuthentication = false)
             {
                 Assert.AreEqual("TenantA", tenantName);
                 Assert.AreEqual(Payload, payload);
+                AskedForAuthentication = forAuthentication;
                 return ticket;
             }
 
