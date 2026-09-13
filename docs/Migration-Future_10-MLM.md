@@ -5082,11 +5082,22 @@ Stripe-Runde ist genau das Rezept für die Nebenläufigkeits-Ausnahme.
 
 ### 57.7 Feature und Berechtigungen
 
-**Feature `StripePayments`** im Feature-Katalog anlegen (Name exakt so, `Enabled = true`). Ab dann gilt:
+**Feature `StripePayments`** im Feature-Katalog anlegen (Name exakt so). Ab dann gilt:
 Ein `PlanFeature` oder `AddOnFeature` mit dem Schlüssel `StripePayments` führt über den bestehenden
 `BillingFeatureProvisioner` automatisch zur `TenantFeatureActivation` — **Achse A schaltet Achse B frei**,
 ohne eine Zeile Sonderlogik. Wer die Zahlungsanbindung verschenken will, aktiviert das Feature am Mandanten
 von Hand.
+
+**`Enabled` auf der Katalog-Zeile heisst „gilt für ALLE Mandanten", nicht „Hauptschalter an".** Wer die
+Kartenzahlung als Zusatzmodul **verkauft**, legt die Zeile mit `Enabled = false` an und lässt die
+Aktivierungen je Mandant entscheiden — das ist der Normalfall. `Enabled = true` gehört nur dorthin, wo die
+Zahlungsanbindung jedem Mandanten ohne Gegenleistung zusteht. Die Notbremse für die ganze Instanz ist
+nicht diese Spalte, sondern `StripePayments:Enabled` im GlobalSetting (§57.4).
+
+> **Bis einschliesslich `5.0.0-PRE233`** verlangte `PaymentFeatureGate` fälschlich `Enabled = true` **und**
+> eine Aktivierung und lehnte damit genau die Konfiguration eines verkauften Moduls stumm ab. Wer deswegen
+> auf `Enabled = true` ausgewichen ist, stellt die Zeile jetzt auf `false` zurück — sonst geht die Maske
+> „Auszahlungskonto" auch bei Mandanten auf, die das Modul nicht haben.
 
 Neue Berechtigungen (die Auto-Registrierung greift, sie erscheinen nach dem ersten Aufruf der Seiten):
 
@@ -5668,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 57a | **Zahlungen an den Mandanten** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: `TenantPaymentAccounts`, `TenantSales`, `TenantSaleRefunds`, `TenantFeeWaivers` + `modelBuilder.ConfigurePayments()`. Wer den Zweig nicht will, implementiert den Vertrag nicht — `IBillingContext` ist unverändert (§57.2) |
 | 57b | **Zweiter Webhook, zweites Secret** | `/billing/connect/webhook` mit `StripePayments:ConnectWebhookSecret` — **nicht** das Plattform-Secret. Zusätzlich `invoice.created` am bestehenden Plattform-Endpunkt abonnieren, wenn ihr den Gebührenerlass nutzt (§57.5) |
 | 57c | **`AddPaymentFeatureGate`** | ohne diese Registrierung wird **jeder Verkauf abgelehnt** (fail-closed). Dazu Feature `StripePayments` im Katalog anlegen und mindestens einen `ITenantSaleObserver` registrieren, sonst erfährt der Shop nie von einer Zahlung (§57.6, §57.9) |
+| 57h | **`Features.Enabled` heisst „gilt für alle"** | Kein Schema-Change, aber **Konfiguration prüfen**: `PaymentFeatureGate` verlangte bis `5.0.0-PRE233` `Enabled = true` **und** eine Aktivierung — genau die Konfiguration eines je Mandant **verkauften** Moduls (`Enabled = false` + Aktivierung) lehnte es stumm ab. Ab jetzt gilt dieselbe ODER-Regel wie in `SecureView`/`HasFeature`. Wer deshalb auf `Enabled = true` ausgewichen ist, stellt die Katalog-Zeile auf `false` zurück, sonst öffnet sich die Maske „Auszahlungskonto" auch ohne Modul. Instanzweite Notbremse bleibt `StripePayments:Enabled` (§57.7) |
 | 57d | **Rückerstattung und Provision** | Stripe gibt die Provision **nicht** von selbst zurück. Vorgabe `RefundApplicationFeeByDefault: true` — auf `false` verdient die Plattform an rückabgewickelten Geschäften und der Mandant zahlt beim Storno drauf (§57.8) |
 | 57e | Beträge in Minor Units | `AmountMinor`/`ApplicationFeeMinor` sind `long` in Rappen. Eigene Umrechnung über `CurrencyMinorUnits` — `* 100` ist für JPY, KRW, KWD und BHD still falsch (§57.3) |
 | 57f | Gebührenerlass (optional) | rückwirkend verdient, nach vorne gewährt; erster Monat nie gratis. `WaivablePlanKeys` ist fail-closed; bei `Sliding` muss `(Schwelle − Bandbeginn) × Satz ≥ Grundgebühr` gelten (§57.11) |

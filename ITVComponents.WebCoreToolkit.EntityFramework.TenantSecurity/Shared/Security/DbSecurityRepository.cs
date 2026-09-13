@@ -926,11 +926,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
                 /*EntityQueryable<Feature> mmp = (EntityQueryable<Feature>)raw;
                 logger.LogDebug(mmp.DebugView.Query);*/
+                // The OR is the rule, not a convenience: Enabled on the row means "on for EVERY tenant",
+                // an activation is the second, tenant-bound road to the same yes. Named so that every
+                // other reader of feature entitlement is one search away - see FeatureActivationExtensions.
                 return raw.Select(n => new Feature
                 {
                     FeatureName = n.T.FeatureName,
                     FeatureDescription = n.T.FeatureDescription,
-                    Enabled = n.T.Enabled || !string.IsNullOrEmpty(n.A)
+                    Enabled = FeatureActivationExtensions.IsFeatureEnabled(n.T.Enabled,
+                        !string.IsNullOrEmpty(n.A))
                 }).ToArray();
             }
             finally

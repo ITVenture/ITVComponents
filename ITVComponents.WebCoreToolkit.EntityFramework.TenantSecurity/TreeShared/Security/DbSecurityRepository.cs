@@ -1301,11 +1301,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                         from hoj in lfaj.DefaultIfEmpty()
                         select new { T = t, A = hoj.TenantName }).ToArray();
 
+                    // The OR is the rule, not a convenience: Enabled on the row means "on for EVERY tenant",
+                    // an activation is the second, tenant-bound road to the same yes. Named so that every
+                    // other reader of feature entitlement is one search away - see FeatureActivationExtensions.
                     return raw.Select(n => new Feature
                     {
                         FeatureName = n.T.FeatureName,
                         FeatureDescription = n.T.FeatureDescription,
-                        Enabled = n.T.Enabled || !string.IsNullOrEmpty(n.A)
+                        Enabled = FeatureActivationExtensions.IsFeatureEnabled(n.T.Enabled,
+                            !string.IsNullOrEmpty(n.A))
                     }).ToArray();
                 }
                 finally
