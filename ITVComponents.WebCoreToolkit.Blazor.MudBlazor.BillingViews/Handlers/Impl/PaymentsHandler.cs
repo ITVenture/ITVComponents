@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -237,7 +237,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                     TenantId = a.TenantId,
                     TenantName = names.TryGetValue(a.TenantId, out var name) ? name : null,
                     ProviderAccountId = a.ProviderAccountId,
-                    AccountType = a.AccountType,
+                    AccountType = a.DashboardType,
                     Country = a.Country,
                     ChargesEnabled = a.ChargesEnabled,
                     PayoutsEnabled = a.PayoutsEnabled,

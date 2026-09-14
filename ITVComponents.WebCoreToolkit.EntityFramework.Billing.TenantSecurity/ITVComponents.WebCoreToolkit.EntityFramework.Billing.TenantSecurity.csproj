@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -17,5 +17,9 @@
          TenantFeatureActivation rows and tracking them in BillingFeatureGrant. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
+    <!-- Fuer den Auszahlungs-Reiter im Firmenprofil (ICustomCompanyInformationHandler). Die Kante liegt
+         bewusst HIER und nicht am Kernpaket Billing: dieses Paket verbindet Billing und Mandantensicherheit
+         ohnehin schon, waehrend Billing selbst von beidem nichts wissen soll. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding\ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.csproj" />
   </ItemGroup>
 </Project>

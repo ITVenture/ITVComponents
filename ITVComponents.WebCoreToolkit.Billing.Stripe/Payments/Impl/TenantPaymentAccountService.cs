@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -15,6 +15,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Stripe;
+// Alias und nicht "using Stripe.V2.Core": eine using-Direktive importiert die TYPEN eines Namespace,
+// nicht seine verschachtelten Namespaces - "V2.Core.X" waere sonst unaufloesbar. Die Typen direkt zu
+// importieren ginge auch nicht, weil v1 und v2 dieselben Namen tragen (Account, AccountCreateOptions).
+using V2 = Stripe.V2;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 {
@@ -31,10 +35,17 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         where TContext : DbContext, IPaymentsContext
     {
         private readonly IDbContextFactory<TContext> dbFactory;
-        private readonly IStripeClient client;
+
+        /// <summary>
+        /// The CONCRETE client, not <see cref="IStripeClient"/>: the v2 services have no public constructor and
+        /// are only reachable through <c>StripeClient.V2</c>, which the interface does not carry. Everything that
+        /// still speaks v1 (sales, refunds) keeps taking the interface.
+        /// </summary>
+        private readonly StripeClient client;
+
         private readonly PaymentsRuntime runtime;
 
-        public TenantPaymentAccountService(IDbContextFactory<TContext> dbFactory, IStripeClient client,
+        public TenantPaymentAccountService(IDbContextFactory<TContext> dbFactory, StripeClient client,
             IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates)
         {
             this.dbFactory = dbFactory;
@@ -82,12 +93,22 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
             try
             {
-                var link = await new AccountLinkService(client).CreateAsync(new AccountLinkCreateOptions
+                // v2 states the purpose of the link instead of typing it: the use case carries the return and
+                // refresh addresses and names the configurations the tenant is being onboarded FOR - the same two
+                // this platform asked for when the account was created.
+                var link = await client.V2.Core.AccountLinks.CreateAsync(new V2.Core.AccountLinkCreateOptions
                 {
                     Account = account.ProviderAccountId,
-                    Type = "account_onboarding",
-                    ReturnUrl = returnUrl,
-                    RefreshUrl = refreshUrl
+                    UseCase = new V2.Core.AccountLinkCreateUseCaseOptions
+                    {
+                        Type = "account_onboarding",
+                        AccountOnboarding = new V2.Core.AccountLinkCreateUseCaseAccountOnboardingOptions
+                        {
+                            Configurations = new List<string> { "merchant", "recipient" },
+                            ReturnUrl = returnUrl,
+                            RefreshUrl = refreshUrl
+                        }
+                    }
                 }, cancellationToken: cancellationToken);
                 return link.Url;
             }
@@ -109,8 +130,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
             try
             {
-                var remote = await new AccountService(client).GetAsync(account.ProviderAccountId, cancellationToken: cancellationToken);
-                Apply(account, remote);
+                // Without Include the account comes back as its bare identity - no configurations, no
+                // requirements - and the mirror would quietly go blank on every refresh.
+                var remote = await client.V2.Core.Accounts.GetAsync(account.ProviderAccountId,
+                    new V2.Core.AccountGetOptions { Include = ConnectAccountMirror.MirroredSections },
+                    cancellationToken: cancellationToken);
+                ConnectAccountMirror.Apply(account, remote);
                 await db.SaveChangesAsync(cancellationToken);
             }
             catch (StripeException ex)
@@ -133,7 +158,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                               .FirstOrDefaultAsync(a => a.TenantId == tenantId, cancellationToken)
                           ?? throw new TenantPaymentException(PaymentErrorCodes.NoAccount, $"Tenant {tenantId} has no payout account.");
 
-            if (!string.Equals(account.AccountType, "express", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(account.DashboardType, "express", StringComparison.OrdinalIgnoreCase))
             {
                 // Standard accounts own their provider relationship and log in themselves; a login link would be
                 // refused. Null is the answer, not an error.
@@ -162,29 +187,84 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private async Task<TenantPaymentAccount> CreateAccountAsync(TContext db, int tenantId, string? email, string? country, CancellationToken cancellationToken)
         {
             var options = runtime.Options;
-            var accountType = string.IsNullOrWhiteSpace(options.AccountType) ? "express" : options.AccountType.Trim().ToLowerInvariant();
-            var accountCountry = (string.IsNullOrWhiteSpace(country) ? options.DefaultCountry : country)?.Trim().ToUpperInvariant();
+            var dashboard = string.IsNullOrWhiteSpace(options.DashboardType) ? "express" : options.DashboardType.Trim().ToLowerInvariant();
 
-            Account created;
+            // What the tenant supplied in the payout tab of its billing profile. Not required to exist - the
+            // caller may pass everything - but it is where the answers normally come from.
+            var profile = await db.TenantPaymentProfiles.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.TenantId == tenantId, cancellationToken);
+
+            var accountCountry = FirstFilled(country, profile?.Country, options.DefaultCountry)?.ToUpperInvariant();
+            var contactEmail = FirstFilled(email, profile?.ContactEmail);
+            var entityType = FirstFilled(profile?.EntityType)?.ToLowerInvariant();
+
+            // Asked here rather than let the provider refuse: its message names fields of ITS model and reaches
+            // the shop owner verbatim, who then reads about an API he has never heard of. These three are the
+            // ones v2 will not create an account without.
+            EnsureSupplied(tenantId, accountCountry, "country", "Land");
+            EnsureSupplied(tenantId, contactEmail, "contact e-mail", "Kontakt-E-Mail");
+            EnsureSupplied(tenantId, entityType, "entity type", "Rechtsform");
+
+            V2.Core.Account created;
             try
             {
-                created = await new AccountService(client).CreateAsync(new AccountCreateOptions
+                created = await client.V2.Core.Accounts.CreateAsync(new V2.Core.AccountCreateOptions
                 {
-                    Type = accountType,
-                    Country = accountCountry,
-                    Email = string.IsNullOrWhiteSpace(email) ? null : email,
-                    Capabilities = new AccountCapabilitiesOptions
+                    ContactEmail = contactEmail,
+                    DisplayName = FirstFilled(profile?.DisplayName),
+                    Dashboard = dashboard,
+                    Identity = new V2.Core.AccountCreateIdentityOptions
                     {
-                        CardPayments = new AccountCapabilitiesCardPaymentsOptions { Requested = true },
-                        Transfers = new AccountCapabilitiesTransfersOptions { Requested = true }
+                        Country = accountCountry,
+                        EntityType = entityType
                     },
-                    Metadata = new Dictionary<string, string> { ["tenantId"] = tenantId.ToString() }
+                    // The two configurations this platform needs: merchant = may take money, recipient = may be
+                    // paid out. In v1 these were capabilities on one account; in v2 they are what the account IS.
+                    Configuration = new V2.Core.AccountCreateConfigurationOptions
+                    {
+                        Merchant = new V2.Core.AccountCreateConfigurationMerchantOptions
+                        {
+                            Mcc = FirstFilled(profile?.MerchantCategoryCode),
+                            Capabilities = new V2.Core.AccountCreateConfigurationMerchantCapabilitiesOptions
+                            {
+                                CardPayments = new V2.Core.AccountCreateConfigurationMerchantCapabilitiesCardPaymentsOptions { Requested = true }
+                            }
+                        },
+                        Recipient = new V2.Core.AccountCreateConfigurationRecipientOptions
+                        {
+                            Capabilities = new V2.Core.AccountCreateConfigurationRecipientCapabilitiesOptions
+                            {
+                                // Only the transfer capability can be asked for. The payout capability is the
+                                // provider's to grant - see RequirePayoutsEnabled in the options.
+                                StripeBalance = new V2.Core.AccountCreateConfigurationRecipientCapabilitiesStripeBalanceOptions
+                                {
+                                    StripeTransfers = new V2.Core.AccountCreateConfigurationRecipientCapabilitiesStripeBalanceStripeTransfersOptions { Requested = true }
+                                }
+                            }
+                        }
+                    },
+                    Defaults = new V2.Core.AccountCreateDefaultsOptions
+                    {
+                        Currency = string.IsNullOrWhiteSpace(options.DefaultCurrency) ? null : options.DefaultCurrency.ToLowerInvariant(),
+                        Profile = string.IsNullOrWhiteSpace(profile?.BusinessUrl)
+                            ? null
+                            : new V2.Core.AccountCreateDefaultsProfileOptions { BusinessUrl = profile.BusinessUrl },
+                        // Explicit because v2 makes it explicit: who is billed the provider's fees and who carries
+                        // a chargeback. In v1 this followed from the account type without anyone deciding it.
+                        Responsibilities = new V2.Core.AccountCreateDefaultsResponsibilitiesOptions
+                        {
+                            FeesCollector = string.IsNullOrWhiteSpace(options.FeesCollector) ? "stripe" : options.FeesCollector,
+                            LossesCollector = string.IsNullOrWhiteSpace(options.LossesCollector) ? "stripe" : options.LossesCollector
+                        }
+                    },
+                    Metadata = new Dictionary<string, string> { ["tenantId"] = tenantId.ToString() },
+                    Include = ConnectAccountMirror.MirroredSections
                 }, cancellationToken: cancellationToken);
             }
             catch (StripeException ex)
             {
                 LogEnvironment.LogEvent(
-                    $"Could not create a connected account for tenant {tenantId} (type '{accountType}', country '{accountCountry}'): {ex.OutlineException()}",
+                    $"Could not create a connected account for tenant {tenantId} (dashboard '{dashboard}', country '{accountCountry}', entity type '{entityType}'): {ex.OutlineException()}",
                     LogSeverity.Error, "StripeConnect");
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
             }
@@ -193,62 +273,38 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 TenantId = tenantId,
                 ProviderAccountId = created.Id,
-                AccountType = accountType,
+                DashboardType = dashboard,
                 Created = DateTime.UtcNow
             };
-            Apply(account, created);
+            ConnectAccountMirror.Apply(account, created);
             db.TenantPaymentAccounts.Add(account);
             await db.SaveChangesAsync(cancellationToken);
             return account;
         }
 
-        /// <summary>Copies the provider's view of the account onto the local mirror.</summary>
-        internal static void Apply(TenantPaymentAccount account, Account remote)
-        {
-            account.ChargesEnabled = remote.ChargesEnabled;
-            account.PayoutsEnabled = remote.PayoutsEnabled;
-            account.DetailsSubmitted = remote.DetailsSubmitted;
-            if (!string.IsNullOrEmpty(remote.Country))
-            {
-                account.Country = remote.Country.ToUpperInvariant();
-            }
 
-            if (!string.IsNullOrEmpty(remote.DefaultCurrency))
-            {
-                account.DefaultCurrency = remote.DefaultCurrency.ToUpperInvariant();
-            }
-
-            if (!string.IsNullOrEmpty(remote.Type))
-            {
-                account.AccountType = remote.Type;
-            }
-
-            account.DisabledReason = remote.Requirements?.DisabledReason;
-            account.RequirementsJson = SerializeRequirements(remote.Requirements);
-            account.Updated = DateTime.UtcNow;
-        }
+        /// <summary>The first of these that actually holds something, or null.</summary>
+        private static string? FirstFilled(params string?[] candidates)
+            => candidates.Select(c => c?.Trim()).FirstOrDefault(c => !string.IsNullOrEmpty(c));
 
         /// <summary>
-        /// Mirrors the requirement lists as raw JSON. Deliberately not modelled: the shape belongs to the
-        /// provider and changes without notice, and everything we do with it is show it.
+        /// Refuses with a code and a sentence that names the missing entry and where to enter it, instead of
+        /// letting the provider answer in terms of its own API. The tenant reads this.
         /// </summary>
-        private static string? SerializeRequirements(AccountRequirements? requirements)
+        private static void EnsureSupplied(int tenantId, string? value, string what, string germanWhat)
         {
-            if (requirements == null)
+            if (!string.IsNullOrEmpty(value))
             {
-                return null;
+                return;
             }
 
-            return JsonSerializer.Serialize(new
-            {
-                currentlyDue = requirements.CurrentlyDue ?? new List<string>(),
-                pastDue = requirements.PastDue ?? new List<string>(),
-                eventuallyDue = requirements.EventuallyDue ?? new List<string>(),
-                pendingVerification = requirements.PendingVerification ?? new List<string>(),
-                currentDeadline = requirements.CurrentDeadline,
-                disabledReason = requirements.DisabledReason
-            });
+            LogEnvironment.LogEvent(
+                $"Tenant {tenantId} cannot get a connected account yet: '{what}' is not set. It is entered in the payout tab of the billing profile.",
+                LogSeverity.Warning, "StripeConnect");
+            throw new TenantPaymentException(PaymentErrorCodes.ProfileIncomplete,
+                $"Die Angabe '{germanWhat}' fehlt. Sie wird im Firmenprofil unter 'Auszahlungen' erfasst.");
         }
+
 
         private TenantPaymentAccountStatus ToStatus(TenantPaymentAccount account)
         {
@@ -257,7 +313,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 TenantId = account.TenantId,
                 ProviderAccountId = account.ProviderAccountId,
-                AccountType = account.AccountType,
+                AccountType = account.DashboardType,
                 Country = account.Country,
                 DefaultCurrency = account.DefaultCurrency,
                 ChargesEnabled = account.ChargesEnabled,

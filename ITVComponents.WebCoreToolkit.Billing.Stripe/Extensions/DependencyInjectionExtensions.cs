@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
+﻿using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Impl;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -46,8 +46,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Extensions
         private static IServiceCollection AddStripeBillingCore<TContext>(this IServiceCollection services)
             where TContext : DbContext, IBillingContext
         {
-            services.AddSingleton<IStripeClient>(sp =>
+            // Registered as the CONCRETE type with the interface pointing at the same instance: the v2 services
+            // (connect accounts) are only reachable through StripeClient.V2, which IStripeClient does not carry,
+            // while everything that still speaks v1 keeps resolving the interface. One client either way.
+            services.AddSingleton(sp =>
                 new StripeClient(sp.GetRequiredService<IOptions<StripeOptions>>().Value.ApiKey));
+            services.AddSingleton<IStripeClient>(sp => sp.GetRequiredService<StripeClient>());
 
             services.AddScoped<IStripeCheckoutSessionFactory, StripeCheckoutSessionFactory<TContext>>();
             services.AddScoped<IStripeBillingPortalFactory, StripeBillingPortalFactory<TContext>>();

@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
+﻿using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -30,8 +30,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
                 o.ApiKey = stripeOptions.ApiKey;
                 o.WebhookSecret = stripeOptions.WebhookSecret;
             });
-            services.TryAddSingleton<IStripeClient>(sp =>
+            // See AddStripeBilling: concrete first, interface pointing at it. TryAdd, because the other axis
+            // usually registered both already.
+            services.TryAddSingleton(sp =>
                 new StripeClient(sp.GetRequiredService<IOptions<StripeOptions>>().Value.ApiKey));
+            services.TryAddSingleton<IStripeClient>(sp => sp.GetRequiredService<StripeClient>());
             return services.AddStripePayments<TContext>();
         }
 

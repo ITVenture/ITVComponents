@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
@@ -17,6 +17,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
     public interface IPaymentsContext
     {
         DbSet<TenantPaymentAccount> TenantPaymentAccounts { get; set; }
+
+        /// <summary>
+        /// What the tenant supplied for the connected account to be created from. Separate from the account
+        /// itself: it exists before there is an account, and it outlives one that had to be thrown away.
+        /// </summary>
+        DbSet<TenantPaymentProfile> TenantPaymentProfiles { get; set; }
 
         DbSet<TenantSale> TenantSales { get; set; }
 

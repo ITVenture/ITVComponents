@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
@@ -11,8 +11,12 @@
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Only the provider-neutral billing library: the money arithmetic and the price model are pure, and
-         proving them needs neither a container nor a provider account. -->
+    <!-- The provider-neutral billing library: the money arithmetic and the price model are pure, and proving
+         them needs neither a container nor a provider account. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />
+    <!-- Und der Stripe-Teil, aber nur fuer die Spiegelung des Connect-Kontos: auch die ist eine reine
+         Abbildung, die ohne Netz und ohne Anbieter-Konto zu pruefen ist - und die einzige Stelle, an der
+         eine falsche Uebersetzung unmittelbar Geld bewegt. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Stripe\ITVComponents.WebCoreToolkit.Billing.Stripe.csproj" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -15,6 +15,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Stripe;
+// Alias und nicht "using Stripe.V2.Core": eine using-Direktive importiert die TYPEN eines Namespace,
+// nicht seine verschachtelten Namespaces - "V2.Core.X" waere sonst unaufloesbar. Die Typen direkt zu
+// importieren ginge auch nicht, weil v1 und v2 dieselben Namen tragen (Account, AccountCreateOptions).
+using V2 = Stripe.V2;
 using Stripe.Checkout;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
@@ -33,11 +37,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         where TContext : DbContext, IPaymentsContext
     {
         private readonly IDbContextFactory<TContext> dbFactory;
-        private readonly IStripeClient client;
+        /// <summary>Concrete, not the interface: the account mirror reads through <c>StripeClient.V2</c>.</summary>
+        private readonly StripeClient client;
         private readonly IGlobalSettings<StripePaymentsOptions> settings;
         private readonly TenantSaleNotifier notifier;
 
-        public StripeConnectWebhookHandler(IDbContextFactory<TContext> dbFactory, IStripeClient client,
+        public StripeConnectWebhookHandler(IDbContextFactory<TContext> dbFactory, StripeClient client,
             IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<ITenantSaleObserver> observers)
         {
             this.dbFactory = dbFactory;
@@ -56,9 +61,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             switch (stripeEvent.Type)
             {
                 case EventTypes.AccountUpdated:
+                    // The payload is not used, only its id: the event carries the account in its v1 shape, which
+                    // no longer holds what the mirror is made of (the configurations and their capabilities).
+                    // The event is the trigger; the truth is fetched.
                     if (stripeEvent.Data.Object is Account account)
                     {
-                        await MirrorAccountAsync(account, cancellationToken);
+                        await MirrorAccountAsync(account.Id, cancellationToken);
                     }
 
                     break;
@@ -96,23 +104,46 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             }
         }
 
-        /// <summary>Keeps the local account mirror in step — an account that works today can be restricted tomorrow.</summary>
-        private async Task MirrorAccountAsync(Account remote, CancellationToken cancellationToken)
+        /// <summary>
+        /// Keeps the local account mirror in step — an account that works today can be restricted tomorrow.
+        /// <para>
+        /// Takes the id and fetches the account itself instead of mirroring what the event brought. Connected
+        /// accounts are created through the v2 API, and only a v2 read returns the configurations and their
+        /// capability statuses that the mirror consists of; the v1 payload of this event would leave every one of
+        /// them empty and make a working account look dead.
+        /// </para>
+        /// </summary>
+        private async Task MirrorAccountAsync(string accountId, CancellationToken cancellationToken)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-            var local = await db.TenantPaymentAccounts.FirstOrDefaultAsync(a => a.ProviderAccountId == remote.Id, cancellationToken);
+            var local = await db.TenantPaymentAccounts.FirstOrDefaultAsync(a => a.ProviderAccountId == accountId, cancellationToken);
             if (local == null)
             {
                 // An account we never created (or one left over from the other provider mode). Nothing to
                 // mirror, but worth seeing: it usually means test and live keys were swapped.
                 LogEnvironment.LogEvent(
-                    $"Connect event for the unknown account {remote.Id} — no local payout account matches it. Ignored.",
+                    $"Connect event for the unknown account {accountId} — no local payout account matches it. Ignored.",
                     LogSeverity.Warning, "StripeConnect");
                 return;
             }
 
-            TenantPaymentAccountService<TContext>.Apply(local, remote);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                var remote = await client.V2.Core.Accounts.GetAsync(accountId,
+                    new V2.Core.AccountGetOptions { Include = ConnectAccountMirror.MirroredSections },
+                    cancellationToken: cancellationToken);
+                ConnectAccountMirror.Apply(local, remote);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (StripeException ex)
+            {
+                // The mirror stays as it was. That is the safe direction - a capability that was withdrawn keeps
+                // reading as withdrawn - but it must not be silent: the next state change is then only picked up
+                // by an explicit refresh, and nobody would know why.
+                LogEnvironment.LogEvent(
+                    $"Could not read the connected account {accountId} after its update event; the local mirror stays unchanged: {ex.OutlineException()}",
+                    LogSeverity.Error, "StripeConnect");
+            }
         }
 
         /// <summary>

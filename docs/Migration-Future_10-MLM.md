@@ -5780,3 +5780,157 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | 52 | **Aufbewahrung einschalten** (§46.7) | Kein Schema-Change, **opt-in, per Vorgabe AUS**. Der `WorkflowWorkerService` hat einen vierten, sehr langsamen Zyklus für beide Läufe; er startet nur mit `WorkflowWorkerOptions.RetentionInterval > TimeSpan.Zero` (dazu optional `RetentionDefaults` als letzte Stufe der Kette und `MaxRetentionBatch`, Vorgabe 200). **Warum aus:** das ist der einzige Lauf im Worker, der Daten **löscht** — einen solchen mitlaufen zu lassen, weil ein Paket aktualisiert wurde, wäre die falsche Richtung. Ist er aus, sagt der Worker das **einmal im Log**, damit niemand vergeblich sucht, warum seine Fristen nichts bewirken. **Merke: er fährt je UMGEBUNG, nicht je Deskriptor** (mandantengebundene Deskriptoren täten sonst alle dieselbe Arbeit) und **immer filterfrei** — mit Mandantenfilter sähe er `TenantId IS NULL` und liefe leer, ohne Meldung. Der erste Lauf kommt nach dem Intervall, nicht beim Start |
 | 53 | **Fristen bedienen** (§47) | Kein Schema-Change. Definitions-Editor: Abschnitt **Retention** (die Grenzen erscheinen erst mit dem Schalter). Validator: negative Frist und `min > max` sind **Fehler**, Grenzen ohne Erlaubnis eine **Warnung** — der Grund ist, dass die Regel an all diesen Stellen nicht wirft, sondern schweigend das Richtige tut. Neue Seite **`/Workflow/Retention`** (`Workflow.Operate`, Feature `ITVWorkflow`, lokalisiert en/de/fr/it) — **der Menüeintrag kommt aus eurer Navigations-Tabelle, den legt ihr an**. Sie zeigt je Ablauf die geltende Frist **und ihre Herkunft**, den Rahmen, und ob ein Wunsch begrenzt wurde. `IWorkflowMonitorHandler` bekommt **zwei** neue Member (`ListRetentionSettingsAsync`, `SetRetentionObjectionAsync`) — **eigene Implementierungen des Interfaces brechen**. **Merke: `AddWorkflowWebWorker` registriert gesetzte `RetentionDefaults` jetzt auch als eigenen Singleton** — betreibt ihr die Oberfläche ohne Worker im selben Prozess, registriert sie dort selbst, sonst zeigt die Ansicht „niemand hat eine Frist gesetzt", während der Worker aufräumt |
 | 54 | **Archiv-Ansicht** (§47.4) | Kein Schema-Change. Neue Seite **`/Workflow/Archive`** (`Workflow.Monitor`, Feature `ITVWorkflow`, lokalisiert en/de/fr/it) — **Menüeintrag legt ihr an**. `IWorkflowMonitorHandler` bekommt **zwei** weitere Member (`ListArchivedInstancesAsync`, `GetArchivedInstanceAsync`) — **eigene Implementierungen brechen** (zusammen mit §47 also vier neue Member). **Verhaltensänderung ohne Migration:** `WorkflowArchivedInstances` bekommt einen **Mandanten-Query-Filter** — wer eigenen Code direkt auf `db.WorkflowArchivedInstances` schreibt, sieht ab jetzt nur die Zeilen des aktiven Mandanten (die Aufräum-Läufe setzen durchgängig `IgnoreQueryFilters()`). **Merke: eigene Ansicht statt Filter in der Instanz-Liste** — sonst bräuchte jede Übersichts-Abfrage eine Union, und die Eingriffs-Knöpfe hätten dort nichts zu tun. Die Liste liest nur Spalten, die Nutzlast erst im Detail; der Dialog zeigt bewusst **keinen Graphen** (die Definition kann längst weg sein) |
+
+---
+
+## 64. Stripe Connect spricht v2 — **Pflicht-Migration (1 Tabelle, 4 Spalten), wenn ihr Achse B nutzt**
+
+Stripe legt für **neu eingerichtete** Plattformen keine `Accounts v1`-Konten mehr an. Eine Plattform, die vor
+der Umstellung entstanden ist, merkt davon nichts; die erste Installation, die ihr Stripe-Konto neu aufsetzt,
+bekommt beim ersten *Einrichten* eines Auszahlungskontos eine Absage mit Verweis auf `POST /v2/core/accounts`.
+Das Toolkit legt Connect-Konten deshalb jetzt über die v2-API an. **Ein Rückfallpfad auf v1 existiert nicht** —
+er würde genau den Installationen helfen, die ihn nicht brauchen.
+
+### 64.1 Was sich am Datenmodell ändert
+
+`TenantPaymentAccount`:
+
+| alt | neu | warum |
+|---|---|---|
+| `AccountType` (`express`/`standard`) | `DashboardType` (`express`/`full`/`none`) | v2 kennt keinen Kontotyp mehr; ein Konto ist, was seine Konfigurationen sagen, und das Dashboard folgt daraus |
+| — | `CardPaymentsStatus` | roher Status der Zahlungs-Fähigkeit: `active`/`pending`/`restricted`/`unsupported` |
+| — | `PayoutsStatus` | dasselbe für Auszahlungen |
+| — | `RequirementsDeadline` | wann die erste offene Anforderung überfällig wird |
+
+`ChargesEnabled` und `PayoutsEnabled` **bleiben** und bedeuten unverändert „darf kassieren" / „darf ausgezahlt
+werden". Sie werden strikt aus `Status == "active"` gefüllt: `pending` und `restricted` sind beide *noch nicht*,
+so verschieden sie sich für einen Menschen auch lesen. Genau dafür stehen die rohen Status daneben — die Maske
+soll „wir prüfen" von „wir brauchen etwas von Ihnen" unterscheiden können, das Bool-Feld darf es nicht
+versuchen.
+
+`DetailsSubmitted` und `DisabledReason` bleiben ebenfalls, sind aber jetzt **abgeleitet**: v2 hat für beides
+keine Entsprechung. „Angaben vollständig" heisst, dass keine Anforderung mehr auf den *Mandanten* wartet; der
+Grund kommt aus den `StatusDetails` derjenigen Fähigkeit, die gerade blockiert.
+
+SQL Server:
+
+```sql
+EXEC sp_rename 'TenantPaymentAccounts.AccountType', 'DashboardType', 'COLUMN';
+ALTER TABLE [TenantPaymentAccounts] ADD [CardPaymentsStatus] nvarchar(32) NULL;
+ALTER TABLE [TenantPaymentAccounts] ADD [PayoutsStatus] nvarchar(32) NULL;
+ALTER TABLE [TenantPaymentAccounts] ADD [RequirementsDeadline] datetime2 NULL;
+
+CREATE TABLE [TenantPaymentProfiles] (
+    [TenantPaymentProfileId] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    [TenantId] int NOT NULL,
+    [Country] nvarchar(2) NULL,
+    [EntityType] nvarchar(32) NULL,
+    [ContactEmail] nvarchar(320) NULL,
+    [DisplayName] nvarchar(256) NULL,
+    [MerchantCategoryCode] nvarchar(4) NULL,
+    [BusinessUrl] nvarchar(512) NULL,
+    [Created] datetime2 NOT NULL,
+    [Updated] datetime2 NOT NULL
+);
+CREATE UNIQUE INDEX [IX_UniqueTenantPaymentProfile] ON [TenantPaymentProfiles] ([TenantId]);
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "TenantPaymentAccounts" RENAME COLUMN "AccountType" TO "DashboardType";
+ALTER TABLE "TenantPaymentAccounts" ADD COLUMN "CardPaymentsStatus" character varying(32) NULL;
+ALTER TABLE "TenantPaymentAccounts" ADD COLUMN "PayoutsStatus" character varying(32) NULL;
+ALTER TABLE "TenantPaymentAccounts" ADD COLUMN "RequirementsDeadline" timestamp with time zone NULL;
+
+CREATE TABLE "TenantPaymentProfiles" (
+    "TenantPaymentProfileId" integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    "TenantId" integer NOT NULL,
+    "Country" character varying(2) NULL,
+    "EntityType" character varying(32) NULL,
+    "ContactEmail" character varying(320) NULL,
+    "DisplayName" character varying(256) NULL,
+    "MerchantCategoryCode" character varying(4) NULL,
+    "BusinessUrl" character varying(512) NULL,
+    "Created" timestamp with time zone NOT NULL,
+    "Updated" timestamp with time zone NOT NULL
+);
+CREATE UNIQUE INDEX "IX_UniqueTenantPaymentProfile" ON "TenantPaymentProfiles" ("TenantId");
+```
+
+> **Bestehende `acct_`-Konten laufen damit nicht weiter.** Das ist bewusst so entschieden, weil es zum
+> Zeitpunkt der Umstellung noch keine produktiven Connect-Konten gab. Wer welche hat, darf diesen Schritt
+> **nicht** ungeprüft machen: die Spiegelung liest v2-Felder, die ein v1-Konto nicht liefert.
+
+### 64.2 Was der Host im Code nachziehen muss
+
+`IPaymentsContext` hat ein neues Mitglied — **breaking**:
+
+```csharp
+public DbSet<TenantPaymentProfile> TenantPaymentProfiles { get; set; }
+```
+
+`TenantPaymentAccountService` und `StripeConnectWebhookHandler` nehmen im Konstruktor neu den **konkreten**
+`Stripe.StripeClient` statt `IStripeClient`. Grund: die v2-Services haben keinen öffentlichen Konstruktor und
+sind nur über `StripeClient.V2` erreichbar, und diese Eigenschaft trägt die Schnittstelle nicht. Wer die beiden
+über `AddStripePayments<…>()` bezieht, merkt nichts — die Registrierung legt jetzt den konkreten Client ab und
+lässt `IStripeClient` auf dieselbe Instanz zeigen. Nur wer sie von Hand konstruiert, muss nachziehen.
+
+### 64.3 Zwei neue Einstellungen in `StripePayments`
+
+```json
+{ "DashboardType": "express", "FeesCollector": "stripe", "LossesCollector": "stripe" }
+```
+
+`AccountType` heisst neu `DashboardType`. `FeesCollector` und `LossesCollector` sind **neu und eine
+Geldentscheidung**: wer die Gebühren des Anbieters bezahlt und wer eine Rückbuchung trägt. In v1 ergab sich das
+stillschweigend aus dem Kontotyp; v2 verlangt die Angabe. Die Vorgaben (`stripe`) entsprechen dem, was ein
+Express-Konto bisher tat. Mit `application` landet beides auf der **Plattform**.
+
+> **`RequirePayoutsEnabled` vor dem Einschalten prüfen.** Die Auszahlungs-Fähigkeit lässt sich bei der
+> Kontoanlage gar nicht anfordern — nur `stripe_transfers` —, ob sie je `active` meldet, entscheidet der
+> Anbieter. Auf einer Installation, wo sie stumm bleibt, sperrt diese Option jeden Laden vom Verkauf aus.
+
+### 64.4 Der Reiter „Auszahlungen" im Firmenprofil
+
+Was Stripe je Mandant braucht — Land, Rechtsform, Kontaktadresse, Anzeigename, Branchenschlüssel, Web-Adresse —
+wird **nicht** beim Onboarding erfragt, sondern im Firmenprofil nachgetragen. Anmelden und Kartenzahlung
+anbieten sind zwei verschiedene Tage; die meisten Mandanten schalten Zahlungen nie ein.
+
+Technisch ist das ein gewöhnliches Zusatzangaben-Modul (§23), `TenantPayoutProfileModule<TContext>` aus
+`EntityFramework.Billing.TenantSecurity`. Sein `AppliesTo` antwortet nur bei `Mode == Edit` mit Ja — deshalb
+erscheint es im Firmenprofil und nicht in der Anlage.
+
+**Anmelden:** eine globale `WebPlugins`-Zeile (kein Mandant, siehe §23.2), Konstruktor mit dem Scope-eigenen
+Kontext als benannter Abhängigkeit, und **eine Zeile in den generischen Parametern**:
+
+| `GenericTypeName` | `TypeExpression` |
+|---|---|
+| `TContext` | der konkrete Host-Kontext |
+
+`TContext` **braucht diese Zeile**: abgeleitet wird nur über Interfaces mit Typparametern, und `IPaymentsContext`
+ist geschlossen — dieselbe Lage wie bei `TEmployee`/`TBillingProfile` in §26 des Workflow-Leitfadens. Danach der
+Name des Plugins in die GlobalSettings:
+
+```json
+{ "Handlers": [ "…bisherige…", "PayoutProfileModule" ] }
+```
+
+Und die Berechtigung `Payments.Profile.Write` an die Rolle, die Auszahlungsdaten pflegen darf. Ohne sie ist der
+Reiter unsichtbar — und wird beim Speichern ein zweites Mal geprüft (§23.3).
+
+### 64.5 Fehlt etwas, sagt es das jetzt selbst
+
+Fehlen Land, Kontakt-E-Mail oder Rechtsform, lehnt der Dienst **vor** dem Aufruf an Stripe ab, mit dem neuen
+Code `Payments_Error_ProfileIncomplete` und einem Satz, der die fehlende Angabe nennt und wo sie erfasst wird.
+Vorher reichte Stripes Originaltext bis zum Ladeninhaber durch — der dort las, er solle etwas im Dashboard
+aktivieren, das er nicht hat.
+
+**Nachträgliche Änderungen am Reiter erreichen ein bestehendes Konto nicht.** Die Angaben fliessen genau einmal,
+bei der Anlage; das Land liegt beim Anbieter danach für immer fest. Wird der Reiter geändert, während ein Konto
+besteht, steht eine Warnung im Protokoll.
+
+> **Noch nie gegen ein echtes Stripe-Konto gelaufen.** Das galt schon für Achse B insgesamt und für den
+> v2-Weg erst recht. Zwei Annahmen stehen bis zum ersten Live-Lauf unter Vorbehalt: ob `account.updated` für
+> v2-Konten überhaupt noch gesendet wird (der Spiegel hängt daran; sonst aktualisiert er sich nur beim
+> ausdrücklichen Auffrischen), und ob die Auszahlungs-Fähigkeit ohne Anforderung aktiv wird.

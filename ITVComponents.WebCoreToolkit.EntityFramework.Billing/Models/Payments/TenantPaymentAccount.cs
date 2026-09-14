@@ -30,9 +30,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         [Required, MaxLength(256)]
         public string ProviderAccountId { get; set; } = string.Empty;
 
-        /// <summary>Account type as created at the provider (<c>express</c> / <c>standard</c>).</summary>
+        /// <summary>
+        /// Which provider dashboard this account has access to: <c>express</c>, <c>full</c> or <c>none</c>. This
+        /// is what became of the old account type - v2 accounts are described by the configurations that are
+        /// applied to them, and the dashboard follows from those rather than being chosen up front.
+        /// </summary>
         [MaxLength(32)]
-        public string AccountType { get; set; } = "express";
+        public string DashboardType { get; set; } = "express";
 
         /// <summary>
         /// ISO-3166 country the account was created in. Fixed at creation — the provider does NOT allow changing
@@ -45,14 +49,42 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         [MaxLength(3)]
         public string? DefaultCurrency { get; set; }
 
-        /// <summary>Mirror of the provider flag: the account may accept payments.</summary>
+        /// <summary>
+        /// The account may accept payments. True only while the card-payments capability reads <c>active</c> -
+        /// <c>pending</c> and <c>restricted</c> are both "not yet", and treating either as a yes would let a shop
+        /// take money the provider has not cleared it for.
+        /// </summary>
         public bool ChargesEnabled { get; set; }
 
-        /// <summary>Mirror of the provider flag: the account may receive payouts.</summary>
+        /// <summary>
+        /// The account may receive payouts. True only while the payout capability reads <c>active</c>; see the
+        /// note on <see cref="ChargesEnabled"/>.
+        /// </summary>
         public bool PayoutsEnabled { get; set; }
 
-        /// <summary>Mirror of the provider flag: the tenant finished the hosted onboarding form.</summary>
+        /// <summary>
+        /// Raw status of the card-payments capability: <c>active</c>, <c>pending</c>, <c>restricted</c> or
+        /// <c>unsupported</c>. Kept next to the boolean because the four cases read very differently to the shop
+        /// owner - "we are checking" is not "we need something from you" - and a boolean cannot tell them apart.
+        /// </summary>
+        [MaxLength(32)]
+        public string? CardPaymentsStatus { get; set; }
+
+        /// <summary>Raw status of the payout capability; see <see cref="CardPaymentsStatus"/>.</summary>
+        [MaxLength(32)]
+        public string? PayoutsStatus { get; set; }
+
+        /// <summary>
+        /// The tenant has supplied everything the provider asked for. Derived, not mirrored: v2 has no such flag,
+        /// so it is the absence of outstanding requirement entries.
+        /// </summary>
         public bool DetailsSubmitted { get; set; }
+
+        /// <summary>
+        /// The soonest moment an outstanding requirement turns overdue, or null when nothing is pending. Worth
+        /// showing: past that date the provider stops the account rather than asking again.
+        /// </summary>
+        public DateTime? RequirementsDeadline { get; set; }
 
         /// <summary>
         /// Raw mirror of the provider's outstanding/overdue requirements (JSON), for display. Deliberately not
@@ -60,7 +92,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// </summary>
         public string? RequirementsJson { get; set; }
 
-        /// <summary>Provider reason why the account is currently disabled; null when it is fine.</summary>
+        /// <summary>
+        /// Why the account cannot currently do what it should; null when it is fine. Derived, not mirrored: v2
+        /// reports the reason per capability (<c>StatusDetails.Code</c>), so this carries the code of whichever
+        /// capability is blocking - the one the shop owner has to act on.
+        /// </summary>
         [MaxLength(128)]
         public string? DisabledReason { get; set; }
 

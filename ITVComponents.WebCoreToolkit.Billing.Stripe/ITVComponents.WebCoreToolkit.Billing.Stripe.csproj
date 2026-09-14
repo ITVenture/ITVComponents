@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -18,4 +18,10 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Die Spiegelung des Connect-Kontos ist intern und soll es bleiben: sie ist keine API, sondern eine
+         Uebersetzung. Pruefbar muss sie trotzdem sein - an ihr haengt, ob ein Laden Geld annehmen darf. -->
+    <InternalsVisibleTo Include="ITVComponents.WebCoreToolkit.Billing.Test" />
+  </ItemGroup>
+
 </Project>

@@ -23,8 +23,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// </summary>
         public bool Enabled { get; set; } = true;
 
-        /// <summary>Account type for new connected accounts: <c>express</c> or <c>standard</c>.</summary>
-        public string AccountType { get; set; } = "express";
+        /// <summary>
+        /// Which provider dashboard new connected accounts get: <c>express</c>, <c>full</c> or <c>none</c>.
+        /// <para>
+        /// This replaces the old account type. Connected accounts are created through the provider's v2 API,
+        /// where an account is described by the configurations applied to it rather than by a type chosen up
+        /// front - the platform says "this account is a merchant and a recipient", and the dashboard follows.
+        /// The v1 creation path is not offered any more: the provider refuses it for every integration set up
+        /// after its cut-off, so keeping it would work on the deployments that need it least.
+        /// </para>
+        /// </summary>
+        public string DashboardType { get; set; } = "express";
 
         /// <summary>
         /// <c>direct</c> or <c>destination</c>. Only <c>direct</c> is implemented — with destination charges the
@@ -41,6 +50,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// </summary>
         public string DefaultCountry { get; set; } = "CH";
 
+        /// <summary>
+        /// Who collects the provider's fees from a connected account: <c>stripe</c> (default),
+        /// <c>application</c>, <c>application_custom</c> or <c>application_express</c>.
+        /// <para>
+        /// In v1 this followed silently from the account type; v2 makes it an explicit decision, and it is a
+        /// decision about money: with <c>application</c> the PLATFORM is billed the provider's fees and has to
+        /// get them back from the tenant itself. The default keeps the behaviour an express account had.
+        /// </para>
+        /// </summary>
+        public string FeesCollector { get; set; } = "stripe";
+
+        /// <summary>
+        /// Who carries the losses from disputes and negative balances: <c>stripe</c> (default) or
+        /// <c>application</c>. See <see cref="FeesCollector"/> - with <c>application</c> a chargeback against a
+        /// tenant lands on the platform's balance.
+        /// </summary>
+        public string LossesCollector { get; set; } = "stripe";
+
         /// <summary>How the platform's commission per sale is computed.</summary>
         public ApplicationFeeOptions ApplicationFee { get; set; } = new();
 
@@ -51,8 +78,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         public string ConnectWebhookSecret { get; set; } = string.Empty;
 
         /// <summary>
-        /// When true a sale needs <c>payouts_enabled</c>, not just <c>charges_enabled</c>. Stricter, but keeps
+        /// When true a sale needs the payout capability, not just the card-payments one. Stricter, but keeps
         /// money from piling up on an account that has no way to pay it out.
+        /// <para>
+        /// Mind the v2 asymmetry before switching this on: the payout capability cannot be REQUESTED when the
+        /// account is created - only <c>stripe_transfers</c> can - so whether it ever reads <c>active</c> is the
+        /// provider's call. On a deployment where it stays dormant, this option keeps every shop from selling.
+        /// </para>
         /// </summary>
         public bool RequirePayoutsEnabled { get; set; }
 

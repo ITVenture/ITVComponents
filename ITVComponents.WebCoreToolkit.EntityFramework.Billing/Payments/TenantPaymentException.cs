@@ -40,6 +40,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <summary>No connected account exists for the tenant yet.</summary>
         public const string NoAccount = "Payments_Error_NoAccount";
 
+        /// <summary>
+        /// The tenant has not supplied what the provider needs before an account can be created at all - country,
+        /// contact address, legal form. Its own code because it is the only one of these the tenant can fix
+        /// alone, and the view sends them to the right tab instead of showing a provider message about an API.
+        /// </summary>
+        public const string ProfileIncomplete = "Payments_Error_ProfileIncomplete";
+
         /// <summary>The connected account may not accept payments (yet).</summary>
         public const string ChargesDisabled = "Payments_Error_ChargesDisabled";
 
