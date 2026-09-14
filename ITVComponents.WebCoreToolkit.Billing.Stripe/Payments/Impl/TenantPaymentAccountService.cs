@@ -45,11 +45,19 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
         private readonly PaymentsRuntime runtime;
 
+        /// <summary>
+        /// Was die Anwendung ueber den Mandanten schon weiss. Als Auflistung und damit optional: ohne Anbieter
+        /// entsteht das Konto aus dem, was der Auszahlungs-Reiter traegt - genau wie bisher.
+        /// </summary>
+        private readonly ITenantIdentityProvider? identityProvider;
+
         public TenantPaymentAccountService(IDbContextFactory<TContext> dbFactory, StripeClient client,
-            IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates)
+            IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
+            IEnumerable<ITenantIdentityProvider> identityProviders)
         {
             this.dbFactory = dbFactory;
             this.client = client;
+            identityProvider = identityProviders.FirstOrDefault();
             // Resolved as a collection so a missing gate is an empty set instead of a container failure — the
             // runtime then answers "not entitled", which is the safe direction.
             runtime = new PaymentsRuntime(settings, featureGates.FirstOrDefault());
@@ -194,13 +202,21 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             var profile = await db.TenantPaymentProfiles.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.TenantId == tenantId, cancellationToken);
 
+            // Was anderswo schon steht: Firmenname, Adresse, Telefon, Steuernummer, und - wenn auffindbar - der
+            // Mensch, den der Anbieter als Verantwortlichen sehen will. Jedes Feld, das hier mitgeht, muss der
+            // Ladeninhaber drueben nicht noch einmal eintippen.
+            var known = identityProvider == null
+                ? null
+                : await identityProvider.GetIdentityAsync(tenantId, cancellationToken);
+
             var accountCountry = FirstFilled(country, profile?.Country, options.DefaultCountry)?.ToUpperInvariant();
-            var contactEmail = FirstFilled(email, profile?.ContactEmail);
+            var contactEmail = FirstFilled(email, profile?.ContactEmail, known?.Person?.Email);
             var entityType = FirstFilled(profile?.EntityType)?.ToLowerInvariant();
 
             // Asked here rather than let the provider refuse: its message names fields of ITS model and reaches
             // the shop owner verbatim, who then reads about an API he has never heard of. These three are the
             // ones v2 will not create an account without.
+            EnsureConfigurationServable(tenantId, dashboard, options);
             EnsureSupplied(tenantId, accountCountry, "country", "Land");
             EnsureSupplied(tenantId, contactEmail, "contact e-mail", "Kontakt-E-Mail");
             EnsureSupplied(tenantId, entityType, "entity type", "Rechtsform");
@@ -211,12 +227,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 created = await client.V2.Core.Accounts.CreateAsync(new V2.Core.AccountCreateOptions
                 {
                     ContactEmail = contactEmail,
-                    DisplayName = FirstFilled(profile?.DisplayName),
+                    DisplayName = FirstFilled(profile?.DisplayName, known?.CompanyName),
+                    ContactPhone = FirstFilled(known?.Phone),
                     Dashboard = dashboard,
                     Identity = new V2.Core.AccountCreateIdentityOptions
                     {
                         Country = accountCountry,
-                        EntityType = entityType
+                        EntityType = entityType,
+                        // Structure wird BEWUSST nicht gesetzt: die Liste hat 26 Rechtsformen, und aus
+                        // "Firma oder Einzelperson" laesst sich keine davon ableiten - eine GmbH und ein Verein
+                        // sind beide eine Firma. Geraten kostet eine Pruefrunde; gefragt wird ohnehin.
+                        BusinessDetails = BusinessDetails(known, accountCountry),
+                        Individual = Individual(known, accountCountry)
                     },
                     // The two configurations this platform needs: merchant = may take money, recipient = may be
                     // paid out. In v1 these were capabilities on one account; in v2 they are what the account IS.
@@ -224,7 +246,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     {
                         Merchant = new V2.Core.AccountCreateConfigurationMerchantOptions
                         {
-                            Mcc = FirstFilled(profile?.MerchantCategoryCode),
+                            // Kein Mcc: den ermittelt der Anbieter aus der Branche, die der Mandant in
+                            // dessen Onboarding-Formular angibt. Das trifft es zuverlaessiger als ein Code,
+                            // den ein Ladeninhaber raten muesste - und ein falscher kostet eine Pruefrunde.
                             Capabilities = new V2.Core.AccountCreateConfigurationMerchantCapabilitiesOptions
                             {
                                 CardPayments = new V2.Core.AccountCreateConfigurationMerchantCapabilitiesCardPaymentsOptions { Requested = true }
@@ -286,6 +310,131 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// <summary>The first of these that actually holds something, or null.</summary>
         private static string? FirstFilled(params string?[] candidates)
             => candidates.Select(c => c?.Trim()).FirstOrDefault(c => !string.IsNullOrEmpty(c));
+
+        /// <summary>
+        /// Was der Anbieter ueber das Unternehmen erfahren soll, aus dem, was das Firmenprofil schon traegt.
+        /// <para>
+        /// NICHT dabei: die Rechtsform (<c>Structure</c>) und die Steuernummer. Beide haben dieselbe Falle wie
+        /// der Branchenschluessel - <c>Structure</c> kennt 26 Werte, aus denen "Firma oder Einzelperson" keinen
+        /// bestimmt, und die Steuernummer verlangt einen laenderspezifischen Typ (<c>ch_vat</c>, <c>de_vat</c>,
+        /// …), den man aus dem Land nur RATEN koennte. Geraten kostet hier eine Pruefrunde beim Anbieter, also
+        /// genau das, was das Vorbelegen ersparen soll. Der Anbieter fragt beides ohnehin.
+        /// </para>
+        /// </summary>
+        private static V2.Core.AccountCreateIdentityBusinessDetailsOptions? BusinessDetails(TenantIdentity? known,
+            string? country)
+        {
+            if (known?.CompanyName == null && known?.Address == null && known?.Phone == null)
+            {
+                return null;
+            }
+
+            return new V2.Core.AccountCreateIdentityBusinessDetailsOptions
+            {
+                RegisteredName = known.CompanyName,
+                Phone = known.Phone,
+                Address = BusinessAddress(known.Address, country)
+            };
+        }
+
+        /// <summary>
+        /// Die Person, die der Anbieter als Verantwortliche sehen will - der Eigentuemer des Mandanten, soweit
+        /// ueber ihn mehr bekannt ist als seine Adresse.
+        /// </summary>
+        private static V2.Core.AccountCreateIdentityIndividualOptions? Individual(TenantIdentity? known,
+            string? country)
+        {
+            var person = known?.Person;
+            if (person == null || (person.GivenName == null && person.Surname == null))
+            {
+                // Nur eine E-Mail-Adresse macht noch keine Person. Einen halben Datensatz zu senden hiesse, dem
+                // Anbieter eine Person ohne Namen zu melden - er fragte sofort nach.
+                return null;
+            }
+
+            return new V2.Core.AccountCreateIdentityIndividualOptions
+            {
+                GivenName = person.GivenName,
+                Surname = person.Surname,
+                Email = person.Email,
+                Phone = person.Phone,
+                Address = IndividualAddress(known!.Address, country)
+            };
+        }
+
+        /// <summary>
+        /// Die Adresse fuer den Anbieter. Der Typ heisst <c>AddressJapanOptions</c> und traegt deshalb neben den
+        /// ueblichen Feldern auch <c>Town</c> - er ist der gemeinsame Adresstyp der v2-Identitaet, nicht etwa auf
+        /// Japan beschraenkt. Nicht daran stoeren, und vor allem nicht "korrigieren".
+        /// </summary>
+        private static AddressJapanOptions? BusinessAddress(PostalAddress? address, string? country)
+            => address == null
+                ? null
+                : new AddressJapanOptions
+                {
+                    Line1 = StreetLine(address),
+                    Line2 = address.Addition,
+                    PostalCode = address.Zip,
+                    City = address.City,
+                    Country = country
+                };
+
+        /// <summary>Dieselbe Adresse fuer die Person - siehe <see cref="BusinessAddress"/>.</summary>
+        private static AddressJapanOptions? IndividualAddress(PostalAddress? address, string? country)
+            => address == null
+                ? null
+                : new AddressJapanOptions
+                {
+                    Line1 = StreetLine(address),
+                    Line2 = address.Addition,
+                    PostalCode = address.Zip,
+                    City = address.City,
+                    Country = country
+                };
+
+        /// <summary>
+        /// Strasse und Hausnummer in einer Zeile. Das Toolkit fuehrt sie getrennt, der Anbieter erwartet die
+        /// Zeile, wie sie auf einem Briefumschlag steht.
+        /// </summary>
+        private static string? StreetLine(PostalAddress address)
+            => FirstFilled(string.Join(" ", new[] { address.Street, address.Number }
+                .Where(p => !string.IsNullOrWhiteSpace(p))));
+
+        /// <summary>
+        /// Refuses the ONE combination the provider does not serve on the API version this SDK speaks: an
+        /// express dashboard together with the provider carrying the losses.
+        /// <para>
+        /// Each half is generally available; only together are they in public preview, and a preview needs the
+        /// preview API version. That version cannot be asked for from here - Stripe.net pins it
+        /// (<c>StripeConfiguration.ApiVersion</c> has no setter, <c>RequestOptions.StripeVersion</c> is
+        /// internal), and only the beta package carries it. So this is a wait, not a switch: once the
+        /// combination goes generally available, a later stable SDK serves it and nothing here has to change.
+        /// </para>
+        /// <para>
+        /// Caught BEFORE the call, because the provider answers it with "This account configuration is not
+        /// supported" - a sentence that names neither which of the two settings is at fault nor that a third
+        /// option exists, and that would travel all the way to the shop owner.
+        /// </para>
+        /// </summary>
+        private static void EnsureConfigurationServable(int tenantId, string dashboard, StripePaymentsOptions options)
+        {
+            var losses = string.IsNullOrWhiteSpace(options.LossesCollector) ? "stripe" : options.LossesCollector.Trim().ToLowerInvariant();
+            if (!string.Equals(dashboard, "express", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(losses, "stripe", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Refusing to create a connected account for tenant {tenantId}: DashboardType 'express' together with LossesCollector 'stripe' is only served on a preview API version, which this SDK cannot request. Either set LossesCollector to 'application' (the PLATFORM then carries negative balances - a liability, not a setting), or set DashboardType to 'full' (the provider keeps the liability, but the tenant gets a full account and signs in there itself; the dashboard link stops working). See Migration-Future_10-MLM.md 64.7.",
+                LogSeverity.Error, "StripeConnect");
+
+            throw new TenantPaymentException(PaymentErrorCodes.UnsupportedAccountConfiguration,
+                "Die eingestellte Kombination aus Express-Dashboard und Haftung beim Anbieter wird derzeit nur "
+                + "auf einer Vorschau-Version angeboten. Entweder traegt die Plattform die Haftung "
+                + "(LossesCollector = application) oder der Mandant bekommt ein vollwertiges Konto "
+                + "(DashboardType = full). Beides ist eine Entscheidung, keine Panne.");
+        }
 
         /// <summary>
         /// Refuses with a code and a sentence that names the missing entry and where to enter it, instead of

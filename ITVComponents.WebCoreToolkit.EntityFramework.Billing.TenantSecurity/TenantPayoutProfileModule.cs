@@ -113,12 +113,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 },
                 new()
                 {
-                    Name = nameof(TenantPaymentProfile.MerchantCategoryCode),
-                    Label = "{\"en\":\"Merchant category code\",\"de\":\"Branchenschluessel\"}",
-                    HelpText = "{\"en\":\"Four digits describing what is sold. Supplying it here saves a round trip through the provider's form.\",\"de\":\"Vier Ziffern, die beschreiben, was verkauft wird. Hier erfasst, erspart es einen Umweg ueber das Formular des Anbieters.\"}"
-                },
-                new()
-                {
                     Name = nameof(TenantPaymentProfile.BusinessUrl),
                     Label = "{\"en\":\"Web address of the shop\",\"de\":\"Web-Adresse des Ladens\"}",
                     HelpText = "{\"en\":\"Part of what the provider verifies the business against.\",\"de\":\"Teil dessen, woran der Anbieter das Unternehmen prueft.\"}"
@@ -141,14 +135,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 return Task.FromResult(CustomInfoValidation.Failed(
                     "{\"en\":\"The country is an ISO code of two letters, e.g. CH.\",\"de\":\"Das Land ist ein ISO-Code aus zwei Buchstaben, z.B. CH.\"}",
                     nameof(TenantPaymentProfile.Country)));
-            }
-
-            var mcc = Value(values, nameof(TenantPaymentProfile.MerchantCategoryCode));
-            if (mcc.Length != 0 && (mcc.Length != 4 || !mcc.All(char.IsDigit)))
-            {
-                return Task.FromResult(CustomInfoValidation.Failed(
-                    "{\"en\":\"The merchant category code consists of exactly four digits.\",\"de\":\"Der Branchenschluessel besteht aus genau vier Ziffern.\"}",
-                    nameof(TenantPaymentProfile.MerchantCategoryCode)));
             }
 
             var url = Value(values, nameof(TenantPaymentProfile.BusinessUrl));
@@ -180,7 +166,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 [nameof(TenantPaymentProfile.EntityType)] = profile.EntityType,
                 [nameof(TenantPaymentProfile.ContactEmail)] = profile.ContactEmail,
                 [nameof(TenantPaymentProfile.DisplayName)] = profile.DisplayName,
-                [nameof(TenantPaymentProfile.MerchantCategoryCode)] = profile.MerchantCategoryCode,
                 [nameof(TenantPaymentProfile.BusinessUrl)] = profile.BusinessUrl
             };
         }
@@ -203,7 +188,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             profile.EntityType = Nullable(Value(values, nameof(TenantPaymentProfile.EntityType))?.ToLowerInvariant());
             profile.ContactEmail = Nullable(Value(values, nameof(TenantPaymentProfile.ContactEmail)));
             profile.DisplayName = Nullable(Value(values, nameof(TenantPaymentProfile.DisplayName)));
-            profile.MerchantCategoryCode = Nullable(Value(values, nameof(TenantPaymentProfile.MerchantCategoryCode)));
             profile.BusinessUrl = Nullable(Value(values, nameof(TenantPaymentProfile.BusinessUrl)));
             profile.Updated = DateTime.UtcNow;
 

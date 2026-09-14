@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
@@ -19,6 +20,8 @@ using Stripe;
 // nicht seine verschachtelten Namespaces - "V2.Core.X" waere sonst unaufloesbar. Die Typen direkt zu
 // importieren ginge auch nicht, weil v1 und v2 dieselben Namen tragen (Account, AccountCreateOptions).
 using V2 = Stripe.V2;
+// Aus demselben Grund: Stripe.Events ist ein verschachtelter Namespace.
+using Events = Stripe.Events;
 using Stripe.Checkout;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
@@ -55,15 +58,28 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         public async Task HandleAsync(string payload, string signatureHeader, CancellationToken cancellationToken = default)
         {
             var options = settings.Value;
+
+            // Two generations arrive at this endpoint. Sales and refunds are v1 events and stay that way; the
+            // connected ACCOUNT is created through v2 and reports itself through v2 event notifications, which
+            // are a different shape with a different parser. The payload says which it is - v1 carries
+            // "object": "event", v2 carries "object": "v2.core.event" - and guessing by trying one parser and
+            // catching its exception would swallow a genuine signature failure along the way.
+            if (IsV2Notification(payload))
+            {
+                await HandleAccountNotificationAsync(payload, signatureHeader, options, cancellationToken);
+                return;
+            }
+
             var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, options.ConnectWebhookSecret);
             var accountId = stripeEvent.Account;
 
             switch (stripeEvent.Type)
             {
                 case EventTypes.AccountUpdated:
-                    // The payload is not used, only its id: the event carries the account in its v1 shape, which
-                    // no longer holds what the mirror is made of (the configurations and their capabilities).
-                    // The event is the trigger; the truth is fetched.
+                    // Kept although connected accounts are v2 now and report through v2 notifications: should
+                    // the provider still emit this for a v2 account, it is a perfectly good trigger. The payload
+                    // is not used, only its id - it carries the account in its v1 shape, which no longer holds
+                    // what the mirror is made of. The event is the trigger; the truth is fetched.
                     if (stripeEvent.Data.Object is Account account)
                     {
                         await MirrorAccountAsync(account.Id, cancellationToken);
@@ -103,6 +119,113 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     break;
             }
         }
+
+        /// <summary>
+        /// Ist diese Nutzlast ein v2-Ereignis? Entschieden am Feld <c>object</c>, ohne die Signatur zu pruefen -
+        /// das tut gleich der richtige Parser. Gelesen wird nur dieses eine Feld; alles andere waere doppelte
+        /// Arbeit an einer Nachricht, die vielleicht gar nicht echt ist.
+        /// </summary>
+        private static bool IsV2Notification(string payload)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(payload);
+                return doc.RootElement.TryGetProperty("object", out var kind)
+                       && kind.ValueKind == JsonValueKind.String
+                       && kind.GetString()?.StartsWith("v2.", StringComparison.Ordinal) == true;
+            }
+            catch (JsonException ex)
+            {
+                // Keine gueltige JSON-Nutzlast. Der v1-Weg lehnt sie gleich ab; hier faellt nur die Entscheidung,
+                // welcher Weg das tut - aber stillschweigend darf das nicht passieren.
+                LogEnvironment.LogEvent(
+                    $"Could not read the connect webhook payload well enough to tell v1 from v2; treating it as v1: {ex.OutlineException()}",
+                    LogSeverity.Warning, "StripeConnect");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Verarbeitet ein v2-Ereignis zum verbundenen Konto.
+        /// <para>
+        /// v2-Ereignisse sind duenn: sie tragen nur einen Verweis auf das betroffene Objekt, nicht das Objekt
+        /// selbst. Das passt hier gut, weil der Spiegel das Konto ohnehin selbst liest - es aendert sich nur,
+        /// woran der Ausloeser erkannt wird. Dass es SO viele Ereignisarten gibt, liegt daran, dass v2 je
+        /// Abschnitt des Kontos meldet; unsere Antwort ist auf alle dieselbe.
+        /// </para>
+        /// </summary>
+        private async Task HandleAccountNotificationAsync(string payload, string signatureHeader,
+            StripePaymentsOptions options, CancellationToken cancellationToken)
+        {
+            // Ein v2-Ereignisziel hat sein eigenes Geheimnis. Wer beides auf denselben Endpunkt legt und
+            // dasselbe Geheimnis benutzt, kommt ohne die zweite Einstellung aus - deshalb der Rueckfall.
+            var secret = string.IsNullOrWhiteSpace(options.ConnectV2WebhookSecret)
+                ? options.ConnectWebhookSecret
+                : options.ConnectV2WebhookSecret;
+
+            V2.Core.EventNotification notification;
+            try
+            {
+                notification = client.ParseEventNotification(payload, signatureHeader, secret);
+            }
+            catch (StripeException ex)
+            {
+                // Eine abgelehnte Signatur ist entweder ein falsch eingetragenes Geheimnis oder etwas, das gar
+                // nicht von Stripe kommt. Beides muss man sehen koennen - und die haeufigste Ursache benennen.
+                LogEnvironment.LogEvent(
+                    $"A v2 connect notification could not be verified. Check that the event destination's signing secret is in StripePayments.ConnectV2WebhookSecret - it is NOT the same secret as the v1 connect endpoint: {ex.OutlineException()}",
+                    LogSeverity.Error, "StripeConnect");
+                throw;
+            }
+
+            if (IsAccountClosed(notification))
+            {
+                await MarkDisconnectedAsync(AccountIdOf(notification), cancellationToken);
+                return;
+            }
+
+            var accountId = AccountIdOf(notification);
+            if (string.IsNullOrEmpty(accountId))
+            {
+                // Etwas, das dieses Toolkit nicht auswertet - Personen, Ereignisziel-Pings, spaeter
+                // Hinzugekommenes. Kein Fehler, aber nachvollziehbar, damit "es passiert nichts" eine Ursache hat.
+                LogEnvironment.LogEvent(
+                    $"v2 connect notification '{notification.Type}' carries no connected account this toolkit mirrors; ignored.",
+                    LogSeverity.Report, "StripeConnect");
+                return;
+            }
+
+            await MirrorAccountAsync(accountId, cancellationToken);
+        }
+
+        /// <summary>
+        /// Die Kennung des betroffenen Kontos. Der Verweis sitzt erst an den abgeleiteten Arten, nicht an der
+        /// Basis - darum die Aufzaehlung. Ausgeschrieben und nicht ueber Reflexion: so faellt beim Uebersetzen
+        /// auf, wenn eine Art wegfaellt, statt im Betrieb als ausbleibende Aktualisierung.
+        /// </summary>
+        private static string? AccountIdOf(V2.Core.EventNotification notification) => notification switch
+        {
+            Events.V2CoreAccountUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountClosedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingConfigurationMerchantUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingConfigurationMerchantCapabilityStatusUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingConfigurationRecipientUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingConfigurationRecipientCapabilityStatusUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingRequirementsUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingFutureRequirementsUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingIdentityUpdatedEventNotification n => n.RelatedObject?.Id,
+            Events.V2CoreAccountIncludingDefaultsUpdatedEventNotification n => n.RelatedObject?.Id,
+            _ => null
+        };
+
+        /// <summary>Ein geschlossenes Konto ist fuer uns dasselbe wie ein getrenntes: es kassiert nichts mehr.</summary>
+        private static bool IsAccountClosed(V2.Core.EventNotification notification)
+            => notification is Events.V2CoreAccountClosedEventNotification;
 
         /// <summary>
         /// Keeps the local account mirror in step — an account that works today can be restricted tomorrow.

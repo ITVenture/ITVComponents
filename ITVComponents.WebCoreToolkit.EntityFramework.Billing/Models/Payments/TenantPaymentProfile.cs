@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +14,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
     /// thrown away, and it exists before there is any account at all.
     /// </para>
     /// <para>
+    /// Der Branchenschluessel (MCC) steht bewusst NICHT hier: den ermittelt der Anbieter selbst aus der
+    /// Branche, die der Mandant in dessen eigenem Onboarding-Formular angibt - in seiner Sprache und mit
+    /// dessen Auswahlliste. Ein von der Plattform gesetzter Code wird ohnehin gegengeprueft, und hat der
+    /// Anbieter ihn einmal korrigiert, laesst er sich von hier aus nicht mehr aendern.
+    /// </para>
+    /// <para>
     /// Only what is genuinely missing lives here. Name, e-mail, phone, address and VAT number are already on the
     /// billing profile and are read from there - duplicating them would mean two truths about the same company
     /// and a second place to keep current. Like the rest of Billing, <see cref="TenantId"/> is a plain logical
@@ -23,6 +29,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
     [Index(nameof(TenantId), IsUnique = true, Name = "IX_UniqueTenantPaymentProfile")]
     public class TenantPaymentProfile
     {
+        /// <summary>Surrogate key.</summary>
         [Key]
         public int TenantPaymentProfileId { get; set; }
 
@@ -62,21 +69,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         public string? DisplayName { get; set; }
 
         /// <summary>
-        /// Merchant category code (four digits) describing what is being sold. The provider asks for it during
-        /// verification; supplying it up front saves the tenant a round trip through the hosted form.
-        /// </summary>
-        [MaxLength(4)]
-        public string? MerchantCategoryCode { get; set; }
-
-        /// <summary>
         /// The publicly reachable address of the shop. Part of what the provider verifies a business against;
         /// without it the hosted form asks for it.
         /// </summary>
         [MaxLength(512)]
         public string? BusinessUrl { get; set; }
 
+        /// <summary>When the tenant first supplied payout data.</summary>
         public DateTime Created { get; set; }
 
+        /// <summary>When it was last changed.</summary>
         public DateTime Updated { get; set; }
     }
 }

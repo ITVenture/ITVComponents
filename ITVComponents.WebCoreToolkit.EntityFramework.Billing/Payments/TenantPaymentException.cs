@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 {
@@ -76,5 +76,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
         /// <summary>A configured charge type other than direct charges, which is not implemented.</summary>
         public const string UnsupportedChargeType = "Payments_Error_UnsupportedChargeType";
+
+        /// <summary>
+        /// The configured combination of dashboard and liability is one the provider only serves on a preview
+        /// API version, which this SDK cannot be asked for. Its own code because the remedy is a configuration
+        /// decision with money attached - not something a retry or a support ticket fixes.
+        /// </summary>
+        public const string UnsupportedAccountConfiguration = "Payments_Error_UnsupportedAccountConfiguration";
     }
 }

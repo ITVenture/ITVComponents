@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using ITVComponents.WebCoreToolkit.Configuration;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
@@ -76,6 +76,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// secret — mixing connect events into the platform endpoint would mean trying both secrets blindly.
         /// </summary>
         public string ConnectWebhookSecret { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Signing secret of the v2 EVENT DESTINATION (<c>whsec_...</c>). Empty falls back to
+        /// <see cref="ConnectWebhookSecret"/>.
+        /// <para>
+        /// A second secret because v2 is a second subscription: connected accounts are created through the v2
+        /// API and report themselves through v2 event notifications, which the provider delivers to an event
+        /// destination of its own with its own secret. Without this, the account mirror never learns that a shop
+        /// was restricted - and a shop that may no longer take money would keep selling until someone opens its
+        /// page. The fallback covers the setup where both point at the same endpoint with the same secret.
+        /// </para>
+        /// </summary>
+        public string ConnectV2WebhookSecret { get; set; } = string.Empty;
 
         /// <summary>
         /// When true a sale needs the payout capability, not just the card-payments one. Stricter, but keeps

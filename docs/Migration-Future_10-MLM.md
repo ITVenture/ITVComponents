@@ -5783,7 +5783,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 ---
 
-## 64. Stripe Connect spricht v2 — **Pflicht-Migration (1 Tabelle, 4 Spalten), wenn ihr Achse B nutzt**
+## 64. Stripe Connect spricht v2 — **Pflicht-Migration (1 Tabelle, 4 Spalten) + ein neues Ereignisziel, wenn ihr Achse B nutzt**
 
 Stripe legt für **neu eingerichtete** Plattformen keine `Accounts v1`-Konten mehr an. Eine Plattform, die vor
 der Umstellung entstanden ist, merkt davon nichts; die erste Installation, die ihr Stripe-Konto neu aufsetzt,
@@ -5827,7 +5827,6 @@ CREATE TABLE [TenantPaymentProfiles] (
     [EntityType] nvarchar(32) NULL,
     [ContactEmail] nvarchar(320) NULL,
     [DisplayName] nvarchar(256) NULL,
-    [MerchantCategoryCode] nvarchar(4) NULL,
     [BusinessUrl] nvarchar(512) NULL,
     [Created] datetime2 NOT NULL,
     [Updated] datetime2 NOT NULL
@@ -5850,7 +5849,6 @@ CREATE TABLE "TenantPaymentProfiles" (
     "EntityType" character varying(32) NULL,
     "ContactEmail" character varying(320) NULL,
     "DisplayName" character varying(256) NULL,
-    "MerchantCategoryCode" character varying(4) NULL,
     "BusinessUrl" character varying(512) NULL,
     "Created" timestamp with time zone NOT NULL,
     "Updated" timestamp with time zone NOT NULL
@@ -5876,10 +5874,11 @@ sind nur über `StripeClient.V2` erreichbar, und diese Eigenschaft trägt die Sc
 über `AddStripePayments<…>()` bezieht, merkt nichts — die Registrierung legt jetzt den konkreten Client ab und
 lässt `IStripeClient` auf dieselbe Instanz zeigen. Nur wer sie von Hand konstruiert, muss nachziehen.
 
-### 64.3 Zwei neue Einstellungen in `StripePayments`
+### 64.3 Neue Einstellungen in `StripePayments`
 
 ```json
-{ "DashboardType": "express", "FeesCollector": "stripe", "LossesCollector": "stripe" }
+{ "DashboardType": "express", "FeesCollector": "stripe", "LossesCollector": "stripe",
+  "ConnectV2WebhookSecret": "whsec_…" }
 ```
 
 `AccountType` heisst neu `DashboardType`. `FeesCollector` und `LossesCollector` sind **neu und eine
@@ -5887,13 +5886,21 @@ Geldentscheidung**: wer die Gebühren des Anbieters bezahlt und wer eine Rückbu
 stillschweigend aus dem Kontotyp; v2 verlangt die Angabe. Die Vorgaben (`stripe`) entsprechen dem, was ein
 Express-Konto bisher tat. Mit `application` landet beides auf der **Plattform**.
 
+> **`DashboardType = "express"` und `LossesCollector = "stripe"` vertragen sich derzeit NICHT miteinander** —
+> jede Einstellung für sich schon, die Kombination nur auf einer Vorschau-Version. Warum das kein Schalter
+> ist und welche zwei Auswege es gibt, steht in 64.7. Das Toolkit lehnt die Kombination ab, bevor der Aufruf
+> rausgeht.
+
+`ConnectV2WebhookSecret` ist das Geheimnis des v2-Ereignisziels — siehe 64.6. Ohne das Ziel merkt der
+lokale Spiegel nicht mehr, wenn Stripe einem Laden die Zahlungsfähigkeit entzieht.
+
 > **`RequirePayoutsEnabled` vor dem Einschalten prüfen.** Die Auszahlungs-Fähigkeit lässt sich bei der
 > Kontoanlage gar nicht anfordern — nur `stripe_transfers` —, ob sie je `active` meldet, entscheidet der
 > Anbieter. Auf einer Installation, wo sie stumm bleibt, sperrt diese Option jeden Laden vom Verkauf aus.
 
 ### 64.4 Der Reiter „Auszahlungen" im Firmenprofil
 
-Was Stripe je Mandant braucht — Land, Rechtsform, Kontaktadresse, Anzeigename, Branchenschlüssel, Web-Adresse —
+Was Stripe je Mandant braucht — Land, Rechtsform, Kontaktadresse, Anzeigename, Web-Adresse —
 wird **nicht** beim Onboarding erfragt, sondern im Firmenprofil nachgetragen. Anmelden und Kartenzahlung
 anbieten sind zwei verschiedene Tage; die meisten Mandanten schalten Zahlungen nie ein.
 
@@ -5919,6 +5926,13 @@ Name des Plugins in die GlobalSettings:
 Und die Berechtigung `Payments.Profile.Write` an die Rolle, die Auszahlungsdaten pflegen darf. Ohne sie ist der
 Reiter unsichtbar — und wird beim Speichern ein zweites Mal geprüft (§23.3).
 
+> **Der Branchenschlüssel (MCC) wird bewusst NICHT erfasst.** Stripe ermittelt ihn selbst — aus der Branche,
+> die der Ladeninhaber in Stripes eigenem Onboarding-Formular angibt, in seiner Sprache und mit dessen
+> Auswahlliste. Das trifft es zuverlässiger als ein vierstelliger Code, den niemand für sein eigenes
+> Unternehmen auswendig kennt. Dazu kommt: ein von der Plattform gesetzter MCC wird ohnehin gegengeprüft, und
+> hat Stripe ihn einmal korrigiert, **lässt er sich von der Plattform nicht mehr ändern** — ein Versuch ist ein
+> Fehler. Einen Lookup gibt es anbieterseitig nicht; die Liste steht nur in der Dokumentation.
+
 ### 64.5 Fehlt etwas, sagt es das jetzt selbst
 
 Fehlen Land, Kontakt-E-Mail oder Rechtsform, lehnt der Dienst **vor** dem Aufruf an Stripe ab, mit dem neuen
@@ -5930,7 +5944,147 @@ aktivieren, das er nicht hat.
 bei der Anlage; das Land liegt beim Anbieter danach für immer fest. Wird der Reiter geändert, während ein Konto
 besteht, steht eine Warnung im Protokoll.
 
+### 64.6 Das v2-Ereignisziel — **ohne das bleibt der Spiegel stehen**
+
+Ein v2-Konto meldet sich **nicht** mehr über `account.updated`. Stripes eigene Dokumentation nennt für
+Accounts v2 ausdrücklich `v2.core.account[configuration.merchant].updated` und `account.updated` nur noch
+für Accounts v1. Wer nur den bisherigen Connect-Endpunkt hat, erfährt also nie, dass ein Laden eingeschränkt
+wurde — der lokale Spiegel stünde auf „darf kassieren", bis jemand die Seite öffnet und auffrischt.
+
+Nötig sind deshalb **zwei** Abonnements. Der bestehende Connect-Endpunkt bleibt, wie er ist (Verkäufe und
+Rückerstattungen sind weiterhin v1-Ereignisse). Dazu kommt im Stripe-Dashboard ein **Event destination** für
+die v2-Ereignisse:
+
+- Ziel-URL: **derselbe** Endpunkt wie bisher (`/billing/connect/webhook`) — der Handler erkennt die Gestalt
+  an der Nutzlast selbst und wählt den passenden Parser.
+- Ereignisarten, mindestens:
+
+```
+v2.core.account.updated
+v2.core.account.closed
+v2.core.account[configuration.merchant].updated
+v2.core.account[configuration.merchant].capability_status_updated
+v2.core.account[configuration.recipient].updated
+v2.core.account[configuration.recipient].capability_status_updated
+v2.core.account[requirements].updated
+v2.core.account[identity].updated
+```
+
+- Sein Signaturgeheimnis nach `StripePayments:ConnectV2WebhookSecret`. **Das ist nicht dasselbe Geheimnis
+  wie beim v1-Endpunkt.** Bleibt die Einstellung leer, wird `ConnectWebhookSecret` versucht — das geht nur
+  gut, wenn beide Abonnements zufällig dasselbe Geheimnis haben. Schlägt die Prüfung fehl, steht der Grund
+  im Protokoll unter `StripeConnect`.
+
+Die übrigen v2-Arten (Personen, künftige Anforderungen, Ereignisziel-Pings) darf das Ziel ruhig mitschicken:
+was dieses Toolkit nicht auswertet, wird protokolliert und verworfen, nicht als Fehler behandelt.
+
+### 64.7 Express **und** Haftung beim Anbieter: geht derzeit nicht — und warum das kein Schalter ist
+
+Zwei Einstellungen aus 64.3 vertragen sich zurzeit nicht miteinander:
+
+```json
+{ "DashboardType": "express", "LossesCollector": "stripe" }
+```
+
+Jede für sich ist allgemein verfügbar. **Zusammen** sind sie bei Stripe in der öffentlichen Vorschau und
+verlangen die Vorschau-API-Version `2026-08-26.preview`. Genau diese Kombination bildet aber nach, was ein
+Express-Konto unter `Accounts v1` ohne Zutun tat — sie ist also der naheliegende Wunsch beim Umstieg.
+
+**Die Version lässt sich nicht anfordern.** `Stripe.net` pinnt sie fest: `StripeConfiguration.ApiVersion` hat
+keinen Setter, `RequestOptions.StripeVersion` ist `internal`, und weder `StripeClient` noch
+`StripeClientOptions` bieten etwas an. Der Unterschied steckt im **Paket**:
+
+| Paket | gepinnte API-Version |
+|---|---|
+| `Stripe.net 52.4.x` (stabil) | `2026-08-26.dahlia` |
+| `Stripe.net 52.5.0-beta.1` | `2026-08-26.preview` |
+
+Dasselbe Datum, zwei Kanäle. Das Toolkit auf die Beta zu ziehen würde die Vorschau **allen** Installationen
+aufzwingen — eine Vorschau-API auf dem Geldpfad jeder Installation, damit eine sie nutzen kann. Deshalb gibt
+es hier bewusst keinen Schalter: es gäbe nichts zu schalten.
+
+**Was das Toolkit stattdessen tut:** Es lehnt die Kombination ab, *bevor* der Aufruf rausgeht, mit dem Code
+`Payments_Error_UnsupportedAccountConfiguration` und einer Meldung, die beide Auswege nennt. Stripes eigene
+Antwort darauf lautet nämlich nur *„This account configuration is not supported"* — sie sagt weder, welche der
+beiden Einstellungen gemeint ist, noch dass es eine dritte Möglichkeit gibt, und sie landet ungefiltert beim
+Ladeninhaber.
+
+**Die zwei Auswege, und was sie kosten:**
+
+| | `LossesCollector = "application"` | `DashboardType = "full"` |
+|---|---|---|
+| Dashboard | Express bleibt (schlank, Branding der Plattform) | vollwertiges Stripe-Konto, der Laden meldet sich dort selbst an |
+| Login-Link | funktioniert | **entfällt** — `CreateDashboardLinkAsync` liefert bei `full` bewusst `null` |
+| Haftung für negative Salden | **die Plattform** | der Anbieter |
+| Rechnen | eine ungedeckte Rückbuchung von 200.– frisst bei 0.1 % Kommission die Marge aus 200'000.– Umsatz | — |
+
+**Der Dashboard-Typ ist je Konto unveränderlich.** Wer heute mit `full` startet, kann später nicht einzelne
+Konten auf Express umstellen — das wäre eine Neuanlage. Umgekehrt genauso. Die Entscheidung fällt also
+einmal, vor dem ersten produktiven Konto.
+
+**Es ist ein Warten, kein Bauen.** Wird die Kombination allgemein verfügbar, trägt das nächste stabile
+`Stripe.net` sie, und am Toolkit ändert sich **keine Zeile** — die Ablehnung oben greift dann schlicht nicht
+mehr. Bis dahin ist `full` der Weg, der die Haftung dort lässt, wo sie unter v1 war.
+
+### 64.8 Stripe mit dem versorgen, was wir schon wissen — **optional, eine Registrierung**
+
+Im `full`-Modus macht der Ladeninhaber das Onboarding in Stripes eigenem Formular. Alles, was das Toolkit
+dabei mitgibt, ist dort schon ausgefüllt — und jedes Feld, das er nicht in einem fremdsprachigen Formular
+mit anderen Feldnamen noch einmal eintippen muss, ist eines weniger, an dem er abspringt.
+
+**Registrieren** (nach `AddStripePayments<…>()`):
+
+```csharp
+services.AddBillingProfileIdentity<AppContext>();            // flaches Mandantenmodell
+services.AddHierarchyBillingProfileIdentity<AppContext>();   // hierarchisches
+```
+
+Zwei Methoden statt einer Erkennung zur Laufzeit: welche Ausprägung ihr fahrt, wisst ihr selbst, und ein
+falsch geratener Kontext fiele sonst erst beim ersten Kontoanlegen auf. Der Kontext braucht eine
+registrierte `IDbContextFactory<…>`.
+
+**Ohne die Registrierung ändert sich nichts** — das Konto entsteht aus dem, was der Auszahlungs-Reiter
+trägt, und Stripe fragt den Rest wie bisher. Es ist eine Bequemlichkeit, keine Voraussetzung; fällt die
+Abfrage aus, steht eine Warnung im Protokoll und die Anlage läuft weiter.
+
+**Was mitgeht** — alles aus dem Firmenprofil, nichts davon neu zu erfassen:
+
+| Stripe | Quelle |
+|---|---|
+| `Identity.BusinessDetails.RegisteredName` | `BillingProfile.CompanyName` |
+| `Identity.BusinessDetails.Phone` | `BillingProfile.PhoneNumber` |
+| `Identity.BusinessDetails.Address` | Rechnungs- oder Standardadresse, je nach `UseInvoiceAddr` |
+| `Identity.Individual` (Vorname, Nachname, E-Mail, Telefon, Adresse) | der **Eigentümer** des Mandanten |
+| `ContactEmail`, `DisplayName` | Auszahlungs-Reiter, sonst Firmenprofil |
+
+Strasse und Hausnummer werden zu einer Zeile zusammengefasst, der Adresszusatz wird die zweite. **Das Land
+kommt vom Konto**, nicht von der Adresse — das Adressmodell des Toolkits führt gar keines, und das
+Kontoland ist ohnehin die rechtlich massgebliche Angabe.
+
+**Der Eigentümer, in dieser Reihenfolge:** zuerst sein Mitarbeiter-Datensatz, falls es einen gibt — nur der
+trägt bei einem Firmenprofil einen Personennamen. Sonst, und **nur bei einem Personal-Profil**, die
+Namensfelder des Profils; bei einem Firmenprofil beschreiben die die Firma, und sie heranzuziehen hiesse,
+Stripe eine GmbH als Vornamen zu melden. Steht am Ende kein Name fest, wird die Person **gar nicht**
+gesendet: ein Datensatz ohne Namen erzeugt drüben sofort eine Rückfrage.
+
+**Drei Dinge gehen bewusst NICHT mit** — sie sind nicht vergessen:
+
+- **Rechtsform (`Structure`).** 26 Werte, von `sole_proprietorship` bis `registered_charity`. Aus
+  „Firma oder Einzelperson" lässt sich keiner davon bestimmen — eine GmbH und ein Verein sind beide eine
+  Firma. Geraten kostet eine Prüfrunde.
+- **Steuernummer.** `IdNumbers` verlangt einen länderspezifischen Typ als Zeichenkette (`ch_uid`,
+  `ch_vat`, `de_vat`, `de_stn`, …). Für die Schweiz allein stehen zwei zur Wahl, und unser Feld heisst
+  schlicht `VatNumber` — welcher Typ gemeint ist, hängt davon ab, was der Mandant eingetippt hat. Das
+  bräuchte ein zweites Feld im Reiter, und damit wäre aus der Erleichterung wieder eine Frage geworden.
+- **Zustimmung zu Stripes Bedingungen** (`Identity.Attestations`). Technisch möglich und es spart einen
+  ganzen Schritt — aber es ist ein Rechtsakt im Namen des Mandanten. Das muss der Benutzer selbst tun.
+
+> **Vorbelegen ist kein Bestätigen.** Was mitgeht, prüft Stripe wie jede andere Angabe. Falsch übernommene
+> Daten sind darum teurer als gar keine: sie erzeugen eine Anforderung, statt eine zu ersparen. Leere
+> Felder werden deshalb weggelassen und nicht als Leerstring gesendet, und eine Adresse ohne Strasse, PLZ
+> und Ort gilt als keine.
+
 > **Noch nie gegen ein echtes Stripe-Konto gelaufen.** Das galt schon für Achse B insgesamt und für den
-> v2-Weg erst recht. Zwei Annahmen stehen bis zum ersten Live-Lauf unter Vorbehalt: ob `account.updated` für
-> v2-Konten überhaupt noch gesendet wird (der Spiegel hängt daran; sonst aktualisiert er sich nur beim
-> ausdrücklichen Auffrischen), und ob die Auszahlungs-Fähigkeit ohne Anforderung aktiv wird.
+> v2-Weg erst recht. Ein Vorbehalt bleibt bis zum ersten Live-Lauf: ob die Auszahlungs-Fähigkeit aktiv wird,
+> obwohl sie sich bei der Anlage nicht anfordern lässt. Die zweite Annahme — dass `account.updated` weiter
+> gesendet wird — hat sich als **falsch** herausgestellt; was daraus folgt, steht in 64.6.
