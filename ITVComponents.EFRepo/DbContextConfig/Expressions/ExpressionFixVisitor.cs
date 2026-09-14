@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -9,9 +10,18 @@ namespace ITVComponents.EFRepo.DbContextConfig.Expressions
 {
     public class ExpressionFixVisitor:ExpressionVisitor
     {
-        private readonly Dictionary<string, Expression> propertyReplacements = new();
+        /// <summary>
+        /// Nebenlaeufig sicher, und zwar aus einem konkreten Grund: das Options-Objekt lebt in Produktion
+        /// einmal im Prozess, die Kontexte kommen und gehen - und zwei Kontexte, die im selben Moment
+        /// entstehen (zwei Anfragen, zwei Blazor-Circuits), registrieren gleichzeitig. Ein gewoehnliches
+        /// Dictionary liefe dabei in zwei Fehler: beide Aufrufer sehen den Namen als unbekannt und legen
+        /// ihn an - der zweite fliegt mit "An item with the same key has already been added" -, und ein
+        /// Lesen waehrend eines fremden Schreibens ist ohnehin nicht zulaessig. Gelesen wird hier bei
+        /// jedem Aufbau eines Query-Filters, also genau dann, wenn nebenan der naechste Kontext entsteht.
+        /// </summary>
+        private readonly ConcurrentDictionary<string, Expression> propertyReplacements = new();
 
-        private readonly Dictionary<string, Expression> methodReplacements = new();
+        private readonly ConcurrentDictionary<string, Expression> methodReplacements = new();
 
         public ExpressionFixVisitor()
         {
@@ -57,13 +67,16 @@ namespace ITVComponents.EFRepo.DbContextConfig.Expressions
                 }
 
                 VerifyBoundToContextOrStatic(mex.Expression, name, mex.Member.Name);
-                if (propertyReplacements.TryGetValue(name, out var known))
+
+                // Pruefen und Anlegen in EINEM Schritt. Getrennt waere genau das Fenster offen, durch das
+                // zwei gleichzeitig entstehende Kontexte beide fallen.
+                var kept = (MemberExpression)propertyReplacements.GetOrAdd(name, mex);
+                if (!ReferenceEquals(kept, mex))
                 {
-                    VerifySameMember(((MemberExpression)known).Member, mex.Member, name);
-                    return;
+                    VerifySameMember(kept.Member, mex.Member, name);
                 }
 
-                propertyReplacements.Add(name, mex);
+                return;
             }
             else if (tmp is MethodCallExpression cex)
             {
@@ -75,13 +88,15 @@ namespace ITVComponents.EFRepo.DbContextConfig.Expressions
                 }
 
                 VerifyBoundToContextOrStatic(cex.Object, name, cex.Method.Name);
-                if (methodReplacements.TryGetValue(name, out var known))
+
+                // Siehe oben: ein Schritt, kein Fenster.
+                var kept = (MethodCallExpression)methodReplacements.GetOrAdd(name, cex);
+                if (!ReferenceEquals(kept, cex))
                 {
-                    VerifySameMember(((MethodCallExpression)known).Method, cex.Method, name);
-                    return;
+                    VerifySameMember(kept.Method, cex.Method, name);
                 }
 
-                methodReplacements.Add(name, cex);
+                return;
             }
             else
             {

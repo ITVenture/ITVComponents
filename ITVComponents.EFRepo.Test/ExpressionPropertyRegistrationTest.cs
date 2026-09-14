@@ -1,4 +1,8 @@
-using System;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using ITVComponents.EFRepo.DbContextConfig.Expressions;
 using ITVComponents.EFRepo.Options;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +83,61 @@ namespace ITVComponents.EFRepo.Test
 
             var ex = Assert.ThrowsExactly<InvalidOperationException>(() => ctx.RegisterImpostor(options));
             StringAssert.Contains(ex.Message, "already registered");
+        }
+
+        /// <summary>
+        /// Viele Kontexte, die im selben Moment entstehen, registrieren dieselbe Eigenschaft - und keiner
+        /// darf daran scheitern.
+        /// </summary>
+        /// <remarks>
+        /// Der Anlass ist ein realer Fehler aus dem Betrieb: <i>An item with the same key has already been
+        /// added. Key: CurrentTenant</i>, geworfen beim Aufbau eines Sicherheits-Kontextes. Die Pruefung
+        /// "kenne ich den Namen schon?" und das Anlegen waren zwei Schritte; zwei gleichzeitig entstehende
+        /// Kontexte sahen den Namen beide als unbekannt und legten ihn beide an. Das Options-Objekt lebt in
+        /// Produktion einmal im Prozess, Kontexte entstehen dauernd - unter Last war das eine Frage der
+        /// Zeit, und es traf ausgerechnet den Aufbau des Kontextes.
+        /// <para>
+        /// Der Test kann den Wettlauf nicht erzwingen; er macht ihn wahrscheinlich. Er schlaegt deshalb
+        /// nicht bei jedem Lauf fehl, wenn die Entdopplung wieder in zwei Schritte zerfaellt - aber er
+        /// schlaegt nie fehl, solange sie einer ist.
+        /// </para>
+        /// </remarks>
+        [TestMethod]
+        public void ManyContextsMayRegisterTheSamePropertyAtOnce()
+        {
+            var options = new DbContextModelBuilderOptions<TestContext>();
+            var contexts = Enumerable.Range(0, 64).Select(_ => new TestContext()).ToArray();
+            var failures = new ConcurrentBag<Exception>();
+
+            try
+            {
+                // Alle gleichzeitig loslassen: ohne die Barriere sind die ersten laengst fertig, bevor die
+                // letzten anfangen, und genau das Fenster, um das es geht, waere nie offen.
+                using var gate = new Barrier(contexts.Length);
+                Parallel.ForEach(contexts, ctx =>
+                {
+                    gate.SignalAndWait();
+                    try
+                    {
+                        ctx.Register(options);
+                    }
+                    catch (Exception ex)
+                    {
+                        failures.Add(ex);
+                    }
+                });
+
+                Assert.AreEqual(0, failures.Count,
+                    "Gleichzeitiges Registrieren desselben Namens muss durchgehen - der erste gewinnt, die "
+                    + "uebrigen sind ein Nichts-Tun. Erster Fehler: " + failures.FirstOrDefault()?.Message);
+            }
+            finally
+            {
+                foreach (var ctx in contexts)
+                {
+                    ctx.Dispose();
+                }
+            }
         }
 
         private sealed class TenantService
