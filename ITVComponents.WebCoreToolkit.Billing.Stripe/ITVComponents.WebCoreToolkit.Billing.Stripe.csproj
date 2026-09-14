@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE235</Version>
+    <Version>5.0.0-PRE236</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
   </PropertyGroup>
@@ -23,5 +23,4 @@
          Uebersetzung. Pruefbar muss sie trotzdem sein - an ihr haengt, ob ein Laden Geld annehmen darf. -->
     <InternalsVisibleTo Include="ITVComponents.WebCoreToolkit.Billing.Test" />
   </ItemGroup>
-
 </Project>
