@@ -310,7 +310,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                                         RoleRoleId = pr.RoleRoleId
                                     })
                             }).SelectMany(itm => itm.Items);
-                        ctx.Set<TGRoleLRole>().AddRange(tmpGlo);
+                        ctx.Set<TGRoleLRole>().AddRange(WithoutPendingDuplicates(ctx, tmpGlo,
+                            n => (n.GlobalRoleId, n.LocalRoleId, n.OriginId), "GRoleLRole"));
                     }
                     finally
                     {
@@ -318,6 +319,58 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                     }
                 });
             }
+        }
+
+        /// <summary>
+        /// Removes derived links that this very SaveChanges already produces on another path.
+        /// <para>
+        /// The inheritance post-processings are independent of each other, but they are not disjoint: a role that
+        /// gets its own permissions AND becomes the permissive side of a new RoleRole in the SAME SaveChanges is
+        /// reached twice - <see cref="ProcessPermissionInheritanceChanges"/> derives from the new permission,
+        /// <see cref="ProcessRoleInheritanceChanges"/> from the new composition - and both derive the identical row:
+        /// same RoleId, PermissionId, TenantId and, decisively, the same OriginId, because it is the same source row.
+        /// That violates IX_UniqueRolePermission, and since every post-processing shares one SaveChanges, it takes the
+        /// whole transaction with it - a tenant template carrying both Permissions and RoleGrants on one role could
+        /// not be applied at all.
+        /// </para>
+        /// <para>
+        /// Filtering against what is already tracked as Added also covers a role reaching the same derivation over
+        /// several compositions at once. Rows already in the database cannot collide here: an existing derivation
+        /// implies an existing composition, and that one cannot be added a second time.
+        /// </para>
+        /// </summary>
+        private static List<TEntity> WithoutPendingDuplicates<TEntity, TKey>(DbContext ctx,
+            IEnumerable<TEntity> candidates, Func<TEntity, TKey> keyOf, string label)
+            where TEntity : class
+        {
+            var known = new HashSet<TKey>(ctx.ChangeTracker.Entries<TEntity>()
+                .Where(n => n.State == EntityState.Added)
+                .Select(n => keyOf(n.Entity)));
+            var result = new List<TEntity>();
+            var dropped = 0;
+            // Enumerating the candidates completely before the first Add also keeps the reader of the projecting
+            // query closed while the change-tracker is written to.
+            foreach (var candidate in candidates)
+            {
+                if (known.Add(keyOf(candidate)))
+                {
+                    result.Add(candidate);
+                    continue;
+                }
+
+                dropped++;
+            }
+
+            if (dropped != 0)
+            {
+                // Expected whenever a role gains permissions and inheritance in one go - but staying silent would
+                // make a dropped duplicate indistinguishable from a derivation that was never produced at all.
+                LogEnvironment.LogEvent(
+                    $"Dropped {dropped} duplicate {label} link(s); another inheritance path of the same SaveChanges already produces them.",
+                    LogSeverity.Report);
+            }
+
+            return result;
         }
 
         private void ProcessPermissionInheritanceChanges(List<Action<DbContext>> modifyActions)
@@ -345,7 +398,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                                         RoleRoleId = trp.RoleRoleId
                                     })
                             }).SelectMany(itm => itm.Items);
-                        ctx.Set<TRolePermission>().AddRange(tmpRope);
+                        ctx.Set<TRolePermission>().AddRange(WithoutPendingDuplicates(ctx, tmpRope,
+                            n => (n.RoleId, n.PermissionId, n.TenantId, n.OriginId), "RolePermission"));
                     }
                     finally
                     {
@@ -399,8 +453,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Int
                                     LocalRoleId = n.PermittedRole.RoleId
                                 })
                             }).SelectMany(itm => itm.Items);
-                        ctx.Set<TRolePermission>().AddRange(tmpRoro);
-                        ctx.Set<TGRoleLRole>().AddRange(tmpGloro);
+                        ctx.Set<TRolePermission>().AddRange(WithoutPendingDuplicates(ctx, tmpRoro,
+                            n => (n.RoleId, n.PermissionId, n.TenantId, n.OriginId), "RolePermission"));
+                        ctx.Set<TGRoleLRole>().AddRange(WithoutPendingDuplicates(ctx, tmpGloro,
+                            n => (n.GlobalRoleId, n.LocalRoleId, n.OriginId), "GRoleLRole"));
 
                     }
                     finally

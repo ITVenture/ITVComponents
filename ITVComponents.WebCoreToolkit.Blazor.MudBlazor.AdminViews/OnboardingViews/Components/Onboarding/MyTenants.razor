@@ -3,9 +3,14 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Options
+@using ITVComponents.WebCoreToolkit.Security
+@using ITVComponents.WebCoreToolkit.Blazor.Security
 @attribute [Authorize]
 
 @inject IOnboardingHandler Handler
+@inject IServiceProvider Services
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
@@ -84,7 +89,7 @@
                     // shell renders half-initialised until a reload. Force one full navigation so the freshly owned
                     // tenant becomes the active scope. Loop-free: after the reload the pending record is Committed,
                     // so completion returns false and this branch is not taken again.
-                    Nav.NavigateTo(Nav.Uri, forceLoad: true);
+                    Nav.NavigateTo(ReloadTarget(), forceLoad: true);
                     return;
                 }
             }
@@ -105,7 +110,7 @@
                 {
                     // Wie oben: der Circuit hat die Mandanten-Aufloesung des Hosts nie durchlaufen, die
                     // Shell bliebe halb gezeichnet. Schleifenfrei, weil die Zuweisung danach schon besteht.
-                    Nav.NavigateTo(Nav.Uri, forceLoad: true);
+                    Nav.NavigateTo(ReloadTarget(), forceLoad: true);
                     return;
                 }
             }
@@ -124,6 +129,64 @@
                 RendererInfo.Name);
         }
         await ReloadAsync();
+    }
+
+    private const string PageRoute = "Account/Onboarding/MyTenants";
+
+    /// <summary>
+    /// Die Adresse, auf die nach einer Mandanten-Anlage voll neu geladen wird.
+    /// <para>
+    /// Nicht <c>Nav.Uri</c>: diese Seite liegt unter <c>/Account/</c> und damit in den Vorgaben von
+    /// <c>AuthPathExclusions</c>, die <c>TenantPathPrefixMiddleware</c> unangetastet durchreicht. Sie setzt dort
+    /// also auch beim Full-Reload kein Praefix, <c>&lt;base href&gt;</c> bleibt bei <c>/</c>, und die neu geladene
+    /// Seite stuende wieder genau da, wo sie vorher stand - ohne Mandantensegment, obwohl der Benutzer jetzt
+    /// einen Mandanten hat. Das Segment muss deshalb hier selbst davor.
+    /// </para>
+    /// </summary>
+    private string ReloadTarget()
+    {
+        var options = Services.GetService<IOptions<ScopedPermissionScopeOptions>>();
+        if (options?.Value.TenantSource != TenantSource.PathSegment)
+        {
+            // Ohne Mandantensegment in der Adresse ist Nav.Uri bereits die vollstaendige Adresse; ein Praefix
+            // waere hier nicht bloss unnoetig, sondern falsch.
+            return Nav.Uri;
+        }
+
+        var scope = Services.GetService<IPermissionScope>();
+        if (scope == null)
+        {
+            Logger.LogWarning(
+                "Reloading to {Uri} without a tenant segment: TenantSource is PathSegment, but no IPermissionScope is registered. The reloaded page keeps a tenant-free address and its sub-resources are requested without the prefix.",
+                Nav.Uri);
+            return Nav.Uri;
+        }
+
+        // Der Geltungsbereich dieses Circuits wurde aufgeloest, als es den Mandanten noch nicht gab, und dieses
+        // Ergebnis - keiner - ist gemerkt. Ohne Refresh liefert der Prefix genau diese veraltete Antwort.
+        scope.Refresh();
+        var prefix = scope.PermissionPrefix;
+        if (string.IsNullOrEmpty(prefix))
+        {
+            // Ein leeres Segment ergaebe "//Account/..." - protokoll-relativ, der Browser suchte einen fremden
+            // Host. Nach einer erfolgreichen Anlage ist ein leerer Geltungsbereich ohnehin nicht erwartbar.
+            Logger.LogWarning(
+                "Reloading to {Uri} without a tenant segment: the permission scope is still empty after Refresh, although a tenant was just created for this user.",
+                Nav.Uri);
+            return Nav.Uri;
+        }
+
+        // Ueber BaseUri und nicht root-absolut: der Praefix, den eine vorgelagerte Middleware bereits aus dem
+        // Pfad genommen hat - die Kultur aus UseCulturePath(), ein virtuelles Verzeichnis -, steckt dort drin
+        // und ginge bei "/{prefix}/..." verloren. BaseUri endet immer auf "/".
+        var baseUri = Nav.BaseUri;
+        if (baseUri.EndsWith($"/{prefix}/", StringComparison.Ordinal))
+        {
+            // Die Seite steht schon im Mandantenkontext; ein zweites Segment ergaebe "/ADM/ADM/Account/...".
+            return Nav.Uri;
+        }
+
+        return $"{baseUri}{prefix}/{PageRoute}";
     }
 
     private async Task ReloadAsync()

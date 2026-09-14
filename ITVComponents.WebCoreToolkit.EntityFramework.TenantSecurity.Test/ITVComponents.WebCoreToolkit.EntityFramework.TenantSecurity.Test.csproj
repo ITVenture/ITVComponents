@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
@@ -8,6 +8,10 @@
     <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+    <!-- Der Sicherheits-Kontext leitet Rechte ueber korrelierte Teilmengen ab; das uebersetzt sich zu
+         APPLY / LATERAL, was SQLite nicht kann. Fuer diese eine Vererbungs-Pruefung laeuft das Modell
+         darum im Arbeitsspeicher - dort ist LINQ LINQ und die Abfrage traegt. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
     <!-- Override the vulnerable SQLitePCLRaw.lib.e_sqlite3 2.1.11 that Microsoft.Data.Sqlite still
          pins (GHSA-2m69-gcr7-jv3q: memory corruption in SQLite before 3.50.2). Mind the version
          scheme: this package now follows the SQLite version, so 3.53.3 IS SQLite 3.53.3 - it is not

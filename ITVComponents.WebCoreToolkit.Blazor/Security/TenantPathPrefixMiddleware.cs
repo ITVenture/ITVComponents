@@ -66,9 +66,10 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
             var path = context.Request.Path.Value ?? "/";
 
             // Skip Blazor internals (/_blazor, /_framework, /_content/...) and host-configured exclusions
-            // (auth endpoints, callback URLs, etc.). Static files served from conventional paths are also
-            // skipped: their first segment ("css", "js", "lib", "img") will never match an eligible scope,
-            // so they would 404 anyway — listing them explicitly keeps log output cleaner.
+            // (auth endpoints, callback URLs, etc.). Conventional static-file paths are NOT covered here: the
+            // default AuthPathExclusions hold auth routes only, and fingerprinted assets in the web root
+            // ("/app.<hash>.css") have no directory prefix a host could enter anyway. They are handled where
+            // the 404 is decided instead — see the file check further down.
             if (path.StartsWith("/_", StringComparison.Ordinal)
                 || IsExcluded(path, opts.AuthPathExclusions))
             {
@@ -170,6 +171,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.Security
 
             if (!eligible.Any(s => string.Equals(s.ScopeName, firstSegment, StringComparison.Ordinal)))
             {
+                // A file is not a tenant. Every page delivered WITHOUT a prefix — and that is the whole
+                // /Account/ area, which the exclusions above hand through untouched — has its browser ask for
+                // "/app.<hash>.css", "/lib/…", "/js/…", "/favicon.png" exactly like this, and answering those
+                // with 404 costs that page its styling, its icon font and its script while nothing but the
+                // server log shows an error. Rejecting them protects nothing: a file says nothing about which
+                // tenants exist, and what does not exist the static file handling answers with its own 404.
+                // The check belongs HERE and not next to the "/_" exclusion at the top: up there it would also
+                // catch "/{tenant}/app.css", whose prefix must still be stripped, or MapStaticAssets looks for
+                // a file that does not exist under that path. HasExtension only looks at the last segment, so
+                // a tenant-shaped segment carrying a dot ("/othertenant.ch/page") still takes the 404 below.
+                if (System.IO.Path.HasExtension(path))
+                {
+                    logger.LogDebug(
+                        "TenantPathPrefix: {Path} looks like a file and its first segment '{Segment}' is no eligible scope; passing it to the static file handling instead of answering 404. The page behind it was delivered without a tenant prefix.",
+                        path, firstSegment);
+                    await next(context);
+                    return;
+                }
+
                 // Same response whether the tenant doesn't exist or the user just isn't eligible — no
                 // information leak about which tenants exist. The *log* may say more, though: see below.
                 LogRejectedSegment(context, path, firstSegment, eligible);
