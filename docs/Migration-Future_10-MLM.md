@@ -6547,3 +6547,85 @@ ALTER TABLE [ClientApps] ADD CONSTRAINT [FK_ClientApps_ClientAppTemplates_Client
 
 Ein Template nimmt also seine **Bündel** mit, darf aber nicht gelöscht werden, solange **Anwendungen**
 daran hängen. Das eine ist Aufräumen, das andere ein Fehler.
+
+---
+
+## 66. Ein Gerät holt sich einen Bearer — **kein Schema-Change, aber ein neuer Endpunkt**
+
+Baut auf Abschnitt 65 auf: derselbe Schlüssel, den die Gerätekopplung ausgibt, lässt sich jetzt gegen
+ein JWT tauschen. Das braucht ihr, wenn euer Agent sich am **ServiceHub** anmeldet — der will einen
+Bearer, keinen `X-Api-Key`.
+
+### 66.1 Was es vorher nicht gab
+
+Das Toolkit kannte genau eine Token-Route: `/UserToken/Refresh`. Das ist „ein **Benutzer** erneuert sein
+Token". **Eine Maschine hatte keinen Weg, überhaupt an ein erstes zu kommen** — und `JwtAuthInit`, der
+Client-seitige Baustein, war eine Attrappe: `GetCurrentBearer()` gab eine leere Zeichenkette zurück.
+Jeder Aufruf ging mit `Authorization: Bearer ` hinaus, und am Hub endete das als Zurückweisung, die von
+**fehlenden Rechten** sprach statt von einem fehlenden Token.
+
+### 66.2 Der neue Endpunkt
+
+```
+POST /ClientAppToken
+X-Api-Key: <ClientKey>.<Label>.<Geheimnis>
+
+200 → { "token": "...", "expiresUtc": "2026-09-15T14:32:10Z" }
+401 → unbekannt, widerrufen, abgelaufen, abgeschaltet oder falsches Geheimnis
+```
+
+`AllowAnonymous`, weil der Schlüssel **selbst** der Ausweis ist. Die 401 unterscheidet die Fälle nach
+aussen nicht — wer rät, soll daraus nichts lernen; im Protokoll steht die Kennung.
+
+Das Token trägt den Bezeichner als `Name` und den Mandanten als `FixedUserScope` — damit greift dieselbe
+Rechteauflösung wie beim API-Schlüssel.
+
+> **Kein Refresh-Token, mit Absicht.** Ein Gerät hält ein langlebiges Geheimnis und holt sich jederzeit
+> ein neues Token. Ein Refresh-Token wäre ein zweites Geheimnis mit eigener Ablage, eigenem Widerruf und
+> eigenem Ablauf — alles doppelt, ohne etwas zu können, was der Geräteschlüssel nicht schon kann.
+> Refresh-Token bleiben die Sache der *Benutzer*-Delegation.
+
+### 66.3 Die Client-Seite
+
+`JwtAuthConfig` trug bis PRE239 **nur** einen Namen. Jetzt:
+
+```jsonc
+{
+  "Name": "HubAuth",
+  "TokenEndpoint": "https://…/ClientAppToken",
+  "ApiKey": "<ClientKey>.<Label>.<Geheimnis>",   // ein GEHEIMNIS - verschlüsselt ablegen
+  "RenewBeforeSeconds": 60,
+  "TimeoutSeconds": 30
+}
+```
+
+`JwtAuthInit` hält das Token, erneuert es vor dem Ablauf und ist nebenläufigkeitssicher — an einem
+Hub-Client hängen mehrere gleichzeitige Aufrufe, und ein Erneuerungssturm ist genau der Fehler, den man
+dann sucht. Schlägt die Erneuerung fehl, bleibt das alte Token gültig, solange es das ist: sonst würde
+aus einer vorübergehenden Störung sofort ein Ausfall.
+
+**Es wirft jetzt, statt einen leeren Bearer zu schicken** — beim Hochfahren, wenn kein erstes Token zu
+bekommen ist, und beim Aufruf, wenn keines mehr gilt.
+
+### 66.4 Eine eigene Token-Quelle
+
+Wer sein Token anders bekommt, setzt eine eigene `ITokenSource` ein, statt die Klasse zu kopieren:
+
+```csharp
+public interface ITokenSource
+{
+    Task<BearerToken> AcquireAsync(CancellationToken ct = default);
+}
+```
+
+Sie wird dem `JwtAuthInit` als **Plugin in den Konstruktor** gereicht — der Weg, den das Plugin-System
+dafür ohnehin vorsieht. Zwischenspeichern muss sie nicht; das tut `JwtAuthInit`.
+
+### 66.5 Was weiterhin nicht umgesetzt ist
+
+Die **Delegations-Achse** — eine Anwendung handelt im Auftrag eines *Benutzers* — bleibt eine Attrappe.
+`IApplicationTokenService` hat keine Umsetzung und es gibt keine Ablage für Refresh-Token. Neu ist nur,
+dass die vier Methoden das jetzt **ins Protokoll schreiben**, statt stillschweigend `null` bzw. `false`
+zu liefern. `/UserToken/Refresh` gibt deshalb weiterhin ausnahmslos `Unauthorized` zurück.
+
+Für Maschinen ist das kein Mangel: ein Gerät handelt für niemanden, es *ist* die Identität.

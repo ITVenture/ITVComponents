@@ -1,6 +1,6 @@
 # Issue: `JwtAuthInit` ist eine Attrappe — der Bearer-Anmeldefluss des ServiceHub fehlt
 
-**Status:** OFFEN — Anfrage an das Toolkit
+**Status:** ERLEDIGT — umgesetzt im Toolkit (siehe „Auflösung" am Ende)
 **Datum:** 2026-09-15
 **Quelle:** MiniStore-Session (Konsument). MiniStore baut den POS-Agenten: eine Anwendung auf dem Laden-PC,
 die ihren Gerätedienst am ServiceHub anmeldet und dafür einen Bearer braucht.
@@ -115,3 +115,62 @@ verschwindet, sobald `JwtAuthInit` ein Token besorgt — dann bleibt bei uns nur
 Sie ist vollständig genug, dass ein Konsument sie für fertig hält — der Header wird ja gesetzt —, und der
 Fehler zeigt sich erst am Hub als Rechteproblem. Ein `NotImplementedException` in `GetCurrentBearer` oder
 ein Vermerk im XML-Kommentar würde das abfangen, auch wenn die Umsetzung noch wartet.
+
+---
+
+## Auflösung (Toolkit)
+
+Umgesetzt, mit **einer Erweiterung gegenüber der Anfrage** — und der Nebenvorschlag ist zum Hauptweg
+geworden.
+
+### Der Befund war noch schlechter als beschrieben
+
+Das Issue behandelt den Token-Endpunkt als Sache des Konsumenten. Tatsächlich **lieferte das Toolkit
+auch keinen**: die einzige Token-Route war `/UserToken/Refresh`, also „ein Benutzer erneuert sein
+Token". Eine Maschine hatte keinen Weg, überhaupt an ein erstes zu kommen.
+
+Neu ist deshalb `POST /ClientAppToken` — es nimmt denselben Schlüssel entgegen, den die Gerätekopplung
+ausgibt (`<ClientKey>.<Label>.<Geheimnis>`, siehe Leitfaden §65), und gibt ein JWT samt Ablauf zurück.
+Das Token trägt Bezeichner und Mandant, damit dieselbe Rechteauflösung greift wie beim API-Schlüssel.
+
+### Der Erweiterungspunkt statt eines festen Flusses
+
+Euer Nebenvorschlag war der richtige Hauptvorschlag: `ITokenSource` mit einer Methode, dem `JwtAuthInit`
+als Plugin in den Konstruktor gereicht. Der mitgelieferte `ApiKeyTokenSource` bleibt der Normalfall; euer
+kopplungsbasierter Ablauf hängt sich als eigene Quelle an, ohne die Klasse zu kopieren.
+
+`JwtAuthConfig` trägt jetzt `TokenEndpoint`, `ApiKey`, `RenewBeforeSeconds` und `TimeoutSeconds` — nur
+für den mitgelieferten Weg; wer eine eigene Quelle mitgibt, lässt sie leer.
+
+### Was `JwtAuthInit` jetzt tut
+
+Token halten, vor dem Ablauf erneuern, nebenläufigkeitssicher (doppelte Prüfung innerhalb der Sperre —
+sonst erneuern beim Ablauf alle gleichzeitig). **Und es wirft, statt einen leeren Bearer zu schicken:**
+beim Hochfahren, wenn kein erstes Token zu bekommen ist, und beim Aufruf, wenn keines mehr gilt.
+
+Schlägt die Erneuerung fehl, behält es das alte Token, solange es noch gilt — sonst würde aus einer
+vorübergehenden Störung sofort ein Ausfall.
+
+### Drei stille Fehler, die dabei auffielen
+
+1. **`JwtTokenService` warf.** Es setzte `new Claim(type, null)`, weil `GetApplicationUserLabel` immer
+   `null` liefert. Der Weg war nicht bloss funktionslos, sondern kaputt, sobald ihn jemand benutzte.
+2. **`VerifyRefreshToken` warf ebenfalls** — `First` statt `FirstOrDefault` — und verglich gegen `Label`,
+   wo begrifflich der `ClientKey` gemeint war.
+3. **`JwtAuthInit.Dispose()` verdeckte** `CollectableClientInit.Dispose()`; deren Aufräumen und das
+   `Disposed`-Ereignis wären lautlos ausgefallen.
+
+### Kein Refresh-Token für Maschinen
+
+Bewusst nicht gebaut: ein Gerät hält ein langlebiges Geheimnis und holt sich jederzeit ein neues Token.
+Ein Refresh-Token wäre ein zweites Geheimnis mit eigener Ablage, eigenem Widerruf und eigenem Ablauf —
+alles doppelt, ohne etwas zu können, was der Geräteschlüssel nicht schon kann.
+
+### Euer Hinweis zur Falle ist umgesetzt
+
+Ihr habt geschrieben, die Klasse sei in diesem Zustand eine Falle und ein `NotImplementedException` oder
+ein Vermerk würde das abfangen. Beides ist jetzt da, aber besser: die Klasse **funktioniert**, und die
+Teile, die weiterhin nicht umgesetzt sind (die Benutzer-Delegation), sagen es im Protokoll, statt still
+`null` zu liefern.
+
+Details: Leitfaden-Abschnitt 66.
