@@ -171,6 +171,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions
 
         public DateTime Created { get; set; }
 
+        /// <summary>
+        /// E-mail for the receipt: what the host passed in at creation, or — with
+        /// <c>StripePaymentsOptions.CaptureCustomerEmail</c> switched on — what the end customer entered on the
+        /// provider's payment page. Null until the sale is paid in the latter case, because that is when the
+        /// address arrives.
+        /// </summary>
+        public string? CustomerEmail { get; set; }
+
         /// <summary>True when this sale already existed and was returned instead of creating a second one.</summary>
         public bool WasExisting { get; set; }
     }

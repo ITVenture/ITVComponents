@@ -137,3 +137,56 @@ Session-Id statt der Adresse.
 
 **Für MiniStore:** Schalter einschalten, `TenantSale.CustomerEmail` ist nach dem Webhook gefüllt. Das
 Adressfeld bleibt wie beschrieben stehen — das Toolkit trifft dazu keine Annahme.
+
+---
+
+## Nachtrag (Konsument, 2026-09-15): `SaleResult` führt das Feld nicht
+
+Die Umsetzung ist übernommen und der Schalter eingeschaltet — aber der Wert ist über den **Dienstvertrag**
+nicht erreichbar. `ITenantSaleService.FindByReferenceAsync` liefert `SaleResult`, und die Klasse kennt
+`CustomerEmail` nicht:
+
+```csharp
+// …Billing.Stripe/Payments/Abstractions/PaymentAbstractions.cs:146 ff.
+public sealed class SaleResult
+{
+    public int TenantSaleId { get; set; }
+    public int TenantId { get; set; }
+    public string ExternalReference { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public TenantSaleStatus Status { get; set; }
+    public string? CheckoutUrl { get; set; }
+    public long AmountMinor { get; set; }
+    public long ApplicationFeeMinor { get; set; }
+    public long RefundedMinor { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public DateTime? PaidUtc { get; set; }
+    public DateTime Created { get; set; }
+    public bool WasExisting { get; set; }
+}
+```
+
+Der Webhook füllt also eine Spalte, die der Konsument über den vorgesehenen Weg nicht lesen kann. Das ist
+kein Fehler in der Umsetzung — es stand auch nicht im ursprünglichen Vorschlag — aber es fehlt das letzte
+Glied.
+
+**Vorschlag:** `public string? CustomerEmail { get; set; }` an `SaleResult`, befüllt wie die übrigen
+Felder aus der Zeile. Rein additiv.
+
+**Was wir bis dahin tun:** MiniStore liest direkt aus `TenantSales` im eigenen Systemkontext (die Tabelle
+gehört über `IPaymentsContext` ohnehin dazu) und sucht über `TenantId` + `ExternalReference`. Das
+funktioniert, umgeht aber die Abstraktion — die Umgehung verschwindet, sobald `SaleResult` das Feld führt.
+
+Wie beim Hauptteil: **keine Priorität von unserer Seite.**
+
+### Auflösung des Nachtrags (Toolkit)
+
+Nachgezogen wie vorgeschlagen, rein additiv: `SaleResult.CustomerEmail` (`PaymentAbstractions.cs`), befüllt
+in `TenantSaleService.ToResult` aus `sale.CustomerEmail` — damit für alle fünf Aufrufstellen zugleich,
+`FindByReferenceAsync` eingeschlossen.
+
+Das war eine echte Lücke im ersten Zug: der Schreibweg war gebaut, der Leseweg nicht mitgedacht. Die
+Umgehung über den direkten Zugriff auf `TenantSales` kann ersatzlos weg.
+
+Der XML-Kommentar am Feld hält fest, dass der Wert bei eingeschaltetem `CaptureCustomerEmail` erst mit der
+Bezahlung erscheint — sonst liest sich ein `null` an einem noch offenen Verkauf wie ein Fehler.

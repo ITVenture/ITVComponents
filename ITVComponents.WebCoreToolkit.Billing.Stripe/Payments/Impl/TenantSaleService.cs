@@ -393,6 +393,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             Currency = sale.Currency,
             PaidUtc = sale.PaidUtc,
             Created = sale.Created,
+            CustomerEmail = sale.CustomerEmail,
             WasExisting = wasExisting
         };
 
