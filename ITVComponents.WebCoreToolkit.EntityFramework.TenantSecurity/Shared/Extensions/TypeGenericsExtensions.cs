@@ -58,7 +58,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                     { "TClientAppTemplatePermission", types[27] },
                     { "TClientApp", types[28] },
                     { "TClientAppPermission", types[29] },
-                    { "TClientAppUser", types[30] },
+                    { "TClientAppAccess", types[30] },
                     { "TContext", type }
                 };*/
             }

@@ -48,7 +48,7 @@ public static class DependencyInjectionExtensions
                 AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
                 SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
                 ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
-                ClientApp, ClientAppPermission, ClientAppUser,
+                ClientApp, ClientAppPermission, ClientAppAccess,
                 FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence,
                 FlatTenantSetting, FlatTenantFeatureActivation,
                 FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,

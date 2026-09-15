@@ -5,7 +5,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models
 {
-    public class ClientApp: ClientApp<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppUser>
+    public class ClientApp: ClientApp<Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess>
     {
     }
 }

@@ -16,6 +16,6 @@ namespace ITVComponents.WebCoreToolkit
 
         public const string ClientAppId = "urn:ITV:IWCT:App:Id";
 
-        public const string ClientAppUser = "urn:ITV:IWCT:App:UserId";
+        public const string ClientAppAccess = "urn:ITV:IWCT:App:UserId";
     }
 }

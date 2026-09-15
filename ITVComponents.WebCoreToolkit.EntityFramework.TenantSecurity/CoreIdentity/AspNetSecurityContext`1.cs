@@ -54,7 +54,7 @@ using ClientAppTemplatePermission =
 using ClientAppTemplate = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppTemplate;
 using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientApp;
 using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppPermission;
-using ClientAppUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppUser;
+using ClientAppAccess = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppAccess;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity
 {
@@ -65,7 +65,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,
             AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter,
             SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
-            ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,
+            ClientApp, ClientAppPermission, ClientAppAccess, FlatWebPlugin, FlatWebPluginConstant,
             FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,
             BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
         where TImpl : AspNetSecurityContext<TImpl>
@@ -556,7 +556,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public DbSet<ClientApp> ClientApps { get; set; }
         public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
         public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
-        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
+        public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }

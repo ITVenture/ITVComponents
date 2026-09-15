@@ -103,7 +103,7 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.JWT.Impl
                 select CreateClaim(t, ctx)).ToList();
             claims.Add(new Claim(ClaimTypes.FixedUserScope, userScope));
             claims.Add(new Claim(ClaimTypes.ClientAppId, applicationKey));
-            claims.Add(new Claim(ClaimTypes.ClientAppUser, applicationUserLabel));
+            claims.Add(new Claim(ClaimTypes.ClientAppAccess, applicationUserLabel));
             var tok = new JwtSecurityToken(opt.Issuer, opt.Audience, claims, expires:
                 DateTime.Now.AddMinutes(opt.TokenDuration),
                 signingCredentials: credentials);

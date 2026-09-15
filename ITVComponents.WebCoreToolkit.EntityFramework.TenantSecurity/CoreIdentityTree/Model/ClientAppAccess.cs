@@ -4,7 +4,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Mod
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model
 {
-    public class ClientAppUser: ClientAppUser<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppUser>
+    public class ClientAppAccess: ClientAppAccess<HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess>
     {
     }
 }

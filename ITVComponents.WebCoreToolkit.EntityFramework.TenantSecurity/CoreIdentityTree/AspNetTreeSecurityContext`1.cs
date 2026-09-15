@@ -45,7 +45,7 @@ using IHierarchySecurityContext = ITVComponents.WebCoreToolkit.EntityFramework.T
     ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.DashboardWidgetLocalization, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.UserWidget, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.CustomUserProperty, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AssetTemplate, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AssetTemplatePath,
     ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AssetTemplateGrant, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AssetTemplateFeature, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.SharedAsset, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.SharedAssetUserFilter, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.SharedAssetTenantFilter,
     ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppTemplate, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AppPermission, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.AppPermissionSet, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppTemplatePermission, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientApp,
-    ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppPermission, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppUser, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyWebPlugin, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyWebPluginConstant,
+    ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppPermission, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.ClientAppAccess, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyWebPlugin, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyWebPluginConstant,
     ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyWebPluginGenericParameter, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchySequence, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyTenantSetting,
     ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyTenantFeatureActivation, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyExternalOAuthService, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyExternalOAuthServiceState, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels.HierarchyExternalOAuthServiceTenantLogin, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Helpers.Models.HierarchyTenantContextSecurityTrustConfig>;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree
@@ -58,7 +58,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath,
             AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
             ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp,
-            ClientAppPermission, ClientAppUser, HierarchyWebPlugin, HierarchyWebPluginConstant,
+            ClientAppPermission, ClientAppAccess, HierarchyWebPlugin, HierarchyWebPluginConstant,
             HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
             HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>, IAllTenantsReader
         where TImpl : AspNetTreeSecurityContext<TImpl>
@@ -1065,7 +1065,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public DbSet<ClientApp> ClientApps { get; set; }
         public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
         public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
-        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
+        public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }

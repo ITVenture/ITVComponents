@@ -63,7 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
                     {
                         if (userMappingOptions.MapApplicationId)
                         {
-                            retVal.AddRange(from t in identity.Claims.Where(n => n.Type == ClaimTypes.ClientAppUser) select string.Format(Global.AppUserKeyIndicatorFormat, t.Value));
+                            retVal.AddRange(from t in identity.Claims.Where(n => n.Type == ClaimTypes.ClientAppAccess) select string.Format(Global.AppUserKeyIndicatorFormat, t.Value));
                         }
                     }
                 }

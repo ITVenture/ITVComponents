@@ -48,7 +48,7 @@ using ClientAppTemplatePermission = ITVComponents.WebCoreToolkit.EntityFramework
 using ClientAppTemplate = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.ClientAppTemplate;
 using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.ClientApp;
 using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.ClientAppPermission;
-using ClientAppUser = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.ClientAppUser;
+using ClientAppAccess = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models.ClientAppAccess;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -59,7 +59,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppUser, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp, ClientAppPermission, ClientAppAccess, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -399,7 +399,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
         public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
         public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
         public DbSet<ClientApp> ClientApps { get; set; }
-        public DbSet<ClientAppUser> ClientAppUsers { get; set; }
+        public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
