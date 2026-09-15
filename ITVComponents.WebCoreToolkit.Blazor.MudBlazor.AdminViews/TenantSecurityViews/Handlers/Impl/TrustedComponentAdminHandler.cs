@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
+using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
 
@@ -47,6 +48,19 @@ public class TrustedComponentAdminHandler : ITrustedComponentAdminHandler
                     Description = t.Description,
                     TrustLevelConfig = t.TrustLevelConfig
                 }).ToListAsync();
+            // Erst nach dem Materialisieren: die Pruefung laeuft ueber Reflexion, nicht ueber SQL. Sie kostet
+            // nur fuer die angezeigte Seite etwas und macht den stillen Bruch sichtbar, bevor ihn ein Benutzer
+            // als fehlende Daten meldet.
+            foreach (var item in items)
+            {
+                var trusted = TrustTypeResolver.Check(item.FullQualifiedTypeName, "trusted type");
+                var target = TrustTypeResolver.Check(item.TargetQualifiedTypeName, "target type");
+                item.Resolvable = trusted.Ok && target.Ok;
+                item.ResolveHint = item.Resolvable
+                    ? null
+                    : string.Join(" ", new[] { trusted.Hint, target.Hint }.Where(n => !string.IsNullOrEmpty(n)));
+            }
+
             return new PagedResult<TrustedComponentViewModel> { Items = items, TotalCount = total };
         });
     }

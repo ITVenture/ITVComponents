@@ -257,7 +257,11 @@ Damit die Analyse nicht in die falsche Richtung läuft — alles am laufenden Sy
   anonyme Besucher bringt nur mit, was die Vorlage gewährt. Das ist stimmig, steht aber nirgends
   zusammenhängend — ein Satz im Leitfaden wäre hilfreich.)
 * **Vertrauensstellung**: ``SharedAssetInfoProvider`47`` steht in `TrustedFullAccessComponents` mit
-  `ShowAllTenants`. Ohne den Eintrag kam je Anfrage *„No Trust Configuration found for the caller …
+  `ShowAllTenants`. **Nachtrag (PRE241):** die Zahl hinter dem Backtick ist die Stelligkeit des Typs
+  und kein Teil seines Namens — sie ändert sich, sobald der Sicherheitskontext eine Entität bekommt
+  oder verliert. Seit PRE240 heisst der Typ ``SharedAssetInfoProvider`46``. Wer diesen Eintrag
+  abschreibt, nimmt die Stelligkeit **aus der eigenen Assembly**, nicht aus diesem Dokument; siehe
+  Leitfaden §67. Ohne den Eintrag kam je Anfrage *„No Trust Configuration found for the caller …
   No special permissions will be granted."* — 101-mal im Log. Nach dem Eintrag sind diese Warnungen
   weg, das Verhalten ist unverändert. **Nicht die Ursache**, aber erwähnenswert: MLM führt diesen
   Eintrag nicht, weil dort Freigaben von angemeldeten Benutzern geöffnet werden.

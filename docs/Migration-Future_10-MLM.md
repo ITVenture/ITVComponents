@@ -6644,3 +6644,113 @@ dass die vier Methoden das jetzt **ins Protokoll schreiben**, statt stillschweig
 zu liefern. `/UserToken/Refresh` gibt deshalb weiterhin ausnahmslos `Unauthorized` zurück.
 
 Für Maschinen ist das kein Mangel: ein Gerät handelt für niemanden, es *ist* die Identität.
+---
+
+## 67. Ein Bump kann geseedete Vertrauens-Einträge entwerten — **kein Schema-Change, aber eine Prüfung, die ihr laufen lassen solltet**
+
+Dieser Abschnitt gehört eigentlich schon zu §65 — dort steht er nur nicht, und genau das hat einen
+Konsumenten eine Stunde gekostet. Er gilt **nicht nur für PRE240**, sondern für jeden künftigen Bump.
+
+### 67.1 Warum die Einträge brechen
+
+`TrustedFullAccessComponents` hält **assembly-qualifizierte Typnamen** — Zeichenketten, und das
+Nachschlagen vergleicht sie zeichengenau. Im Namen eines generischen Typs steckt die **Stelligkeit**:
+
+```
+…TreeShared.Security.DbSecurityRepository`45, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity, …
+                                         ^^^ die Zahl der Typparameter
+```
+
+Die Typen rund um den Sicherheitskontext führen ihn generisch — mit **einem Typparameter je Entität**.
+Bekommt oder verliert der Kontext eine Entität, verschiebt sich diese Zahl bei **allen** diesen Typen.
+In PRE240 ist genau das passiert (§65.2: `ClientAppUsers` ist weg, `ClientAppAccesses` und
+`DevicePairings` kamen dazu):
+
+| Typ | vorher | seit PRE240 |
+|---|---|---|
+| `DbSecurityRepository` (Shared und TreeShared) | `` `46 `` | `` `45 `` |
+| `SharedAssetInfoProvider` | `` `47 `` | `` `46 `` |
+| `TenantTemplateHelperBase` | `` `47 `` | `` `46 `` |
+
+### 67.2 Warum das teuer ist
+
+Der Bruch zeigt sich **nirgends dort, wo man ihn erwartet**:
+
+- Der **Build ist grün** — die Zahl steht in einer Datenbankzeile, nicht im Code.
+- Die **Migration läuft durch** — sie prüft die Zeile nicht gegen die Assembly.
+- Die **Anmeldung gelingt**. Erst danach ist der Mandant leer.
+
+Und die Meldung, die ein Betreiber meldet, ist die **falsche**: er sieht *„No eligible scopes for user
+labels …"* und meldet ein Rechte- oder Mandantenproblem. Dort ist alles richtig. Die Antwort steht eine
+Meldung weiter oben — nur liest man `` `45 `` als Rauschen, nicht als Nutzlast.
+
+Der Mechanismus fällt dabei **zu**, nicht auf: ein gebrochener Eintrag gewährt keine Rechte, er entzieht
+sie. Das ist ein Verfügbarkeits-, kein Sicherheitsproblem.
+
+### 67.3 Was das Toolkit seit PRE241 dazu tut
+
+**Die Meldung sagt jetzt, was sie vorfand.** Findet der Provider keinen Eintrag, sucht er in der bereits
+geladenen Tabelle nach einem Eintrag für **denselben Typ mit anderer Stelligkeit** und schreibt ihn
+dazu:
+
+```
+No Trust Configuration found for the caller (…DbSecurityRepository`45, …) on …
+ A trust entry for the SAME type exists, but with different generic arity (expected `45, the entry
+ says `46): '…DbSecurityRepository`46, …'. This usually means the entry predates a toolkit upgrade
+ that changed the entity set of the security context. …
+```
+
+Der Zusatz wird **nur beim ersten Nichttreffer je Paar** geschrieben — er nennt vollständige
+assembly-qualifizierte Namen, und tausendfach wiederholt wäre die Diagnose das nächste Problem.
+
+**Es gibt eine Prüfung zum bewussten Aufrufen.** `ISecurityAccessProvider.ValidateTrustEntries()` löst
+jede Zeile gegen die geladenen Assemblies auf:
+
+```csharp
+using var scope = app.Services.CreateScope();
+var result = scope.ServiceProvider
+    .GetRequiredService<ISecurityAccessProvider>()
+    .ValidateTrustEntries();
+
+if (!result.AllValid)
+{
+    // Im Protokoll steht der Befund bereits; hier entscheidet ihr nur noch, ob das Hochfahren
+    // daran scheitern soll. result.Describe() nennt jede Zeile mit Grund, result.Broken einzeln.
+    throw new InvalidOperationException(result.Describe());
+}
+```
+
+Sie protokolliert das Ergebnis selbst (Warnung bei Befunden, Bericht bei sauberem Stand), ist aber
+**bewusst nicht automatisch** verdrahtet: sie durchsucht im Fehlerfall geladene Assemblies und gehört
+nicht in einen Anfrage-Pfad. Ruft sie beim Hochfahren auf — dann seht ihr den Fehler beim **Deployment**
+statt beim ersten Benutzer.
+
+Geprüft wird dabei **nicht bloss, ob sich der Typ laden lässt**, sondern ob der gespeicherte Name
+zeichengenau dem entspricht, was der geladene Typ als `AssemblyQualifiedName` führt. Ein Typ kann sich
+laden lassen (die Bindung ist versionstolerant) und der Eintrag trotzdem nie greifen — das ist der Fall,
+den eine naive Prüfung übersieht.
+
+**Die Maske zeigt eine Spalte „Resolvable".** `/Security/TrustedComponents` führt je Zeile ein Häkchen
+oder ein rotes Zeichen; der Tooltip nennt den Grund. Das ist dieselbe Prüfung, nur für die angezeigte
+Seite.
+
+### 67.4 Was ihr tun müsst
+
+**Nach jedem Bump**, der Entitäten am Sicherheitskontext bewegt: `ValidateTrustEntries()` laufen lassen
+oder die Maske anschauen. Findet sie etwas, **die bestehende Zeile korrigieren** — nicht eine zweite
+anlegen, das Paar (`FullQualifiedTypeName`, `TargetQualifiedTypeName`) ist eindeutig.
+
+Eine Migration, die die Zeilen über den Namens-**Präfix** (nicht über die alte Zahl) nachzieht, ist der
+robuste Weg — sie überlebt auch den übernächsten Bump:
+
+```sql
+UPDATE TrustedFullAccessComponents
+SET FullQualifiedTypeName = '…DbSecurityRepository`45, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity, …'
+WHERE FullQualifiedTypeName LIKE '%.DbSecurityRepository`%';
+```
+
+### 67.5 Und für die Dokumente
+
+Jede Stelligkeit, die in einem dieser Dokumente steht, ist eine **Momentaufnahme**. Sie gehört
+abgeschrieben aus der eigenen Assembly, nie aus einem Dokument — ältere Abschnitte nennen zwangsläufig
+Zahlen, die inzwischen überholt sind (etwa `BUG-PRE230`, das ``SharedAssetInfoProvider`47`` nennt).

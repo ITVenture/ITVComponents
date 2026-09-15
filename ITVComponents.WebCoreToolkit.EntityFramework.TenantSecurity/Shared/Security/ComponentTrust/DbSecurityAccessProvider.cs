@@ -1,6 +1,8 @@
-﻿using ITVComponents.Json;
+﻿using ITVComponents.Helpers;
+using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +32,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         // (never the shared one) so the load itself can't collide either.
         private ConcurrentDictionary<(string trusted, string target), string> trustConfigCache;
         private readonly object trustCacheLock = new();
+
+        // Der erklaerende Zusatz wird nur beim ERSTEN Nichttreffer eines Paares mitgeschrieben: ein
+        // Nichttreffer wiederholt sich tausendfach (jeder Aufruf des nicht vertrauten Typs erzeugt einen),
+        // und der Zusatz nennt vollstaendige assembly-qualifizierte Namen - bei den Typen des
+        // Sicherheitskontexts einige Kilobyte. Tausendmal wiederholt waere die Diagnose das naechste Problem.
+        private readonly ConcurrentDictionary<(string trusted, string target), bool> reportedMisses = new();
 
         // Resolved once, not per call: CreateForCaller runs dozens of times per render, and pulling a logger
         // out of the container each time would cost more than the message it writes.
@@ -118,16 +126,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     if (trustConfigCache == null)
                     {
                         var dict = new ConcurrentDictionary<(string, string), string>();
-                        // Load on a fresh instance, never the shared scoped context. IgnoreQueryFilters keeps it
-                        // tenant-agnostic (the trust table is global) and guarantees the load can't re-enter
-                        // CurrentTenantId/scope resolution.
-                        var loadCtx = (ICoreSystemContext)ActivatorUtilities.CreateInstance(services, SecurityDb.GetType());
-                        using (loadCtx as IDisposable)
+                        foreach (var c in LoadTrustEntries())
                         {
-                            foreach (var c in loadCtx.TrustedFullAccessComponents.IgnoreQueryFilters().ToList())
-                            {
-                                dict[(c.FullQualifiedTypeName, c.TargetQualifiedTypeName)] = c.TrustLevelConfig;
-                            }
+                            dict[(c.FullQualifiedTypeName, c.TargetQualifiedTypeName)] = c.TrustLevelConfig;
                         }
 
                         trustConfigCache = dict;
@@ -136,6 +137,155 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
 
             return trustConfigCache.TryGetValue((trustedTypeName, trustingTypeName), out var cfg) ? cfg : null;
+        }
+
+        /// <summary>
+        /// Laedt die Vertrauens-Tabelle auf einer eigenen, kurzlebigen Kontext-Instanz.
+        /// </summary>
+        /// <remarks>
+        /// Nie auf dem geteilten Scope-Kontext: der Ladevorgang liefe sonst in dieselbe Nebenlaeufigkeit wie
+        /// alles andere. <c>IgnoreQueryFilters</c> haelt ihn mandantenfrei (die Tabelle ist global) und
+        /// verhindert, dass er die Mandanten-/Scope-Aufloesung erneut betritt.
+        /// </remarks>
+        private List<TrustedFullAccessComponent> LoadTrustEntries()
+        {
+            var loadCtx = (ICoreSystemContext)ActivatorUtilities.CreateInstance(services, SecurityDb.GetType());
+            using (loadCtx as IDisposable)
+            {
+                return loadCtx.TrustedFullAccessComponents.IgnoreQueryFilters().ToList();
+            }
+        }
+
+        /// <summary>
+        /// Sagt beim Nichttreffer, was statt des gesuchten Namens in der Tabelle steht.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der teure Teil an einem gebrochenen Vertrauens-Eintrag ist nicht der Bruch, sondern die Suche: die
+        /// Meldung, die ein Betreiber meldet, ist die <b>zweite</b> ("keine passenden Bereiche fuer den
+        /// Benutzer") und zeigt auf Rechte und Mandanten - wo alles richtig ist. Die Antwort steht schon in
+        /// der ersten Meldung, aber die Stelligkeit darin liest man als Rauschen, nicht als Nutzlast.
+        /// </para>
+        /// <para>
+        /// Die Tabelle liegt beim Fehlschlag vollstaendig im Puffer; der Vergleich ueber den
+        /// stelligkeitsfreien Namen kostet also nichts ausser der Suche selbst - und die laeuft je
+        /// Schluesselpaar nur einmal.
+        /// </para>
+        /// </remarks>
+        private string DescribeTrustMiss(string trustedTypeName, string trustingTypeName)
+        {
+            if (!reportedMisses.TryAdd((trustedTypeName, trustingTypeName), true))
+            {
+                return string.Empty;
+            }
+
+            var key = (trusted: trustedTypeName, target: trustingTypeName);
+            {
+                var cache = trustConfigCache;
+                if (cache == null)
+                {
+                    return string.Empty;
+                }
+
+                var trustedKey = TrustTypeName.GetComparisonKey(key.trusted);
+                var trustingKey = TrustTypeName.GetComparisonKey(key.target);
+                foreach (var candidate in cache.Keys)
+                {
+                    if (!string.Equals(TrustTypeName.GetComparisonKey(candidate.trusted), trustedKey, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    // Derselbe Typ ist eingetragen - nur anders geschrieben. Ob auch das Ziel passt, gehoert
+                    // in die Meldung: sonst sucht man am falschen der beiden Namen weiter.
+                    var targetMatches = string.Equals(candidate.target, key.target, StringComparison.Ordinal);
+                    var targetSameType = targetMatches || string.Equals(
+                        TrustTypeName.GetComparisonKey(candidate.target), trustingKey, StringComparison.Ordinal);
+                    var sb = new StringBuilder();
+                    sb.Append(" A trust entry for the SAME type exists, but with ")
+                        .Append(TrustTypeName.DescribeDifference(key.trusted, candidate.trusted))
+                        .Append(": '").Append(candidate.trusted).Append("'.");
+                    if (!targetMatches && targetSameType)
+                    {
+                        sb.Append(" Its target type differs in the same way: '").Append(candidate.target).Append("'.");
+                    }
+                    else if (!targetMatches)
+                    {
+                        sb.Append(" Its target type is a different one ('").Append(candidate.target)
+                            .Append("'), so it would not have matched anyway.");
+                    }
+
+                    sb.Append(" This usually means the entry predates a toolkit upgrade that changed the entity set of the security context. ")
+                        .Append("Fix the stored row so it carries the caller name reported at the start of this message (do not add a second row - the pair is unique), ")
+                        .Append("and call ISecurityAccessProvider.ValidateTrustEntries() on startup to see this at deployment time instead of at the first user.");
+                    return sb.ToString();
+                }
+
+                return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Loest jede Zeile der Vertrauens-Tabelle gegen die geladenen Assemblies auf und meldet die, die zur
+        /// Laufzeit nie treffen werden.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Geprueft wird <b>nicht bloss, ob sich der Typ laden laesst</b>, sondern ob der gespeicherte Name
+        /// zeichengenau dem entspricht, was der geladene Typ als <see cref="Type.AssemblyQualifiedName"/>
+        /// fuehrt - denn genau so schlaegt <see cref="ResolveTrustLevelConfig"/> nach. Ein Typ kann sich
+        /// laden lassen (die Bindung ist versionstolerant) und der Eintrag trotzdem nie greifen.
+        /// </para>
+        /// <para>
+        /// Liest bewusst frisch aus der Datenbank und nicht aus dem Puffer: wer diese Methode ruft, will den
+        /// Stand der Ablage wissen, nicht den Stand des Puffers.
+        /// </para>
+        /// </remarks>
+        public TrustEntryValidationResult ValidateTrustEntries()
+        {
+            List<TrustedFullAccessComponent> entries;
+            try
+            {
+                entries = LoadTrustEntries();
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"The trust entries could not be loaded for validation: {ex.OutlineException()}",
+                    LogSeverity.Error,
+                    "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.ComponentTrust.DbSecurityAccessProvider");
+                return TrustEntryValidationResult.NotSupported;
+            }
+
+            var diagnostics = entries
+                .Select(n => new TrustEntryDiagnostic
+                {
+                    EntryId = n.TrustedFullAccessComponentId,
+                    Description = string.IsNullOrWhiteSpace(n.Description) ? "no description" : n.Description,
+                    TrustedType = TrustTypeResolver.Check(n.FullQualifiedTypeName, "trusted type"),
+                    TrustingType = TrustTypeResolver.Check(n.TargetQualifiedTypeName, "target type")
+                })
+                .ToList();
+
+            var result = new TrustEntryValidationResult(true, diagnostics);
+            if (result.AllValid)
+            {
+                LogEnvironment.LogEvent(
+                    $"All {diagnostics.Count} trust entries resolve against the loaded assemblies.",
+                    LogSeverity.Report,
+                    "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.ComponentTrust.DbSecurityAccessProvider");
+            }
+            else
+            {
+                // Warnung, nicht Fehler: die Anwendung laeuft weiter, nur ohne die besonderen Rechte dieser
+                // Eintraege. Genau das ist der Fall, den man sonst erst beim ersten Benutzer bemerkt.
+                LogEnvironment.LogEvent(
+                    result.Describe(),
+                    LogSeverity.Warning,
+                    "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.ComponentTrust.DbSecurityAccessProvider");
+            }
+
+            return result;
         }
 
         public IFullSecurityAccessHelper<TTrustConfig> CreateForCaller<TTrustConfig, T>(T trustingObject, TTrustConfig desiredTrust = null) where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
@@ -193,7 +343,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
             else
             {
-                LogEnvironment.LogEvent($"No Trust Configuration found for the caller ({trustedType.AssemblyQualifiedName}). No special permissions will be granted.", LogSeverity.Warning, "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.FullSecurityAccessHelper");
+                LogEnvironment.LogEvent(
+                    $"No Trust Configuration found for the caller ({trustedType.AssemblyQualifiedName}) on {TrustTypeName.GetComparisonKey(trustingType.AssemblyQualifiedName)}. No special permissions will be granted.{DescribeTrustMiss(trustedType.AssemblyQualifiedName, trustingType.AssemblyQualifiedName)}",
+                    LogSeverity.Warning,
+                    "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.FullSecurityAccessHelper");
             }
             //throw new InvalidOperationException($"The caller ({type.AssemblyQualifiedName}) is not trusted for {trustingType.AssemblyQualifiedName}!");
             TTrustConfig trustConfig =

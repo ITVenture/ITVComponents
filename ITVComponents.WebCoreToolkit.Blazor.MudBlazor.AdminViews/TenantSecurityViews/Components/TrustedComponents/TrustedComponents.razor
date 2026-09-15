@@ -1,4 +1,4 @@
-@page "/Security/TrustedComponents"
+﻿@page "/Security/TrustedComponents"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -43,6 +43,20 @@ else
             <PropertyColumn Property="x => x.FullQualifiedTypeName" Title="Component type" />
             <PropertyColumn Property="x => x.TargetQualifiedTypeName" Title="Target type" />
             <PropertyColumn Property="x => x.Description" Title="Description" />
+            <TemplateColumn T="TrustedComponentViewModel" Title="Resolvable" Sortable="false">
+                <CellTemplate>
+                    @if (context.Item.Resolvable)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                    }
+                    else
+                    {
+                        <MudTooltip Text="@context.Item.ResolveHint">
+                            <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Size="Size.Small" />
+                        </MudTooltip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
             <TemplateColumn T="TrustedComponentViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     <SecureView RequiredPermissions="TrustedComponents.Write">
