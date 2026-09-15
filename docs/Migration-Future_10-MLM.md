@@ -6088,3 +6088,276 @@ gesendet: ein Datensatz ohne Namen erzeugt drüben sofort eine Rückfrage.
 > v2-Weg erst recht. Ein Vorbehalt bleibt bis zum ersten Live-Lauf: ob die Auszahlungs-Fähigkeit aktiv wird,
 > obwohl sie sich bei der Anlage nicht anfordern lässt. Die zweite Annahme — dass `account.updated` weiter
 > gesendet wird — hat sich als **falsch** herausgestellt; was daraus folgt, steht in 64.6.
+
+---
+
+## 65. ClientApps werden eine tragfähige Funktion — **Pflicht-Migration (1 Tabelle neu, 1 umbenannt, 1 gelöscht), wenn ihr ClientApps nutzt**
+
+Das ClientApp-Konzept war **hinten fertig und vorne gar nicht gebaut**. `DbSecurityRepository` löst
+App-Zugänge seit je vollständig auf — Claim → UserMapper → `##APPUSER##<Label>#` → `ClientAppUsers.Label`
+→ `ClientApp.AppPermissions` → Rechte. Nur schrieb **keine einzige Zeile im ganzen Toolkit** je eine
+ClientApp, einen Zugang oder eine Rechtezuordnung; `ClientKey` und `ClientSecret` waren seit 2022 tote
+Spalten, und der Template-Zweig hatte als Einziges eine vollständige Maske, ohne dass ein Template je
+angewandt worden wäre.
+
+Genau deshalb ist dieser Schnitt jetzt günstig: **es gibt keinen Altbestand ausser von Hand angelegtem.**
+
+### 65.1 Was sich ändert und warum
+
+| Was | Vorher | Jetzt | Warum |
+|---|---|---|---|
+| `ClientAppUsers` | Tabelle | **umbenannt** in `ClientAppAccesses` | Sobald `TenantUserId` optional ist, ist der Eintrag ein *Zugang*, kein Benutzer. Ein Kassenterminal ist keine Person. |
+| `ClientAppAccesses.TenantUserId` | Pflicht | **optional** | Die Weiche: ohne Benutzer eine **Maschine** (Rechte direkt aus den Bündeln der App), mit Benutzer eine **Delegation** (Schnitt mit den Rechten des Benutzers). |
+| `ClientApps` | mandantenlos | `TenantId` **Pflicht** | Eine mandantenlose App hätte in *jedem* Mandanten Rechte gehabt, ohne dass sie dort je ein Administrator vergeben hätte. Jetzt bestimmt die Plattform über das Template, was zur Auswahl steht — der Mandanten-Administrator, welchen Freiheitsgrad er zugesteht. |
+| `ClientApps.ClientKey` | `nvarchar(max)`, kein Index | `nvarchar(128)`, **systemweit eindeutig** | War als Nachschlagefeld unbrauchbar — `nvarchar(max)` ist in SQL Server nicht einmal indizierbar. Systemweit und nicht je Mandant, weil es beim Anmelden noch **keinen** Mandantenkontext gibt: das Gerät legt seinen Schlüssel vor, und daraus muss der Mandant erst gefunden werden. |
+| `AppPermissionSets` | global geteilt, Name systemweit eindeutig | gehören **einem Template**, Name **je Template** eindeutig | Rechtebündel sind anwendungsspezifisch: „Vollzugriff" heisst bei einem Kassen-Agenten etwas anderes als bei einem Archiv-Dienst. Nebenwirkung: die **Obergrenze** ist damit eine Fremdschlüssel-Invariante statt einer Rechenregel — eine App kann nur Bündel ihres eigenen Templates führen. |
+| `ClientAppTemplatePermissions` | Verknüpfungstabelle | **entfällt** | Wird durch den Fremdschlüssel aus der Zeile darüber ersetzt. Wurde nie beschrieben. |
+| `DevicePairings` | — | **neu** | Die Zwischenzustände der Geräte-Kopplung. |
+
+`ClientApp.ClientSecret` **bleibt unverändert stehen** — reserviert für den vertraulichen
+Anwendungs-Fluss (JWT), der separat nachgezogen wird. Das Geheimnis eines *Geräts* hängt dagegen am
+einzelnen Zugang (`ClientAppAccesses.SecretHash`), **damit ein Widerruf ein Gerät trifft und nicht alle**.
+
+### 65.2 Zwei Fehler im Bestand, die mitrepariert wurden
+
+**Der Rechte-Deckel ignorierte den Label-Filter.** In `DbSecurityRepository.GetPermissions` wurde
+`preFilteredPerms` über *alle* App-Zugänge des Mandanten gebildet statt über den gesuchten — die
+Obergrenze war damit die Vereinigung der Bündel **aller** Apps mit einem Zugang in diesem Mandanten.
+App A hob den Deckel für App B. Stand in beiden `GetPermissions`-Fassungen und im Tree-Pendant.
+
+**Der Mandantenfilter der Zugänge lief über `TenantUser`.** Seit `TenantUserId` optional ist, wäre damit
+jeder Maschinenzugang unsichtbar gewesen — der Umweg lieferte `null` und filterte ihn restlos weg. Der
+Mandant kommt jetzt über `ClientApp.Tenant`, und `ClientApps` bekommt einen eigenen Filter; die Tabelle
+war bisher für alle Mandanten sichtbar.
+
+### 65.3 SQL Server
+
+> **Reihenfolge einhalten.** Die Spaltenänderungen an `ClientAppAccesses` gehen nur, wenn die Indizes
+> vorher weg sind.
+
+```sql
+-- A) Die Verknuepfungstabelle faellt weg (wurde nie beschrieben)
+DROP TABLE [ClientAppTemplatePermissions];
+
+-- B) Tabelle und Schluesselspalte UMBENENNEN, nicht neu anlegen.
+--    EF generiert hier ein Drop+Create, weil der Snapshot Entitaeten nur als Zeichenketten kennt -
+--    das wuerde den Bestand verlieren.
+EXEC sp_rename 'ClientAppUsers', 'ClientAppAccesses';
+EXEC sp_rename 'ClientAppAccesses.ClientAppUserId', 'ClientAppAccessId', 'COLUMN';
+EXEC sp_rename 'PK_ClientAppUsers', 'PK_ClientAppAccesses';
+
+-- C) Indizes weg, Spalten aendern, Indizes neu
+DROP INDEX [UQ_ClientAppUser] ON [ClientAppAccesses];
+DROP INDEX [UQ_TUserPerApp] ON [ClientAppAccesses];
+DROP INDEX [IX_ClientAppUsers_ClientAppId] ON [ClientAppAccesses];
+
+ALTER TABLE [ClientAppAccesses] ALTER COLUMN [TenantUserId] int NULL;
+ALTER TABLE [ClientAppAccesses] ALTER COLUMN [Label] nvarchar(128) NOT NULL;
+
+ALTER TABLE [ClientAppAccesses] ADD [SecretHash] nvarchar(512) NULL;
+ALTER TABLE [ClientAppAccesses] ADD [DeviceLabel] nvarchar(200) NULL;
+ALTER TABLE [ClientAppAccesses] ADD [CreatedUtc] datetime2 NOT NULL DEFAULT SYSUTCDATETIME();
+ALTER TABLE [ClientAppAccesses] ADD [ExpiresUtc] datetime2 NULL;
+ALTER TABLE [ClientAppAccesses] ADD [RevokedUtc] datetime2 NULL;
+ALTER TABLE [ClientAppAccesses] ADD [LastUsedUtc] datetime2 NULL;
+
+CREATE INDEX [IX_ClientAppAccesses_ClientAppId] ON [ClientAppAccesses] ([ClientAppId]);
+CREATE UNIQUE INDEX [UQ_ClientAppAccess] ON [ClientAppAccesses] ([Label]);
+-- Der Filter ist PFLICHT und genau der, den EF selbst erzeugt: ohne ihn behandelt SQL Server die
+-- NULLs als gleich und liesse genau EINEN Maschinenzugang pro Datenbank zu.
+CREATE UNIQUE INDEX [UQ_TUserPerApp] ON [ClientAppAccesses] ([TenantUserId], [ClientAppId])
+    WHERE [TenantUserId] IS NOT NULL;
+
+-- D) ClientApps
+ALTER TABLE [ClientApps] ADD [TenantId] int NOT NULL DEFAULT 0;
+ALTER TABLE [ClientApps] ADD [ClientAppTemplateId] int NOT NULL DEFAULT 0;
+ALTER TABLE [ClientApps] ADD [Enabled] bit NOT NULL DEFAULT 1;
+ALTER TABLE [ClientApps] ADD [CreatedUtc] datetime2 NOT NULL DEFAULT SYSUTCDATETIME();
+ALTER TABLE [ClientApps] ALTER COLUMN [ClientKey] nvarchar(128) NOT NULL;
+
+CREATE UNIQUE INDEX [UQ_ClientAppKey] ON [ClientApps] ([ClientKey]);
+CREATE INDEX [IX_ClientApps_TenantId] ON [ClientApps] ([TenantId]);
+CREATE INDEX [IX_ClientApps_ClientAppTemplateId] ON [ClientApps] ([ClientAppTemplateId]);
+
+-- E) AppPermissionSets gehoeren einem Template
+ALTER TABLE [AppPermissionSets] ADD [ClientAppTemplateId] int NOT NULL DEFAULT 0;
+DROP INDEX [UQ_AppPermissionSetName] ON [AppPermissionSets];
+CREATE UNIQUE INDEX [UQ_AppPermissionSetName] ON [AppPermissionSets] ([ClientAppTemplateId], [Name]);
+
+-- F) ClientAppPermissions: der fehlende Unique-Index
+DROP INDEX [IX_ClientAppPermissions_ClientAppId] ON [ClientAppPermissions];
+CREATE UNIQUE INDEX [UQ_SetPerClientApp] ON [ClientAppPermissions] ([ClientAppId], [AppPermissionSetId]);
+
+-- G) Die Kopplungsvorgaenge
+CREATE TABLE [DevicePairings] (
+    [DevicePairingId] int IDENTITY(1,1) NOT NULL,
+    [TenantId] int NOT NULL,
+    [ClientAppId] int NOT NULL,
+    [DeviceCodeHash] nvarchar(512) NOT NULL,
+    [UserCode] nvarchar(32) NOT NULL,
+    [DeviceLabel] nvarchar(200) NULL,
+    [CreatedUtc] datetime2 NOT NULL,
+    [ExpiresUtc] datetime2 NOT NULL,
+    [State] int NOT NULL,
+    [ConfirmedByTenantUserId] int NULL,
+    [ConfirmedUtc] datetime2 NULL,
+    [ClientAppAccessId] int NULL,
+    [SecretDeliveredUtc] datetime2 NULL,
+    [PollCount] int NOT NULL,
+    [LastPollUtc] datetime2 NULL,
+    CONSTRAINT [PK_DevicePairings] PRIMARY KEY ([DevicePairingId]),
+    CONSTRAINT [FK_DevicePairings_Tenants_TenantId] FOREIGN KEY ([TenantId])
+        REFERENCES [Tenants] ([TenantId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_DevicePairings_ClientApps_ClientAppId] FOREIGN KEY ([ClientAppId])
+        REFERENCES [ClientApps] ([ClientAppId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_DevicePairings_TenantUsers_ConfirmedByTenantUserId] FOREIGN KEY ([ConfirmedByTenantUserId])
+        REFERENCES [TenantUsers] ([TenantUserId]),
+    CONSTRAINT [FK_DevicePairings_ClientAppAccesses_ClientAppAccessId] FOREIGN KEY ([ClientAppAccessId])
+        REFERENCES [ClientAppAccesses] ([ClientAppAccessId])
+);
+
+CREATE UNIQUE INDEX [UQ_DevicePairingDeviceCode] ON [DevicePairings] ([DeviceCodeHash]);
+CREATE INDEX [IX_DevicePairingUserCode] ON [DevicePairings] ([UserCode]);
+CREATE INDEX [IX_DevicePairings_TenantId] ON [DevicePairings] ([TenantId]);
+CREATE INDEX [IX_DevicePairings_ClientAppId] ON [DevicePairings] ([ClientAppId]);
+CREATE INDEX [IX_DevicePairings_ConfirmedByTenantUserId] ON [DevicePairings] ([ConfirmedByTenantUserId]);
+CREATE INDEX [IX_DevicePairings_ClientAppAccessId] ON [DevicePairings] ([ClientAppAccessId]);
+
+-- H) ERST JETZT die Fremdschluessel der neuen Pflichtspalten - siehe 65.5, wenn ihr Altbestand habt
+ALTER TABLE [AppPermissionSets] ADD CONSTRAINT [FK_AppPermissionSets_ClientAppTemplates_ClientAppTemplateId]
+    FOREIGN KEY ([ClientAppTemplateId]) REFERENCES [ClientAppTemplates] ([ClientAppTemplateId]) ON DELETE CASCADE;
+ALTER TABLE [ClientApps] ADD CONSTRAINT [FK_ClientApps_Tenants_TenantId]
+    FOREIGN KEY ([TenantId]) REFERENCES [Tenants] ([TenantId]) ON DELETE CASCADE;
+-- Restrict, nicht Cascade: ein Template zu loeschen, an dem noch Anwendungen haengen, ist ein Fehler
+-- und kein Aufraeumen.
+ALTER TABLE [ClientApps] ADD CONSTRAINT [FK_ClientApps_ClientAppTemplates_ClientAppTemplateId]
+    FOREIGN KEY ([ClientAppTemplateId]) REFERENCES [ClientAppTemplates] ([ClientAppTemplateId]);
+```
+
+### 65.4 PostgreSQL
+
+Gleiche Reihenfolge, gleiche Wirkung. **Achtet auf die Anführungszeichen** — ohne sie faltet PostgreSQL
+die Bezeichner auf Kleinschreibung und trifft die Spalten nicht.
+
+```sql
+DROP TABLE "ClientAppTemplatePermissions";
+
+ALTER TABLE "ClientAppUsers" RENAME TO "ClientAppAccesses";
+ALTER TABLE "ClientAppAccesses" RENAME COLUMN "ClientAppUserId" TO "ClientAppAccessId";
+ALTER INDEX "PK_ClientAppUsers" RENAME TO "PK_ClientAppAccesses";
+
+DROP INDEX "UQ_ClientAppUser";
+DROP INDEX "UQ_TUserPerApp";
+DROP INDEX "IX_ClientAppUsers_ClientAppId";
+
+ALTER TABLE "ClientAppAccesses" ALTER COLUMN "TenantUserId" DROP NOT NULL;
+ALTER TABLE "ClientAppAccesses" ALTER COLUMN "Label" TYPE character varying(128);
+
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "SecretHash" character varying(512) NULL;
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "DeviceLabel" character varying(200) NULL;
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "CreatedUtc" timestamp with time zone NOT NULL DEFAULT now();
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "ExpiresUtc" timestamp with time zone NULL;
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "RevokedUtc" timestamp with time zone NULL;
+ALTER TABLE "ClientAppAccesses" ADD COLUMN "LastUsedUtc" timestamp with time zone NULL;
+
+CREATE INDEX "IX_ClientAppAccesses_ClientAppId" ON "ClientAppAccesses" ("ClientAppId");
+CREATE UNIQUE INDEX "UQ_ClientAppAccess" ON "ClientAppAccesses" ("Label");
+-- PostgreSQL zaehlt NULLs ohnehin als verschieden; der WHERE-Teil macht die Absicht nur ausdruecklich
+-- und haelt den Index klein.
+CREATE UNIQUE INDEX "UQ_TUserPerApp" ON "ClientAppAccesses" ("TenantUserId", "ClientAppId")
+    WHERE "TenantUserId" IS NOT NULL;
+
+ALTER TABLE "ClientApps" ADD COLUMN "TenantId" integer NOT NULL DEFAULT 0;
+ALTER TABLE "ClientApps" ADD COLUMN "ClientAppTemplateId" integer NOT NULL DEFAULT 0;
+ALTER TABLE "ClientApps" ADD COLUMN "Enabled" boolean NOT NULL DEFAULT TRUE;
+ALTER TABLE "ClientApps" ADD COLUMN "CreatedUtc" timestamp with time zone NOT NULL DEFAULT now();
+ALTER TABLE "ClientApps" ALTER COLUMN "ClientKey" TYPE character varying(128);
+
+CREATE UNIQUE INDEX "UQ_ClientAppKey" ON "ClientApps" ("ClientKey");
+CREATE INDEX "IX_ClientApps_TenantId" ON "ClientApps" ("TenantId");
+CREATE INDEX "IX_ClientApps_ClientAppTemplateId" ON "ClientApps" ("ClientAppTemplateId");
+
+ALTER TABLE "AppPermissionSets" ADD COLUMN "ClientAppTemplateId" integer NOT NULL DEFAULT 0;
+DROP INDEX "UQ_AppPermissionSetName";
+CREATE UNIQUE INDEX "UQ_AppPermissionSetName" ON "AppPermissionSets" ("ClientAppTemplateId", "Name");
+
+DROP INDEX "IX_ClientAppPermissions_ClientAppId";
+CREATE UNIQUE INDEX "UQ_SetPerClientApp" ON "ClientAppPermissions" ("ClientAppId", "AppPermissionSetId");
+
+CREATE TABLE "DevicePairings" (
+    "DevicePairingId" integer GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+    "TenantId" integer NOT NULL,
+    "ClientAppId" integer NOT NULL,
+    "DeviceCodeHash" character varying(512) NOT NULL,
+    "UserCode" character varying(32) NOT NULL,
+    "DeviceLabel" character varying(200) NULL,
+    "CreatedUtc" timestamp with time zone NOT NULL,
+    "ExpiresUtc" timestamp with time zone NOT NULL,
+    "State" integer NOT NULL,
+    "ConfirmedByTenantUserId" integer NULL,
+    "ConfirmedUtc" timestamp with time zone NULL,
+    "ClientAppAccessId" integer NULL,
+    "SecretDeliveredUtc" timestamp with time zone NULL,
+    "PollCount" integer NOT NULL,
+    "LastPollUtc" timestamp with time zone NULL,
+    CONSTRAINT "PK_DevicePairings" PRIMARY KEY ("DevicePairingId"),
+    CONSTRAINT "FK_DevicePairings_Tenants_TenantId" FOREIGN KEY ("TenantId")
+        REFERENCES "Tenants" ("TenantId") ON DELETE CASCADE,
+    CONSTRAINT "FK_DevicePairings_ClientApps_ClientAppId" FOREIGN KEY ("ClientAppId")
+        REFERENCES "ClientApps" ("ClientAppId") ON DELETE CASCADE,
+    CONSTRAINT "FK_DevicePairings_TenantUsers_ConfirmedByTenantUserId" FOREIGN KEY ("ConfirmedByTenantUserId")
+        REFERENCES "TenantUsers" ("TenantUserId"),
+    CONSTRAINT "FK_DevicePairings_ClientAppAccesses_ClientAppAccessId" FOREIGN KEY ("ClientAppAccessId")
+        REFERENCES "ClientAppAccesses" ("ClientAppAccessId")
+);
+
+CREATE UNIQUE INDEX "UQ_DevicePairingDeviceCode" ON "DevicePairings" ("DeviceCodeHash");
+CREATE INDEX "IX_DevicePairingUserCode" ON "DevicePairings" ("UserCode");
+CREATE INDEX "IX_DevicePairings_TenantId" ON "DevicePairings" ("TenantId");
+CREATE INDEX "IX_DevicePairings_ClientAppId" ON "DevicePairings" ("ClientAppId");
+CREATE INDEX "IX_DevicePairings_ConfirmedByTenantUserId" ON "DevicePairings" ("ConfirmedByTenantUserId");
+CREATE INDEX "IX_DevicePairings_ClientAppAccessId" ON "DevicePairings" ("ClientAppAccessId");
+
+ALTER TABLE "AppPermissionSets" ADD CONSTRAINT "FK_AppPermissionSets_ClientAppTemplates_ClientAppTemplateId"
+    FOREIGN KEY ("ClientAppTemplateId") REFERENCES "ClientAppTemplates" ("ClientAppTemplateId") ON DELETE CASCADE;
+ALTER TABLE "ClientApps" ADD CONSTRAINT "FK_ClientApps_Tenants_TenantId"
+    FOREIGN KEY ("TenantId") REFERENCES "Tenants" ("TenantId") ON DELETE CASCADE;
+ALTER TABLE "ClientApps" ADD CONSTRAINT "FK_ClientApps_ClientAppTemplates_ClientAppTemplateId"
+    FOREIGN KEY ("ClientAppTemplateId") REFERENCES "ClientAppTemplates" ("ClientAppTemplateId");
+```
+
+### 65.5 Wenn ihr von Hand angelegte Zeilen habt
+
+Die neuen Pflichtspalten kommen mit `DEFAULT 0` herein. Bestehende Zeilen zeigen damit auf Mandant 0 und
+Template 0 — **beides existiert nicht, und der Fremdschlüssel in Schritt H schlägt fehl.** Vor Schritt H
+also:
+
+```sql
+-- Beispiel: alle bestehenden Apps dem Template 'Alt' und einem Mandanten zuordnen
+UPDATE [ClientApps] SET [TenantId] = <euer TenantId>, [ClientAppTemplateId] = <euer TemplateId]
+    WHERE [TenantId] = 0;
+UPDATE [AppPermissionSets] SET [ClientAppTemplateId] = <euer TemplateId>
+    WHERE [ClientAppTemplateId] = 0;
+```
+
+**Ein Rechtebündel gehört jetzt genau einem Template.** War dasselbe Bündel vorher mehreren Templates
+zugeordnet, müsst ihr es je Template **kopieren** — die Zuordnungstabelle, die das erlaubte, gibt es nicht
+mehr. Das war der Preis dafür, dass die Obergrenze ohne Prüfregel auskommt.
+
+### 65.6 Am Code
+
+`ClientAppUser` heisst überall `ClientAppAccess`, samt Typparameter (`TClientAppUser` →
+`TClientAppAccess`) und DbSet (`ClientAppUsers` → `ClientAppAccesses`). **Der Wert des Claims
+(`urn:ITV:IWCT:App:UserId`) und das Label-Format `##APPUSER##…#` bleiben unverändert** — bestehende
+Token und UserMapper sind nicht betroffen.
+
+`ClientAppTemplate` verliert `AppPermissions` und bekommt `PermissionSets` (die Bündel selbst statt der
+Zuordnungen). Die beiden Template-Masken kannten „Bündel zuordnen / entziehen"; das gibt es nicht mehr,
+und aus *entziehen* wird **löschen**. Die Methode heisst deshalb jetzt
+`DeletePermissionSetFromTemplateAsync` — gelöscht wird nur, was keine ClientApp mehr führt, sonst verlöre
+eine laufende Anwendung still ihre Rechte.
+
+> **Noch nicht am Host verifiziert.** Weder das SQL oben noch der Kopplungsablauf sind je gegen eine echte
+> Datenbank gelaufen. Das DDL ist aus einer Probe-Migration gegen den `AspNetSecurityContext` abgeleitet
+> (erzeugt, gelesen, wieder entfernt) — es entspricht also dem, was EF aus dem Modell macht, ist aber nicht
+> angewandt worden.

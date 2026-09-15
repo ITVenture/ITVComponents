@@ -91,7 +91,26 @@ DevicePairing            je Mandant      die Zwischenzustaende der Kopplung
 ## 3. Schema-Aenderungen
 
 Alle drei Varianten (`Basic`, `CoreIdentity`, `CoreIdentityTree`), beide Datenbanken
-(SQL Server, PostgreSQL) - also **6 Migrationen**.
+(SQL Server, PostgreSQL).
+
+> **KORREKTUR gegenueber dem ersten Entwurf: KEINE generierten Migrationen.**
+> Der erste Entwurf sagte "6 Migrationen". Das war falsch. Fuer den **Security-Kontext** gilt in diesem
+> Repo eine andere Festlegung: die Migrations-Snapshots unter `…TenantSecurity.SqlServer/*/Migrations`
+> (und `.PostgreSql`) hinken seit 2024 hinterher - fuenf von sechs stehen auf EF `ProductVersion 8.0.11`,
+> waehrend die Projekte auf `net10.0`/EF `10.0.11` gehoben sind. Ein `dotnet ef migrations add` erzeugt
+> dort **den ganzen aufgelaufenen Drift** mit (`ExternalOAuthServices`, `GlobalRoles`, `ServerCookies`,
+> `Navigation.Metadata`/`IsPublic`, `WebPlugins.Transient` …) und wuerde beim Host fremde Schema-Objekte
+> anlegen.
+>
+> **Der Regelweg hier:** die Aenderung als Attribut am Modell deklarieren (design-time) und das
+> Schema-Delta als **handgeschriebenes SQL** in `docs/Migration-Future_10-MLM.md` dokumentieren, je
+> Datenbank. Der Konsument zieht es dort nach; er macht seine Migrationen ohnehin selbst.
+>
+> Die **Probe-Migration** bleibt als Werkzeug erlaubt und sinnvoll - um zu sehen, welches DDL EF aus den
+> Deklarationen macht: `migrations add` → Datei lesen → `migrations remove --force` → Snapshot mit
+> `git checkout --` zuruecksetzen. Nur committet wird sie nie.
+>
+> **Gilt NICHT fuer den WorkflowContext** - der hat gepflegte Migrationsprojekte.
 
 | # | Entitaet | Aenderung |
 |---|---|---|
@@ -252,7 +271,7 @@ waere ein Konflikt. Das ist der Punkt, an dem eine naive Kopie scheitert.
 
 | # | Inhalt | Abhaengt von |
 |---|---|---|
-| 1 | Modell + Schema + 6 Migrationen | - |
+| 1 | Modell + Schema + SQL-Abschnitt im Leitfaden (je Datenbank) | - |
 | 2 | Leseweg `DbSecurityRepository` (Maschinenzweig + Fehler (a)) | 1 |
 | 3 | Hash-Konvention + `ClientAppApiKeyResolver` + Mandantenkontext | 1, 2 |
 | 4 | `IDevicePairingService` + Endpunkte | 1, 3 |
