@@ -14,6 +14,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ModelConfiguration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -58,7 +59,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
 {
     [ExplicitlyExpose, DenyForeignKeySelection]
-    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientApp, ClientAppPermission, ClientAppAccess, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
+    public class SecurityContext<TImpl> : DbContext, IForeignKeyProvider, ISecurityContext<Tenant,int,User,Role,Permission,UserRole,RolePermission,TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, NavigationMenu,TenantNavigationMenu,DiagnosticsQuery,DiagnosticsQueryParameter,TenantDiagnosticsQuery,DashboardWidget,DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientApp, ClientAppPermission, ClientAppAccess, FlatWebPlugin, FlatWebPluginConstant,FlatWebPluginGenericParameter, FlatSequence,FlatTenantSetting,FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig>, IAllTenantsReader, IDevicePairingContext<DevicePairing>
     where TImpl:SecurityContext<TImpl>
     {
         private readonly ILogger<TImpl> logger;
@@ -398,6 +399,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
         public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
         public DbSet<ClientApp> ClientApps { get; set; }
         public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
+        /// <summary>
+        /// Die laufenden Geraete-Kopplungen. Nur Zwischenzustaende - das Ergebnis ist ein
+        /// ClientAppAccess, und der lebt weiter, wenn der Eintrag hier laengst abgeraeumt ist.
+        /// </summary>
+        public DbSet<DevicePairing> DevicePairings { get; set; }
 
         public DbSet<GlobalSetting> GlobalSettings { get; set; }
 
@@ -482,6 +488,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<GRoleLRole>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingGlobalLinks)
                 .OnDelete(DeleteBehavior.ClientSetNull);
+
+            modelBuilder.ConfigureClientApps<ClientAppTemplate, AppPermissionSet, ClientApp>();
 
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }

@@ -85,7 +85,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || !IncludeParentTree && dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && dw.Parent.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId)));
                 o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (!IncludeParentTree && uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) || IncludeParentTree && uw.Widget.DiagnosticsQuery.Tenants.Any(n => CurrentTenantTree.Contains(n.TenantId))) && uw.Tenant.TenantName.ToLower() == CurrentTenant && uw.UserName == CurrentUserName);
                 o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TClientAppAccess>(ca => ShowAllTenants || !FilterAvailable || ca.TenantUser.Tenant.TenantName.ToLower() == CurrentTenant);
+                // Der Mandant haengt an der APP, nicht mehr am Benutzer: seit TenantUserId optional ist,
+                // waere ein Maschinenzugang ueber ca.TenantUser.Tenant unsichtbar - der Umweg lieferte null
+                // und filterte ihn restlos weg.
+                o.ConfigureGlobalFilter<TClientApp>(ca => ShowAllTenants || !FilterAvailable || ca.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TClientAppAccess>(ca => ShowAllTenants || !FilterAvailable || ca.ClientApp.Tenant.TenantName.ToLower() == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || !IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId));
                 o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.TenantId == null || !IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId.Value));
                 o.ConfigureGlobalFilter<TExternalOAuthServiceState>(sq => ShowAllTenants || !FilterAvailable || (!IncludeParentTree && sq.Tenant.TenantName.ToLower() == CurrentTenant || IncludeParentTree && CurrentTenantTree.Contains(sq.TenantId)) && !sq.Used && sq.ExpiresAt > DateTimeOffset.UtcNow);

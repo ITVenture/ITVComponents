@@ -12,6 +12,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTr
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.DataAnnotations;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ModelConfiguration;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Interfaces;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -60,7 +62,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             ClientAppTemplate, AppPermission, AppPermissionSet, ClientApp,
             ClientAppPermission, ClientAppAccess, HierarchyWebPlugin, HierarchyWebPluginConstant,
             HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
-            HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>, IAllTenantsReader
+            HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>, IAllTenantsReader, IDevicePairingContext<DevicePairing>
         where TImpl : AspNetTreeSecurityContext<TImpl>
     {
         protected readonly DbContextModelBuilderOptions<TImpl> modelBuilderOptions;
@@ -1065,6 +1067,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public DbSet<ClientApp> ClientApps { get; set; }
         public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
         public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
+        /// <summary>
+        /// Die laufenden Geraete-Kopplungen. Nur Zwischenzustaende - das Ergebnis ist ein
+        /// ClientAppAccess, und der lebt weiter, wenn der Eintrag hier laengst abgeraeumt ist.
+        /// </summary>
+        public DbSet<DevicePairing> DevicePairings { get; set; }
 
         [ForeignKeySecurity(ToolkitPermission.Sysadmin, "DashboardWidgets.Write", "DashboardWidgets.View")]
         public DbSet<DiagnosticsQuery> DiagnosticsQueries { get; set; }
@@ -1227,6 +1234,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .OnDelete(DeleteBehavior.ClientSetNull);
             modelBuilder.Entity<GRoleLRole>().HasOne(n => n.LinkedBy).WithMany(l => l.ResultingGlobalLinks)
                 .OnDelete(DeleteBehavior.ClientSetNull);
+            modelBuilder.ConfigureClientApps<ClientAppTemplate, AppPermissionSet, ClientApp>();
+
             modelBuilderOptions.ConfigureModelBuilder(modelBuilder);
         }
     }

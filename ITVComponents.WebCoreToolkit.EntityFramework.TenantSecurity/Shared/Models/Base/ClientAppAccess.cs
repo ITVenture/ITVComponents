@@ -10,12 +10,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base
 {
-    // UQ_TUserPerApp (TenantUserId, ClientAppId) ist NICHT hier: seit TenantUserId optional ist, braucht
-    // der Index einen Filter auf "TenantUserId IS NOT NULL" - und [Index] kann keine Filter. SQL Server
-    // behandelt NULLs im Unique-Index als gleich und liesse sonst genau EINEN Maschinenzugang pro
-    // Datenbank zu, PostgreSQL dagegen beliebig viele. Ohne Filter laufen die beiden Datenbanken also
-    // auseinander, und auf PostgreSQL faellt es nie auf. Gesetzt wird er in ClientAppModelBuilder.
     [Index(nameof(Label), IsUnique=true, Name="UQ_ClientAppAccess")]
+    // "Hoechstens EIN Delegations-Zugang je Benutzer und Anwendung" - und nur fuer Delegationen, denn
+    // Maschinenzugaenge haben keinen Benutzer. Der Index bleibt dafuer OHNE Filter, weil beide
+    // Datenbanken von sich aus das Richtige tun: der SQL-Server-Provider haengt an einen Unique-Index
+    // ueber nullable Spalten selbsttaetig ein "WHERE [TenantUserId] IS NOT NULL" an (genau dieser
+    // Automatismus musste bei den WorkflowDefinitions mit HasFilter(null) abgeschaltet werden), und
+    // PostgreSQL zaehlt NULLs ohnehin als verschieden. Von Hand gefiltert werden muesste er nur bei
+    // handgeschriebenem SQL.
+    [Index(nameof(TenantUserId), nameof(ClientAppId), IsUnique = true, Name="UQ_TUserPerApp")]
     public class ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
