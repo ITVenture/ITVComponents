@@ -1,0 +1,85 @@
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudTextField @bind-Value="Model.ClientName"
+                          Label="Name"
+                          Required="true"
+                          RequiredError="A name is required."
+                          MaxLength="200" />
+
+            @if (IsCreate)
+            {
+                <MudSelect T="int" @bind-Value="Model.ClientAppTemplateId"
+                           Label="Template"
+                           Required="true"
+                           RequiredError="A template is required."
+                           HelperText="Determines which permission sets this application may be granted. Cannot be changed later.">
+                    @foreach (var t in templates)
+                    {
+                        <MudSelectItem T="int" Value="@t.ClientAppTemplateId">@t.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                @* Das Template bleibt: ein Wechsel machte die zugeordneten Buendel ungueltig. *@
+                <MudTextField Value="@Model.TemplateName" Label="Template" ReadOnly="true"
+                              HelperText="The template cannot be changed after creation." />
+                <MudTextField Value="@Model.ClientKey" Label="Client key" ReadOnly="true"
+                              HelperText="Devices carry this in their key. It never changes." />
+            }
+
+            <MudSwitch @bind-Value="Model.Enabled" Label="Enabled" Color="Color.Primary" Class="mt-4" />
+            <MudText Typo="Typo.caption">
+                Switched off, none of this application's devices can sign in any more.
+            </MudText>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
+            @(IsCreate ? "Create" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ClientAppViewModel Model { get; set; } = new();
+    [Parameter] public bool IsCreate { get; set; }
+    [Parameter] public IReadOnlyList<ClientAppTemplateViewModel> Templates { get; set; } = Array.Empty<ClientAppTemplateViewModel>();
+
+    private MudForm? form;
+    private IReadOnlyList<ClientAppTemplateViewModel> templates = Array.Empty<ClientAppTemplateViewModel>();
+
+    protected override void OnParametersSet()
+    {
+        templates = Templates;
+        if (IsCreate && Model.ClientAppTemplateId == 0 && templates.Count > 0)
+        {
+            Model.ClientAppTemplateId = templates[0].ClientAppTemplateId;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (form is not null)
+        {
+            await form.Validate();
+            if (!form.IsValid) return;
+        }
+
+        if (IsCreate && Model.ClientAppTemplateId == 0)
+        {
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(Model));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

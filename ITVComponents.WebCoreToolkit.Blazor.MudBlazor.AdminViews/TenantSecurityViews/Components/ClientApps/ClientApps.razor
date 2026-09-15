@@ -1,0 +1,217 @@
+@page "/Connectivity/ClientApps"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
+
+@inject IClientAppAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Client applications</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Client applications</MudText>
+
+<SecureView RequiredPermissions="Apps.View,Apps.Write" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+        @if (currentUser is null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudDataGrid T="ClientAppViewModel"
+                         @ref="grid"
+                         ServerData="LoadData"
+                         SortMode="SortMode.Single"
+                         RowsPerPage="25"
+                         Hover="true"
+                         Dense="true">
+                <ToolBarContent>
+                    <CrudGridToolbar OnRefresh="ReloadGrid" Title="Client applications" @bind-Search="search" OnSearch="ReloadGrid">
+                        <SecureView RequiredPermissions="Apps.Write">
+                            <Permitted>
+                                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                                           Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                                    Add application
+                                </MudButton>
+                            </Permitted>
+                        </SecureView>
+                    </CrudGridToolbar>
+                </ToolBarContent>
+                <Columns>
+                    <HierarchyColumn T="ClientAppViewModel" />
+                    <PropertyColumn Property="x => x.ClientName" Title="Name" />
+                    <PropertyColumn Property="x => x.TemplateName" Title="Template" />
+                    <TemplateColumn T="ClientAppViewModel" Title="State" Sortable="false">
+                        <CellTemplate>
+                            @if (!context.Item.Enabled)
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">off</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">on</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.ActiveAccessCount" Title="Devices" />
+                    <TemplateColumn T="ClientAppViewModel" Title="" Sortable="false">
+                        <CellTemplate>
+                            <SecureView RequiredPermissions="Apps.Write">
+                                <Permitted>
+                                    <MudStack Row="true" Spacing="1">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                       OnClick="@(() => OpenEdit(context.Item))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                                    </MudStack>
+                                </Permitted>
+                            </SecureView>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <ChildRowContent>
+                    <MudPaper Elevation="0" Class="pa-2">
+                        <MudTabs Elevation="0" Rounded="true">
+                            <MudTabPanel Text="Granted permission sets">
+                                <PermissionSetsForAppGrid ClientAppId="@context.Item.ClientAppId" />
+                            </MudTabPanel>
+                            <MudTabPanel Text="Devices">
+                                <ClientAppAccessesGrid ClientAppId="@context.Item.ClientAppId" />
+                            </MudTabPanel>
+                        </MudTabs>
+                    </MudPaper>
+                </ChildRowContent>
+                <PagerContent>
+                    <MudDataGridPager T="ClientAppViewModel" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view client applications.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private MudDataGrid<ClientAppViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private string? search;
+    private IReadOnlyList<ClientAppTemplateViewModel> templates = Array.Empty<ClientAppTemplateViewModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        templates = await Handler.ListTemplatesAsync(currentUser);
+    }
+
+    private async Task<GridData<ClientAppViewModel>> LoadData(GridState<ClientAppViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null)
+        {
+            return new GridData<ClientAppViewModel> { Items = Array.Empty<ClientAppViewModel>(), TotalItems = 0 };
+        }
+
+        var query = state.ToListQuery(search);
+        var result = await Handler.ListAsync(currentUser, query);
+        return new GridData<ClientAppViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenCreate()
+    {
+        if (templates.Count == 0)
+        {
+            // Ohne Template gibt es nichts anzulegen - und ohne diesen Hinweis sucht jemand den Fehler
+            // in der Maske statt in der fehlenden Vorlage.
+            Snackbar.Add("There is no application template yet. Create one under 'Client app templates' first.",
+                Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters<ClientAppDialog>
+        {
+            { d => d.Model, new ClientAppViewModel() },
+            { d => d.IsCreate, true },
+            { d => d.Templates, templates }
+        };
+        var dlg = await DialogService.ShowAsync<ClientAppDialog>("Create application", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: ClientAppViewModel input })
+        {
+            var created = await Handler.CreateAsync(currentUser!, input);
+            if (created != null)
+            {
+                Snackbar.Add("Application created", Severity.Success);
+                await ReloadGrid();
+            }
+            else
+            {
+                Snackbar.Add("Failed to create - see the log.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEdit(ClientAppViewModel item)
+    {
+        var copy = new ClientAppViewModel
+        {
+            ClientAppId = item.ClientAppId,
+            ClientName = item.ClientName,
+            ClientAppTemplateId = item.ClientAppTemplateId,
+            TemplateName = item.TemplateName,
+            ClientKey = item.ClientKey,
+            Enabled = item.Enabled
+        };
+        var parameters = new DialogParameters<ClientAppDialog>
+        {
+            { d => d.Model, copy },
+            { d => d.IsCreate, false },
+            { d => d.Templates, templates }
+        };
+        var dlg = await DialogService.ShowAsync<ClientAppDialog>("Edit application", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: ClientAppViewModel input })
+        {
+            var updated = await Handler.UpdateAsync(currentUser!, input);
+            if (updated != null)
+            {
+                Snackbar.Add("Application updated", Severity.Success);
+                await ReloadGrid();
+            }
+            else
+            {
+                Snackbar.Add("Failed to update - see the log.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task Delete(ClientAppViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete application",
+            $"Really delete '{item.ClientName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+
+        if (await Handler.DeleteAsync(currentUser!, item.ClientAppId))
+        {
+            Snackbar.Add("Application deleted", Severity.Success);
+        }
+        else
+        {
+            // Der haeufigste Grund: es haengen noch nicht widerrufene Zugaenge daran.
+            Snackbar.Add("Could not delete - active devices may still be paired with it.", Severity.Error);
+        }
+
+        await ReloadGrid();
+    }
+}

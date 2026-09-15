@@ -1,0 +1,99 @@
+@* Welche Rechtebuendel des Templates diese Anwendung tatsaechlich zugestanden bekommt. *@
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
+@using ITVComponents.WebCoreToolkit.Blazor.Paging
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IClientAppAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<SecureView RequiredPermissions="Apps.View,Apps.Write">
+    <Permitted>
+        <MudText Typo="Typo.caption" Class="mb-2">
+            Only the permission sets of this application's template can be granted - that is the ceiling the
+            platform defines. Switching one on grants everything it contains.
+        </MudText>
+        <MudDataGrid T="ClientAppPermissionSetViewModel"
+                     @ref="grid"
+                     ServerData="LoadData"
+                     RowsPerPage="25"
+                     Hover="true"
+                     Dense="true">
+            <Columns>
+                <TemplateColumn T="ClientAppPermissionSetViewModel" Title="" Sortable="false">
+                    <CellTemplate>
+                        <SecureView RequiredPermissions="Apps.Write">
+                            <Permitted>
+                                <MudCheckBox T="bool"
+                                             Value="context.Item.Assigned"
+                                             ValueChanged="@(v => Toggle(context.Item, v))" />
+                            </Permitted>
+                            <NotPermitted>
+                                <MudCheckBox T="bool" Value="context.Item.Assigned" Disabled="true" />
+                            </NotPermitted>
+                        </SecureView>
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.PermissionSetName" Title="Permission set" />
+                @* Damit niemand blind ankreuzt. *@
+                <PropertyColumn Property="x => x.Permissions" Title="Contains" />
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="ClientAppPermissionSetViewModel" />
+            </PagerContent>
+        </MudDataGrid>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Info">No permission to view the granted permission sets.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    [Parameter, EditorRequired] public int ClientAppId { get; set; }
+
+    private MudDataGrid<ClientAppPermissionSetViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+    private bool hasView;
+    private bool hasWrite;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+        hasView = Handler.HasPermission("Apps.View", "Apps.Write");
+        hasWrite = Handler.HasPermission("Apps.Write");
+    }
+
+    private async Task<GridData<ClientAppPermissionSetViewModel>> LoadData(
+        GridState<ClientAppPermissionSetViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null || !hasView)
+        {
+            return new GridData<ClientAppPermissionSetViewModel>
+            {
+                Items = Array.Empty<ClientAppPermissionSetViewModel>(), TotalItems = 0
+            };
+        }
+
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListPermissionSetsAsync(currentUser, ClientAppId, query);
+        return new GridData<ClientAppPermissionSetViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task Toggle(ClientAppPermissionSetViewModel item, bool newValue)
+    {
+        if (!hasWrite || currentUser is null) return;
+        var ok = await Handler.SetPermissionSetAsync(currentUser, ClientAppId, item.AppPermissionSetId, newValue);
+        if (ok)
+        {
+            item.Assigned = newValue;
+            Snackbar.Add(newValue ? "Permission set granted" : "Permission set withdrawn", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("The change was refused - see the log.", Severity.Error);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+}

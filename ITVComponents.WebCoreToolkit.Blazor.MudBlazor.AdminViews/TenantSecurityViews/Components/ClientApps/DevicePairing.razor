@@ -1,0 +1,144 @@
+@page "/Connectivity/DevicePairing"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using ITVComponents.WebCoreToolkit.Security.DevicePairing
+
+@inject IDevicePairingService Pairing
+@inject ISnackbar Snackbar
+
+<PageTitle>Pair a device</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Pair a device</MudText>
+
+<SecureView RequiredPermissions="Apps.Pairing.Confirm" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+        <MudPaper Class="pa-4" MaxWidth="640px">
+            <MudText Typo="Typo.body1" GutterBottom="true">
+                Enter the code the device is showing.
+            </MudText>
+
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="userCode"
+                              Label="Code"
+                              Placeholder="K7M4-9QPZ"
+                              Immediate="true"
+                              OnKeyUp="OnKey"
+                              Style="font-family: monospace; font-size: 1.2rem;" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="Look" Disabled="@(busy || string.IsNullOrWhiteSpace(userCode))">
+                    Look up
+                </MudButton>
+            </MudStack>
+
+            @if (busy)
+            {
+                <MudProgressLinear Indeterminate="true" Class="mt-4" />
+            }
+
+            @if (preview is { Found: false })
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-4">
+                    No open pairing carries this code. It may have expired - pairings are only valid for a
+                    few minutes.
+                </MudAlert>
+            }
+
+            @if (preview is { Found: true })
+            {
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle1">@preview.ClientAppName</MudText>
+                <MudText Typo="Typo.body2" Class="mb-3">Device: @preview.DeviceLabel</MudText>
+
+                @* Der Punkt dieser Maske: zeigen, WAS gerade erteilt wird. Ein Knopf, hinter dem niemand
+                   weiss, was er freigibt, ist keine Zustimmung. *@
+                <MudText Typo="Typo.body2"><b>This device will be granted:</b></MudText>
+                @if (preview.PermissionSets.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-2">
+                        Nothing yet - this application has no permission sets granted. The device will be able
+                        to sign in, but it will not be allowed to do anything.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudList T="string" Dense="true">
+                        @foreach (var set in preview.PermissionSets)
+                        {
+                            <MudListItem T="string" Icon="@Icons.Material.Filled.Check">@set</MudListItem>
+                        }
+                    </MudList>
+                }
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                           OnClick="Confirm" Disabled="@busy">
+                    Confirm pairing
+                </MudButton>
+            }
+
+            @if (confirmed)
+            {
+                <MudAlert Severity="Severity.Success" Class="mt-4">
+                    Confirmed. The device picks up its key on its next attempt - it is handed out exactly once.
+                </MudAlert>
+            }
+        </MudPaper>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to confirm pairings.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    private string? userCode;
+    private PairingPreview? preview;
+    private bool busy;
+    private bool confirmed;
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(userCode))
+        {
+            await Look();
+        }
+    }
+
+    private async Task Look()
+    {
+        busy = true;
+        confirmed = false;
+        try
+        {
+            preview = await Pairing.DescribeAsync(userCode);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Confirm()
+    {
+        busy = true;
+        try
+        {
+            var result = await Pairing.ConfirmAsync(userCode);
+            if (result.Success)
+            {
+                confirmed = true;
+                preview = null;
+                userCode = null;
+                Snackbar.Add("Pairing confirmed", Severity.Success);
+            }
+            else
+            {
+                // Der Grund kommt vom Dienst - etwa "gehoert einem anderen Mandanten".
+                Snackbar.Add(result.Reason ?? "The pairing could not be confirmed.", Severity.Error);
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
