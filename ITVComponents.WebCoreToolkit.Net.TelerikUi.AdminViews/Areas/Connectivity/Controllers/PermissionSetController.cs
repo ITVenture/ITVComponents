@@ -234,7 +234,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                     into apg
                 from j in apg.DefaultIfEmpty()
                          where prm.TenantId == null
-                select new { Selected = j == null, prm.PermissionId, prm.PermissionName, prm.Description });
+                // j ist null, wenn die Berechtigung NICHT im Buendel liegt - "Selected" war also genau
+                // verdreht: angehakt erschien, was gerade nicht zugeordnet ist.
+                select new { Selected = j != null, prm.PermissionId, prm.PermissionName, prm.Description });
             return Json(perms.ToDataSourceResult(request, s => new PermissionViewModel
             {
                 Assigned = s.Selected,
@@ -249,9 +251,28 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             }));
         }
 
+        /// <summary>
+        /// Setzt oder entfernt eine Berechtigung in einem Rechtebuendel.
+        /// </summary>
+        /// <remarks>
+        /// <c>RoleId</c> traegt hier die <b>AppPermissionSetId</b> - das Sichtmodell ist von der
+        /// Rollen-Maske uebernommen. Bis PRE242 zeigte das Raster deshalb auf <c>Update</c> am
+        /// Permission-Controller, und der schlug die Kennung in <c>SecurityRoles</c> nach.
+        /// </remarks>
+        [HttpPost]
+        [Authorize("HasPermission(Apps.PermissionSets.Write,Apps.PermissionSets.AssignPermission)")]
         public async Task<IActionResult> UpdatePermission([DataSourceRequest] DataSourceRequest request,
             PermissionViewModel mdl)
         {
+            if (mdl.RoleId == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Assigning permission {mdl.PermissionId} was refused: no permission-set was named.",
+                    LogSeverity.Warning);
+                ModelState.AddModelError("", "No permission set was named.");
+                return Json(new[] { mdl }.ToDataSourceResult(request, ModelState));
+            }
+
             var entity = db.AppPermissions.FirstOrDefault(n =>
                 n.PermissionId == mdl.PermissionId && n.AppPermissionSetId == mdl.RoleId);
             var isAssigned = entity != null;

@@ -30,8 +30,12 @@
                 .Read(read => read.Action("ReadPermissions", "PermissionSet", new {parentId = ViewData["roleId"]}));
             if (Context.RequestServices.VerifyUserPermissions(new[] { "Apps.PermissionSets.Write", "Apps.PermissionSets.AssignPermission" }))
             {
+                // "Update" am Permission-Controller ist die Zuordnung Berechtigung->ROLLE: der schlaegt
+                // die RoleId in SecurityRoles nach. Hier steht in RoleId aber eine AppPermissionSetId -
+                // gesucht wurde also eine Rolle mit der Kennung eines Rechtebuendels. Zustaendig ist
+                // UpdatePermission am PermissionSet-Controller, das es laengst gibt und das niemand rief.
                 tmp
-                    .Update(update => update.Action("Update", "Permission"));
+                    .Update(update => update.Action("UpdatePermission", "PermissionSet"));
             }
 
             tmp.Model(m => m.Id(t => t.PermissionId))
