@@ -6474,3 +6474,76 @@ Stellen, an denen ich beim ersten Lauf zuerst nachsehen würde:
   geprüft. Die Liste ist kurz (Vorgänge verfallen nach Minuten), aber bei sehr vielen gleichzeitigen
   Kopplungen wäre das die erste Stelle, die weh tut.
 - **Die Masken** sind übersetzt, aber nie bedient worden.
+
+### 65.10 Transport zwischen Umgebungen — zwei Wege, und warum
+
+Die Zweiteilung des Modells fällt genau auf die Zweiteilung der beiden Transportmechanismen:
+
+| Was | Wie | Warum |
+|---|---|---|
+| `ClientAppTemplate` samt `AppPermissionSet`s und deren Rechten | **Konfigurations-Austausch** (`sysCfg`) | Das ist die Vokabelliste der Plattform: was eine Anwendung dieser Art überhaupt können darf. Global, also Systemkonfiguration. |
+| `ClientApp` samt zugestandenen Bündeln | **Mandanten-Vorlage** | Das ist die Entscheidung *eines Mandanten*. Mandantendaten. |
+| `ClientAppAccess`, `DevicePairing` | **gar nicht** | Ein Zugang hängt an einem konkreten Gerät, sein `SecretHash` hat in einer anderen Umgebung nichts zu suchen. Ein Gerät wird dort neu gekoppelt — das ist der Sinn des Verfahrens. |
+
+> **Der Konfigurations-Austausch trägt grundsätzlich nur globale Zeilen.** Alle mandantenfähigen
+> Entitäten sind dort auf `TenantId IS NULL` eingeschränkt — `WebPlugins`, `Permissions`,
+> `WebPluginConstants`, `ExternalOAuthServices`. Der Mechanismus ist für Systemkonfiguration gebaut. Wer
+> dort Mandantendaten erwartet, sucht am falschen Ort.
+
+**Die Reihenfolge ist damit vorgegeben:** erst die Systemkonfiguration einspielen, dann die
+Mandanten-Vorlage anwenden. Fehlt beim Anwenden das genannte Anwendungs-Template, bricht der Lauf nicht
+ab — die betroffene Anwendung wird übersprungen und es landet eine Fehlerzeile im Protokoll, die genau
+das sagt.
+
+#### Was in der Mandanten-Vorlage steht
+
+```jsonc
+{
+  "ClientApps": [
+    {
+      "ClientName": "POS-Agent",
+      "TemplateName": "POS-Agent",        // das globale Template
+      "Enabled": true,
+      "PermissionSets": [ "Nur Druck" ]   // Bündel DIESES Templates
+    }
+  ],
+  "ApplyModeForClientApps": "Additive"
+}
+```
+
+**Der `ClientKey` steht dort nicht und kann dort nicht stehen.** Er ist systemweit eindeutig; eine Kopie
+kollidierte beim zweiten Mandanten, der aus derselben Vorlage entsteht. Er wird je Mandant **neu
+erzeugt**. Genau daran scheitert eine naive Übernahme.
+
+#### `Forced` verhält sich hier anders — mit Absicht
+
+Sonst heisst `Forced`: „die Vorlage gewinnt, Überzähliges wird entfernt". Bei den Anwendungen gilt das
+**nur für die Bündel-Zuordnungen**:
+
+- Eine Anwendung, die die Vorlage nicht nennt, **verliert ihre Bündel** — sie darf danach nichts mehr.
+- **Gelöscht wird sie nicht.** Eine Anwendung zu löschen nimmt ihre Zugänge mit und legt damit jedes
+  gekoppelte Gerät still. Das ist nicht rücknehmbar und darf nicht die Nebenwirkung eines
+  Vorlagen-Laufs sein.
+
+Jeder solche Fall landet als Warnung im Protokoll. Wer eine Anwendung wirklich loswerden will, tut es in
+der Verwaltung, wo die Maske die daran hängenden Geräte zeigt.
+
+#### Nachtrag zum SQL aus 65.3/65.4
+
+Die beiden Fremdschlüssel auf `ClientAppTemplates` haben inzwischen ein **ausdrückliches** Löschverhalten,
+weil `AppPermissionSet` und `ClientApp` jetzt eine echte Navigation zum Template führen (nötig, damit der
+Import ein Template referenzieren kann, das im selben Lauf entsteht — zum Zuweisungszeitpunkt hat es noch
+keine Id):
+
+```sql
+-- statt der Zeile in 65.3/65.4: die Buendel gehen mit dem Template
+ALTER TABLE [AppPermissionSets] ADD CONSTRAINT [FK_AppPermissionSets_ClientAppTemplates_ClientAppTemplateId]
+    FOREIGN KEY ([ClientAppTemplateId]) REFERENCES [ClientAppTemplates] ([ClientAppTemplateId]) ON DELETE CASCADE;
+
+-- unveraendert: die Anwendungen halten das Template fest
+ALTER TABLE [ClientApps] ADD CONSTRAINT [FK_ClientApps_ClientAppTemplates_ClientAppTemplateId]
+    FOREIGN KEY ([ClientAppTemplateId]) REFERENCES [ClientAppTemplates] ([ClientAppTemplateId]);
+```
+
+Ein Template nimmt also seine **Bündel** mit, darf aber nicht gelöscht werden, solange **Anwendungen**
+daran hängen. Das eine ist Aufräumen, das andere ein Fehler.

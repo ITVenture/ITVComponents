@@ -290,9 +290,9 @@ waere ein Konflikt. Das ist der Punkt, an dem eine naive Kopie scheitert.
 | 3 | **ERLEDIGT** - Hash-Konvention + `ClientAppApiKeyResolver` + Mandantenkontext | 1, 2 |
 | 4 | **ERLEDIGT** - `IDevicePairingService` + Endpunkte | 1, 3 |
 | 5 | **ERLEDIGT** - Verwaltungsmasken, plus Schaltbarkeit ueber die WebPart-Konfiguration | 1, 4 |
-| 6 | Settings-Exchange | 1 |
-| 7 | Mandanten-Vorlage | 1, 6 |
-| 8 | **TEILWEISE** - Leitfaden-Abschnitt 65 samt Rechten, Schaltern und Ablauf (65.7-65.9); die Abschnitte zu 6 und 7 fehlen noch | alle |
+| 6 | **ERLEDIGT** - Konfigurations-Austausch: NUR der globale Teil (Template samt Buendeln); die Anwendungen gehoeren in 7, weil der Mechanismus ausschliesslich globale Zeilen traegt | 1 |
+| 7 | **ERLEDIGT** - Mandanten-Vorlage: Anwendungen samt zugestandenen Buendeln | 1, 6 |
+| 8 | **ERLEDIGT** - Leitfaden-Abschnitt 65 vollstaendig (65.1-65.10) | alle |
 
 **Breaking:** Umbenennung `ClientAppUser` → `ClientAppAccess`, Wegfall von
 `ClientAppTemplatePermission`, `AppPermissionSet` jetzt pflichtig an einem Template, `ClientApp` jetzt
