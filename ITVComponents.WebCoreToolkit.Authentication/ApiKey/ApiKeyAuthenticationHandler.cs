@@ -57,6 +57,11 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey
                     new Claim(System.Security.Claims.ClaimTypes.Name, existingApiKey.Key)
                 };
 
+                // Was der Resolver sonst noch mitgibt - insbesondere den Mandanten als FixedUserScope.
+                // Bis hierher setzte der Handler ausschliesslich den Namen, ein per Schluessel
+                // angemeldetes Geraet lief also mandantenlos.
+                claims.AddRange(existingApiKey.AdditionalClaims);
+
                 var identity = new ClaimsIdentity(claims, Options.AuthenticationType);
                 var identities = new List<ClaimsIdentity> {identity};
                 var principal = new ClaimsPrincipal(identities);

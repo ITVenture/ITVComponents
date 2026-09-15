@@ -22,6 +22,10 @@ using Microsoft.Extensions.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using ITVComponents.WebCoreToolkit.Security.ClientApps;
+
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Security.ClientApps;
+
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Extensions
 {
     public static class DependencyExtensions
@@ -39,6 +43,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<IDbContextFactory<AspNetSecurityContext>, ToolkitDbContextFactory<AspNetSecurityContext>>()
                 .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<AspNetSecurityContext>>()
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<AspNetSecurityContext>>()
+                // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
+                // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
+                // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
+                .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<AspNetSecurityContext>>()
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -67,6 +75,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
                     .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
                     .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
+                    // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
+                    // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
+                    // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
+                    .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<TImpl>>()
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
@@ -111,6 +123,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
                 .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
+                // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
+                // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
+                // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
+                .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
