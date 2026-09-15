@@ -1,19 +1,22 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Mail;
+using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Json;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.IdentityShared.Services.Options;
+using ITVComponents.WebCoreToolkit.Security;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl
 {
-    public class DefaultMailSender : IEmailSender
+    public class DefaultMailSender : IEmailSender, IAttachmentMailSender
     {
         private readonly IServiceProvider services;
         private readonly ILogger<DefaultMailSender> logger;
@@ -24,16 +27,32 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl
             this.logger = logger;
         }
 
-        public async Task SendEmailAsync(string email, string subject, string message)
+        public Task SendEmailAsync(string email, string subject, string message)
+            => SendCoreAsync(email, subject, message, null, CancellationToken.None);
+
+        /// <inheritdoc/>
+        public Task SendEmailAsync(string email, string subject, string message,
+            IReadOnlyList<MailAttachment> attachments, CancellationToken ct = default)
+            => SendCoreAsync(email, subject, message, attachments, ct);
+
+        /// <summary>
+        /// The single send-path of this transport. Both entry points run through here on purpose: the three
+        /// operation modes (productive SMTP, pickup-directory, misconfiguration) would otherwise drift apart,
+        /// and a test-mode that only the attachment-less path knows is exactly the kind of difference that
+        /// surfaces in production.
+        /// </summary>
+        private async Task SendCoreAsync(string email, string subject, string message,
+            IReadOnlyList<MailAttachment> attachments, CancellationToken ct)
         {
             using (var scp = services.CreateScope())
             {
+                var attachmentCount = attachments?.Count ?? 0;
                 var settings = scp.ServiceProvider.GetService<IGlobalSettings<IdentityMailSettings>>().Value;
-                logger.LogDebug("Preparing mail to {Recipient} (subject: {Subject}); mode={Mode}, host={Host}, dumpDir={DumpDir}.",
-                    email, subject, settings.OperationMode, settings.EmailHost, settings.TestMailDumpDirectory);
+                logger.LogDebug("Preparing mail to {Recipient} (subject: {Subject}); mode={Mode}, host={Host}, dumpDir={DumpDir}, attachments={AttachmentCount}.",
+                    email, subject, settings.OperationMode, settings.EmailHost, settings.TestMailDumpDirectory, attachmentCount);
                 if (!string.IsNullOrEmpty(settings.EmailHost) && !string.IsNullOrEmpty(settings.SenderAddress))
                 {
-                    MailMessage msg = new()
+                    using MailMessage msg = new()
                     {
                         From = new MailAddress(settings.SenderAddress, settings.SenderDisplayName),
                         Body = message,
@@ -41,6 +60,15 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl
                         Subject = subject
                     };
                     msg.To.Add(email);
+
+                    // The Attachment takes ownership of the stream; disposing the MailMessage disposes both.
+                    for (var i = 0; i < attachmentCount; i++)
+                    {
+                        var attachment = attachments[i];
+                        msg.Attachments.Add(new Attachment(new MemoryStream(attachment.Content),
+                            attachment.FileName, attachment.ContentType));
+                    }
+
                     SmtpClient client;
                     string destination;
                     if (settings.OperationMode == MailOperationMode.Productive)
@@ -84,15 +112,19 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Services.Impl
                         return;
                     }
 
-                    try
+                    using (client)
                     {
-                        await client.SendMailAsync(msg);
-                        logger.LogInformation("Mail to {Recipient} handed to {Destination}.", email, destination);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Sending mail to {Recipient} via {Destination} failed.", email, destination);
-                        throw;
+                        try
+                        {
+                            await client.SendMailAsync(msg, ct);
+                            logger.LogInformation("Mail to {Recipient} handed to {Destination} (attachments={AttachmentCount}).",
+                                email, destination, attachmentCount);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Sending mail to {Recipient} via {Destination} failed.", email, destination);
+                            throw;
+                        }
                     }
                 }
                 else
