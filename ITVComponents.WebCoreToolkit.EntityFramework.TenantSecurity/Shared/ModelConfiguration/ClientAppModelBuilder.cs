@@ -1,16 +1,15 @@
-﻿using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ModelConfiguration
 {
     /// <summary>
-    /// Die Fluent-Konfiguration der ClientApp-Familie - alles, was Data-Annotations nicht koennen.
+    /// Die Fluent-Konfiguration der ClientApp-Familie - das, was Data-Annotations nicht koennen.
     /// </summary>
     /// <remarks>
-    /// Die Familie kam bis PRE239 vollstaendig mit Attributen aus. Das geht seit dem Umbau nicht mehr:
-    /// ein Index mit Filter und eine Beziehung ohne Navigation lassen sich nicht als Attribut ausdruecken.
-    /// Aufgerufen wird das aus dem <c>OnModelCreating</c> jedes konkreten Kontexts, mit dessen konkreten
-    /// Typen.
+    /// Seit beide Beziehungen zum Template eine echte Navigation haben, bleibt hier nur noch das
+    /// Loeschverhalten: die Annotationen sagen, WAS zusammenhaengt, aber nicht, was beim Loeschen des
+    /// Templates passieren soll.
     /// </remarks>
     public static class ClientAppModelBuilder
     {
@@ -27,20 +26,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
             where TAppPermissionSet : class
             where TClientApp : class
         {
-            // Die Buendel gehoeren dem Template. Von der Template-Seite her erklaert, weil
-            // AppPermissionSet den Template-Typ nicht in seiner Parameterliste fuehrt - ihn aufzunehmen
-            // zoege eine Lawine durch jede Entitaet, die TAppPermissionSet fuehrt.
+            // Ein Template zu loeschen nimmt seine Buendel mit - sie gehoeren ihm und haben ohne es keinen
+            // Sinn.
             modelBuilder.Entity<TClientAppTemplate>()
                 .HasMany<TAppPermissionSet>("PermissionSets")
-                .WithOne()
+                .WithOne("ClientAppTemplate")
                 .HasForeignKey("ClientAppTemplateId")
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Die App haengt an ihrem Template. Ohne Navigation auf beiden Seiten - deshalb als einzige
-            // Beziehung dieser Familie ganz per Fluent-API. Restrict, nicht Cascade: ein Template zu
-            // loeschen, an dem noch Anwendungen haengen, ist ein Fehler und kein Aufraeumen.
+            // Restrict, nicht Cascade: ein Template zu loeschen, an dem noch ANWENDUNGEN haengen, ist ein
+            // Fehler und kein Aufraeumen. Die Buendel oben darf es mitnehmen, die Anwendungen nicht.
             modelBuilder.Entity<TClientApp>()
-                .HasOne<TClientAppTemplate>()
+                .HasOne<TClientAppTemplate>("ClientAppTemplate")
                 .WithMany()
                 .HasForeignKey("ClientAppTemplateId")
                 .OnDelete(DeleteBehavior.Restrict);

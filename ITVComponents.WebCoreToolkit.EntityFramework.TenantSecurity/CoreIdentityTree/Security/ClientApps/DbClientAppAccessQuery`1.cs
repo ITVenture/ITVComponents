@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     /// Die CoreIdentityTree-Auspraegung der Zugangs-Abfrage. Schliesst nur die Typparameter - die Arbeit steht in
     /// der Basisklasse.
     /// </summary>
-    internal class AspNetTreeClientAppAccessQuery<TImpl> : DbClientAppAccessQuery<TImpl, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess>
+    internal class AspNetTreeClientAppAccessQuery<TImpl> : DbClientAppAccessQuery<TImpl, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess, ClientAppTemplate>
         where TImpl : DbContext
     {
         public AspNetTreeClientAppAccessQuery(IDbContextFactory<TImpl> dbFactory, ILoggerFactory loggerFactory)

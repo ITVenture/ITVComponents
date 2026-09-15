@@ -12,7 +12,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Secu
     /// <summary>
     /// Die Basic-Auspraegung des Kopplungs-Ablaufs. Schliesst nur die Typparameter.
     /// </summary>
-    internal class FlatDevicePairingService<TImpl> : DbDevicePairingService<TImpl, Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess, DevicePairing>
+    internal class FlatDevicePairingService<TImpl> : DbDevicePairingService<TImpl, Tenant, int, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess, DevicePairing, ClientAppTemplate>
         where TImpl : DbContext
     {
         public FlatDevicePairingService(IDbContextFactory<TImpl> dbFactory, IGlobalSettings<DevicePairingOptions> settings,

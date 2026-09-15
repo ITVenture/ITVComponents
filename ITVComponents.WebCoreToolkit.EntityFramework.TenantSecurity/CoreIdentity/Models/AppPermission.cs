@@ -3,7 +3,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models
 {
-    public class AppPermission:AppPermission<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet>
+    public class AppPermission:AppPermission<Tenant, string, User, Role, Permission, UserRole, RolePermission, TenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppTemplate>
     {
     }
 }

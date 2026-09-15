@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     /// <summary>
     /// Die CoreIdentityTree-Auspraegung des Kopplungs-Ablaufs. Schliesst nur die Typparameter.
     /// </summary>
-    internal class AspNetTreeDevicePairingService<TImpl> : DbDevicePairingService<TImpl, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess, DevicePairing>
+    internal class AspNetTreeDevicePairingService<TImpl> : DbDevicePairingService<TImpl, HierarchyTenant, string, User, Role, Permission, UserRole, RolePermission, HierarchyTenantUser, RoleRole, GlobalRole, GlobalRolePermission, GRoleLRole, AppPermission, AppPermissionSet, ClientAppPermission, ClientApp, ClientAppAccess, DevicePairing, ClientAppTemplate>
         where TImpl : DbContext
     {
         public AspNetTreeDevicePairingService(IDbContextFactory<TImpl> dbFactory, IGlobalSettings<DevicePairingOptions> settings,
