@@ -287,12 +287,12 @@ waere ein Konflikt. Das ist der Punkt, an dem eine naive Kopie scheitert.
 |---|---|---|
 | 1 | **ERLEDIGT** - Modell + Schema + SQL-Abschnitt im Leitfaden (§65) | - |
 | 2 | **ERLEDIGT** - Leseweg `DbSecurityRepository` (Maschinenzweig + drei Bestandsfehler) | 1 |
-| 3 | Hash-Konvention + `ClientAppApiKeyResolver` + Mandantenkontext | 1, 2 |
-| 4 | `IDevicePairingService` + Endpunkte | 1, 3 |
-| 5 | Verwaltungsmasken | 1, 4 |
+| 3 | **ERLEDIGT** - Hash-Konvention + `ClientAppApiKeyResolver` + Mandantenkontext | 1, 2 |
+| 4 | **ERLEDIGT** - `IDevicePairingService` + Endpunkte | 1, 3 |
+| 5 | **ERLEDIGT** - Verwaltungsmasken, plus Schaltbarkeit ueber die WebPart-Konfiguration | 1, 4 |
 | 6 | Settings-Exchange | 1 |
 | 7 | Mandanten-Vorlage | 1, 6 |
-| 8 | Abschnitt in `docs/Migration-Future_10-MLM.md` | alle |
+| 8 | **TEILWEISE** - Leitfaden-Abschnitt 65 samt Rechten, Schaltern und Ablauf (65.7-65.9); die Abschnitte zu 6 und 7 fehlen noch | alle |
 
 **Breaking:** Umbenennung `ClientAppUser` → `ClientAppAccess`, Wegfall von
 `ClientAppTemplatePermission`, `AppPermissionSet` jetzt pflichtig an einem Template, `ClientApp` jetzt

@@ -1,4 +1,4 @@
-﻿# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
+# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
 > **Stand: `5.0.0-PRE130`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
@@ -6357,7 +6357,120 @@ und aus *entziehen* wird **löschen**. Die Methode heisst deshalb jetzt
 `DeletePermissionSetFromTemplateAsync` — gelöscht wird nur, was keine ClientApp mehr führt, sonst verlöre
 eine laufende Anwendung still ihre Rechte.
 
-> **Noch nicht am Host verifiziert.** Weder das SQL oben noch der Kopplungsablauf sind je gegen eine echte
-> Datenbank gelaufen. Das DDL ist aus einer Probe-Migration gegen den `AspNetSecurityContext` abgeleitet
-> (erzeugt, gelesen, wieder entfernt) — es entspricht also dem, was EF aus dem Modell macht, ist aber nicht
-> angewandt worden.
+> **Das DDL oben ist aus einer Probe-Migration** gegen den `AspNetSecurityContext` abgeleitet (erzeugt,
+> gelesen, wieder entfernt) — es entspricht dem, was EF aus dem Modell macht. Angewandt wurde es nie;
+> siehe 65.9.
+
+### 65.7 Was ihr einschalten müsst, damit es läuft
+
+Ohne diese drei Schritte passiert nichts — weder die Masken noch die Geräte-Anmeldung.
+
+#### 1. Die drei neuen Rechte
+
+| Recht | wofür |
+|---|---|
+| `Apps.View` | die Anwendungen des Mandanten sehen (Liste, Bündel, Geräte) |
+| `Apps.Write` | anlegen, ändern, Bündel zustehen, Geräte widerrufen |
+| `Apps.Pairing.Confirm` | eine Gerätekopplung bestätigen |
+
+Sie ergänzen die bestehenden `Apps.Templates.View`, `Apps.Templates.Write` und
+`Apps.PermissionSets.Write`, die **global** bleiben: das Template ist Sache der Plattform, die Anwendung
+Sache des Mandanten. Die längeren Namen gehören deshalb zur Plattform-Seite.
+
+Habt ihr die **Auto-Registrierung** angeforderter Rechte eingeschaltet
+(`AutoPermissions:Enabled`), entstehen sie beim ersten Aufruf von selbst und werden der in
+`GrantToGlobalRole` genannten Rolle zugeteilt. Verlasst euch nicht darauf, wenn ihr sie einer bestimmten
+Rolle zuordnen wollt — dann legt sie an:
+
+```sql
+-- global (TenantId NULL), wie die uebrigen Apps-Rechte
+INSERT INTO [Permissions] ([PermissionName], [Description], [TenantId])
+VALUES ('Apps.View', 'See the client applications of the tenant', NULL),
+       ('Apps.Write', 'Manage client applications, their permission sets and their devices', NULL),
+       ('Apps.Pairing.Confirm', 'Confirm a device pairing', NULL);
+```
+
+Danach der jeweiligen Rolle zuweisen (`RolePermissions`), wie bei jedem anderen Recht auch.
+
+`Apps.Pairing.Confirm` ist nur die **Vorgabe** — welches Recht das Bestätigen verlangt, steht in der
+globalen Einstellung `DevicePairing` (siehe unten) und kann auf ein bestehendes Recht gezeigt werden.
+
+#### 2. Zwei Schalter in der WebPart-Konfiguration
+
+```jsonc
+{
+  // Der Kern: schaltet die vier Kopplungs-Endpunkte ein.
+  "UseDevicePairingEndpoints": true,
+  "DevicePairingEndpointPrefix": "/DevicePairing",
+
+  // Im ApiKey-Abschnitt: loest Schluessel gegen die ClientApp-Zugaenge auf statt gegen Users.UserName.
+  "ApiKey": {
+    "AuthenticationType": "API Key",
+    "UseClientAppResolver": true
+  }
+}
+```
+
+**Beide stehen auf `false`, wenn ihr nichts tut** — aus verschiedenen Gründen:
+
+- Die **Endpunkte**, weil zwei der vier (`start`, `poll`) anonym laufen. Das gehört eingeschaltet, weil
+  jemand es will, nicht weil das Paket referenziert wurde.
+- Der **Resolver**, weil er eine Umsetzung von `IClientAppAccessQuery` voraussetzt. Die EF-Schicht bringt
+  sie mit; ein Host ohne sie bekäme sonst beim ersten Schlüssel einen Auflösungsfehler.
+
+> **Der Resolver ist eine Sicherheitsentscheidung, und ohne diesen Schalter trefft ihr sie unbewusst.**
+> Der mitgelieferte Standard vergleicht den API-Schlüssel im **Klartext** gegen `Users.UserName` — er
+> steht damit lesbar in der Benutzertabelle. Wer sie lesen kann (Datenbanksicherung, Auskunftsabfrage, ein
+> zu weit gefasster Verwaltungszugang), kann sich als dieses Gerät ausgeben. Anders als bei einem Passwort
+> fällt es nicht auf, weil niemand ihn je tippt.
+
+#### 3. Die Stellschrauben der Kopplung (optional)
+
+Globale Einstellung `DevicePairing`, alle mit brauchbaren Vorgaben:
+
+| Feld | Vorgabe | |
+|---|---|---|
+| `LifetimeMinutes` | 10 | wie lange ein offener Kopplungsvorgang gilt |
+| `PollIntervalSeconds` | 5 | wie oft das Gerät frühestens nachfragen darf |
+| `MaxPolls` | 240 | wie oft insgesamt, bevor der Vorgang abgelehnt wird |
+| `UserCodeLength` | 8 | Länge des abzutippenden Codes |
+| `ConfirmPermission` | `Apps.Pairing.Confirm` | welches Recht das Bestätigen verlangt |
+
+### 65.8 Der Ablauf, einmal von Anfang bis Ende
+
+1. **Template anlegen** (`/Connectivity/AppTemplates`, global) — z. B. „POS-Agent".
+2. **Rechtebündel darin anlegen** — z. B. „Vollzugriff" und „Nur Druck". **Nur globale Rechte**
+   (`Permission.TenantId IS NULL`): das Template wird in jeden Mandanten angewandt, ein
+   mandantengebundenes Recht liesse sich dort nicht auflösen.
+3. **Anwendung anlegen** (`/Connectivity/ClientApps`, im Mandanten) — Name und Template. Der `ClientKey`
+   entsteht dabei und ändert sich nie mehr.
+4. **Bündel zustehen** — in der Unterzeile der Anwendung. Es stehen nur die Bündel ihres Templates zur
+   Auswahl; das ist die Obergrenze. **Eine Anwendung ohne zugestandenes Bündel lässt ihre Geräte herein,
+   erlaubt ihnen aber nichts** — die Bestätigungsmaske weist darauf hin.
+5. **Gerät koppeln**: der Agent ruft `POST /DevicePairing/start` mit `{ clientKey, deviceLabel }` und
+   bekommt `deviceCode` (geheim, bleibt bei ihm), `userCode` (zum Vorlesen) und das Poll-Intervall.
+6. **Bestätigen** (`/Connectivity/DevicePairing`): Code eintippen, sehen **welche Bündel** erteilt werden,
+   bestätigen.
+7. **Abholen**: der Agent fragt `POST /DevicePairing/poll` mit `{ deviceCode }`. Sobald bestätigt, kommt
+   dort **genau einmal** der fertige Schlüssel `<ClientKey>.<Label>.<Geheimnis>` zurück.
+8. **Anmelden**: der Agent schickt ihn fortan als `X-Api-Key`. Er ist damit im Mandanten der Anwendung
+   angemeldet und hat die Rechte ihrer Bündel.
+
+> **Das Geheimnis entsteht in Schritt 7, nicht in Schritt 6.** Wäre es beim Bestätigen erzeugt worden,
+> müsste es bis zum Abholen irgendwo im Klartext liegen. So gibt es den Klartext genau einmal — in der
+> Antwort, die ihn ausliefert. Zwischen 6 und 7 zeigt die Geräteliste den Zustand **„pairing
+> incomplete"**; so ein Zugang kann sich nicht anmelden.
+
+### 65.9 Was am Host noch niemand geprüft hat
+
+Nichts davon ist je gelaufen — weder das SQL aus 65.3/65.4 noch eine Kopplung noch eine Anmeldung. Die
+Stellen, an denen ich beim ersten Lauf zuerst nachsehen würde:
+
+- **Der Mandantenkontext beim Anmelden.** Der Resolver setzt `ClaimTypes.FixedUserScope` aus dem Mandanten
+  der Anwendung. Ob die Reihenfolge von Authentifizierung und Mandanten-Auflösung im konkreten Host dazu
+  passt, entscheidet sich erst dort.
+- **`PollAsync` sucht linear.** Der Gerätecode steht nur als Hash in der Ablage, und ein Hash trägt sein
+  eigenes Salz — man kann nicht danach suchen. Die offenen Vorgänge werden deshalb der Reihe nach
+  geprüft. Die Liste ist kurz (Vorgänge verfallen nach Minuten), aber bei sehr vielen gleichzeitigen
+  Kopplungen wäre das die erste Stelle, die weh tut.
+- **Die Masken** sind übersetzt, aber nie bedient worden.
