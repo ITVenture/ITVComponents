@@ -1,4 +1,4 @@
-# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
+﻿# Migrationsleitfaden — Branch `Future_10` (Phasen 2–5 + Onboarding-Flows)
 
 > **Stand: `5.0.0-PRE130`** (Branch `Future_10`). Dieses Dokument deckt die Cross-cutting-Refactors
 > (Phasen 2–5, §1–5), die Onboarding-Flows (2a/2b/2c, §6), die EntityWriteTracker-/EntityChangeSignal-
@@ -6565,7 +6565,7 @@ daran hängen. Das eine ist Aufräumen, das andere ein Fehler.
 
 ---
 
-### 65.11 Nachtrag (PRE241): Rechtebündel liessen sich gar nicht anlegen
+### 65.11 Nachtrag (PRE242): Rechtebündel liessen sich gar nicht anlegen
 
 In PRE240 bekam `AppPermissionSet` die Pflichtspalte `ClientAppTemplateId` — **die Masken zogen sie aber
 nicht mit**. Das Ergebnis war in beiden Oberflächen dasselbe und fiel nur an unterschiedlicher Stelle auf:
@@ -6578,7 +6578,7 @@ nicht mit**. Das Ergebnis war in beiden Oberflächen dasselbe und fiel nur an un
 Es gab damit **keinen Weg**, ein App-Rechtebündel anzulegen. Wer in PRE240 eine Vorlage aufgebaut hat,
 musste die Bündel von Hand in die Datenbank schreiben.
 
-**Seit PRE241:**
+**Seit PRE242:**
 
 - **Angelegt wird an der Vorlage** — dort steht die Vorlage fest, es gibt nichts zu wählen und nichts
   falsch zu wählen. Umbenennen und Löschen ebenfalls.
@@ -6595,7 +6595,7 @@ In der Telerik-Oberfläche war zusätzlich das Kindgitter der Vorlage eine **wor
 Bündel-Maske**: es zeigte ein Berechtigungs-Raster und las es vom `PermissionSet`-Controller mit einem
 `parentId`, das dort niemand setzt. Aufgeklappt sah man die falsche, leere Tabelle, und
 `AppTemplateController.ReadPermissions` — genau für diese Stelle geschrieben — rief niemand auf. Auch das
-ist mit PRE241 gerade gezogen.
+ist mit PRE242 gerade gezogen.
 
 **Zu tun ist nichts**: kein Schema-Change, keine Migration. Wer in PRE240 Bündel von Hand angelegt hat,
 sollte nur prüfen, ob sie an der richtigen Vorlage hängen.
@@ -6724,7 +6724,7 @@ Meldung weiter oben — nur liest man `` `45 `` als Rauschen, nicht als Nutzlast
 Der Mechanismus fällt dabei **zu**, nicht auf: ein gebrochener Eintrag gewährt keine Rechte, er entzieht
 sie. Das ist ein Verfügbarkeits-, kein Sicherheitsproblem.
 
-### 67.3 Was das Toolkit seit PRE241 dazu tut
+### 67.3 Was das Toolkit seit PRE242 dazu tut
 
 **Die Meldung sagt jetzt, was sie vorfand.** Findet der Provider keinen Eintrag, sucht er in der bereits
 geladenen Tabelle nach einem Eintrag für **denselben Typ mit anderer Stelligkeit** und schreibt ihn

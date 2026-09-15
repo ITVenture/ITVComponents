@@ -100,6 +100,8 @@ Mal trifft es womöglich eine Installation beim Kunden statt eine Entwicklungsma
 
 ## Auflösung (Toolkit)
 
+**Ausgeliefert in `5.0.0-PRE242`.**
+
 Umgesetzt sind **1, 3 und 4**. Vorschlag **2 bewusst nicht** — die Begründung steht unten, sie kam von
 euch selbst.
 

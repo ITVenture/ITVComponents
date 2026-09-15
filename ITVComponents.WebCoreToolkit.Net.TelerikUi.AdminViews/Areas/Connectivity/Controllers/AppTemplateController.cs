@@ -160,7 +160,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         /// Legt ein Rechtebuendel unter diesem Template an.
         /// </summary>
         /// <remarks>
-        /// Der Weg, den es bis PRE241 nirgends gab: das Kindgitter konnte auflisten und loeschen, und der
+        /// Der Weg, den es bis PRE242 nirgends gab: das Kindgitter konnte auflisten und loeschen, und der
         /// Weg ueber die Buendel-Maske war seinerseits kaputt, weil er das Template nicht setzte.
         /// <para>
         /// Das Template kommt aus der <b>Route</b> und nicht aus der geposteten Zeile: es steht in der

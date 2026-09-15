@@ -142,7 +142,7 @@ public class PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
     /// Legt ein Rechtebuendel an - unter einem Template.
     /// </summary>
     /// <remarks>
-    /// <b>Das Template ist Pflicht.</b> Bis PRE241 legte diese Methode mit <c>new TAppPermissionSet {
+    /// <b>Das Template ist Pflicht.</b> Bis PRE242 legte diese Methode mit <c>new TAppPermissionSet {
     /// Name = ... }</c> an, also mit <c>ClientAppTemplateId = 0</c>; seit PRE240 ist die Spalte ein
     /// Pflicht-Fremdschluessel, und der Insert scheiterte daran. Auf dieser Seite gab es damit gar keinen
     /// Weg, ein Buendel anzulegen, und im Kindgitter des Templates fehlte der Knopf ganz.

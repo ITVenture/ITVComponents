@@ -11,7 +11,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
     /// Ein Rechtebuendel unterhalb eines Anwendungs-Templates.
     /// </summary>
     /// <remarks>
-    /// <c>Assigned</c> und <c>UniQUID</c> sind mit PRE241 weggefallen: sie trugen das Ankreuzfeld einer
+    /// <c>Assigned</c> und <c>UniQUID</c> sind mit PRE242 weggefallen: sie trugen das Ankreuzfeld einer
     /// Zuordnung, die es seit PRE240 nicht mehr gibt - ein Buendel gehoert genau einem Template. Das
     /// Kindgitter legt jetzt an, benennt um und loescht, statt zu- und abzuwaehlen.
     /// </remarks>

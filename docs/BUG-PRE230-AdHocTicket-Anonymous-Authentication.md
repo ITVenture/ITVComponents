@@ -1,4 +1,4 @@
-> **BEHOBEN in PRE231.** Umgesetzt wurde Vorschlag **A** (der Handler löst Ticket-Abschnitte selbst
+﻿> **BEHOBEN in PRE231.** Umgesetzt wurde Vorschlag **A** (der Handler löst Ticket-Abschnitte selbst
 > auf) zusammen mit **B** (die stillen Stellen sprechen). Zwei Abweichungen vom Vorschlag, beide in
 > Leitfaden §55.8 begründet:
 >
@@ -257,7 +257,7 @@ Damit die Analyse nicht in die falsche Richtung läuft — alles am laufenden Sy
   anonyme Besucher bringt nur mit, was die Vorlage gewährt. Das ist stimmig, steht aber nirgends
   zusammenhängend — ein Satz im Leitfaden wäre hilfreich.)
 * **Vertrauensstellung**: ``SharedAssetInfoProvider`47`` steht in `TrustedFullAccessComponents` mit
-  `ShowAllTenants`. **Nachtrag (PRE241):** die Zahl hinter dem Backtick ist die Stelligkeit des Typs
+  `ShowAllTenants`. **Nachtrag (PRE242):** die Zahl hinter dem Backtick ist die Stelligkeit des Typs
   und kein Teil seines Namens — sie ändert sich, sobald der Sicherheitskontext eine Entität bekommt
   oder verliert. Seit PRE240 heisst der Typ ``SharedAssetInfoProvider`46``. Wer diesen Eintrag
   abschreibt, nimmt die Stelligkeit **aus der eigenen Assembly**, nicht aus diesem Dokument; siehe

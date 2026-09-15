@@ -190,7 +190,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     /// Legt ein Rechtebuendel unter diesem Template an.
     /// </summary>
     /// <remarks>
-    /// Der Weg, der bis PRE241 fehlte: das Kindgitter konnte auflisten und loeschen, aber nicht anlegen -
+    /// Der Weg, der bis PRE242 fehlte: das Kindgitter konnte auflisten und loeschen, aber nicht anlegen -
     /// und der Weg ueber die Buendel-Seite war seinerseits kaputt, weil er das Template nicht setzte.
     /// Es gab damit gar keine Moeglichkeit, ein Buendel anzulegen.
     /// </remarks>
