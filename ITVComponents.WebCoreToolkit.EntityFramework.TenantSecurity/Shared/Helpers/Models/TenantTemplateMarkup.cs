@@ -27,6 +27,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public ExternalOAuthServiceTemplateMarkup[] ExternalOAuthServices { get; set; }
 
         /// <summary>
+        /// Die Anwendungen, die ein Mandant dieser Art bekommt.
+        /// </summary>
+        /// <remarks>
+        /// Das <b>Template</b> der Anwendung ist global und reist mit der Systemkonfiguration; hier steht
+        /// nur, welche Anwendung ein Mandant daraus bekommt und welche Rechtebuendel sie zugestanden
+        /// bekommt.
+        /// </remarks>
+        public TenantClientAppMarkup[] ClientApps { get; set; }
+
+        /// <summary>
         /// Open extension bag for decoupled template parts contributed by feature libraries via
         /// <c>ITenantTemplatePartHandler</c> (key = part key, value = the handler's payload + its apply mode).
         /// </summary>
@@ -54,5 +64,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public TemplateApplyMode ApplyModeForQueries { get; set; }
 
         public TemplateApplyMode ApplyModeForExternalOAuthServices { get; set; }
+
+        /// <summary>
+        /// Wie die Anwendungen angewandt werden.
+        /// </summary>
+        /// <remarks>
+        /// <b>Achtung, hier wirkt <c>Forced</c> anders als sonst:</b> es raeumt die Buendel-Zuordnungen
+        /// auf, loescht aber KEINE Anwendung. Eine Anwendung zu loeschen nimmt ihre Zugaenge mit und legt
+        /// damit jedes gekoppelte Geraet still - das ist nicht ruecknehmbar und keine Nebenwirkung, die
+        /// ein Vorlagen-Lauf haben darf.
+        /// </remarks>
+        public TemplateApplyMode ApplyModeForClientApps { get; set; }
     }
 }

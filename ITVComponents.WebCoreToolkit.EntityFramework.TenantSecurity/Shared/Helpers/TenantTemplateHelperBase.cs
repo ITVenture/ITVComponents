@@ -15,6 +15,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Logging;
 using System;
+using ITVComponents.Logging;
+using ITVComponents.Security;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security;
@@ -52,8 +54,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
         where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
         where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
-        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
-        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
+        where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>, new()
+        where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>, new()
         where TClientAppAccess : ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
         where TWebPluginConstant: WebPluginConstant<TTenant>, new()
@@ -156,6 +158,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 var externalServices = (from t in db.ExternalOAuthServices
                     where t.TenantId == tenant.TenantId
                     select t).ToList().Select(SelectExternalOAuthServiceTemplateMarkup).ToArray();
+
+                var clientApps = (from t in db.ClientApps
+                            .Include(a => a.ClientAppTemplate)
+                            .Include(a => a.AppPermissions).ThenInclude(a => a.PermissionSet)
+                        where t.TenantId == tenant.TenantId
+                        select t).ToList().Select(SelectClientAppTemplateMarkup).ToArray();
                 var markup = new TenantTemplateMarkup
                 {
                     Features = features,
@@ -166,7 +174,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                     Navigation = menus,
                     Queries = queries,
                     ExplicitPermissions = permissions,
-                    ExternalOAuthServices = externalServices
+                    ExternalOAuthServices = externalServices,
+                    ClientApps = clientApps
                 };
 
                 if (db is DbContext dbc)
@@ -278,6 +287,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 Scope = serviceInst.Scope,
                 Global = serviceInst.Global,
                 AuthenticationType = serviceInst.AuthenticationType
+            };
+        }
+
+        /// <summary>
+        /// Bildet eine Anwendung des Mandanten fuer die Vorlage ab.
+        /// </summary>
+        /// <remarks>
+        /// <b>Ohne ClientKey und ohne Zugaenge</b> - der Schluessel ist systemweit eindeutig und wird je
+        /// Mandant neu erzeugt, die Zugaenge haengen an konkreten Geraeten.
+        /// </remarks>
+        protected virtual TenantClientAppMarkup SelectClientAppTemplateMarkup(TClientApp appInst)
+        {
+            return new TenantClientAppMarkup
+            {
+                ClientName = appInst.ClientName,
+                TemplateName = appInst.ClientAppTemplate?.Name,
+                Enabled = appInst.Enabled,
+                PermissionSets = appInst.AppPermissions.Select(n => n.PermissionSet.Name).ToArray()
             };
         }
 
@@ -726,6 +753,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
                 }
             }
 
+            if (template.ClientApps != null)
+            {
+                ApplyClientApps(tenant, template, defaultMode);
+            }
+
             if (ShouldPrune(template.ApplyModeForPermissions, defaultMode))
             {
                 db.Permissions.RemoveRange(from p in db.Permissions.Where(n => n.TenantId == tenant.TenantId)
@@ -747,6 +779,149 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         /// after the built-in sections are persisted (so by-name lookups resolve). Each handler manages its own
         /// persistence. Only runs on the auto-saving (single-tenant) apply path.
         /// </summary>
+        /// <summary>
+        /// Legt die Anwendungen der Vorlage im Mandanten an und stellt ihnen die genannten Rechtebuendel zu.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Der ClientKey wird je Mandant NEU erzeugt.</b> Er ist systemweit eindeutig; eine Kopie aus
+        /// der Vorlage kollidierte beim zweiten Mandanten, der aus ihr entsteht. Genau daran scheitert
+        /// eine naive Uebernahme.
+        /// </para>
+        /// <para>
+        /// <b><c>Forced</c> raeumt nur die Buendel-Zuordnungen auf, nie eine Anwendung.</b> Eine Anwendung
+        /// zu loeschen nimmt ihre Zugaenge mit und legt jedes gekoppelte Geraet stumm still - das ist
+        /// nicht ruecknehmbar und darf nicht die Nebenwirkung eines Vorlagen-Laufs sein. Wer eine
+        /// Anwendung loswerden will, tut es in der Verwaltung, wo die Maske die Geraete zeigt.
+        /// </para>
+        /// </remarks>
+        protected virtual void ApplyClientApps(TTenant tenant, TenantTemplateMarkup template,
+            TemplateApplyMode defaultMode)
+        {
+            var prune = ShouldPrune(template.ApplyModeForClientApps, defaultMode);
+            foreach (var markup in template.ClientApps)
+            {
+                if (string.IsNullOrWhiteSpace(markup.ClientName) || string.IsNullOrWhiteSpace(markup.TemplateName))
+                {
+                    LogEnvironment.LogEvent(
+                        $"A client-app entry of the tenant-template carries no name or no template and was skipped (tenant {tenant.TenantId}).",
+                        LogSeverity.Warning);
+                    continue;
+                }
+
+                var appTemplate = db.ClientAppTemplates.Local
+                                      .FirstOrDefault(n => n.Name == markup.TemplateName)
+                                  ?? db.ClientAppTemplates.FirstOrDefault(n => n.Name == markup.TemplateName);
+                if (appTemplate == null)
+                {
+                    // Das Template ist SYSTEMkonfiguration und reist getrennt. Fehlt es, ist die
+                    // Systemkonfiguration noch nicht eingespielt - das ist eine Reihenfolgefrage und kein
+                    // Grund, den ganzen Vorlagen-Lauf abzubrechen.
+                    LogEnvironment.LogEvent(
+                        $"The client-app template '{markup.TemplateName}' does not exist; the application '{markup.ClientName}' was not created for tenant {tenant.TenantId}. Apply the system configuration first.",
+                        LogSeverity.Error);
+                    continue;
+                }
+
+                var app = db.ClientApps.Local
+                              .FirstOrDefault(n => n.TenantId == tenant.TenantId && n.ClientName == markup.ClientName)
+                          ?? db.ClientApps.FirstOrDefault(n => n.TenantId == tenant.TenantId && n.ClientName == markup.ClientName);
+                if (app == null)
+                {
+                    app = new TClientApp
+                    {
+                        TenantId = tenant.TenantId,
+                        ClientName = markup.ClientName,
+                        ClientAppTemplate = appTemplate,
+                        ClientKey = SecretHasher.CreateSecret(),
+                        ClientSecret = string.Empty,
+                        Enabled = markup.Enabled,
+                        CreatedUtc = DateTime.UtcNow
+                    };
+                    db.ClientApps.Add(app);
+                }
+                else
+                {
+                    // Template und Kennung bleiben, wie sie sind: ein Template-Wechsel machte die
+                    // zugeordneten Buendel ungueltig, eine neue Kennung sperrte jedes gekoppelte Geraet aus.
+                    app.Enabled = markup.Enabled;
+                }
+
+                ApplyClientAppPermissions(app, appTemplate, markup, prune);
+            }
+
+            if (prune)
+            {
+                // Nur die Zuordnungen von Anwendungen, die die Vorlage NICHT (mehr) nennt - und auch das
+                // nur, wo die Anwendung selbst stehen bleibt.
+                var names = template.ClientApps.Select(n => n.ClientName?.ToLower()).ToArray();
+                var strangers = db.ClientApps.Where(n => n.TenantId == tenant.TenantId).ToList()
+                    .Where(n => !names.Contains(n.ClientName.ToLower())).ToArray();
+                foreach (var stranger in strangers)
+                {
+                    LogEnvironment.LogEvent(
+                        $"The application '{stranger.ClientName}' of tenant {tenant.TenantId} is not part of the template. Its permission sets were withdrawn, the application itself was kept - deleting it would silently kill its paired devices.",
+                        LogSeverity.Warning);
+                    db.ClientAppPermissions.RemoveRange(
+                        db.ClientAppPermissions.Where(n => n.ClientAppId == stranger.ClientAppId));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stellt einer Anwendung die genannten Rechtebuendel zu.
+        /// </summary>
+        /// <remarks>
+        /// Ein Buendel, das nicht zum Template DIESER Anwendung gehoert, wird abgewiesen - das ist die
+        /// Obergrenze, und sie gilt auch fuer die Vorlage.
+        /// </remarks>
+        protected virtual void ApplyClientAppPermissions(TClientApp app, TClientAppTemplate appTemplate,
+            TenantClientAppMarkup markup, bool prune)
+        {
+            var wanted = markup.PermissionSets ?? Array.Empty<string>();
+            var sets = db.AppPermissionSets.Local
+                .Where(n => n.ClientAppTemplateId == appTemplate.ClientAppTemplateId)
+                .Concat(db.AppPermissionSets.Where(n => n.ClientAppTemplateId == appTemplate.ClientAppTemplateId).ToList())
+                .GroupBy(n => n.Name).Select(g => g.First()).ToList();
+
+            foreach (var name in wanted)
+            {
+                var set = sets.FirstOrDefault(n => string.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (set == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"The permission set '{name}' does not belong to template '{appTemplate.Name}'; it was not granted to '{app.ClientName}'.",
+                        LogSeverity.Error);
+                    continue;
+                }
+
+                var exists = app.AppPermissions.Any(n => n.AppPermissionSetId == set.AppPermissionSetId)
+                             || db.ClientAppPermissions.Local.Any(n => n.ClientAppId == app.ClientAppId
+                                                                      && n.AppPermissionSetId == set.AppPermissionSetId)
+                             || (app.ClientAppId != 0 && db.ClientAppPermissions.Any(
+                                 n => n.ClientAppId == app.ClientAppId && n.AppPermissionSetId == set.AppPermissionSetId));
+                if (!exists)
+                {
+                    // Ueber die Navigation der Anwendung, nicht ueber die Id: die Anwendung kann in
+                    // diesem Lauf entstanden sein und traegt bis zum Speichern noch keine.
+                    app.AppPermissions.Add(new TClientAppPermission
+                    {
+                        ClientApp = app,
+                        PermissionSet = set
+                    });
+                }
+            }
+
+            if (prune && app.ClientAppId != 0)
+            {
+                var keep = sets.Where(n => wanted.Any(w => string.Equals(w, n.Name, StringComparison.OrdinalIgnoreCase)))
+                    .Select(n => n.AppPermissionSetId).ToArray();
+                db.ClientAppPermissions.RemoveRange(
+                    db.ClientAppPermissions.Where(n => n.ClientAppId == app.ClientAppId
+                                                       && !keep.Contains(n.AppPermissionSetId)));
+            }
+        }
+
         private void ApplyParts(int tenantId, TenantTemplateMarkup template, TemplateApplyMode defaultMode)
         {
             if (template.Extensions == null || db is not DbContext dbc)
