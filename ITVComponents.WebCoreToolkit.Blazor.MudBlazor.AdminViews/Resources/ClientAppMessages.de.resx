@@ -1,0 +1,124 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="App_Title" xml:space="preserve"><value>Client-Anwendungen</value></data>
+  <data name="App_Add" xml:space="preserve"><value>Anwendung hinzufügen</value></data>
+  <data name="App_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="App_Col_Template" xml:space="preserve"><value>Vorlage</value></data>
+  <data name="App_Col_State" xml:space="preserve"><value>Status</value></data>
+  <data name="App_State_On" xml:space="preserve"><value>ein</value></data>
+  <data name="App_State_Off" xml:space="preserve"><value>aus</value></data>
+  <data name="App_Col_Devices" xml:space="preserve"><value>Geräte</value></data>
+  <data name="App_Tab_Sets" xml:space="preserve"><value>Zugestandene Berechtigungs-Sets</value></data>
+  <data name="App_Tab_Devices" xml:space="preserve"><value>Geräte</value></data>
+  <data name="App_NoPermission" xml:space="preserve"><value>Keine Berechtigung, Client-Anwendungen anzusehen.</value></data>
+  <data name="App_NoTemplate" xml:space="preserve"><value>Es gibt noch keine Anwendungs-Vorlage. Legen Sie zuerst eine unter «Vorlagen für Client-Anwendungen» an.</value></data>
+  <data name="App_Create_Title" xml:space="preserve"><value>Anwendung anlegen</value></data>
+  <data name="App_Edit_Title" xml:space="preserve"><value>Anwendung bearbeiten</value></data>
+  <data name="App_Created" xml:space="preserve"><value>Anwendung angelegt</value></data>
+  <data name="App_CreateFailed" xml:space="preserve"><value>Die Anwendung konnte nicht angelegt werden - siehe Protokoll.</value></data>
+  <data name="App_Updated" xml:space="preserve"><value>Anwendung aktualisiert</value></data>
+  <data name="App_UpdateFailed" xml:space="preserve"><value>Die Anwendung konnte nicht aktualisiert werden - siehe Protokoll.</value></data>
+  <data name="App_Delete_Title" xml:space="preserve"><value>Anwendung löschen</value></data>
+  <data name="App_Delete_Question" xml:space="preserve"><value>«{0}» wirklich löschen?</value></data>
+  <data name="App_Delete_Yes" xml:space="preserve"><value>Löschen</value></data>
+  <data name="App_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="App_Deleted" xml:space="preserve"><value>Anwendung gelöscht</value></data>
+  <data name="App_DeleteFailed" xml:space="preserve"><value>Löschen nicht möglich - womöglich sind noch Geräte damit gekoppelt.</value></data>
+  <data name="App_Dlg_NameRequired" xml:space="preserve"><value>Ein Name ist erforderlich.</value></data>
+  <data name="App_Dlg_TemplateRequired" xml:space="preserve"><value>Eine Vorlage ist erforderlich.</value></data>
+  <data name="App_Dlg_TemplateHelpCreate" xml:space="preserve"><value>Bestimmt, welche Berechtigungs-Sets dieser Anwendung zugestanden werden können. Später nicht mehr änderbar.</value></data>
+  <data name="App_Dlg_TemplateHelpEdit" xml:space="preserve"><value>Die Vorlage lässt sich nach dem Anlegen nicht mehr wechseln.</value></data>
+  <data name="App_Dlg_ClientKey" xml:space="preserve"><value>Anwendungsschlüssel</value></data>
+  <data name="App_Dlg_ClientKeyHelp" xml:space="preserve"><value>Geräte führen ihn in ihrem Schlüssel mit. Er ändert sich nie.</value></data>
+  <data name="App_Dlg_Enabled" xml:space="preserve"><value>Aktiv</value></data>
+  <data name="App_Dlg_EnabledHint" xml:space="preserve"><value>Ausgeschaltet kann sich kein Gerät dieser Anwendung mehr anmelden.</value></data>
+  <data name="App_Dlg_Create" xml:space="preserve"><value>Anlegen</value></data>
+  <data name="App_Dlg_Save" xml:space="preserve"><value>Speichern</value></data>
+  <data name="App_Sets_Hint" xml:space="preserve"><value>Zugestanden werden können nur die Berechtigungs-Sets der Vorlage dieser Anwendung - das ist die Obergrenze, die die Plattform vorgibt. Wer eines einschaltet, gewährt alles, was darin steckt.</value></data>
+  <data name="App_Sets_Col_Set" xml:space="preserve"><value>Berechtigungs-Set</value></data>
+  <data name="App_Sets_Col_Contains" xml:space="preserve"><value>Enthält</value></data>
+  <data name="App_Sets_Granted" xml:space="preserve"><value>Berechtigungs-Set zugestanden</value></data>
+  <data name="App_Sets_Withdrawn" xml:space="preserve"><value>Berechtigungs-Set entzogen</value></data>
+  <data name="App_Sets_Failed" xml:space="preserve"><value>Die Änderung wurde abgewiesen - siehe Protokoll.</value></data>
+  <data name="App_Sets_NoPermission" xml:space="preserve"><value>Keine Berechtigung, die zugestandenen Berechtigungs-Sets anzusehen.</value></data>
+  <data name="App_Acc_Col_Device" xml:space="preserve"><value>Gerät</value></data>
+  <data name="App_Acc_Col_State" xml:space="preserve"><value>Status</value></data>
+  <data name="App_Acc_State_Revoked" xml:space="preserve"><value>widerrufen</value></data>
+  <data name="App_Acc_State_Incomplete" xml:space="preserve"><value>Kopplung unvollständig</value></data>
+  <data name="App_Acc_State_Expired" xml:space="preserve"><value>abgelaufen</value></data>
+  <data name="App_Acc_State_Active" xml:space="preserve"><value>aktiv</value></data>
+  <data name="App_Acc_Col_Kind" xml:space="preserve"><value>Art</value></data>
+  <data name="App_Acc_Kind_Machine" xml:space="preserve"><value>Maschine</value></data>
+  <data name="App_Acc_Kind_Delegation" xml:space="preserve"><value>Delegation</value></data>
+  <data name="App_Acc_Col_Created" xml:space="preserve"><value>Angelegt (UTC)</value></data>
+  <data name="App_Acc_Col_LastUsed" xml:space="preserve"><value>Zuletzt benutzt (UTC)</value></data>
+  <data name="App_Acc_Revoke" xml:space="preserve"><value>Widerrufen</value></data>
+  <data name="App_Acc_Revoke_Title" xml:space="preserve"><value>Zugang widerrufen</value></data>
+  <data name="App_Acc_Revoke_Question" xml:space="preserve"><value>«{0}» wirklich widerrufen? Das Gerät muss danach neu gekoppelt werden.</value></data>
+  <data name="App_Acc_Revoked" xml:space="preserve"><value>Zugang widerrufen</value></data>
+  <data name="App_Acc_RevokeFailed" xml:space="preserve"><value>Der Zugang konnte nicht widerrufen werden - siehe Protokoll.</value></data>
+  <data name="App_Acc_NoPermission" xml:space="preserve"><value>Keine Berechtigung, die Zugänge anzusehen.</value></data>
+  <data name="Pair_Title" xml:space="preserve"><value>Gerät koppeln</value></data>
+  <data name="Pair_Intro" xml:space="preserve"><value>Geben Sie den Code ein, den das Gerät anzeigt.</value></data>
+  <data name="Pair_Code" xml:space="preserve"><value>Code</value></data>
+  <data name="Pair_Look" xml:space="preserve"><value>Nachschlagen</value></data>
+  <data name="Pair_NotFound" xml:space="preserve"><value>Zu diesem Code gibt es keine offene Kopplung. Womöglich ist sie abgelaufen - eine Kopplung gilt nur wenige Minuten.</value></data>
+  <data name="Pair_Device" xml:space="preserve"><value>Gerät: {0}</value></data>
+  <data name="Pair_WillGrant" xml:space="preserve"><value>Dieses Gerät erhält:</value></data>
+  <data name="Pair_NothingGranted" xml:space="preserve"><value>Noch nichts - dieser Anwendung ist kein Berechtigungs-Set zugestanden. Das Gerät kann sich anmelden, darf aber nichts tun.</value></data>
+  <data name="Pair_Confirm" xml:space="preserve"><value>Kopplung bestätigen</value></data>
+  <data name="Pair_Confirmed" xml:space="preserve"><value>Bestätigt. Das Gerät holt seinen Schlüssel beim nächsten Versuch ab - er wird genau einmal herausgegeben.</value></data>
+  <data name="Pair_ConfirmedToast" xml:space="preserve"><value>Kopplung bestätigt</value></data>
+  <data name="Pair_ConfirmFailed" xml:space="preserve"><value>Die Kopplung konnte nicht bestätigt werden.</value></data>
+  <data name="Pair_NoPermission" xml:space="preserve"><value>Keine Berechtigung, Kopplungen zu bestätigen.</value></data>
+</root>

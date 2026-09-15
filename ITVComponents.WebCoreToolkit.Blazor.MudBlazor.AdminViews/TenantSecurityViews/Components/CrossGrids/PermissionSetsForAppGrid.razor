@@ -1,18 +1,19 @@
-@* Welche Rechtebuendel des Templates diese Anwendung tatsaechlich zugestanden bekommt. *@
+﻿@* Welche Rechtebuendel des Templates diese Anwendung tatsaechlich zugestanden bekommt. *@
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
 @using ITVComponents.WebCoreToolkit.Blazor.Paging
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 
 @inject IClientAppAdminHandler Handler
+@inject IStringLocalizer<ClientAppMessages> L
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 
 <SecureView RequiredPermissions="Apps.View,Apps.Write">
     <Permitted>
         <MudText Typo="Typo.caption" Class="mb-2">
-            Only the permission sets of this application's template can be granted - that is the ceiling the
-            platform defines. Switching one on grants everything it contains.
+            @L["App_Sets_Hint"]
         </MudText>
         <MudDataGrid T="ClientAppPermissionSetViewModel"
                      @ref="grid"
@@ -35,9 +36,9 @@
                         </SecureView>
                     </CellTemplate>
                 </TemplateColumn>
-                <PropertyColumn Property="x => x.PermissionSetName" Title="Permission set" />
+                <PropertyColumn Property="x => x.PermissionSetName" Title="@L["App_Sets_Col_Set"]" />
                 @* Damit niemand blind ankreuzt. *@
-                <PropertyColumn Property="x => x.Permissions" Title="Contains" />
+                <PropertyColumn Property="x => x.Permissions" Title="@L["App_Sets_Col_Contains"]" />
             </Columns>
             <PagerContent>
                 <MudDataGridPager T="ClientAppPermissionSetViewModel" />
@@ -45,7 +46,7 @@
         </MudDataGrid>
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Info">No permission to view the granted permission sets.</MudAlert>
+        <MudAlert Severity="Severity.Info">@L["App_Sets_NoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>
 
@@ -88,11 +89,11 @@
         if (ok)
         {
             item.Assigned = newValue;
-            Snackbar.Add(newValue ? "Permission set granted" : "Permission set withdrawn", Severity.Success);
+            Snackbar.Add(newValue ? L["App_Sets_Granted"] : L["App_Sets_Withdrawn"], Severity.Success);
         }
         else
         {
-            Snackbar.Add("The change was refused - see the log.", Severity.Error);
+            Snackbar.Add(L["App_Sets_Failed"], Severity.Error);
             if (grid is not null) await grid.ReloadServerData();
         }
     }

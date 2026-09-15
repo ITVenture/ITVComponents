@@ -1,22 +1,25 @@
+﻿@using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
+
+@inject IStringLocalizer<ClientAppMessages> L
 
 <MudDialog>
     <DialogContent>
         <MudForm @ref="form">
             <MudTextField @bind-Value="Model.ClientName"
-                          Label="Name"
+                          Label="@L["App_Col_Name"]"
                           Required="true"
-                          RequiredError="A name is required."
+                          RequiredError="@L["App_Dlg_NameRequired"]"
                           MaxLength="200" />
 
             @if (IsCreate)
             {
                 <MudSelect T="int" @bind-Value="Model.ClientAppTemplateId"
-                           Label="Template"
+                           Label="@L["App_Col_Template"]"
                            Required="true"
-                           RequiredError="A template is required."
-                           HelperText="Determines which permission sets this application may be granted. Cannot be changed later.">
+                           RequiredError="@L["App_Dlg_TemplateRequired"]"
+                           HelperText="@L["App_Dlg_TemplateHelpCreate"]">
                     @foreach (var t in templates)
                     {
                         <MudSelectItem T="int" Value="@t.ClientAppTemplateId">@t.Name</MudSelectItem>
@@ -26,22 +29,22 @@
             else
             {
                 @* Das Template bleibt: ein Wechsel machte die zugeordneten Buendel ungueltig. *@
-                <MudTextField Value="@Model.TemplateName" Label="Template" ReadOnly="true"
-                              HelperText="The template cannot be changed after creation." />
-                <MudTextField Value="@Model.ClientKey" Label="Client key" ReadOnly="true"
-                              HelperText="Devices carry this in their key. It never changes." />
+                <MudTextField Value="@Model.TemplateName" Label="@L["App_Col_Template"]" ReadOnly="true"
+                              HelperText="@L["App_Dlg_TemplateHelpEdit"]" />
+                <MudTextField Value="@Model.ClientKey" Label="@L["App_Dlg_ClientKey"]" ReadOnly="true"
+                              HelperText="@L["App_Dlg_ClientKeyHelp"]" />
             }
 
-            <MudSwitch @bind-Value="Model.Enabled" Label="Enabled" Color="Color.Primary" Class="mt-4" />
+            <MudSwitch @bind-Value="Model.Enabled" Label="@L["App_Dlg_Enabled"]" Color="Color.Primary" Class="mt-4" />
             <MudText Typo="Typo.caption">
-                Switched off, none of this application's devices can sign in any more.
+                @L["App_Dlg_EnabledHint"]
             </MudText>
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">@L["App_Cancel"]</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
-            @(IsCreate ? "Create" : "Save")
+            @(IsCreate ? L["App_Dlg_Create"] : L["App_Dlg_Save"])
         </MudButton>
     </DialogActions>
 </MudDialog>

@@ -1,0 +1,124 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="App_Title" xml:space="preserve"><value>Client applications</value></data>
+  <data name="App_Add" xml:space="preserve"><value>Add application</value></data>
+  <data name="App_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="App_Col_Template" xml:space="preserve"><value>Template</value></data>
+  <data name="App_Col_State" xml:space="preserve"><value>State</value></data>
+  <data name="App_State_On" xml:space="preserve"><value>on</value></data>
+  <data name="App_State_Off" xml:space="preserve"><value>off</value></data>
+  <data name="App_Col_Devices" xml:space="preserve"><value>Devices</value></data>
+  <data name="App_Tab_Sets" xml:space="preserve"><value>Granted permission sets</value></data>
+  <data name="App_Tab_Devices" xml:space="preserve"><value>Devices</value></data>
+  <data name="App_NoPermission" xml:space="preserve"><value>No permission to view client applications.</value></data>
+  <data name="App_NoTemplate" xml:space="preserve"><value>There is no application template yet. Create one under 'Client app templates' first.</value></data>
+  <data name="App_Create_Title" xml:space="preserve"><value>Create application</value></data>
+  <data name="App_Edit_Title" xml:space="preserve"><value>Edit application</value></data>
+  <data name="App_Created" xml:space="preserve"><value>Application created</value></data>
+  <data name="App_CreateFailed" xml:space="preserve"><value>Could not create the application - see the log.</value></data>
+  <data name="App_Updated" xml:space="preserve"><value>Application updated</value></data>
+  <data name="App_UpdateFailed" xml:space="preserve"><value>Could not update the application - see the log.</value></data>
+  <data name="App_Delete_Title" xml:space="preserve"><value>Delete application</value></data>
+  <data name="App_Delete_Question" xml:space="preserve"><value>Really delete '{0}'?</value></data>
+  <data name="App_Delete_Yes" xml:space="preserve"><value>Delete</value></data>
+  <data name="App_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="App_Deleted" xml:space="preserve"><value>Application deleted</value></data>
+  <data name="App_DeleteFailed" xml:space="preserve"><value>Could not delete - active devices may still be paired with it.</value></data>
+  <data name="App_Dlg_NameRequired" xml:space="preserve"><value>A name is required.</value></data>
+  <data name="App_Dlg_TemplateRequired" xml:space="preserve"><value>A template is required.</value></data>
+  <data name="App_Dlg_TemplateHelpCreate" xml:space="preserve"><value>Determines which permission sets this application may be granted. Cannot be changed later.</value></data>
+  <data name="App_Dlg_TemplateHelpEdit" xml:space="preserve"><value>The template cannot be changed after creation.</value></data>
+  <data name="App_Dlg_ClientKey" xml:space="preserve"><value>Client key</value></data>
+  <data name="App_Dlg_ClientKeyHelp" xml:space="preserve"><value>Devices carry this in their key. It never changes.</value></data>
+  <data name="App_Dlg_Enabled" xml:space="preserve"><value>Enabled</value></data>
+  <data name="App_Dlg_EnabledHint" xml:space="preserve"><value>Switched off, none of this application's devices can sign in any more.</value></data>
+  <data name="App_Dlg_Create" xml:space="preserve"><value>Create</value></data>
+  <data name="App_Dlg_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="App_Sets_Hint" xml:space="preserve"><value>Only the permission sets of this application's template can be granted - that is the ceiling the platform defines. Switching one on grants everything it contains.</value></data>
+  <data name="App_Sets_Col_Set" xml:space="preserve"><value>Permission set</value></data>
+  <data name="App_Sets_Col_Contains" xml:space="preserve"><value>Contains</value></data>
+  <data name="App_Sets_Granted" xml:space="preserve"><value>Permission set granted</value></data>
+  <data name="App_Sets_Withdrawn" xml:space="preserve"><value>Permission set withdrawn</value></data>
+  <data name="App_Sets_Failed" xml:space="preserve"><value>The change was refused - see the log.</value></data>
+  <data name="App_Sets_NoPermission" xml:space="preserve"><value>No permission to view the granted permission sets.</value></data>
+  <data name="App_Acc_Col_Device" xml:space="preserve"><value>Device</value></data>
+  <data name="App_Acc_Col_State" xml:space="preserve"><value>State</value></data>
+  <data name="App_Acc_State_Revoked" xml:space="preserve"><value>revoked</value></data>
+  <data name="App_Acc_State_Incomplete" xml:space="preserve"><value>pairing incomplete</value></data>
+  <data name="App_Acc_State_Expired" xml:space="preserve"><value>expired</value></data>
+  <data name="App_Acc_State_Active" xml:space="preserve"><value>active</value></data>
+  <data name="App_Acc_Col_Kind" xml:space="preserve"><value>Kind</value></data>
+  <data name="App_Acc_Kind_Machine" xml:space="preserve"><value>machine</value></data>
+  <data name="App_Acc_Kind_Delegation" xml:space="preserve"><value>delegation</value></data>
+  <data name="App_Acc_Col_Created" xml:space="preserve"><value>Created (UTC)</value></data>
+  <data name="App_Acc_Col_LastUsed" xml:space="preserve"><value>Last used (UTC)</value></data>
+  <data name="App_Acc_Revoke" xml:space="preserve"><value>Revoke</value></data>
+  <data name="App_Acc_Revoke_Title" xml:space="preserve"><value>Revoke access</value></data>
+  <data name="App_Acc_Revoke_Question" xml:space="preserve"><value>Really revoke '{0}'? The device has to be paired again afterwards.</value></data>
+  <data name="App_Acc_Revoked" xml:space="preserve"><value>Access revoked</value></data>
+  <data name="App_Acc_RevokeFailed" xml:space="preserve"><value>Could not revoke the access - see the log.</value></data>
+  <data name="App_Acc_NoPermission" xml:space="preserve"><value>No permission to view the accesses.</value></data>
+  <data name="Pair_Title" xml:space="preserve"><value>Pair a device</value></data>
+  <data name="Pair_Intro" xml:space="preserve"><value>Enter the code the device is showing.</value></data>
+  <data name="Pair_Code" xml:space="preserve"><value>Code</value></data>
+  <data name="Pair_Look" xml:space="preserve"><value>Look up</value></data>
+  <data name="Pair_NotFound" xml:space="preserve"><value>No open pairing carries this code. It may have expired - pairings are only valid for a few minutes.</value></data>
+  <data name="Pair_Device" xml:space="preserve"><value>Device: {0}</value></data>
+  <data name="Pair_WillGrant" xml:space="preserve"><value>This device will be granted:</value></data>
+  <data name="Pair_NothingGranted" xml:space="preserve"><value>Nothing yet - this application has no permission sets granted. The device will be able to sign in, but it will not be allowed to do anything.</value></data>
+  <data name="Pair_Confirm" xml:space="preserve"><value>Confirm pairing</value></data>
+  <data name="Pair_Confirmed" xml:space="preserve"><value>Confirmed. The device picks up its key on its next attempt - it is handed out exactly once.</value></data>
+  <data name="Pair_ConfirmedToast" xml:space="preserve"><value>Pairing confirmed</value></data>
+  <data name="Pair_ConfirmFailed" xml:space="preserve"><value>The pairing could not be confirmed.</value></data>
+  <data name="Pair_NoPermission" xml:space="preserve"><value>No permission to confirm pairings.</value></data>
+</root>

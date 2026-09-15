@@ -6791,3 +6791,87 @@ WHERE FullQualifiedTypeName LIKE '%.DbSecurityRepository`%';
 Jede Stelligkeit, die in einem dieser Dokumente steht, ist eine **Momentaufnahme**. Sie gehört
 abgeschrieben aus der eigenen Assembly, nie aus einem Dokument — ältere Abschnitte nennen zwangsläufig
 Zahlen, die inzwischen überholt sind (etwa `BUG-PRE230`, das ``SharedAssetInfoProvider`47`` nennt).
+---
+
+## 68. Die ClientApp-Masken gehören dem Kunden — **kein Schema-Change, aber ein neues Feature, das ihr anlegen solltet**
+
+### 68.1 Der Befund
+
+`ITVAdminViews` ist das Feature der **System-Administration**. Hinter ihm lagen bisher auch die beiden
+Masken, die der **Kunde** bedient:
+
+| Maske | Wer bedient sie |
+|---|---|
+| `/Connectivity/ClientApps` | der Kunde — er verwaltet die Anwendungen **seines eigenen** Mandanten |
+| `/Connectivity/DevicePairing` | der Kunde — er bestätigt die Kopplung **seiner** Geräte |
+| `/Connectivity/AppTemplates` | der Systemverwalter — Vorlagen sind global |
+| `/Connectivity/PermissionSets` | der Systemverwalter — die Bündel legen fest, was überhaupt möglich ist |
+
+Die oberen zwei hinter dem Admin-Feature zu verstecken hiess: entweder bekommt der Kunden-Mandant
+`ITVAdminViews` — und damit den Zugang zu **allem** —, oder er kann seine eigenen Kassen nicht koppeln.
+
+### 68.2 Das neue Feature
+
+```
+ITVAdminViews       -> System-Administration (unverändert)
+ITVCustomerViews    -> Masken, die Kunden-Mandanten bedienen dürfen
+```
+
+Die beiden Masken prüfen ab PRE242 **beide** Features mit ODER-Semantik:
+
+```razor
+<SecureView RequiredPermissions="Apps.View,Apps.Write"
+            RequiredFeatures="ITVCustomerViews,ITVAdminViews">
+```
+
+**Beim Upgrade müsst ihr also nichts tun** — wer die Masken heute sieht, sieht sie weiterhin, und ein
+Admin-Mandant behält sie automatisch. Neu ist nur, dass ihr sie einem Kunden-Mandanten geben **könnt**,
+ohne ihm die Systemverwaltung mitzugeben:
+
+```sql
+INSERT INTO Features (FeatureName, FeatureDescription, Enabled)
+VALUES ('ITVCustomerViews', 'Masken, die Kunden-Mandanten selbst bedienen', 0);
+```
+
+`Enabled = 0` heisst „gilt **nicht** für alle" — dann entscheidet die Aktivierung je Mandant
+(`TenantFeatureActivations`). Genau so ist es gemeint: ihr gebt es den Mandanten, die es haben sollen.
+Die beiden Wege sind mit **ODER** verknüpft, nie mit UND.
+
+Zwei Dinge, die hier regelmässig überraschen: **Aktivierungen werden im Mandantenbaum nicht vererbt** —
+ein Untermandant braucht seine eigene Zeile. Und wer die Masken einem Mandanten gibt, muss ihm auch die
+**Berechtigungen** geben (`Apps.View`/`Apps.Write`, für die Kopplung `Apps.Pairing.Confirm`); das Feature
+schaltet die Maske frei, nicht die Rechte darin.
+
+**Weitere Masken gehören mit der Zeit dort hinein.** Das Feature ist als Sammelpunkt gedacht, nicht als
+Einzelfall für ClientApps.
+
+### 68.3 Mehrsprachigkeit
+
+Was der Kunde bedient, ist übersetzt. Die vier Masken (Liste, Dialog, die beiden Unterraster) und die
+Kopplungs-Maske ziehen ihre Texte aus `ClientAppMessages` — Englisch als neutrale Sprache, dazu
+**Deutsch, Französisch und Italienisch**, wie beim Onboarding:
+
+```
+Resources/ClientAppMessages.resx        (en)
+Resources/ClientAppMessages.de.resx
+Resources/ClientAppMessages.fr.resx
+Resources/ClientAppMessages.it.resx
+```
+
+Die Begriffe folgen dem, was der Kunde im Onboarding schon sieht — ein Rechtebündel heisst in der
+Oberfläche **„Berechtigungs-Set"** (fr: *Ensemble d'autorisations*, it: *Set di autorizzazioni*), auch
+wenn dieser Leitfaden intern von Bündeln spricht.
+
+Überschreiben lässt sich jeder Schlüssel wie gewohnt über die **DB-Ressourcen** (`DbResources`); der
+`ContextLocalizerFactory` schaltet sich vor die eingebetteten resx.
+
+### 68.4 Eine Stelle, die noch englisch bleibt
+
+`PairingResult.Reason` — der Grund, aus dem eine Kopplung abgelehnt wurde (etwa „gehört einem anderen
+Mandanten") — entsteht im **Dienst**, nicht in der Maske, und ist nicht übersetzt. Die Maske zeigt ihn
+unverändert an.
+
+Das ist bewusst offen gelassen: die Texte lägen sonst im EF-Projekt, das keine Ressourcen führt, und
+eine halbe Lösung (Schlüssel im Dienst, Auflösung in der Maske) wäre teurer als der Nutzen — der Fall
+ist selten und der englische Satz eindeutig. Wenn ihr ihn übersetzt braucht, sagt Bescheid; dann wird
+aus `Reason` ein Schlüssel.

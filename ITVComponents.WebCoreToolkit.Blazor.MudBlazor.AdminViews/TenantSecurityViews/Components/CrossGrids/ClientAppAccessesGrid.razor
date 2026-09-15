@@ -1,10 +1,12 @@
-@* Die Zugaenge einer Anwendung - in aller Regel gekoppelte Geraete. *@
+﻿@* Die Zugaenge einer Anwendung - in aller Regel gekoppelte Geraete. *@
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
 @using ITVComponents.WebCoreToolkit.Blazor.Paging
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 
 @inject IClientAppAdminHandler Handler
+@inject IStringLocalizer<ClientAppMessages> L
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -18,36 +20,36 @@
                      Hover="true"
                      Dense="true">
             <Columns>
-                <PropertyColumn Property="x => x.DeviceLabel" Title="Device" />
-                <TemplateColumn T="ClientAppAccessViewModel" Title="State" Sortable="false">
+                <PropertyColumn Property="x => x.DeviceLabel" Title="@L["App_Acc_Col_Device"]" />
+                <TemplateColumn T="ClientAppAccessViewModel" Title="@L["App_Acc_Col_State"]" Sortable="false">
                     <CellTemplate>
                         @if (context.Item.RevokedUtc != null)
                         {
-                            <MudChip T="string" Color="Color.Error" Size="Size.Small">revoked</MudChip>
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">@L["App_Acc_State_Revoked"]</MudChip>
                         }
                         else if (!context.Item.HasSecret)
                         {
                             @* Bestaetigt, aber nie abgeholt - so ein Zugang kann sich nicht anmelden. *@
-                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">pairing incomplete</MudChip>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@L["App_Acc_State_Incomplete"]</MudChip>
                         }
                         else if (context.Item.ExpiresUtc != null && context.Item.ExpiresUtc <= DateTime.UtcNow)
                         {
-                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">expired</MudChip>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@L["App_Acc_State_Expired"]</MudChip>
                         }
                         else
                         {
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small">active</MudChip>
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">@L["App_Acc_State_Active"]</MudChip>
                         }
                     </CellTemplate>
                 </TemplateColumn>
-                <TemplateColumn T="ClientAppAccessViewModel" Title="Kind" Sortable="false">
+                <TemplateColumn T="ClientAppAccessViewModel" Title="@L["App_Acc_Col_Kind"]" Sortable="false">
                     <CellTemplate>
-                        <MudText Typo="Typo.body2">@(context.Item.IsMachine ? "machine" : "delegation")</MudText>
+                        <MudText Typo="Typo.body2">@(context.Item.IsMachine ? L["App_Acc_Kind_Machine"] : L["App_Acc_Kind_Delegation"])</MudText>
                     </CellTemplate>
                 </TemplateColumn>
-                <PropertyColumn Property="x => x.CreatedUtc" Title="Created (UTC)" />
+                <PropertyColumn Property="x => x.CreatedUtc" Title="@L["App_Acc_Col_Created"]" />
                 @* Das Feld, an dem ein stillgelegtes Geraet auffaellt. *@
-                <PropertyColumn Property="x => x.LastUsedUtc" Title="Last used (UTC)" />
+                <PropertyColumn Property="x => x.LastUsedUtc" Title="@L["App_Acc_Col_LastUsed"]" />
                 <TemplateColumn T="ClientAppAccessViewModel" Title="" Sortable="false">
                     <CellTemplate>
                         <SecureView RequiredPermissions="Apps.Write">
@@ -57,7 +59,7 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.Block"
                                                    Size="Size.Small"
                                                    Color="Color.Error"
-                                                   Title="Revoke"
+                                                   Title="@L["App_Acc_Revoke"]"
                                                    OnClick="@(() => Revoke(context.Item))" />
                                 }
                             </Permitted>
@@ -71,7 +73,7 @@
         </MudDataGrid>
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Info">No permission to view the accesses.</MudAlert>
+        <MudAlert Severity="Severity.Info">@L["App_Acc_NoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>
 
@@ -112,18 +114,18 @@
         if (!hasWrite || currentUser is null) return;
 
         // Ein Widerruf ist nicht ruecknehmbar - das Geraet muss danach neu gekoppelt werden.
-        var ok = await DialogService.ShowMessageBoxAsync("Revoke access",
-            $"Really revoke '{item.DeviceLabel}'? The device has to be paired again afterwards.",
-            yesText: "Revoke", cancelText: "Cancel");
+        var ok = await DialogService.ShowMessageBoxAsync(L["App_Acc_Revoke_Title"],
+            L["App_Acc_Revoke_Question", item.DeviceLabel],
+            yesText: L["App_Acc_Revoke"], cancelText: L["App_Cancel"]);
         if (ok != true) return;
 
         if (await Handler.RevokeAccessAsync(currentUser, item.ClientAppAccessId))
         {
-            Snackbar.Add("Access revoked", Severity.Success);
+            Snackbar.Add(L["App_Acc_Revoked"], Severity.Success);
         }
         else
         {
-            Snackbar.Add("Could not revoke the access - see the log.", Severity.Error);
+            Snackbar.Add(L["App_Acc_RevokeFailed"], Severity.Error);
         }
 
         if (grid is not null) await grid.ReloadServerData();

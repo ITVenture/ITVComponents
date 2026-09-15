@@ -1,22 +1,27 @@
-@page "/Connectivity/ClientApps"
+﻿@page "/Connectivity/ClientApps"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.CrossGrids
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
 @using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
 
 @inject IClientAppAdminHandler Handler
+@inject IStringLocalizer<ClientAppMessages> L
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<PageTitle>Client applications</PageTitle>
+<PageTitle>@L["App_Title"]</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">Client applications</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@L["App_Title"]</MudText>
 
-<SecureView RequiredPermissions="Apps.View,Apps.Write" RequiredFeatures="ITVAdminViews">
+@* ITVCustomerViews, nicht ITVAdminViews: diese Maske bedient der KUNDE - er verwaltet die Anwendungen
+   seines eigenen Mandanten. ITVAdminViews ist den System-Administratoren vorbehalten und steht hier nur
+   mit, damit beim Upgrade niemand die Maske verliert. *@
+<SecureView RequiredPermissions="Apps.View,Apps.Write" RequiredFeatures="ITVCustomerViews,ITVAdminViews">
     <Permitted>
         @if (currentUser is null)
         {
@@ -32,34 +37,37 @@
                          Hover="true"
                          Dense="true">
                 <ToolBarContent>
-                    <CrudGridToolbar OnRefresh="ReloadGrid" Title="Client applications" @bind-Search="search" OnSearch="ReloadGrid">
-                        <SecureView RequiredPermissions="Apps.Write">
-                            <Permitted>
-                                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
-                                           Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
-                                    Add application
-                                </MudButton>
-                            </Permitted>
-                        </SecureView>
+                    <CrudGridToolbar OnRefresh="ReloadGrid" @bind-Search="search" OnSearch="ReloadGrid">
+                        <TitleContent>@L["App_Title"]</TitleContent>
+                        <ChildContent>
+                            <SecureView RequiredPermissions="Apps.Write">
+                                <Permitted>
+                                    <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled"
+                                               Color="Color.Primary" Class="ml-2" OnClick="OpenCreate">
+                                        @L["App_Add"]
+                                    </MudButton>
+                                </Permitted>
+                            </SecureView>
+                        </ChildContent>
                     </CrudGridToolbar>
                 </ToolBarContent>
                 <Columns>
                     <HierarchyColumn T="ClientAppViewModel" />
-                    <PropertyColumn Property="x => x.ClientName" Title="Name" />
-                    <PropertyColumn Property="x => x.TemplateName" Title="Template" />
-                    <TemplateColumn T="ClientAppViewModel" Title="State" Sortable="false">
+                    <PropertyColumn Property="x => x.ClientName" Title="@L["App_Col_Name"]" />
+                    <PropertyColumn Property="x => x.TemplateName" Title="@L["App_Col_Template"]" />
+                    <TemplateColumn T="ClientAppViewModel" Title="@L["App_Col_State"]" Sortable="false">
                         <CellTemplate>
                             @if (!context.Item.Enabled)
                             {
-                                <MudChip T="string" Color="Color.Error" Size="Size.Small">off</MudChip>
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">@L["App_State_Off"]</MudChip>
                             }
                             else
                             {
-                                <MudChip T="string" Color="Color.Success" Size="Size.Small">on</MudChip>
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">@L["App_State_On"]</MudChip>
                             }
                         </CellTemplate>
                     </TemplateColumn>
-                    <PropertyColumn Property="x => x.ActiveAccessCount" Title="Devices" />
+                    <PropertyColumn Property="x => x.ActiveAccessCount" Title="@L["App_Col_Devices"]" />
                     <TemplateColumn T="ClientAppViewModel" Title="" Sortable="false">
                         <CellTemplate>
                             <SecureView RequiredPermissions="Apps.Write">
@@ -78,10 +86,10 @@
                 <ChildRowContent>
                     <MudPaper Elevation="0" Class="pa-2">
                         <MudTabs Elevation="0" Rounded="true">
-                            <MudTabPanel Text="Granted permission sets">
+                            <MudTabPanel Text="@L["App_Tab_Sets"]">
                                 <PermissionSetsForAppGrid ClientAppId="@context.Item.ClientAppId" />
                             </MudTabPanel>
-                            <MudTabPanel Text="Devices">
+                            <MudTabPanel Text="@L["App_Tab_Devices"]">
                                 <ClientAppAccessesGrid ClientAppId="@context.Item.ClientAppId" />
                             </MudTabPanel>
                         </MudTabs>
@@ -94,7 +102,7 @@
         }
     </Permitted>
     <NotPermitted>
-        <MudAlert Severity="Severity.Warning">No permission to view client applications.</MudAlert>
+        <MudAlert Severity="Severity.Warning">@L["App_NoPermission"]</MudAlert>
     </NotPermitted>
 </SecureView>
 
@@ -134,8 +142,7 @@
         {
             // Ohne Template gibt es nichts anzulegen - und ohne diesen Hinweis sucht jemand den Fehler
             // in der Maske statt in der fehlenden Vorlage.
-            Snackbar.Add("There is no application template yet. Create one under 'Client app templates' first.",
-                Severity.Warning);
+            Snackbar.Add(L["App_NoTemplate"], Severity.Warning);
             return;
         }
 
@@ -145,19 +152,19 @@
             { d => d.IsCreate, true },
             { d => d.Templates, templates }
         };
-        var dlg = await DialogService.ShowAsync<ClientAppDialog>("Create application", parameters, EditDialogDefaults.Edit);
+        var dlg = await DialogService.ShowAsync<ClientAppDialog>(L["App_Create_Title"], parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: ClientAppViewModel input })
         {
             var created = await Handler.CreateAsync(currentUser!, input);
             if (created != null)
             {
-                Snackbar.Add("Application created", Severity.Success);
+                Snackbar.Add(L["App_Created"], Severity.Success);
                 await ReloadGrid();
             }
             else
             {
-                Snackbar.Add("Failed to create - see the log.", Severity.Error);
+                Snackbar.Add(L["App_CreateFailed"], Severity.Error);
             }
         }
     }
@@ -179,37 +186,37 @@
             { d => d.IsCreate, false },
             { d => d.Templates, templates }
         };
-        var dlg = await DialogService.ShowAsync<ClientAppDialog>("Edit application", parameters, EditDialogDefaults.Edit);
+        var dlg = await DialogService.ShowAsync<ClientAppDialog>(L["App_Edit_Title"], parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: ClientAppViewModel input })
         {
             var updated = await Handler.UpdateAsync(currentUser!, input);
             if (updated != null)
             {
-                Snackbar.Add("Application updated", Severity.Success);
+                Snackbar.Add(L["App_Updated"], Severity.Success);
                 await ReloadGrid();
             }
             else
             {
-                Snackbar.Add("Failed to update - see the log.", Severity.Error);
+                Snackbar.Add(L["App_UpdateFailed"], Severity.Error);
             }
         }
     }
 
     private async Task Delete(ClientAppViewModel item)
     {
-        var ok = await DialogService.ShowMessageBoxAsync("Delete application",
-            $"Really delete '{item.ClientName}'?", yesText: "Delete", cancelText: "Cancel");
+        var ok = await DialogService.ShowMessageBoxAsync(L["App_Delete_Title"],
+            L["App_Delete_Question", item.ClientName], yesText: L["App_Delete_Yes"], cancelText: L["App_Cancel"]);
         if (ok != true) return;
 
         if (await Handler.DeleteAsync(currentUser!, item.ClientAppId))
         {
-            Snackbar.Add("Application deleted", Severity.Success);
+            Snackbar.Add(L["App_Deleted"], Severity.Success);
         }
         else
         {
             // Der haeufigste Grund: es haengen noch nicht widerrufene Zugaenge daran.
-            Snackbar.Add("Could not delete - active devices may still be paired with it.", Severity.Error);
+            Snackbar.Add(L["App_DeleteFailed"], Severity.Error);
         }
 
         await ReloadGrid();
