@@ -4,9 +4,11 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base
 {
+    [Index(nameof(ClientAppId), nameof(AppPermissionSetId), IsUnique = true, Name = "UQ_SetPerClientApp")]
     public class ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -29,6 +31,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         public int ClientAppId { get; set; }
 
+        /// <summary>
+        /// Das zugestandene Rechtebuendel.
+        /// </summary>
+        /// <remarks>
+        /// <b>Obergrenze:</b> das Buendel muss zum Template DIESER Anwendung gehoeren
+        /// (<c>AppPermissionSet.ClientAppTemplateId == ClientApp.ClientAppTemplateId</c>). Der
+        /// Mandanten-Administrator waehlt aus, was die Plattform fuer diese Anwendung vorgesehen hat - er
+        /// kann nichts erteilen, was hier keinen Sinn ergibt.
+        /// </remarks>
         public int AppPermissionSetId { get; set; }
 
         public virtual TAppPermissionSet PermissionSet { get; set; }

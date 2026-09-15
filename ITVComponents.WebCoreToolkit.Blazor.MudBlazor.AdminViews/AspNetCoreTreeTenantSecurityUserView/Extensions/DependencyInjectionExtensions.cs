@@ -28,7 +28,7 @@ public static class DependencyInjectionExtensions
         };
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly);
         if (partTypeLoadBehavior.ShouldLoadType(
-                typeof(UserAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(UserAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services.AddScoped<IUserAdminHandler, UserAdminHandler<
                 TContext, HierarchyTenant, User, Role, Permission, UserRole, RolePermission,
@@ -37,7 +37,7 @@ public static class DependencyInjectionExtensions
                 DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
                 AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
                 SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-                ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
+                ClientAppTemplate, AppPermission, AppPermissionSet,
                 ClientApp, ClientAppPermission, ClientAppAccess,
                 HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
                 HierarchyTenantSetting, HierarchyTenantFeatureActivation,
@@ -74,7 +74,7 @@ public static class DependencyInjectionExtensions
             DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
             AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
             SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-            ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
+            ClientAppTemplate, AppPermission, AppPermissionSet,
             ClientApp, ClientAppPermission, ClientAppAccess,
             HierarchyWebPlugin, HierarchyWebPluginConstant, HierarchyWebPluginGenericParameter, HierarchySequence,
             HierarchyTenantSetting, HierarchyTenantFeatureActivation,
@@ -84,7 +84,7 @@ public static class DependencyInjectionExtensions
         // Hierarchy-specific tenant behavior layered on top of the generic registration above
         // (the flat method registers the handler but not the hierarchy tenant options).
         if (partTypeLoadBehavior.ShouldLoadType(
-                typeof(TenantAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(TenantAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services.Configure<TenantOptions<HierarchyTenant>>(o =>
             {

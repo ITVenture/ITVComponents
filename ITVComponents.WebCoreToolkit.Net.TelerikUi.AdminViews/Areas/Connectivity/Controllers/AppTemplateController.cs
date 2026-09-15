@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -20,7 +21,7 @@ using Kendo.Mvc.UI;
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Areas.Connectivity.Controllers
 {
     [Authorize("HasPermission(Apps.Templates.View,Apps.Templates.Write),HasFeature(ITVAdminViews)"), Area("Connectivity"), ConstructedGenericControllerConvention]
-    public class AppTemplateController<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext> : Controller
+    public class AppTemplateController<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig, TContext> : Controller
         where TRole : Role<TTenant,TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -46,12 +47,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
         where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>
-        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
-        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
+        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>, new()
         where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TClientAppAccess : ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
-        where TContext : DbContext, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>
+        where TContext : DbContext, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>
         where TTenant : Tenant
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>
         where TWebPluginConstant : WebPluginConstant<TTenant>
@@ -142,15 +142,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public async Task<IActionResult> ReadPermissions([DataSourceRequest] DataSourceRequest request, int parentId)
         {
-            var perms = (from prm in db.AppPermissionSets
-                         join apr in db.ClientAppTemplatePermissions.Where(n => n.ClientAppTemplateId == parentId) on prm.AppPermissionSetId
-                             equals apr.AppPermissionSetId
-                             into apg
-                         from j in apg.DefaultIfEmpty()
-                         select new { Selected = j == null, prm.AppPermissionSetId, prm.Name});
+            // Ein Rechtebuendel gehoert direkt zu genau einem Template; die frueher global geteilten
+            // Buendel samt Zuordnungstabelle gibt es nicht mehr. Die Liste zeigt deshalb, was DIESEM
+            // Template gehoert - "Assigned" ist durchgehend true und bleibt nur, bis die Maske auf das
+            // neue Modell umgebaut ist.
+            var perms = from prm in db.AppPermissionSets
+                        where prm.ClientAppTemplateId == parentId
+                        select new { prm.AppPermissionSetId, prm.Name };
             return Json(perms.ToDataSourceResult(request, s => new AppPermissionViewModel
             {
-                Assigned = s.Selected,
+                Assigned = true,
                 ParentId = parentId,
                 AppPermissionSetId = s.AppPermissionSetId,
                 PermissionSetName = s.Name,
@@ -158,31 +159,39 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             }));
         }
 
+        /// <summary>
+        /// Entfernen heisst jetzt LOESCHEN: das Buendel gehoert genau diesem Template, eine Zuordnung, die
+        /// man loesen koennte, gibt es nicht mehr. Ein Buendel, das eine ClientApp noch fuehrt, bleibt
+        /// stehen - sonst verloere eine laufende Anwendung stillschweigend ihre Rechte.
+        /// </summary>
         public async Task<IActionResult> UpdatePermission([DataSourceRequest] DataSourceRequest request,
             AppPermissionViewModel mdl)
         {
-            var entity = db.ClientAppTemplatePermissions.FirstOrDefault(n =>
-                n.AppPermissionSetId == mdl.AppPermissionSetId && n.ClientAppTemplateId== mdl.ParentId);
-            var isAssigned = entity != null;
-            if (isAssigned != mdl.Assigned)
+            if (!mdl.Assigned)
             {
-                if (isAssigned)
+                var entity = db.AppPermissionSets.FirstOrDefault(n =>
+                    n.AppPermissionSetId == mdl.AppPermissionSetId && n.ClientAppTemplateId == mdl.ParentId);
+                if (entity == null)
                 {
-                    db.ClientAppTemplatePermissions.Remove(entity);
+                    LogEnvironment.LogEvent(
+                        $"Permission-set {mdl.AppPermissionSetId} does not exist below app-template {mdl.ParentId}; nothing deleted.",
+                        LogSeverity.Warning);
+                }
+                else if (db.ClientAppPermissions.Any(n => n.AppPermissionSetId == mdl.AppPermissionSetId))
+                {
+                    LogEnvironment.LogEvent(
+                        $"Permission-set {mdl.AppPermissionSetId} of app-template {mdl.ParentId} is still granted to at least one client-app; not deleted.",
+                        LogSeverity.Warning);
+                    ModelState.AddModelError("", "The permission set is still granted to a client app.");
                 }
                 else
                 {
-                    db.ClientAppTemplatePermissions.Add(new TClientAppTemplatePermission()
-                    {
-                        ClientAppTemplateId = mdl.ParentId,
-                        AppPermissionSetId = mdl.AppPermissionSetId
-                    });
+                    db.AppPermissionSets.Remove(entity);
+                    await db.SaveChangesAsync();
                 }
-
-                await db.SaveChangesAsync();
             }
 
-            return Json(new[] { mdl }.ToDataSourceResult(request));
+            return Json(new[] { mdl }.ToDataSourceResult(request, ModelState));
         }
     }
 }

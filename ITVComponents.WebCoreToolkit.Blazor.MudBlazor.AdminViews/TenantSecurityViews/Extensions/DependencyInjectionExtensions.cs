@@ -22,7 +22,7 @@ public static class DependencyInjectionExtensions
         TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization,
         TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
         TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-        TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+        TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
         TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
         TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
         TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>(this IServiceCollection services, AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehaviorOptions)
@@ -30,8 +30,7 @@ public static class DependencyInjectionExtensions
             TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery,
             TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty,
             TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset,
-            TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet,
-            TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin,
+            TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin,
             TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation,
             TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>
         where TTenant : Tenant, new()
@@ -62,10 +61,9 @@ public static class DependencyInjectionExtensions
         where TSharedAsset : SharedAsset<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
-        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
+        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>, new()
         where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>, new()
         where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>, new()
-        where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
         where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
         where TClientAppAccess : ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
@@ -88,7 +86,7 @@ public static class DependencyInjectionExtensions
         services.AddTSVCoreServices(partTypeLoadBehaviorOptions);
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(TenantAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(TenantAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<ITenantAdminHandler, TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission
@@ -98,14 +96,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(RoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(RoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IRoleAdminHandler, RoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermission,
@@ -115,14 +113,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(PermissionAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(PermissionAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IPermissionAdminHandler, PermissionAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -132,14 +130,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(PermissionSetAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(PermissionSetAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IPermissionSetAdminHandler, PermissionSetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -149,14 +147,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(AppTemplateAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(AppTemplateAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IAppTemplateAdminHandler, AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -166,14 +164,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(NavigationAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(NavigationAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<INavigationAdminHandler, NavigationAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -183,14 +181,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(DashboardWidgetAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(DashboardWidgetAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IDashboardWidgetAdminHandler, DashboardWidgetAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -200,14 +198,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(AssetTemplateAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(AssetTemplateAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IAssetTemplateAdminHandler, AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -217,14 +215,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(DiagnosticsQueryAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(DiagnosticsQueryAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IDiagnosticsQueryAdminHandler, DiagnosticsQueryAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -234,14 +232,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(ExternalServiceAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(ExternalServiceAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IExternalServiceAdminHandler, ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -251,14 +249,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(FeatureActivationAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(FeatureActivationAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IFeatureActivationAdminHandler, FeatureActivationAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -268,14 +266,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(GlobalRoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(GlobalRoleAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IGlobalRoleAdminHandler, GlobalRoleAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -285,14 +283,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(SequenceAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(SequenceAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<ISequenceAdminHandler, SequenceAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -302,14 +300,14 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();
         }
 
         if (partTypeLoadBehaviorOptions.ShouldLoadType(
-                typeof(PlugInAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(PlugInAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services
                 .AddScoped<IPlugInAdminHandler, PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
@@ -319,7 +317,7 @@ public static class DependencyInjectionExtensions
                     ,
                     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
                     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+                    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
                     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
                     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
                     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>>();

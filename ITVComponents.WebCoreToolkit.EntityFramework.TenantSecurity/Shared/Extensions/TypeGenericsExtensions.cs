@@ -13,7 +13,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         public static Dictionary<string, Type> GetSecurityContextArguments(this Type type)
         {
             var secDefinition = type.GetInterfaces().FirstOrDefault(
-                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
+                n => n.IsGenericType && n.GetGenericTypeDefinition() == typeof(ISecurityContext<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>));
             if (secDefinition != null)
             {
                 var types = secDefinition.GenericTypeArguments;
@@ -55,7 +55,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                     { "TClientAppTemplate", types[24] },
                     { "TAppPermission", types[25] },
                     { "TAppPermissionSet", types[26] },
-                    { "TClientAppTemplatePermission", types[27] },
                     { "TClientApp", types[28] },
                     { "TClientAppPermission", types[29] },
                     { "TClientAppAccess", types[30] },

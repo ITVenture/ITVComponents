@@ -49,8 +49,6 @@ using TenantNavigationMenu = ITVComponents.WebCoreToolkit.EntityFramework.Tenant
 using TutorialStream = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.TutorialStream;
 using AppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.AppPermission;
 using AppPermissionSet = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.AppPermissionSet;
-using ClientAppTemplatePermission =
-    ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppTemplatePermission;
 using ClientAppTemplate = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppTemplate;
 using ClientApp = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientApp;
 using ClientAppPermission = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Models.ClientAppPermission;
@@ -64,7 +62,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             NavigationMenu, TenantNavigationMenu, DiagnosticsQuery, DiagnosticsQueryParameter, TenantDiagnosticsQuery,
             DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate,
             AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter,
-            SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
+            SharedAssetTenantFilter, ClientAppTemplate, AppPermission, AppPermissionSet,
             ClientApp, ClientAppPermission, ClientAppAccess, FlatWebPlugin, FlatWebPluginConstant,
             FlatWebPluginGenericParameter, FlatSequence, FlatTenantSetting, FlatTenantFeatureActivation, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin,
             BaseTenantContextSecurityTrustConfig>, IAllTenantsReader
@@ -554,7 +552,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         public DbSet<AssetTemplate> AssetTemplates { get; set; }
         public DbSet<ClientAppPermission> ClientAppPermissions { get; set; }
         public DbSet<ClientApp> ClientApps { get; set; }
-        public DbSet<ClientAppTemplatePermission> ClientAppTemplatePermissions { get; set; }
         public DbSet<ClientAppTemplate> ClientAppTemplates { get; set; }
         public DbSet<ClientAppAccess> ClientAppAccesses { get; set; }
 

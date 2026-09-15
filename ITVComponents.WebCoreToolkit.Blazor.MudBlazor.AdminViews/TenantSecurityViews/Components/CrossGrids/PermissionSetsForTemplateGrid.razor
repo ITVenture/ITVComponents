@@ -19,17 +19,15 @@
         <Columns>
             <TemplateColumn T="AppPermissionSetAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
+                    @* Ein Buendel gehoert genau EINEM Template - es gibt nichts zu- oder abzuwaehlen.
+                       Was hier steht, gehoert dem Template; entfernen heisst loeschen. *@
                     <SecureView RequiredPermissions="Apps.PermissionSets.Write">
                         <Permitted>
-                            <MudCheckBox T="bool"
-                                         Value="context.Item.Assigned"
-                                         ValueChanged="@(v => Toggle(context.Item, v))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteSet(context.Item))" />
                         </Permitted>
-                        <NotPermitted>
-                            <MudCheckBox T="bool"
-                                         Value="context.Item.Assigned"
-                                         Disabled="true" />
-                        </NotPermitted>
                     </SecureView>
                 </CellTemplate>
             </TemplateColumn>
@@ -71,19 +69,14 @@
         return new GridData<AppPermissionSetAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
     }
 
-    private async Task Toggle(AppPermissionSetAssignmentViewModel item, bool newValue)
+    private async Task DeleteSet(AppPermissionSetAssignmentViewModel item)
     {
         if (!hasWrite || currentUser is null) return;
-        var ok = await Handler.SetPermissionSetForTemplateAsync(currentUser, ClientAppTemplateId, item.AppPermissionSetId, newValue);
-        if (ok)
-        {
-            item.Assigned = newValue;
-            Snackbar.Add(newValue ? "Permission set assigned" : "Permission set unassigned", Severity.Success);
-        }
-        else
-        {
-            Snackbar.Add("Failed to update assignment", Severity.Error);
-            if (grid is not null) await grid.ReloadServerData();
-        }
+        var ok = await Handler.DeletePermissionSetFromTemplateAsync(currentUser, ClientAppTemplateId, item.AppPermissionSetId);
+        Snackbar.Add(ok
+                ? "Permission set deleted"
+                : "Permission set could not be deleted - it may still be granted to a client app",
+            ok ? Severity.Success : Severity.Error);
+        if (grid is not null) await grid.ReloadServerData();
     }
 }

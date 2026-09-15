@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         DiagnosticsQueryParameter, TenantDiagnosticsQuery, DashboardWidget, DashboardParam,
         DashboardWidgetLocalization, UserWidget, CustomUserProperty, AssetTemplate, AssetTemplatePath,
         AssetTemplateGrant, AssetTemplateFeature, SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-        ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission, ClientApp,
+        ClientAppTemplate, AppPermission, AppPermissionSet, ClientApp,
         ClientAppPermission, ClientAppAccess, HierarchyWebPlugin, HierarchyWebPluginConstant,
         HierarchyWebPluginGenericParameter, HierarchySequence, HierarchyTenantSetting,
         HierarchyTenantFeatureActivation, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin, HierarchyTenantContextSecurityTrustConfig>

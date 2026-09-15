@@ -13,8 +13,14 @@ public interface IAppTemplateAdminHandler
     Task<ClientAppTemplateViewModel?> UpdateAsync(ClaimsPrincipal user, ClientAppTemplateViewModel input);
     Task<bool> DeleteAsync(ClaimsPrincipal user, int clientAppTemplateId);
 
+    /// <summary>Die Rechtebuendel, die dieses Template anbietet.</summary>
     Task<PagedResult<AppPermissionSetAssignmentViewModel>> ListPermissionSetsForTemplateAsync(
         ClaimsPrincipal user, int clientAppTemplateId, ListQuery query);
-    Task<bool> SetPermissionSetForTemplateAsync(
-        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId, bool assigned);
+
+    /// <summary>
+    /// Loescht ein Rechtebuendel dieses Templates. Ersetzt das fruehere "Zuordnung entziehen" - ein
+    /// Buendel gehoert genau einem Template, es gibt also nichts mehr zu entziehen.
+    /// </summary>
+    Task<bool> DeletePermissionSetFromTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId);
 }

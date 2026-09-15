@@ -6,6 +6,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
@@ -15,7 +17,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization,
     TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant,
     TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter,
-    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientAppTemplatePermission, TClientApp,
+    TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp,
     TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter,
     TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService,
     TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : IAppTemplateAdminHandler
@@ -23,8 +25,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery,
         TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty,
         TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset,
-        TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet,
-        TClientAppTemplatePermission, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin,
+        TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin,
         TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation,
         TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>
     where TTenant : Tenant
@@ -53,8 +54,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
     where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>, new()
     where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet>, new()
-    where TClientAppTemplatePermission : ClientAppTemplatePermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
-    where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate, TClientAppTemplatePermission>, new()
+    where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>, new()
     where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
     where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
     where TClientAppAccess : ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess>
@@ -75,11 +75,16 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
 {
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
+    private readonly ILogger logger;
 
     public AppTemplateAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
     {
         this.dbFactory = dbFactory;
         this.services = services;
+        // Ueber die Factory und mit festem Kategorienamen statt als Konstruktor-Parameter: die Signatur
+        // ist an mehreren Stellen verdrahtet, und ein typeof() auf diesen Typ muesste vierzig Kommata
+        // exakt treffen - das bricht beim naechsten Typparameter still.
+        logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("AppTemplateAdminHandler");
     }
 
     private TContext CreateDb()
@@ -156,13 +161,13 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
             return new PagedResult<AppPermissionSetAssignmentViewModel>();
 
         using var db = CreateDb();
-        var assignedSetIds = await db.ClientAppTemplatePermissions
-            .Where(ap => ap.ClientAppTemplateId == clientAppTemplateId)
-            .Select(ap => ap.AppPermissionSetId)
-            .ToListAsync();
-        var assignedSet = new HashSet<int>(assignedSetIds);
 
-        var q = db.AppPermissionSets.AsNoTracking().AsQueryable();
+        // Die Buendel gehoeren jetzt DIREKT zum Template (AppPermissionSet.ClientAppTemplateId); es gibt
+        // keine global geteilten Buendel mehr, die man einem Template zuordnet oder entzieht. Was diese
+        // Liste zeigt, gehoert dem Template - deshalb ist "Assigned" durchgehend true und bleibt nur
+        // erhalten, bis die Maske in Phase 5 auf das neue Modell umgebaut ist.
+        var q = db.AppPermissionSets.AsNoTracking()
+            .Where(ps => ps.ClientAppTemplateId == clientAppTemplateId);
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var s = query.Search.Trim();
@@ -176,42 +181,56 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
                 AppPermissionSetId = ps.AppPermissionSetId,
                 PermissionSetName = ps.Name,
                 ClientAppTemplateId = clientAppTemplateId,
-                Assigned = false
+                Assigned = true
             }).ToListAsync();
-        foreach (var item in items)
-        {
-            item.Assigned = assignedSet.Contains(item.AppPermissionSetId);
-        }
         return new PagedResult<AppPermissionSetAssignmentViewModel> { Items = items, TotalCount = total };
     }
 
-    public async Task<bool> SetPermissionSetForTemplateAsync(
-        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId, bool assigned)
+    /// <summary>
+    /// Loescht ein Rechtebuendel dieses Templates.
+    /// </summary>
+    /// <remarks>
+    /// Das ersetzt das fruehere "Zuordnung entziehen": ein Buendel gehoert genau einem Template, es gibt
+    /// also nichts mehr zu entziehen - es wird geloescht. Der Name sagt das ausdruecklich, damit niemand
+    /// die alte, harmlosere Bedeutung hineinliest.
+    /// <para>
+    /// Verweigert wird, solange eine ClientApp das Buendel noch fuehrt: sonst verloere eine laufende
+    /// Anwendung stillschweigend ihre Rechte.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> DeletePermissionSetFromTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId)
     {
-        if (!HasPermission("Apps.PermissionSets.Write")) return false;
+        if (!HasPermission("Apps.PermissionSets.Write"))
+        {
+            logger.LogWarning(
+                "Deleting permission-set {SetId} of app-template {TemplateId} was refused: Apps.PermissionSets.Write is missing.",
+                appPermissionSetId, clientAppTemplateId);
+            return false;
+        }
 
         using var db = CreateDb();
-        var existing = await db.ClientAppTemplatePermissions.FirstOrDefaultAsync(ap =>
-            ap.ClientAppTemplateId == clientAppTemplateId && ap.AppPermissionSetId == appPermissionSetId);
-
-        if (assigned && existing == null)
+        var entity = await db.AppPermissionSets.FirstOrDefaultAsync(ps =>
+            ps.AppPermissionSetId == appPermissionSetId && ps.ClientAppTemplateId == clientAppTemplateId);
+        if (entity == null)
         {
-            db.ClientAppTemplatePermissions.Add(new TClientAppTemplatePermission
-            {
-                ClientAppTemplateId = clientAppTemplateId,
-                AppPermissionSetId = appPermissionSetId
-            });
-            await db.SaveChangesAsync();
-            return true;
+            logger.LogWarning(
+                "Permission-set {SetId} does not exist below app-template {TemplateId}; nothing deleted.",
+                appPermissionSetId, clientAppTemplateId);
+            return false;
         }
 
-        if (!assigned && existing != null)
+        var stillInUse = await db.ClientAppPermissions.AnyAsync(cp => cp.AppPermissionSetId == appPermissionSetId);
+        if (stillInUse)
         {
-            db.ClientAppTemplatePermissions.Remove(existing);
-            await db.SaveChangesAsync();
-            return true;
+            logger.LogWarning(
+                "Permission-set {SetId} of app-template {TemplateId} is still granted to at least one client-app; not deleted.",
+                appPermissionSetId, clientAppTemplateId);
+            return false;
         }
 
+        db.AppPermissionSets.Remove(entity);
+        await db.SaveChangesAsync();
         return true;
     }
 }

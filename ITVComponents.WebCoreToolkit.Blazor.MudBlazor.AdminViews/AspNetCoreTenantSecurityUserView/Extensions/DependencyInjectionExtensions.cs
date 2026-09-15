@@ -38,7 +38,7 @@ public static class DependencyInjectionExtensions
 
         services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
         if (partTypeLoadBehavior.ShouldLoadType(
-                typeof(UserAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
+                typeof(UserAdminHandler<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>)))
         {
             services.AddScoped<IUserAdminHandler, UserAdminHandler<
                 TContext, Tenant, User, Role, Permission, UserRole, RolePermission,
@@ -47,7 +47,7 @@ public static class DependencyInjectionExtensions
                 DashboardWidget, DashboardParam, DashboardWidgetLocalization, UserWidget, CustomUserProperty,
                 AssetTemplate, AssetTemplatePath, AssetTemplateGrant, AssetTemplateFeature,
                 SharedAsset, SharedAssetUserFilter, SharedAssetTenantFilter,
-                ClientAppTemplate, AppPermission, AppPermissionSet, ClientAppTemplatePermission,
+                ClientAppTemplate, AppPermission, AppPermissionSet,
                 ClientApp, ClientAppPermission, ClientAppAccess,
                 FlatWebPlugin, FlatWebPluginConstant, FlatWebPluginGenericParameter, FlatSequence,
                 FlatTenantSetting, FlatTenantFeatureActivation,
