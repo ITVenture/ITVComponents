@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Authentication.OpenId.Options;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -25,14 +26,17 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.JWT.Impl
         private readonly IApplicationTokenService tokenService;
         private readonly IPermissionScope scopeProvider;
         private readonly IOptions<JwtGeneratorOptions> options;
+        private readonly ILogger<JwtTokenService> logger;
 
-        public JwtTokenService(IContextUserProvider userProvider, ISecurityRepository securityRepo, IApplicationTokenService tokenService, IPermissionScope scopeProvider, IOptions<JwtGeneratorOptions> options)
+        public JwtTokenService(IContextUserProvider userProvider, ISecurityRepository securityRepo, IApplicationTokenService tokenService, IPermissionScope scopeProvider, IOptions<JwtGeneratorOptions> options, ILogger<JwtTokenService> logger = null)
         {
             this.userProvider = userProvider;
             this.securityRepo = securityRepo;
             this.tokenService = tokenService;
             this.scopeProvider = scopeProvider;
             this.options = options;
+            // Optional, damit bestehende Aufrufer der Signatur unveraendert uebersetzen.
+            this.logger = logger;
         }
 
         public string GetJwtToken(string applicationKey)
@@ -103,7 +107,20 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.JWT.Impl
                 select CreateClaim(t, ctx)).ToList();
             claims.Add(new Claim(ClaimTypes.FixedUserScope, userScope));
             claims.Add(new Claim(ClaimTypes.ClientAppId, applicationKey));
-            claims.Add(new Claim(ClaimTypes.ClientAppAccess, applicationUserLabel));
+            if (!string.IsNullOrEmpty(applicationUserLabel))
+            {
+                claims.Add(new Claim(ClaimTypes.ClientAppAccess, applicationUserLabel));
+            }
+            else
+            {
+                // new Claim(type, null) WIRFT. Der Standard-IApplicationTokenService liefert hier bis
+                // heute null, womit dieser ganze Weg nicht bloss funktionslos, sondern kaputt war. Ein
+                // Token ohne diesen Anspruch ist brauchbar - es traegt dann keine Delegation, und genau
+                // das sagt die Meldung.
+                logger?.LogWarning(
+                    "No application-user label was resolved for application {ApplicationKey}; the token is issued without a delegation claim.",
+                    applicationKey);
+            }
             var tok = new JwtSecurityToken(opt.Issuer, opt.Audience, claims, expires:
                 DateTime.Now.AddMinutes(opt.TokenDuration),
                 signingCredentials: credentials);
