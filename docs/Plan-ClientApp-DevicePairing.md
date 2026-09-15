@@ -121,13 +121,27 @@ Alle drei Varianten (`Basic`, `CoreIdentity`, `CoreIdentityTree`), beide Datenba
 | 5 | `ClientAppUser` → **`ClientAppAccess`** | Umbenennung (Entitaet + Tabelle + DbSet). `TenantUserId` wird **nullable**. **+ `SecretHash`**, **+ `ExpiresUtc`**, **+ `RevokedUtc`**, **+ `LastUsedUtc`**, **+ `DeviceLabel`**. `Label`: 50 → 128. `UQ_TUserPerApp` bekommt **Filter** `TenantUserId IS NOT NULL`. |
 | 6 | `DevicePairing` | **neu**: `DevicePairingId`, `TenantId`, `ClientAppId`, `DeviceCodeHash`, `UserCode`, `DeviceLabel`, `CreatedUtc`, `ExpiresUtc`, `State`, `ConfirmedByUserId`, `ClientAppAccessId`, `SecretDeliveredUtc`, `PollCount`, `LastPollUtc`. |
 
-### Warum der gefilterte Unique-Index Pflicht ist
+### Der gefilterte Unique-Index - KORREKTUR
 
-`UQ_TUserPerApp` steht heute auf `(TenantUserId, ClientAppId)`. Wird `TenantUserId` nullable, behandelt
-**SQL Server NULLs im Unique-Index als gleich** - es liesse damit genau **einen** Maschinenzugang pro
-Datenbank zu. **PostgreSQL** laesst beliebig viele zu. Ohne Filter laufen die beiden Datenbanken also
-auseinander, und zwar still: auf PG faellt es nie auf. Siehe auch `workflow_definition_key` - dieselbe
-Falle.
+Der erste Entwurf sagte, `UQ_TUserPerApp` brauche eine Fluent-Konfiguration mit `HasFilter`, weil SQL
+Server NULLs im Unique-Index als gleich behandelt und sonst genau **einen** Maschinenzugang pro Datenbank
+zuliesse. **Das gilt nur fuer handgeschriebenes SQL.**
+
+Die Probe-Migration hat es widerlegt: der SQL-Server-Provider haengt an einen Unique-Index ueber nullable
+Spalten von selbst einen Filter an -
+
+```csharp
+name: "UQ_TUserPerApp", columns: new[] { "TenantUserId", "ClientAppId" },
+unique: true, filter: "[TenantUserId] IS NOT NULL"
+```
+
+Im Modell bleibt der Index deshalb ein schlichtes `[Index]`-Attribut **ohne** Filter; PostgreSQL zaehlt
+NULLs ohnehin als verschieden. Genau dieser Automatismus musste bei den `WorkflowDefinitions` mit
+`HasFilter(null)` *abgeschaltet* werden (siehe `workflow_definition_key`) - dort war er unerwuenscht, hier
+ist er genau richtig.
+
+**Im handgeschriebenen SQL von Leitfaden-§65 steht der Filter dagegen ausdruecklich** - dort gibt es
+keinen Provider, der ihn ergaenzt.
 
 ### Warum `ClientKey` systemweit eindeutig bleibt
 
