@@ -6473,7 +6473,22 @@ Stellen, an denen ich beim ersten Lauf zuerst nachsehen würde:
   eigenes Salz — man kann nicht danach suchen. Die offenen Vorgänge werden deshalb der Reihe nach
   geprüft. Die Liste ist kurz (Vorgänge verfallen nach Minuten), aber bei sehr vielen gleichzeitigen
   Kopplungen wäre das die erste Stelle, die weh tut.
+- **Die Mandantenprüfung beim BESTÄTIGEN** — eine andere Stelle als die darüber. `ConfirmAsync`
+  vergleicht `IPermissionScope.PermissionPrefix` mit dem Mandantennamen der Anwendung. Ist der
+  Geltungsbereich in eurem Host nicht der blanke Mandantenname, weist die Bestätigung mit „this pairing
+  belongs to another tenant" ab. **Das ist mein Hauptverdacht, falls die Kopplung klemmt** — die Meldung
+  steht so auch im Protokoll, sie führt also nicht in die Irre.
 - **Die Masken** sind übersetzt, aber nie bedient worden.
+
+#### Zwei Lücken, die bewusst offen sind
+
+- **`start` hat keine Bremse.** `poll` hat zwei (Mindestintervall und Zählwerk), `start` keine: wer die
+  Kennung einer Anwendung kennt, kann Kopplungsvorgänge erzeugen. Sie verfallen nach zehn Minuten und
+  geben ohne den Gerätecode nichts her, der Schaden ist also begrenzt — sauber ist es trotzdem nicht.
+  Wenn euer Endpunkt öffentlich erreichbar ist, setzt eine Begrenzung davor.
+- **Es gibt keinen Client-seitigen Helfer.** Der Agent ruft `start` und `poll` selbst, so wie in 65.8
+  beschrieben. Das war die Annahme, dass ihr den Agenten ohnehin baut — aber es ist eine Auslassung und
+  kein Entwurf.
 
 ### 65.10 Transport zwischen Umgebungen — zwei Wege, und warum
 
