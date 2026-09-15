@@ -92,7 +92,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 case EventTypes.CheckoutSessionCompleted:
                     if (stripeEvent.Data.Object is Session completed)
                     {
-                        await MarkPaidAsync(completed, accountId, cancellationToken);
+                        await MarkPaidAsync(completed, accountId, options, cancellationToken);
                     }
 
                     break;
@@ -298,7 +298,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <summary>Pending -&gt; Paid, and the ONE place the completion observers are called.</summary>
-        private async Task MarkPaidAsync(Session session, string? accountId, CancellationToken cancellationToken)
+        private async Task MarkPaidAsync(Session session, string? accountId, StripePaymentsOptions options,
+            CancellationToken cancellationToken)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var sale = await ResolveSaleAsync(db, session.ClientReferenceId, session.PaymentIntentId, session.Id, accountId, cancellationToken);
@@ -335,6 +336,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
             sale.ProviderPaymentIntentId ??= current.PaymentIntentId;
             sale.ProviderChargeId ??= await ResolveChargeAsync(current.PaymentIntentId, accountId ?? sale.ProviderAccountId, cancellationToken);
+            CaptureCustomerEmail(sale, current, options);
 
             if (sale.Status != TenantSaleStatus.Pending)
             {
@@ -520,6 +522,47 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
             return BelongsToAccount(sale, accountId) ? sale : null;
         }
+
+        /// <summary>
+        /// Takes the e-mail the end customer entered on the provider's payment page onto the sale, when the
+        /// deployment asked for it (<see cref="StripePaymentsOptions.CaptureCustomerEmail"/>, off by default).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The session is the one re-read at the start of <c>MarkPaidAsync</c>, so this costs no extra call.
+        /// </para>
+        /// <para>
+        /// <b>Fills, never overwrites.</b> An address the host set at creation is the host's statement —
+        /// something may be attached to it that a correction typed on the payment page cannot know about.
+        /// </para>
+        /// <para>
+        /// <b>The address itself is never written to the log</b>, here or anywhere else in this path: the whole
+        /// point of the switch is that this datum does not travel further than the deployment asked for.
+        /// </para>
+        /// </remarks>
+        private static void CaptureCustomerEmail(TenantSale sale, Session current, StripePaymentsOptions options)
+        {
+            if (!options.CaptureCustomerEmail || !string.IsNullOrWhiteSpace(sale.CustomerEmail))
+            {
+                return;
+            }
+
+            var captured = Trim(current.CustomerDetails?.Email, 256);
+            if (captured == null)
+            {
+                // The deployment switched this on and expects an address; saying nothing here would leave the
+                // empty column looking like the capture was never wired up.
+                LogEnvironment.LogEvent(
+                    $"Sale {sale.TenantSaleId}: customer-email capture is on, but the checkout session {current.Id} carries no customer e-mail.",
+                    LogSeverity.Report, "StripeConnect");
+                return;
+            }
+
+            sale.CustomerEmail = captured;
+        }
+
+        private static string? Trim(string? value, int max)
+            => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
 
         /// <summary>
         /// Guards against an event of one connected account changing another tenant's sale. A mismatch is not a

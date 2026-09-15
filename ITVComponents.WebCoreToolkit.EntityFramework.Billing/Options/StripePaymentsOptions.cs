@@ -108,6 +108,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// </summary>
         public bool RefundApplicationFeeByDefault { get; set; } = true;
 
+        /// <summary>
+        /// Take the e-mail the end customer entered on the provider's payment page into
+        /// <c>TenantSale.CustomerEmail</c> once the sale is paid. Off unless explicitly switched on.
+        /// <para>
+        /// Off by default because it is a question of PURPOSE, not of convenience: the customer gave that
+        /// address to the PROVIDER so the provider would send a payment confirmation. Copying it into the
+        /// host's database serves a different purpose, and a host that does not need it should not receive it.
+        /// Switching this on makes that a decision somebody took.
+        /// </para>
+        /// <para>
+        /// Only ever FILLS an empty field — an address the host set itself stays untouched, because a
+        /// correction typed on the payment page cannot know what the host's value is attached to.
+        /// </para>
+        /// </summary>
+        public bool CaptureCustomerEmail { get; set; }
+
         /// <summary>Suffix on the end customer's statement, max. 22 characters.</summary>
         public string? StatementDescriptorSuffix { get; set; }
 
