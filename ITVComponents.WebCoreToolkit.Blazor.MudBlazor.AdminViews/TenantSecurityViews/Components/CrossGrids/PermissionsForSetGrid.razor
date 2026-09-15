@@ -1,4 +1,4 @@
-@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Microsoft.AspNetCore.Components.Authorization
 
 @inject IPermissionSetAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -14,7 +14,13 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Permissions" TitleTypo="Typo.subtitle2" />
+            @* Ohne Suche blaettert man bei einigen hundert globalen Berechtigungen zehn Zeilen weit -
+               der Handler konnte laengst suchen, nur reichte die Maske nichts durch. *@
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())"
+                             Title="Permissions"
+                             TitleTypo="Typo.subtitle2"
+                             @bind-Search="search"
+                             OnSearch="ReloadGrid" />
         </ToolBarContent>
         <Columns>
             <TemplateColumn T="AppPermissionAssignmentViewModel" Title="" Sortable="false">
@@ -53,6 +59,7 @@
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private bool hasView;
     private bool hasWrite;
+    private string? search;
 
     protected override async Task OnInitializedAsync()
     {
@@ -67,9 +74,14 @@
         if (currentUser is null || !hasView)
             return new GridData<AppPermissionAssignmentViewModel> { Items = Array.Empty<AppPermissionAssignmentViewModel>(), TotalItems = 0 };
 
-        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize, Search = search };
         var result = await Handler.ListPermissionsForSetAsync(currentUser, AppPermissionSetId, query);
         return new GridData<AppPermissionAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task ReloadGrid()
+    {
+        if (grid is not null) await grid.ReloadServerData();
     }
 
     private async Task Toggle(AppPermissionAssignmentViewModel item, bool newValue)
