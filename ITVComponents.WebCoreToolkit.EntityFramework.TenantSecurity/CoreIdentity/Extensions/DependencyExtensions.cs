@@ -26,6 +26,8 @@ using ITVComponents.WebCoreToolkit.Security.ClientApps;
 
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Security.ClientApps;
 
+using ITVComponents.WebCoreToolkit.Security.DevicePairing;
+
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentity.Extensions
 {
     public static class DependencyExtensions
@@ -47,6 +49,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<AspNetSecurityContext>>()
+                .AddScoped<IDevicePairingService, AspNetDevicePairingService<AspNetSecurityContext>>()
                 .RegisterExplicityInterfacesScoped<AspNetSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -79,6 +82,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                     // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                     .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<TImpl>>()
+                    .AddScoped<IDevicePairingService, AspNetDevicePairingService<TImpl>>()
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
@@ -127,6 +131,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, AspNetClientAppAccessQuery<TImpl>>()
+                .AddScoped<IDevicePairingService, AspNetDevicePairingService<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {

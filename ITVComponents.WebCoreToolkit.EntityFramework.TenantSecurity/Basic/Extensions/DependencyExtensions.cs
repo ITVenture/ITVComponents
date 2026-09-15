@@ -30,6 +30,8 @@ using ITVComponents.WebCoreToolkit.Security.ClientApps;
 
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Security.ClientApps;
 
+using ITVComponents.WebCoreToolkit.Security.DevicePairing;
+
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Extensions
 {
     public static class DependencyExtensions
@@ -51,6 +53,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, FlatClientAppAccessQuery<SecurityContext>>()
+                .AddScoped<IDevicePairingService, FlatDevicePairingService<SecurityContext>>()
                 .RegisterExplicityInterfacesScoped<SecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -97,6 +100,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, FlatClientAppAccessQuery<TImpl>>()
+                .AddScoped<IDevicePairingService, FlatDevicePairingService<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -129,6 +133,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Exte
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, FlatClientAppAccessQuery<TImpl>>()
+                .AddScoped<IDevicePairingService, FlatDevicePairingService<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {

@@ -25,6 +25,8 @@ using ITVComponents.WebCoreToolkit.Security.ClientApps;
 
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Security.ClientApps;
 
+using ITVComponents.WebCoreToolkit.Security.DevicePairing;
+
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Extensions
 {
     public static class DependencyExtensions
@@ -46,6 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, AspNetTreeClientAppAccessQuery<AspNetTreeSecurityContext>>()
+                .AddScoped<IDevicePairingService, AspNetTreeDevicePairingService<AspNetTreeSecurityContext>>()
                 .RegisterExplicityInterfacesScoped<AspNetTreeSecurityContext>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
@@ -87,6 +90,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                     // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                     .AddScoped<IClientAppAccessQuery, AspNetTreeClientAppAccessQuery<TImpl>>()
+                    .AddScoped<IDevicePairingService, AspNetTreeDevicePairingService<TImpl>>()
                     .RegisterExplicityInterfacesScoped<TImpl>()
                     .AddScoped<ISecurityRepository>(i =>
                     {
@@ -138,6 +142,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
                 .AddScoped<IClientAppAccessQuery, AspNetTreeClientAppAccessQuery<TImpl>>()
+                .AddScoped<IDevicePairingService, AspNetTreeDevicePairingService<TImpl>>()
                 .RegisterExplicityInterfacesScoped<TImpl>()
                 .AddScoped<ISecurityRepository>(i =>
                 {
