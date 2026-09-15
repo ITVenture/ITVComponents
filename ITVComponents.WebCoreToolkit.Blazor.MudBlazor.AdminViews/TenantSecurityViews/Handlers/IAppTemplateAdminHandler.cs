@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
@@ -16,6 +16,22 @@ public interface IAppTemplateAdminHandler
     /// <summary>Die Rechtebuendel, die dieses Template anbietet.</summary>
     Task<PagedResult<AppPermissionSetAssignmentViewModel>> ListPermissionSetsForTemplateAsync(
         ClaimsPrincipal user, int clientAppTemplateId, ListQuery query);
+
+    /// <summary>
+    /// Legt ein Rechtebuendel unter diesem Template an.
+    /// </summary>
+    /// <remarks>
+    /// Hier und nicht auf der Buendel-Seite ist der natuerliche Ort: das Template steht fest, es gibt
+    /// also nichts auszuwaehlen und nichts falsch zu waehlen.
+    /// </remarks>
+    Task<AppPermissionSetAssignmentViewModel?> CreatePermissionSetForTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, string name);
+
+    /// <summary>
+    /// Benennt ein Rechtebuendel dieses Templates um.
+    /// </summary>
+    Task<bool> RenamePermissionSetOfTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId, string name);
 
     /// <summary>
     /// Loescht ein Rechtebuendel dieses Templates. Ersetzt das fruehere "Zuordnung entziehen" - ein

@@ -1,4 +1,4 @@
-@page "/Connectivity/PermissionSets"
+﻿@page "/Connectivity/PermissionSets"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -42,6 +42,9 @@ else
         </ToolBarContent>
         <Columns>
             <HierarchyColumn T="PermissionSetViewModel" />
+            @* Ohne diese Spalte stehen die Buendel aller Templates ununterscheidbar untereinander -
+               "Vollzugriff" gibt es seit PRE240 je Template einmal. *@
+            <PropertyColumn Property="x => x.ClientAppTemplateName" Title="Template" Sortable="false" />
             <PropertyColumn Property="x => x.Name" Title="Name" />
             <TemplateColumn T="PermissionSetViewModel" Title="" Sortable="false">
                 <CellTemplate>
@@ -82,6 +85,7 @@ else
     private bool hasView;
     private bool hasWrite;
     private string? search;
+    private IReadOnlyList<ClientAppTemplateViewModel> templates = Array.Empty<ClientAppTemplateViewModel>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -89,6 +93,7 @@ else
         currentUser = auth.User;
         hasView = Handler.HasPermission("Apps.PermissionSets.View", "Apps.PermissionSets.Write");
         hasWrite = Handler.HasPermission("Apps.PermissionSets.Write");
+        templates = await Handler.ListTemplatesAsync(currentUser);
     }
 
     private async Task<GridData<PermissionSetViewModel>> LoadData(GridState<PermissionSetViewModel> state, CancellationToken ct)
@@ -106,14 +111,26 @@ else
 
     private async Task OpenCreate()
     {
-        var parameters = new DialogParameters<PermissionSetDialog> { { d => d.Model, new PermissionSetViewModel() }, { d => d.IsCreate, true } };
+        if (templates.Count == 0)
+        {
+            // Ein Buendel ohne Template kann es nicht geben - ohne Template waere der Dialog eine
+            // Sackgasse, an deren Ende der Fremdschluessel steht.
+            Snackbar.Add("Create a client app template first - a permission set belongs to exactly one template.", Severity.Warning);
+            return;
+        }
+
+        var model = new PermissionSetViewModel { ClientAppTemplateId = templates[0].ClientAppTemplateId };
+        var parameters = new DialogParameters<PermissionSetDialog>
+        {
+            { d => d.Model, model }, { d => d.IsCreate, true }, { d => d.Templates, templates }
+        };
         var dlg = await DialogService.ShowAsync<PermissionSetDialog>("Create permission set", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: PermissionSetViewModel input })
         {
             var created = await Handler.CreateAsync(currentUser!, input);
             if (created != null) { Snackbar.Add("Permission set created", Severity.Success); await ReloadGrid(); }
-            else Snackbar.Add("Failed to create", Severity.Error);
+            else Snackbar.Add("Could not create the permission set - the template may already have a set of that name. See the log.", Severity.Error);
         }
     }
 
@@ -122,16 +139,21 @@ else
         var copy = new PermissionSetViewModel
         {
             AppPermissionSetId = item.AppPermissionSetId,
+            ClientAppTemplateId = item.ClientAppTemplateId,
+            ClientAppTemplateName = item.ClientAppTemplateName,
             Name = item.Name
         };
-        var parameters = new DialogParameters<PermissionSetDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
+        var parameters = new DialogParameters<PermissionSetDialog>
+        {
+            { d => d.Model, copy }, { d => d.IsCreate, false }, { d => d.Templates, templates }
+        };
         var dlg = await DialogService.ShowAsync<PermissionSetDialog>("Edit permission set", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: PermissionSetViewModel input })
         {
             var updated = await Handler.UpdateAsync(currentUser!, input);
             if (updated != null) { Snackbar.Add("Permission set updated", Severity.Success); await ReloadGrid(); }
-            else Snackbar.Add("Failed to update", Severity.Error);
+            else Snackbar.Add("Could not update the permission set - the name may be taken within the template, or a client app still uses the set. See the log.", Severity.Error);
         }
     }
 

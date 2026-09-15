@@ -1,4 +1,6 @@
-﻿@using ITVComponents.WebCoreToolkit.Extensions
+﻿@using System.Collections.Generic
+@using ITVComponents.WebCoreToolkit.EntityFramework.Models
+@using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Helpers
@@ -18,6 +20,10 @@
     //.HtmlAttributes(new { style = "width:50vw;" })
     .Columns(columns =>
     {
+        // Ohne diese Spalte stehen die Buendel aller Vorlagen ununterscheidbar untereinander -
+        // "Vollzugriff" gibt es seit PRE240 je Vorlage einmal.
+        columns.ForeignKey(c => c.ClientAppTemplateId, (IEnumerable<ForeignKeyData<int>>)ViewData["AppTemplates"], "Key", "Label")
+            .Title(TextsAndMessagesHelper.IWCN_TT_Template);
         columns.Bound(c => c.Name).Title(TextsAndMessagesHelper.IWCN_General_DisplayName);
         columns.Command(ga =>
         {

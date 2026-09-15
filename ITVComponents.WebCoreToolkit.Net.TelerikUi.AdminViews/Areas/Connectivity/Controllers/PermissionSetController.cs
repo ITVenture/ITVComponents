@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.EFRepo.DIIntegration.Impl;
+using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.MvcExtensions;
@@ -78,6 +80,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public IActionResult Index()
         {
+            // Die Vorlagen fuer die Fremdschluessel-Spalte. Ohne sie gaebe es in dieser Maske keinen Weg,
+            // das Pflichtfeld zu setzen - und der Knopf "Neu" fuehrte in eine Sackgasse, an deren Ende
+            // der Fremdschluessel steht.
+            ViewData["AppTemplates"] = db.ClientAppTemplates
+                .OrderBy(n => n.Name)
+                .Select(n => new ForeignKeyData<int> { Key = n.ClientAppTemplateId, Label = n.Name })
+                .ToList();
             return View();
         }
 
@@ -102,8 +111,11 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             if (ModelState.IsValid)
             {
                 await this.TryUpdateModelAsync<PermissionSetViewModel, TAppPermissionSet>(model);
-                db.AppPermissionSets.Add(model);
-                await db.SaveChangesAsync();
+                if (TemplateAndNameAreValid(model.ClientAppTemplateId, model.Name, 0))
+                {
+                    db.AppPermissionSets.Add(model);
+                    await db.SaveChangesAsync();
+                }
             }
 
             return Json(await new[] { model.ToViewModel<TAppPermissionSet, PermissionSetViewModel>() }
@@ -133,13 +145,85 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             var model = db.AppPermissionSets.First(n => n.AppPermissionSetId == viewModel.AppPermissionSetId);
             if (ModelState.IsValid)
             {
+                var previousTemplateId = model.ClientAppTemplateId;
                 await this.TryUpdateModelAsync<PermissionSetViewModel, TAppPermissionSet>(model, "",
                     m => { return m.ElementType == null; });
-                await db.SaveChangesAsync();
+                if (TemplateAndNameAreValid(model.ClientAppTemplateId, model.Name, model.AppPermissionSetId)
+                    && MoveIsAllowed(previousTemplateId, model.ClientAppTemplateId, model.AppPermissionSetId))
+                {
+                    await db.SaveChangesAsync();
+                }
+                else
+                {
+                    // Die Aenderungen stehen bereits an der verfolgten Entitaet - ohne dieses Zuruecklesen
+                    // gingen sie beim naechsten SaveChanges trotz der Abweisung hinaus.
+                    await db.Entry(model).ReloadAsync();
+                }
             }
 
             return Json(await new[] { model.ToViewModel<TAppPermissionSet, PermissionSetViewModel>() }
                 .ToDataSourceResultAsync(request, ModelState));
+        }
+
+        /// <summary>
+        /// Prueft vorab, was sonst erst die Datenbank abweist - dort aber ohne Aussage.
+        /// </summary>
+        /// <remarks>
+        /// Der Fremdschluessel auf das Template und der eindeutige Index
+        /// <c>UQ_AppPermissionSetName (ClientAppTemplateId, Name)</c> bleiben die eigentliche Absicherung;
+        /// diese Pruefung ersetzt sie nicht, sie macht aus dem Fehlschlag eine Meldung, mit der ein
+        /// Benutzer etwas anfangen kann.
+        /// </remarks>
+        private bool TemplateAndNameAreValid(int clientAppTemplateId, string name, int exceptSetId)
+        {
+            if (clientAppTemplateId <= 0 ||
+                !db.ClientAppTemplates.Any(n => n.ClientAppTemplateId == clientAppTemplateId))
+            {
+                LogEnvironment.LogEvent(
+                    $"The permission-set '{name}' was refused: app-template {clientAppTemplateId} does not exist.",
+                    LogSeverity.Error);
+                ModelState.AddModelError(nameof(PermissionSetViewModel.ClientAppTemplateId),
+                    "A valid template is required.");
+                return false;
+            }
+
+            if (db.AppPermissionSets.Any(n => n.ClientAppTemplateId == clientAppTemplateId && n.Name == name &&
+                                              n.AppPermissionSetId != exceptSetId))
+            {
+                LogEnvironment.LogEvent(
+                    $"The permission-set '{name}' was refused: app-template {clientAppTemplateId} already has a set of that name.",
+                    LogSeverity.Error);
+                ModelState.AddModelError(nameof(PermissionSetViewModel.Name),
+                    "This template already has a permission set of that name.");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Ob das Buendel einem anderen Template zugeordnet werden darf.
+        /// </summary>
+        /// <remarks>
+        /// Der Wechsel ist erlaubt (ein falsch einsortiertes Buendel muss man verschieben koennen),
+        /// <b>aber er verschiebt die Obergrenze</b>: eine ClientApp darf nur Buendel ihres eigenen
+        /// Templates fuehren. Fuehrt eine Anwendung dieses Buendel bereits, verloere sie durch den Wechsel
+        /// stillschweigend ihre Rechte - dieselbe Ueberlegung wie beim Loeschen.
+        /// </remarks>
+        private bool MoveIsAllowed(int previousTemplateId, int newTemplateId, int appPermissionSetId)
+        {
+            if (previousTemplateId == newTemplateId ||
+                !db.ClientAppPermissions.Any(n => n.AppPermissionSetId == appPermissionSetId))
+            {
+                return true;
+            }
+
+            LogEnvironment.LogEvent(
+                $"Moving permission-set {appPermissionSetId} from app-template {previousTemplateId} to {newTemplateId} was refused: it is still granted to at least one client-app.",
+                LogSeverity.Error);
+            ModelState.AddModelError(nameof(PermissionSetViewModel.ClientAppTemplateId),
+                "The permission set is still granted to a client app and cannot be moved to another template.");
+            return false;
         }
 
         public async Task<IActionResult> ReadPermissions([DataSourceRequest]DataSourceRequest request, int parentId)

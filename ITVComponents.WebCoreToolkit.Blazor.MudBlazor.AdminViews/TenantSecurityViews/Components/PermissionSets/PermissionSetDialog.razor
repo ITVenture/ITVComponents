@@ -1,8 +1,31 @@
-<EditDialogShell Model="Model" IsCreate="IsCreate">
+@* Bedient beide Orte: die Buendel-Seite (dort ist das Template zu waehlen) und das Kindgitter eines
+   Templates (dort steht es fest - dann bleibt die Auswahl weg, statt eine Scheinwahl anzubieten). *@
+
+<EditDialogShell Model="Model" IsCreate="IsCreate" InvalidMessage="Please fill in the required fields">
+    @if (Templates is { Count: > 0 })
+    {
+        <MudSelect T="int"
+                   Value="Model.ClientAppTemplateId"
+                   ValueChanged="@(v => Model.ClientAppTemplateId = v)"
+                   Label="Template"
+                   Required="true"
+                   RequiredError="A template is required">
+            @foreach (var template in Templates)
+            {
+                <MudSelectItem T="int" Value="@template.ClientAppTemplateId">@template.Name</MudSelectItem>
+            }
+        </MudSelect>
+    }
     <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" MaxLength="150" />
 </EditDialogShell>
 
 @code {
     [Parameter, EditorRequired] public PermissionSetViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
+
+    /// <summary>
+    /// Die waehlbaren Templates. Leer oder null heisst: das Template steht fest (das Kindgitter eines
+    /// Templates setzt es am Modell) und die Auswahl entfaellt.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ClientAppTemplateViewModel>? Templates { get; set; }
 }

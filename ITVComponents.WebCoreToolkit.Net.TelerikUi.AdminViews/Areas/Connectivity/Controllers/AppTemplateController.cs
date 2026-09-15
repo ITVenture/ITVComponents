@@ -46,7 +46,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         where TSharedAssetUserFilter : SharedAssetUserFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TSharedAssetTenantFilter : SharedAssetTenantFilter<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter>
         where TAppPermission : AppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
-        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
+        where TAppPermissionSet : AppPermissionSet<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>, new()
         where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>, new()
         where TClientAppPermission : ClientAppPermission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
         where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
@@ -143,55 +143,152 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         public async Task<IActionResult> ReadPermissions([DataSourceRequest] DataSourceRequest request, int parentId)
         {
             // Ein Rechtebuendel gehoert direkt zu genau einem Template; die frueher global geteilten
-            // Buendel samt Zuordnungstabelle gibt es nicht mehr. Die Liste zeigt deshalb, was DIESEM
-            // Template gehoert - "Assigned" ist durchgehend true und bleibt nur, bis die Maske auf das
-            // neue Modell umgebaut ist.
+            // Buendel samt Zuordnungstabelle gibt es nicht mehr. Was diese Liste zeigt, GEHOERT dem
+            // Template - es gibt nichts zu- oder abzuwaehlen, nur anzulegen, umzubenennen und zu loeschen.
             var perms = from prm in db.AppPermissionSets
                         where prm.ClientAppTemplateId == parentId
                         select new { prm.AppPermissionSetId, prm.Name };
             return Json(perms.ToDataSourceResult(request, s => new AppPermissionViewModel
             {
-                Assigned = true,
                 ParentId = parentId,
                 AppPermissionSetId = s.AppPermissionSetId,
-                PermissionSetName = s.Name,
-                UniQUID = $"UQPS{s.AppPermissionSetId}_{parentId}"
+                PermissionSetName = s.Name
             }));
         }
 
         /// <summary>
-        /// Entfernen heisst jetzt LOESCHEN: das Buendel gehoert genau diesem Template, eine Zuordnung, die
-        /// man loesen koennte, gibt es nicht mehr. Ein Buendel, das eine ClientApp noch fuehrt, bleibt
-        /// stehen - sonst verloere eine laufende Anwendung stillschweigend ihre Rechte.
+        /// Legt ein Rechtebuendel unter diesem Template an.
         /// </summary>
-        public async Task<IActionResult> UpdatePermission([DataSourceRequest] DataSourceRequest request,
-            AppPermissionViewModel mdl)
+        /// <remarks>
+        /// Der Weg, den es bis PRE241 nirgends gab: das Kindgitter konnte auflisten und loeschen, und der
+        /// Weg ueber die Buendel-Maske war seinerseits kaputt, weil er das Template nicht setzte.
+        /// <para>
+        /// Das Template kommt aus der <b>Route</b> und nicht aus der geposteten Zeile: es steht in der
+        /// Adresse, die der Server selbst gerendert hat.
+        /// </para>
+        /// </remarks>
+        [HttpPost]
+        [Authorize("HasPermission(Apps.PermissionSets.Write)")]
+        public async Task<IActionResult> CreatePermission([DataSourceRequest] DataSourceRequest request,
+            AppPermissionViewModel mdl, int parentId)
         {
-            if (!mdl.Assigned)
+            mdl.ParentId = parentId;
+            if (ModelState.IsValid && SetNameIsValid(parentId, mdl.PermissionSetName, 0))
             {
-                var entity = db.AppPermissionSets.FirstOrDefault(n =>
-                    n.AppPermissionSetId == mdl.AppPermissionSetId && n.ClientAppTemplateId == mdl.ParentId);
-                if (entity == null)
+                var entity = new TAppPermissionSet
                 {
-                    LogEnvironment.LogEvent(
-                        $"Permission-set {mdl.AppPermissionSetId} does not exist below app-template {mdl.ParentId}; nothing deleted.",
-                        LogSeverity.Warning);
-                }
-                else if (db.ClientAppPermissions.Any(n => n.AppPermissionSetId == mdl.AppPermissionSetId))
-                {
-                    LogEnvironment.LogEvent(
-                        $"Permission-set {mdl.AppPermissionSetId} of app-template {mdl.ParentId} is still granted to at least one client-app; not deleted.",
-                        LogSeverity.Warning);
-                    ModelState.AddModelError("", "The permission set is still granted to a client app.");
-                }
-                else
-                {
-                    db.AppPermissionSets.Remove(entity);
-                    await db.SaveChangesAsync();
-                }
+                    Name = mdl.PermissionSetName.Trim(),
+                    ClientAppTemplateId = parentId
+                };
+                db.AppPermissionSets.Add(entity);
+                await db.SaveChangesAsync();
+                mdl.AppPermissionSetId = entity.AppPermissionSetId;
+                mdl.PermissionSetName = entity.Name;
             }
 
             return Json(new[] { mdl }.ToDataSourceResult(request, ModelState));
+        }
+
+        /// <summary>
+        /// Benennt ein Rechtebuendel dieses Templates um.
+        /// </summary>
+        /// <remarks>
+        /// Nur der Name. Das Template zu wechseln verschoebe die Obergrenze einer bereits ausgestatteten
+        /// Anwendung und gehoert deshalb nicht in das Kindgitter des Templates, in dem man gerade steht -
+        /// dafuer gibt es die Buendel-Maske.
+        /// </remarks>
+        [HttpPost]
+        [Authorize("HasPermission(Apps.PermissionSets.Write)")]
+        public async Task<IActionResult> UpdatePermission([DataSourceRequest] DataSourceRequest request,
+            AppPermissionViewModel mdl, int parentId)
+        {
+            mdl.ParentId = parentId;
+            var entity = db.AppPermissionSets.FirstOrDefault(n =>
+                n.AppPermissionSetId == mdl.AppPermissionSetId && n.ClientAppTemplateId == parentId);
+            if (entity == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Permission-set {mdl.AppPermissionSetId} does not exist below app-template {parentId}; nothing renamed.",
+                    LogSeverity.Warning);
+                ModelState.AddModelError("", "The permission set does not belong to this template.");
+            }
+            else if (ModelState.IsValid && SetNameIsValid(parentId, mdl.PermissionSetName, mdl.AppPermissionSetId))
+            {
+                entity.Name = mdl.PermissionSetName.Trim();
+                await db.SaveChangesAsync();
+                mdl.PermissionSetName = entity.Name;
+            }
+
+            return Json(new[] { mdl }.ToDataSourceResult(request, ModelState));
+        }
+
+        /// <summary>
+        /// Entfernen heisst LOESCHEN: das Buendel gehoert genau diesem Template, eine Zuordnung, die man
+        /// loesen koennte, gibt es nicht mehr. Ein Buendel, das eine ClientApp noch fuehrt, bleibt stehen -
+        /// sonst verloere eine laufende Anwendung stillschweigend ihre Rechte.
+        /// </summary>
+        [HttpPost]
+        [Authorize("HasPermission(Apps.PermissionSets.Write)")]
+        public async Task<IActionResult> DestroyPermission([DataSourceRequest] DataSourceRequest request,
+            AppPermissionViewModel mdl, int parentId)
+        {
+            mdl.ParentId = parentId;
+            var entity = db.AppPermissionSets.FirstOrDefault(n =>
+                n.AppPermissionSetId == mdl.AppPermissionSetId && n.ClientAppTemplateId == parentId);
+            if (entity == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Permission-set {mdl.AppPermissionSetId} does not exist below app-template {parentId}; nothing deleted.",
+                    LogSeverity.Warning);
+            }
+            else if (db.ClientAppPermissions.Any(n => n.AppPermissionSetId == mdl.AppPermissionSetId))
+            {
+                LogEnvironment.LogEvent(
+                    $"Permission-set {mdl.AppPermissionSetId} of app-template {parentId} is still granted to at least one client-app; not deleted.",
+                    LogSeverity.Warning);
+                ModelState.AddModelError("", "The permission set is still granted to a client app.");
+            }
+            else
+            {
+                db.AppPermissionSets.Remove(entity);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(new[] { mdl }.ToDataSourceResult(request, ModelState));
+        }
+
+        /// <summary>
+        /// Prueft vorab, was sonst erst der eindeutige Index abweist - dort aber ohne Aussage.
+        /// </summary>
+        /// <remarks>
+        /// <c>UQ_AppPermissionSetName (ClientAppTemplateId, Name)</c> bleibt die eigentliche Absicherung;
+        /// diese Pruefung ersetzt sie nicht, sie macht aus dem Fehlschlag eine Meldung, mit der ein
+        /// Benutzer etwas anfangen kann.
+        /// </remarks>
+        private bool SetNameIsValid(int clientAppTemplateId, string name, int exceptSetId)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                LogEnvironment.LogEvent(
+                    $"A permission-set below app-template {clientAppTemplateId} was refused: the name is empty.",
+                    LogSeverity.Warning);
+                ModelState.AddModelError(nameof(AppPermissionViewModel.PermissionSetName), "A name is required.");
+                return false;
+            }
+
+            name = name.Trim();
+            if (db.AppPermissionSets.Any(n => n.ClientAppTemplateId == clientAppTemplateId && n.Name == name &&
+                                              n.AppPermissionSetId != exceptSetId))
+            {
+                LogEnvironment.LogEvent(
+                    $"The permission-set '{name}' was refused: app-template {clientAppTemplateId} already has a set of that name.",
+                    LogSeverity.Error);
+                ModelState.AddModelError(nameof(AppPermissionViewModel.PermissionSetName),
+                    "This template already has a permission set of that name.");
+                return false;
+            }
+
+            return true;
         }
     }
 }

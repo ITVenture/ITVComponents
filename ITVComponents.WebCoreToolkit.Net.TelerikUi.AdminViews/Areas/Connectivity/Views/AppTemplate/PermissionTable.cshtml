@@ -1,3 +1,7 @@
 ﻿@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.ViewComponents
 
-@await Component.InvokeAsync(typeof(ShowTable),new{customViewData = new Dictionary<string,object>{{"tenantId", ViewData["tenantId"] },{"roleId",ViewData["roleId"]},{"renderDetails",ViewData["roleId"] == null } } })
+@model int
+
+@* Vorher standen hier ViewData-Schluessel, die niemand setzt ("tenantId"/"roleId") - das Kindgitter
+   bekam also durchweg null. Die Kennung des Templates steht im Model, so wie in der Buendel-Maske. *@
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "clientAppTemplateId", Model } } })

@@ -1,7 +1,9 @@
-@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Components.PermissionSets
 
 @inject IAppTemplateAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <SecureView RequiredPermissions="Apps.Templates.View,Apps.Templates.Write">
@@ -14,7 +16,17 @@
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Permission sets" TitleTypo="Typo.subtitle2" />
+            <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Permission sets" TitleTypo="Typo.subtitle2">
+                @* Hier ist der natuerliche Ort zum Anlegen: das Template steht fest, es gibt nichts zu
+                   waehlen und nichts falsch zu waehlen. *@
+                <SecureView RequiredPermissions="Apps.PermissionSets.Write">
+                    <Permitted>
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="ml-2" OnClick="OpenCreate">
+                            Add permission set
+                        </MudButton>
+                    </Permitted>
+                </SecureView>
+            </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
             <TemplateColumn T="AppPermissionSetAssignmentViewModel" Title="" Sortable="false">
@@ -23,10 +35,15 @@
                        Was hier steht, gehoert dem Template; entfernen heisst loeschen. *@
                     <SecureView RequiredPermissions="Apps.PermissionSets.Write">
                         <Permitted>
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                           Size="Size.Small"
-                                           Color="Color.Error"
-                                           OnClick="@(() => DeleteSet(context.Item))" />
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenRename(context.Item))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteSet(context.Item))" />
+                            </MudStack>
                         </Permitted>
                     </SecureView>
                 </CellTemplate>
@@ -67,6 +84,49 @@
         var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
         var result = await Handler.ListPermissionSetsForTemplateAsync(currentUser, ClientAppTemplateId, query);
         return new GridData<AppPermissionSetAssignmentViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private async Task OpenCreate()
+    {
+        if (!hasWrite || currentUser is null) return;
+
+        // Ohne Template-Auswahl im Dialog: das Template steht hier fest und wird am Modell gesetzt.
+        var model = new PermissionSetViewModel { ClientAppTemplateId = ClientAppTemplateId };
+        var parameters = new DialogParameters<PermissionSetDialog> { { d => d.Model, model }, { d => d.IsCreate, true } };
+        var dlg = await DialogService.ShowAsync<PermissionSetDialog>("Add permission set", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is not { Canceled: false, Data: PermissionSetViewModel input }) return;
+
+        var created = await Handler.CreatePermissionSetForTemplateAsync(currentUser, ClientAppTemplateId, input.Name);
+        Snackbar.Add(created != null
+                ? "Permission set created"
+                : "Could not create the permission set - this template may already have a set of that name. See the log.",
+            created != null ? Severity.Success : Severity.Error);
+        if (created != null && grid is not null) await grid.ReloadServerData();
+    }
+
+    private async Task OpenRename(AppPermissionSetAssignmentViewModel item)
+    {
+        if (!hasWrite || currentUser is null) return;
+
+        var model = new PermissionSetViewModel
+        {
+            AppPermissionSetId = item.AppPermissionSetId,
+            ClientAppTemplateId = ClientAppTemplateId,
+            Name = item.PermissionSetName
+        };
+        var parameters = new DialogParameters<PermissionSetDialog> { { d => d.Model, model }, { d => d.IsCreate, false } };
+        var dlg = await DialogService.ShowAsync<PermissionSetDialog>("Rename permission set", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is not { Canceled: false, Data: PermissionSetViewModel input }) return;
+
+        var ok = await Handler.RenamePermissionSetOfTemplateAsync(
+            currentUser, ClientAppTemplateId, item.AppPermissionSetId, input.Name);
+        Snackbar.Add(ok
+                ? "Permission set renamed"
+                : "Could not rename the permission set - this template may already have a set of that name. See the log.",
+            ok ? Severity.Success : Severity.Error);
+        if (ok && grid is not null) await grid.ReloadServerData();
     }
 
     private async Task DeleteSet(AppPermissionSetAssignmentViewModel item)

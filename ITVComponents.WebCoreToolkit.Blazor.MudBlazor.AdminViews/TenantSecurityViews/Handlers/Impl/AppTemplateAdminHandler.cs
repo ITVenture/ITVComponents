@@ -187,6 +187,135 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     }
 
     /// <summary>
+    /// Legt ein Rechtebuendel unter diesem Template an.
+    /// </summary>
+    /// <remarks>
+    /// Der Weg, der bis PRE241 fehlte: das Kindgitter konnte auflisten und loeschen, aber nicht anlegen -
+    /// und der Weg ueber die Buendel-Seite war seinerseits kaputt, weil er das Template nicht setzte.
+    /// Es gab damit gar keine Moeglichkeit, ein Buendel anzulegen.
+    /// </remarks>
+    public async Task<AppPermissionSetAssignmentViewModel?> CreatePermissionSetForTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, string name)
+    {
+        if (!HasPermission("Apps.PermissionSets.Write"))
+        {
+            logger.LogWarning(
+                "Creating a permission-set below app-template {TemplateId} was refused: Apps.PermissionSets.Write is missing.",
+                clientAppTemplateId);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            logger.LogWarning("Creating a permission-set below app-template {TemplateId} failed: the name is empty.",
+                clientAppTemplateId);
+            return null;
+        }
+
+        name = name.Trim();
+        using var db = CreateDb();
+        if (!await db.ClientAppTemplates.AnyAsync(t => t.ClientAppTemplateId == clientAppTemplateId))
+        {
+            logger.LogError("Creating the permission-set '{Name}' failed: app-template {TemplateId} does not exist.",
+                name, clientAppTemplateId);
+            return null;
+        }
+
+        // Vorab geprueft, damit der Fall als Namenskonflikt im Protokoll steht und nicht als anonymer
+        // Index-Fehler. UQ_AppPermissionSetName (ClientAppTemplateId, Name) bleibt die Absicherung.
+        if (await db.AppPermissionSets.AnyAsync(ps =>
+                ps.ClientAppTemplateId == clientAppTemplateId && ps.Name == name))
+        {
+            logger.LogError(
+                "Creating the permission-set '{Name}' failed: app-template {TemplateId} already has a set of that name.",
+                name, clientAppTemplateId);
+            return null;
+        }
+
+        var entity = new TAppPermissionSet { Name = name, ClientAppTemplateId = clientAppTemplateId };
+        db.AppPermissionSets.Add(entity);
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // Bleibt das Wettrennen zweier Masken und alles Unerwartete - ohne diese Stelle stuende in
+            // der Maske "Failed to create" und im Protokoll nichts.
+            logger.LogError(ex, "The database refused creating the permission-set '{Name}' below app-template {TemplateId}.",
+                name, clientAppTemplateId);
+            return null;
+        }
+
+        return new AppPermissionSetAssignmentViewModel
+        {
+            AppPermissionSetId = entity.AppPermissionSetId,
+            PermissionSetName = entity.Name,
+            ClientAppTemplateId = clientAppTemplateId,
+            Assigned = true
+        };
+    }
+
+    /// <summary>
+    /// Benennt ein Rechtebuendel dieses Templates um.
+    /// </summary>
+    /// <remarks>
+    /// Nur der Name: das Template zu wechseln verschoebe die Obergrenze einer bereits ausgestatteten
+    /// Anwendung und gehoert deshalb nicht in das Kindgitter des Templates, in dem man gerade steht.
+    /// </remarks>
+    public async Task<bool> RenamePermissionSetOfTemplateAsync(
+        ClaimsPrincipal user, int clientAppTemplateId, int appPermissionSetId, string name)
+    {
+        if (!HasPermission("Apps.PermissionSets.Write"))
+        {
+            logger.LogWarning(
+                "Renaming permission-set {SetId} of app-template {TemplateId} was refused: Apps.PermissionSets.Write is missing.",
+                appPermissionSetId, clientAppTemplateId);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            logger.LogWarning("Renaming permission-set {SetId} failed: the name is empty.", appPermissionSetId);
+            return false;
+        }
+
+        name = name.Trim();
+        using var db = CreateDb();
+        var entity = await db.AppPermissionSets.FirstOrDefaultAsync(ps =>
+            ps.AppPermissionSetId == appPermissionSetId && ps.ClientAppTemplateId == clientAppTemplateId);
+        if (entity == null)
+        {
+            logger.LogWarning("Permission-set {SetId} does not exist below app-template {TemplateId}; nothing renamed.",
+                appPermissionSetId, clientAppTemplateId);
+            return false;
+        }
+
+        if (await db.AppPermissionSets.AnyAsync(ps =>
+                ps.ClientAppTemplateId == clientAppTemplateId && ps.Name == name &&
+                ps.AppPermissionSetId != appPermissionSetId))
+        {
+            logger.LogError(
+                "Renaming permission-set {SetId} failed: app-template {TemplateId} already has a set named '{Name}'.",
+                appPermissionSetId, clientAppTemplateId, name);
+            return false;
+        }
+
+        entity.Name = name;
+        try
+        {
+            await db.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "The database refused renaming permission-set {SetId} to '{Name}'.",
+                appPermissionSetId, name);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Loescht ein Rechtebuendel dieses Templates.
     /// </summary>
     /// <remarks>

@@ -6565,6 +6565,43 @@ daran hängen. Das eine ist Aufräumen, das andere ein Fehler.
 
 ---
 
+### 65.11 Nachtrag (PRE241): Rechtebündel liessen sich gar nicht anlegen
+
+In PRE240 bekam `AppPermissionSet` die Pflichtspalte `ClientAppTemplateId` — **die Masken zogen sie aber
+nicht mit**. Das Ergebnis war in beiden Oberflächen dasselbe und fiel nur an unterschiedlicher Stelle auf:
+
+- Im Kindgitter einer Vorlage (`/Connectivity/AppTemplates`) gab es **keinen Knopf** zum Anlegen; die
+  Maske konnte auflisten und löschen.
+- Auf der Bündel-Maske (`/Connectivity/PermissionSets`) gab es den Knopf, aber angelegt wurde mit
+  `ClientAppTemplateId = 0` — der Fremdschlüssel hat das abgewiesen.
+
+Es gab damit **keinen Weg**, ein App-Rechtebündel anzulegen. Wer in PRE240 eine Vorlage aufgebaut hat,
+musste die Bündel von Hand in die Datenbank schreiben.
+
+**Seit PRE241:**
+
+- **Angelegt wird an der Vorlage** — dort steht die Vorlage fest, es gibt nichts zu wählen und nichts
+  falsch zu wählen. Umbenennen und Löschen ebenfalls.
+- **Die Bündel-Maske bleibt die Übersicht** über alle Vorlagen hinweg: mit Vorlagen-Spalte in der Liste
+  und Pflicht-Auswahl im Dialog.
+- **Die Vorlage eines Bündels lässt sich wechseln**, aber nicht, solange eine ClientApp das Bündel führt:
+  der Wechsel verschöbe sonst die Obergrenze einer laufenden Anwendung. Dieselbe Regel gilt schon beim
+  Löschen.
+- Namenskonflikt und fehlende Vorlage werden **vorab** geprüft und als solche protokolliert, statt als
+  anonymer Index- oder Fremdschlüssel-Fehler aus der Datenbank zu kommen. `UQ_AppPermissionSetName
+  (ClientAppTemplateId, Name)` bleibt die eigentliche Absicherung.
+
+In der Telerik-Oberfläche war zusätzlich das Kindgitter der Vorlage eine **wortgleiche Kopie der
+Bündel-Maske**: es zeigte ein Berechtigungs-Raster und las es vom `PermissionSet`-Controller mit einem
+`parentId`, das dort niemand setzt. Aufgeklappt sah man die falsche, leere Tabelle, und
+`AppTemplateController.ReadPermissions` — genau für diese Stelle geschrieben — rief niemand auf. Auch das
+ist mit PRE241 gerade gezogen.
+
+**Zu tun ist nichts**: kein Schema-Change, keine Migration. Wer in PRE240 Bündel von Hand angelegt hat,
+sollte nur prüfen, ob sie an der richtigen Vorlage hängen.
+
+---
+
 ## 66. Ein Gerät holt sich einen Bearer — **kein Schema-Change, aber ein neuer Endpunkt**
 
 Baut auf Abschnitt 65 auf: derselbe Schlüssel, den die Gerätekopplung ausgibt, lässt sich jetzt gegen
