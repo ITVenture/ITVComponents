@@ -181,9 +181,15 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl
                         return FileOperationResult.BadRequest(ex.Message);
                     }
                 }
-                else if (services.VerifyCurrentUser())
+                else
                 {
-                    return FileOperationResult.Forbid();
+                    var authenticated = services.VerifyCurrentUser();
+                    LogDeniedTransfer("upload", uploadModule, reason, uploadHint, requiredPermissions,
+                        authenticated, assetKey);
+                    if (authenticated)
+                    {
+                        return FileOperationResult.Forbid();
+                    }
                 }
             }
             finally
@@ -192,6 +198,40 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl
             }
 
             return FileOperationResult.UnAuthorized();
+        }
+
+        /// <summary>
+        /// Reports a refused file-transfer. Until now the refusal left no trace at all — the caller only saw
+        /// "permission denied", which points at the permissions even when they were never the question.
+        /// </summary>
+        /// <remarks>
+        /// The constellation worth naming separately is the anonymous caller without an asset-key: a page
+        /// running under a shared asset authorizes through the <b>ticket</b>, so when the key never reaches
+        /// this call, the permission check runs against a user that does not exist and the message sends the
+        /// search in the wrong direction.
+        /// </remarks>
+        private void LogDeniedTransfer(string operation, string module, string reason, string identifier,
+            string[] requiredPermissions, bool authenticated, string assetKey)
+        {
+            var permissions = requiredPermissions is { Length: > 0 }
+                ? string.Join(", ", requiredPermissions)
+                : "<none configured>";
+            if (!authenticated && string.IsNullOrEmpty(assetKey))
+            {
+                logger.LogWarning(
+                    "File {Operation} {Module}/{Reason}/{Identifier} denied: the caller is not authenticated and no " +
+                    "asset-key was supplied. Required permissions: {Permissions}. If this call originates from a page " +
+                    "running under a shared asset, the caller has to pass hasAsset/assetKey (see ISharedAssetContext) — " +
+                    "the permissions themselves were never checked against the share.",
+                    operation, module, reason, identifier, permissions);
+                return;
+            }
+
+            logger.LogWarning(
+                "File {Operation} {Module}/{Reason}/{Identifier} denied. Required permissions: {Permissions}, " +
+                "authenticated={Authenticated}, assetKey={AssetKey}.",
+                operation, module, reason, identifier, permissions, authenticated,
+                string.IsNullOrEmpty(assetKey) ? "<none>" : assetKey);
         }
 
         public async Task<FileOperationResult> ProcessFileDownload(string downloadModule, string reason, string fileIdentifier,
@@ -256,12 +296,11 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Service.Impl
                         return FileOperationResult.NotFound();
                     }
 
-                    if (services.VerifyCurrentUser())
-                    {
-                        return FileOperationResult.Forbid();
-                    }
+                    var authenticated = services.VerifyCurrentUser();
+                    LogDeniedTransfer("download", downloadModule, reason, fileIdentifier, requiredPermissions,
+                        authenticated, assetKey);
 
-                    return FileOperationResult.UnAuthorized();
+                    return authenticated ? FileOperationResult.Forbid() : FileOperationResult.UnAuthorized();
                 }
                 finally
                 {

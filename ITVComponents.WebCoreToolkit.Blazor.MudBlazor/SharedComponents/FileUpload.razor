@@ -19,6 +19,7 @@
 @inject IJSRuntime JS
 @inject IFileServiceHandler FileService
 @inject AuthenticationStateProvider AuthState
+@inject IServiceProvider Services
 @inject ILogger<FileUpload> Logger
 
 <MudPaper Class="pa-4" Outlined="true">
@@ -161,8 +162,10 @@
             });
         }
 
+        // Wie beim Download: unter einer Freigabe traegt das Ticket die Rechte, nicht der Benutzer.
+        var (hasAsset, assetKey) = SharedAssetCallContext.Resolve(Services);
         var result = await FileService.ProcessFileUpload(UploadModule, UploadReason, UploadHint,
-            authState.User, files.ToArray(), options);
+            authState.User, files.ToArray(), options, hasAsset: hasAsset, assetKey: assetKey);
 
         switch (result.Code)
         {

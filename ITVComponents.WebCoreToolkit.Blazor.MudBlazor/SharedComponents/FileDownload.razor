@@ -13,6 +13,7 @@
 @inject IJSRuntime JS
 @inject IFileServiceHandler FileService
 @inject AuthenticationStateProvider AuthState
+@inject IServiceProvider Services
 @inject ILogger<FileDownload> Logger
 
 <MudButton StartIcon="@StartIcon" Variant="@Variant" Color="@Color" OnClick="Download" Disabled="@(busy || Disabled)">
@@ -54,8 +55,13 @@
         try
         {
             var authState = await AuthState.GetAuthenticationStateAsync();
+            // Laeuft die Seite unter einer Freigabe, ist das TICKET die Autoritaet und nicht der (dort gar
+            // nicht angemeldete) Benutzer. ProcessFileDownload sieht diesen Weg vor - der MVC-Rand reicht
+            // ihn laengst durch, nur hier fehlte er, und der Download endete mit "Permission denied".
+            var (hasAsset, assetKey) = SharedAssetCallContext.Resolve(Services);
             var result = await FileService.ProcessFileDownload(DownloadModule, DownloadReason, FileIdentifier,
-                authState.User, defaultDownloadName: "download.bin", defaultContentType: "application/octet-stream");
+                authState.User, defaultDownloadName: "download.bin", defaultContentType: "application/octet-stream",
+                hasAsset: hasAsset, assetKey: assetKey);
 
             if (result is { Code: FileOperationCode.OkWithContent, Success: true })
             {
@@ -97,7 +103,7 @@
             else
             {
                 await OnError.InvokeAsync("Permission denied for requested file.");
-                Logger.Log(LogLevel.Error, $"File-Request failed for {DownloadModule}/{DownloadReason}/{FileIdentifier}. Result: {result.Code} ({string.Join(Environment.NewLine, result.Errors.Select(n => $"{n.Key}: {n.Message}"))})");
+                Logger.Log(LogLevel.Error, $"File-Request failed for {DownloadModule}/{DownloadReason}/{FileIdentifier} (authenticated={authState.User?.Identity?.IsAuthenticated == true}, asset={hasAsset}). Result: {result.Code} ({string.Join(Environment.NewLine, result.Errors.Select(n => $"{n.Key}: {n.Message}"))})");
             }
         }
         finally
