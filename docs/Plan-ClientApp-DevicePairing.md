@@ -1,4 +1,4 @@
-# Plan: ClientApps tragfaehig machen + Geraete-Kopplung
+﻿# Plan: ClientApps tragfaehig machen + Geraete-Kopplung
 
 **Stand:** ENTWURF, 2026-09-15
 **Zweig:** Future_10, Toolkit-Stand `5.0.0-PRE239`
@@ -271,8 +271,8 @@ waere ein Konflikt. Das ist der Punkt, an dem eine naive Kopie scheitert.
 
 | # | Inhalt | Abhaengt von |
 |---|---|---|
-| 1 | Modell + Schema + SQL-Abschnitt im Leitfaden (je Datenbank) | - |
-| 2 | Leseweg `DbSecurityRepository` (Maschinenzweig + Fehler (a)) | 1 |
+| 1 | **ERLEDIGT** - Modell + Schema + SQL-Abschnitt im Leitfaden (§65) | - |
+| 2 | **ERLEDIGT** - Leseweg `DbSecurityRepository` (Maschinenzweig + drei Bestandsfehler) | 1 |
 | 3 | Hash-Konvention + `ClientAppApiKeyResolver` + Mandantenkontext | 1, 2 |
 | 4 | `IDevicePairingService` + Endpunkte | 1, 3 |
 | 5 | Verwaltungsmasken | 1, 4 |
