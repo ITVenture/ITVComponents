@@ -1,4 +1,4 @@
-@using ITVComponents.WebCoreToolkit.Net.Extensions
+﻿@using ITVComponents.WebCoreToolkit.Net.Extensions
 @using ITVComponents.WebCoreToolkit.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.Extensions
 @using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel
@@ -18,6 +18,9 @@
 *@
 @{
     var templateId = ViewData["clientAppTemplateId"];
+    // Je Vorlage eigen: dieses Teilstueck wird pro aufgeklappter Vorlage EINMAL in die Seite geladen -
+    // eine feste Kennung gaebe doppelte script-Ids, sobald zwei Vorlagen offen sind.
+    var detailScriptId = $"PermsOfSetIn{templateId}";
     var mayWrite = Context.RequestServices.VerifyUserPermissions(new[] { "Apps.PermissionSets.Write" });
     var tmp = Html.Kendo().Grid<AppPermissionViewModel>().Name($"PermissionSetsFor{templateId}")
         .Columns(columns =>
@@ -63,6 +66,10 @@
         .Pageable(p => p.Input(false).Numeric(true).Info(true).PreviousNext(true).PageSizes(true))
         .Sortable(c => c.Enabled(true))
         .Filterable(f => f.Enabled(true))
-        .Resizable(c => c.Columns(true));
+        .Resizable(c => c.Columns(true))
+        // Ohne das Aufklappen waere ein neu angelegtes Buendel eine leere Huelle: die Rechte darin
+        // liessen sich nur auf der Buendel-Maske setzen, also genau dort nicht, wo man es anlegt.
+        .ClientDetailTemplateId(detailScriptId);
 }
 @tmp
+@Html.DetailViewScript(detailScriptId, "PermsOfSet#=AppPermissionSetId#", "~/Connectivity/PermissionSet/PermissionTable?parentId=#=AppPermissionSetId#")

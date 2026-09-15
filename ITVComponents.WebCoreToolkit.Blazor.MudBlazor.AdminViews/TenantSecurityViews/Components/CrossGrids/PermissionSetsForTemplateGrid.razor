@@ -29,6 +29,9 @@
             </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
+            @* Ohne das Aufklappen waere ein neu angelegtes Buendel eine leere Huelle: die Rechte darin
+               liessen sich nur auf der Buendel-Maske setzen, also genau dort nicht, wo man es anlegt. *@
+            <HierarchyColumn T="AppPermissionSetAssignmentViewModel" />
             <TemplateColumn T="AppPermissionSetAssignmentViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     @* Ein Buendel gehoert genau EINEM Template - es gibt nichts zu- oder abzuwaehlen.
@@ -50,6 +53,11 @@
             </TemplateColumn>
             <PropertyColumn Property="x => x.PermissionSetName" Title="Permission set" />
         </Columns>
+        <ChildRowContent>
+            <MudPaper Elevation="0" Class="pa-2">
+                <PermissionsForSetGrid AppPermissionSetId="@context.Item.AppPermissionSetId" />
+            </MudPaper>
+        </ChildRowContent>
         <PagerContent>
             <MudDataGridPager T="AppPermissionSetAssignmentViewModel" />
         </PagerContent>
