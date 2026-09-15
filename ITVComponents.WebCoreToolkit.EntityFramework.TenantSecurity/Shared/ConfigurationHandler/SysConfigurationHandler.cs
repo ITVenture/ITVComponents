@@ -422,6 +422,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 ComparePermissions(sys.Permissions, upSys.Permissions);
             }
 
+            // Nach den Permissions, weil die Buendel auf sie zeigen, und vor allem, was auf Templates
+            // zeigen koennte. Der Guard ist Pflicht: eine Sektion, die die Datei nicht fuehrt, wird
+            // uebersprungen statt gegen eine leere Menge verglichen - sonst liest sich ein Teil-Export
+            // als "alles loeschen".
+            if (upSys.ClientAppTemplates != null)
+            {
+                CompareClientAppTemplates(sys.ClientAppTemplates, upSys.ClientAppTemplates);
+            }
+
             if (upSys.GlobalRoles != null)
             {
                 CompareGlobalRoles(sys.GlobalRoles, upSys.GlobalRoles);
@@ -507,7 +516,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                || markup.DashboardWidgets != null || markup.DashboardWidgetLocales != null
                || markup.Navigation != null || markup.TrustedModules != null || markup.HealthScripts != null
                || markup.AssetTemplates != null || markup.ExternalOAuthServices != null
-               || markup.TemplateModules != null;
+               || markup.TemplateModules != null || markup.ClientAppTemplates != null;
 
         public override object DescribeConfig(string fileType, IDictionary<string, int> filterDic, out string name)
         {
@@ -738,7 +747,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
                 TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
                     .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
-                    .Include(n => n.Scripts).ToList().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray()
+                    .Include(n => n.Scripts).ToList().Select(n => SelectTemplateModuleTemplateMarkup(n)).ToArray(),
+                // ToList() VOR dem Select, und jede Navigation, die die Auswahl-Methode anfasst, ist
+                // mitgeladen: laedt EF hier nach, tut es das im noch offenen Reader der aeusseren
+                // Abfrage - was ein Provider ohne MARS (PostgreSQL) rundheraus ablehnt.
+                ClientAppTemplates = DbContext.ClientAppTemplates
+                    .Include(n => n.PermissionSets).ThenInclude(n => n.Permissions).ThenInclude(n => n.Permission)
+                    .ToList().Select(n => SelectClientAppTemplateMarkup(n)).ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Bildet ein Anwendungs-Template samt seinen Rechtebuendeln ab.
+        /// </summary>
+        /// <remarks>
+        /// Fremdschluessel reisen als <b>Name</b>, nie als Id: die Identity-Werte der Zielumgebung sind
+        /// andere, und aufgeloest wird beim Einspielen neu.
+        /// </remarks>
+        protected virtual ClientAppTemplateMarkup SelectClientAppTemplateMarkup(TClientAppTemplate templateInst)
+        {
+            return new ClientAppTemplateMarkup
+            {
+                Name = templateInst.Name,
+                PermissionSets = templateInst.PermissionSets.Select(s => new AppPermissionSetMarkup
+                {
+                    Name = s.Name,
+                    Permissions = s.Permissions.Select(p => p.Permission.PermissionName).ToArray()
+                }).ToArray()
             };
         }
 
@@ -3029,6 +3064,196 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
         }
 
         protected virtual void PostProcessWidgetParameterChange(string dashboardName, Change change, DashboardParamTemplateMarkup @new, DashboardParamTemplateMarkup original)
+        {
+        }
+
+        /// <summary>
+        /// Vergleicht die Anwendungs-Templates beider Systeme.
+        /// </summary>
+        private void CompareClientAppTemplates(IList<ClientAppTemplateMarkup> sysTemplates,
+            IList<ClientAppTemplateMarkup> upSysTemplates)
+        {
+            // Der Export einer aelteren Fassung kennt die Sektion nicht - ohne diese Zeile wirft der
+            // erste Import einer Altdatei.
+            sysTemplates ??= Array.Empty<ClientAppTemplateMarkup>();
+
+            var keyName = "Name";
+            var entityName = "ClientAppTemplates";
+            var groups = (from t in sysTemplates select t.Name.ToLower())
+                .Union(from t in upSysTemplates select t.Name.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysTemplates on c equals a1.Name.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysTemplates on c equals a2.Name.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Name = na1?.Name ?? na2.Name, Original = na1, New = na2 }).ToArray();
+            foreach (var c in cmp)
+            {
+                Change change = null;
+                if (c.Original != null && c.New == null)
+                {
+                    // Die Buendel haengen per Cascade am Template und gehen mit - siehe
+                    // ClientAppModelBuilder. Anwendungen dagegen halten es fest (Restrict); haengt noch
+                    // eine daran, scheitert dieser Change und hinterlaesst eine Meldung im Protokoll.
+                    change = new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string> { { keyName, c.Original.Name } },
+                        EntityName = entityName, Apply = true
+                    };
+                    RegisterChange(change);
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyName, c.New.Name));
+                    RegisterChange(change);
+                    RegisterAppPermissionSets(c.New.Name, c.New.PermissionSets);
+                }
+                else if (c.Original != null)
+                {
+                    // Am Template selbst gibt es ausser dem Namen nichts zu aendern - der Name IST der
+                    // Schluessel. Ein Update-Change entstuende also immer ohne Details und waere Laerm.
+                    RegisterAppPermissionSets(c.New.Name, c.New.PermissionSets, c.Original.PermissionSets);
+                }
+
+                if (change != null)
+                {
+                    PostProcessClientAppTemplateChange(change, c.New, c.Original);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Vergleicht die Rechtebuendel EINES Templates.
+        /// </summary>
+        /// <remarks>
+        /// <b>Der Name eines Buendels ist nur je Template eindeutig</b> - jede Aufloesung muss deshalb das
+        /// Template mitfuehren. Der Null-Schutz im Filter ist Pflicht: derselbe Ausdruck laeuft einmal
+        /// in-memory ueber <c>.Local</c> (wo die Navigation noch nicht geladen sein kann) und einmal als
+        /// uebersetztes SQL.
+        /// </remarks>
+        private void RegisterAppPermissionSets(string templateName, IList<AppPermissionSetMarkup> upSysSets,
+            IList<AppPermissionSetMarkup> sysSets = null)
+        {
+            sysSets ??= Array.Empty<AppPermissionSetMarkup>();
+            upSysSets ??= Array.Empty<AppPermissionSetMarkup>();
+
+            var keyNames = new[] { "Name", "ClientAppTemplate" };
+            var entityName = "AppPermissionSets";
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[1], MakeLinqQuery<TContext>("ClientAppTemplates", "Name", filterValueVariable: "Value") }
+            };
+
+            var groups = (from t in sysSets select t.Name.ToLower())
+                .Union(from t in upSysSets select t.Name.ToLower()).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysSets on c equals a1.Name.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysSets on c equals a2.Name.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Original = na1, New = na2 }).ToArray();
+
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    RegisterChange(new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                            { { keyNames[0], c.Original.Name }, { keyNames[1], templateName } },
+                        KeyExpression = keyExp,
+                        EntityName = entityName, Apply = true
+                    });
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], c.New.Name));
+                    // Die NAVIGATION wird zugewiesen, nicht die Id: das Template kann im selben Lauf
+                    // entstanden sein und traegt bis zum abschliessenden SaveChanges() noch keine.
+                    change.Details.Add(MakeDetail(keyNames[1], templateName,
+                        MakeLinqAssign<TContext>(keyNames[1], "ClientAppTemplates", "Name")));
+                    RegisterChange(change);
+                    RegisterAppPermissions(templateName, c.New.Name, c.New.Permissions);
+                }
+                else if (c.Original != null)
+                {
+                    RegisterAppPermissions(templateName, c.New.Name, c.New.Permissions, c.Original.Permissions);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Vergleicht die Rechte IN einem Buendel. Reine Zuordnung - nur Anlegen und Loeschen, kein Update.
+        /// </summary>
+        private void RegisterAppPermissions(string templateName, string setName, IList<string> upSysPermissions,
+            IList<string> sysPermissions = null)
+        {
+            sysPermissions ??= Array.Empty<string>();
+            upSysPermissions ??= Array.Empty<string>();
+
+            var keyNames = new[] { "PermissionSet", "Permission" };
+            var entityName = "AppPermissions";
+            var setFilter = SetFilter(templateName);
+            var keyExp = new Dictionary<string, string>
+            {
+                { keyNames[0], MakeLinqQuery<TContext>("AppPermissionSets", "Name", additionalWhere: setFilter, filterValueVariable: "Value") },
+                { keyNames[1], MakeLinqQuery<TContext>("Permissions", "PermissionName", additionalWhere: "n.TenantId==null", filterValueVariable: "Value") }
+            };
+
+            var groups = sysPermissions.Select(n => n.ToLower())
+                .Union(upSysPermissions.Select(n => n.ToLower())).Distinct().ToArray();
+            var cmp = (from c in groups
+                join a1 in sysPermissions on c equals a1.ToLower() into ja1
+                from na1 in ja1.DefaultIfEmpty()
+                join a2 in upSysPermissions on c equals a2.ToLower() into ja2
+                from na2 in ja2.DefaultIfEmpty()
+                select new { Original = na1, New = na2 }).ToArray();
+
+            foreach (var c in cmp)
+            {
+                if (c.Original != null && c.New == null)
+                {
+                    RegisterChange(new Change
+                    {
+                        ChangeType = ChangeType.Delete,
+                        Key = new Dictionary<string, string>
+                            { { keyNames[0], setName }, { keyNames[1], c.Original } },
+                        KeyExpression = keyExp,
+                        EntityName = entityName, Apply = true
+                    });
+                }
+                else if (c.Original == null && c.New != null)
+                {
+                    var change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
+                    change.Details.Add(MakeDetail(keyNames[0], setName,
+                        MakeLinqAssign<TContext>(keyNames[0], "AppPermissionSets", "Name", setFilter)));
+                    change.Details.Add(MakeDetail(keyNames[1], c.New,
+                        MakeLinqAssign<TContext>(keyNames[1], "Permissions", "PermissionName", "n.TenantId==null")));
+                    RegisterChange(change);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Der Filter, der ein Rechtebuendel auf SEIN Template eingrenzt.
+        /// </summary>
+        /// <remarks>
+        /// Der Null-Schutz ist unverzichtbar: derselbe Ausdruck laeuft einmal in-memory ueber
+        /// <c>.Local</c> - dort kann die Navigation noch nicht geladen sein und der Zugriff wuerfe - und
+        /// einmal als uebersetztes SQL, wo er harmlos ist.
+        /// </remarks>
+        private static string SetFilter(string templateName)
+            => $"(n.ClientAppTemplate != null && n.ClientAppTemplate.Name == \"{templateName}\")";
+
+        /// <summary>
+        /// Haken fuer Hosts, die am Template-Change noch etwas aendern wollen.
+        /// </summary>
+        protected virtual void PostProcessClientAppTemplateChange(Change change, ClientAppTemplateMarkup newValue,
+            ClientAppTemplateMarkup oldValue)
         {
         }
 

@@ -61,6 +61,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         public TemplateModuleTemplateMarkup[] TemplateModules { get; set; }
 
         /// <summary>
+        /// Die Anwendungs-Templates samt ihren Rechtebuendeln.
+        /// </summary>
+        /// <remarks>
+        /// <b>Ohne Initialisierer, und das ist Absicht.</b> Eine Sektion, die die hochgeladene Datei nicht
+        /// fuehrt, muss als <c>null</c> ankommen - der Vergleich ueberspringt sie dann, statt sie gegen
+        /// eine leere Menge zu halten. Ein leeres Array statt <c>null</c> liest sich als "alles loeschen".
+        /// </remarks>
+        public ClientAppTemplateMarkup[] ClientAppTemplates { get; set; }
+
+        /// <summary>
         /// Additional config sections contributed by feature libraries via <see cref="IConfigExtension"/>
         /// (polymorphic; each entry is a registered <see cref="ConfigExtensionMarkup"/> subtype). Null on older
         /// exports and on systems without any registered extension.
