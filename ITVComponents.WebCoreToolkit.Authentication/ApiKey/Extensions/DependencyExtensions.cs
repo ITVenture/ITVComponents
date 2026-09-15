@@ -18,10 +18,9 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey.Extensions
         /// der Benutzertabelle. Wer eine Datenbanksicherung, eine Auskunftsabfrage oder einen zu weit
         /// gefassten Verwaltungszugang hat, kann sich als dieses Geraet ausgeben.
         /// <para>
-        /// Diese Methode wird aus <c>WebPartInit</c> <b>unbedingt</b> gerufen, sobald ein Host API-Key-Auth
-        /// konfiguriert - niemand ruft sie also bewusst auf. Wer den gehashten Weg will, registriert
-        /// <see cref="UseClientAppApiKeyResolver"/> <b>nach</b> der WebPart-Konfiguration: hier wird per
-        /// <c>AddTransient</c> registriert und nicht per <c>TryAdd</c>, die spaetere Registrierung gewinnt.
+        /// Diese Methode ruft <c>WebPartInit</c> automatisch, wenn ein Host API-Key-Auth konfiguriert und
+        /// <c>ApiKey:UseClientAppResolver</c> NICHT gesetzt ist. Sie ist damit die Vorgabe - und das
+        /// heisst: wer nichts entscheidet, bekommt den Klartext-Vergleich.
         /// </para>
         /// </remarks>
         /// <param name="services">the servicecollection to inject the resolver into</param>
@@ -37,8 +36,12 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey.Extensions
         /// </summary>
         /// <remarks>
         /// Setzt eine Umsetzung von <see cref="Security.ClientApps.IClientAppAccessQuery"/> voraus; die
-        /// EF-Schicht bringt sie mit. <b>Nach</b> der WebPart-Konfiguration registrieren, sonst
-        /// ueberschreibt <see cref="UseDefaultApiKeyResolver"/> sie still.
+        /// EF-Schicht bringt sie mit.
+        /// <para>
+        /// <b>Im Regelfall nicht selbst rufen</b> - <c>ApiKey:UseClientAppResolver = true</c> in der
+        /// WebPart-Konfiguration setzt sie, und dann gibt es keine Reihenfolge-Frage. Der direkte Aufruf
+        /// bleibt fuer Hosts, die ihre Dienste ohne WebParts verdrahten.
+        /// </para>
         /// </remarks>
         /// <param name="services">the servicecollection to inject the resolver into</param>
         /// <returns>the provided servicecollection</returns>

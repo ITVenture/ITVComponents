@@ -30,6 +30,24 @@ namespace ITVComponents.WebCoreToolkit.Options
         public bool UseLocalization { get; set; }
 
         /// <summary>
+        /// Schaltet die Endpunkte der Geraete-Kopplung ein (<c>start</c>, <c>poll</c>, <c>describe</c>,
+        /// <c>confirm</c>).
+        /// </summary>
+        /// <remarks>
+        /// <b>Vorgabe aus.</b> Zwei der vier Endpunkte laufen anonym - das gehoert eingeschaltet, weil
+        /// jemand es will, und nicht, weil das Paket referenziert wurde. Die Verhaltens-Stellschrauben
+        /// (Lebensdauer, Abfrage-Intervall, Recht) stehen getrennt davon in der globalen Einstellung
+        /// <c>DevicePairing</c>; hier geht es nur darum, OB die Endpunkte existieren.
+        /// </remarks>
+        public bool UseDevicePairingEndpoints { get; set; }
+
+        /// <summary>
+        /// Der Pfad-Praefix der Kopplungs-Endpunkte. Nur wirksam, wenn
+        /// <see cref="UseDevicePairingEndpoints"/> gesetzt ist.
+        /// </summary>
+        public string DevicePairingEndpointPrefix { get; set; } = "/DevicePairing";
+
+        /// <summary>
         /// ResourcesPath that <see cref="Microsoft.Extensions.Localization.LocalizationOptions"/>
         /// will be configured with when <see cref="UseLocalization"/> is true. <c>null</c> (the
         /// default) preserves the historical toolkit behavior of <c>"Resources"</c>; an empty

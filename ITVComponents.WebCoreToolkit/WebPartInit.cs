@@ -9,6 +9,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Options;
+using ITVComponents.WebCoreToolkit.Security.DevicePairing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +36,23 @@ namespace ITVComponents.WebCoreToolkit
                 var policy = new AuthorizationPolicyBuilder(op.DefaultPolicy);
                 l.Value.ForEach(policy.AuthenticationSchemes.Add);
                 op.DefaultPolicy = policy.Build();
+            }
+        }
+
+        /// <summary>
+        /// Haengt die Endpunkte der Geraete-Kopplung ein, wenn die WebPart-Konfiguration sie verlangt.
+        /// </summary>
+        /// <remarks>
+        /// <b>Die EINZIGE Endpunkt-Methode dieser WebPart-Klasse.</b> Weitere Endpunkte gehoeren in
+        /// diesen Rumpf und nicht in eine zweite Methode mit demselben Attribut - von zwei
+        /// gleich-aspektigen Methoden laeuft nicht zuverlaessig beides.
+        /// </remarks>
+        [EndpointRegistrationMethod]
+        public static void RegisterEndpoints(WebApplication app, WebPartInitOptions options)
+        {
+            if (options?.UseDevicePairingEndpoints == true)
+            {
+                app.UseDevicePairingEndpoints(options.DevicePairingEndpointPrefix);
             }
         }
 

@@ -187,7 +187,19 @@ namespace ITVComponents.WebCoreToolkit.Authentication
             {
                 var l = sharedObjects.Property<List<string>>("SignInSchemes", true);
                 l.Value.AddIfMissing(apiKeyConfig.AuthenticationType, true);
-                services.UseDefaultApiKeyResolver();
+
+                // Welcher Resolver gilt, entscheidet die KONFIGURATION - nicht die Reihenfolge der
+                // Registrierungen. Vorher wurde hier unbedingt der Klartext-Resolver gesetzt, und ein
+                // Host, der den gehashten wollte, musste nach dieser Stelle registrieren, damit sein
+                // AddTransient gewinnt. Das war eine Falle, die niemand sieht.
+                if (apiKeyConfig.UseClientAppResolver)
+                {
+                    services.UseClientAppApiKeyResolver();
+                }
+                else
+                {
+                    services.UseDefaultApiKeyResolver();
+                }
             }
         }
 
