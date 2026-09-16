@@ -77,13 +77,12 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.Handlers
 
             await accessQuery.MarkUsedAsync(access.ClientAppAccessId, ct);
 
-            // Genau die zwei Anspruechen, die der Leseweg braucht: der Bezeichner als Name (er reist von
-            // dort als ##APPUSER##<Label># in die Rechteaufloesung) und der Mandant als Geltungsbereich.
-            var identity = new ClaimsIdentity(new[]
-            {
-                new Claim(System.Security.Claims.ClaimTypes.Name, access.Label),
-                new Claim(WebCoreToolkit.ClaimTypes.FixedUserScope, access.TenantName)
-            }, "ClientApp");
+            // Der Name allein traegt die Rechte NICHT - gewickelt wird allein der Zugangs-Anspruch, und
+            // den baut ClientAppIdentity gemeinsam fuer alle Wege. Ohne ihn liefe das Geraet hier in
+            // dieselbe Falle wie frueher der API-Schluessel-Weg: angemeldet, im Mandanten, rechtelos.
+            var claims = new List<Claim> { new Claim(System.Security.Claims.ClaimTypes.Name, access.Label) };
+            claims.AddRange(ClientAppIdentity.BuildClaims(parts[0], access, logger));
+            var identity = new ClaimsIdentity(claims, "ClientApp");
             var principal = new ClaimsPrincipal(identity);
 
             var token = jwtService.GetJwtTokenFor(principal, parts[0]);

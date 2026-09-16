@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Authentication.OpenId.Options;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Security.ApplicationToken;
+using ITVComponents.WebCoreToolkit.Security.ClientApps;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -94,6 +95,16 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.JWT.Impl
             }
 
             var applicationUserLabel = tokenService.GetApplicationUserLabel(principal, applicationKey);
+            if (string.IsNullOrEmpty(applicationUserLabel))
+            {
+                // MASCHINE statt Delegation: ein Geraet handelt fuer niemanden, es IST die Identitaet -
+                // sein Zugang haengt bereits am Principal (siehe ClientAppTokenHandler). Die Aufloesung
+                // oben ist fuer die DELEGATION zustaendig und liefert dort bis heute null; ohne diesen
+                // Rueckgriff verlaesst der Maschinen-Token den Endpunkt ohne Zugangs-Anspruch - also
+                // rechtelos, und zwar genauso unauffaellig wie frueher der API-Schluessel-Weg.
+                applicationUserLabel = principal.Claims
+                    .FirstOrDefault(n => n.Type == ClaimTypes.ClientAppAccess)?.Value;
+            }
             using var ctx = ExpressionParser.BeginRepl(new Dictionary<string, object>
                 {
                     {"GetClaim", (string name) => principal.Claims.FirstOrDefault(n => n.Type == name)},
@@ -105,22 +116,10 @@ namespace ITVComponents.WebCoreToolkit.Authentication.OpenId.JWT.Impl
                 (i) => DefaultCallbacks.PrepareDefaultCallbacks(i.Scope, i.ReplSession));
             var claims = (from t in opt.IncludedClaims
                 select CreateClaim(t, ctx)).ToList();
-            claims.Add(new Claim(ClaimTypes.FixedUserScope, userScope));
-            claims.Add(new Claim(ClaimTypes.ClientAppId, applicationKey));
-            if (!string.IsNullOrEmpty(applicationUserLabel))
-            {
-                claims.Add(new Claim(ClaimTypes.ClientAppAccess, applicationUserLabel));
-            }
-            else
-            {
-                // new Claim(type, null) WIRFT. Der Standard-IApplicationTokenService liefert hier bis
-                // heute null, womit dieser ganze Weg nicht bloss funktionslos, sondern kaputt war. Ein
-                // Token ohne diesen Anspruch ist brauchbar - es traegt dann keine Delegation, und genau
-                // das sagt die Meldung.
-                logger?.LogWarning(
-                    "No application-user label was resolved for application {ApplicationKey}; the token is issued without a delegation claim.",
-                    applicationKey);
-            }
+            // GEMEINSAM mit dem API-Schluessel-Weg gebaut. Solange beide Wege ihre Ansprueche selbst
+            // zusammengesetzt haben, trug nur dieser hier den Zugangs-Anspruch - und ein per X-Api-Key
+            // angemeldetes Geraet war rechtelos, ohne dass irgendwo etwas fehlschlug.
+            claims.AddRange(ClientAppIdentity.BuildClaims(applicationKey, applicationUserLabel, userScope, logger));
             var tok = new JwtSecurityToken(opt.Issuer, opt.Audience, claims, expires:
                 DateTime.Now.AddMinutes(opt.TokenDuration),
                 signingCredentials: credentials);

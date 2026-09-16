@@ -5,9 +5,12 @@ namespace ITVComponents.WebCoreToolkit.Security.ClientApps
     /// </summary>
     /// <param name="ClientAppAccessId">technischer Schluessel des Zugangs</param>
     /// <param name="Label">
-    /// der systemweit eindeutige Bezeichner. <b>Er wird als <c>ClaimTypes.Name</c> gesetzt</b> und reist
-    /// von dort als <c>##APPUSER##&lt;Label&gt;#</c> in die Rechteaufloesung - er ist also nicht bloss
-    /// eine Anzeige, sondern die Identitaet.
+    /// der systemweit eindeutige Bezeichner - nicht bloss eine Anzeige, sondern die Identitaet. Er wird
+    /// als <c>ClaimTypes.Name</c> gesetzt, <b>aber die Rechte haengen daran nicht</b>: gewickelt zu
+    /// <c>##APPUSER##&lt;Label&gt;#</c> wird er allein aus
+    /// <see cref="ITVComponents.WebCoreToolkit.ClaimTypes.ClientAppAccess"/>, und nur diese Wicklung
+    /// erkennt der Leseweg als Maschinen-Zugang. Wer eine Identitaet baut, ruft dafuer
+    /// <see cref="ClientAppIdentity"/> - von Hand vergisst man genau diesen Anspruch.
     /// </param>
     /// <param name="SecretHash">
     /// der gespeicherte Hash. Der Aufrufer prueft dagegen; die Datenbankschicht bekommt den Klartext nie

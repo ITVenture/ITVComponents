@@ -85,21 +85,17 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey
 
             await accessQuery.MarkUsedAsync(access.ClientAppAccessId);
 
-            // Der MANDANT ist der eigentliche Gewinn hier: ohne ihn laeuft das Geraet mandantenlos, und
-            // genau das war der Zustand des API-Key-Pfads.
-            // Voll ausgeschrieben: ITVComponents.WebCoreToolkit.ClaimTypes verdeckt hier die gleichnamige
-            // Klasse aus System.Security.Claims, und der Fehler, den die Verwechslung ausloest, zeigt in
-            // die falsche Richtung.
-            var claims = new List<Claim>
-            {
-                new Claim(WebCoreToolkit.ClaimTypes.FixedUserScope, access.TenantName)
-            };
+            // GEMEINSAM mit dem Maschinen-Token gebaut. Diese Stelle hat die Ansprueche einmal selbst
+            // zusammengesetzt und dabei den Zugangs-Anspruch vergessen - das Geraet kam herein, bekam
+            // seinen Mandanten und hatte KEINE EINZIGE Berechtigung. Wer hier etwas ergaenzt, ergaenzt
+            // es in ClientAppIdentity, damit der Token-Weg es mitbekommt.
+            var claims = ClientAppIdentity.BuildClaims(parts[0], access, logger);
 
             logger.LogDebug("Client-app access {Label} authenticated for tenant {Tenant} (machine: {IsMachine}).",
                 access.Label, access.TenantName, access.IsMachine);
 
             // Der GEFUNDENE Bezeichner, nicht der vorgelegte Schluessel - er wird als ClaimTypes.Name
-            // gesetzt und traegt von dort die Rechteaufloesung.
+            // gesetzt. Die RECHTE haengen dagegen am Zugangs-Anspruch oben, nicht am Namen.
             return new ApiKeyInfo(access.Label, DateTime.UtcNow, claims);
         }
     }

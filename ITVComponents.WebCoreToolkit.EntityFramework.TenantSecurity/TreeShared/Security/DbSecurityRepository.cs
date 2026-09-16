@@ -612,6 +612,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .SelectMany(rj => rj.GlobalRole.RolePermissions)
                     .Select(grp => grp.Permission);
                 var parr = localPerms.Union(globalPerms).Distinct().ToArray();
+                if (parr.Length == 0)
+                {
+                    LogEmptyPermissionResolution(userLabels, true);
+                }
+
                 return parr;
             }
 
@@ -674,6 +679,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .ToArray();
             }
 
+            if (permRawArr.Length == 0)
+            {
+                LogEmptyPermissionResolution(userLabels, false);
+            }
+
             return permRawArr;
             }
         }
@@ -714,6 +724,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .SelectMany(rj => rj.GlobalRole.RolePermissions)
                     .Select(grp => grp.Permission);
                 var parr = localPerms.Union(globalPerms).Distinct().ToArray();
+                if (parr.Length == 0)
+                {
+                    LogEmptyPermissionResolution(userLabels, true);
+                }
+
                 return parr;
             }
 
@@ -775,6 +790,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     .GroupBy(n => n.PermissionName)
                     .Select(g => g.First())
                     .ToArray();
+            }
+
+            if (permRawArr.Length == 0)
+            {
+                LogEmptyPermissionResolution(userLabels, false);
             }
 
             return permRawArr;
@@ -932,6 +952,40 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <summary>
         /// Die Rechte, die die Buendel der Anwendungen dieser Zugaenge zusammen ergeben.
         /// </summary>
+        /// <summary>
+        /// Protokolliert einen leeren Rechte-Treffer so, dass die URSACHE erkennbar bleibt.
+        /// </summary>
+        /// <remarks>
+        /// "Keine Rechte gefunden" hat zwei voellig verschiedene Ursachen, die sich in den Daten gleich
+        /// anfuehlen und im Protokoll bisher beide gar nicht auftauchten:
+        /// <list type="bullet">
+        /// <item>Es war <b>kein Anwendungs-Label</b> dabei - die Identitaet wurde als BENUTZER aufgeloest.
+        /// Ein Geraet, dessen Anmeldeweg den Zugangs-Anspruch nicht setzt, landet genau hier und geht
+        /// rechtelos wieder heraus.</item>
+        /// <item>Das Label war da, der Zugang also gefunden - aber es haengen <b>keine Buendel</b> daran.</item>
+        /// </list>
+        /// Ohne diese Unterscheidung beginnt die Fehlersuche bei den Daten, und die stimmen im ersten Fall
+        /// alle. Genau so ist ein Fehlerbericht entstanden, dessen Suche die halbe Datenbank durchlaufen
+        /// hat, bevor der Verdacht ueberhaupt auf die Ansprueche fiel.
+        /// </remarks>
+        /// <param name="userLabels">die Bezeichner, mit denen aufgeloest wurde</param>
+        /// <param name="isUser">true, wenn als Benutzer aufgeloest wurde - also kein Anwendungs-Label dabei war</param>
+        private void LogEmptyPermissionResolution(string[] userLabels, bool isUser)
+        {
+            if (isUser)
+            {
+                logger?.LogDebug(
+                    "No permissions resolved for [{Labels}]: the identity was read as a USER, because none of the labels carried a client-app access claim ({ClaimType}). An application that authenticates without that claim ends up here - and without a single permission.",
+                    string.Join(", ", userLabels), ITVComponents.WebCoreToolkit.ClaimTypes.ClientAppAccess);
+            }
+            else
+            {
+                logger?.LogDebug(
+                    "No permissions resolved for [{Labels}]: the identity was read as a CLIENT-APP, so the access itself was found - but no permission sets are attached to it, or the attached sets carry no permissions.",
+                    string.Join(", ", userLabels));
+            }
+        }
+
         private static string[] AppSetPermissions(IQueryable<TClientAppAccess> accesses)
             => accesses.SelectMany(n => n.ClientApp.AppPermissions)
                 .SelectMany(n => n.PermissionSet.Permissions)
