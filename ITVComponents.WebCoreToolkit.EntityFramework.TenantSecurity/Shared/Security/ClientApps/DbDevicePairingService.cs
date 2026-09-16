@@ -176,6 +176,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
             var now = DateTime.UtcNow;
 
+            // Ein Geraet, das ERNEUT koppelt, ersetzt seinen bisherigen Zugang. Ohne das sammelt sich je
+            // Kopplung ein weiterer an, und - das ist der Punkt - der alte Schluessel bleibt gueltig: ein
+            // Geraet, das ihn noch gespeichert hat, meldet sich damit weiter an. Ein Konsument kam so auf
+            // acht Zugaenge fuer EINE Kasse; im Protokoll standen 180 Fehlanmeldungen mit einem laengst
+            // ersetzten Label, waehrend der frische Zugang parallel funktionierte. Die Suche begann
+            // dadurch an der voellig falschen Stelle.
+            // Nur Maschinenzugaenge (TenantUserId == null): eine Delegation gehoert einem Menschen und
+            // wird nicht von der naechsten Geraetekopplung abgeraeumt.
+            var replaced = await db.Set<TClientAppAccess>()
+                .Where(n => n.ClientAppId == pairing.ClientAppId && n.DeviceLabel == pairing.DeviceLabel
+                            && n.TenantUserId == null && n.RevokedUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(n => n.RevokedUtc, now), ct);
+            if (replaced != 0)
+            {
+                logger.LogInformation(
+                    "Pairing {UserCode}: {Count} earlier access(es) of device {DeviceLabel} were revoked - a device carries exactly one key.",
+                    code, replaced, pairing.DeviceLabel);
+            }
+
             // Der Zugang entsteht hier - OHNE Geheimnis. Das entsteht erst beim Abholen; wuerde es hier
             // erzeugt, muesste es bis dahin irgendwo im Klartext liegen.
             var access = new TClientAppAccess

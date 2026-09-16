@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.AccessControl;
@@ -90,11 +91,28 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 // der Normalzustand eines Endpunkts ohne Mandantensegment (gRPC, Minimal-API), dessen
                 // Mandant allein am FixedUserScope-Anspruch haengt.
                 var scopeForLog = permissionScope?.PermissionPrefix;
-                logger?.LogDebug(
-                    "No authenticated user for [{Permissions}] - denied. Resolved tenant scope: {Scope}. Identity labels seen: [{Labels}].",
-                    string.Join(", ", requiredPermissions),
-                    string.IsNullOrEmpty(scopeForLog) ? "<none>" : scopeForLog,
-                    string.Join(" | ", provider.GetIdentityLabelsForDiagnostics()));
+                var (identityLabels, isClientApp) = provider.GetIdentityLabelsForDiagnostics();
+                if (isClientApp)
+                {
+                    // Eine Anwendung im Maschinenmodus HAT keinen Benutzer - das ist die Bauart, nicht der
+                    // Fehler. Die alte Meldung schickte die Fehlersuche genau dorthin: nach einem Benutzer,
+                    // den es nie geben sollte. Was hier wirklich fehlt, ist der gueltige Zugang oder das
+                    // Recht in seinen Buendeln.
+                    logger?.LogDebug(
+                        "The requesting CLIENT-APP is not authorized for [{Permissions}] - denied. This is not a missing user: an application in machine mode has none by design. Check that its access is neither revoked nor expired, that the application is enabled, and that its permission sets carry the requested names. Resolved tenant scope: {Scope}. Identity labels seen: [{Labels}].",
+                        string.Join(", ", requiredPermissions),
+                        string.IsNullOrEmpty(scopeForLog) ? "<none>" : scopeForLog,
+                        string.Join(" | ", identityLabels));
+                }
+                else
+                {
+                    logger?.LogDebug(
+                        "No authenticated user for [{Permissions}] - denied. Resolved tenant scope: {Scope}. Identity labels seen: [{Labels}].",
+                        string.Join(", ", requiredPermissions),
+                        string.IsNullOrEmpty(scopeForLog) ? "<none>" : scopeForLog,
+                        string.Join(" | ", identityLabels));
+                }
+
                 return false;
             }
 
@@ -433,7 +451,7 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         /// </remarks>
         /// <param name="provider">der Dienstanbieter des aktuellen Aufrufs</param>
         /// <returns>je Identitaet eine Zeile, oder ein Hinweis darauf, warum es keine gibt</returns>
-        private static string[] GetIdentityLabelsForDiagnostics(this IServiceProvider provider)
+        private static (string[] Labels, bool IsClientApp) GetIdentityLabelsForDiagnostics(this IServiceProvider provider)
         {
             try
             {
@@ -441,25 +459,32 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 var userMapper = provider.GetService<IUserNameMapper>();
                 if (userProvider?.User == null)
                 {
-                    return ["<no context user>"];
+                    return (["<no context user>"], false);
                 }
 
                 if (userMapper == null)
                 {
-                    return ["<no IUserNameMapper registered>"];
+                    return (["<no IUserNameMapper registered>"], false);
                 }
 
-                var retVal = (from t in userProvider.User.Identities
+                var identities = (from t in userProvider.User.Identities
                     where t.IsAuthenticated
-                    select $"{t.AuthenticationType ?? "<no auth-type>"}: {string.Join(", ", userMapper.GetUserLabels(t))}")
+                    select new { t.AuthenticationType, Labels = userMapper.GetUserLabels(t) }).ToArray();
+                // Traegt eine der Identitaeten ein App-User-Label, ist der Anfragende eine ANWENDUNG.
+                // Die Absage unten muss das sagen: "kein angemeldeter Benutzer" ist dort keine Diagnose,
+                // sondern der Normalzustand - ein Kassenterminal hat bewusst keinen.
+                var isClientApp = identities.Any(i => i.Labels != null && i.Labels.Any(l =>
+                    !string.IsNullOrEmpty(l) && Regex.IsMatch(l, Global.AppUserKeyPattern)));
+                var retVal = identities
+                    .Select(i => $"{i.AuthenticationType ?? "<no auth-type>"}: {string.Join(", ", i.Labels ?? [])}")
                     .ToArray();
-                return retVal.Length != 0 ? retVal : ["<no authenticated identity>"];
+                return (retVal.Length != 0 ? retVal : ["<no authenticated identity>"], isClientApp);
             }
             catch (Exception ex)
             {
                 // Bewusst geschluckt - aber NICHT verschwiegen: die Meldung, in der dieser Text landet,
                 // sagt dann wenigstens, dass die Diagnose selbst gescheitert ist.
-                return [$"<could not read identity labels: {ex.Message}>"];
+                return ([$"<could not read identity labels: {ex.Message}>"], false);
             }
         }
 

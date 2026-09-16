@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE245</Version>
+    <Version>5.0.0-PRE246</Version>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
     <RazorCompileOnBuild>true</RazorCompileOnBuild>
@@ -11,6 +11,12 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Die konkreten Sicherheits-Repositories sind internal. Ein Test, der den Maschinenzugang an der
+         ECHTEN Klasse prueft, muesste sie sonst nachbauen - und eine solche Attrappe haengt dem Vertrag
+         frueher oder spaeter hinterher, ohne dass es auffaellt. -->
+    <InternalsVisibleTo Include="ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />

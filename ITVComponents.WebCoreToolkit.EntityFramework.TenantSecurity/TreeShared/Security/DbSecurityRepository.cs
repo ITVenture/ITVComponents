@@ -109,9 +109,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         // components in parallel; both can land in HasPermission → IsAuthenticated which triggers a
         // GetRawUserQuery EF query against the *same* scoped DbContext while another query is
         // still enumerating its DataReader → "A second operation was started on this context".
-        private readonly ConcurrentDictionary<string, bool> isAuthenticatedCache = new();
+        private readonly ConcurrentDictionary<string, (bool Answer, DateTime StampUtc)> isAuthenticatedCache = new();
         private readonly ITVComponents.WebCoreToolkit.Caching.IEntityChangeSignal changeSignal;
         private DateTime authCacheStampUtc = DateTime.UtcNow;
+
+        /// <summary>
+        /// Wie lange eine gemerkte Antwort gilt. Kurz, und das ist der Punkt: der Puffer ist gegen die
+        /// REENTRY-Stuerme oben da - parallele Blazor-Lifecycle-Callbacks, die im selben Wimpernschlag
+        /// dieselbe Frage stellen. Dafuer reichen Sekunden.
+        /// </summary>
+        /// <remarks>
+        /// Vorher galt eine Antwort, bis <see cref="changeSignal"/> etwas anderes sagte - und der ist ein
+        /// OPTIONALER Konstruktor-Parameter. Wo keiner registriert ist (Hintergrunddienst, gRPC-Hub),
+        /// wurde nie geraeumt, und das in beide Richtungen: ein gemerktes Nein sperrte ein frisch
+        /// gekoppeltes Geraet bis zum Prozessende aus, ein gemerktes Ja liess einen WIDERRUFENEN Zugang
+        /// weiterlaufen. Der zweite Fall wiegt schwerer - der Widerruf ist die einzige Handhabe gegen ein
+        /// abhanden gekommenes Geraet. Siehe ClientAppMachineAccessTest.
+        /// </remarks>
+        private static readonly TimeSpan AuthCacheLifetime = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Die Uhr, an der der Puffer haengt. Ueberschreibbar, damit ein Test das ABLAUFEN pruefen kann,
+        /// ohne Sekunden zu verschlafen - und damit er zugleich pruefen kann, dass innerhalb der Frist
+        /// noch gepuffert wird. Beides zusammen ist die eigentliche Zusicherung.
+        /// </summary>
+        protected virtual TimeProvider Clock => TimeProvider.System;
 
         // Preserved for compatibility with existing registrations (was previously used to spin up a dedicated context
         // for scope resolution; that role is now served by the per-operation IToolkitContextFactory). May be null.
@@ -312,15 +334,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 t = lease.Context.CurrentTenantId;
             }
             var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, t, scope: null);
-            // ConcurrentDictionary.GetOrAdd serializes concurrent first-time lookups by key:
-            // only one caller runs the EF query, others block on the same Lazy<>.Value.
-            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedCore(userLabels, userAuthenticationType, t));
+            return CachedAuth(cacheKey, () => IsAuthenticatedCore(userLabels, userAuthenticationType, t));
         }
 
         /// <summary>
         /// Clears the per-instance IsAuthenticated memoization when a security-relevant entity changed since
         /// the cache was last filled, so revoked/granted access takes effect within a live circuit. No-op when
-        /// no change-signal is registered (EntityWriteTracker inactive).
+        /// no change-signal is registered (EntityWriteTracker inactive) - that case is covered by
+        /// <see cref="AuthCacheLifetime"/>, which expires every entry on its own.
         /// </summary>
         private void InvalidateAuthCacheIfStale()
         {
@@ -328,8 +349,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 changeSignal.GetLastChange(ITVComponents.WebCoreToolkit.Caching.EntityChangeTopics.Security) > authCacheStampUtc)
             {
                 isAuthenticatedCache.Clear();
-                authCacheStampUtc = DateTime.UtcNow;
+                authCacheStampUtc = Clock.GetUtcNow().UtcDateTime;
             }
+        }
+
+        /// <summary>
+        /// Beantwortet die Frage aus dem Puffer, solange die gemerkte Antwort juenger als
+        /// <see cref="AuthCacheLifetime"/> ist - sonst wird sie neu geholt und der Eintrag ersetzt.
+        /// </summary>
+        private bool CachedAuth(string cacheKey, Func<bool> resolve)
+        {
+            var now = Clock.GetUtcNow().UtcDateTime;
+            if (isAuthenticatedCache.TryGetValue(cacheKey, out var hit) && now - hit.StampUtc < AuthCacheLifetime)
+            {
+                return hit.Answer;
+            }
+
+            var answer = resolve();
+            isAuthenticatedCache[cacheKey] = (answer, now);
+            return answer;
         }
 
         private bool IsAuthenticatedCore(string[] userLabels, string userAuthenticationType, int? t)
@@ -399,7 +437,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             InvalidateAuthCacheIfStale();
             var cacheKey = BuildAuthCacheKey(userLabels, userAuthenticationType, tenantId: null, scope: forScope);
-            return isAuthenticatedCache.GetOrAdd(cacheKey, _ => IsAuthenticatedScopedCore(userLabels, forScope, userAuthenticationType));
+            return CachedAuth(cacheKey, () => IsAuthenticatedScopedCore(userLabels, forScope, userAuthenticationType));
         }
 
         private bool IsAuthenticatedScopedCore(string[] userLabels, string forScope, string userAuthenticationType)
