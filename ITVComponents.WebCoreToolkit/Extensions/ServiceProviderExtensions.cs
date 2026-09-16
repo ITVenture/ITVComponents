@@ -432,7 +432,38 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 return true;
             }
 
+            // Der Riegel gilt NUR fuer den, der ausschliesslich ueber die Freigabe hereinkommt. Vorher
+            // traf er jeden: sobald irgendeine Freigabe im Kontext stand und der angefragte Pfad nicht
+            // dazu gehoerte, kippte das "&& !denied" beim Aufrufer auch das Ja der REGULAEREN Anmeldung.
+            // Getroffen hat das vor allem Maschinen: der Einstieg hier verlangt einen
+            // FixedUserScope-Anspruch, und genau den traegt jeder Anwendungs-Zugang - er ist dort die
+            // einzige Quelle des Mandanten, weil ein gRPC-Endpunkt kein Mandantensegment in der Route hat.
+            // Die Absage lautete dann "kein angemeldeter Benutzer", und die Suche begann bei der
+            // Rechteaufloesung, wo alles stimmte.
+            if (denied && !IsAssetOnlyIdentity(userProvider.User, assetKey))
+            {
+                denied = false;
+            }
+
             return false;
+        }
+
+        /// <summary>
+        /// Zeigt an, ob der Aufrufer <b>nur</b> ueber die Freigabe hereinkommt - dann und nur dann ist ein
+        /// nicht passender Pfad eine Absage, denn sonst oeffnete ein Ticket beliebige Seiten.
+        /// </summary>
+        /// <remarks>
+        /// Erkannt wird das am Namen, den der Anmelder ausstellt: der anonyme Besucher heisst
+        /// <see cref="Global.AnonymousAssetUserName"/>, und eine gespeicherte Freigabe mit Zugangsmarke
+        /// traegt den Schluessel der Freigabe selbst. Traegt der Aufrufer daneben eine eigene Identitaet
+        /// (API-Schluessel, Anmeldung), ist er auf die Freigabe nicht angewiesen.
+        /// </remarks>
+        private static bool IsAssetOnlyIdentity(ClaimsPrincipal user, string assetKey)
+        {
+            var authenticated = user.Identities.Where(n => n.IsAuthenticated).ToArray();
+            return authenticated.Length != 0 && authenticated.All(n =>
+                string.Equals(n.Name, Global.AnonymousAssetUserName, StringComparison.Ordinal)
+                || (!string.IsNullOrEmpty(assetKey) && string.Equals(n.Name, assetKey, StringComparison.Ordinal)));
         }
 
         /// <summary>

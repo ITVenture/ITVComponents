@@ -130,14 +130,26 @@ namespace ITVComponents.WebCoreToolkit.Tests
         public T GetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType) => throw new NotImplementedException();
         public bool SetCustomProperty(User user, string propertyName, CustomUserPropertyType propertyType, string value) => throw new NotImplementedException();
         public bool SetCustomProperty<T>(User user, string propertyName, CustomUserPropertyType propertyType, T value) => throw new NotImplementedException();
-        public bool IsAuthenticated(string[] userLabels, string userAuthenticationType) => throw new NotImplementedException();
-        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType) => throw new NotImplementedException();
+        /// <summary>
+        /// Die Antwort auf die Anmeldefrage, wo ein Test sie braucht. <b>null</b> heisst "in diesem Test
+        /// nicht Gegenstand" - dann wird wie bisher geworfen, damit ein unerwarteter Aufruf auffaellt.
+        /// </summary>
+        public bool? Authenticated { get; set; }
+
+        /// <summary>Die Rechte, die zu den Bezeichnern gehoeren - selbe Regel wie oben.</summary>
+        public Permission[] PermissionsForLabels { get; set; }
+
+        public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
+            => Authenticated ?? throw new NotImplementedException();
+        public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
+            => Authenticated ?? throw new NotImplementedException();
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType) => throw new NotImplementedException();
         public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType) => throw new NotImplementedException();
         public T GetUserId<T>(string[] userLabels, string userAuthenticationType) => throw new NotImplementedException();
         public IEnumerable<ClaimData> GetCustomProperties(ClaimData[] originalClaims, string userAuthenticationType) => throw new NotImplementedException();
         public IEnumerable<Permission> GetPermissions(User user) => throw new NotImplementedException();
-        public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType) => throw new NotImplementedException();
+        public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
+            => PermissionsForLabels ?? throw new NotImplementedException();
         public IEnumerable<Permission> GetPermissions(Role role) => throw new NotImplementedException();
         public bool PermissionScopeExists(string permissionScopeName) => throw new NotImplementedException();
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) => throw new NotImplementedException();

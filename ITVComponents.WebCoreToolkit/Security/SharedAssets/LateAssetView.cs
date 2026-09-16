@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Security.Claims;
 
 namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
@@ -45,6 +45,23 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             if (authUser?.HasClaim(n => n.Type == ClaimTypes.FixedUserScope) != true)
             {
                 // Keine Freigabe im Spiel - und nichts gemerkt, damit die naechste Frage wieder frei ist.
+                return current;
+            }
+
+            // Ein ANWENDUNGS-ZUGANG traegt denselben Anspruch, ist aber keine Freigabe: fuer eine Maschine
+            // ist FixedUserScope die EINZIGE Quelle des Mandanten, weil ein gRPC- oder Minimal-API-Endpunkt
+            // kein Mandantensegment in der Route hat. Der Anspruch allein taugt hier also nicht als
+            // Erkennungsmerkmal - und die Folge war keine Kleinigkeit: die Asset-Sicht beantwortet die
+            // Anmeldefrage nur fuer GENAU EIN Label (AssetSecurityRepository.IsAuthenticated), waehrend eine
+            // Anwendung immer zwei traegt - ihren Namen und die ##APPUSER##-Wicklung. Damit lag ueber jedem
+            // Maschinenzugang dauerhaft die Sicht einer Freigabe, die es gar nicht gab, und sie sagte
+            // grundsaetzlich nein. Im Protokoll sah das aus wie "kein angemeldeter Benutzer", ohne dass je
+            // eine Abfrage lief - das echte Repository wurde nie gefragt.
+            // Umgekehrt NICHT am Vorhandensein von Asset-Rechten festmachen: eine Vorlage darf keine
+            // gewaehren (offene Seite), dann traegt auch eine echte Freigabe nur diesen einen Anspruch.
+            if (authUser.HasClaim(n => n.Type == ClaimTypes.ClientAppAccess)
+                || authUser.HasClaim(n => n.Type == ClaimTypes.ClientAppId))
+            {
                 return current;
             }
 
