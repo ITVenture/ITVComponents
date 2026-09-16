@@ -151,6 +151,18 @@ namespace ITVComponents.InterProcessCommunication.Grpc.Hub.Hubs
             }
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Aus der IDENTITAET, nicht aus der Nachricht: was der Client schickt, koennte etwas anderes
+        /// behaupten. Fehlt der Anspruch, bleibt der Dienst ohne Mandant - das ist kein Fehler, sondern
+        /// der Normalfall fuer alles, was bewusst mandantenuebergreifend laeuft.
+        /// </remarks>
+        protected override string GetOwnerScope(ServerCallContext context)
+        {
+            return context.GetHttpContext().User?.Claims
+                .FirstOrDefault(n => n.Type == ITVComponents.WebCoreToolkit.ClaimTypes.FixedUserScope)?.Value;
+        }
+
         private void CheckAuth(ServerCallContext context, params string[] requiredPermissions)
         {
             if (!context.GetHttpContext().RequestServices.VerifyUserPermissions(requiredPermissions))

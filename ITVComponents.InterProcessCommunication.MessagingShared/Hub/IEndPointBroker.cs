@@ -57,6 +57,40 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
         /// <param name="registration">the service registration message that contains meta-data of the service to register</param>
         /// <returns>a message containing information about success or failure of the registration</returns>
         RegisterServiceResponseMessage RegisterService(RegisterServiceMessage registration);
+
+        /// <summary>
+        /// Registers a service on this hub and records the tenant scope it was registered from.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Geltungsbereich wird <b>erfasst, nicht erzwungen</b>: die Auswahl eines Dienstes laeuft
+        /// weiter allein ueber den Namen. Dienste, die bewusst an keinen Mandanten gebunden sind, bleiben
+        /// damit erreichbar - der Wert dient vorerst der Sichtbarkeit (siehe
+        /// <c>ServiceStatus.OwnerScope</c>).
+        /// </para>
+        /// <para>
+        /// Der Aufrufer nimmt den Wert aus der <b>Identitaet</b> des Registrierenden, nie aus der
+        /// Registrierungs-Nachricht. Die Standard-Umsetzung hier verwirft ihn und ruft die Fassung ohne
+        /// Geltungsbereich - Stellvertreter, die an einen anderen Hub weiterreichen, fuehren ihn also
+        /// nicht mit.
+        /// </para>
+        /// </remarks>
+        /// <param name="registration">the service registration message that contains meta-data of the service to register</param>
+        /// <param name="ownerScope">the tenant scope of the registering identity, or null when it has none</param>
+        /// <returns>a message containing information about success or failure of the registration</returns>
+        RegisterServiceResponseMessage RegisterService(RegisterServiceMessage registration, string ownerScope)
+            => RegisterService(registration);
+
+        /// <summary>
+        /// Gets the tenant scope a service was registered from.
+        /// </summary>
+        /// <remarks>
+        /// Rein informativ - der Wert wird nirgends durchgesetzt. Er beantwortet die Frage, die vor jeder
+        /// Trennung steht: welche Dienste werden ueberhaupt mandantenuebergreifend benutzt?
+        /// </remarks>
+        /// <param name="serviceName">the service to ask about</param>
+        /// <returns>the recorded scope, or null when the service is unknown or bound to no tenant</returns>
+        string GetServiceScope(string serviceName) => null;
         
         /// <summary>
         /// Save-Unregister method of a service

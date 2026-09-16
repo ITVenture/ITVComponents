@@ -44,10 +44,22 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Hubs
             return Task.FromResult(retRaw);
         }
 
+        /// <summary>
+        /// Der Mandant, aus dem heraus registriert wird - oder <c>null</c>, wenn keiner feststellbar ist.
+        /// </summary>
+        /// <remarks>
+        /// Der OFFENE Hub kennt keine Identitaet und liefert deshalb nichts; der angemeldete Hub liest den
+        /// Wert aus den Anspruechen des Aufrufers. Er wird nur <b>festgehalten</b>, nicht durchgesetzt -
+        /// Dienste, die bewusst mandantenuebergreifend arbeiten, bleiben unveraendert erreichbar.
+        /// </remarks>
+        /// <param name="context">der Aufrufkontext</param>
+        /// <returns>der Geltungsbereich des Aufrufers, oder null</returns>
+        protected virtual string GetOwnerScope(DataTransferContext context) => null;
+
         public virtual Task<RegisterServiceResponseMessage> RegisterService(RegisterServiceMessage request, DataTransferContext context)
         {
             LogEnvironment.LogDebugEvent("Registering Service...", LogSeverity.Report);
-            var retRaw = serviceBackend.Broker.RegisterService(request);
+            var retRaw = serviceBackend.Broker.RegisterService(request, GetOwnerScope(context));
             return Task.FromResult(retRaw);
         }
 

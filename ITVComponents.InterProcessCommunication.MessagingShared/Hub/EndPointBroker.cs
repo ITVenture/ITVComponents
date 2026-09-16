@@ -241,6 +241,20 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 
         public RegisterServiceResponseMessage RegisterService(RegisterServiceMessage registration)
         {
+            return RegisterService(registration, null);
+        }
+
+        /// <summary>
+        /// Registriert einen Dienst und haelt fest, aus welchem Mandanten er kam.
+        /// </summary>
+        /// <remarks>
+        /// Der Geltungsbereich wird <b>nur festgehalten</b>. Weder die Auswahl noch die Zustellung fragt
+        /// ihn ab - Dienste, die bewusst mandantenuebergreifend arbeiten, bleiben unveraendert erreichbar.
+        /// Was er liefert, ist die Bestandsaufnahme: das Protokoll zeigt, welcher Mandant welchen Dienst
+        /// stellt, und <see cref="GetServiceScope"/> macht es abfragbar.
+        /// </remarks>
+        public RegisterServiceResponseMessage RegisterService(RegisterServiceMessage registration, string ownerScope)
+        {
             if (!IsRemoteMessage(registration, out var remoteBroker))
             {
                 lock (registrationLock)
@@ -264,8 +278,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                             ServiceName = registration.ServiceName,
                             RegistrationTicket =
                                 $"{registration.ServiceName}_{DateTime.Now.Ticks}_{rnd.Next(10000000)}",
-                            ServiceKind = ServiceStatus.ServiceType.InterProcess
+                            ServiceKind = ServiceStatus.ServiceType.InterProcess,
+                            OwnerScope = ownerScope
                         };
+                        LogEnvironment.LogDebugEvent(
+                            $"Registering service {registration.ServiceName} for tenant scope {ownerScope ?? "<none>"}.",
+                            LogSeverity.Report);
                         StringBuilder fmsg = new StringBuilder();
                         bool ok = services.TryAdd(registration.ServiceName, newSvc);
                         if (!ok)
@@ -314,6 +332,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                 }
             }
 
+            // Der Geltungsbereich geht hier NICHT mit: die Stellvertreter-Kette reicht nur die Nachricht
+            // weiter, und die traegt ihn bewusst nicht (sie kommt vom Client). Ein Dienst hinter einem
+            // Unter-Hub steht deshalb ohne Mandant in dessen Liste - sichtbar, nicht stillschweigend.
+            LogEnvironment.LogDebugEvent(
+                $"Passing registration of {registration.ServiceName} to a remote broker; the tenant scope {ownerScope ?? "<none>"} is not carried along.",
+                LogSeverity.Report);
             return remoteBroker.RegisterService(registration);
         }
 
@@ -457,6 +481,12 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
         public void Dispose()
         {
             tickOpenWaits.Dispose();
+        }
+
+        /// <inheritdoc/>
+        public string GetServiceScope(string serviceName)
+        {
+            return services.TryGetValue(serviceName, out var svc) ? svc.OwnerScope : null;
         }
 
         public void UnsafeServerDrop(string serviceName)

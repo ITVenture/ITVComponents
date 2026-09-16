@@ -12,6 +12,30 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Internal
 
         public string ServiceName { get; set; }
 
+        /// <summary>
+        /// Der Mandant, in dem dieser Dienst registriert wurde - oder <c>null</c>, wenn er zu keinem
+        /// gehoert.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Wird NICHT erzwungen.</b> Die Auswahl eines Dienstes laeuft weiter allein ueber den Namen;
+        /// dieser Wert wird erfasst, nicht angewendet. Das ist Absicht: es gibt Dienste, die bewusst an
+        /// keinen Mandanten gebunden sind und von mehreren in Anspruch genommen werden.
+        /// </para>
+        /// <para>
+        /// <b>Wozu er dann da ist:</b> bevor sich eine Trennung durchsetzen laesst, muss man wissen, welche
+        /// Dienste tatsaechlich mandantenuebergreifend benutzt werden - und welche bloss zufaellig
+        /// erreichbar sind. Der Wert wird bei der Registrierung protokolliert und macht genau das sichtbar.
+        /// </para>
+        /// <para>
+        /// <b>Er stammt aus der IDENTITAET des Registrierenden</b>, nie aus der Registrierungs-Nachricht -
+        /// die kommt vom Client und koennte etwas anderes behaupten. Ein Dienst, der ueber einen Unter-Hub
+        /// hereinkommt, traegt ihn heute noch nicht: der Weg ueber die Broker-Stellvertreter fuehrt ihn
+        /// nicht mit.
+        /// </para>
+        /// </remarks>
+        public string OwnerScope { get; set; }
+
         public DateTime LastPing { get; set; }
 
         public int Ttl { get; set; }
