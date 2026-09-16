@@ -172,7 +172,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             {
                 using var lease = LeaseDb();
                 var dbContext = lease.Context;
-                return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
+                return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (explicitUserScope ?? "").ToLower())
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                     where s.SettingsKey == key && s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                     orderby t.ParentLevel
@@ -194,7 +194,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             {
                 using var lease = LeaseDb();
                 var dbContext = lease.Context;
-                return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == explicitUserScope)
+                return (from t in dbContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (explicitUserScope ?? "").ToLower())
                     join s in dbContext.TenantSettings on t.ParentTenantId equals s.TenantId
                     where s.SettingsKey == key && !s.JsonSetting && (t.ParentLevel == 1 || s.Inheritable)
                         orderby t.ParentLevel
@@ -211,7 +211,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
-                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+                tenantId = dbContext.Tenants.First(n => n.TenantNameLower == (explicitUserScope ?? "").ToLower()).TenantId;
             }
 
             if (tenantId == 0)
@@ -243,7 +243,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
-                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+                tenantId = dbContext.Tenants.First(n => n.TenantNameLower == (explicitUserScope ?? "").ToLower()).TenantId;
             }
 
             if (tenantId == 0)

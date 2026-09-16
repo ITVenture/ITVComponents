@@ -38,7 +38,7 @@ public class AssetAccessLogAdminHandler : IAssetAccessLogAdminHandler
 
         return await factory.UseAsync(async db =>
         {
-            var q = db.SharedAssetAccesses.AsNoTracking().Where(n => n.TenantName == tenant);
+            var q = db.SharedAssetAccesses.AsNoTracking().Where(n => n.TenantName.ToLower() == (tenant ?? "").ToLower());
             if (!string.IsNullOrEmpty(assetKey))
             {
                 q = q.Where(n => n.AssetKey == assetKey);

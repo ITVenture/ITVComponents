@@ -250,7 +250,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
         private static int FlatTenant(DbContext ctx, string name)
         {
-            var tenant = new Tenant { TenantName = name, DisplayName = name };
+            // TenantNameLower von Hand: die Spalte ist in der Datenbank BERECHNET, und weder SQLite noch
+            // der InMemory-Provider rechnet sie aus - der Insert scheitert dort sonst an NOT NULL bzw. an
+            // "Required properties are missing". Dieselbe Bewegung wie bei RoleNameUniqueness weiter unten.
+            var tenant = new Tenant
+            {
+                TenantName = name, DisplayName = name, TenantNameLower = name.ToLowerInvariant()
+            };
             ctx.Add(tenant);
             ctx.SaveChanges();
             return tenant.TenantId;
@@ -258,9 +264,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
         private static int TreeTenant(DbContext ctx, string name, int? parentTenantId = null)
         {
+            // TenantNameLower von Hand: die Spalte ist in der Datenbank BERECHNET, und weder SQLite noch
+            // der InMemory-Provider rechnet sie aus - der Insert scheitert dort sonst an NOT NULL bzw. an
+            // "Required properties are missing". Dieselbe Bewegung wie bei RoleNameUniqueness weiter unten.
             var tenant = new HierarchyTenant
             {
-                TenantName = name, DisplayName = name, ParentTenantId = parentTenantId
+                TenantName = name, DisplayName = name, ParentTenantId = parentTenantId,
+                TenantNameLower = name.ToLowerInvariant()
             };
             ctx.Add(tenant);
             ctx.SaveChanges();
@@ -304,6 +314,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             {
                 // Die Mandanten-Art zoege den halben Baukasten mit herein und hat mit Features nichts zu tun.
                 modelBuilder.Entity<Tenant>().Ignore(t => t.TenantType).Ignore(t => t.TenantTypeId);
+                // TenantNameLower ist in der echten Datenbank BERECHNET; EF schickt eine solche Spalte
+                // beim Insert gar nicht erst mit. SQLite kennt die Berechnung aber nicht - die Spalte
+                // bleibt leer und die NOT-NULL-Bedingung greift. Hier also als gewoehnliche Spalte
+                // fuehren, die der Testhelfer selbst fuellt.
+                modelBuilder.Entity<Tenant>().Property(t => t.TenantNameLower).ValueGeneratedNever();
             }
         }
 
@@ -321,6 +336,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                 modelBuilder.Entity<HierarchyTenant>().Ignore(t => t.TenantType).Ignore(t => t.TenantTypeId);
+                // TenantNameLower ist in der echten Datenbank BERECHNET; EF schickt eine solche Spalte
+                // beim Insert gar nicht erst mit. SQLite kennt die Berechnung aber nicht - die Spalte
+                // bleibt leer und die NOT-NULL-Bedingung greift. Hier also als gewoehnliche Spalte
+                // fuehren, die der Testhelfer selbst fuellt.
+                modelBuilder.Entity<HierarchyTenant>().Property(t => t.TenantNameLower).ValueGeneratedNever();
             }
         }
     }

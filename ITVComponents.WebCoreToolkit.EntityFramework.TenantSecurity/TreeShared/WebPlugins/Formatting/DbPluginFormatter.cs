@@ -199,7 +199,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                         {
                             dic.Add(lop.Name, lop);
                         });*/
-                    var phase1 = from p in context.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == plugInSelector.ExplicitPluginPermissionScope)
+                    var phase1 = from p in context.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (plugInSelector.ExplicitPluginPermissionScope ?? "").ToLower())
                                  join pin in context.WebPluginConstants on p.ParentTenantId equals pin.TenantId
                         where p.OutermostLeafTenantId == context.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
                         select new { pin.Name, p.OutermostLeafTenantId, p.ParentLevel };
@@ -213,7 +213,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                             Level = g.Min(n => n.ParentLevel)
                         };
                     var phase3 = (from p in phase2
-                            join t in context.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == plugInSelector.ExplicitPluginPermissionScope) on new { p.TenantId, p.Level } equals
+                            join t in context.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (plugInSelector.ExplicitPluginPermissionScope ?? "").ToLower()) on new { p.TenantId, p.Level } equals
                                 new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
                             join pg in context.WebPluginConstants.Include(n => n.Tenant) on new { p.Name, TenantId = t.ParentTenantId }
                                 equals new { pg.Name, TenantId = pg.TenantId.Value }

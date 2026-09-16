@@ -208,7 +208,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
         private static int Tenant(SecurityTestContext ctx, string name)
         {
-            var tenant = new Tenant { TenantName = name, DisplayName = name };
+            // TenantNameLower von Hand: die Spalte ist in der Datenbank BERECHNET, und weder SQLite noch
+            // der InMemory-Provider rechnet sie aus - der Insert scheitert dort sonst an NOT NULL bzw. an
+            // "Required properties are missing". Dieselbe Bewegung wie bei RoleNameUniqueness weiter unten.
+            var tenant = new Tenant
+            {
+                TenantName = name, DisplayName = name, TenantNameLower = name.ToLowerInvariant()
+            };
             ctx.Tenants.Add(tenant);
             ctx.SaveChanges();
             return tenant.TenantId;

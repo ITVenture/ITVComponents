@@ -245,14 +245,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             var sp = userProvider?.Services;
             if (sp == null)
             {
-                return Tenants.FirstOrDefault(n => n.TenantName.ToLower() == tenantNameLower)?.TenantId;
+                return Tenants.FirstOrDefault(n => n.TenantNameLower == tenantNameLower)?.TenantId;
             }
 
             var ctx = (AspNetTreeSecurityContext<TImpl>)ActivatorUtilities.CreateInstance(sp, GetType());
             using (ctx)
             {
                 return ctx.Tenants.IgnoreQueryFilters()
-                    .FirstOrDefault(n => n.TenantName.ToLower() == tenantNameLower)?.TenantId;
+                    .FirstOrDefault(n => n.TenantNameLower == tenantNameLower)?.TenantId;
             }
         }
 
@@ -921,7 +921,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                                                    (n.AuthenticationType == null ||
                                                     n.AuthenticationType.AuthenticationTypeName == authenticationType))
                 join r in UserAccessTree on t.Id equals r.UserId
-                       where r.OutermostLeafTenantName == leafTenant
+                       where r.OutermostLeafTenantName.ToLower() == (leafTenant ?? "").ToLower()
                 orderby r.ParentLevel
                         select new UpwardsTenantView
                 {

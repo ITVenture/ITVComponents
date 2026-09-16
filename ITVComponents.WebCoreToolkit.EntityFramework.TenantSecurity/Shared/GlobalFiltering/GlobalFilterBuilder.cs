@@ -66,38 +66,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Glo
         {
             services.Configure<DbContextModelBuilderOptions<TContext>>(o =>
             {
-                o.ConfigureGlobalFilter<TPermission>(pr => ShowAllTenants || !FilterAvailable || pr.TenantId != null && pr.Tenant.TenantName.ToLower() == CurrentTenant || pr.TenantId == null && !HideGlobals);
-                o.ConfigureGlobalFilter<TTenantNavigation>(nav => ShowAllTenants || !FilterAvailable || nav.Tenant.TenantName.ToLower() == CurrentTenant && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TNavigationMenu>(nav => string.IsNullOrEmpty(nav.Url) || ShowAllTenants || !FilterAvailable || (nav.IsPublic || nav.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant)) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantName.ToLower() == CurrentTenant)));
-                o.ConfigureGlobalFilter<TRolePermission>(perm => ShowAllTenants || !FilterAvailable || perm.Tenant.TenantName.ToLower() == CurrentTenant && perm.Permission != null);
-                o.ConfigureGlobalFilter<TQuery>(qry => ShowAllTenants || !FilterAvailable || qry.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TQueryParameter>(param => ShowAllTenants || !FilterAvailable || param.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TTenantQuery>(tdq => ShowAllTenants || !FilterAvailable || tdq.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TTenantSetting>(stt => ShowAllTenants || !FilterAvailable || stt.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TTenantUser>(tu => !FilterAvailable || ((ShowAllTenants || tu.Tenant.TenantName.ToLower() == CurrentTenant) && (!HideDisabledUsers || (tu.Enabled ?? true))));
-                o.ConfigureGlobalFilter<TRole>(ro => ShowAllTenants || !FilterAvailable || ro.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TUserRole>(ur => !FilterAvailable || ((ShowAllTenants || (ur.User.Tenant.TenantName.ToLower() == CurrentTenant && ur.Role.Tenant.TenantName.ToLower() == CurrentTenant)) && (!HideDisabledUsers || (ur.User.Enabled ?? true))));
-                o.ConfigureGlobalFilter<TWebPlugin>(wp => ShowAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantName.ToLower() == CurrentTenant || wp.TenantId == null && !HideGlobals);
-                o.ConfigureGlobalFilter<TWebPluginGenericParameter>(wp => ShowAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantName.ToLower() == CurrentTenant || wp.Plugin.TenantId == null && !HideGlobals);
-                o.ConfigureGlobalFilter<TWebPluginConstant>(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantName.ToLower() == CurrentTenant || wc.TenantId == null && !HideGlobals);
-                o.ConfigureGlobalFilter<TWidget>(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
-                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant) && uw.Tenant.TenantName.ToLower() == CurrentTenant && uw.UserName == CurrentUserName));
-                o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantName.ToLower() == CurrentTenant);
+                o.ConfigureGlobalFilter<TPermission>(pr => ShowAllTenants || !FilterAvailable || pr.TenantId != null && pr.Tenant.TenantNameLower == CurrentTenant || pr.TenantId == null && !HideGlobals);
+                o.ConfigureGlobalFilter<TTenantNavigation>(nav => ShowAllTenants || !FilterAvailable || nav.Tenant.TenantNameLower == CurrentTenant && (nav.PermissionId == null || nav.Permission.TenantId == null || nav.Permission.Tenant.TenantNameLower == CurrentTenant));
+                o.ConfigureGlobalFilter<TNavigationMenu>(nav => string.IsNullOrEmpty(nav.Url) || ShowAllTenants || !FilterAvailable || (nav.IsPublic || nav.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant)) && ((nav.PermissionId == null || nav.EntryPoint.TenantId == null || nav.EntryPoint.Tenant.TenantNameLower == CurrentTenant)));
+                o.ConfigureGlobalFilter<TRolePermission>(perm => ShowAllTenants || !FilterAvailable || perm.Tenant.TenantNameLower == CurrentTenant && perm.Permission != null);
+                o.ConfigureGlobalFilter<TQuery>(qry => ShowAllTenants || !FilterAvailable || qry.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant));
+                o.ConfigureGlobalFilter<TQueryParameter>(param => ShowAllTenants || !FilterAvailable || param.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant));
+                o.ConfigureGlobalFilter<TTenantQuery>(tdq => ShowAllTenants || !FilterAvailable || tdq.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TTenantSetting>(stt => ShowAllTenants || !FilterAvailable || stt.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TTenantUser>(tu => !FilterAvailable || ((ShowAllTenants || tu.Tenant.TenantNameLower == CurrentTenant) && (!HideDisabledUsers || (tu.Enabled ?? true))));
+                o.ConfigureGlobalFilter<TRole>(ro => ShowAllTenants || !FilterAvailable || ro.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TUserRole>(ur => !FilterAvailable || ((ShowAllTenants || (ur.User.Tenant.TenantNameLower == CurrentTenant && ur.Role.Tenant.TenantNameLower == CurrentTenant)) && (!HideDisabledUsers || (ur.User.Enabled ?? true))));
+                o.ConfigureGlobalFilter<TWebPlugin>(wp => ShowAllTenants || !FilterAvailable || wp.TenantId != null && wp.Tenant.TenantNameLower == CurrentTenant || wp.TenantId == null && !HideGlobals);
+                o.ConfigureGlobalFilter<TWebPluginGenericParameter>(wp => ShowAllTenants || !FilterAvailable || wp.Plugin.TenantId != null && wp.Plugin.Tenant.TenantNameLower == CurrentTenant || wp.Plugin.TenantId == null && !HideGlobals);
+                o.ConfigureGlobalFilter<TWebPluginConstant>(wc => ShowAllTenants || !FilterAvailable || wc.TenantId != null && wc.Tenant.TenantNameLower == CurrentTenant || wc.TenantId == null && !HideGlobals);
+                o.ConfigureGlobalFilter<TWidget>(dw => ShowAllTenants || !FilterAvailable || dw.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant));
+                o.ConfigureGlobalFilter<TWidgetParam>(dw => ShowAllTenants || !FilterAvailable || dw.Parent.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant));
+                o.ConfigureGlobalFilter<TUserWidget>(uw => ShowAllTenants || !FilterAvailable || (uw.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant) && uw.Tenant.TenantNameLower == CurrentTenant && uw.UserName == CurrentUserName));
+                o.ConfigureGlobalFilter<TTenantFeatureActivation>(fa => ShowAllTenants || !FilterAvailable || fa.Tenant.TenantNameLower == CurrentTenant);
                 // Der Mandant haengt an der APP, nicht mehr am Benutzer: seit TenantUserId optional ist,
                 // waere ein Maschinenzugang ueber ca.TenantUser.Tenant unsichtbar - der Umweg lieferte null
                 // und filterte ihn restlos weg.
-                o.ConfigureGlobalFilter<TClientApp>(ca => ShowAllTenants || !FilterAvailable || ca.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TClientAppAccess>(ca => ShowAllTenants || !FilterAvailable || ca.ClientApp.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TExternalOAuthServiceState>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant && sq.ExpiresAt > DateTimeOffset.UtcNow && !sq.Used);
-                o.ConfigureGlobalFilter<TExternalOAuthServiceTenantLogin>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TAppPermission>(ap => ShowAllTenants || !FilterAvailable || ap.Permission.TenantId == null && !HideGlobals || ap.Permission.TenantId != null && ap.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TAssetTemplateGrant>(atg => ShowAllTenants || !FilterAvailable || atg.Permission.TenantId == null && !HideGlobals || atg.Permission.TenantId != null && atg.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TGlobalRolePermission>(grp => ShowAllTenants || !FilterAvailable || grp.Permission.TenantId == null && !HideGlobals || grp.Permission.TenantId != null && grp.Permission.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TGRoleLRole>(grr => ShowAllTenants || !FilterAvailable || grr.LocalRole.Tenant.TenantName.ToLower() == CurrentTenant);
-                o.ConfigureGlobalFilter<TWidgetLocalization>(dwl => ShowAllTenants || !FilterAvailable || dwl.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantName.ToLower() == CurrentTenant));
+                o.ConfigureGlobalFilter<TClientApp>(ca => ShowAllTenants || !FilterAvailable || ca.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TClientAppAccess>(ca => ShowAllTenants || !FilterAvailable || ca.ClientApp.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TExternalOAuthServiceState>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant && sq.ExpiresAt > DateTimeOffset.UtcNow && !sq.Used);
+                o.ConfigureGlobalFilter<TExternalOAuthServiceTenantLogin>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TAppPermission>(ap => ShowAllTenants || !FilterAvailable || ap.Permission.TenantId == null && !HideGlobals || ap.Permission.TenantId != null && ap.Permission.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TAssetTemplateGrant>(atg => ShowAllTenants || !FilterAvailable || atg.Permission.TenantId == null && !HideGlobals || atg.Permission.TenantId != null && atg.Permission.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TGlobalRolePermission>(grp => ShowAllTenants || !FilterAvailable || grp.Permission.TenantId == null && !HideGlobals || grp.Permission.TenantId != null && grp.Permission.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TGRoleLRole>(grr => ShowAllTenants || !FilterAvailable || grr.LocalRole.Tenant.TenantNameLower == CurrentTenant);
+                o.ConfigureGlobalFilter<TWidgetLocalization>(dwl => ShowAllTenants || !FilterAvailable || dwl.Widget.DiagnosticsQuery.Tenants.Any(n => n.Tenant.TenantNameLower == CurrentTenant));
             });
         }
 

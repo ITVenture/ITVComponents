@@ -474,7 +474,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         // Ohne Filter gelesen: der Benutzer hat auf diesen Mandanten noch keinen Zugriff - genau deshalb
         // ist er ja hier. Mit aktiven Mandanten-Filtern faende die Abfrage nichts.
         var tenant = await db.Tenants.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(t => t.TenantName == wanted || t.DisplayName == wanted, ct);
+            .FirstOrDefaultAsync(t => t.TenantNameLower == (wanted ?? "").ToLower() || t.DisplayName.ToLower() == (wanted ?? "").ToLower(), ct);
         if (tenant == null)
         {
             logger.LogError("The tenant '{Tenant}' configured as default does not exist; user {Email} is left without a tenant.", wanted, owner.Email);
@@ -598,7 +598,7 @@ public class HierarchyOnboardingHandler<TContext> : IOnboardingHandler
         }
 
         var parentId = await db.Tenants.AsNoTracking()
-            .Where(t => t.TenantName == name || t.DisplayName == name)
+            .Where(t => t.TenantNameLower == (name ?? "").ToLower() || t.DisplayName.ToLower() == (name ?? "").ToLower())
             .Select(t => (int?)t.TenantId)
             .FirstOrDefaultAsync(ct);
         if (parentId == null)

@@ -83,8 +83,18 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 // Absicht: Aufrufer verlassen sich darauf, dass diese Pruefung zugleich die Anmeldung
                 // sicherstellt. Wer anonym etwas zulassen will, muss das AUSDRUECKLICH tun und erkennt den
                 // Fall am mitgelieferten isUserAuthenticated (siehe die Ueberladung oben).
+                // Die Labels und der Mandant gehoeren MIT in die Meldung. "Kein angemeldeter Benutzer"
+                // allein trifft drei voellig verschiedene Zustaende, die sich nur hier unterscheiden
+                // lassen: gar keine Identitaet; eine Identitaet, deren Bezeichner die Rechteaufloesung
+                // nicht erkennt; oder eine Identitaet ohne aufloesbaren Mandanten. Der letzte Fall ist
+                // der Normalzustand eines Endpunkts ohne Mandantensegment (gRPC, Minimal-API), dessen
+                // Mandant allein am FixedUserScope-Anspruch haengt.
+                var scopeForLog = permissionScope?.PermissionPrefix;
                 logger?.LogDebug(
-                    $"No authenticated user for [{string.Join(", ", requiredPermissions)}] - denied.");
+                    "No authenticated user for [{Permissions}] - denied. Resolved tenant scope: {Scope}. Identity labels seen: [{Labels}].",
+                    string.Join(", ", requiredPermissions),
+                    string.IsNullOrEmpty(scopeForLog) ? "<none>" : scopeForLog,
+                    string.Join(" | ", provider.GetIdentityLabelsForDiagnostics()));
                 return false;
             }
 
@@ -408,12 +418,57 @@ namespace ITVComponents.WebCoreToolkit.Extensions
         }
 
         /// <summary>
+        /// Liefert die Bezeichner der angemeldeten Identitaeten - ausschliesslich fuer Protokollmeldungen.
+        /// </summary>
+        /// <remarks>
+        /// Reine Diagnose, deshalb schluckt der Helfer JEDEN Fehler: eine Meldung darueber, dass etwas
+        /// nicht geht, darf nicht selbst das sein, was den Aufruf umbringt. Wer die Bezeichner zum
+        /// Arbeiten braucht, nimmt <see cref="IsUserAuthenticated(IServiceProvider, out ISecurityRepository, out IdentityInfo[])"/>.
+        /// <para>
+        /// Der Wert liegt in dem, was man an den Bezeichnern ABLESEN kann: steht dort nur ein blosser
+        /// Name, wurde die Identitaet als BENUTZER gelesen; steht ein <c>##APPUSER##&lt;Label&gt;#</c>
+        /// dabei, als Anwendungs-Zugang. Genau diese Unterscheidung war zweimal die Ursache einer langen
+        /// Fehlersuche, weil sie nirgends im Protokoll auftauchte.
+        /// </para>
+        /// </remarks>
+        /// <param name="provider">der Dienstanbieter des aktuellen Aufrufs</param>
+        /// <returns>je Identitaet eine Zeile, oder ein Hinweis darauf, warum es keine gibt</returns>
+        private static string[] GetIdentityLabelsForDiagnostics(this IServiceProvider provider)
+        {
+            try
+            {
+                var userProvider = provider.GetService<IContextUserProvider>();
+                var userMapper = provider.GetService<IUserNameMapper>();
+                if (userProvider?.User == null)
+                {
+                    return ["<no context user>"];
+                }
+
+                if (userMapper == null)
+                {
+                    return ["<no IUserNameMapper registered>"];
+                }
+
+                var retVal = (from t in userProvider.User.Identities
+                    where t.IsAuthenticated
+                    select $"{t.AuthenticationType ?? "<no auth-type>"}: {string.Join(", ", userMapper.GetUserLabels(t))}")
+                    .ToArray();
+                return retVal.Length != 0 ? retVal : ["<no authenticated identity>"];
+            }
+            catch (Exception ex)
+            {
+                // Bewusst geschluckt - aber NICHT verschwiegen: die Meldung, in der dieser Text landet,
+                // sagt dann wenigstens, dass die Diagnose selbst gescheitert ist.
+                return [$"<could not read identity labels: {ex.Message}>"];
+            }
+        }
+
+        /// <summary>
         /// Indicates whether the current logged-in user is considered authenticated
         /// </summary>
         /// <param name="provider">the service-provider for the current http-context</param>
         /// <param name="securityRepository">the security-context responsible for all authorization-tasks</param>
-        /// <param name="labels">the user-labels of the current user</param>
-        /// <param name="authType">the authentication-type that was used to log this user in</param>
+        /// <param name="identities">the authenticated identities together with their user-labels</param>
         /// <returns>a value indicating whether the current user is correlctly authenticated</returns>
         public static bool IsUserAuthenticated(this IServiceProvider provider, out ISecurityRepository securityRepository, out IdentityInfo[] identities)
         {

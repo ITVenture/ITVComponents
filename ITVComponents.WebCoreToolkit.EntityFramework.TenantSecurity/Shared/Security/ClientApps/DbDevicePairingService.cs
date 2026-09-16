@@ -344,7 +344,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
 
             var match = await db.Set<TTenantUser>()
-                .Where(n => n.Tenant.TenantName == tenantName && userIds.Contains(n.UserId))
+                .Where(n => n.Tenant.TenantNameLower == (tenantName ?? "").ToLower() && userIds.Contains(n.UserId))
                 .Select(n => (int?)n.TenantUserId)
                 .FirstOrDefaultAsync(ct);
             if (match == null)

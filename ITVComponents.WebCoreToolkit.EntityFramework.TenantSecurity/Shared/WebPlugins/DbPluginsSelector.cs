@@ -104,7 +104,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
             /*}
 
             return from p in securityContext.WebPlugins
-                where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
+                where (p.TenantId == null || p.Tenant.TenantNameLower == (ExplicitPluginPermissionScope ?? "").ToLower()) &&
                       !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
                 orderby p.UniqueName
                 select p;*/
@@ -147,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                 return pi;
             }
 
-            var pret = securityContext.WebPlugins.FirstOrDefault(n => n.Tenant.TenantName == ExplicitPluginPermissionScope && n.UniqueName == uniqueName) ??
+            var pret = securityContext.WebPlugins.FirstOrDefault(n => n.Tenant.TenantNameLower == (ExplicitPluginPermissionScope ?? "").ToLower() && n.UniqueName == uniqueName) ??
                    securityContext.WebPlugins.FirstOrDefault(n => n.TenantId == null && n.UniqueName == uniqueName);
             webPluginId = pret?.WebPluginId;
             return pret;
@@ -229,7 +229,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
             }
 
             return (from p in securityContext.WebPlugins
-                where p.Tenant.TenantName == ExplicitPluginPermissionScope
+                where p.Tenant.TenantNameLower == (ExplicitPluginPermissionScope ?? "").ToLower()
                 select new WebPlugin
                 {
                     AutoLoad = p.AutoLoad,
@@ -252,7 +252,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                 new WebPluginComparer()).Where(p => !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad).ToList();
 
             /*return from p in securityContext.WebPlugins
-                where (p.TenantId == null || p.Tenant.TenantName == ExplicitPluginPermissionScope) &&
+                where (p.TenantId == null || p.Tenant.TenantNameLower == (ExplicitPluginPermissionScope ?? "").ToLower()) &&
                       !string.IsNullOrEmpty(p.Constructor) && p.AutoLoad
                    orderby p.UniqueName
                 select p;*/

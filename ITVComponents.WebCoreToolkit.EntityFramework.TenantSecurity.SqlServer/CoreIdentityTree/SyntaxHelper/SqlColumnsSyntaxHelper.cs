@@ -35,6 +35,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     {
         public static void ConfigureComputedColumns<TContext>(DbContextModelBuilderOptions<TContext> builderOptions)
         {
+            // Kleingeschriebener Mandantenname als GESPEICHERTE Spalte, damit der eindeutige Schluessel
+            // darauf liegen kann: PostgreSQL vergleicht sonst gross/klein unterschiedlich und liesse
+            // 'Laden1' neben 'laden1' zu, waehrend der Code beide als denselben Mandanten liest.
+            builderOptions.ConfigureComputedColumn<HierarchyTenant, string>(t => t.TenantNameLower,
+                "lower(TenantName) persisted");
             builderOptions.ConfigureComputedColumn<NavigationMenu, string>(n => n.UrlUniqueness,
                 "case when isnull(Url,'')='' and isnull(RefTag,'')='' then 'MENU__'+convert(varchar(10),NavigationMenuId) when isnull(Url,'')='' then RefTag else Url end persisted");
             builderOptions.ConfigureComputedColumn<Role, string>(r => r.RoleNameUniqueness,

@@ -32,7 +32,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         {
             using (var h = new FullSecurityAccessHelper<TTrustConfig>(context, configureTrust(new() { ShowAllTenants = true, HideGlobals = true })))
             {
-                var t = context.Tenants.First(n => n.TenantName == permissionScopeName);
+                var t = context.Tenants.First(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
                 if (!string.IsNullOrEmpty(t.TenantPassword))
                 {
                     return Convert.FromBase64String(t.TenantPassword);

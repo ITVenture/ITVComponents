@@ -151,7 +151,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                 else if (!string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope))
                 {
                     var tenant =
-                        context.Tenants.First(n => n.TenantName == plugInSelector.ExplicitPluginPermissionScope);
+                        context.Tenants.First(n => n.TenantNameLower == (plugInSelector.ExplicitPluginPermissionScope ?? "").ToLower());
                     string encryptedPassword = null;
                     if (!string.IsNullOrEmpty(tenant.TenantPassword))
                     {

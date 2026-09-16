@@ -144,7 +144,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
                 using var lease = LeaseDb();
                 var dbContext = lease.Context;
                 return dbContext.TenantSettings.FirstOrDefault(n =>
-                    n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
+                    n.SettingsKey == key && n.JsonSetting && n.Tenant.TenantNameLower == (explicitUserScope ?? "").ToLower())?.SettingsValue;
             }
 
             return GetJsonSetting(key);
@@ -163,7 +163,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
                 using var lease = LeaseDb();
                 var dbContext = lease.Context;
                 return dbContext.TenantSettings.FirstOrDefault(n =>
-                    n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantName == explicitUserScope)?.SettingsValue;
+                    n.SettingsKey == key && !n.JsonSetting && n.Tenant.TenantNameLower == (explicitUserScope ?? "").ToLower())?.SettingsValue;
             }
 
             return GetLiteralSetting(key);
@@ -176,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
-                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+                tenantId = dbContext.Tenants.First(n => n.TenantNameLower == (explicitUserScope ?? "").ToLower()).TenantId;
             }
 
             if (tenantId == 0)
@@ -208,7 +208,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Set
             var tenantId = dbContext.CurrentTenantId ?? 0;
             if (!string.IsNullOrEmpty(explicitUserScope))
             {
-                tenantId = dbContext.Tenants.First(n => n.TenantName == explicitUserScope).TenantId;
+                tenantId = dbContext.Tenants.First(n => n.TenantNameLower == (explicitUserScope ?? "").ToLower()).TenantId;
             }
 
             if (tenantId == 0)

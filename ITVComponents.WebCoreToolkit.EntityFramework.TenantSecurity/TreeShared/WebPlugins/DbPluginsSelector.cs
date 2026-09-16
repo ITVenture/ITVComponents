@@ -130,7 +130,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 group htg by new {htg.UniqueName, htg.OutermostLeafTenantName} into gr
                 let pl = gr.Min(m => m.ParentLevel)
                 select new { UniqueName = gr.Key.UniqueName, TargetLevel = pl, StartupRegistrationConstrucotr = gr.First(n => n.ParentLevel == pl).StartupRegistrationConstructor, gr.Key.OutermostLeafTenantName } into s
-                where !string.IsNullOrEmpty(s.StartupRegistrationConstrucotr) && s.OutermostLeafTenantName == ExplicitPluginPermissionScope
+                where !string.IsNullOrEmpty(s.StartupRegistrationConstrucotr) && s.OutermostLeafTenantName.ToLower() == (ExplicitPluginPermissionScope ?? "").ToLower()
                 orderby s.UniqueName
                 select new WebPlugin { UniqueName = s.UniqueName, StartupRegistrationConstructor = s.StartupRegistrationConstrucotr })
                 .Union(from p in securityContext.WebPlugins
@@ -199,7 +199,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             var xPhase1 = from p in securityContext.UpwardsTenantTreeView
                 join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope && (p.ParentLevel == 1 || pin.Inheritable)
+                where p.OutermostLeafTenantName.ToLower() == (ExplicitPluginPermissionScope ?? "").ToLower() && (p.ParentLevel == 1 || pin.Inheritable)
                           select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
             var xPhase2 = from gj in xPhase1
                 group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -333,7 +333,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
             var xPhase1 = from p in securityContext.UpwardsTenantTreeView
                 join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                where p.OutermostLeafTenantName == ExplicitPluginPermissionScope && (p.ParentLevel == 1 || pin.Inheritable)
+                where p.OutermostLeafTenantName.ToLower() == (ExplicitPluginPermissionScope ?? "").ToLower() && (p.ParentLevel == 1 || pin.Inheritable)
                 select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
             var xPhase2 = from gj in xPhase1
                 group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -366,7 +366,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 };
             return xPhase3.AsEnumerable().Union(xPhase4.AsEnumerable(), new WebPluginComparer()).ToArray();
             /*return
-                (from rprot in (from t in securityContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName == ExplicitPluginPermissionScope)
+                (from rprot in (from t in securityContext.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (ExplicitPluginPermissionScope ?? "").ToLower())
                             join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
                             select new { t.ParentTenantId, t.ParentLevel, p.UniqueName, p.WebPluginId } into gprot
                             group gprot by gprot.UniqueName into g1

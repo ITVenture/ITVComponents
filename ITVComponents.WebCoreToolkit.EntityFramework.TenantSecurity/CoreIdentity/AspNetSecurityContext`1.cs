@@ -215,7 +215,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 {
                     bufferedTenantName = current;
                     currentTenantId = Tenants
-                        .FirstOrDefault(n => n.TenantName.ToLower() == current)?.TenantId;
+                        .FirstOrDefault(n => n.TenantNameLower == current)?.TenantId;
                     currentTenantIdResolved = true;
                     return currentTenantId;
                 }

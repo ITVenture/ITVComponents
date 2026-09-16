@@ -190,7 +190,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 securityContext,
                 new TTrustConfig { ShowAllTenants = false, HideGlobals = false, IncludeParentTree = false});
             return (from a in (from t in securityContext.SecurityRoles.Where(r =>
-                            r.Tenant.TenantName == permissionScope)
+                            r.Tenant.TenantNameLower == (permissionScope ?? "").ToLower())
                         select new
                         {
                             PermissionMap = t.RolePermissions.Select(n =>
@@ -339,7 +339,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             using var lease = LeaseContext();
             var securityContext = lease.Context;
             {
-                if (t != null)
+                if (t == null)
+                {
+                    LogNoTenantForAuthCheck(userLabels, null);
+                }
+                else
                 {
                     var ti = t.Value;
                     var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
@@ -407,8 +411,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = isUser, ShowAllTenants = true });
-                var t = securityContext.Tenants.FirstOrDefault(n => n.TenantName == forScope)?.TenantId;
-                if (t != null)
+                var t = securityContext.Tenants.FirstOrDefault(n => n.TenantNameLower == (forScope ?? "").ToLower())?.TenantId;
+                if (t == null)
+                {
+                    LogNoTenantForAuthCheck(userLabels, forScope);
+                }
+                else
                 {
                     var ti = t.Value;
 
@@ -992,6 +1000,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
         }
 
+        /// <summary>
+        /// Protokolliert, dass die Anmelde-Pruefung mangels Mandant gar nicht stattgefunden hat.
+        /// </summary>
+        /// <remarks>
+        /// Ohne Mandant gibt <c>IsAuthenticated</c> <b>false</b> zurueck, ohne einen einzigen Zugang
+        /// anzusehen - und das sah frueher genauso aus wie "der Zugang gilt nicht". Zwei voellig
+        /// verschiedene Zustaende mit derselben (stummen) Antwort.
+        /// <para>
+        /// <b>Woher der Mandant kommt:</b> aus <c>IPermissionScope.PermissionPrefix</c>. Fuer einen
+        /// Browser-Aufruf ist das ueblicherweise das Mandantensegment der Route; fuer eine <b>Maschine</b>
+        /// gibt es das nicht, dort traegt ihn allein der Anspruch
+        /// <c>ClaimTypes.FixedUserScope</c>. Ein Endpunkt ohne Mandantensegment - gRPC, Minimal-API -
+        /// haengt also vollstaendig an diesem Anspruch, und wenn die Aufloesung ihn nicht sieht, endet
+        /// hier jede Anfrage rechtelos.
+        /// </para>
+        /// </remarks>
+        /// <param name="userLabels">die Bezeichner, mit denen geprueft wurde</param>
+        /// <param name="forScope">der ausdruecklich angefragte Mandant, oder null fuer den aktuellen</param>
+        private void LogNoTenantForAuthCheck(string[] userLabels, string forScope)
+        {
+            logger?.LogWarning(
+                "No tenant could be resolved{ForScope}, so the access check for [{Labels}] was never performed and returns false - this is NOT the same as an invalid access. The tenant comes from IPermissionScope.PermissionPrefix: a route segment for browser requests, and the {ClaimType} claim for machines. Endpoints without a tenant segment (gRPC, minimal API) depend on that claim alone.",
+                string.IsNullOrEmpty(forScope) ? "" : $" for the requested scope '{forScope}'",
+                string.Join(", ", userLabels ?? []),
+                ITVComponents.WebCoreToolkit.ClaimTypes.FixedUserScope);
+        }
+
         private static string[] AppSetPermissions(IQueryable<TClientAppAccess> accesses)
             => accesses.SelectMany(n => n.ClientApp.AppPermissions)
                 .SelectMany(n => n.PermissionSet.Permissions)
@@ -1022,7 +1057,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             using var lease = LeaseContext();
             var securityContext = lease.Context;
             using var tmp = securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = false, HideGlobals = false }));
-            return securityContext.Tenants.Any(n => n.TenantName == permissionScopeName);
+            return securityContext.Tenants.Any(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
         }
 
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType)
@@ -1421,7 +1456,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     var dt = DateTime.UtcNow;//DateTime.SpecifyKind(DateTime.UtcNow,DateTimeKind.Local);
                     var raw = (from t in ctx.Features
                         join a in ctx.TenantFeatureActivations.Where(ta =>
-                                    ((!useCurrentTenant && ta.Tenant.TenantName == permissionScopeName) || (useCurrentTenant && ta.TenantId == tenantToUse))
+                                    ((!useCurrentTenant && ta.Tenant.TenantNameLower == (permissionScopeName ?? "").ToLower()) || (useCurrentTenant && ta.TenantId == tenantToUse))
                                     && (ta.ActivationStart == null || ta.ActivationStart <= dt)
                                     && (ta.ActivationEnd == null || ta.ActivationEnd >= dt))
                                 .GroupBy(g => new { g.FeatureId, g.Tenant.TenantName })
@@ -1540,7 +1575,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     ctx,
                     new TTrustConfig { ShowAllTenants = true, HideGlobals = false, IncludeParentTree = false });
                 return (from p in ctx.Permissions
-                    where p.TenantId == null || p.Tenant.TenantName == permissionScope
+                    where p.TenantId == null || p.Tenant.TenantNameLower == (permissionScope ?? "").ToLower()
                     select new Permission { PermissionName = p.PermissionName }).ToArray();
             });
 
@@ -1955,7 +1990,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             using (securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true })))
             {
-                var t = securityContext.Tenants.First(n => n.TenantName == permissionScopeName);
+                var t = securityContext.Tenants.First(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
                 if (!string.IsNullOrEmpty(t.TimeZone))
                 {
                     return TimeZoneInfo.FindSystemTimeZoneById(t.TimeZone);
@@ -1977,7 +2012,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
             else
             {
-                currentTenant = sc.Tenants.FirstOrDefault(n => n.TenantName == forTenant)?.TenantId ?? 0;
+                currentTenant = sc.Tenants.FirstOrDefault(n => n.TenantNameLower == (forTenant ?? "").ToLower())?.TenantId ?? 0;
             }
 
             currentTenantId = currentTenant;
