@@ -15,20 +15,19 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
     /// </summary>
     internal class User2GroupsMapper : IUserNameMapper, IPlugin
     {
-        private readonly UserMappingOptions userMappingOptions;
         private readonly User2GroupsMappingOptions options;
         private readonly string groupClaim;
 
+        // Die Einspeisung bleibt, damit die DI-Signatur unveraendert ist; ausgewertet wird nichts
+        // mehr (siehe UserMappingOptions.MapApplicationId).
         public User2GroupsMapper(IOptions<User2GroupsMappingOptions> options, IOptions<UserMappingOptions> userMappingOptions)
         {
-            this.userMappingOptions = userMappingOptions.Value;
             this.options = options.Value;
         }
 
         public User2GroupsMapper(string groupClaim)
         {
             this.groupClaim = groupClaim;
-            userMappingOptions = new();
         }
 
         /// <summary>
@@ -59,13 +58,13 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
                         retVal.Add(group.Value);
                     }
 
-                    if (userMappingOptions.MapApplicationId)
-                    {
-                        if (userMappingOptions.MapApplicationId)
-                        {
-                            retVal.AddRange(from t in identity.Claims.Where(n => n.Type == ClaimTypes.ClientAppAccess) select string.Format(Global.AppUserKeyIndicatorFormat, t.Value));
-                        }
-                    }
+                    // KEIN Schalter mehr davor - und auch nicht mehr doppelt geschachtelt (dieselbe
+                    // Bedingung stand hier zweimal ineinander). Die Wicklung entsteht ohnehin nur, wenn
+                    // der Anspruch da ist, und den setzt allein, wer bewusst Anwendungs-Zugaenge
+                    // einschaltet. Der frueher hier stehende UserMappingOptions.MapApplicationId wurde
+                    // an genau EINER Stelle gesetzt - im BEARER-Zweig von WebPartInit -, womit ein per
+                    // X-Api-Key angemeldetes Geraet ohne Bearer-Konfiguration rechtelos blieb.
+                    retVal.AddRange(from t in identity.Claims.Where(n => n.Type == ClaimTypes.ClientAppAccess) select string.Format(Global.AppUserKeyIndicatorFormat, t.Value));
                 }
             }
 

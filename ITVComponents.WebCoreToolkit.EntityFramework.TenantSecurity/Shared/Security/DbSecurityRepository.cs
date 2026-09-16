@@ -336,14 +336,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
             else
             {
+                // ACHTUNG, gilt fuer alle ACHT Vorkommen dieses Musters in dieser Datei: die Bezeichner werden
+                // HIER kleingeschrieben, und die Abfrage unten vergleicht gegen Label.ToLower(). Die bequeme
+                // Fassung Contains(wert, StringComparer.OrdinalIgnoreCase) kann EF Core NICHT uebersetzen - es
+                // versucht dann, den Ausdruck als Parameter auszuwerten, und der Interpreter scheitert auf
+                // .NET 10 an der params-ReadOnlySpan-Gestalt. Die Meldung nennt weder Contains noch die Tabelle,
+                // und der InMemory-Provider wertet client-seitig aus - kein Test dagegen findet das je.
                 var filteredLabels = (from ul in userLabels
                     where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // Der Mandant haengt an der APP, nicht am Benutzer: seit TenantUserId optional ist,
                 // faehrt der Umweg ueber den Benutzer bei einem Maschinenzugang ins Leere.
                 var appUsers = securityContext.ClientAppAccesses
                     .Where(n => n.ClientApp.TenantId == securityContext.CurrentTenantId.Value && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
-                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase));
+                    .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                 // Nur Delegationen bringen Rollen mit - eine Maschine haengt an keinem Benutzer.
                 tenantUsers = appUsers.Where(n => n.TenantUserId != null).Select(n => n.TenantUser.User);
             }
@@ -538,10 +544,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 {
                     var filteredLabels = (from ul in userLabels
                         where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                     var appUsers = securityContext.ClientAppAccesses
                         .Where(n => n.ClientApp.TenantId == ti && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase));
+                        .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                     // Ein Maschinenzugang IST die Identitaet - es gibt keinen Benutzer, gegen den man
                     // pruefen koennte, und der Zugang selbst ist bereits auf Gueltigkeit geprueft.
                     if (appUsers.Any(n => n.TenantUserId == null))
@@ -583,10 +589,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 {
                     var filteredLabels = (from ul in userLabels
                         where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                        select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                     var appUsers = securityContext.ClientAppAccesses
                         .Where(n => n.ClientApp.TenantId == ti && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
-                        .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase));
+                        .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                     // Ein Maschinenzugang IST die Identitaet - es gibt keinen Benutzer, gegen den man
                     // pruefen koennte, und der Zugang selbst ist bereits auf Gueltigkeit geprueft.
                     if (appUsers.Any(n => n.TenantUserId == null))
@@ -629,10 +635,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 var filteredLabels = (from ul in userLabels
                     where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // Ein Maschinenzugang hat keinen Benutzer und damit auch keine Benutzereigenschaften.
                 tenantUsers = securityContext.ClientAppAccesses
-                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Where(au => filteredLabels.Contains(au.Label.ToLower()))
                     .Where(n => n.TenantUserId != null)
                     .Select(n => n.TenantUser.User);
             }
@@ -661,10 +667,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 var filteredLabels = (from ul in userLabels
                     where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // Ein Maschinenzugang hat keine Benutzer-Id - er IST kein Benutzer.
                 tenantUsers = securityContext.ClientAppAccesses
-                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase))
+                    .Where(au => filteredLabels.Contains(au.Label.ToLower()))
                     .Where(n => n.TenantUserId != null)
                     .Select(n => n.TenantUser.User);
             }
@@ -775,13 +781,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 var filteredLabels = (from ul in userLabels
                     where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // BUGFIX: der Deckel wurde frueher ueber ALLE Zugaenge des Mandanten gebildet, nicht
                 // ueber die gesuchten - App A hob damit den Deckel fuer App B. Der Label-Filter gehoert
                 // VOR die Buendel-Aufloesung.
                 var appUsers = securityContext.ClientAppAccesses
                     .Where(n => n.ClientApp.TenantId == securityContext.CurrentTenantId.Value && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
-                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase));
+                    .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                 machinePerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId == null));
                 preFilteredPerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId != null));
                 tenantUsers = appUsers.Where(n => n.TenantUserId != null).Select(n => n.TenantUser.User);
@@ -861,11 +867,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 var filteredLabels = (from ul in userLabels
                                       where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                                      select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                                      select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // Siehe oben: Label-Filter VOR die Buendel-Aufloesung, Mandant ueber die App.
                 var appUsers = securityContext.ClientAppAccesses
                     .Where(n => n.ClientApp.Tenant.TenantName == forScope && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
-                    .Where(au => filteredLabels.Contains(au.Label, StringComparer.OrdinalIgnoreCase));
+                    .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                 machinePerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId == null));
                 preFilteredPerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId != null));
                 tenantUsers = appUsers.Where(n => n.TenantUserId != null).Select(n => n.TenantUser.User);
@@ -974,12 +980,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 var filteredLabels = (from ul in userLabels
                     where Regex.IsMatch(ul, Global.AppUserKeyPattern)
-                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value).ToArray();
+                    select Regex.Match(ul, Global.AppUserKeyPattern).Groups["appUserKey"].Value.ToLowerInvariant()).ToArray();
                 // BUGFIX: filteredLabels wurde frueher berechnet und nie benutzt - JEDES App-Label
                 // lieferte damit die Mandanten ALLER Zugaenge. Und der Mandant kommt jetzt von der App,
                 // weil ein Maschinenzugang keinen Benutzer hat.
                 return (from d in securityContext.ClientAppAccesses
-                        .Where(n => filteredLabels.Contains(n.Label, StringComparer.OrdinalIgnoreCase))
+                        .Where(n => filteredLabels.Contains(n.Label.ToLower()))
                         .Where(n => n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
                     orderby d.ClientApp.Tenant.DisplayName
                     select new ScopeInfo { ScopeDisplayName = d.ClientApp.Tenant.DisplayName, ScopeName = d.ClientApp.Tenant.TenantName })

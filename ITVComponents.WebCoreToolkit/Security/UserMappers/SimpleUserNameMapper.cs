@@ -14,16 +14,14 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
     /// </summary>
     public class SimpleUserNameMapper:IUserNameMapper, IPlugin
     {
-        private readonly UserMappingOptions userMappingOptions;
-
+        // Die Einspeisung bleibt, damit die DI-Signatur unveraendert ist; ausgewertet wird nichts
+        // mehr (siehe UserMappingOptions.MapApplicationId).
         public SimpleUserNameMapper(IOptions<UserMappingOptions> userMappingOptions)
         {
-            this.userMappingOptions = userMappingOptions.Value;
         }
 
         public SimpleUserNameMapper()
         {
-            userMappingOptions = new UserMappingOptions();
         }
 
         /// <summary>
@@ -44,7 +42,12 @@ namespace ITVComponents.WebCoreToolkit.Security.UserMappers
                 retVal.Add(user.Name);
             }
 
-            if (user is ClaimsIdentity identity && userMappingOptions.MapApplicationId)
+            // KEIN Schalter mehr davor. Die Wicklung entsteht ohnehin nur, wenn der Anspruch da ist,
+            // und den setzt allein, wer bewusst Anwendungs-Zugaenge einschaltet. Der frueher hier
+            // stehende UserMappingOptions.MapApplicationId wurde im ganzen Repositorium an genau EINER
+            // Stelle gesetzt - im BEARER-Zweig von WebPartInit. Wer sich per X-Api-Key anmeldete und kein
+            // Bearer konfiguriert hatte, verlor damit seine Maschinen-Rechte, obwohl der Anspruch stand.
+            if (user is ClaimsIdentity identity)
             {
                 retVal.AddRange(from t in identity.Claims.Where(n => n.Type == ClaimTypes.ClientAppAccess) select string.Format(Global.AppUserKeyIndicatorFormat, t.Value));
             }
