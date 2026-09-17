@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
-using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;

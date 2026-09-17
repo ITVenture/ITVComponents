@@ -1,5 +1,6 @@
 ﻿using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
@@ -60,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
         public static IServiceCollection AddStripePayments<TContext>(this IServiceCollection services)
             where TContext : DbContext, IPaymentsContext
         {
-            services.AddScoped<IApplicationFeeCalculator, ApplicationFeeCalculator>();
+            services.AddScoped<IApplicationFeeCalculator, StripeApplicationFeeCalculator>();
             services.AddScoped<ITenantPaymentAccountService, TenantPaymentAccountService<TContext>>();
             services.AddScoped<ITenantSaleService, TenantSaleService<TContext>>();
             services.AddScoped<IStripeConnectWebhookHandler, StripeConnectWebhookHandler<TContext>>();

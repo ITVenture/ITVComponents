@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 
@@ -90,24 +90,5 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             var share = decimal.Round(applicationFeeMinor * (decimal)refundedMinor / saleAmountMinor, MidpointRounding.AwayFromZero);
             return Math.Clamp((long)share, 0, applicationFeeMinor);
         }
-    }
-
-    /// <summary>
-    /// The commission calculator as a service, reading the configured rates from the global setting. Injected
-    /// wherever a fee has to be SHOWN before a sale exists (a preview on the sales page); the booked fee comes
-    /// from the same code path, so the two cannot drift.
-    /// </summary>
-    public class ApplicationFeeCalculator : IApplicationFeeCalculator
-    {
-        private readonly IGlobalSettings<StripePaymentsOptions> settings;
-
-        public ApplicationFeeCalculator(IGlobalSettings<StripePaymentsOptions> settings)
-        {
-            this.settings = settings;
-        }
-
-        /// <inheritdoc />
-        public long Calculate(long amountMinor, string? currency)
-            => ApplicationFeeMath.Calculate(settings.Value.ApplicationFee, amountMinor, currency);
     }
 }
