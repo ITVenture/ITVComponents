@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private readonly ITenantIdentityProvider? identityProvider;
 
         public TenantPaymentAccountService(IDbContextFactory<TContext> dbFactory, StripeClient client,
-            IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
             IEnumerable<ITenantIdentityProvider> identityProviders)
         {
             this.dbFactory = dbFactory;
@@ -194,7 +194,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private async Task<TenantPaymentAccount> CreateAccountAsync(TContext db, int tenantId, string? email, string? country, CancellationToken cancellationToken)
         {
             var options = runtime.Options;
-            var dashboard = string.IsNullOrWhiteSpace(options.DashboardType) ? "express" : options.DashboardType.Trim().ToLowerInvariant();
+            var dashboard = string.IsNullOrWhiteSpace(options.Stripe.DashboardType) ? "express" : options.Stripe.DashboardType.Trim().ToLowerInvariant();
 
             // What the tenant supplied in the payout tab of its billing profile. Not required to exist - the
             // caller may pass everything - but it is where the answers normally come from.
@@ -276,8 +276,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                         // a chargeback. In v1 this followed from the account type without anyone deciding it.
                         Responsibilities = new V2.Core.AccountCreateDefaultsResponsibilitiesOptions
                         {
-                            FeesCollector = string.IsNullOrWhiteSpace(options.FeesCollector) ? "stripe" : options.FeesCollector,
-                            LossesCollector = string.IsNullOrWhiteSpace(options.LossesCollector) ? "stripe" : options.LossesCollector
+                            FeesCollector = string.IsNullOrWhiteSpace(options.Stripe.FeesCollector) ? "stripe" : options.Stripe.FeesCollector,
+                            LossesCollector = string.IsNullOrWhiteSpace(options.Stripe.LossesCollector) ? "stripe" : options.Stripe.LossesCollector
                         }
                     },
                     Metadata = new Dictionary<string, string> { ["tenantId"] = tenantId.ToString() },
@@ -415,9 +415,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// option exists, and that would travel all the way to the shop owner.
         /// </para>
         /// </summary>
-        private static void EnsureConfigurationServable(int tenantId, string dashboard, StripePaymentsOptions options)
+        private static void EnsureConfigurationServable(int tenantId, string dashboard, TenantPaymentsOptions options)
         {
-            var losses = string.IsNullOrWhiteSpace(options.LossesCollector) ? "stripe" : options.LossesCollector.Trim().ToLowerInvariant();
+            var losses = string.IsNullOrWhiteSpace(options.Stripe.LossesCollector) ? "stripe" : options.Stripe.LossesCollector.Trim().ToLowerInvariant();
             if (!string.Equals(dashboard, "express", StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(losses, "stripe", StringComparison.Ordinal))
             {

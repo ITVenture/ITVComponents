@@ -30,7 +30,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
     /// </para>
     /// <para>
     /// This gate answers the ENTITLEMENT only. Whether the deployment permits payments at all is
-    /// <c>StripePaymentsOptions.Enabled</c>, checked by <c>PaymentsRuntime.EnsureEnabled</c> — the deployment
+    /// <c>TenantPaymentsOptions.Enabled</c>, checked by <c>PaymentsRuntime.EnsureEnabled</c> — the deployment
     /// always wins over the entitlement. The feature catalogue is not a second master switch, and reading it as
     /// one is what made a per-tenant sold module impossible to switch on.
     /// </para>
@@ -44,7 +44,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
         where TActivation : TenantFeatureActivation<TTenant>, new()
     {
         /// <summary>The feature key that unlocks receiving payments from end customers.</summary>
-        public const string FeatureKey = "StripePayments";
+        public const string FeatureKey = "TenantPayments";
 
         private readonly IToolkitContextFactory contextFactory;
 

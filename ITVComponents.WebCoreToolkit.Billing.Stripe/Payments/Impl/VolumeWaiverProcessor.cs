@@ -35,9 +35,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
     {
         private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IStripeClient client;
-        private readonly IGlobalSettings<StripePaymentsOptions> settings;
+        private readonly IGlobalSettings<TenantPaymentsOptions> settings;
 
-        public VolumeWaiverProcessor(IDbContextFactory<TContext> dbFactory, IStripeClient client, IGlobalSettings<StripePaymentsOptions> settings)
+        public VolumeWaiverProcessor(IDbContextFactory<TContext> dbFactory, IStripeClient client, IGlobalSettings<TenantPaymentsOptions> settings)
         {
             this.dbFactory = dbFactory;
             this.client = client;

@@ -91,4 +91,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             return Math.Clamp((long)share, 0, applicationFeeMinor);
         }
     }
+
+    /// <summary>
+    /// The commission calculator as a service, reading the configured rates from the global setting. Injected
+    /// wherever a fee has to be SHOWN before a sale exists (a preview on the sales page); the booked fee comes
+    /// from the same code path, so the two cannot drift.
+    /// <para>
+    /// Provider-neutral, and that is the point: the commission is the PLATFORM's decision, not the payment
+    /// provider's. The rates come from the neutral <c>TenantPayments</c> setting, so a second provider
+    /// inherits them instead of restating them.
+    /// </para>
+    /// </summary>
+    public class ApplicationFeeCalculator : IApplicationFeeCalculator
+    {
+        private readonly IGlobalSettings<TenantPaymentsOptions> settings;
+
+        public ApplicationFeeCalculator(IGlobalSettings<TenantPaymentsOptions> settings)
+        {
+            this.settings = settings;
+        }
+
+        /// <inheritdoc />
+        public long Calculate(long amountMinor, string? currency)
+            => ApplicationFeeMath.Calculate(settings.Value.ApplicationFee, amountMinor, currency);
+    }
 }

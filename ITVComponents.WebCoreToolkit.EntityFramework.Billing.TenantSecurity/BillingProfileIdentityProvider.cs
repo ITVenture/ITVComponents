@@ -74,7 +74,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 // Fehler im Anbieter-Formular, waehrend er in der Abfrage liegt.
                 LogEnvironment.LogEvent(
                     $"Could not read the billing profile of tenant {tenantId} to pre-fill the payout onboarding; the account is created without it: {ex.OutlineException()}",
-                    LogSeverity.Warning, "StripeConnect");
+                    LogSeverity.Warning, "TenantPayments");
                 return null;
             }
         }
@@ -122,7 +122,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             {
                 LogEnvironment.LogEvent(
                     $"Could not read the billing profile of tenant {tenantId} to pre-fill the payout onboarding; the account is created without it: {ex.OutlineException()}",
-                    LogSeverity.Warning, "StripeConnect");
+                    LogSeverity.Warning, "TenantPayments");
                 return null;
             }
         }

@@ -200,7 +200,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             {
                 LogEnvironment.LogEvent(
                     $"The payout entries of tenant {ctx.TenantId} were changed while a connected account already exists. They do not reach the provider by themselves; the account keeps the values it was created with.",
-                    LogSeverity.Warning, "StripeConnect");
+                    LogSeverity.Warning, "TenantPayments");
             }
         }
 

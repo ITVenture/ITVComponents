@@ -61,7 +61,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
         public static IServiceCollection AddStripePayments<TContext>(this IServiceCollection services)
             where TContext : DbContext, IPaymentsContext
         {
-            services.AddScoped<IApplicationFeeCalculator, StripeApplicationFeeCalculator>();
+            services.AddScoped<IApplicationFeeCalculator, ApplicationFeeCalculator>();
             services.AddScoped<ITenantPaymentAccountService, TenantPaymentAccountService<TContext>>();
             services.AddScoped<ITenantSaleService, TenantSaleService<TContext>>();
             services.AddScoped<IStripeConnectWebhookHandler, StripeConnectWebhookHandler<TContext>>();

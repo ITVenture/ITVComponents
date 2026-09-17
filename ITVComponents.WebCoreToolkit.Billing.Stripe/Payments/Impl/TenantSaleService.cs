@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private readonly TenantSaleNotifier notifier;
 
         public TenantSaleService(IDbContextFactory<TContext> dbFactory, IStripeClient client,
-            IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
             IEnumerable<ITenantSaleObserver> observers)
         {
             this.dbFactory = dbFactory;

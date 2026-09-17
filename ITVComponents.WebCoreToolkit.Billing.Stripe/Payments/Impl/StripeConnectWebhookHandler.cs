@@ -42,11 +42,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private readonly IDbContextFactory<TContext> dbFactory;
         /// <summary>Concrete, not the interface: the account mirror reads through <c>StripeClient.V2</c>.</summary>
         private readonly StripeClient client;
-        private readonly IGlobalSettings<StripePaymentsOptions> settings;
+        private readonly IGlobalSettings<TenantPaymentsOptions> settings;
         private readonly TenantSaleNotifier notifier;
 
         public StripeConnectWebhookHandler(IDbContextFactory<TContext> dbFactory, StripeClient client,
-            IGlobalSettings<StripePaymentsOptions> settings, IEnumerable<ITenantSaleObserver> observers)
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<ITenantSaleObserver> observers)
         {
             this.dbFactory = dbFactory;
             this.client = client;
@@ -70,7 +70,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 return;
             }
 
-            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, options.ConnectWebhookSecret);
+            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, options.Stripe.ConnectWebhookSecret);
             var accountId = stripeEvent.Account;
 
             switch (stripeEvent.Type)
@@ -160,13 +160,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// </para>
         /// </summary>
         private async Task HandleAccountNotificationAsync(string payload, string signatureHeader,
-            StripePaymentsOptions options, CancellationToken cancellationToken)
+            TenantPaymentsOptions options, CancellationToken cancellationToken)
         {
             // Ein v2-Ereignisziel hat sein eigenes Geheimnis. Wer beides auf denselben Endpunkt legt und
             // dasselbe Geheimnis benutzt, kommt ohne die zweite Einstellung aus - deshalb der Rueckfall.
-            var secret = string.IsNullOrWhiteSpace(options.ConnectV2WebhookSecret)
-                ? options.ConnectWebhookSecret
-                : options.ConnectV2WebhookSecret;
+            var secret = string.IsNullOrWhiteSpace(options.Stripe.ConnectV2WebhookSecret)
+                ? options.Stripe.ConnectWebhookSecret
+                : options.Stripe.ConnectV2WebhookSecret;
 
             V2.Core.EventNotification notification;
             try
@@ -178,7 +178,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 // Eine abgelehnte Signatur ist entweder ein falsch eingetragenes Geheimnis oder etwas, das gar
                 // nicht von Stripe kommt. Beides muss man sehen koennen - und die haeufigste Ursache benennen.
                 LogEnvironment.LogEvent(
-                    $"A v2 connect notification could not be verified. Check that the event destination's signing secret is in StripePayments.ConnectV2WebhookSecret - it is NOT the same secret as the v1 connect endpoint: {ex.OutlineException()}",
+                    $"A v2 connect notification could not be verified. Check that the event destination's signing secret is in TenantPayments.Stripe.ConnectV2WebhookSecret - it is NOT the same secret as the v1 connect endpoint: {ex.OutlineException()}",
                     LogSeverity.Error, "StripeConnect");
                 throw;
             }
@@ -298,7 +298,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <summary>Pending -&gt; Paid, and the ONE place the completion observers are called.</summary>
-        private async Task MarkPaidAsync(Session session, string? accountId, StripePaymentsOptions options,
+        private async Task MarkPaidAsync(Session session, string? accountId, TenantPaymentsOptions options,
             CancellationToken cancellationToken)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -525,7 +525,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
         /// <summary>
         /// Takes the e-mail the end customer entered on the provider's payment page onto the sale, when the
-        /// deployment asked for it (<see cref="StripePaymentsOptions.CaptureCustomerEmail"/>, off by default).
+        /// deployment asked for it (<see cref="TenantPaymentsOptions.CaptureCustomerEmail"/>, off by default).
         /// </summary>
         /// <remarks>
         /// <para>
@@ -540,7 +540,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// point of the switch is that this datum does not travel further than the deployment asked for.
         /// </para>
         /// </remarks>
-        private static void CaptureCustomerEmail(TenantSale sale, Session current, StripePaymentsOptions options)
+        private static void CaptureCustomerEmail(TenantSale sale, Session current, TenantPaymentsOptions options)
         {
             if (!options.CaptureCustomerEmail || !string.IsNullOrWhiteSpace(sale.CustomerEmail))
             {

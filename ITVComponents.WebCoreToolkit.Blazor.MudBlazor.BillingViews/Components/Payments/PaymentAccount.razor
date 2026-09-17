@@ -14,7 +14,7 @@
 
 <MudText Typo="Typo.h5" GutterBottom="true">@L["Payments_Title"]</MudText>
 
-<SecureView RequiredFeatures="StripePayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
+<SecureView RequiredFeatures="TenantPayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
     <Permitted>
 @if (loading)
 {

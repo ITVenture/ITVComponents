@@ -4,8 +4,8 @@ using ITVComponents.WebCoreToolkit.Configuration;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
 {
     /// <summary>
-    /// Everything axis B needs, in ONE global setting (<c>StripePayments</c>), read through
-    /// <c>IGlobalSettings&lt;StripePaymentsOptions&gt;</c>.
+    /// Everything axis B needs, in ONE global setting (<c>TenantPayments</c>), read through
+    /// <c>IGlobalSettings&lt;TenantPaymentsOptions&gt;</c>.
     /// <para>
     /// Deliberately GLOBAL and not tenant-scoped: scoped settings are writable through the tenant settings page
     /// (<c>Tenants.WriteSettings</c>), so a tenant could set its own commission to zero. Should per-tenant rates
@@ -13,33 +13,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
     /// </para>
     /// The provider API key is NOT repeated here: it keeps coming from <c>Billing:Stripe</c>, both axes share
     /// one platform account.
+    /// <para>
+    /// Everything ABOVE <see cref="Stripe"/> is the platform's own decision - commission, waiver, currency,
+    /// how long a payment page lives. What belongs to one provider sits in its own sub-object, so a second
+    /// provider adds its block next to it instead of widening this one.
+    /// </para>
     /// </summary>
-    [SettingName("StripePayments")]
-    public class StripePaymentsOptions
+    [SettingName("TenantPayments")]
+    public class TenantPaymentsOptions
     {
         /// <summary>
         /// Master switch. With this off, service and views refuse to work even when the feature is active for the
         /// tenant — the deployment always wins over the entitlement.
         /// </summary>
         public bool Enabled { get; set; } = true;
-
-        /// <summary>
-        /// Which provider dashboard new connected accounts get: <c>express</c>, <c>full</c> or <c>none</c>.
-        /// <para>
-        /// This replaces the old account type. Connected accounts are created through the provider's v2 API,
-        /// where an account is described by the configurations applied to it rather than by a type chosen up
-        /// front - the platform says "this account is a merchant and a recipient", and the dashboard follows.
-        /// The v1 creation path is not offered any more: the provider refuses it for every integration set up
-        /// after its cut-off, so keeping it would work on the deployments that need it least.
-        /// </para>
-        /// </summary>
-        public string DashboardType { get; set; } = "express";
-
-        /// <summary>
-        /// <c>direct</c> or <c>destination</c>. Only <c>direct</c> is implemented — with destination charges the
-        /// PLATFORM becomes merchant of record, which is a tax decision and not a configuration switch.
-        /// </summary>
-        public string ChargeType { get; set; } = "direct";
 
         /// <summary>ISO-4217 currency used when the caller does not name one.</summary>
         public string DefaultCurrency { get; set; } = "CHF";
@@ -50,45 +37,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// </summary>
         public string DefaultCountry { get; set; } = "CH";
 
-        /// <summary>
-        /// Who collects the provider's fees from a connected account: <c>stripe</c> (default),
-        /// <c>application</c>, <c>application_custom</c> or <c>application_express</c>.
-        /// <para>
-        /// In v1 this followed silently from the account type; v2 makes it an explicit decision, and it is a
-        /// decision about money: with <c>application</c> the PLATFORM is billed the provider's fees and has to
-        /// get them back from the tenant itself. The default keeps the behaviour an express account had.
-        /// </para>
-        /// </summary>
-        public string FeesCollector { get; set; } = "stripe";
-
-        /// <summary>
-        /// Who carries the losses from disputes and negative balances: <c>stripe</c> (default) or
-        /// <c>application</c>. See <see cref="FeesCollector"/> - with <c>application</c> a chargeback against a
-        /// tenant lands on the platform's balance.
-        /// </summary>
-        public string LossesCollector { get; set; } = "stripe";
-
         /// <summary>How the platform's commission per sale is computed.</summary>
         public ApplicationFeeOptions ApplicationFee { get; set; } = new();
-
-        /// <summary>
-        /// Signing secret of the CONNECT webhook endpoint (<c>whsec_...</c>). A separate endpoint with its own
-        /// secret — mixing connect events into the platform endpoint would mean trying both secrets blindly.
-        /// </summary>
-        public string ConnectWebhookSecret { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Signing secret of the v2 EVENT DESTINATION (<c>whsec_...</c>). Empty falls back to
-        /// <see cref="ConnectWebhookSecret"/>.
-        /// <para>
-        /// A second secret because v2 is a second subscription: connected accounts are created through the v2
-        /// API and report themselves through v2 event notifications, which the provider delivers to an event
-        /// destination of its own with its own secret. Without this, the account mirror never learns that a shop
-        /// was restricted - and a shop that may no longer take money would keep selling until someone opens its
-        /// page. The fallback covers the setup where both point at the same endpoint with the same secret.
-        /// </para>
-        /// </summary>
-        public string ConnectV2WebhookSecret { get; set; } = string.Empty;
 
         /// <summary>
         /// When true a sale needs the payout capability, not just the card-payments one. Stricter, but keeps
@@ -132,6 +82,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
 
         /// <summary>Volume-based waiver of the subscription base fee. Off unless explicitly switched on.</summary>
         public VolumeWaiverOptions VolumeWaiver { get; set; } = new();
+
+        /// <summary>
+        /// What only Stripe Connect needs. Its own object so the neutral settings above stay readable - and so a
+        /// second provider can sit beside it rather than inside it.
+        /// </summary>
+        public StripeConnectOptions Stripe { get; set; } = new();
     }
 
     /// <summary>
@@ -201,5 +157,64 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
 
         /// <summary>Deviating thresholds per currency, key = ISO-4217.</summary>
         public Dictionary<string, VolumeWaiverOptions>? PerCurrency { get; set; }
+    }
+
+    /// <summary>The connection details of Stripe Connect - meaningless to any other provider.</summary>
+    public class StripeConnectOptions
+    {
+        /// <summary>
+        /// Which provider dashboard new connected accounts get: <c>express</c>, <c>full</c> or <c>none</c>.
+        /// <para>
+        /// This replaces the old account type. Connected accounts are created through the provider's v2 API,
+        /// where an account is described by the configurations applied to it rather than by a type chosen up
+        /// front - the platform says "this account is a merchant and a recipient", and the dashboard follows.
+        /// The v1 creation path is not offered any more: the provider refuses it for every integration set up
+        /// after its cut-off, so keeping it would work on the deployments that need it least.
+        /// </para>
+        /// </summary>
+        public string DashboardType { get; set; } = "express";
+
+        /// <summary>
+        /// <c>direct</c> or <c>destination</c>. Only <c>direct</c> is implemented — with destination charges the
+        /// PLATFORM becomes merchant of record, which is a tax decision and not a configuration switch.
+        /// </summary>
+        public string ChargeType { get; set; } = "direct";
+
+        /// <summary>
+        /// Who collects the provider's fees from a connected account: <c>stripe</c> (default),
+        /// <c>application</c>, <c>application_custom</c> or <c>application_express</c>.
+        /// <para>
+        /// In v1 this followed silently from the account type; v2 makes it an explicit decision, and it is a
+        /// decision about money: with <c>application</c> the PLATFORM is billed the provider's fees and has to
+        /// get them back from the tenant itself. The default keeps the behaviour an express account had.
+        /// </para>
+        /// </summary>
+        public string FeesCollector { get; set; } = "stripe";
+
+        /// <summary>
+        /// Who carries the losses from disputes and negative balances: <c>stripe</c> (default) or
+        /// <c>application</c>. See <see cref="FeesCollector"/> - with <c>application</c> a chargeback against a
+        /// tenant lands on the platform's balance.
+        /// </summary>
+        public string LossesCollector { get; set; } = "stripe";
+
+        /// <summary>
+        /// Signing secret of the CONNECT webhook endpoint (<c>whsec_...</c>). A separate endpoint with its own
+        /// secret — mixing connect events into the platform endpoint would mean trying both secrets blindly.
+        /// </summary>
+        public string ConnectWebhookSecret { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Signing secret of the v2 EVENT DESTINATION (<c>whsec_...</c>). Empty falls back to
+        /// <see cref="ConnectWebhookSecret"/>.
+        /// <para>
+        /// A second secret because v2 is a second subscription: connected accounts are created through the v2
+        /// API and report themselves through v2 event notifications, which the provider delivers to an event
+        /// destination of its own with its own secret. Without this, the account mirror never learns that a shop
+        /// was restricted - and a shop that may no longer take money would keep selling until someone opens its
+        /// page. The fallback covers the setup where both point at the same endpoint with the same secret.
+        /// </para>
+        /// </summary>
+        public string ConnectV2WebhookSecret { get; set; } = string.Empty;
     }
 }

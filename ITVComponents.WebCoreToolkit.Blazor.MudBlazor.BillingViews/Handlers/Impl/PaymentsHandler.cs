@@ -42,11 +42,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         private readonly IServiceProvider services;
         private readonly ITenantPaymentAccountService accountService;
         private readonly ITenantSaleService saleService;
-        private readonly IGlobalSettings<StripePaymentsOptions> settings;
+        private readonly IGlobalSettings<TenantPaymentsOptions> settings;
 
         public PaymentsHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services,
             ITenantPaymentAccountService accountService, ITenantSaleService saleService,
-            IGlobalSettings<StripePaymentsOptions> settings)
+            IGlobalSettings<TenantPaymentsOptions> settings)
         {
             this.dbFactory = dbFactory;
             this.services = services;
@@ -363,7 +363,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 // logged rather than passed over.
                 ITVComponents.Logging.LogEnvironment.LogEvent(
                     $"Could not read the mirrored connect requirements for the admin overview; the account is listed with 0 open items: {ITVComponents.Helpers.ExceptionHelper.OutlineException(ex)}",
-                    ITVComponents.Logging.LogSeverity.Warning, "StripeConnect");
+                    ITVComponents.Logging.LogSeverity.Warning, "TenantPayments");
                 return 0;
             }
         }

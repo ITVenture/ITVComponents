@@ -17,16 +17,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
     /// </summary>
     internal sealed class PaymentsRuntime
     {
-        private readonly IGlobalSettings<StripePaymentsOptions> settings;
+        private readonly IGlobalSettings<TenantPaymentsOptions> settings;
         private readonly IPaymentFeatureGate? featureGate;
 
-        public PaymentsRuntime(IGlobalSettings<StripePaymentsOptions> settings, IPaymentFeatureGate? featureGate)
+        public PaymentsRuntime(IGlobalSettings<TenantPaymentsOptions> settings, IPaymentFeatureGate? featureGate)
         {
             this.settings = settings;
             this.featureGate = featureGate;
         }
 
-        public StripePaymentsOptions Options => settings.Value;
+        public TenantPaymentsOptions Options => settings.Value;
 
         /// <summary>Master switch. Refuses regardless of what the tenant is entitled to.</summary>
         public void EnsureEnabled()
@@ -36,12 +36,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 throw new TenantPaymentException(PaymentErrorCodes.Disabled, "The payments module is switched off for this deployment.");
             }
 
-            if (!string.Equals(Options.ChargeType, "direct", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(Options.Stripe.ChargeType, "direct", StringComparison.OrdinalIgnoreCase))
             {
                 // Destination charges make the PLATFORM merchant of record. That is a tax decision, so it must
                 // not happen because a configuration string was changed and the code quietly went along.
                 throw new TenantPaymentException(PaymentErrorCodes.UnsupportedChargeType,
-                    $"Charge type '{Options.ChargeType}' is configured but only 'direct' is implemented.");
+                    $"Charge type '{Options.Stripe.ChargeType}' is configured but only 'direct' is implemented.");
             }
         }
 
