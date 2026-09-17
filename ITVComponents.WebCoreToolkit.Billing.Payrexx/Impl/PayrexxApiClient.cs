@@ -23,7 +23,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
     /// <c>status: "error"</c>. <see cref="EnsureSuccess"/> prueft darum den Rumpf, nicht den Code.
     /// </para>
     /// </remarks>
-    internal sealed class PayrexxApiClient
+    public sealed class PayrexxApiClient
     {
         private static readonly JsonSerializerOptions Json = new()
         {
