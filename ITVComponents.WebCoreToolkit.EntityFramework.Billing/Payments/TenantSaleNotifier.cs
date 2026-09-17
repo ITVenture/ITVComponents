@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +7,7 @@ using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 
-namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
+namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 {
     /// <summary>
     /// Calls the host's sale observers. Every observer is called even when an earlier one threw: the money has
@@ -18,7 +18,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
     /// where their goods are.
     /// </para>
     /// </summary>
-    internal sealed class TenantSaleNotifier
+    public sealed class TenantSaleNotifier
     {
         private readonly IEnumerable<ITenantSaleObserver> observers;
 
@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 {
                     LogEnvironment.LogEvent(
                         $"Sale observer {observer.GetType().FullName} failed for the paid sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}'). The payment stands; whatever this observer was to release did NOT happen: {ex.OutlineException()}",
-                        LogSeverity.Error, "StripeConnect");
+                        LogSeverity.Error, "TenantPayments");
                 }
             }
         }
@@ -56,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 {
                     LogEnvironment.LogEvent(
                         $"Sale observer {observer.GetType().FullName} failed for the refund {refund.TenantSaleRefundId} of sale {sale.TenantSaleId} (tenant {sale.TenantId}). The refund stands; this observer did not react: {ex.OutlineException()}",
-                        LogSeverity.Error, "StripeConnect");
+                        LogSeverity.Error, "TenantPayments");
                 }
             }
         }

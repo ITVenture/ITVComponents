@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Configuration;
@@ -6,16 +6,15 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
-using Stripe;
 
-namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
+namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 {
     /// <summary>
     /// The preconditions every payments operation shares, in one place. They are checked in the SERVICE and not
     /// only in the view: a sale can originate from an anonymous shop request or a background run, where there is
     /// no security scope to ask.
     /// </summary>
-    internal sealed class PaymentsRuntime
+    public class PaymentsRuntime
     {
         private readonly IGlobalSettings<TenantPaymentsOptions> settings;
         private readonly IPaymentFeatureGate? featureGate;
@@ -28,6 +27,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
 
         public TenantPaymentsOptions Options => settings.Value;
 
+        /// <summary>
+        /// Der Haken fuer das, was nur EIN Anbieter pruefen kann - etwa eine Betriebsart, die er zwar
+        /// konfigurieren laesst, aber nicht umgesetzt hat. Die Vorbelegung prueft nichts.
+        /// </summary>
+        protected virtual void EnsureProviderReady()
+        {
+        }
+
         /// <summary>Master switch. Refuses regardless of what the tenant is entitled to.</summary>
         public void EnsureEnabled()
         {
@@ -36,13 +43,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 throw new TenantPaymentException(PaymentErrorCodes.Disabled, "The payments module is switched off for this deployment.");
             }
 
-            if (!string.Equals(Options.Stripe.ChargeType, "direct", StringComparison.OrdinalIgnoreCase))
-            {
-                // Destination charges make the PLATFORM merchant of record. That is a tax decision, so it must
-                // not happen because a configuration string was changed and the code quietly went along.
-                throw new TenantPaymentException(PaymentErrorCodes.UnsupportedChargeType,
-                    $"Charge type '{Options.Stripe.ChargeType}' is configured but only 'direct' is implemented.");
-            }
+            EnsureProviderReady();
         }
 
         /// <summary>
@@ -98,9 +99,5 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     $"The connected account {account.ProviderAccountId} has no payout route yet and the configuration requires one before selling.");
             }
         }
-
-        /// <summary>Request options addressing the connected account (the provider turns this into its account header).</summary>
-        public static RequestOptions ForAccount(string providerAccountId, string? idempotencyKey = null)
-            => new() { StripeAccount = providerAccountId, IdempotencyKey = idempotencyKey };
     }
 }

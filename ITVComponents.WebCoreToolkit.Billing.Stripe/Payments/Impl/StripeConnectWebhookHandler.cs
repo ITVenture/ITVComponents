@@ -314,7 +314,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 current = await new SessionService(client).GetAsync(session.Id,
                     cancellationToken: cancellationToken,
-                    requestOptions: PaymentsRuntime.ForAccount(accountId ?? sale.ProviderAccountId!));
+                    requestOptions: StripePaymentsRuntime.ForAccount(accountId ?? sale.ProviderAccountId!));
             }
             catch (StripeException ex)
             {
@@ -431,7 +431,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 added.Add(row);
             }
 
-            sale.Status = TenantSaleService<TContext>.DeriveStatus(sale.AmountMinor, sale.Refunds.Sum(r => r.AmountMinor));
+            sale.Status = TenantSaleServiceBase<TContext>.DeriveStatus(sale.AmountMinor, sale.Refunds.Sum(r => r.AmountMinor));
             sale.Updated = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
 
@@ -480,7 +480,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 var intent = await new PaymentIntentService(client).GetAsync(paymentIntentId,
                     cancellationToken: cancellationToken,
-                    requestOptions: PaymentsRuntime.ForAccount(accountId));
+                    requestOptions: StripePaymentsRuntime.ForAccount(accountId));
                 return intent.LatestChargeId;
             }
             catch (StripeException ex)

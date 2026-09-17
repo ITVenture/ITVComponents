@@ -59,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             identityProvider = identityProviders.FirstOrDefault();
             // Resolved as a collection so a missing gate is an empty set instead of a container failure — the
             // runtime then answers "not entitled", which is the safe direction.
-            runtime = new PaymentsRuntime(settings, featureGates.FirstOrDefault());
+            runtime = new StripePaymentsRuntime(settings, featureGates.FirstOrDefault());
         }
 
         /// <inheritdoc />
