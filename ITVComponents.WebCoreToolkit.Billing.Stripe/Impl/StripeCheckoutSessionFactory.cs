@@ -1,3 +1,4 @@
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +16,7 @@ using Stripe.Checkout;
 namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 {
     /// <summary>Creates Stripe Checkout sessions for a base plan + optional add-ons (one subscription, N items).</summary>
-    public class StripeCheckoutSessionFactory<TContext> : IStripeCheckoutSessionFactory
+    public class StripeCheckoutSessionFactory<TContext> : ISubscriptionCheckoutFactory
         where TContext : DbContext, IBillingContext
     {
         private readonly TContext db;
@@ -156,7 +157,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     }
 
     /// <summary>Creates Stripe customer-portal sessions.</summary>
-    public class StripeBillingPortalFactory<TContext> : IStripeBillingPortalFactory
+    public class StripeBillingPortalFactory<TContext> : IBillingPortalFactory
         where TContext : DbContext, IBillingContext
     {
         private readonly TContext db;

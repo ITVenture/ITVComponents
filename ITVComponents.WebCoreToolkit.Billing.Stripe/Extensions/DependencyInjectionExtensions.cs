@@ -1,4 +1,5 @@
 ﻿using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Impl;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -53,8 +54,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Extensions
                 new StripeClient(sp.GetRequiredService<IOptions<StripeOptions>>().Value.ApiKey));
             services.AddSingleton<IStripeClient>(sp => sp.GetRequiredService<StripeClient>());
 
-            services.AddScoped<IStripeCheckoutSessionFactory, StripeCheckoutSessionFactory<TContext>>();
-            services.AddScoped<IStripeBillingPortalFactory, StripeBillingPortalFactory<TContext>>();
+            services.AddScoped<ISubscriptionCheckoutFactory, StripeCheckoutSessionFactory<TContext>>();
+            services.AddScoped<IBillingPortalFactory, StripeBillingPortalFactory<TContext>>();
             services.AddScoped<IStripeWebhookHandler, StripeWebhookHandler<TContext>>();
             services.AddScoped<IPlanSynchronizer, PlanSynchronizer<TContext>>();
 

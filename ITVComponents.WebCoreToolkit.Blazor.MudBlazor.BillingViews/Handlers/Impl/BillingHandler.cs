@@ -1,3 +1,4 @@
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,11 +26,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IServiceProvider services;
-        private readonly IStripeCheckoutSessionFactory checkout;
-        private readonly IStripeBillingPortalFactory portal;
+        private readonly ISubscriptionCheckoutFactory checkout;
+        private readonly IBillingPortalFactory portal;
         private readonly IPlanSynchronizer planSynchronizer;
 
-        public BillingHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, IStripeCheckoutSessionFactory checkout, IStripeBillingPortalFactory portal, IPlanSynchronizer planSynchronizer)
+        public BillingHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ISubscriptionCheckoutFactory checkout, IBillingPortalFactory portal, IPlanSynchronizer planSynchronizer)
         {
             this.dbFactory = dbFactory;
             this.services = services;

@@ -1,3 +1,4 @@
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using System.IO;
 using System.Threading;
 using ITVComponents.Logging;
@@ -14,8 +15,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Extensions
         /// <summary>
         /// Maps the Stripe webhook receiver (default <c>POST /billing/webhook</c>). This endpoint must be
         /// reachable by Stripe and is intentionally unauthenticated — it verifies the event signature itself.
-        /// Checkout and portal sessions are created server-side via <see cref="IStripeCheckoutSessionFactory"/>
-        /// / <see cref="IStripeBillingPortalFactory"/> from the UI (redirect to the returned URL).
+        /// Checkout and portal sessions are created server-side via <see cref="ISubscriptionCheckoutFactory"/>
+        /// / <see cref="IBillingPortalFactory"/> from the UI (redirect to the returned URL).
         /// </summary>
         public static IEndpointRouteBuilder MapStripeBillingEndpoints(this IEndpointRouteBuilder endpoints, string webhookPath = "/billing/webhook")
         {
