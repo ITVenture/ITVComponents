@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -81,21 +81,47 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         /// <inheritdoc />
-        public IReadOnlyList<TerminalProviderInfo> GetProviders() => catalog.GetProviders();
+        /// <remarks>
+        /// Der Katalog führt keine Mandantendaten — geprüft wird trotzdem, weil es keinen Grund gibt, die
+        /// Bauart der Anbieter jemandem zu zeigen, der hier ohnehin nichts zu suchen hat. Leserecht genügt.
+        /// </remarks>
+        public IReadOnlyList<TerminalProviderInfo> GetProviders()
+        {
+            EnsureCatalogAccess();
+            return catalog.GetProviders();
+        }
 
         /// <inheritdoc />
         public IReadOnlyList<TerminalSettingDescriptor> DescribeSettings(string providerKey)
-            => catalog.DescribeSettings(providerKey);
+        {
+            EnsureCatalogAccess();
+            return catalog.DescribeSettings(providerKey);
+        }
 
         /// <inheritdoc />
-        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
+        /// <remarks>
+        /// <b>Dieser Weg fragt das GERÄT</b>, und zwar an der Adresse, die in der übergebenen Konfiguration
+        /// steht. Ohne Prüfung könnte damit jeder angemeldete Benutzer die Anwendung eine Verbindung zu einem
+        /// frei gewählten Ziel aufbauen lassen — das ist keine Katalogabfrage mehr, sondern ein Aufruf nach
+        /// aussen auf fremde Rechnung. Darum das Verwaltungsrecht und nicht das Leserecht.
+        /// </remarks>
+        public async Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
             string? configurationJson, CancellationToken cancellationToken = default)
-            => catalog.DescribeDeviceSettingsAsync(providerKey, configurationJson, cancellationToken);
+        {
+            await EnsureAsync(CanManage(), cancellationToken);
+            return await catalog.DescribeDeviceSettingsAsync(providerKey, configurationJson, cancellationToken);
+        }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Die Auswahllisten sind <b>Mandantendaten</b>: hinter <c>clientApps</c> stehen die Anwendungen dieses
+        /// Mandanten mit Namen und Schlüssel. Eine Liste, die man ohne Recht abfragen kann, ist eine Liste, die
+        /// man ohne Recht hat.
+        /// </remarks>
         public async Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source,
             string? dependsOnValue, CancellationToken cancellationToken = default)
         {
+            await EnsureAsync(CanManage(), cancellationToken);
             foreach (var provider in choiceProviders)
             {
                 if (provider.Handles(source))
@@ -151,12 +177,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// </remarks>
         private async Task<int> EnsureAsync(bool permitted, CancellationToken cancellationToken)
         {
-            if (!permitted)
-            {
-                throw new TenantPaymentException(PaymentErrorCodes.NotPermitted,
-                    "The acting user may not manage payment terminals of this tenant.");
-            }
-
+            EnsurePermitted(permitted);
             runtime.EnsureEnabled();
             var tenantId = await CurrentTenantAsync(cancellationToken);
             await runtime.EnsureFeatureAsync(tenantId, cancellationToken);
@@ -171,6 +192,28 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// wie jede andere: die Abfragen liefen durch, zeigten nichts an, und ein gespeichertes Geraet
         /// gehoerte niemandem. Ein Satz, der sagt was fehlt, ist die deutlich billigere Variante.
         /// </remarks>
+        /// <summary>
+        /// Recht und Hauptschalter für die Wege, die keinen Mandanten brauchen — den Anbieter-Katalog.
+        /// </summary>
+        /// <remarks>
+        /// Ohne Mandant lässt sich das Mandanten-Feature nicht befragen, und für einen Katalog, der für alle
+        /// gleich aussieht, wäre das auch die falsche Frage. Geprüft wird, was hier zu prüfen ist.
+        /// </remarks>
+        private void EnsureCatalogAccess()
+        {
+            EnsurePermitted(CanView());
+            runtime.EnsureEnabled();
+        }
+
+        private static void EnsurePermitted(bool permitted)
+        {
+            if (!permitted)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.NotPermitted,
+                    "The acting user may not manage payment terminals of this tenant.");
+            }
+        }
+
         private async Task<int> CurrentTenantAsync(CancellationToken cancellationToken)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
