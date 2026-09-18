@@ -33,7 +33,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
     /// </remarks>
     public class WalleeLtiTerminalDevice : ITerminalDevice
     {
-        private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+        private static readonly JsonSerializerOptions Json = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            // Eine Maske liefert Text, auch fuer Zahlen. TerminalSettings.Compose schreibt sie zwar
+            // richtig, aber ein von Hand gepflegtes JSON tut das vielleicht nicht - und an einem
+            // '"port": "50000"' soll die Kasse nicht scheitern.
+            NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+        };
 
         /// <inheritdoc />
         public async Task<TerminalPaymentOutcome> StartPaymentAsync(TerminalTarget target,
@@ -294,6 +301,86 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                 _ => throw new TerminalDeviceException(
                     $"No numeric ISO-4217 code is known here for currency '{currency}'. Add it rather than letting the terminal guess — a wrong code charges in a different currency.")
             };
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Die Liste folgt <see cref="WalleeLtiTerminalOptions"/> — was dort ein Feld ist, ist hier
+        /// eines. Wer das eine ändert, ändert das andere mit, sonst fragt die Maske nach etwas, das
+        /// niemand liest, oder lässt weg, was gebraucht wird.
+        /// </remarks>
+        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeSettingsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var defaults = new WalleeLtiTerminalOptions();
+            IReadOnlyList<TerminalSettingDescriptor> fields =
+            [
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.Host).ToLowerInvariant(),
+                    Label = "Adresse des Terminals",
+                    Kind = TerminalSettingKind.Text,
+                    Required = true,
+                    HelpText = "IP-Adresse oder Name des Geräts im Netz des Ladens. Der Kassen-PC muss es direkt erreichen."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.Port).ToLowerInvariant(),
+                    Label = "Port",
+                    Kind = TerminalSettingKind.Number,
+                    Required = true,
+                    DefaultValue = defaults.Port.ToString(),
+                    HelpText = "wallee verwendet 50000, sofern am Gerät nichts anderes eingestellt ist."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.PosId).ToLowerInvariant(),
+                    Label = "Kassenkennung (posId)",
+                    Kind = TerminalSettingKind.Text,
+                    Required = true,
+                    HelpText = "Wie sich diese Kasse gegenüber dem Terminal ausweist."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.ReceiptFormat).ToLowerInvariant(),
+                    Label = "Belegformat",
+                    Kind = TerminalSettingKind.Number,
+                    DefaultValue = defaults.ReceiptFormat.ToString(),
+                    HelpText = "2 ist das übliche Textformat."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.ShowTransactionResultScreens).ToLowerInvariant(),
+                    Label = "Ergebnis am Gerät anzeigen",
+                    Kind = TerminalSettingKind.Boolean,
+                    DefaultValue = defaults.ShowTransactionResultScreens.ToString()
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.SuppressDynamicCurrencyConversion).ToLowerInvariant(),
+                    Label = "Währungsumrechnung am Gerät unterdrücken",
+                    Kind = TerminalSettingKind.Boolean,
+                    DefaultValue = defaults.SuppressDynamicCurrencyConversion.ToString(),
+                    HelpText = "Empfohlen. Mit Umrechnung weicht der belastete Betrag von dem ab, der auf der Verkaufszeile steht."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.TransactionTimeoutSeconds).ToLowerInvariant(),
+                    Label = "Wartezeit je Zahlung (Sekunden)",
+                    Kind = TerminalSettingKind.Number,
+                    DefaultValue = defaults.TransactionTimeoutSeconds.ToString(),
+                    HelpText = "Grosszügig wählen: ein Mensch steckt eine Karte ein und tippt eine PIN. Läuft sie ab, gilt der Ausgang als unklar — nicht als gescheitert."
+                },
+                new()
+                {
+                    Name = nameof(WalleeLtiTerminalOptions.ConnectTimeoutSeconds).ToLowerInvariant(),
+                    Label = "Wartezeit auf die Verbindung (Sekunden)",
+                    Kind = TerminalSettingKind.Number,
+                    DefaultValue = defaults.ConnectTimeoutSeconds.ToString()
+                }
+            ];
+
+            return Task.FromResult(fields);
+        }
 
         /// <summary>
         /// Liest die Gerätekonfiguration aus dem, was mit der Anfrage kam.

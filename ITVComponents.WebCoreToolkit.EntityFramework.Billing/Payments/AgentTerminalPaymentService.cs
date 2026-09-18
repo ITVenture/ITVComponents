@@ -47,6 +47,46 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         protected override string ProviderKey => Key;
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Der erste Schritt fragt nur, WO das Gerät hängt. Was es selbst braucht, weiss nur es —
+        /// danach fragt der zweite Schritt.
+        /// </remarks>
+        public override IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() =>
+        [
+            new()
+            {
+                Name = "plugin",
+                Label = "Name des Geräte-Objekts auf dem Agenten",
+                Required = true,
+                HelpText = "Unter diesem Namen stellt der Kassen-Agent seine Terminal-Anbindung bereit. Wie daraus eine Verbindung wird, entscheidet die Anwendung."
+            }
+        ];
+
+        /// <inheritdoc />
+        public override bool HasDeviceSettings => true;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// <b>Hier wird der Agent tatsächlich gefragt.</b> Das ist der Punkt, an dem sich der zweite
+        /// Schritt lohnt: läuft dort eine neuere Fassung, beschreibt sie sich selbst richtig, und die
+        /// Web-Anwendung muss von ihren Feldern nichts wissen.
+        /// </remarks>
+        public override async Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
+            string? configurationJson, CancellationToken cancellationToken = default)
+        {
+            // Ein Geraet, das es noch nicht gibt: die Zeile ist nur das Vehikel, mit dem der Aufloeser
+            // den Weg findet. Gespeichert wird sie nicht - der Assistent ist noch nicht fertig.
+            var draft = new TenantPaymentTerminal
+            {
+                Provider = Key,
+                ConfigurationJson = configurationJson
+            };
+
+            var device = await locator.GetDeviceAsync(draft, cancellationToken);
+            return await device.DescribeSettingsAsync(cancellationToken);
+        }
+
+        /// <inheritdoc />
         protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {

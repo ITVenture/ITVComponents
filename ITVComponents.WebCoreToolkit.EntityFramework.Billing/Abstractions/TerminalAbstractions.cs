@@ -63,6 +63,132 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         /// der nur behauptet wird, wäre die gefährliche.
         /// </remarks>
         Task<TerminalSaleResult> CancelPaymentAsync(int tenantSaleId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Welche Angaben dieser Weg braucht, um ein Gerät anzulegen — der <b>erste</b> Schritt des
+        /// Assistenten.
+        /// </summary>
+        /// <remarks>
+        /// Was hier steht, weiss die Web-Anwendung: die Kennung beim Anbieter, bei einem Agenten der
+        /// Weg dorthin. Was das Gerät selbst braucht, kommt erst danach — siehe
+        /// <see cref="DescribeDeviceSettingsAsync"/>.
+        /// </remarks>
+        IReadOnlyList<TerminalSettingDescriptor> DescribeSettings();
+
+        /// <summary>
+        /// Ob nach dem ersten Schritt noch ein zweiter kommt.
+        /// </summary>
+        /// <remarks>
+        /// Bei den Cloud-Wegen nein: dort redet die Anwendung selbst mit dem Anbieter, und mehr als
+        /// dessen Gerätekennung gibt es nicht zu wissen. Bei einem Agenten ja — welche Angaben sein
+        /// Gerät braucht, weiss nur er.
+        /// </remarks>
+        bool HasDeviceSettings { get; }
+
+        /// <summary>
+        /// Fragt die Angaben ab, die das Gerät selbst verlangt — der <b>zweite</b> Schritt.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Bekommt, was im ersten Schritt zusammengekommen ist: erst damit lässt sich der Agent
+        /// überhaupt erreichen und fragen. Das ist der Grund für zwei Schritte statt einem — die
+        /// zweite Feldliste hängt von der Antwort auf die erste ab.
+        /// </para>
+        /// <para>
+        /// Liefert eine leere Liste, wenn es nichts zu fragen gibt. Der Assistent überspringt den
+        /// Schritt dann, statt eine leere Maske zu zeigen.
+        /// </para>
+        /// </remarks>
+        /// <param name="configurationJson">das Ergebnis des ersten Schritts</param>
+        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string? configurationJson,
+            CancellationToken cancellationToken = default);
+    }
+
+    /// <summary>
+    /// Was es an Terminal-Wegen gibt und was sie zum Einrichten brauchen — die Grundlage des
+    /// Assistenten „Gerät hinzufügen".
+    /// </summary>
+    /// <remarks>
+    /// Getrennt von <see cref="ITerminalPaymentService"/>, weil die Frage eine andere ist: jener
+    /// bedient EIN Gerät, dieser hier kennt ALLE Wege. Umgesetzt von der Weiche, die sie ohnehin
+    /// beisammen hat.
+    /// </remarks>
+    public interface ITerminalProviderCatalog
+    {
+        /// <summary>Die Wege, die registriert sind — die Auswahlliste im ersten Schritt.</summary>
+        IReadOnlyList<TerminalProviderInfo> GetProviders();
+
+        /// <summary>Die Angaben, die ein bestimmter Weg im ersten Schritt braucht.</summary>
+        IReadOnlyList<TerminalSettingDescriptor> DescribeSettings(string providerKey);
+
+        /// <summary>Die Angaben, die das Gerät im zweiten Schritt verlangt — leer, wenn es keinen gibt.</summary>
+        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
+            string? configurationJson, CancellationToken cancellationToken = default);
+    }
+
+    /// <summary>Ein Terminal-Weg, wie ihn die Auswahlliste braucht.</summary>
+    /// <param name="Key">der Name, der am Gerät gespeichert wird</param>
+    /// <param name="HasDeviceSettings">ob nach dem ersten Schritt noch einer kommt</param>
+    public readonly record struct TerminalProviderInfo(string Key, bool HasDeviceSettings);
+
+    /// <summary>
+    /// Anlegen, ändern und abschalten von Geräten.
+    /// </summary>
+    /// <remarks>
+    /// Der letzte Schritt des Assistenten braucht ihn: ohne ihn liesse sich beschreiben und ausfüllen,
+    /// aber nichts speichern.
+    /// </remarks>
+    public interface ITerminalAdministration
+    {
+        /// <summary>Die Geräte eines Mandanten, mit allem, was zum Bearbeiten nötig ist.</summary>
+        Task<IReadOnlyList<TerminalDefinition>> GetAsync(int tenantId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Legt ein Gerät an oder ändert es.
+        /// </summary>
+        /// <returns>der Schlüssel des Geräts</returns>
+        Task<int> SaveAsync(TerminalDefinition definition, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Schaltet ein Gerät ein oder aus.
+        /// </summary>
+        /// <remarks>
+        /// Es gibt bewusst kein Löschen: die Verkäufe darauf verweisen weiterhin auf es, und ein
+        /// ausgemustertes Gerät bleibt der Beleg dafür, wo kassiert wurde.
+        /// </remarks>
+        Task SetEnabledAsync(int tenantId, int terminalId, bool enabled,
+            CancellationToken cancellationToken = default);
+    }
+
+    /// <summary>Ein Gerät, wie der Assistent es anlegt.</summary>
+    public class TerminalDefinition
+    {
+        /// <summary>Beim Anlegen 0, beim Ändern der bestehende Schlüssel.</summary>
+        public int TerminalId { get; set; }
+
+        /// <summary>Der Mandant, dem das Gerät gehört.</summary>
+        public int TenantId { get; set; }
+
+        /// <summary>Der gewählte Weg.</summary>
+        public string Provider { get; set; } = string.Empty;
+
+        /// <summary>Die Kennung des Geräts beim Anbieter bzw. im Laden.</summary>
+        public string ProviderTerminalId { get; set; } = string.Empty;
+
+        /// <summary>Der Dienst, über den ein Agent erreicht wird. Bei den Cloud-Wegen leer.</summary>
+        public string? Route { get; set; }
+
+        /// <summary>Wie das Gerät im Haus genannt wird.</summary>
+        public string DisplayName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Das Ergebnis beider Assistenten-Schritte, zusammengeführt — gebaut mit
+        /// <see cref="TerminalSettings.Compose"/>.
+        /// </summary>
+        public string? ConfigurationJson { get; set; }
+
+        /// <summary>Ob das Gerät benutzt werden darf.</summary>
+        public bool Enabled { get; set; } = true;
     }
 
     /// <summary>Ein Gerät, wie die Kasse es zur Auswahl braucht.</summary>

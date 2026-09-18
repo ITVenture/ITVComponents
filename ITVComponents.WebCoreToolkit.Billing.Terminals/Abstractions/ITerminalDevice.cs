@@ -77,5 +77,27 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Meldet, ob das Gerät erreichbar und bereit ist.
         /// </summary>
         Task<TerminalStatus> GetStatusAsync(TerminalTarget target, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sagt, welche Angaben diese Ausprägung braucht, um mit einem Gerät reden zu können.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Damit lässt sich eine Eingabemaske erzeugen, statt sie je Anbindung von Hand zu bauen — und
+        /// vor allem: <b>sie bleibt richtig</b>. Wer ein Feld hinzufügt, ändert diese Liste, und die
+        /// Maske zieht mit. Eine anderswo gepflegte Feldliste wäre schon beim zweiten Feld veraltet.
+        /// </para>
+        /// <para>
+        /// <b>Die Antwort kommt vom Gerät, nicht aus der Web-Anwendung.</b> Läuft auf dem Kassen-PC
+        /// eine neuere Fassung, beschreibt sie sich selbst richtig — die Web-Seite muss dafür nichts
+        /// wissen und nichts nachgezogen bekommen.
+        /// </para>
+        /// <para>
+        /// Was die Maske einsammelt, wird über <see cref="TerminalSettings.Compose"/> zu dem JSON, das
+        /// später als <see cref="TerminalTarget.ConfigurationJson"/> zurückkommt.
+        /// </para>
+        /// </remarks>
+        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeSettingsAsync(
+            CancellationToken cancellationToken = default);
     }
 }

@@ -55,6 +55,23 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         protected override string ProviderKey => Key;
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Payrexx spricht das Gerät über seine Seriennummer an; die steht in der Gerätekennung. Was
+        /// hier bleibt, ist der Hinweis auf die Kopplung — ohne sie antwortet die API, als wäre der
+        /// Schlüssel falsch.
+        /// </remarks>
+        public override IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() =>
+        [
+            new()
+            {
+                Name = "pairingNote",
+                Label = "Hinweis zur Kopplung",
+                Kind = TerminalSettingKind.Text,
+                HelpText = "Das Gerät muss vorher mit dem Payrexx-Konto gekoppelt sein (Einmalcode am Terminal). Die Seriennummer gehört in die Gerätekennung."
+            }
+        ];
+
+        /// <inheritdoc />
         protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {

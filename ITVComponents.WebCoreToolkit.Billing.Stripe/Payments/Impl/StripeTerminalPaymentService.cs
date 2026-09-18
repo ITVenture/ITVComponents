@@ -62,6 +62,22 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         protected override string ProviderKey => Key;
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Mehr als die Reader-Kennung gibt es nicht zu wissen: das Gerät gehört dem verbundenen Konto,
+        /// und alles Weitere steht bei Stripe.
+        /// </remarks>
+        public override IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() =>
+        [
+            new()
+            {
+                Name = "readerNote",
+                Label = "Hinweis zum Gerät",
+                Kind = TerminalSettingKind.Text,
+                HelpText = "Frei. Die Reader-Kennung (tmr_…) gehört in die Gerätekennung, nicht hierher. Server-gesteuert laufen nur WisePOS E, Reader S700/S710 und Verifone — der WisePad 3 braucht ein SDK, das es für .NET nicht gibt."
+            }
+        ];
+
+        /// <inheritdoc />
         protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {

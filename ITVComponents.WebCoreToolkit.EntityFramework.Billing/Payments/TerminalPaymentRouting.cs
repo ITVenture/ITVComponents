@@ -49,7 +49,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     /// die Frage „wurde die Karte belastet?" trotzdem an den gestellt werden, der sie ausgelöst hat.
     /// </para>
     /// </remarks>
-    public class RoutingTerminalPaymentService<TContext> : ITerminalPaymentService
+    public class RoutingTerminalPaymentService<TContext> : ITerminalPaymentService, ITerminalProviderCatalog
         where TContext : DbContext, IPaymentsContext
     {
         private readonly IDbContextFactory<TContext> dbFactory;
@@ -113,6 +113,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <inheritdoc />
         public async Task<TerminalSaleResult> CancelPaymentAsync(int tenantSaleId, CancellationToken cancellationToken = default)
             => await (await ForSaleAsync(tenantSaleId, cancellationToken)).CancelPaymentAsync(tenantSaleId, cancellationToken);
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Die Weiche selbst hat keine eigenen Felder — sie leitet weiter. Dass diese Methode hier
+        /// überhaupt steht, liegt am gemeinsamen Vertrag; gefragt wird über den Katalog mit dem Namen
+        /// des Weges.
+        /// </remarks>
+        public IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() => [];
+
+        /// <inheritdoc />
+        public bool HasDeviceSettings => false;
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
+            string? configurationJson, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>([]);
+
+        /// <inheritdoc />
+        public IReadOnlyList<TerminalProviderInfo> GetProviders()
+            => [.. adapters.Values.Select(a => new TerminalProviderInfo(a.Key, a.Terminals.HasDeviceSettings))];
+
+        /// <inheritdoc />
+        IReadOnlyList<TerminalSettingDescriptor> ITerminalProviderCatalog.DescribeSettings(string providerKey)
+            => Resolve(providerKey, "a new terminal").DescribeSettings();
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
+            string? configurationJson, CancellationToken cancellationToken = default)
+            => Resolve(providerKey, "a new terminal").DescribeDeviceSettingsAsync(configurationJson, cancellationToken);
 
         /// <summary>Der Weg, über den dieses Gerät abrechnet.</summary>
         private async Task<ITerminalPaymentService> ForTerminalAsync(int terminalId, CancellationToken cancellationToken)

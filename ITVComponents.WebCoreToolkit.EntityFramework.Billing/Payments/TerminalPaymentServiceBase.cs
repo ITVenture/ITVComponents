@@ -75,6 +75,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         protected abstract Task<TerminalStatus> QueryStatusAsync(TenantPaymentTerminal terminal,
             CancellationToken cancellationToken);
 
+        /// <inheritdoc />
+        /// <remarks>
+        /// Die Vorgabe beschreibt nichts — ein Weg, der Angaben braucht, sagt das selbst. Was
+        /// <b>jedes</b> Gerät hat (Anzeigename, Kennung beim Anbieter), fragt der Assistent ohnehin
+        /// ab; hier steht nur, was diesen einen Weg ausmacht.
+        /// </remarks>
+        public virtual IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() => [];
+
+        /// <inheritdoc />
+        /// <remarks>Die Vorgabe ist „nein": nur der Weg über einen Agenten hat einen zweiten Schritt.</remarks>
+        public virtual bool HasDeviceSettings => false;
+
+        /// <inheritdoc />
+        public virtual Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
+            string? configurationJson, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>([]);
+
         /// <summary>
         /// Das Gerät, so wie eine Ausprägung es braucht: Kennung plus die Angaben, mit denen sich mit
         /// ihm reden lässt.

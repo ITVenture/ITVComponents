@@ -62,6 +62,22 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         protected override string ProviderKey => Key;
 
         /// <inheritdoc />
+        /// <remarks>
+        /// wallee adressiert Terminals über eine Zahl; die gehört in die Gerätekennung. Der Raum kommt
+        /// vom Konto des Mandanten oder aus den Einstellungen.
+        /// </remarks>
+        public override IReadOnlyList<TerminalSettingDescriptor> DescribeSettings() =>
+        [
+            new()
+            {
+                Name = "language",
+                Label = "Sprache am Gerät",
+                Kind = TerminalSettingKind.Text,
+                HelpText = "Leer heisst: die Vorgabe aus den wallee-Einstellungen."
+            }
+        ];
+
+        /// <inheritdoc />
         protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {

@@ -25,7 +25,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         {
             services.AddTenantSaleWebhookSink<TContext>();
             services.RemoveAll<ITerminalPaymentService>();
-            services.AddScoped<ITerminalPaymentService, RoutingTerminalPaymentService<TContext>>();
+            services.RemoveAll<ITerminalProviderCatalog>();
+            services.AddScoped<RoutingTerminalPaymentService<TContext>>();
+            services.AddScoped<ITerminalPaymentService>(sp => sp.GetRequiredService<RoutingTerminalPaymentService<TContext>>());
+            // Dieselbe Instanz unter beiden Vertraegen: die Weiche hat die Wege ohnehin beisammen, und
+            // zwei Exemplare hiessen zwei Listen, die auseinanderlaufen koennen.
+            services.AddScoped<ITerminalProviderCatalog>(sp => sp.GetRequiredService<RoutingTerminalPaymentService<TContext>>());
+            services.TryAddScoped<ITerminalAdministration, TerminalAdministration<TContext>>();
             return services;
         }
 
