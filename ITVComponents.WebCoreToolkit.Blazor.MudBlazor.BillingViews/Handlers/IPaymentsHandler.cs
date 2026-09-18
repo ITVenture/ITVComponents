@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,8 +11,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
     /// Data/operation seam for the payments UI (axis B). Resolves the active tenant from the security scope and
     /// drives onboarding, sales and refunds through the provider service layer.
     /// <para>
-    /// The permission checks here guard the DISPLAY. The service layer checks again by tenant id — it also
-    /// serves callers that have no security scope at all.
+    /// The <c>Can*</c> members are for the VIEW, so it can hide what is not permitted. Each operation checks its
+    /// own permission again and throws <c>TenantPaymentException</c> with <c>PaymentErrorCodes.NotPermitted</c>
+    /// when it is missing.
+    /// </para>
+    /// <para>
+    /// That second check is not redundant: the service layer below guards the master switch, the tenant feature
+    /// and the tenant id — it serves callers with no security scope at all (a shop request, a background run) and
+    /// therefore knows nothing about PERMISSIONS. Whoever leaves them to the page is one second caller away from
+    /// giving them up.
     /// </para>
     /// </summary>
     public interface IPaymentsHandler

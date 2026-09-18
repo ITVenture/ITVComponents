@@ -83,6 +83,7 @@
   <data name="Payments_Action_Sales" xml:space="preserve"><value>Sales</value></data>
   <data name="Payments_NoDashboard" xml:space="preserve"><value>This account type has its own login; there is no direct link from here.</value></data>
   <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Something went wrong: {0}</value></data>
+  <data name="Payments_Error_NotPermitted" xml:space="preserve"><value>You are not permitted to do this.</value></data>
   <data name="Payments_Error_Disabled" xml:space="preserve"><value>Receiving payments is switched off for this installation.</value></data>
   <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>Receiving payments is not part of your current subscription.</value></data>
   <data name="Payments_Error_NoAccount" xml:space="preserve"><value>There is no payout account yet. Set one up first.</value></data>

@@ -83,6 +83,7 @@
   <data name="Payments_Action_Sales" xml:space="preserve"><value>Ventes</value></data>
   <data name="Payments_NoDashboard" xml:space="preserve"><value>Ce type de compte possède son propre accès; aucun lien direct depuis ici.</value></data>
   <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Quelque chose s'est mal passé : {0}</value></data>
+  <data name="Payments_Error_NotPermitted" xml:space="preserve"><value>Vous n'êtes pas autorisé à effectuer cette action.</value></data>
   <data name="Payments_Error_Disabled" xml:space="preserve"><value>L'encaissement de paiements est désactivé sur cette installation.</value></data>
   <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>L'encaissement de paiements ne fait pas partie de votre abonnement actuel.</value></data>
   <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Il n'y a pas encore de compte de versement. Configurez-en un d'abord.</value></data>

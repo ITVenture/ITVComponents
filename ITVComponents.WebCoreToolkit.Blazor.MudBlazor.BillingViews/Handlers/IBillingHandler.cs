@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +10,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
     /// Data/operation seam for the billing UI. Resolves the active tenant from the security scope, reads the
     /// plan/add-on catalog and the tenant's subscription, and drives checkout/portal/plan-sync through the
     /// provider service layer.
+    /// <para>
+    /// The <c>Can*</c> members are for the VIEW, so it can hide what is not permitted. The operations check their
+    /// own permission again and throw when it is missing — an implementation of this interface is reachable from
+    /// any component, and plan authoring writes prices.
+    /// </para>
     /// </summary>
     public interface IBillingHandler
     {

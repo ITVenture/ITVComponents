@@ -83,6 +83,7 @@
   <data name="Payments_Action_Sales" xml:space="preserve"><value>Vendite</value></data>
   <data name="Payments_NoDashboard" xml:space="preserve"><value>Questo tipo di conto ha un accesso proprio; da qui non c'è un collegamento diretto.</value></data>
   <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Qualcosa è andato storto: {0}</value></data>
+  <data name="Payments_Error_NotPermitted" xml:space="preserve"><value>Non è autorizzato a eseguire questa operazione.</value></data>
   <data name="Payments_Error_Disabled" xml:space="preserve"><value>L'incasso di pagamenti è disattivato su questa installazione.</value></data>
   <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>L'incasso di pagamenti non fa parte del suo abbonamento attuale.</value></data>
   <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Non esiste ancora un conto di accredito. Ne configuri prima uno.</value></data>

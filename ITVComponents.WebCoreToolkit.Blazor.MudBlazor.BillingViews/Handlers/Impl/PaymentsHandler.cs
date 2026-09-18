@@ -44,15 +44,22 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         private readonly ITenantSaleService saleService;
         private readonly IGlobalSettings<TenantPaymentsOptions> settings;
 
+        /// <summary>
+        /// Master switch and tenant feature — the same bracket every sale passes through.
+        /// </summary>
+        private readonly PaymentsRuntime runtime;
+
         public PaymentsHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services,
             ITenantPaymentAccountService accountService, ITenantSaleService saleService,
-            IGlobalSettings<TenantPaymentsOptions> settings)
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates)
         {
             this.dbFactory = dbFactory;
             this.services = services;
             this.accountService = accountService;
             this.saleService = saleService;
             this.settings = settings;
+            // With no gate registered the answer is NO — the same fail-closed direction the sale path takes.
+            runtime = new PaymentsRuntime(settings, featureGates.FirstOrDefault());
         }
 
         /// <inheritdoc />
@@ -76,7 +83,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// <inheritdoc />
         public async Task<PaymentAccountViewModel> GetAccountAsync(CancellationToken cancellationToken = default)
         {
-            var tenantId = await CurrentTenantAsync(cancellationToken);
+            var tenantId = await AuthorizeAsync(CanView(), "see the payout account of this tenant", cancellationToken);
             if (tenantId == null)
             {
                 return new PaymentAccountViewModel();
@@ -88,15 +95,19 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// <inheritdoc />
         public async Task<string> StartOnboardingAsync(string returnUrl, string refreshUrl, string? country, string? email, CancellationToken cancellationToken = default)
         {
-            var tenantId = await CurrentTenantAsync(cancellationToken)
-                           ?? throw new TenantPaymentException(PaymentErrorCodes.NoAccount, "No active tenant scope for the payout account.");
+            var tenantId = await RequireTenantAsync(CanManage(), "set up the payout account of this tenant", cancellationToken);
             return await accountService.StartOnboardingAsync(tenantId, returnUrl, refreshUrl, email, country, cancellationToken);
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Deliberately VIEW and not MANAGE: this re-reads the tenant's own account from the provider and updates
+        /// the local mirror — it changes nothing the tenant owns. The page runs it on the way back from the
+        /// onboarding, and that return URL is a plain query marker anybody on the page can carry.
+        /// </remarks>
         public async Task<PaymentAccountViewModel> RefreshAccountAsync(CancellationToken cancellationToken = default)
         {
-            var tenantId = await CurrentTenantAsync(cancellationToken);
+            var tenantId = await AuthorizeAsync(CanView(), "re-read the payout account of this tenant", cancellationToken);
             if (tenantId == null)
             {
                 return new PaymentAccountViewModel();
@@ -106,19 +117,29 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// The ADMIN overload: it takes the tenant from the CALLER instead of the security scope, so it is the one
+        /// method here that can touch a foreign tenant's account by nothing more than a guessed id. It is therefore
+        /// gated by the platform permission rather than by the tenant's own one.
+        /// </remarks>
         public async Task RefreshAccountAsync(int tenantId, CancellationToken cancellationToken = default)
-            => await accountService.RefreshAsync(tenantId, cancellationToken);
+        {
+            EnsureAdministration("re-read the payout account of another tenant");
+            await accountService.RefreshAsync(tenantId, cancellationToken);
+        }
 
         /// <inheritdoc />
         public async Task<string?> OpenDashboardAsync(CancellationToken cancellationToken = default)
         {
-            var tenantId = await CurrentTenantAsync(cancellationToken);
+            var tenantId = await AuthorizeAsync(CanManage(), "open the provider dashboard of this tenant", cancellationToken);
             return tenantId == null ? null : await accountService.CreateDashboardLinkAsync(tenantId.Value, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task<SalesOverviewViewModel> GetSalesAsync(DateTime? fromUtc, DateTime? toUtc, TenantSaleStatus? status, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanView(), "see the sales of this tenant");
+            runtime.EnsureEnabled();
             var overview = new SalesOverviewViewModel();
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var tenantId = db.CurrentTenantId;
@@ -126,6 +147,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             {
                 return overview;
             }
+
+            await runtime.EnsureFeatureAsync(tenantId.Value, cancellationToken);
 
             var query = db.TenantSales.AsNoTracking().Include(s => s.Refunds).Where(s => s.TenantId == tenantId.Value);
             if (fromUtc != null)
@@ -179,8 +202,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// <inheritdoc />
         public async Task RefundAsync(int tenantSaleId, long? amountMinor, string? reason, bool? refundApplicationFee, CancellationToken cancellationToken = default)
         {
-            var tenantId = await CurrentTenantAsync(cancellationToken)
-                           ?? throw new TenantPaymentException(PaymentErrorCodes.SaleNotFound, "No active tenant scope for the refund.");
+            var tenantId = await RequireTenantAsync(CanRefund(), "refund sales of this tenant", cancellationToken);
 
             // The sale is re-checked against the ACTIVE tenant before it is handed to the service. The service
             // addresses sales by their own id and knows nothing about the current scope, so without this a
@@ -197,8 +219,14 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// The platform view over ALL connected accounts, and therefore the most expensive method here to leave
+        /// unguarded: it reads past the tenant scope on purpose. The permission is checked HERE and not only on
+        /// the page, because a second caller would otherwise read every tenant's turnover.
+        /// </remarks>
         public async Task<IReadOnlyList<PaymentAccountAdminViewModel>> GetAdminOverviewAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default)
         {
+            EnsureAdministration("see the payment overview across all tenants");
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var accounts = await db.TenantPaymentAccounts.AsNoTracking().OrderBy(a => a.TenantId).ToListAsync(cancellationToken);
             if (accounts.Count == 0)
@@ -223,7 +251,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             var byTenant = sales.GroupBy(s => s.TenantId).ToDictionary(g => g.Key, g => g.ToList());
 
             // Tenant names come from the security model. Query filters are ignored: this is the platform view,
-            // and it is gated by TenantPayments.Admin rather than by the current tenant scope.
+            // and it is gated by TenantPayments.Admin (checked at the top of this method) rather than by the
+            // current tenant scope.
             var names = await db.Set<TTenant>().AsNoTracking().IgnoreQueryFilters()
                 .Where(t => tenantIds.Contains(t.TenantId))
                 .ToDictionaryAsync(t => t.TenantId, t => t.DisplayName ?? t.TenantName, cancellationToken);
@@ -299,6 +328,63 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 PeriodStartUtc = start,
                 PeriodEndUtc = end
             };
+        }
+
+        /// <summary>
+        /// Checks permission, master switch and tenant feature, and returns the tenant in scope — null when there
+        /// is none.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Here and not only in the view.</b> The page hides what somebody may not do; that guards the DISPLAY,
+        /// not the operation. This handler is registered in DI and thus reachable from any component — without the
+        /// check at this point, security would rest on nobody ever writing a second caller.
+        /// </para>
+        /// <para>
+        /// The feature is checked ALONG WITH the permission: whoever had the payments module withdrawn should stop
+        /// seeing its data too, not just stop selling. The sale path gets this from <c>PaymentsRuntime</c>; the
+        /// read paths had no such net.
+        /// </para>
+        /// </remarks>
+        private async Task<int?> AuthorizeAsync(bool permitted, string what, CancellationToken cancellationToken)
+        {
+            EnsurePermitted(permitted, what);
+            runtime.EnsureEnabled();
+            var tenantId = await CurrentTenantAsync(cancellationToken);
+            if (tenantId != null)
+            {
+                await runtime.EnsureFeatureAsync(tenantId.Value, cancellationToken);
+            }
+
+            return tenantId;
+        }
+
+        /// <summary>
+        /// Same as <see cref="AuthorizeAsync"/> for the paths that cannot fall back to an empty view model: without
+        /// a tenant there is no account to onboard and no sale to refund.
+        /// </summary>
+        private async Task<int> RequireTenantAsync(bool permitted, string what, CancellationToken cancellationToken)
+            => await AuthorizeAsync(permitted, what, cancellationToken)
+               ?? throw new TenantPaymentException(PaymentErrorCodes.NoAccount,
+                   $"There is no tenant in scope, so the acting user cannot {what}.");
+
+        /// <summary>
+        /// The platform paths. They deliberately do NOT check the current tenant's feature: an administrator may
+        /// well be working from a tenant that never bought the payments module.
+        /// </summary>
+        private void EnsureAdministration(string what)
+        {
+            EnsurePermitted(CanAdminister(), what);
+            runtime.EnsureEnabled();
+        }
+
+        private static void EnsurePermitted(bool permitted, string what)
+        {
+            if (!permitted)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.NotPermitted,
+                    $"The acting user may not {what}.");
+            }
         }
 
         private async Task<int?> CurrentTenantAsync(CancellationToken cancellationToken)

@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
+﻿using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,7 +17,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 {
-    /// <summary>Default <see cref="IBillingHandler"/> over a context that hosts the billing tables and exposes the active tenant.</summary>
+    /// <summary>
+    /// Default <see cref="IBillingHandler"/> over a context that hosts the billing tables and exposes the active
+    /// tenant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every method checks its own permission.</b> The pages guard the display; this class is registered in DI
+    /// and reachable from any component, so a check that lives only in the view holds exactly as long as nobody
+    /// writes a second caller. Plan authoring writes PRICES and pushes them to the payment provider — that is not
+    /// a place to rely on a hidden button.
+    /// </para>
+    /// <para>
+    /// Two brackets, and the split matters: the self-service paths (own subscription, the bookable catalog,
+    /// checkout, portal) run on <see cref="CanManage()"/>, which a customer tenant holds through
+    /// <c>ManageSubscription</c> or <c>TenantAdmin</c>. Only the authoring and the cross-tenant lists require
+    /// <see cref="CanAdminister()"/>. A customer must be able to read the plans and subscribe.
+    /// </para>
+    /// </remarks>
     public class BillingHandler<TContext> : IBillingHandler
         where TContext : DbContext, IBillingContext, ITenantScopeContext
     {
@@ -41,14 +58,36 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public bool HasPermission(params string[] permissions) => services.VerifyUserPermissions(permissions);
 
-        public bool CanManage(ClaimsPrincipal user)
+        public bool CanManage(ClaimsPrincipal user) => CanManage();
+
+        public bool CanAdminister(ClaimsPrincipal user) => CanAdminister();
+
+        /// <summary>
+        /// The self-service bracket. Overload without the principal because the answer never depended on it: the
+        /// rights are read from the security scope, not from the passed-in claims.
+        /// </summary>
+        private bool CanManage()
             => services.VerifyUserPermissions(new[] { ManageSubscriptionPermission, ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin });
 
-        public bool CanAdminister(ClaimsPrincipal user)
+        /// <summary>The platform bracket: plan authoring and the lists that read across tenants.</summary>
+        private bool CanAdminister()
             => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+
+        /// <summary>
+        /// Refuses instead of returning something harmless-looking. An empty plan list for a caller that may not
+        /// read it is indistinguishable from "there are no plans" — and that is the reading somebody acts on.
+        /// </summary>
+        private static void EnsurePermitted(bool permitted, string what)
+        {
+            if (!permitted)
+            {
+                throw new UnauthorizedAccessException($"The acting user may not {what}.");
+            }
+        }
 
         public async Task<SubscriptionOverviewViewModel> GetOverviewAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanManage(), "see the subscription of this tenant");
             using var db = dbFactory.CreateDbContext();
             var vm = new SubscriptionOverviewViewModel();
             var tenantId = db.CurrentTenantId;
@@ -95,6 +134,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<FeatureCatalogItemViewModel>> GetFeatureCatalogAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "read the feature catalog");
             using var db = dbFactory.CreateDbContext();
             var features = await db.Set<Feature>().AsNoTracking().OrderBy(f => f.FeatureName).ToListAsync(cancellationToken);
             return features.Select(f => new FeatureCatalogItemViewModel
@@ -105,14 +145,21 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             }).ToList();
         }
 
+        /// <remarks>The bookable catalog — a customer tenant must be able to read this in order to subscribe.</remarks>
         public async Task<IReadOnlyList<PlanViewModel>> GetActivePlansAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanManage(), "read the bookable plans");
             using var db = dbFactory.CreateDbContext();
             return await QueryPlans(db.Plans.Where(p => p.IsActive), cancellationToken);
         }
 
+        /// <remarks>
+        /// Unlike <see cref="GetActivePlansAsync"/> this also returns RETIRED plans, which is authoring data: what
+        /// was withdrawn, and at what price it once sold.
+        /// </remarks>
         public async Task<IReadOnlyList<PlanViewModel>> GetAllPlansAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "read the full plan list");
             using var db = dbFactory.CreateDbContext();
             return await QueryPlans(db.Plans, cancellationToken);
         }
@@ -148,6 +195,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanManage(), "read the bookable add-ons");
             using var db = dbFactory.CreateDbContext();
             return await QueryAddOns(db.AddOns.Where(a => a.IsActive), cancellationToken);
         }
@@ -167,6 +215,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public Task<string> StartCheckoutAsync(ClaimsPrincipal user, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, string? currency = null, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanManage(), "start a checkout for this tenant");
             using var db = dbFactory.CreateDbContext();
             var tenantId = db.CurrentTenantId ?? throw new InvalidOperationException("No active tenant scope for checkout.");
             return checkout.CreateCheckoutSessionAsync(tenantId, planId, addOnIds, successUrl, cancelUrl, currency, cancellationToken);
@@ -174,6 +223,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public Task<string?> OpenPortalAsync(ClaimsPrincipal user, string returnUrl, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanManage(), "open the billing portal of this tenant");
             using var db = dbFactory.CreateDbContext();
             var tenantId = db.CurrentTenantId;
             return tenantId == null ? Task.FromResult<string?>(null) : portal.CreatePortalSessionAsync(tenantId.Value, returnUrl, cancellationToken);
@@ -181,6 +231,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<int> SavePlanAsync(PlanViewModel model, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "author plans");
             using var db = dbFactory.CreateDbContext();
             Plan plan;
             if (model.PlanId != 0)
@@ -299,16 +350,22 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             }
         }
 
-        public Task PushPlanAsync(int planId, CancellationToken cancellationToken = default) => planSynchronizer.SyncPlanAsync(planId, cancellationToken);
+        public Task PushPlanAsync(int planId, CancellationToken cancellationToken = default)
+        {
+            EnsurePermitted(CanAdminister(), "push plans to the payment provider");
+            return planSynchronizer.SyncPlanAsync(planId, cancellationToken);
+        }
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "read the full add-on list");
             using var db = dbFactory.CreateDbContext();
             return await QueryAddOns(db.AddOns, cancellationToken);
         }
 
         public async Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "author add-ons");
             using var db = dbFactory.CreateDbContext();
             AddOn addOn;
             if (model.AddOnId != 0)
@@ -344,10 +401,19 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             return addOn.AddOnId;
         }
 
-        public Task PushAddOnAsync(int addOnId, CancellationToken cancellationToken = default) => planSynchronizer.SyncAddOnAsync(addOnId, cancellationToken);
+        public Task PushAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
+        {
+            EnsurePermitted(CanAdminister(), "push add-ons to the payment provider");
+            return planSynchronizer.SyncAddOnAsync(addOnId, cancellationToken);
+        }
 
+        /// <remarks>
+        /// This is NOT the customer's own subscription (that is <see cref="GetOverviewAsync"/>) but the list across
+        /// every tenant — hence the platform permission.
+        /// </remarks>
         public async Task<IReadOnlyList<SubscriptionAdminViewModel>> GetAllSubscriptionsAsync(CancellationToken cancellationToken = default)
         {
+            EnsurePermitted(CanAdminister(), "see the subscriptions of all tenants");
             using var db = dbFactory.CreateDbContext();
             var subs = await db.TenantSubscriptions.AsNoTracking().Include(s => s.Items)
                 .OrderBy(s => s.TenantId).ToListAsync(cancellationToken);

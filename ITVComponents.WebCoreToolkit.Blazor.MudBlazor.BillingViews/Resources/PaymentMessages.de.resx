@@ -83,6 +83,7 @@
   <data name="Payments_Action_Sales" xml:space="preserve"><value>Verkäufe</value></data>
   <data name="Payments_NoDashboard" xml:space="preserve"><value>Dieser Kontotyp hat ein eigenes Login; von hier führt kein direkter Weg dorthin.</value></data>
   <data name="Payments_Error_Unexpected" xml:space="preserve"><value>Da ist etwas schiefgelaufen: {0}</value></data>
+  <data name="Payments_Error_NotPermitted" xml:space="preserve"><value>Sie sind dazu nicht berechtigt.</value></data>
   <data name="Payments_Error_Disabled" xml:space="preserve"><value>Der Zahlungsempfang ist auf dieser Installation ausgeschaltet.</value></data>
   <data name="Payments_Error_FeatureMissing" xml:space="preserve"><value>Der Zahlungsempfang gehört nicht zu Ihrem aktuellen Abonnement.</value></data>
   <data name="Payments_Error_NoAccount" xml:space="preserve"><value>Es gibt noch kein Auszahlungskonto. Richten Sie zuerst eines ein.</value></data>
