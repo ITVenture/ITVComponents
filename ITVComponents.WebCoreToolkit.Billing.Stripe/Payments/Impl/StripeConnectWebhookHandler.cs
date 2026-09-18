@@ -31,9 +31,15 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
     /// provider treats "events on connected accounts" as a separate subscription — sharing the platform endpoint
     /// would mean trying two secrets blindly on every request and never knowing which one was meant.
     /// <para>
-    /// Two rules run through everything here. First, an event's account is checked against the account we have
-    /// on file: an event for a FOREIGN account must never touch a sale. Second, status only ever moves forward —
-    /// delivery is at-least-once and unordered, so a late event must not undo a newer state.
+    /// The rule that runs through everything HERE is the account guard: an event's account is checked against
+    /// the account we have on file, because an event for a FOREIGN account must never touch a sale.
+    /// </para>
+    /// <para>
+    /// The second rule — status only ever moves forward, since delivery is at-least-once and unordered — is
+    /// no longer this class's. It lives in <see cref="TenantSaleWebhookSink{TContext}"/>, together with the
+    /// once-only release and the refund de-duplication, and every provider's webhook goes through it. What is
+    /// left here is what is genuinely Stripe's: the account guard, re-reading the session before believing an
+    /// event, and the commission — the one thing this provider actually withholds and gives back.
     /// </para>
     /// </summary>
     public class StripeConnectWebhookHandler<TContext> : IStripeConnectWebhookHandler
@@ -43,15 +49,27 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// <summary>Concrete, not the interface: the account mirror reads through <c>StripeClient.V2</c>.</summary>
         private readonly StripeClient client;
         private readonly IGlobalSettings<TenantPaymentsOptions> settings;
-        private readonly TenantSaleNotifier notifier;
+
+        /// <summary>
+        /// What an incoming payment notification does to the sale row — the part that is identical for every
+        /// provider, and the half where a mistake costs money.
+        /// </summary>
+        /// <remarks>
+        /// This class used to carry its own copy of it. Payrexx and wallee then needed the same three rules
+        /// (release once, never take a payment back, never count a refund twice) and a third copy would have
+        /// drifted quietly: the difference only shows up in a statement that does not add up. What stays here
+        /// is what is genuinely Stripe's — the account guard, the re-read of the session, and the commission,
+        /// which is the one thing this provider actually withholds and gives back.
+        /// </remarks>
+        private readonly TenantSaleWebhookSink<TContext> sink;
 
         public StripeConnectWebhookHandler(IDbContextFactory<TContext> dbFactory, StripeClient client,
-            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<ITenantSaleObserver> observers)
+            IGlobalSettings<TenantPaymentsOptions> settings, TenantSaleWebhookSink<TContext> sink)
         {
             this.dbFactory = dbFactory;
             this.client = client;
             this.settings = settings;
-            notifier = new TenantSaleNotifier(observers);
+            this.sink = sink;
         }
 
         /// <inheritdoc />
@@ -334,26 +352,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 return;
             }
 
+            // Stripe's own identifier, which the neutral part does not know about. Set on the tracked entity
+            // before the sink saves, so it is recorded on a REPEAT delivery too — the first event does not
+            // always carry it, and without it there is no way back to this sale from a later payment event.
             sale.ProviderPaymentIntentId ??= current.PaymentIntentId;
-            sale.ProviderChargeId ??= await ResolveChargeAsync(current.PaymentIntentId, accountId ?? sale.ProviderAccountId, cancellationToken);
-            CaptureCustomerEmail(sale, current, options);
 
-            if (sale.Status != TenantSaleStatus.Pending)
-            {
-                // Delivered more than once. The identifiers above may still be new, so they are saved — but the
-                // order must not be released a second time.
-                sale.Updated = DateTime.UtcNow;
-                await db.SaveChangesAsync(cancellationToken);
-                return;
-            }
+            var chargeId = sale.ProviderChargeId
+                           ?? await ResolveChargeAsync(current.PaymentIntentId, accountId ?? sale.ProviderAccountId, cancellationToken);
 
-            sale.Status = TenantSaleStatus.Paid;
-            sale.PaidUtc = DateTime.UtcNow;
-            sale.CheckoutUrl = null;
-            sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-
-            await notifier.NotifyCompletedAsync(sale, cancellationToken);
+            await sink.MarkPaidAsync(sale, db, chargeId, CaptureCustomerEmail(sale, current, options),
+                cancellationToken);
         }
 
         /// <summary>Moves an unpaid sale to a terminal state. Never touches one that has already been paid.</summary>
@@ -361,15 +369,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var sale = await ResolveSaleAsync(db, clientReferenceId, paymentIntentId, null, accountId, cancellationToken);
-            if (sale is not { Status: TenantSaleStatus.Pending })
+            if (sale == null)
             {
                 return;
             }
 
-            sale.Status = status;
-            sale.CheckoutUrl = null;
-            sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
+            await sink.MoveToAsync(sale, db, status, cancellationToken);
         }
 
         /// <summary>
@@ -409,7 +414,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             var feeAlreadyRecorded = sale.Refunds.Sum(r => r.ApplicationFeeRefundedMinor);
             var feeToDistribute = Math.Max(0, feeRefundedTotal - feeAlreadyRecorded);
 
-            var added = new List<TenantSaleRefund>();
             foreach (var refund in fresh.OrderBy(r => r.Created))
             {
                 var share = fresh.Count == 1
@@ -417,27 +421,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     : Math.Min(feeToDistribute, ApplicationFeeMath.ProportionalRefund(sale.ApplicationFeeMinor, refund.Amount, sale.AmountMinor));
                 feeToDistribute -= share;
 
-                var row = new TenantSaleRefund
-                {
-                    TenantSaleId = sale.TenantSaleId,
-                    AmountMinor = refund.Amount,
-                    ApplicationFeeRefundedMinor = share,
-                    ProviderRefundId = refund.Id,
-                    Reason = refund.Reason,
-                    Status = refund.Status,
-                    Created = refund.Created
-                };
-                sale.Refunds.Add(row);
-                added.Add(row);
-            }
-
-            sale.Status = TenantSaleServiceBase<TContext>.DeriveStatus(sale.AmountMinor, sale.Refunds.Sum(r => r.AmountMinor));
-            sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-
-            foreach (var row in added)
-            {
-                await notifier.NotifyRefundedAsync(sale, row, cancellationToken);
+                // One save and one round of observers per refund, rather than one for the batch. That is a
+                // few more writes and one genuine improvement: if the second of two refunds fails to book,
+                // the first one is already on file instead of being rolled back with it.
+                await sink.MirrorRefundAsync(sale, db,
+                    new MirroredRefund(refund.Id, refund.Amount, refund.Status, share, refund.Reason, refund.Created),
+                    cancellationToken);
             }
         }
 
@@ -524,27 +513,29 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <summary>
-        /// Takes the e-mail the end customer entered on the provider's payment page onto the sale, when the
-        /// deployment asked for it (<see cref="TenantPaymentsOptions.CaptureCustomerEmail"/>, off by default).
+        /// The e-mail the end customer entered on the provider's payment page, when the deployment asked for
+        /// it (<see cref="TenantPaymentsOptions.CaptureCustomerEmail"/>, off by default) — otherwise null.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// The session is the one re-read at the start of <c>MarkPaidAsync</c>, so this costs no extra call.
+        /// Returns rather than assigns: putting it on the row is the sink's job, and it applies the same rule
+        /// to every provider — <b>fill, never overwrite</b>. An address the host set at creation is the host's
+        /// statement, and something may be attached to it that a correction typed on the payment page cannot
+        /// know about.
         /// </para>
         /// <para>
-        /// <b>Fills, never overwrites.</b> An address the host set at creation is the host's statement —
-        /// something may be attached to it that a correction typed on the payment page cannot know about.
+        /// The session is the one re-read at the start of <c>MarkPaidAsync</c>, so this costs no extra call.
         /// </para>
         /// <para>
         /// <b>The address itself is never written to the log</b>, here or anywhere else in this path: the whole
         /// point of the switch is that this datum does not travel further than the deployment asked for.
         /// </para>
         /// </remarks>
-        private static void CaptureCustomerEmail(TenantSale sale, Session current, TenantPaymentsOptions options)
+        private static string? CaptureCustomerEmail(TenantSale sale, Session current, TenantPaymentsOptions options)
         {
             if (!options.CaptureCustomerEmail || !string.IsNullOrWhiteSpace(sale.CustomerEmail))
             {
-                return;
+                return null;
             }
 
             var captured = Trim(current.CustomerDetails?.Email, 256);
@@ -555,10 +546,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 LogEnvironment.LogEvent(
                     $"Sale {sale.TenantSaleId}: customer-email capture is on, but the checkout session {current.Id} carries no customer e-mail.",
                     LogSeverity.Report, "StripeConnect");
-                return;
             }
 
-            sale.CustomerEmail = captured;
+            return captured;
         }
 
         private static string? Trim(string? value, int max)

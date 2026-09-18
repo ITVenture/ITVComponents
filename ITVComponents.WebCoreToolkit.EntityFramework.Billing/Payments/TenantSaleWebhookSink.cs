@@ -162,15 +162,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// Erstattungen, die wir selbst gebucht haben, stehen schon da und werden übersprungen — das ist
         /// zugleich, was die Beobachter davon abhält, zweimal zu feuern.
         /// <para>
-        /// Die Provision wird hier <b>nicht</b> als zurückgegeben verbucht: was im Portal des Anbieters
-        /// ausgelöst wurde, sagt nichts darüber, ob sie mitging. Sie hier zu schätzen hiesse, eine
-        /// Abrechnung zu erfinden.
+        /// Die zurückgegebene Provision bleibt hier auf 0. Wer sie kennt, nimmt
+        /// <see cref="MirrorRefundAsync(TenantSale, TContext, MirroredRefund, CancellationToken)"/> —
+        /// sie hier zu schätzen hiesse, eine Abrechnung zu erfinden: was im Portal eines Anbieters
+        /// ausgelöst wurde, sagt nichts darüber, ob die Provision mitging.
         /// </para>
         /// </remarks>
-        public async Task MirrorRefundAsync(TenantSale sale, TContext db, string providerRefundId,
+        public Task MirrorRefundAsync(TenantSale sale, TContext db, string providerRefundId,
             long amountMinor, string? status, CancellationToken cancellationToken)
+            => MirrorRefundAsync(sale, db,
+                new MirroredRefund(providerRefundId, amountMinor, status, Reason: "mirrored from the provider"),
+                cancellationToken);
+
+        /// <summary>
+        /// Trägt eine Erstattung nach, von der mehr bekannt ist als nur Betrag und Zustand.
+        /// </summary>
+        /// <remarks>
+        /// Der Weg für Anbieter, die auch sagen, <b>wie viel Provision</b> zurückging — bei Stripe steht
+        /// das auf der Gebühr der Plattform und ist damit eine Tatsache, keine Schätzung. Bei den anderen
+        /// wird je Verkauf gar keine einbehalten, dort bleibt das Feld 0.
+        /// </remarks>
+        public async Task MirrorRefundAsync(TenantSale sale, TContext db, MirroredRefund refund,
+            CancellationToken cancellationToken)
         {
-            if (sale.Refunds.Any(r => string.Equals(r.ProviderRefundId, providerRefundId, StringComparison.Ordinal)))
+            if (sale.Refunds.Any(r => string.Equals(r.ProviderRefundId, refund.ProviderRefundId, StringComparison.Ordinal)))
             {
                 return;
             }
@@ -178,12 +193,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             var row = new TenantSaleRefund
             {
                 TenantSaleId = sale.TenantSaleId,
-                AmountMinor = amountMinor,
-                ApplicationFeeRefundedMinor = 0,
-                ProviderRefundId = providerRefundId,
-                Reason = "mirrored from the provider",
-                Status = status,
-                Created = DateTime.UtcNow
+                AmountMinor = refund.AmountMinor,
+                ApplicationFeeRefundedMinor = refund.ApplicationFeeRefundedMinor,
+                ProviderRefundId = refund.ProviderRefundId,
+                Reason = refund.Reason,
+                Status = refund.Status,
+                Created = refund.Created ?? DateTime.UtcNow
             };
             sale.Refunds.Add(row);
             sale.Status = TenantSaleServiceBase<TContext>.DeriveStatus(sale.AmountMinor,
@@ -244,4 +259,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
         internal const string LogContext = "TenantPayments";
     }
+
+    /// <summary>
+    /// Eine Erstattung, wie ein Anbieter sie meldet.
+    /// </summary>
+    /// <param name="ProviderRefundId">
+    /// die Kennung beim Anbieter. <b>Sie allein entscheidet über die Doppelzählung</b> — dieselbe
+    /// Kennung wird übersprungen, eine neue gebucht.
+    /// </param>
+    /// <param name="AmountMinor">der erstattete Betrag in der kleinsten Einheit</param>
+    /// <param name="Status">der Zustand beim Anbieter, roh übernommen</param>
+    /// <param name="ApplicationFeeRefundedMinor">
+    /// wie viel Provision dabei zurückging. <b>Nur setzen, wenn der Anbieter es sagt</b> — bei Payrexx
+    /// und wallee wird je Verkauf keine einbehalten, dort ist 0 die richtige Antwort und keine Lücke.
+    /// </param>
+    /// <param name="Reason">der Grund, soweit der Anbieter einen nennt</param>
+    /// <param name="Created">
+    /// wann die Erstattung entstand. Ohne Angabe gilt jetzt — was für eine gespiegelte Erstattung
+    /// ungenau ist, aber nie in der Zukunft liegt.
+    /// </param>
+    public readonly record struct MirroredRefund(
+        string ProviderRefundId,
+        long AmountMinor,
+        string? Status,
+        long ApplicationFeeRefundedMinor = 0,
+        string? Reason = null,
+        DateTime? Created = null);
 }

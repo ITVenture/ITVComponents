@@ -53,17 +53,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
                     sp.GetServices<IPaymentProviderAdapter>(), null));
             }
 
-            // Die Buchung eingehender Zahlungsmeldungen. Steht hier und nicht bei den Anbietern, weil sie
-            // fuer alle dieselbe ist und weil ein Anbieter-Paket, das sie vergisst, einen Webhook haette,
-            // der auf einen fehlenden Dienst laeuft.
-            services.TryAddScoped(sp => new TenantSaleWebhookSink<TContext>(
-                sp.GetRequiredService<IDbContextFactory<TContext>>(),
-                new TenantSaleNotifier(sp.GetServices<ITenantSaleObserver>())));
+            services.AddTenantSaleWebhookSink<TContext>();
 
             services.RemoveAll<ITenantSaleService>();
             services.RemoveAll<ITenantPaymentAccountService>();
             services.AddScoped<ITenantSaleService, RoutingTenantSaleService<TContext>>();
             services.AddScoped<ITenantPaymentAccountService, RoutingTenantPaymentAccountService<TContext>>();
+            return services;
+        }
+
+        /// <summary>
+        /// Registriert die Buchung eingehender Zahlungsmeldungen.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Getrennt von der Weiche, weil ein Anbieter sie auch OHNE sie braucht: der Webhook-Weg ist
+        /// unabhängig davon, ob mehrere Anbieter nebeneinander laufen. Jedes Anbieter-Paket ruft das mit
+        /// auf; <c>TryAdd</c> sorgt dafür, dass mehrere Aufrufe nichts doppelt eintragen.
+        /// </para>
+        /// <para>
+        /// Sie liegt hier und nicht bei den Anbietern, weil sie für alle dieselbe ist — und weil ein
+        /// Paket, das sie vergisst, einen Webhook hätte, der auf einen fehlenden Dienst läuft.
+        /// </para>
+        /// </remarks>
+        public static IServiceCollection AddTenantSaleWebhookSink<TContext>(this IServiceCollection services)
+            where TContext : DbContext, IPaymentsContext
+        {
+            services.TryAddScoped(sp => new TenantSaleWebhookSink<TContext>(
+                sp.GetRequiredService<IDbContextFactory<TContext>>(),
+                new TenantSaleNotifier(sp.GetServices<ITenantSaleObserver>())));
             return services;
         }
     }

@@ -309,10 +309,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// Sale status from the refunded total — never from a single refund row.
         /// </summary>
         /// <remarks>
-        /// Oeffentlich, weil auch der Webhook-Weg des Anbieters sie braucht: dort trifft eine Erstattung ein,
-        /// die anderswo ausgeloest wurde (im Dashboard des Anbieters etwa). Wuerde er den Status selbst
-        /// ableiten, gaebe es zwei Regeln fuer dieselbe Frage - und die zweite faellt erst auf, wenn ein
-        /// teilerstatteter Verkauf als vollstaendig erstattet dasteht.
+        /// Die EINZIGE Stelle, an der diese Frage beantwortet wird - hier und in
+        /// <see cref="TenantSaleWebhookSink{TContext}"/>, wo Erstattungen ankommen, die anderswo ausgeloest
+        /// wurden (im Portal des Anbieters etwa). Gaebe es zwei Regeln dafuer, fiele die zweite erst auf,
+        /// wenn ein teilerstatteter Verkauf als vollstaendig erstattet dasteht.
+        /// <para>
+        /// Oeffentlich, damit ein Host, der eine Erstattung selbst verbucht, dieselbe Regel anwenden kann -
+        /// nicht mehr, weil ein anderes Assembly sie braeuchte.
+        /// </para>
         /// </remarks>
         public static TenantSaleStatus DeriveStatus(long amountMinor, long refundedMinor)
             => refundedMinor <= 0 ? TenantSaleStatus.Paid

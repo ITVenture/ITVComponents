@@ -3,6 +3,7 @@ using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
 {
     public static class PaymentsDependencyInjectionExtensions
     {
+        /// <summary>Der Name, unter dem dieser Anbieter an der Weiche angesprochen wird.</summary>
+        public const string ProviderKey = "stripe";
+
         /// <summary>
         /// Registers the connect service layer AND the provider client from already-resolved
         /// <paramref name="stripeOptions"/>. Use this when axis B is wired without axis A — the two are
@@ -62,10 +66,21 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
             where TContext : DbContext, IPaymentsContext
         {
             services.AddScoped<IApplicationFeeCalculator, ApplicationFeeCalculator>();
-            services.AddScoped<ITenantPaymentAccountService, TenantPaymentAccountService<TContext>>();
-            services.AddScoped<ITenantSaleService, TenantSaleService<TContext>>();
+            services.AddScoped<TenantPaymentAccountService<TContext>>();
+            services.AddScoped<TenantSaleService<TContext>>();
             services.AddScoped<IStripeConnectWebhookHandler, StripeConnectWebhookHandler<TContext>>();
-            return services;
+
+            // Unter dem eigenen Namen an der Weiche anmelden - genau wie Payrexx und wallee. Ohne das
+            // waere Stripe der einzige Anbieter, der sich NICHT mit einem anderen zusammen betreiben
+            // laesst: die Weiche wuerde ihn nicht kennen und jeden Verkauf eines Mandanten mit
+            // Provider "stripe" als unbekannten Anbieter abweisen.
+            services.AddScoped<IPaymentProviderAdapter>(sp => new PaymentProviderAdapter(ProviderKey,
+                sp.GetRequiredService<TenantSaleService<TContext>>(),
+                sp.GetRequiredService<TenantPaymentAccountService<TContext>>()));
+
+            // Bei genau einem registrierten Anbieter nimmt die Weiche ihn von selbst - fuer einen Betrieb,
+            // der nur Stripe fuehrt, aendert sich dadurch nichts ausser einer Indirektion.
+            return services.AddTenantPaymentRouting<TContext>();
         }
 
         /// <summary>
