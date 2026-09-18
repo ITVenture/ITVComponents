@@ -184,7 +184,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <inheritdoc />
         public Task SyncPlanAsync(int planId, CancellationToken cancellationToken = default)
         {
-            LogEnvironment.LogEvent(
+            // LogDebugEvent und nicht LogEvent: das ist der NORMALFALL bei diesem Anbieter, und er trifft
+            // jeden Plan bei jedem Abgleich. Im gewoehnlichen Protokoll waere das Rauschen, das echte
+            // Meldungen verdeckt - eingeschaltete Debug-Ausgabe zeigt es trotzdem, und genau dann sucht
+            // ja auch jemand danach.
+            LogEnvironment.LogDebugEvent(
                 $"Plan {planId} needs no synchronisation with Payrexx: the provider has no product catalogue, the amount travels with each payment page.",
                 LogSeverity.Report, PayrexxApiClient.LogContext);
             return Task.CompletedTask;
@@ -193,7 +197,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <inheritdoc />
         public Task SyncAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
         {
-            LogEnvironment.LogEvent(
+            LogEnvironment.LogDebugEvent(
                 $"Add-on {addOnId} needs no synchronisation with Payrexx: the provider has no product catalogue, the amount travels with each payment page.",
                 LogSeverity.Report, PayrexxApiClient.LogContext);
             return Task.CompletedTask;
