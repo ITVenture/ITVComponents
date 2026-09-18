@@ -34,10 +34,36 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Options
         public string ApiSecret { get; set; } = string.Empty;
 
         /// <summary>
-        /// Die Basis-Adresse samt API-Version. Versionierbar gehalten, weil Payrexx die Version in den Pfad
-        /// schreibt und neue Felder mit neuen Versionen kommen.
+        /// Die Basis-Adresse der HAENDLER-API samt Version. Versionierbar gehalten, weil Payrexx die
+        /// Version in den Pfad schreibt und neue Felder mit neuen Versionen kommen.
         /// </summary>
+        /// <remarks>
+        /// <b>Im White-Label-Betrieb ist das NICHT api.payrexx.com.</b> Die Plattform-Dokumentation sagt es
+        /// ausdruecklich: Haendler und Plattform benutzen fuer die Haendler-API die Domain der Plattform,
+        /// also <c>api.meine-plattform.ch</c>. Wer den Vorgabewert stehen laesst, redet mit der falschen
+        /// Stelle - und bekommt eine Antwort, die nach einem Rechteproblem aussieht.
+        /// </remarks>
         public string ApiBaseUrl { get; set; } = "https://api.payrexx.com/v1.0/";
+
+        /// <summary>
+        /// Die Basis-Adresse der SERVICE-API - der Plattform-Seite (White-Label / Marktplatz), ueber die
+        /// Haendler angelegt und Erstattungen ausgeloest werden.
+        /// </summary>
+        /// <remarks>
+        /// Ohne Version: die ist bei Payrexx <b>nicht einheitlich</b> (der Haendler liegt unter v2.3, die
+        /// Identitaetspruefung unter v2.0) und wird darum je Aufruf mitgegeben.
+        /// </remarks>
+        public string ServiceApiBaseUrl { get; set; } = "https://api.payrexx.com";
+
+        /// <summary>
+        /// Die Kennung der Plattform. Geht als <c>X-PLATFORM</c> mit und ist bei JEDEM Aufruf der
+        /// Service-API Pflicht.
+        /// </summary>
+        /// <remarks>
+        /// Fehlt sie, antwortet die API nicht mit "Kopfzeile fehlt", sondern so, als waere der Schluessel
+        /// falsch - und die Suche beginnt beim Geheimnis statt bei dieser Einstellung.
+        /// </remarks>
+        public string PlatformKey { get; set; } = string.Empty;
 
         /// <summary>
         /// Zahlungsarten, die auf der Zahlungsseite erscheinen sollen (Payrexx: <c>pm</c>), z.B.

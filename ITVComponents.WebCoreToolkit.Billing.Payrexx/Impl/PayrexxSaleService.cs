@@ -38,15 +38,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         where TContext : DbContext, IPaymentsContext
     {
         private readonly PayrexxApiClient api;
+        private readonly PayrexxServiceApiClient serviceApi;
 
         /// <summary>Initializes a new instance of the <see cref="PayrexxSaleService{TContext}"/> class.</summary>
         public PayrexxSaleService(IDbContextFactory<TContext> dbFactory, PayrexxApiClient api,
+            PayrexxServiceApiClient serviceApi,
             IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
             IEnumerable<ITenantSaleObserver> observers)
             : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()),
                    new TenantSaleNotifier(observers))
         {
             this.api = api;
+            this.serviceApi = serviceApi;
         }
 
         /// <inheritdoc />
@@ -70,6 +73,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                 ["cancelRedirectUrl"] = request.CancelUrl,
                 ["validity"] = Math.Clamp(options.CheckoutExpiryMinutes, 30, 1440)
             };
+
+            if (sale.ApplicationFeeMinor > 0)
+            {
+                // Die Provision reist NICHT mit: anders als bei Stripes application_fee kennt Payrexx kein
+                // Feld dafuer. Im Plattform-Modell entsteht die Marge aus der Differenz zwischen dem, was
+                // Payrexx der Plattform berechnet, und dem, was die Plattform dem Haendler berechnet - das
+                // wird in den Plattform-Konditionen gesetzt, nicht je Verkauf. Der eingefrorene Betrag auf
+                // der Zeile bleibt darum eine reine BUCHGROESSE.
+                LogEnvironment.LogEvent(
+                    $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}) carries a commission of {sale.ApplicationFeeMinor} {sale.Currency}. Payrexx has no per-transaction commission field — the platform's margin comes from its own tariff, so this amount is a local booking figure and is not withheld here.",
+                    LogSeverity.Warning, PayrexxApiClient.LogContext);
+            }
 
             if (payrexx.PaymentMeans is { Length: > 0 })
             {
@@ -120,26 +135,27 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
             if (refundApplicationFee)
             {
-                // AUSDRUECKLICH gemeldet und nicht stillschweigend uebergangen: Payrexx kennt in der
-                // oeffentlichen API keine anteilige Rueckgabe der Provision. Die Basis hat den Anteil bereits
-                // ausgerechnet und schreibt ihn auf die Erstattungszeile - wer das hier nicht sieht, haelt
-                // die Provisionsabrechnung fuer bereinigt, obwohl das Geld beim Anbieter liegt.
+                // Es gibt nichts anteilig zurueckzugeben, weil je Verkauf nie etwas einbehalten wurde
+                // (siehe oben). Die Basis hat den Anteil trotzdem ausgerechnet und schreibt ihn auf die
+                // Erstattungszeile - richtig wird das Bild erst mit der Abrechnung der Plattform-Konditionen.
                 LogEnvironment.LogEvent(
-                    $"Refund of {amountMinor} on sale {sale.TenantSaleId} asks for the commission to be returned, but Payrexx has no such call in its public API. The local books will show the share as returned - reconcile it with the provider statement.",
+                    $"Refund of {amountMinor} on sale {sale.TenantSaleId} asks for the commission to be returned, but with Payrexx none was withheld per transaction. The local books show the share as returned — reconcile it against the platform tariff.",
                     LogSeverity.Warning, PayrexxApiClient.LogContext);
             }
 
             try
             {
-                // OFFEN, gegen die Sandbox zu pruefen: die oeffentliche Referenz nennt den Erstattungs-Weg
-                // nicht im Detail. Erwartet wird POST auf die Transaktion; ob der Betrag als 'amount' in
-                // Rappen erwartet wird (wie beim Gateway) ist die erste Frage, die ein Testkonto beantwortet.
-                var refund = await api.PostAsync<PayrexxTransaction>(
-                    $"Transaction/{sale.ProviderChargeId}/refund/",
-                    new Dictionary<string, object?> { ["amount"] = amountMinor },
+                // ACHTUNG, drei Dinge auf einmal, und alle drei anders als bei der Haendler-API:
+                // 1. Das laeuft ueber die SERVICE-API (v2.3/service), nicht ueber die des Haendlers.
+                // 2. Adressiert wird mit der UUID der Transaktion, NICHT mit ihrer Zahl. Beides steht in
+                //    der Transaktion, und die Zahl faellt hier nicht als Fehler auf - sie findet nur nichts.
+                // 3. Der Betrag ist eine ZEICHENKETTE, in Rappen.
+                var refund = await serviceApi.PostAsync<PayrexxServiceTransaction>("v2.3",
+                    $"transaction/{sale.ProviderChargeId}/refund",
+                    new Dictionary<string, object?> { ["amount"] = amountMinor.ToString() },
                     cancellationToken) ?? throw new PayrexxApiException("Payrexx accepted the refund but returned nothing.");
 
-                return new ProviderRefund(refund.Id.ToString(), refund.Status);
+                return new ProviderRefund(refund.Uuid ?? refund.Id.ToString(), refund.Status);
             }
             catch (PayrexxApiException ex)
             {
