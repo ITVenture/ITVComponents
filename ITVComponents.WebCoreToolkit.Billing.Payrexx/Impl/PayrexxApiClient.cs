@@ -34,12 +34,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         private readonly HttpClient http;
         private readonly IGlobalSettings<PayrexxOptions> settings;
 
+        /// <summary>Initializes a new instance of the <see cref="PayrexxApiClient"/> class.</summary>
         public PayrexxApiClient(HttpClient http, IGlobalSettings<PayrexxOptions> settings)
         {
             this.http = http;
             this.settings = settings;
         }
 
+        /// <summary>Die aktuelle Konfiguration - bei jedem Zugriff frisch aus dem GlobalSetting.</summary>
         public PayrexxOptions Options => settings.Value;
 
         /// <summary>Legt etwas an (<c>POST</c>) und liefert das ERSTE Element der Antwort.</summary>
@@ -134,8 +136,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
     /// <summary>Payrexx hat die Anfrage abgelehnt oder unverstaendlich geantwortet.</summary>
     public class PayrexxApiException : Exception
     {
+        /// <summary>Initializes a new instance of the <see cref="PayrexxApiException"/> class.</summary>
         public PayrexxApiException(string message) : base(message) { }
 
+        /// <summary>Initializes a new instance of the <see cref="PayrexxApiException"/> class.</summary>
         public PayrexxApiException(string message, Exception innerException) : base(message, innerException) { }
     }
 }

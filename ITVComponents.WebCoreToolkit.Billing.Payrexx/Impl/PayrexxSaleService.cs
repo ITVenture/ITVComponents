@@ -39,6 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
     {
         private readonly PayrexxApiClient api;
 
+        /// <summary>Initializes a new instance of the <see cref="PayrexxSaleService{TContext}"/> class.</summary>
         public PayrexxSaleService(IDbContextFactory<TContext> dbFactory, PayrexxApiClient api,
             IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
             IEnumerable<ITenantSaleObserver> observers)
