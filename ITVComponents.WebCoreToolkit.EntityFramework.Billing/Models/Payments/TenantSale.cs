@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
@@ -70,6 +70,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// </summary>
         [MaxLength(256)]
         public string? ProviderAccountId { get; set; }
+
+        /// <summary>
+        /// Welcher Zahlungsanbieter diesen Verkauf abgewickelt hat.
+        /// </summary>
+        /// <remarks>
+        /// <b>Beim Anlegen eingefroren, genau wie die Provision</b> - und aus demselben Grund: was hier
+        /// steht, muss auch dann noch stimmen, wenn sich die Einstellung inzwischen geaendert hat.
+        /// <para>
+        /// Konkret: wechselt ein Mandant den Anbieter, sind seine alten Verkaeufe weiterhin beim ALTEN
+        /// zu erstatten. Wuerde die Erstattung den Anbieter am Konto lesen, ginge sie an den neuen - und
+        /// scheiterte entweder oder traefe dort eine fremde Transaktion. Deshalb steht er auf der Zeile.
+        /// </para>
+        /// </remarks>
+        public string? Provider { get; set; }
 
         /// <summary>Optional e-mail for the receipt. Does NOT create a customer profile at the provider.</summary>
         [MaxLength(256)]

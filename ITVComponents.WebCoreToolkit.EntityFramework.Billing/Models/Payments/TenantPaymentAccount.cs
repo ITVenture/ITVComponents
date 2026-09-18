@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,6 +29,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// <summary>Provider account identifier (Stripe <c>acct_...</c>).</summary>
         [Required, MaxLength(256)]
         public string ProviderAccountId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Welcher Zahlungsanbieter fuer diesen Mandanten gilt - <c>stripe</c>, <c>payrexx</c>,
+        /// <c>wallee</c>. Leer heisst: der Anbieter der Plattform.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Grund, warum das je MANDANT und nicht je Betrieb steht: ein Laden bringt oft schon einen
+        /// Anbieter mit, weil seine Kassenterminals daran haengen. Ihn zum Wechseln zu zwingen, nur damit
+        /// die Plattform einheitlich ist, kostet mehr, als die Einheitlichkeit wert ist.
+        /// </para>
+        /// <para>
+        /// <b>Dieses Feld sagt nur, was fuer NEUE Vorgaenge gilt.</b> Womit ein einzelner Verkauf
+        /// abgewickelt wurde, steht auf seiner eigenen Zeile - siehe <c>TenantSale.Provider</c>.
+        /// </para>
+        /// </remarks>
+        public string? Provider { get; set; }
 
         /// <summary>
         /// Which provider dashboard this account has access to: <c>express</c>, <c>full</c> or <c>none</c>. This

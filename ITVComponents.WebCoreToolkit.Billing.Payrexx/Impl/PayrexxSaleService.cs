@@ -53,6 +53,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         }
 
         /// <inheritdoc />
+        protected override string ProviderKey => "payrexx";
+
+        /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
         {

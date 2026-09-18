@@ -73,6 +73,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         private WalleeOptions Wallee => walleeSettings.Value;
 
         /// <inheritdoc />
+        protected override string ProviderKey => "wallee";
+
+        /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
         {

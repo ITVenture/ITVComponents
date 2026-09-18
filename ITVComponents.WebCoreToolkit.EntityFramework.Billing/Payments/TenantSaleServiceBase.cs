@@ -50,6 +50,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         protected PaymentsRuntime Runtime => runtime;
 
         /// <summary>
+        /// Der Name dieses Anbieters - <c>stripe</c>, <c>payrexx</c>, <c>wallee</c>. Er wird beim Anlegen
+        /// auf die Verkaufszeile geschrieben und entscheidet spaeter, wer die Erstattung ausfuehrt.
+        /// </summary>
+        /// <remarks>
+        /// Abstrakt und nicht mit einer Vorbelegung: ein Anbieter, der vergisst sich zu benennen, wuerde
+        /// Zeilen ohne Kennung hinterlassen, und die landen nach einem Anbieterwechsel beim falschen.
+        /// Das soll der Compiler verhindern, nicht ein aufmerksamer Leser.
+        /// </remarks>
+        protected abstract string ProviderKey { get; }
+
+        /// <summary>
         /// Stellt beim Anbieter die gehostete Zahlungsseite aus.
         /// </summary>
         /// <param name="sale">der bereits gebuchte Verkauf - Betrag, Waehrung und Provision stehen fest</param>
@@ -113,6 +124,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     // sale actually cost.
                     ApplicationFeeMinor = ApplicationFeeMath.Calculate(options.ApplicationFee, amountMinor, currency),
                     Status = TenantSaleStatus.Pending,
+                    // Eingefroren wie die Provision daneben: nach einem Anbieterwechsel muss diese Zeile
+                    // noch sagen koennen, WER sie abgewickelt hat - sonst geht die Erstattung an den
+                    // neuen Anbieter und trifft dort nichts.
+                    Provider = ProviderKey,
                     ProviderAccountId = account!.ProviderAccountId,
                     CustomerEmail = Trim(request.CustomerEmail, 256),
                     MetadataJson = request.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(request.Metadata) : null,

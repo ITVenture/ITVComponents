@@ -39,6 +39,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <inheritdoc />
+        protected override string ProviderKey => "stripe";
+
+        /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
         {
