@@ -44,6 +44,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
 
             services.AddScoped<PayrexxSaleService<TContext>>();
             services.AddScoped<PayrexxAccountService<TContext>>();
+            // Der Empfaenger der Zahlungsmeldungen. Der Host muss den Endpunkt noch einhaengen
+            // (MapPayrexxWebhook) - ohne ihn erfaehrt die Anwendung nie, dass bezahlt wurde.
+            services.AddScoped<PayrexxWebhookHandler<TContext>>();
             services.AddScoped<IPaymentProviderAdapter>(sp => new PaymentProviderAdapter(ProviderKey,
                 sp.GetRequiredService<PayrexxSaleService<TContext>>(),
                 sp.GetRequiredService<PayrexxAccountService<TContext>>()));

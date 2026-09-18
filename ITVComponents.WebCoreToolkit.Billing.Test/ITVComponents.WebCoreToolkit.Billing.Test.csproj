@@ -9,6 +9,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
     <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <!-- Nur fuer die Buchung der Webhook-Meldungen: die laeuft ueber einen DbContext, und genau ihre
+         Idempotenz ist das, was geprueft werden muss. Kein Anbieter und kein Netz noetig. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
   </ItemGroup>
   <ItemGroup>
     <!-- The provider-neutral billing library: the money arithmetic and the price model are pure, and proving

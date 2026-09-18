@@ -1,4 +1,4 @@
-using ITVComponents.WebCoreToolkit.Configuration;
+﻿using ITVComponents.WebCoreToolkit.Configuration;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Options
 {
@@ -59,9 +59,24 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Options
         public string DefaultLanguage { get; set; } = "en-US";
 
         /// <summary>
-        /// Das Geheimnis, mit dem eingehende Benachrichtigungen geprueft werden. Leer heisst: es wird NICHT
-        /// geprueft - und genau das protokolliert der Webhook-Weg dann auch.
+        /// Ob die Signatur eingehender Benachrichtigungen geprueft wird. Vorgabe: ja.
         /// </summary>
-        public string WebhookSecret { get; set; } = string.Empty;
+        /// <remarks>
+        /// <para>
+        /// <b>Hier steht kein Geheimnis, und das ist kein Versehen.</b> wallee signiert anders als die
+        /// uebrigen Anbieter: nicht mit einem gemeinsamen Schluessel, sondern mit einem privaten
+        /// (SHA256withECDSA). Die Kopfzeile <c>x-signature</c> nennt die Kennung des zugehoerigen
+        /// oeffentlichen Schluessels, und der wird bei wallee abgeholt - es gibt also nichts zu
+        /// hinterlegen.
+        /// </para>
+        /// <para>
+        /// Abschalten laesst es sich trotzdem, fuer den Fall, dass am Listener die Signierung nicht
+        /// eingeschaltet ist (wallee fuehrt sie als Wahlmoeglichkeit). Dann kommt keine Kopfzeile, und
+        /// eine Pruefung wuerde jede Meldung ablehnen. Der Webhook-Weg protokolliert das ungeprueft
+        /// Angenommene aber jedes Mal - wer diesen Endpunkt kennt, koennte sonst beliebige Verkaeufe als
+        /// bezahlt melden.
+        /// </para>
+        /// </remarks>
+        public bool VerifyWebhookSignatures { get; set; } = true;
     }
 }

@@ -53,6 +53,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
                     sp.GetServices<IPaymentProviderAdapter>(), null));
             }
 
+            // Die Buchung eingehender Zahlungsmeldungen. Steht hier und nicht bei den Anbietern, weil sie
+            // fuer alle dieselbe ist und weil ein Anbieter-Paket, das sie vergisst, einen Webhook haette,
+            // der auf einen fehlenden Dienst laeuft.
+            services.TryAddScoped(sp => new TenantSaleWebhookSink<TContext>(
+                sp.GetRequiredService<IDbContextFactory<TContext>>(),
+                new TenantSaleNotifier(sp.GetServices<ITenantSaleObserver>())));
+
             services.RemoveAll<ITenantSaleService>();
             services.RemoveAll<ITenantPaymentAccountService>();
             services.AddScoped<ITenantSaleService, RoutingTenantSaleService<TContext>>();

@@ -37,6 +37,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
             where TContext : DbContext, IPaymentsContext
         {
             services.AddScoped<WalleeSaleService<TContext>>();
+            // Der Empfaenger der Zustandsmeldungen. Der Host muss den Endpunkt noch einhaengen
+            // (MapWalleeWebhook) - ohne ihn erfaehrt die Anwendung nie, dass bezahlt wurde.
+            services.AddScoped<WalleeWebhookHandler<TContext>>();
             services.AddScoped<IPaymentProviderAdapter>(sp => new PaymentProviderAdapter(ProviderKey,
                 sp.GetRequiredService<WalleeSaleService<TContext>>(),
                 new UnsupportedTenantPaymentAccountService(ProviderKey,
