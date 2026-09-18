@@ -84,6 +84,30 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
         }
 
         /// <summary>
+        /// Registriert Stripe für Achse C (Kassieren am Zahlungsterminal), server-gesteuert.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Ohne SDK auf dem Kassen-PC: der Server legt die Zahlungsabsicht an und schickt sie an das
+        /// Gerät. Stripe empfiehlt das für BBPOS WisePOS E, Reader S700/S710 und Verifone.
+        /// </para>
+        /// <para>
+        /// <b>Nicht jedes Stripe-Gerät kann das.</b> Der WisePad 3 verlangt ein Terminal-SDK, und die
+        /// gibt es nur für iOS, Android, JavaScript und React Native — für ein solches Gerät hilft auch
+        /// der Agenten-Weg nicht, denn der ist ebenfalls .NET.
+        /// </para>
+        /// </remarks>
+        public static IServiceCollection AddStripeTerminals<TContext>(this IServiceCollection services)
+            where TContext : DbContext, IPaymentsContext
+        {
+            services.AddScoped<StripeTerminalPaymentService<TContext>>();
+            services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
+                StripeTerminalPaymentService<TContext>.Key,
+                sp.GetRequiredService<StripeTerminalPaymentService<TContext>>()));
+            return services.AddTenantTerminalRouting<TContext>();
+        }
+
+        /// <summary>
         /// Registers the volume-based waiver of the subscription base fee. Separate from
         /// <c>AddStripePayments</c> because it is the one feature that needs BOTH axes in one
         /// context: it reads the tenant's sales and writes onto the tenant's own subscription invoice.

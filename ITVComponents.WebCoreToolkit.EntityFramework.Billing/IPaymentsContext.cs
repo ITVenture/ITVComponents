@@ -24,6 +24,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
         /// </summary>
         DbSet<TenantPaymentProfile> TenantPaymentProfiles { get; set; }
 
+        /// <summary>
+        /// Die Zahlungsterminals der Mandanten (Achse C). Ein Mandant kann mehrere haben.
+        /// </summary>
+        /// <remarks>
+        /// Im selben Vertrag und nicht in einem eigenen: ein Terminalverkauf IST ein
+        /// <see cref="TenantSale"/> — derselbe Vorgang, nur mit einem anderen Ausloeser. Wer Achse B hat,
+        /// hat damit auch schon fast alles fuer C, und wer C nicht nutzt, hat eine leere Tabelle.
+        /// </remarks>
+        DbSet<TenantPaymentTerminal> TenantPaymentTerminals { get; set; }
+
         DbSet<TenantSale> TenantSales { get; set; }
 
         DbSet<TenantSaleRefund> TenantSaleRefunds { get; set; }

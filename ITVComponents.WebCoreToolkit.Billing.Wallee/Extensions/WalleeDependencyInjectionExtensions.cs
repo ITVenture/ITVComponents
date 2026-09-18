@@ -49,6 +49,24 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
         }
 
         /// <summary>
+        /// Registriert wallee für Achse C (Kassieren am Zahlungsterminal) über die Cloud.
+        /// </summary>
+        /// <remarks>
+        /// Das ist die Cloud-Variante (CTI): der Server beauftragt das Gerät über wallee, es funktioniert
+        /// von überall. Die schnellere lokale Variante (LTI, Socket im selben Netz) läuft über den
+        /// Agenten-Weg und nicht über diese Registrierung.
+        /// </remarks>
+        public static IServiceCollection AddWalleeTerminals<TContext>(this IServiceCollection services)
+            where TContext : DbContext, IPaymentsContext
+        {
+            services.AddScoped<WalleeTerminalPaymentService<TContext>>();
+            services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
+                WalleeTerminalPaymentService<TContext>.Key,
+                sp.GetRequiredService<WalleeTerminalPaymentService<TContext>>()));
+            return services.AddTenantTerminalRouting<TContext>();
+        }
+
+        /// <summary>
         /// Registriert wallee für Achse A (Abo-Kasse, Plan-Abgleich, Portal-Absage).
         /// </summary>
         /// <remarks>

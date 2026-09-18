@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -21,6 +21,10 @@
          features are string keys). The bridge to TenantFeatureActivation lives in the separate adapter
          lib ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity (implements IFeatureProvisioner). -->
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
+    <!-- Der geraeteseitige Terminal-Vertrag (Achse C). Absichtlich ein eigenes, abhaengigkeitsfreies
+         Paket: derselbe Vertrag wird vom Kassen-Agenten implementiert, und der soll deswegen nicht EF
+         Core und das halbe Toolkit mitladen muessen. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Terminals\ITVComponents.WebCoreToolkit.Billing.Terminals.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit\ITVComponents.WebCoreToolkit.csproj" />
   </ItemGroup>
 </Project>

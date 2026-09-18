@@ -51,6 +51,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
 
         public TenantSaleStatus Status { get; set; }
 
+        /// <summary>
+        /// Das Terminal, an dem kassiert wurde — nur bei einem Kassenverkauf (Achse C) gesetzt.
+        /// </summary>
+        /// <remarks>
+        /// Kein Pflichtfeld und kein Fremdschluessel mit Loeschregel: ein ausgemustertes Geraet wird
+        /// abgeschaltet, nicht geloescht, und der Verkauf darauf bleibt ein Beleg ueber eine echte
+        /// Zahlung. Steht hier nichts, kam der Verkauf ueber eine Zahlungsseite.
+        /// </remarks>
+        public int? TenantPaymentTerminalId { get; set; }
+
         /// <summary>Provider checkout-session identifier (<c>cs_...</c>).</summary>
         [MaxLength(256)]
         public string? ProviderSessionId { get; set; }

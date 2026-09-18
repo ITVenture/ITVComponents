@@ -236,6 +236,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
 
         public DbSet<TenantPaymentProfile> TenantPaymentProfiles { get; set; } = null!;
 
+        public DbSet<TenantPaymentTerminal> TenantPaymentTerminals { get; set; } = null!;
+
         public DbSet<TenantSale> TenantSales { get; set; } = null!;
 
         public DbSet<TenantSaleRefund> TenantSaleRefunds { get; set; } = null!;

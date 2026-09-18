@@ -55,6 +55,30 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
         }
 
         /// <summary>
+        /// Registriert Payrexx für Achse C (Kassieren am Zahlungsterminal).
+        /// </summary>
+        /// <remarks>
+        /// Getrennt von Achse B, weil ein Betrieb Ladenkassen haben kann, ohne einen Online-Shop zu
+        /// betreiben — und umgekehrt. Der ECR-Zugang bekommt einen eigenen HttpClient: die Hülle seiner
+        /// Antworten ist eine andere als die der Händler-API, und ein gemeinsamer Leser hielte jede
+        /// Antwort für leer.
+        /// <para>
+        /// Das Gerät muss vorher mit dem Konto gekoppelt sein; die Seriennummer gehört danach als
+        /// <c>ProviderTerminalId</c> an die Geräte-Zeile.
+        /// </para>
+        /// </remarks>
+        public static IServiceCollection AddPayrexxTerminals<TContext>(this IServiceCollection services)
+            where TContext : DbContext, IPaymentsContext
+        {
+            services.AddHttpClient<PayrexxEcrClient>();
+            services.AddScoped<PayrexxTerminalPaymentService<TContext>>();
+            services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
+                PayrexxTerminalPaymentService<TContext>.Key,
+                sp.GetRequiredService<PayrexxTerminalPaymentService<TContext>>()));
+            return services.AddTenantTerminalRouting<TContext>();
+        }
+
+        /// <summary>
         /// Registriert Payrexx für Achse A (Abo-Kasse und Plan-Abgleich).
         /// </summary>
         /// <remarks>

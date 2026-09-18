@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE248</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <!-- BEWUSST OHNE JEDE ABHAENGIGKEIT. Dieses Paket wird vom Kassen-Agenten referenziert, und der soll
+       wegen eines Vertrags nicht EF Core, ASP.NET und das halbe Toolkit mitladen muessen. Was hier
+       hineingehoert, ist die Frage: braucht es der AGENT? Alles andere gehoert in die Billing-Pakete. -->
+</Project>
