@@ -55,10 +55,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         [
             new()
             {
-                Name = "plugin",
-                Label = "Name des Geräte-Objekts auf dem Agenten",
+                Name = "route",
+                Label = "Kasse",
+                Kind = TerminalSettingKind.Choice,
+                // Die Client-Anwendungen des Mandanten. Der gespeicherte Wert ist ihr ClientKey - der
+                // traegt einen systemweit eindeutigen Index und ist damit als Dienstname auch ueber
+                // Mandantengrenzen kollisionsfrei, anders als ein Anzeigename.
+                ChoiceSource = TerminalChoiceSources.ClientApps,
+                StoredIn = TerminalSettingTarget.Route,
                 Required = true,
-                HelpText = "Unter diesem Namen stellt der Kassen-Agent seine Terminal-Anbindung bereit. Wie daraus eine Verbindung wird, entscheidet die Anwendung."
+                HelpText = "Der Rechner, an dem das Terminal hängt. Er meldet sich am Dienst-Verteiler unter seinem ClientKey an."
+            },
+            new()
+            {
+                Name = "objectName",
+                Label = "Geräte-Objekt auf dieser Kasse",
+                Kind = TerminalSettingKind.Choice,
+                ChoiceSource = TerminalChoiceSources.RemoteObjects,
+                // Ohne diese Angabe zeigte die Maske weiter die Objekte der zuvor gewaehlten Kasse.
+                DependsOn = "route",
+                Required = true,
+                HelpText = "Die Terminal-Anbindung, die dort bereitsteht. Unter diesem Namen entsteht der Proxy."
             }
         ];
 

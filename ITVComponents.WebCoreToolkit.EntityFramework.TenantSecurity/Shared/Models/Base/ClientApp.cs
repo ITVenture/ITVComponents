@@ -70,6 +70,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         /// War frueher <c>nvarchar(max)</c> ohne Index - in SQL Server nicht einmal indizierbar, also als
         /// Nachschlagefeld unbrauchbar.
         /// </para>
+        /// <para>
+        /// <b>Zugleich der Name, unter dem sich diese Anwendung am Dienst-Verteiler anmeldet</b>, wenn
+        /// sie Dienste bereitstellt (ServiceHub / gRPC). Eine Festlegung, keine Ableitung: gewaehlt
+        /// wurde dieser Schluessel, weil seine Eindeutigkeit systemweit gilt. Ein Anzeigename taete es
+        /// nicht - "Kasse 1" gibt es in jedem zweiten Laden, und zwei Dienste desselben Namens sind im
+        /// Verteiler ein flacher Namensraum mit genau einem Gewinner.
+        /// </para>
+        /// <para>
+        /// Wer eine Auswahlliste verbundener Dienste baut, nimmt deshalb diese Spalte als Wert - nicht
+        /// die Id und nicht den Anzeigenamen.
+        /// </para>
         /// </remarks>
         [Required, MaxLength(128)]
         public string ClientKey { get; set; }

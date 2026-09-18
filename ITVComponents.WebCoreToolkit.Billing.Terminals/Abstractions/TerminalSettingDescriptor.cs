@@ -37,6 +37,46 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
     }
 
     /// <summary>
+    /// Wohin der Wert eines Feldes gespeichert wird.
+    /// </summary>
+    public enum TerminalSettingTarget
+    {
+        /// <summary>Ins Konfigurations-JSON des Geräts (Vorgabe).</summary>
+        Configuration,
+
+        /// <summary>
+        /// In die Route-Spalte — den Dienst, über den ein Agent erreicht wird.
+        /// </summary>
+        /// <remarks>
+        /// Eine eigene Spalte, damit sich die Frage „welche Geräte hängen an dieser Kasse?" beantworten
+        /// lässt, ohne JSON zu durchsuchen. Genau die stellt sich, wenn ein Kassen-PC ersetzt wird.
+        /// </remarks>
+        Route
+    }
+
+    /// <summary>
+    /// Die Namen der Auswahllisten, die eine Anwendung füllen kann.
+    /// </summary>
+    /// <remarks>
+    /// Zeichenketten und keine Aufzählung: welche Quellen es gibt, weiss die Oberfläche, nicht dieses
+    /// Paket. Wer eine eigene hinzufügt, braucht hier nichts zu ändern.
+    /// </remarks>
+    public static class TerminalChoiceSources
+    {
+        /// <summary>Die Client-Anwendungen des Mandanten — Wert ist ihr <c>ClientKey</c>.</summary>
+        public const string ClientApps = "clientApps";
+
+        /// <summary>
+        /// Die Objekte auf dem gewählten Dienst, die <see cref="ITerminalDevice"/> erfüllen.
+        /// </summary>
+        /// <remarks>
+        /// Braucht ein <see cref="TerminalSettingDescriptor.DependsOn"/> auf das Feld, das den Dienst
+        /// nennt — ohne den weiss die Maske nicht, wen sie fragen soll.
+        /// </remarks>
+        public const string RemoteObjects = "remoteObjects";
+    }
+
+    /// <summary>
     /// Ein Einstellungsfeld, das eine Terminal-Anbindung braucht — damit eine Maske dafür entstehen
     /// kann, ohne dass jemand sie je Anbindung von Hand baut.
     /// </summary>
@@ -75,8 +115,38 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// </summary>
         public string? DefaultValue { get; set; }
 
-        /// <summary>Die Auswahlmöglichkeiten — nur bei <see cref="TerminalSettingKind.Choice"/>.</summary>
+        /// <summary>
+        /// Die <b>festen</b> Auswahlmöglichkeiten — nur bei <see cref="TerminalSettingKind.Choice"/>.
+        /// </summary>
         public IReadOnlyList<TerminalSettingChoice>? Choices { get; set; }
+
+        /// <summary>
+        /// Der Name einer Liste, die erst zur Laufzeit feststeht — siehe
+        /// <see cref="TerminalChoiceSources"/>. Gesetzt, wenn <see cref="Choices"/> nicht reicht.
+        /// </summary>
+        /// <remarks>
+        /// Es gibt Auswahlen, die dieses Paket nicht kennen kann: die Kassen eines Mandanten etwa
+        /// stehen in der Sicherheitsschicht, und Billing kennt die absichtlich nicht. Statt hier eine
+        /// Abhängigkeit aufzumachen, nennt das Feld die Quelle, und die Oberfläche füllt sie.
+        /// <para>
+        /// Wer sie nicht auflösen kann, zeichnet ein Textfeld — <b>unschön, aber bedienbar</b>. Ein
+        /// Feld ganz wegzulassen wäre schlimmer.
+        /// </para>
+        /// </remarks>
+        public string? ChoiceSource { get; set; }
+
+        /// <summary>
+        /// Der Name des Feldes, dessen Wert diese Liste bestimmt.
+        /// </summary>
+        /// <remarks>
+        /// Die Kaskade: welche Objekte zur Auswahl stehen, hängt davon ab, welche Kasse gewählt wurde.
+        /// Ohne diese Angabe wüsste die Maske nicht, wann sie neu laden muss — und zeigte die Objekte
+        /// der zuvor gewählten Kasse weiter an.
+        /// </remarks>
+        public string? DependsOn { get; set; }
+
+        /// <summary>Wohin der Wert gespeichert wird. Vorgabe: ins Konfigurations-JSON.</summary>
+        public TerminalSettingTarget StoredIn { get; set; } = TerminalSettingTarget.Configuration;
     }
 
     /// <summary>Eine Auswahlmöglichkeit.</summary>
@@ -117,6 +187,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
             {
                 foreach (var field in fields)
                 {
+                    if (field.StoredIn != TerminalSettingTarget.Configuration)
+                    {
+                        // Gehoert in eine eigene Spalte, nicht ins JSON. Beides zu schreiben hiesse
+                        // zwei Staende desselben Werts, und der eine wird irgendwann nicht mitgeaendert.
+                        continue;
+                    }
+
                     if (!values.TryGetValue(field.Name, out var raw))
                     {
                         continue;
@@ -136,6 +213,25 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
             }
 
             return result.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        }
+
+        /// <summary>
+        /// Holt den Wert heraus, der nicht ins JSON gehört, sondern in eine eigene Spalte.
+        /// </summary>
+        /// <returns>der Wert des ersten Feldes mit diesem Ziel, oder null</returns>
+        public static string? ValueFor(IReadOnlyList<TerminalSettingDescriptor> fields,
+            IReadOnlyDictionary<string, string?> values, TerminalSettingTarget target)
+        {
+            foreach (var field in fields)
+            {
+                if (field.StoredIn == target && values.TryGetValue(field.Name, out var raw)
+                                             && !string.IsNullOrWhiteSpace(raw))
+                {
+                    return raw.Trim();
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Schreibt einen Wert in der Form, in der er gelesen wird.</summary>
