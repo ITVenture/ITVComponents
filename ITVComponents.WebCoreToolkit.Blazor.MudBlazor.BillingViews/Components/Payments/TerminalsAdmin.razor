@@ -1,0 +1,179 @@
+@page "/Account/Manage/Payments/Terminals"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
+
+@inject ITerminalsHandler Handler
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IStringLocalizer<PaymentMessages> L
+
+<PageTitle>@L["Terminals_Title"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Terminals_Title"]</MudText>
+
+<SecureView RequiredFeatures="TenantPayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
+    <Permitted>
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (!enabled)
+        {
+            <MudAlert Severity="Severity.Info">@L["Payments_ModuleDisabled"]</MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">@L["Terminals_Intro"]</MudText>
+
+            @if (canManage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => EditAsync(null))" Class="mb-3">
+                    @L["Terminals_Add"]
+                </MudButton>
+            }
+
+            @if (terminals.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">@L["Terminals_None"]</MudAlert>
+            }
+            else
+            {
+                @* Auf kleinen Schirmen Karten statt Tabelle - dieselbe Grenze wie bei den uebrigen
+                   Verwaltungs-Ansichten. *@
+                <MudTable Items="@terminals" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                    <HeaderContent>
+                        <MudTh>@L["Terminals_Col_Name"]</MudTh>
+                        <MudTh>@L["Terminals_Col_Provider"]</MudTh>
+                        <MudTh>@L["Terminals_Col_TerminalId"]</MudTh>
+                        <MudTh>@L["Terminals_Col_Route"]</MudTh>
+                        <MudTh>@L["Terminals_Col_State"]</MudTh>
+                        <MudTh />
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["Terminals_Col_Name"]">@context.DisplayName</MudTd>
+                        <MudTd DataLabel="@L["Terminals_Col_Provider"]">@context.Provider</MudTd>
+                        <MudTd DataLabel="@L["Terminals_Col_TerminalId"]">@context.ProviderTerminalId</MudTd>
+                        <MudTd DataLabel="@L["Terminals_Col_Route"]">@context.Route</MudTd>
+                        <MudTd DataLabel="@L["Terminals_Col_State"]">
+                            @if (!context.Enabled)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@L["Terminals_Disabled"]</MudChip>
+                            }
+                            else if (reachable.TryGetValue(context.TerminalId, out var online))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="@(online ? Color.Success : Color.Warning)">
+                                    @(online ? L["Terminals_Online"] : L["Terminals_Offline"])
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@L["Terminals_Unchecked"]</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            <MudStack Row="true" Spacing="1">
+                                <MudTooltip Text="@(L["Terminals_Check"].Value)">
+                                    <MudIconButton Icon="@Icons.Material.Filled.NetworkCheck" Size="Size.Small"
+                                                   OnClick="@(() => CheckAsync(context.TerminalId))" />
+                                </MudTooltip>
+                                @if (canManage)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   OnClick="@(() => EditAsync(context))" />
+                                    <MudTooltip Text="@(context.Enabled ? L["Terminals_Disable"].Value : L["Terminals_Enable"].Value)">
+                                        <MudIconButton Size="Size.Small"
+                                                       Icon="@(context.Enabled ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                                                       OnClick="@(() => ToggleAsync(context))" />
+                                    </MudTooltip>
+                                }
+                            </MudStack>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                @* Warum kein Loeschen: die Verkaeufe auf einem Geraet verweisen weiterhin auf es, und ein
+                   ausgemustertes bleibt der Beleg dafuer, wo kassiert wurde. *@
+                <MudText Typo="Typo.caption" Class="mt-2">@L["Terminals_NoDeleteHint"]</MudText>
+            }
+        }
+    </Permitted>
+</SecureView>
+
+@code {
+    private IReadOnlyList<TerminalDefinition> terminals = [];
+    private readonly Dictionary<int, bool> reachable = new();
+    private bool loading = true;
+    private bool enabled;
+    private bool canManage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        enabled = Handler.IsEnabled();
+        canManage = Handler.CanManage();
+        if (enabled)
+        {
+            await ReloadAsync();
+        }
+
+        loading = false;
+    }
+
+    private async Task ReloadAsync()
+        => terminals = await Handler.GetTerminalsAsync();
+
+    private async Task EditAsync(TerminalDefinition? existing)
+    {
+        var parameters = new DialogParameters<TerminalWizardDialog> { { x => x.Existing, existing } };
+        var dialog = await Dialogs.ShowAsync<TerminalWizardDialog>(
+            existing == null ? L["Terminals_Add"] : L["Terminals_Edit"], parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await ReloadAsync();
+            Snackbar.Add(L["Terminals_Saved"], Severity.Success);
+        }
+    }
+
+    private async Task ToggleAsync(TerminalDefinition terminal)
+    {
+        try
+        {
+            await Handler.SetEnabledAsync(terminal.TerminalId, !terminal.Enabled);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Fragt ein Gerät, ob es antwortet.
+    /// </summary>
+    /// <remarks>
+    /// Auf Knopfdruck und nicht beim Laden: die Antwort geht bei einem Agenten über das Netz zu einem
+    /// Rechner, der abends aus ist. Eine Liste, die deshalb zehn Sekunden braucht, wäre der schlechtere
+    /// Tausch.
+    /// </remarks>
+    private async Task CheckAsync(int terminalId)
+    {
+        try
+        {
+            var status = await Handler.GetStatusAsync(terminalId);
+            reachable[terminalId] = status.Online;
+            if (!status.Online && !string.IsNullOrWhiteSpace(status.RawState))
+            {
+                Snackbar.Add(status.RawState, Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            reachable[terminalId] = false;
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

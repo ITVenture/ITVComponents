@@ -3,6 +3,7 @@ using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -52,6 +53,45 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             // both.
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<IPaymentsHandler, PaymentsHandler<TContext, TTenant>>();
+            return services;
+        }
+
+        /// <summary>
+        /// Registriert die Geräte-Verwaltung (Achse C): Liste, Assistent „Gerät hinzufügen" und die
+        /// Auswahlliste der Client-Anwendungen.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Ein eigener Aufruf neben den Zahlungs-Ansichten, weil ein Betrieb Online-Verkäufe führen kann,
+        /// ohne je ein Terminal zu besitzen — und umgekehrt.
+        /// </para>
+        /// <para>
+        /// Der Host muss die Dienstschicht verdrahten (<c>AddStripeTerminals</c>,
+        /// <c>AddPayrexxTerminals</c>, <c>AddWalleeTerminals</c> bzw. <c>AddAgentTerminals</c>) — ohne
+        /// sie steht im Assistenten keine Auswahl.
+        /// </para>
+        /// <para>
+        /// <b>Was der Host zusätzlich stellen muss</b>, wenn er den Weg über einen Agenten nutzt: einen
+        /// <see cref="Handlers.ITerminalChoiceProvider"/> für
+        /// <c>TerminalChoiceSources.RemoteObjects</c>. Nur er weiss, welche Objekte auf welcher Kasse
+        /// bereitstehen. Fehlt er, wird aus der Auswahl ein Textfeld — bedienbar, nur unschöner.
+        /// </para>
+        /// </remarks>
+        /// <typeparam name="TContext">der Kontext mit den Zahlungstabellen und dem aktiven Mandanten</typeparam>
+        /// <typeparam name="TClientApp">
+        /// die Client-Anwendung, WIE DER HOST sie abgebildet hat. Das WebPart füllt den Parameter von
+        /// selbst: es bindet Typparameter nach NAMEN aus dem Sicherheitskontext, und <c>TClientApp</c>
+        /// ist einer von dessen eigenen Namen — dieselbe Mechanik wie bei <c>TTenant</c> oben.
+        /// </typeparam>
+        public static IServiceCollection AddMudBlazorTerminalViews<TContext, TClientApp>(
+            this IServiceCollection services, AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior = null)
+            where TContext : DbContext, IPaymentsContext, ITenantScopeContext
+            where TClientApp : class
+        {
+            partTypeLoadBehavior ??= new AssemblyPartTypeLoadBehaviorOptions { DefaultBehavior = TypeRegisterBehavior.Use };
+            services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
+            services.AddScoped<ITerminalsHandler, TerminalsHandler<TContext>>();
+            services.AddScoped<ITerminalChoiceProvider, ClientAppTerminalChoiceProvider<TContext, TClientApp>>();
             return services;
         }
     }

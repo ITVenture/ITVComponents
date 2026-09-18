@@ -1,0 +1,360 @@
+@using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
+@using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+
+@inject ITerminalsHandler Handler
+@inject IStringLocalizer<PaymentMessages> L
+
+@*
+    Der Assistent "Geraet hinzufuegen". Er zeichnet die Masken NICHT selbst, sondern laesst
+    DeclaredFieldsForm rendern - dieselbe Maschinerie wie bei den Aufgaben-Masken und den
+    Dashboard-Parametern. Was gefragt wird, sagt die Anbindung selbst.
+
+    Drei Schritte, der dritte nur wenn noetig: erst mit den Angaben aus Schritt zwei laesst sich ein
+    Agent ueberhaupt erreichen und fragen, welche Felder SEIN Geraet braucht.
+*@
+
+<MudDialog>
+    <DialogContent>
+        @* Kein NonLinear: die Schritte bauen aufeinander auf - der dritte kann erst gefragt werden,
+           wenn der zweite beantwortet ist. Linear ist die Vorgabe, deshalb steht hier nichts. *@
+        <MudStepper @bind-ActiveIndex="step" ShowResetButton="false">
+            <ChildContent>
+                <MudStep Title="@L["Terminals_Step_Kind"]">
+                    <MudSelect T="string" Label="@L["Terminals_Field_Provider"]"
+                               Value="@provider" ValueChanged="@OnProviderChanged"
+                               Required="true">
+                        @foreach (var p in providers)
+                        {
+                            <MudSelectItem T="string" Value="@p.Key">@p.Key</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudTextField T="string" @bind-Value="displayName" Class="mt-3"
+                                  Label="@L["Terminals_Field_DisplayName"]" Required="true"
+                                  HelperText="@(L["Terminals_Field_DisplayNameHint"].Value)" />
+
+                    <MudTextField T="string" @bind-Value="providerTerminalId" Class="mt-3"
+                                  Label="@L["Terminals_Field_ProviderTerminalId"]" Required="true"
+                                  HelperText="@(L["Terminals_Field_ProviderTerminalIdHint"].Value)" />
+                </MudStep>
+
+                <MudStep Title="@L["Terminals_Step_Service"]">
+                    @if (serverFields.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2">@L["Terminals_NoServerSettings"]</MudText>
+                    }
+                    else
+                    {
+                        <DeclaredFieldsForm @ref="serverForm"
+                                            Fields="@serverDeclared"
+                                            Prefill="@serverPrefill"
+                                            PrefillIsInvariant="true"
+                                            ResetKey="@($"server:{provider}")"
+                                            AllowReadOnly="false"
+                                            RequiredFieldMessage="@(L["Terminals_RequiredMissing"].Value)" />
+                    }
+                </MudStep>
+
+                @if (hasDeviceStep)
+                {
+                    <MudStep Title="@L["Terminals_Step_Device"]">
+                        @if (deviceError != null)
+                        {
+                            @* Der Agent war nicht erreichbar. KEIN Abbruch: wer die Felder kennt, soll
+                               trotzdem speichern koennen - sonst laesst sich ein Geraet nur einrichten,
+                               solange die Kasse laeuft. *@
+                            <MudAlert Severity="Severity.Warning" Class="mb-3">@deviceError</MudAlert>
+                        }
+                        else if (deviceFields.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2">@L["Terminals_NoDeviceSettings"]</MudText>
+                        }
+                        else
+                        {
+                            <DeclaredFieldsForm @ref="deviceForm"
+                                                Fields="@deviceDeclared"
+                                                Prefill="@devicePrefill"
+                                                PrefillIsInvariant="true"
+                                                ResetKey="@($"device:{provider}:{routeValue}")"
+                                                AllowReadOnly="false"
+                                                RequiredFieldMessage="@(L["Terminals_RequiredMissing"].Value)" />
+                        }
+                    </MudStep>
+                }
+            </ChildContent>
+        </MudStepper>
+
+        @if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Terminals_Cancel"]</MudButton>
+        @if (step < LastStep)
+        {
+            <MudButton Color="Color.Primary" OnClick="NextAsync" Disabled="@busy">@L["Terminals_Next"]</MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="@busy">
+                @L["Terminals_Save"]
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    /// <summary>Das zu bearbeitende Gerät; null legt ein neues an.</summary>
+    [Parameter] public TerminalDefinition? Existing { get; set; }
+
+    private IReadOnlyList<TerminalProviderInfo> providers = [];
+    private IReadOnlyList<TerminalSettingDescriptor> serverFields = [];
+    private IReadOnlyList<TerminalSettingDescriptor> deviceFields = [];
+    private IReadOnlyList<DeclaredField> serverDeclared = [];
+    private IReadOnlyList<DeclaredField> deviceDeclared = [];
+    private Dictionary<string, object?> serverPrefill = new();
+    private Dictionary<string, object?> devicePrefill = new();
+    private DeclaredFieldsForm? serverForm;
+    private DeclaredFieldsForm? deviceForm;
+
+    private string provider = string.Empty;
+    private string displayName = string.Empty;
+    private string providerTerminalId = string.Empty;
+    private string? routeValue;
+    private string? serverJson;
+    private bool hasDeviceStep;
+    private int step;
+    private bool busy;
+    private string? error;
+    private string? deviceError;
+
+    private int LastStep => hasDeviceStep ? 2 : 1;
+
+    protected override void OnInitialized()
+    {
+        providers = Handler.GetProviders();
+        if (Existing != null)
+        {
+            provider = Existing.Provider;
+            displayName = Existing.DisplayName;
+            providerTerminalId = Existing.ProviderTerminalId;
+            routeValue = Existing.Route;
+            serverJson = Existing.ConfigurationJson;
+            LoadServerFields();
+        }
+        else if (providers.Count == 1)
+        {
+            // Nur ein Weg registriert: vorwaehlen. Eine Auswahl mit einem Eintrag ist keine Wahl.
+            provider = providers[0].Key;
+            LoadServerFields();
+        }
+    }
+
+    private void OnProviderChanged(string value)
+    {
+        provider = value;
+        LoadServerFields();
+    }
+
+    private void LoadServerFields()
+    {
+        if (string.IsNullOrEmpty(provider))
+        {
+            return;
+        }
+
+        serverFields = Handler.DescribeSettings(provider);
+        hasDeviceStep = providers.FirstOrDefault(p => p.Key == provider).HasDeviceSettings;
+        serverPrefill = TerminalFieldProjection.Defaults(serverFields, Stored(serverJson, routeValue));
+        serverDeclared = TerminalFieldProjection.ToDeclaredFields(serverFields);
+        _ = FillChoicesAsync(serverFields, null, fields => serverDeclared = fields);
+    }
+
+    /// <summary>
+    /// Holt die Auswahllisten nach und zeichnet neu.
+    /// </summary>
+    /// <remarks>
+    /// Nebenläufig, weil eine davon über das Netz geht: die Maske soll nicht warten, bis eine Kasse
+    /// geantwortet hat. Bis dahin steht dort ein Textfeld, und wer den Wert kennt, tippt ihn.
+    /// </remarks>
+    private async Task FillChoicesAsync(IReadOnlyList<TerminalSettingDescriptor> fields, string? dependsValue,
+        Action<IReadOnlyList<DeclaredField>> apply)
+    {
+        var choices = new Dictionary<string, IReadOnlyList<TerminalSettingChoice>>();
+        foreach (var field in fields.Where(f => !string.IsNullOrEmpty(f.ChoiceSource)))
+        {
+            var value = field.DependsOn == null ? null : dependsValue;
+            choices[field.Name] = await Handler.GetChoicesAsync(field.ChoiceSource!, value);
+        }
+
+        if (choices.Count != 0)
+        {
+            apply(TerminalFieldProjection.ToDeclaredFields(fields, choices));
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        error = null;
+        if (step == 0)
+        {
+            if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(displayName)
+                                                    || string.IsNullOrWhiteSpace(providerTerminalId))
+            {
+                error = L["Terminals_RequiredMissing"];
+                return;
+            }
+
+            step = 1;
+            return;
+        }
+
+        if (step == 1 && !CollectServer())
+        {
+            return;
+        }
+
+        if (step == 1 && hasDeviceStep)
+        {
+            await LoadDeviceFieldsAsync();
+            step = 2;
+        }
+    }
+
+    /// <summary>Liest den ersten Abschnitt ein und trennt dabei Route vom JSON.</summary>
+    private bool CollectServer()
+    {
+        if (serverFields.Count == 0)
+        {
+            serverJson = null;
+            return true;
+        }
+
+        if (serverForm == null || !serverForm.TryGetInvariantResult(out var values))
+        {
+            error = L["Terminals_RequiredMissing"];
+            return false;
+        }
+
+        // Die Route gehoert in ihre eigene Spalte, nicht ins JSON - sonst gaebe es den Wert zweimal.
+        routeValue = TerminalSettings.ValueFor(serverFields, values, TerminalSettingTarget.Route);
+        serverJson = TerminalSettings.Compose((serverFields, values));
+        return true;
+    }
+
+    private async Task LoadDeviceFieldsAsync()
+    {
+        busy = true;
+        deviceError = null;
+        try
+        {
+            // Erst JETZT moeglich: die Angaben aus Schritt zwei sagen, WEN wir fragen.
+            deviceFields = await Handler.DescribeDeviceSettingsAsync(provider, serverJson);
+            devicePrefill = TerminalFieldProjection.Defaults(deviceFields, Stored(Existing?.ConfigurationJson, null));
+            deviceDeclared = TerminalFieldProjection.ToDeclaredFields(deviceFields);
+            await FillChoicesAsync(deviceFields, routeValue, fields => deviceDeclared = fields);
+        }
+        catch (Exception ex)
+        {
+            // Der Agent antwortet nicht. Das darf das Einrichten nicht verhindern - sonst laesst sich ein
+            // Geraet nur konfigurieren, solange die Kasse laeuft.
+            deviceFields = [];
+            deviceDeclared = [];
+            deviceError = string.Format(L["Terminals_DeviceUnreachable"], ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        error = null;
+        if (step == 1 && !CollectServer())
+        {
+            return;
+        }
+
+        var json = serverJson;
+        if (hasDeviceStep && deviceFields.Count != 0)
+        {
+            if (deviceForm == null || !deviceForm.TryGetInvariantResult(out var deviceValues))
+            {
+                error = L["Terminals_RequiredMissing"];
+                return;
+            }
+
+            // Beide Abschnitte in EIN JSON; der zweite gewinnt bei gleichen Namen.
+            json = TerminalSettings.Compose((serverFields, ServerValues()), (deviceFields, deviceValues));
+        }
+
+        busy = true;
+        try
+        {
+            var id = await Handler.SaveAsync(new TerminalDefinition
+            {
+                TerminalId = Existing?.TerminalId ?? 0,
+                Provider = provider,
+                ProviderTerminalId = providerTerminalId,
+                Route = routeValue,
+                DisplayName = displayName,
+                ConfigurationJson = json,
+                Enabled = Existing?.Enabled ?? true
+            });
+
+            Dialog.Close(DialogResult.Ok(id));
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private IReadOnlyDictionary<string, string?> ServerValues()
+        => serverForm != null && serverForm.TryGetInvariantResult(out var values)
+            ? values
+            : new Dictionary<string, string?>();
+
+    /// <summary>Was bereits gespeichert ist, als Vorbelegung.</summary>
+    private static Dictionary<string, string?> Stored(string? json, string? route)
+    {
+        var result = new Dictionary<string, string?>();
+        if (route != null)
+        {
+            result["route"] = route;
+        }
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return result;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                result[property.Name] = property.Value.ToString();
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Unlesbares JSON: dann eben ohne Vorbelegung weitermachen. Die Maske bleibt bedienbar, und
+            // was der Benutzer eintraegt, ersetzt es sauber.
+        }
+
+        return result;
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}
