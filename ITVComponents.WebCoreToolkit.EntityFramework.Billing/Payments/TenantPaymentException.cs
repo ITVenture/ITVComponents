@@ -37,6 +37,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <summary>The tenant does not hold the payments feature.</summary>
         public const string FeatureMissing = "Payments_Error_FeatureMissing";
 
+        /// <summary>
+        /// The acting user is not allowed to do this.
+        /// </summary>
+        /// <remarks>
+        /// Eigener Code und nicht <see cref="ProviderError"/>: eine Absage aus Rechtegruenden ist keine
+        /// Stoerung. Wer sie als Anbieterfehler ausgibt, schickt die Fehlersuche zum Anbieter, waehrend
+        /// in Wahrheit eine Berechtigung fehlt.
+        /// </remarks>
+        public const string NotPermitted = "Payments_Error_NotPermitted";
+
         /// <summary>No connected account exists for the tenant yet.</summary>
         public const string NoAccount = "Payments_Error_NoAccount";
 

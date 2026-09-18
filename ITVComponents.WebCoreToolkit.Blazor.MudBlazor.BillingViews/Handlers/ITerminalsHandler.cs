@@ -10,9 +10,17 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
     /// Die Nahtstelle der Geräte-Verwaltung (Achse C) zur Oberfläche.
     /// </summary>
     /// <remarks>
-    /// Wie bei <see cref="IPaymentsHandler"/>: die Rechteprüfungen hier bewachen die <b>Anzeige</b>.
-    /// Die Dienstschicht prüft noch einmal nach Mandant — sie bedient auch Aufrufer ohne
-    /// Sicherheitskontext.
+    /// <para>
+    /// <see cref="CanView"/> und <see cref="CanManage"/> sind für die <b>Anzeige</b> gedacht — was
+    /// jemand nicht darf, soll er nicht sehen. <b>Die Umsetzung prüft trotzdem in jeder Methode
+    /// selbst</b>, samt Hauptschalter und Mandanten-Feature.
+    /// </para>
+    /// <para>
+    /// Das ist kein Gürtel-und-Hosenträger: dieser Dienst ist im DI registriert und von jeder
+    /// Komponente aus erreichbar. Ohne eigene Prüfung hinge die Sicherheit daran, dass niemand einen
+    /// zweiten Aufrufer schreibt — und bei den Verkäufen fängt das die Dienstschicht ab, weil dort
+    /// jeder Vorgang durch dieselbe Klammer läuft. Die Geräteverwaltung hat dieses Netz nicht.
+    /// </para>
     /// </remarks>
     public interface ITerminalsHandler
     {
@@ -47,6 +55,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         /// <param name="dependsOnValue">
         /// der Wert des Feldes, von dem die Liste abhängt — bei den Objekten eines Dienstes dessen Name
         /// </param>
+        /// <param name="cancellationToken">bricht die Abfrage ab</param>
         /// <returns>
         /// die Einträge, oder eine leere Liste. <b>Leer heisst „unbekannte Quelle" oder „nichts da"</b>;
         /// die Maske zeichnet dann ein Textfeld statt einer Auswahl — unschön, aber bedienbar.

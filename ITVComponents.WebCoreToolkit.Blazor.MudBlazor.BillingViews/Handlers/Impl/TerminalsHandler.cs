@@ -37,11 +37,16 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         private readonly IEnumerable<ITerminalChoiceProvider> choiceProviders;
         private readonly IGlobalSettings<TenantPaymentsOptions> settings;
 
+        /// <summary>
+        /// Hauptschalter und Mandanten-Feature — dieselbe Klammer, die auch jeden Verkauf prüft.
+        /// </summary>
+        private readonly PaymentsRuntime runtime;
+
         /// <summary>Initializes a new instance of the <see cref="TerminalsHandler{TContext}"/> class.</summary>
         public TerminalsHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services,
             ITerminalAdministration administration, ITerminalProviderCatalog catalog,
             ITerminalPaymentService terminals, IEnumerable<ITerminalChoiceProvider> choiceProviders,
-            IGlobalSettings<TenantPaymentsOptions> settings)
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates)
         {
             this.dbFactory = dbFactory;
             this.services = services;
@@ -50,6 +55,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             this.terminals = terminals;
             this.choiceProviders = choiceProviders;
             this.settings = settings;
+            // Dasselbe Gate wie bei den Verkaeufen, und mit derselben Regel: ist keines registriert,
+            // lautet die Antwort NEIN. Lieber keine Geraeteverwaltung als eine fuer einen Mandanten,
+            // der das Modul gar nicht hat.
+            runtime = new PaymentsRuntime(settings, featureGates.FirstOrDefault());
         }
 
         /// <inheritdoc />
@@ -66,7 +75,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// <inheritdoc />
         public async Task<IReadOnlyList<TerminalDefinition>> GetTerminalsAsync(
             CancellationToken cancellationToken = default)
-            => await administration.GetAsync(await CurrentTenantAsync(cancellationToken), cancellationToken);
+        {
+            var tenantId = await EnsureAsync(CanView(), cancellationToken);
+            return await administration.GetAsync(tenantId, cancellationToken);
+        }
 
         /// <inheritdoc />
         public IReadOnlyList<TerminalProviderInfo> GetProviders() => catalog.GetProviders();
@@ -103,19 +115,53 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// </remarks>
         public async Task<int> SaveAsync(TerminalDefinition definition, CancellationToken cancellationToken = default)
         {
-            definition.TenantId = await CurrentTenantAsync(cancellationToken);
+            definition.TenantId = await EnsureAsync(CanManage(), cancellationToken);
             return await administration.SaveAsync(definition, cancellationToken);
         }
 
         /// <inheritdoc />
         public async Task SetEnabledAsync(int terminalId, bool enabled, CancellationToken cancellationToken = default)
-            => await administration.SetEnabledAsync(await CurrentTenantAsync(cancellationToken), terminalId, enabled,
-                cancellationToken);
+            => await administration.SetEnabledAsync(await EnsureAsync(CanManage(), cancellationToken), terminalId,
+                enabled, cancellationToken);
 
         /// <inheritdoc />
         public async Task<TerminalStatus> GetStatusAsync(int terminalId, CancellationToken cancellationToken = default)
-            => await terminals.GetTerminalStatusAsync(await CurrentTenantAsync(cancellationToken), terminalId,
+            => await terminals.GetTerminalStatusAsync(await EnsureAsync(CanView(), cancellationToken), terminalId,
                 cancellationToken);
+
+        /// <summary>
+        /// Prüft Recht, Hauptschalter und Mandanten-Feature — und liefert dabei den Mandanten.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Hier und nicht nur in der Maske.</b> Die Ansicht blendet aus, was jemand nicht darf; das
+        /// schützt die Anzeige, nicht den Vorgang. Dieser Dienst ist im DI registriert und damit von
+        /// jeder Komponente aus erreichbar — ohne Prüfung an dieser Stelle hinge die Sicherheit daran,
+        /// dass niemand einen zweiten Aufrufer schreibt.
+        /// </para>
+        /// <para>
+        /// Bei den Verkäufen übernimmt das die Dienstschicht, weil dort jeder Vorgang durch
+        /// <c>PaymentsRuntime</c> läuft. Die Geräteverwaltung hat kein solches Netz: sie prüft sonst nur
+        /// die Zugehörigkeit des Geräts, nicht die Berechtigung des Handelnden.
+        /// </para>
+        /// <para>
+        /// Das Feature wird MIT geprüft: wem das Zahlungsmodul entzogen wurde, der soll auch keine
+        /// Geräte mehr einrichten — sonst wäre alles bereit für den Tag, an dem niemand mehr hinsieht.
+        /// </para>
+        /// </remarks>
+        private async Task<int> EnsureAsync(bool permitted, CancellationToken cancellationToken)
+        {
+            if (!permitted)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.NotPermitted,
+                    "The acting user may not manage payment terminals of this tenant.");
+            }
+
+            runtime.EnsureEnabled();
+            var tenantId = await CurrentTenantAsync(cancellationToken);
+            await runtime.EnsureFeatureAsync(tenantId, cancellationToken);
+            return tenantId;
+        }
 
         /// <summary>
         /// Der Mandant, in dessen Namen gearbeitet wird.
