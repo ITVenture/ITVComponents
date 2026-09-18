@@ -86,7 +86,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 // warum das Geld nicht angekommen ist.
                 LogEnvironment.LogEvent(
                     $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}) carries a commission of {sale.ApplicationFeeMinor} {sale.Currency}, but wallee has no marketplace split — the amount is booked locally and must be invoiced to the tenant separately.",
-                    LogSeverity.Warning, LogContext);
+                    LogSeverity.Warning, WalleeRuntime.LogContext);
             }
 
             var create = new TransactionCreate
@@ -139,7 +139,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
             try
             {
-                var service = new TransactionsService(Configure(wallee));
+                var service = new TransactionsService(WalleeRuntime.Configure(wallee));
                 var transaction = await Task.Run(() => service.PostPaymentTransactions(space, create), cancellationToken)
                     .ConfigureAwait(false);
                 // ACHTUNG Parameter-Reihenfolge: erst die Transaktion, DANN der Raum. Vertauscht laeuft der
@@ -158,7 +158,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             {
                 LogEnvironment.LogEvent(
                     $"Could not create a payment page for sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}', space {space}, attempt {attempt}): {ex.OutlineException()}",
-                    LogSeverity.Error, LogContext);
+                    LogSeverity.Error, WalleeRuntime.LogContext);
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
             }
         }
@@ -182,7 +182,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 // wird.
                 LogEnvironment.LogEvent(
                     $"Refund of {amountMinor} on sale {sale.TenantSaleId} asks for the commission to be returned, but with wallee none was ever withheld — make sure the separate commission invoice is credited too.",
-                    LogSeverity.Warning, LogContext);
+                    LogSeverity.Warning, WalleeRuntime.LogContext);
             }
 
             var wallee = Wallee;
@@ -209,7 +209,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
             try
             {
-                var service = new RefundsService(Configure(wallee));
+                var service = new RefundsService(WalleeRuntime.Configure(wallee));
                 var refund = await Task.Run(() => service.PostPaymentRefunds(space, create), cancellationToken)
                     .ConfigureAwait(false);
                 return new ProviderRefund(refund.Id.ToString(), refund.State?.ToString());
@@ -218,7 +218,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             {
                 LogEnvironment.LogEvent(
                     $"Refund of {amountMinor} on sale {sale.TenantSaleId} (transaction {transactionId}, space {space}) was refused by wallee: {ex.OutlineException()}",
-                    LogSeverity.Error, LogContext);
+                    LogSeverity.Error, WalleeRuntime.LogContext);
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
             }
         }
@@ -243,18 +243,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             return options.SpaceId;
         }
 
-        private static WalleeConfiguration Configure(WalleeOptions options)
-        {
-            var configuration = new WalleeConfiguration(options.ApplicationUserId, options.ApplicationUserKey);
-            if (!string.IsNullOrWhiteSpace(options.ApiBaseUrl))
-            {
-                configuration.BasePath = options.ApiBaseUrl;
-            }
-
-            return configuration;
-        }
-
-        internal const string LogContext = "TenantPayments";
     }
 
     /// <summary>wallee hat geantwortet, aber nicht brauchbar.</summary>

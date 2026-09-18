@@ -49,6 +49,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Options
         public long[] PaymentMethodConfigurations { get; set; } = [];
 
         /// <summary>
+        /// Die Sprache, unter der Namen und Beschreibungen bei wallee abgelegt werden.
+        /// </summary>
+        /// <remarks>
+        /// wallee fuehrt diese Texte als Woerterbuch Sprache-zu-Text, nicht als schlichte Zeichenkette -
+        /// und zwar bei Produktversion, Komponentengruppe und Komponente, NICHT aber beim Produkt selbst.
+        /// Ein Schluessel, den wallee nicht kennt, faellt erst beim Anlegen auf.
+        /// </remarks>
+        public string DefaultLanguage { get; set; } = "en-US";
+
+        /// <summary>
         /// Das Geheimnis, mit dem eingehende Benachrichtigungen geprueft werden. Leer heisst: es wird NICHT
         /// geprueft - und genau das protokolliert der Webhook-Weg dann auch.
         /// </summary>
