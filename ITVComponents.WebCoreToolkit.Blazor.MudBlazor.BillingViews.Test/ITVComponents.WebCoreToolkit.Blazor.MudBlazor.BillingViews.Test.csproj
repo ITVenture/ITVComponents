@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- Die Handler sind durchgehend nullable-annotiert; ohne eingeschalteten Kontext meldet schon die
+         Attrappe ihrer Vertraege CS8633. -->
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <!-- Nur damit die Handler ueberhaupt einen Kontext bekommen. Gelesen wird darin fast nichts: die
+         Rechtepruefung soll VOR jedem Datenzugriff greifen, und genau das weisen die Tests nach. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Kein Razor-SDK und kein bUnit: geprueft werden die Handler, nicht die Masken. Die Masken sind
+         genau die Schicht, auf die man sich NICHT verlassen darf - darum gibt es diese Tests. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.BillingViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.BillingViews.csproj" />
+  </ItemGroup>
+</Project>
