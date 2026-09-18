@@ -33,19 +33,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
     /// </remarks>
     public class WalleeLtiTerminalDevice : ITerminalDevice
     {
-        private readonly WalleeLtiOptions options;
-
-        /// <summary>Initializes a new instance of the <see cref="WalleeLtiTerminalDevice"/> class.</summary>
-        public WalleeLtiTerminalDevice(WalleeLtiOptions options)
-        {
-            this.options = options;
-        }
+        private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
         /// <inheritdoc />
-        public async Task<TerminalPaymentOutcome> StartPaymentAsync(TerminalPaymentCommand command,
-            CancellationToken cancellationToken = default)
+        public async Task<TerminalPaymentOutcome> StartPaymentAsync(TerminalTarget target,
+            TerminalPaymentCommand command, CancellationToken cancellationToken = default)
         {
-            var terminal = Resolve(command.TerminalId, command.ConfigurationJson);
+            var terminal = Read(target);
             var receipt = new ReceiptCollector();
 
             var request = new XElement(WalleeLtiConnection.Pos + "financialTrxRequest",
@@ -70,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                 new XElement("showTrxResultScreens", terminal.ShowTransactionResultScreens));
 
             return await ExchangeAsync(terminal, request, "financialTrxResponse", command.OperationId, receipt,
-                options.TransactionTimeoutSeconds, cancellationToken);
+                terminal.TransactionTimeoutSeconds, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -80,17 +74,17 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         /// Vermutung: es gibt keinen Weg, „nicht auffindbar" von „nicht geschehen" zu unterscheiden,
         /// und der Unterschied ist genau der zwischen einer offenen und einer doppelten Belastung.
         /// </remarks>
-        public async Task<TerminalPaymentOutcome> GetPaymentAsync(string terminalId, string operationId,
+        public async Task<TerminalPaymentOutcome> GetPaymentAsync(TerminalTarget target, string operationId,
             CancellationToken cancellationToken = default)
         {
-            var terminal = Resolve(terminalId, null);
+            var terminal = Read(target);
             var request = new XElement(WalleeLtiConnection.Pos + "reprintReceiptRequest",
                 new XAttribute(XNamespace.Xmlns + "vcs-pos", WalleeLtiConnection.Pos.NamespaceName),
                 new XElement("type", "TRX"));
 
             var receipt = new ReceiptCollector();
             var outcome = await ExchangeAsync(terminal, request, "reprintReceiptResponse", operationId, receipt,
-                options.ConnectTimeoutSeconds + 30, cancellationToken);
+                terminal.ConnectTimeoutSeconds + 30, cancellationToken);
 
             var seen = outcome.Receipt?.MerchantReference;
             if (outcome.State == TerminalPaymentState.Succeeded
@@ -115,10 +109,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         /// <c>reversalRequest</c> nimmt die <b>letzte</b> Transaktion zurück. Ist sie noch im Gange,
         /// scheitert das — und dann ist „läuft weiter" die richtige Antwort.
         /// </remarks>
-        public async Task<TerminalPaymentOutcome> CancelPaymentAsync(string terminalId, string operationId,
+        public async Task<TerminalPaymentOutcome> CancelPaymentAsync(TerminalTarget target, string operationId,
             CancellationToken cancellationToken = default)
         {
-            var terminal = Resolve(terminalId, null);
+            var terminal = Read(target);
             var request = new XElement(WalleeLtiConnection.Pos + "reversalRequest",
                 new XAttribute(XNamespace.Xmlns + "vcs-pos", WalleeLtiConnection.Pos.NamespaceName),
                 new XElement("posId", terminal.PosId),
@@ -130,7 +124,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
             {
                 var receipt = new ReceiptCollector();
                 await ExchangeAsync(terminal, request, "reversalResponse", operationId, receipt,
-                    options.TransactionTimeoutSeconds, cancellationToken);
+                    terminal.TransactionTimeoutSeconds, cancellationToken);
                 return new TerminalPaymentOutcome
                 {
                     OperationId = operationId,
@@ -155,8 +149,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         /// nur die letzte Transaktion zurück, und nur bis zum Tagesabschluss. Alles andere läuft über
         /// das Portal des Anbieters und nicht über das Gerät.
         /// </remarks>
-        public Task<TerminalPaymentOutcome> RefundPaymentAsync(TerminalRefundCommand command,
-            CancellationToken cancellationToken = default)
+        public Task<TerminalPaymentOutcome> RefundPaymentAsync(TerminalTarget target,
+            TerminalRefundCommand command, CancellationToken cancellationToken = default)
             => throw new TerminalDeviceException(
                 "A wallee terminal on the local till interface cannot refund an older payment: reversalRequest only takes back the LAST transaction, and only until the daily balance has run. Refund it through the wallee back office instead.");
 
@@ -165,24 +159,24 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         /// Über <c>pingRequest</c>. Mehr als „antwortet das Gerät" lässt sich hier nicht sagen, und das
         /// ist ehrlicher, als aus dem Ausbleiben eines Fehlers „bereit" zu machen.
         /// </remarks>
-        public async Task<TerminalStatus> GetStatusAsync(string terminalId, CancellationToken cancellationToken = default)
+        public async Task<TerminalStatus> GetStatusAsync(TerminalTarget target, CancellationToken cancellationToken = default)
         {
-            var terminal = Resolve(terminalId, null);
+            var terminal = Read(target);
             try
             {
                 await using var connection = await WalleeLtiConnection.ConnectAsync(terminal.Host, terminal.Port,
-                    TimeSpan.FromSeconds(options.ConnectTimeoutSeconds), cancellationToken);
+                    TimeSpan.FromSeconds(terminal.ConnectTimeoutSeconds), cancellationToken);
 
                 var request = new XElement(WalleeLtiConnection.Pos + "pingRequest",
                     new XAttribute(XNamespace.Xmlns + "vcs-pos", WalleeLtiConnection.Pos.NamespaceName),
                     new XElement("posId", terminal.PosId));
 
                 await connection.ExchangeAsync(request, "pingResponse", null, cancellationToken);
-                return new TerminalStatus { TerminalId = terminalId, Online = true, RawState = "reachable" };
+                return new TerminalStatus { TerminalId = target.TerminalId, Online = true, RawState = "reachable" };
             }
             catch (TerminalDeviceException ex)
             {
-                return new TerminalStatus { TerminalId = terminalId, Online = false, RawState = ex.Message };
+                return new TerminalStatus { TerminalId = target.TerminalId, Online = false, RawState = ex.Message };
             }
         }
 
@@ -197,7 +191,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
             try
             {
                 await using var connection = await WalleeLtiConnection.ConnectAsync(terminal.Host, terminal.Port,
-                    TimeSpan.FromSeconds(options.ConnectTimeoutSeconds), cancellationToken);
+                    TimeSpan.FromSeconds(terminal.ConnectTimeoutSeconds), cancellationToken);
 
                 var response = await connection.ExchangeAsync(request, responseName, receipt.Collect, timed.Token);
                 return Translate(response, operationId, receipt);
@@ -301,36 +295,44 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                     $"No numeric ISO-4217 code is known here for currency '{currency}'. Add it rather than letting the terminal guess — a wrong code charges in a different currency.")
             };
 
-        /// <summary>Findet die Angaben zu einem Gerät.</summary>
-        private WalleeLtiTerminalOptions Resolve(string terminalId, string? configurationJson)
+        /// <summary>
+        /// Liest die Gerätekonfiguration aus dem, was mit der Anfrage kam.
+        /// </summary>
+        /// <remarks>
+        /// <b>Die einzige Quelle.</b> Es gibt hier bewusst keinen Rückfall auf etwas Lokales: gäbe es
+        /// einen, könnte eine veraltete Angabe am Kassen-PC still gewinnen, und man suchte den Fehler
+        /// dort, wo das Gerät gepflegt wird.
+        /// <para>
+        /// Felder, die diese Klasse nicht kennt, werden übergangen — dasselbe JSON trägt auch, was der
+        /// Aufrufer braucht, um den Agenten überhaupt zu erreichen.
+        /// </para>
+        /// </remarks>
+        private static WalleeLtiTerminalOptions Read(TerminalTarget target)
         {
-            // Was die Web-Seite mitschickt, hat Vorrang - so laesst sich ein Geraet umziehen, ohne den
-            // Agenten anzufassen.
-            if (!string.IsNullOrWhiteSpace(configurationJson))
+            if (string.IsNullOrWhiteSpace(target.ConfigurationJson))
             {
-                try
-                {
-                    var fromHost = JsonSerializer.Deserialize<WalleeLtiTerminalOptions>(configurationJson,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (fromHost != null && !string.IsNullOrWhiteSpace(fromHost.Host))
-                    {
-                        return fromHost;
-                    }
-                }
-                catch (JsonException ex)
-                {
-                    throw new TerminalDeviceException(
-                        $"The configuration the host sent for terminal '{terminalId}' is not readable: {ex.Message}", ex);
-                }
+                throw new TerminalDeviceException(
+                    $"No configuration came with the request for terminal '{target.TerminalId}'. This device holds no list of its own — address, port and posId have to travel with every call.");
             }
 
-            if (options.Terminals.TryGetValue(terminalId, out var local) && !string.IsNullOrWhiteSpace(local.Host))
+            WalleeLtiTerminalOptions? options;
+            try
             {
-                return local;
+                options = JsonSerializer.Deserialize<WalleeLtiTerminalOptions>(target.ConfigurationJson, Json);
+            }
+            catch (JsonException ex)
+            {
+                throw new TerminalDeviceException(
+                    $"The configuration sent for terminal '{target.TerminalId}' is not readable JSON: {ex.Message}", ex);
             }
 
-            throw new TerminalDeviceException(
-                $"Terminal '{terminalId}' is not configured on this agent, and the host sent no address for it. Add it to 'Terminals' in the agent's WalleeLti settings.");
+            if (options == null || string.IsNullOrWhiteSpace(options.Host))
+            {
+                throw new TerminalDeviceException(
+                    $"The configuration sent for terminal '{target.TerminalId}' names no host. Without an address in the shop's network there is no way to reach the device.");
+            }
+
+            return options;
         }
 
         private static int? ReadInt(XElement parent, string name)

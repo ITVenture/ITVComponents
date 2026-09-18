@@ -156,14 +156,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Bewusst nur ein Vertrag, ohne mitgelieferte Umsetzung.</b> Wie aus dem Namen in
-    /// <see cref="TenantPaymentTerminal.Route"/> eine Verbindung wird, weiss die Anwendung — sie hat
-    /// ihre Proxy-Verdrahtung schon, und das Toolkit hätte hier nichts beizutragen ausser einer Annahme,
-    /// die bei zwei Agenten falsch wäre.
+    /// <b>Bewusst nur ein Vertrag, ohne mitgelieferte Umsetzung.</b> Wie aus der Geräte-Zeile eine
+    /// Verbindung wird, weiss die Anwendung — sie hat ihre Proxy-Verdrahtung schon, und das Toolkit
+    /// hätte hier nichts beizutragen ausser einer Annahme, die bei zwei Agenten falsch wäre.
     /// </para>
     /// <para>
-    /// Eine Umsetzung mit genau einem Agenten kann <c>terminal</c> schlicht ignorieren und den
-    /// konfigurierten Proxy zurückgeben. Sobald es zwei sind, entscheidet die Route.
+    /// Die Zeile trägt beides: <see cref="TenantPaymentTerminal.Route"/> nennt den Dienst, und
+    /// <see cref="TenantPaymentTerminal.ConfigurationJson"/> kann darüber hinaus alles enthalten, was
+    /// der Weg dorthin braucht — etwa den Namen des Objekts, das auf dem Agenten
+    /// <see cref="ITerminalDevice"/> bereitstellt. <b>Dasselbe JSON geht danach unverändert an das
+    /// Gerät weiter</b>, das sich daraus nimmt, was es versteht. Eine Quelle für beide Hälften der
+    /// Frage „wen rufe ich, und wie redet der mit dem Terminal".
     /// </para>
     /// </remarks>
     public interface ITerminalAgentLocator

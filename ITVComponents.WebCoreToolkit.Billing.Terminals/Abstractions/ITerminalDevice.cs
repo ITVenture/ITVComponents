@@ -20,6 +20,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
     /// <see cref="TerminalPaymentCommand.OperationId"/> bekommt, darf <b>nicht</b> ein zweites Mal
     /// belasten, sondern muss den Stand des ersten Vorgangs zurückgeben.
     /// </para>
+    /// <para>
+    /// <b>Jede Methode bekommt das Ziel mitgeliefert</b> (<see cref="TerminalTarget"/>), auch das
+    /// Nachfragen und das Abbrechen. Eine Ausprägung hält also <b>keine</b> eigene Geräteliste: was
+    /// nötig ist, um mit diesem einen Gerät zu reden, steht in der Anfrage. Das ist kein Beiwerk —
+    /// sonst müsste an jedem Kassen-PC eine Konfiguration gepflegt werden, die es anderswo schon gibt,
+    /// und nach einem Neuaufsetzen wäre der Agent stumm.
+    /// </para>
     /// </remarks>
     public interface ITerminalDevice
     {
@@ -31,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// hat. Das dauert, weil ein Mensch eine Karte einsteckt und eine PIN tippt, und eine Verbindung,
         /// die so lange offen stehen muss, bricht irgendwann im falschen Moment.
         /// </remarks>
-        Task<TerminalPaymentOutcome> StartPaymentAsync(TerminalPaymentCommand command,
+        Task<TerminalPaymentOutcome> StartPaymentAsync(TerminalTarget target, TerminalPaymentCommand command,
             CancellationToken cancellationToken = default);
 
         /// <summary>
@@ -42,7 +49,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Netzabbruch oder einem Neustart offen ist: wurde die Karte belastet? Wer sie nicht beantworten
         /// kann, kassiert doppelt.
         /// </remarks>
-        Task<TerminalPaymentOutcome> GetPaymentAsync(string terminalId, string operationId,
+        Task<TerminalPaymentOutcome> GetPaymentAsync(TerminalTarget target, string operationId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
@@ -53,7 +60,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// ist es zu spät. Dann sagt das Ergebnis, dass weiter gewartet wird — und nicht, dass abgebrochen
         /// wurde.
         /// </remarks>
-        Task<TerminalPaymentOutcome> CancelPaymentAsync(string terminalId, string operationId,
+        Task<TerminalPaymentOutcome> CancelPaymentAsync(TerminalTarget target, string operationId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
@@ -63,12 +70,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Nicht jedes kann es — dann meldet die Ausprägung das, statt es stillschweigend zu übergehen.
         /// Eine Erstattung, die niemand ausführt und über die niemand spricht, ist die teuerste Variante.
         /// </remarks>
-        Task<TerminalPaymentOutcome> RefundPaymentAsync(TerminalRefundCommand command,
+        Task<TerminalPaymentOutcome> RefundPaymentAsync(TerminalTarget target, TerminalRefundCommand command,
             CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Meldet, ob das Gerät erreichbar und bereit ist.
         /// </summary>
-        Task<TerminalStatus> GetStatusAsync(string terminalId, CancellationToken cancellationToken = default);
+        Task<TerminalStatus> GetStatusAsync(TerminalTarget target, CancellationToken cancellationToken = default);
     }
 }

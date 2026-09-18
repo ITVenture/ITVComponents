@@ -60,6 +60,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// neuen Namen, ist das hier eine Korrektur und keine JSON-Bastelei. Wie aus diesem Namen ein
         /// Proxy wird, entscheidet die Anwendung über ihren
         /// <c>ITerminalAgentLocator</c> — das Toolkit schreibt keinen Transport vor.
+        /// <para>
+        /// Braucht der Weg zum Agenten mehr als einen Namen — etwa noch das Objekt, das dort
+        /// <c>ITerminalDevice</c> bereitstellt —, gehört das in <see cref="ConfigurationJson"/>. Ein
+        /// Betrieb, der lieber alles dort führt, darf diese Spalte auch leer lassen; sie ist die
+        /// bequeme Abkürzung, nicht die Vorschrift.
+        /// </para>
         /// </remarks>
         [MaxLength(256)]
         public string? Route { get; set; }

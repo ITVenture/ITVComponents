@@ -1,11 +1,40 @@
 namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
 {
+    /// <summary>
+    /// Welches Gerät gemeint ist und wie man mit ihm redet.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Reist bei <b>jedem</b> Aufruf mit, auch beim Nachfragen. Die Ausprägung, die es entgegennimmt,
+    /// hält damit keine eigene Geräteliste — was zum Reden nötig ist, kommt aus der Anfrage.
+    /// </para>
+    /// <para>
+    /// <b>Warum das so sein muss:</b> die Alternative wäre eine Konfiguration an jedem Kassen-PC, die
+    /// dieselben Angaben ein zweites Mal führt. Zwei Wahrheiten über dasselbe Gerät laufen
+    /// auseinander, ein neu aufgesetzter Agent wäre stumm, bis jemand vor Ort war, und ein Umzug des
+    /// Geräts wäre eine Änderung an zwei Stellen statt an einer.
+    /// </para>
+    /// </remarks>
+    public class TerminalTarget
+    {
+        /// <summary>Die Kennung des Geräts — die Nummer, unter der es beim Anbieter oder im Laden geführt wird.</summary>
+        public string TerminalId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Alles, was diese eine Ausprägung braucht, um mit dem Gerät zu sprechen, als JSON — bei einem
+        /// Gerät im lokalen Netz etwa Adresse, Port und Kassenkennung.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst undurchsichtig: was hier drinsteht, geht nur die Ausprägung etwas an. Der Weg dorthin
+        /// (welcher Dienst, welches Objekt) kann im selben JSON stehen und wird dann schon vom Aufrufer
+        /// gelesen — beides aus einer Quelle zu nehmen ist genau der Punkt.
+        /// </remarks>
+        public string? ConfigurationJson { get; set; }
+    }
+
     /// <summary>Der Auftrag, am Gerät zu kassieren.</summary>
     public class TerminalPaymentCommand
     {
-        /// <summary>Das Gerät, gemeint ist seine Kennung beim Anbieter bzw. auf dem Agenten.</summary>
-        public string TerminalId { get; set; } = string.Empty;
-
         /// <summary>
         /// Die Kennung dieses Vorgangs — <b>von uns</b> vergeben, nicht vom Gerät.
         /// </summary>
@@ -34,19 +63,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Selbstbedienungskasse ja, bei einer bedienten Kasse eher nicht.
         /// </summary>
         public bool AllowCustomerCancellation { get; set; } = true;
-
-        /// <summary>
-        /// Was nur die konkrete Ausprägung versteht, als JSON — die Konfiguration des Geräts.
-        /// </summary>
-        public string? ConfigurationJson { get; set; }
     }
 
     /// <summary>Der Auftrag, am Gerät zu erstatten.</summary>
     public class TerminalRefundCommand
     {
-        /// <summary>Das Gerät.</summary>
-        public string TerminalId { get; set; } = string.Empty;
-
         /// <summary>Die Kennung dieser Erstattung — dieselbe Rolle wie beim Kassieren.</summary>
         public string OperationId { get; set; } = string.Empty;
 
@@ -64,9 +85,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
 
         /// <summary>Der Grund, soweit das Gerät ihn führt.</summary>
         public string? Reason { get; set; }
-
-        /// <summary>Was nur die konkrete Ausprägung versteht, als JSON.</summary>
-        public string? ConfigurationJson { get; set; }
     }
 
     /// <summary>Wie ein Vorgang am Gerät ausgegangen ist — oder eben noch nicht.</summary>

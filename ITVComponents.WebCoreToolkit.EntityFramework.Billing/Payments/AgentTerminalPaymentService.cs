@@ -51,7 +51,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.StartPaymentAsync(command, cancellationToken);
+            return await device.StartPaymentAsync(TargetOf(terminal), command, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -59,7 +59,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             TenantPaymentTerminal terminal, string operationId, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.GetPaymentAsync(terminal.ProviderTerminalId, operationId, cancellationToken);
+            return await device.GetPaymentAsync(TargetOf(terminal), operationId, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -67,7 +67,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             TenantPaymentTerminal terminal, string operationId, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.CancelPaymentAsync(terminal.ProviderTerminalId, operationId, cancellationToken);
+            return await device.CancelPaymentAsync(TargetOf(terminal), operationId, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -75,7 +75,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.GetStatusAsync(terminal.ProviderTerminalId, cancellationToken);
+            return await device.GetStatusAsync(TargetOf(terminal), cancellationToken);
         }
     }
 }

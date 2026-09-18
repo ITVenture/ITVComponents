@@ -75,6 +75,22 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         protected abstract Task<TerminalStatus> QueryStatusAsync(TenantPaymentTerminal terminal,
             CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Das Gerät, so wie eine Ausprägung es braucht: Kennung plus die Angaben, mit denen sich mit
+        /// ihm reden lässt.
+        /// </summary>
+        /// <remarks>
+        /// Beides kommt aus der Geräte-Zeile und reist bei jedem Aufruf mit. Der Grund steht bei
+        /// <see cref="TerminalTarget"/>: eine zweite Pflegestelle — etwa am Kassen-PC — führte dieselben
+        /// Angaben ein zweites Mal, und zwei Wahrheiten über ein Gerät laufen auseinander.
+        /// </remarks>
+        protected static TerminalTarget TargetOf(TenantPaymentTerminal terminal)
+            => new()
+            {
+                TerminalId = terminal.ProviderTerminalId,
+                ConfigurationJson = terminal.ConfigurationJson
+            };
+
         /// <inheritdoc />
         public async Task<IReadOnlyList<TerminalInfo>> GetTerminalsAsync(int tenantId, bool includeDisabled = false,
             CancellationToken cancellationToken = default)
@@ -204,7 +220,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
             var command = new TerminalPaymentCommand
             {
-                TerminalId = terminal.ProviderTerminalId,
                 // UNSERE Kennung, stabil ueber Wiederholungen: die Verkaufszeile gibt es genau einmal je
                 // Bestellung, und sie ueberlebt einen Neustart der Kasse.
                 OperationId = sale.TenantSaleId.ToString(),
@@ -212,8 +227,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 Currency = sale.Currency,
                 Description = sale.Description,
                 Reference = sale.ExternalReference,
-                AllowCustomerCancellation = request.AllowCustomerCancellation,
-                ConfigurationJson = terminal.ConfigurationJson
+                AllowCustomerCancellation = request.AllowCustomerCancellation
             };
 
             TerminalPaymentOutcome outcome;
