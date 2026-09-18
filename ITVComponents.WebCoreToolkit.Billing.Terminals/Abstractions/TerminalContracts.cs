@@ -163,6 +163,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// <summary>Die Terminalkennung, wie sie auf den Beleg gehört.</summary>
         public string? TerminalId { get; set; }
 
+        /// <summary>
+        /// Die Referenz, die beim Start mitgegeben wurde, soweit der Anbieter sie zurückgibt.
+        /// </summary>
+        /// <remarks>
+        /// Nicht nur Zierde auf dem Beleg: bei Geräten, die nur nach der LETZTEN Transaktion gefragt
+        /// werden können, ist sie das einzige Merkmal, an dem sich erkennen lässt, ob die Antwort
+        /// überhaupt den Vorgang meint, nach dem gefragt wurde.
+        /// </remarks>
+        public string? MerchantReference { get; set; }
+
         /// <summary>Wann die Zahlung stattfand.</summary>
         public DateTime? TimestampUtc { get; set; }
 
