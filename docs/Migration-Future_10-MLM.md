@@ -5672,6 +5672,9 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 71 | **Handler prüfen ihre Rechte selbst** | Kein Schema-Change, aber **breaking am Vertrag**: `IBillingHandler.CanAdminister` ist entfallen — dafür `CanView(BillingArea)` / `CanWrite(BillingArea)`. Der Konstruktor von `PaymentsHandler` nimmt zusätzlich `IEnumerable<IPaymentFeatureGate>` (über DI nichts zu tun). Die sechs `Billing.*`-Rechte waren tote Buchstaben und **gelten jetzt wirklich** — wer die Katalogpflege nicht über `Sysadmin` fährt, muss sie vergeben. Ein Host **ohne** `AddPaymentFeatureGate` bekommt jetzt auch die Anzeige zu, nicht mehr nur die Verkäufe (§71) |
+| 70 | **Kassieren am Zahlungsterminal (Achse C)** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId` (nullable). Der Vertrag hat ein DbSet mehr — **breaking auch für Test-Attrappen**. Beim Host fehlen `ITerminalChoiceProvider` für `RemoteObjects` und die Sprachressourcen `Terminals_*`. **Merke: eine ausbleibende Antwort ist NICHT „nicht bezahlt“** — `Unknown` ist ein eigener Zustand, sonst baut man die Doppelbelastung ein (§70) |
+| 69 | **Zahlungen sind nicht mehr „Stripe“** | **Pflicht: 3 UPDATEs an gespeicherten Daten** — `GlobalSettings.SettingsKey`, das **JSON** dieses Settings (sechs Felder nach `"Stripe"`) und `Features.FeatureName` + `PlanFeatures.FeatureKey`, je von `StripePayments` auf `TenantPayments`. **Schritt 2 vergessen = die Webhook-Geheimnisse sind still leer; Schritt 3 vergessen = das Modul ist für alle aus.** Dazu `Provider` an `TenantPaymentAccounts` **und** an `TenantSales` — das zweite ist beim Anlegen eingefroren, sonst geht eine Erstattung nach einem Anbieterwechsel an den falschen (§69) |
 | 63 | **Hilfe-Ordner tragen eine Kennung** | **Pflicht-Migration, wenn ihr das Hilfesystem nutzt**: `HelpResourceFolders + RefTag (nvarchar(1024), NULL)`. Der Konfigurations-Export vergleicht Ordner ab jetzt über diese Kennung statt über den Pfad — damit reisen Umbenennen und Verschieben als das, was sie sind, statt als zweiter Ordner neben dem alten. Kennungen werden beim ersten Export nachgetragen, kein Backfill von Hand. **Dateiformat geändert**: `ResourceFolders[]` trägt `RefTag`/`Name`/`ParentRef` statt `Path`, die Ressource `FolderRef` statt `FolderPath` — eine ältere Ausgabe legt keine Ordner mehr an und sagt das im Vergleich (§63) |
 | 62 | **Menü-Links tragen die Sprache** | Kein Schema-Change. `NavigationMenu.Url` ist ab jetzt der Link **in der Form, die dieser Host braucht** - unter Blazor **relativ**, weil ein root-absoluter Link den base-URI-Raum verlässt und dabei jeden Praefix aus `PathBase` verliert (so ging die fest gewählte Sprache bei jedem Menüklick verloren). Neu daneben `NavigationMenu.ModuleUrl`: die gespeicherte Url ohne jeden Präfix. **Rendern: `Url`. Vergleichen: `ModuleUrl`** - wer `Url` gegen einen Request-Pfad prüft oder etwas davorsetzt, muss umstellen. Gebaut wird über den neuen `IAppLink`; unter `AddBlazorContextUser()` ist er mitregistriert, sonst über `UseAppLinks()`. `[SlashPermissionScope]` führt jetzt die Sprache mit, `[scopeUnderBase]` bewusst nicht (§62) |
 | 61a | **Sprache als URL-Präfix** | Kein Schema-Change. `AddCulturePath()` + `app.UseCulturePath()` **als allererste Middleware**, vor `UseSharedAssetPath`/`UseStaticFiles`/`UseRequestLocalization`/`UseRouting`/`UseTenantPathPrefix`. Ohne die Registrierung bleibt die Seite in der falschen Sprache (Log sagt es, einmal pro Prozess). Optional — wer kein Präfix will, ändert nichts (§61.1) |
@@ -6875,3 +6878,302 @@ Das ist bewusst offen gelassen: die Texte lägen sonst im EF-Projekt, das keine 
 eine halbe Lösung (Schlüssel im Dienst, Auflösung in der Maske) wäre teurer als der Nutzen — der Fall
 ist selten und der englische Satz eindeutig. Wenn ihr ihn übersetzt braucht, sagt Bescheid; dann wird
 aus `Reason` ein Schlüssel.
+
+## 69. Zahlungen sind nicht mehr „Stripe" — **Pflicht: 3 UPDATEs + 2 Spalten, wenn ihr Achse B nutzt**
+
+Achse B (der Mandant kassiert bei seinen eigenen Endkunden) war an einen Anbieter gebunden — im Code
+wie in den Datenschlüsseln. Das ist aufgelöst: **Stripe, Payrexx und wallee können nebeneinander
+laufen, je Mandant einer.**
+
+Der Anlass war eine Kostenfrage. Stripe kostet in der Schweiz bei den Verkäufen der Kunden 2.9 % + 0.30
+(Karte) bzw. 1.9 % + 0.30 (TWINT); Schweizer Anbieter liegen bei ~1.25–1.65 %. Für das **Abo** (Achse A)
+bleibt Stripe unbestritten — dieser Abschnitt betrifft ausschliesslich Achse B.
+
+> **Nichts davon ist je gegen ein echtes Konto gelaufen.** Builds und Tests beweisen die Logik, nicht die
+> Anbindung. Plant eine Verifikation im Testmodus jedes Anbieters ein, den ihr wirklich benutzt.
+
+### 69.1 Die drei UPDATEs — und was passiert, wenn ihr eines vergesst
+
+`StripePayments` heisst überall `TenantPayments`. Das betrifft **gespeicherte Daten**, nicht nur Code:
+
+| # | Wo | Von | Nach |
+|---|---|---|---|
+| 1 | `GlobalSettings.SettingsKey` | `StripePayments` | `TenantPayments` |
+| 2 | das **JSON** dieses Settings | sechs Felder auf oberster Ebene | dieselben sechs unter `"Stripe"` |
+| 3 | `Features.FeatureName` **und** `PlanFeatures.FeatureKey` (und `AddOnFeatures.FeatureKey`, falls benutzt) | `StripePayments` | `TenantPayments` |
+
+Die sechs Felder aus Schritt 2 sind die anbietereigenen: `ConnectWebhookSecret`,
+`ConnectV2WebhookSecret`, `DashboardType`, `ChargeType`, `FeesCollector`, `LossesCollector`. Die zehn
+neutralen (Provision, Gebührenerlass, Währung, Land, Ablaufzeit, Erstattungs- und Belegverhalten)
+bleiben, wo sie sind. Ein zweiter Anbieter stellt seinen eigenen Block daneben.
+
+> **Schritt 2 vergessen heisst: die Webhook-Geheimnisse sind still leer.** Die Signaturprüfung scheitert
+> dann bei jeder Meldung, und das sieht aus wie ein falsch konfiguriertes Ziel beim Anbieter — gesucht
+> wird dann an der falschen Stelle.
+>
+> **Schritt 3 vergessen heisst: das Modul ist für alle aus.** Kein Mandant hält ein Feature, das es
+> nicht mehr gibt; `PaymentFeatureGate` antwortet fail-closed mit Nein.
+
+Dass eine Umbenennung gespeicherter Schlüssel überhaupt zumutbar ist, liegt daran, dass es zurzeit
+**eine** Plattform gibt und die noch in Entwicklung ist.
+
+### 69.2 Zwei neue Spalten — und warum es zwei sein müssen
+
+```sql
+ALTER TABLE TenantPaymentAccounts ADD Provider nvarchar(max) NULL;
+ALTER TABLE TenantSales           ADD Provider nvarchar(max) NULL;
+```
+
+**Zwei Felder, zwei Quellen** — und das zweite ist der Punkt, der sonst später weh tut:
+
+| Feld | Bedeutet |
+|---|---|
+| `TenantPaymentAccount.Provider` | was für **neue** Vorgänge gilt |
+| `TenantSale.Provider` | wer **diesen** Verkauf abgewickelt hat — **beim Anlegen eingefroren** |
+
+Nach einem Anbieterwechsel sind alte Verkäufe weiterhin beim **alten** Anbieter zu erstatten. Läse die
+Erstattung das Konto, ginge sie an den neuen und träfe dort nichts oder eine fremde Transaktion.
+
+**Backfill:** `NULL` heisst „der einzige registrierte Anbieter". Wer nur Stripe fährt, muss nichts
+nachtragen. Wer umstellt, setzt die Bestandszeilen vorher explizit:
+`UPDATE TenantSales SET Provider = 'stripe' WHERE Provider IS NULL;` — sonst entscheidet die Weiche
+später anhand dessen, was gerade registriert ist.
+
+### 69.3 Registrierung
+
+Genau **ein** Anbieter registriert → wird automatisch genommen. **Mehrere** → jeder muss sich benennen,
+sonst ist es ein Fehler und kein Zufallsentscheid. `AddStripePayments()` ruft die Weiche inzwischen
+selbst; `AddPayrexxPayments()` und `AddWalleePayments()` stellen sich daneben.
+
+> Bis zu diesem Stand meldete **Stripe sich nicht an der Weiche an**, sondern registrierte
+> `ITenantSaleService` direkt. `AddStripePayments` + `AddPayrexxPayments` zusammen hätte Stripes Dienst
+> verdrängt, ohne ihn zu kennen: jeder Verkauf mit Provider `stripe` wäre als unbekannter Anbieter
+> abgewiesen worden.
+
+### 69.4 Was die drei können — und was nicht
+
+| | Achse A Abo | Portal | Achse B Verkauf | Achse B Konto | Provision |
+|---|---|---|---|---|---|
+| Stripe | ✓ | ✓ | ✓ | ✓ | **wird einbehalten** |
+| Payrexx | ✓ | kein API-Weg | ✓ | ✓ | nur Buchgrösse |
+| wallee | ✓ | **gibt es nicht** | ✓ | **kein Marktplatz** | nur Buchgrösse |
+
+**Nur Stripe zieht die Provision wirklich ein.** Bei den anderen entsteht die Marge aus der Differenz
+der Konditionen oder muss getrennt verrechnet werden — beide Dienste melden das zur Laufzeit, damit es
+nicht stillschweigend in die Buchhaltung läuft.
+
+### 69.5 Webhooks — je Anbieter ein eigener Weg
+
+Die **Buchung** ist neutral (`TenantSaleWebhookSink` im Billing-Kern): nur einmal freigeben, einen
+bezahlten Verkauf nie zurücknehmen, eine Erstattung nicht doppelt zählen. Das **Auspacken** ist es nicht:
+
+- **Payrexx:** `X-Webhook-Signature` ist ein kleingeschriebener **Hex**-HMAC-SHA256 über den rohen Rumpf,
+  Schlüssel als UTF-8-Text — nicht Base64, in keiner Richtung. Zwei Rumpfformate (JSON und
+  `transaction[...]`), im Portal einstellbar; beide werden gelesen. **Eine Erstattung ist dort eine
+  eigene Transaktion mit eigener UUID** — wer die blind als `ProviderChargeId` speichert, richtet die
+  nächste Erstattung gegen die vorige.
+- **wallee:** ECDSA statt gemeinsamem Geheimnis; es gibt deshalb **kein** `WebhookSecret`, nur
+  `VerifyWebhookSignatures`. **Zwei Listener nötig** (Transaction *und* Refund) — ohne den zweiten kommen
+  im Portal ausgelöste Erstattungen nie an. Nur `FULFILL`/`COMPLETED` sind bezahlt, `AUTHORIZED` nicht.
+- **Stripe** läuft durch dieselbe Senke; dort bleibt nur, was wirklich Stripe gehört: die Kontoprüfung,
+  das Nachlesen der Session und die Provision.
+
+**Alle Endpunkte lehnen im Fehlerfall ab, statt zu bestätigen.** Jeder Anbieter wiederholt dann; eine
+angenommene und verworfene Meldung wäre endgültig weg.
+
+### 69.6 Checkliste
+
+- [ ] `GlobalSettings.SettingsKey` umbenennen (Schritt 1)
+- [ ] JSON umbauen: sechs Felder nach `"Stripe"` (Schritt 2) — **sonst stille leere Geheimnisse**
+- [ ] `Features.FeatureName` + `PlanFeatures.FeatureKey` umbenennen (Schritt 3) — **sonst Modul für alle aus**
+- [ ] `Provider`-Spalten an `TenantPaymentAccounts` und `TenantSales`
+- [ ] Bestandszeilen auf den bisherigen Anbieter setzen, wenn ihr umstellt
+- [ ] je genutztem Anbieter: Endpunkt einhängen und **beim Anbieter hinterlegen**
+- [ ] bei wallee: **zwei** Listener
+- [ ] im Testmodus verifizieren
+
+---
+
+## 70. Kassieren am Zahlungsterminal (Achse C) — **Pflicht-Migration (1 Tabelle, 1 Spalte), wenn ihr `IPaymentsContext` implementiert**
+
+Neu ist eine dritte Achse: der Kunde steht **vor dem Mandanten** und zahlt am Gerät. Achse B endet in
+einer URL für den Kunden — ein Terminal dagegen will einen Befehl und meldet asynchron zurück.
+
+**`IPaymentsContext` hat ein DbSet mehr. Das ist breaking für jeden, der den Vertrag implementiert — auch
+für Test-Attrappen.** Wer Achse C nicht nutzt, hat eine leere Tabelle; den Vertrag gar nicht zu
+implementieren ist weiterhin möglich, dann entfällt Achse B mit.
+
+### 70.1 Die Migration
+
+```sql
+CREATE TABLE TenantPaymentTerminals (
+    TenantPaymentTerminalId int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    TenantId                int            NOT NULL,
+    Provider                nvarchar(64)   NOT NULL,
+    ProviderTerminalId      nvarchar(256)  NOT NULL,
+    Route                   nvarchar(256)  NULL,
+    DisplayName             nvarchar(128)  NOT NULL,
+    ConfigurationJson       nvarchar(max)  NULL,
+    Enabled                 bit            NOT NULL DEFAULT 1,
+    Created                 datetime2      NOT NULL,
+    Updated                 datetime2      NOT NULL,
+    LastSeenUtc             datetime2      NULL
+);
+CREATE UNIQUE INDEX IX_UniqueProviderTerminal ON TenantPaymentTerminals (Provider, ProviderTerminalId);
+CREATE INDEX IX_TenantPaymentTerminal_Tenant ON TenantPaymentTerminals (TenantId);
+
+ALTER TABLE TenantSales ADD TenantPaymentTerminalId int NULL;
+```
+
+Ein Terminalverkauf **ist** ein `TenantSale` — derselbe Vorgang, nur mit einem anderen Auslöser, gebucht
+über dieselbe Senke wie ein Webhook. Die Spalte sagt bloss, an welchem Gerät er entstand.
+
+**Drei Spalten statt einem JSON**, und das mit Absicht: `ProviderTerminalId` (wie das Gerät beim Anbieter
+heisst) und `Route` (wo es steht — beim Agenten der Dienstname) sind eigene Spalten, weil die
+Zugehörigkeitsprüfung über die Kennung läuft, der Unique-Index eine Doppelregistrierung verhindert und
+„Gerät xy ist offline" in einer Fehlersuche auffindbar sein muss.
+
+### 70.2 Die Betriebsregel, die alles trägt: `Unknown` ist kein Luxus
+
+`TerminalPaymentState` hat einen Zustand **`Unknown`**, und das ist der Grund, warum es kein `bool` ist.
+Alle drei Anbieter haben dafür eine Vorkehrung, weil alle drei dasselbe Problem haben:
+
+- **Stripe:** `terminal_reader_timeout` kann ausdrücklich **falsch negativ** sein — der Fehler kommt
+  zurück, das Gerät hat den Befehl bekommen.
+- **wallee:** `trxSyncNumber` gegen Doppelbelastung bei Kommunikationsfehlern.
+- **Payrexx:** führt `UNKNOWN` selbst als Status, neben `UNDERPAID` (Geld geflossen, aber zu wenig).
+
+**Für euch heisst das:** wirft der Start eine Ausnahme, wird **nie** auf `Failed` gebucht. Keine Antwort
+heisst nicht „nichts passiert". Der Verkauf bleibt offen, und Nachfragen ist bei `Unknown` genauso
+richtig wie bei `InProgress`. Wer hier auf „Fehler = kein Geld" abkürzt, baut die Doppelbelastung ein.
+
+### 70.3 Die vier Wege
+
+| Weg | Womit | Grenzen |
+|---|---|---|
+| `stripe` | PaymentIntent (`card_present`) + `process_payment_intent` | **nicht jedes Gerät kann server-driven**: WisePOS E, S700/S710, Verifone ja — der **WisePad 3 verlangt ein SDK, das es für .NET nicht gibt** |
+| `wallee` | `PostPaymentTerminalsIdPerformTransaction` | kein Abbruch am Gerät; nur `VoidOnline` versuchen |
+| `payrexx` | ECR über die Cloud, Gerät per Seriennummer + Pairing-OTP | **kein lokaler Weg**; `payment/refund` kann NexGo nicht |
+| `agent` | reicht an `ITerminalDevice` durch (eure Kasse) | nur der Vertrag `ITerminalAgentLocator`, **keine mitgelieferte Umsetzung** |
+
+Der Weg steht am **Gerät**, nicht am Konto.
+
+### 70.4 Was ihr beim Agenten-Weg wissen müsst
+
+**Der Agent hält nichts.** `TerminalTarget` (Kennung + `ConfigurationJson`) reist bei **jedem** Aufruf
+mit — auch beim Nachfragen und Abbrechen. Das ist Absicht: ausgerechnet das Nachfragen (der Weg
+herauszufinden, ob die Karte belastet wurde) hätte sonst eine zweite Pflegestelle vorausgesetzt.
+Plugins schaltet ihr über das Web ein und aus, die Einstellungen sitzen im Web.
+
+**Festlegung: der Dienstname ist der `ClientKey` der ClientApp.** Ein Agent meldet sich am ServiceHub
+unter diesem Schlüssel an. Grund: `UQ_ClientAppKey` gilt **systemweit** — ein Anzeigename täte es nicht,
+„Kasse 1" gibt es oft, und der Verteiler hat einen flachen Namensraum mit einem Gewinner.
+
+**Die Kasse schickt immer euren Schlüssel, nie die Anbieter-Kennung.** Käme die aus der Anfrage, liesse
+sich auf einem fremden Gerät kassieren.
+
+Nebenwirkung, die ihr kennen solltet: die Vertrauensgrenze ist damit vollständig der Kanal zum Agenten —
+er kennt kein „meine Geräte".
+
+### 70.5 Was beim Host noch fehlt
+
+Zwei Dinge liefert das Toolkit bewusst nicht mit:
+
+- **`ITerminalChoiceProvider` für `RemoteObjects`** — die Auswahlliste „welches Objekt auf diesem
+  Dienst". Der Vertrag `IRemoteObjectCatalog` liegt in **InterProcessExtensions** und fragt **nach
+  Vertrag** (`typeof(ITerminalDevice)`); ohne diese Einschränkung stünde ein Druckertreiber in der
+  Terminal-Auswahl. Fehlt der Anbieter, zeichnet die Maske ein Textfeld statt einer leeren Liste — kein
+  Fehler, aber abgetippte Namen.
+- **Sprachressourcen `Terminals_*`** für die Geräte-Masken.
+
+Die Geräte-Verwaltung selbst (`/Account/Manage/Payments/Terminals`) und der Assistent „Gerät
+hinzufügen" liegen im Toolkit, nicht bei euch.
+
+### 70.6 Checkliste
+
+- [ ] Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId`
+- [ ] `IPaymentsContext`-Implementierung um das DbSet ergänzen — **auch Test-Attrappen**
+- [ ] `ITerminalChoiceProvider` für `RemoteObjects`, wenn ihr den Agenten-Weg nutzt
+- [ ] Sprachressourcen `Terminals_*`
+- [ ] **gegen ein echtes Gerät prüfen** — nichts davon ist je an einem gelaufen
+- [ ] im eigenen Code: eine ausbleibende Antwort **nie** als „nicht bezahlt" buchen
+
+---
+
+## 71. Die Handler prüfen ihre Rechte selbst — **kein Schema-Change, aber ein geänderter Vertrag und vergebene Rechte**
+
+Die Handler hinter den Abo- und Zahlungsmasken boten `Can…`-Mitglieder an — benutzt hat sie **nur die
+Maske**. Die Methoden selbst prüften nichts. Da diese Handler im DI liegen und von jeder Komponente aus
+erreichbar sind, hielt die Absicherung genau so lange, bis jemand einen zweiten Aufrufer schreibt.
+
+Der schwerste Fall: `PaymentsHandler.RefreshAccountAsync(int tenantId)` nahm den Mandanten **vom
+Aufrufer** statt aus dem Sicherheitsbereich. Eine geratene Id genügte, um das Konto eines fremden
+Mandanten anzufassen. Die allgemeine Regel daraus, auch für euren eigenen Code:
+
+> **Wo eine Methode eine Mandanten-Id als Parameter nimmt, ist die Zugehörigkeitsprüfung der
+> Dienstschicht wirkungslos** — die prüft ja genau diese übergebene Id. Solche Überladungen brauchen das
+> Plattformrecht, nicht das des Mandanten.
+
+Ebenso prüfte in der Geräte-Verwaltung der Weg, der **das Gerät befragt**, nichts — und die Adresse dafür
+kommt aus der übergebenen Konfiguration. Jeder angemeldete Benutzer konnte die Anwendung so eine
+Verbindung zu einem frei gewählten Ziel aufbauen lassen.
+
+### 71.1 Breaking: `IBillingHandler.CanAdminister` ist entfallen
+
+An seiner Stelle stehen `CanView(BillingArea)` und `CanWrite(BillingArea)` mit
+`enum BillingArea { Plans, AddOns, Subscriptions }`. Wer den alten Namen ruft, muss umstellen.
+
+Ein Aufzählungstyp statt sechs Methoden, damit ein siebter Bereich mit einem Wert und einem Zweig
+auskommt statt mit zwei weiteren Methoden im Vertrag.
+
+Ausserdem nimmt der Konstruktor von `PaymentsHandler<TContext, TTenant>` zusätzlich
+`IEnumerable<IPaymentFeatureGate>`. Über DI löst sich das von selbst auf — betroffen ist nur, wer die
+Klasse von Hand instanziert.
+
+### 71.2 Die `Billing.*`-Rechte gelten jetzt wirklich — ihr müsst sie vergeben
+
+Bis hierher waren sie **tote Buchstaben**: die sechs Namen standen in drei `SecureView`-Attributen und
+sonst nirgends. Sie liessen auf die Seite, und dahinter fragte jede Maske `CanAdminister`, das
+ausschliesslich `Sysadmin` prüft. Wer `Billing.Plans.Write` hatte, sah die Seite und darauf eine
+Warnung. Der View/Write-Unterschied war zusätzlich dekorativ — beide Namen standen in derselben
+ODER-Liste.
+
+| Recht | Was es jetzt öffnet |
+|---|---|
+| `Billing.Plans.View` | die Planliste inklusive **zurückgezogener** Pläne (Autoring-Daten) |
+| `Billing.Plans.Write` | Pläne anlegen, ändern, zum Zahlungsanbieter schieben; dazu der Feature-Katalog |
+| `Billing.AddOns.View` / `.Write` | dasselbe für Zusatzleistungen |
+| `Billing.Subscriptions.View` | die Abos **aller** Mandanten |
+| `Billing.Subscriptions.Write` | keine eigene Wirkung — die Liste ist nur lesend; zählt als Lesen mit |
+
+**Schreiben schliesst Lesen ein.** `Sysadmin` ist in jeder Liste — sonst müsste die Plattform sich selbst
+Rechte erteilen, bevor sie den ersten Plan anlegen kann. **`TenantAdmin` bewusst nicht:** der Katalog,
+aus dem alle Mandanten buchen, gehört keinem einzelnen von ihnen.
+
+> **Für euch ändert sich nichts, solange eure Katalogpflege über `Sysadmin` läuft** — das ist der
+> bisherige Zustand und er funktioniert unverändert. Wollt ihr die feinere Vergabe nutzen, weist die
+> Rechte einer Rolle oder einem `PermissionSet` zu; die Namen entstehen über die Auto-Registrierung beim
+> ersten Aufruf der Seiten.
+
+Unberührt bleibt `/Account/Manage/Subscription`: die Kundenseite steht auf `ManageSubscription` und setzt
+als einzige Selbstbedienungsseite **kein** Feature voraus — sie ist der Weg, auf dem ein Mandant
+überhaupt erst bucht. Ein Feature-Gate davor wäre ein Henne-Ei-Problem.
+
+### 71.3 Eine Nebenwirkung, die ihr spüren könnt
+
+Ein Host **ohne** registriertes `IPaymentFeatureGate` bekommt jetzt auch die **Anzeige** zu, nicht mehr
+nur die Verkäufe. Das ist die dokumentierte fail-closed-Richtung von `AddPaymentFeatureGate` (§57.6) —
+neu ist bloss, dass sie früher greift. Wer die Registrierung hat, merkt nichts.
+
+Die Rechte-Absage ist ein eigener Fehlercode (`Payments_Error_NotPermitted`) und **keine
+Anbieterstörung**: wer sie als solche ausgibt, schickt die Fehlersuche zum Anbieter, während in Wahrheit
+eine Berechtigung fehlt. Die Übersetzungen liegen im Toolkit bei.
+
+### 71.4 Checkliste
+
+- [ ] eigene Aufrufe von `IBillingHandler.CanAdminister` auf `CanView`/`CanWrite(BillingArea)` umstellen
+- [ ] `PaymentsHandler` von Hand instanziert? Konstruktor-Argument ergänzen
+- [ ] `IPaymentFeatureGate` registriert? (sonst ist die Zahlungsmaske jetzt zu)
+- [ ] `Billing.*`-Rechte vergeben, **falls** ihr die Katalogpflege nicht über `Sysadmin` fahrt
+- [ ] im eigenen Code: Methoden, die eine Mandanten-Id **als Parameter** nehmen, brauchen eine eigene
+      Rechteprüfung — die Dienstschicht kann sie nicht liefern
