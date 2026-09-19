@@ -19,6 +19,8 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         /// </summary>
         private bool includeEnvironment = false;
 
+        private IDictionary<string,object> additionalArguments;
+
         /// <summary>
         /// Initializes a default instance of the PluginParameterFormatter class
         /// </summary>
@@ -35,6 +37,11 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
             this.includeEnvironment = includeEnvironment;
         }
 
+        public PluginParameterFormatter(bool includeEnvironment, IDictionary<string, object> additionalArguments):this(includeEnvironment)
+        {
+            this.additionalArguments = new Dictionary<string, object>(additionalArguments);
+        }
+
         protected override string FormatStringInternal(string rawString, Dictionary<string, object> customStringFormatArguments)
         {
             return customStringFormatArguments.FormatText(rawString, TextFormat.DefaultFormatPolicyWithPrimitives);
@@ -46,9 +53,19 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
             {
                 values.Add("$$Environment", typeof(Environment));
             }
-            foreach (var item in from t in PluginConstSection.Helper.Parameters select new { t.ConstIdentifier, t.ConstValue })
+
+            foreach (var item in from t in PluginConstSection.Helper.Parameters
+                     select new { t.ConstIdentifier, t.ConstValue })
             {
                 values.Add(item.ConstIdentifier, item.ConstValue);
+            }
+
+            if (additionalArguments != null)
+            {
+                foreach (var item in additionalArguments)
+                {
+                    values.Add(item.Key, item.Value);
+                }
             }
         }
     }

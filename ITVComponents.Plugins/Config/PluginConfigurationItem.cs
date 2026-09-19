@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using ITVComponents.Plugins.Initialization;
 
 namespace ITVComponents.Plugins.Config
 {
@@ -19,7 +20,9 @@ namespace ITVComponents.Plugins.Config
         /// Gets or sets the construction instruction for the plugin instance
         /// </summary>
         public string ConstructionString { get; set; }
-        
+
+        public PluginLoadType LoadType { get; set; } = PluginLoadType.Singleton;
+
         /// <summary>
         /// Gets or sets a value indicating whether a specific plugin is disabled
         /// </summary>
