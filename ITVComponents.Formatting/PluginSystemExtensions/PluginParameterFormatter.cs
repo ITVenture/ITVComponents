@@ -19,6 +19,10 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
         /// </summary>
         private bool includeEnvironment = false;
 
+        /// <summary>
+        /// Werte, die diesem Formatierer beim Erzeugen mitgegeben wurden. Sie haben das letzte Wort -
+        /// siehe <see cref="FillDictionary"/>.
+        /// </summary>
         private IDictionary<string,object> additionalArguments;
 
         /// <summary>
@@ -47,6 +51,22 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
             return customStringFormatArguments.FormatText(rawString, TextFormat.DefaultFormatPolicyWithPrimitives);
         }
 
+        /// <summary>
+        /// Sammelt die Werte, die in den Ausdruecken zur Verfuegung stehen.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Die Reihenfolge ist zugleich die Rangfolge: erst <c>$$Environment</c>, dann die Konstanten aus
+        /// der Konfiguration, zuletzt die mitgegebenen Argumente - und die <b>ueberschreiben</b>, was schon
+        /// dasteht. Wer einem Formatierer beim Erzeugen einen Wert mitgibt, meint genau diesen; der Aufruf
+        /// ist die speziellere Angabe, die allgemeine Konfiguration die Vorbelegung.
+        /// </para>
+        /// <para>
+        /// Die beiden anderen Quellen legen weiterhin mit <c>Add</c> ab: dort ist ein doppelter Name kein
+        /// Vorrang, sondern ein Fehler in der Konfiguration - zwei Konstanten desselben Namens - und der
+        /// soll auffallen, statt dass eine von beiden still gewinnt.
+        /// </para>
+        /// </remarks>
         protected override void FillDictionary(IDictionary<string, object> values)
         {
             if (includeEnvironment)
@@ -64,7 +84,7 @@ namespace ITVComponents.Formatting.PluginSystemExtensions
             {
                 foreach (var item in additionalArguments)
                 {
-                    values.Add(item.Key, item.Value);
+                    values[item.Key] = item.Value;
                 }
             }
         }
