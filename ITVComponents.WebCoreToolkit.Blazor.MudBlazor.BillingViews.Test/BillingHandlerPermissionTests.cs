@@ -1,6 +1,7 @@
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
@@ -13,10 +14,16 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
     /// beiden Klammern wirklich getrennt sind.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Die Trennung ist hier die eigentliche Aussage: der Kunden-Mandant ist <b>nie</b> Sysadmin und muss
     /// trotzdem Plaene lesen und abonnieren koennen. Eine Absicherung, die das Autoring und die
     /// Selbstbedienung in denselben Topf wirft, macht das Produkt unverkaeuflich, ohne dass ein Build es
     /// merkt.
+    /// </para>
+    /// <para>
+    /// Seit die <c>Billing.*</c>-Rechte wirklich gelten, kommt die zweite Trennung dazu: Bereich gegen
+    /// Bereich und Lesen gegen Schreiben. Die Tests dazu stehen unten unter „die Bereiche".
+    /// </para>
     /// </remarks>
     [TestClass]
     public class BillingHandlerPermissionTests
@@ -116,6 +123,98 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             // Die Selbstbedienung steht ihm dagegen offen.
             await handler.GetActivePlansAsync();
+
+            // Und kein Bereich der Plattform-Verwaltung: der Katalog, aus dem alle Mandanten buchen,
+            // gehoert keinem einzelnen von ihnen.
+            foreach (var area in System.Enum.GetValues<BillingArea>())
+            {
+                Assert.IsFalse(handler.CanView(area), $"Ein Mandanten-Admin darf {area} nicht sehen.");
+                Assert.IsFalse(handler.CanWrite(area), $"Ein Mandanten-Admin darf {area} nicht schreiben.");
+            }
+        }
+
+        // ------------------------------------------------------------------ die Bereiche
+
+        /// <summary>
+        /// Das Leserecht eines Bereichs zeigt die Liste — mehr nicht. Vorher war genau das der tote Punkt:
+        /// <c>Billing.Plans.View</c> oeffnete die Seite, und dahinter war alles zu.
+        /// </summary>
+        [TestMethod]
+        public async Task AreaViewPermissionReadsButDoesNotWrite()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(BillingHandler<BillingTestContext>.PlansViewPermission);
+            var handler = Handler(env);
+
+            var plans = await handler.GetAllPlansAsync();
+            Assert.AreEqual(0, plans.Count, "Leere Ablage - entscheidend ist, dass gelesen werden durfte.");
+
+            await AssertRefusedAsync(() => handler.SavePlanAsync(new PlanViewModel()), "Leserecht schreibt nicht");
+            await AssertRefusedAsync(() => handler.PushPlanAsync(1), "Leserecht schiebt nicht");
+            await AssertRefusedAsync(() => handler.GetFeatureCatalogAsync(),
+                "Der Feature-Katalog gehoert zum Editor, den ein Leser nicht hat.");
+
+            Assert.AreEqual(0, env.PlanSynchronizer.Calls.Count);
+        }
+
+        /// <summary>Schreibrecht schliesst Lesen ein — sonst braeuchte jeder Autor zwei Rechte.</summary>
+        [TestMethod]
+        public async Task AreaWritePermissionIncludesReading()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(BillingHandler<BillingTestContext>.PlansWritePermission);
+            var handler = Handler(env);
+
+            await handler.GetAllPlansAsync();
+            await handler.GetFeatureCatalogAsync();
+            await handler.SavePlanAsync(new PlanViewModel { Name = "Basis" });
+            await handler.PushPlanAsync(5);
+
+            Assert.AreEqual(1, env.PlanSynchronizer.Calls.Count);
+            StringAssert.Contains(env.PlanSynchronizer.Calls[0], "(5)");
+        }
+
+        /// <summary>
+        /// Die Bereiche sind wirklich getrennt: wer Plaene schreibt, verwaltet damit keine Zusaetze.
+        /// </summary>
+        [TestMethod]
+        public async Task OneAreaDoesNotOpenAnother()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(BillingHandler<BillingTestContext>.PlansWritePermission);
+            var handler = Handler(env);
+
+            await AssertRefusedAsync(() => handler.GetAllAddOnsAsync(), "Plan-Recht ist kein Zusatz-Recht");
+            await AssertRefusedAsync(() => handler.SaveAddOnAsync(new AddOnViewModel()), "Plan-Recht schreibt keine Zusaetze");
+            await AssertRefusedAsync(() => handler.PushAddOnAsync(1), "Plan-Recht schiebt keine Zusaetze");
+            await AssertRefusedAsync(() => handler.GetAllSubscriptionsAsync(), "Plan-Recht liest keine Abos");
+        }
+
+        /// <summary>
+        /// Der Fall, der beim Umbau fast durchgerutscht waere: der Plan-Editor bietet Zusaetze zur Auswahl
+        /// an. Diese Zuordnung gehoert zum PLAN-Autoring — ein Plan-Autor ohne Zusatz-Recht stuende sonst
+        /// vor einer leeren Liste, und zwar ohne Fehlermeldung, die das erklaert.
+        /// </summary>
+        [TestMethod]
+        public async Task PlanAuthorSeesTheAddOnsHeCanAttach()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(BillingHandler<BillingTestContext>.PlansWritePermission);
+
+            var addOns = await Handler(env).GetActiveAddOnsAsync();
+
+            Assert.AreEqual(0, addOns.Count, "Leere Ablage - entscheidend ist, dass nicht verweigert wurde.");
+        }
+
+        /// <summary>
+        /// Die Abo-Liste kennt keinen Schreibvorgang; das Schreibrecht zaehlt dort als Lesen mit, damit ein
+        /// Konsument, der es vergeben hat, nicht ploetzlich aussen vor steht.
+        /// </summary>
+        [TestMethod]
+        public async Task SubscriptionsWriteCountsAsReading()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(
+                BillingHandler<BillingTestContext>.SubscriptionsWritePermission);
+
+            var subs = await Handler(env).GetAllSubscriptionsAsync();
+
+            Assert.AreEqual(0, subs.Count);
         }
 
         // ------------------------------------------------------------------ die Plattform-Klammer
@@ -135,6 +234,14 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             Assert.AreEqual(2, env.PlanSynchronizer.Calls.Count, "Mit dem Plattformrecht muss der Weg offenstehen.");
             StringAssert.Contains(env.PlanSynchronizer.Calls[0], "(3)");
             StringAssert.Contains(env.PlanSynchronizer.Calls[1], "(4)");
+
+            // Sysadmin ist in jeder Bereichs-Liste enthalten - sonst muesste die Plattform sich selbst
+            // Rechte erteilen, bevor sie den ersten Plan anlegen kann.
+            foreach (var area in System.Enum.GetValues<BillingArea>())
+            {
+                Assert.IsTrue(handler.CanView(area), $"Sysadmin muss {area} sehen duerfen.");
+                Assert.IsTrue(handler.CanWrite(area), $"Sysadmin muss {area} schreiben duerfen.");
+            }
         }
     }
 }

@@ -7,6 +7,26 @@ using ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels;
 namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 {
     /// <summary>
+    /// Die Bereiche der Plattform-Verwaltung. Jeder hat ein eigenes Paar Rechte
+    /// (<c>Billing.&lt;Bereich&gt;.View</c> / <c>.Write</c>).
+    /// </summary>
+    /// <remarks>
+    /// Ein Aufzaehlungstyp statt sechs Methoden: die Bereiche verhalten sich gleich, und ein siebter kommt
+    /// dann mit einem Wert und einem Zweig aus, statt mit zwei weiteren Methoden im Vertrag.
+    /// </remarks>
+    public enum BillingArea
+    {
+        /// <summary>Die Plaene (<c>/Billing/Plans</c>).</summary>
+        Plans,
+
+        /// <summary>Die Zusatzleistungen (<c>/Billing/AddOns</c>).</summary>
+        AddOns,
+
+        /// <summary>Die Abo-Liste ueber alle Mandanten (<c>/Billing/Subscriptions</c>).</summary>
+        Subscriptions
+    }
+
+    /// <summary>
     /// Data/operation seam for the billing UI. Resolves the active tenant from the security scope, reads the
     /// plan/add-on catalog and the tenant's subscription, and drives checkout/portal/plan-sync through the
     /// provider service layer.
@@ -23,8 +43,18 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         /// <summary>True if billing management is permitted for the current user (ManageSubscription / admin).</summary>
         bool CanManage(ClaimsPrincipal user);
 
-        /// <summary>True if the current user may author plans (admin).</summary>
-        bool CanAdminister(ClaimsPrincipal user);
+        /// <summary>
+        /// Darf der Handelnde diesen Bereich SEHEN? Schreibrecht schliesst Lesen ein, Sysadmin beides.
+        /// </summary>
+        /// <remarks>
+        /// Loest <c>CanAdminister</c> ab, das ausschliesslich auf <c>Sysadmin</c> prueft und die
+        /// <c>Billing.*</c>-Rechte damit zu toten Buchstaben machte: sie oeffneten die Seite, und dahinter
+        /// war alles zu. <b>Breaking</b> fuer Konsumenten, die den alten Namen rufen.
+        /// </remarks>
+        bool CanView(BillingArea area);
+
+        /// <summary>Darf der Handelnde in diesem Bereich SCHREIBEN?</summary>
+        bool CanWrite(BillingArea area);
 
         Task<SubscriptionOverviewViewModel> GetOverviewAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default);
 

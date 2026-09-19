@@ -1,4 +1,4 @@
-@page "/Billing/AddOns"
+﻿@page "/Billing/AddOns"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -17,15 +17,18 @@
 {
     <MudProgressCircular Indeterminate="true" />
 }
-else if (!canAdmin)
+else if (!canView)
 {
     <MudAlert Severity="Severity.Warning">You don't have permission to manage add-ons.</MudAlert>
 }
 else
 {
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-3" OnClick="@(() => Edit(new AddOnViewModel()))">
-        New add-on
-    </MudButton>
+    @if (canWrite)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-3" OnClick="@(() => Edit(new AddOnViewModel()))">
+            New add-on
+        </MudButton>
+    }
 
     <MudTable Items="addOns" Dense="true" Hover="true">
         <HeaderContent>
@@ -41,12 +44,15 @@ else
             <MudTd DataLabel="Active">@(context.IsActive ? "yes" : "no")</MudTd>
             <MudTd DataLabel="Provider product">@ProductSummary(context)</MudTd>
             <MudTd>
-                <MudStack Row="true" Spacing="1">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
-                    <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="@busy" OnClick="@(() => Push(context.AddOnId))">
-                        Push to provider
-                    </MudButton>
-                </MudStack>
+                @if (canWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                        <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="@busy" OnClick="@(() => Push(context.AddOnId))">
+                            Push to provider
+                        </MudButton>
+                    </MudStack>
+                }
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -85,7 +91,10 @@ else
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
-    private bool canAdmin;
+    private bool canView;
+
+    /// <summary>Siehe PlanAdmin: Lesen zeigt die Liste, Schreiben die Knoepfe.</summary>
+    private bool canWrite;
     private bool busy;
     private IReadOnlyList<AddOnViewModel> addOns = System.Array.Empty<AddOnViewModel>();
     private AddOnViewModel? editModel;
@@ -99,11 +108,17 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        canAdmin = Handler.CanAdminister(currentUser);
-        if (canAdmin)
+        canView = Handler.CanView(BillingArea.AddOns);
+        canWrite = Handler.CanWrite(BillingArea.AddOns);
+        if (canView)
+        {
+            await Reload();
+        }
+
+        // Der Feature-Katalog gehoert zum Editor - siehe PlanAdmin.
+        if (canWrite)
         {
             catalog = await Handler.GetFeatureCatalogAsync();
-            await Reload();
         }
     }
 

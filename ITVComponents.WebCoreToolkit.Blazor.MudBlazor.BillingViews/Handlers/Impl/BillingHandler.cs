@@ -31,8 +31,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
     /// <para>
     /// Two brackets, and the split matters: the self-service paths (own subscription, the bookable catalog,
     /// checkout, portal) run on <see cref="CanManage()"/>, which a customer tenant holds through
-    /// <c>ManageSubscription</c> or <c>TenantAdmin</c>. Only the authoring and the cross-tenant lists require
-    /// <see cref="CanAdminister()"/>. A customer must be able to read the plans and subscribe.
+    /// <c>ManageSubscription</c> or <c>TenantAdmin</c>. A customer must be able to read the plans and
+    /// subscribe.
+    /// </para>
+    /// <para>
+    /// Die Plattform-Seite ist nach BEREICH und nach Lesen/Schreiben geteilt: <see cref="CanView"/> und
+    /// <see cref="CanWrite"/> auf <see cref="BillingArea"/>. Vorher pruefte hier alles auf <c>Sysadmin</c>,
+    /// und die <c>Billing.*</c>-Rechte waren tote Buchstaben - sie liessen auf die Seite, dahinter war zu.
+    /// Schreibrecht schliesst Lesen ein; <c>TenantAdmin</c> zaehlt hier NICHT: der Katalog gehoert der
+    /// Plattform, nicht einem Mandanten.
     /// </para>
     /// </remarks>
     public class BillingHandler<TContext> : IBillingHandler
@@ -40,6 +47,27 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
     {
         /// <summary>Permission that grants access to the self-service subscription page.</summary>
         public const string ManageSubscriptionPermission = "ManageSubscription";
+
+        /// <summary>Die Plaene sehen, zurueckgezogene eingeschlossen.</summary>
+        public const string PlansViewPermission = "Billing.Plans.View";
+
+        /// <summary>Plaene anlegen, aendern und zum Zahlungsanbieter schieben.</summary>
+        public const string PlansWritePermission = "Billing.Plans.Write";
+
+        /// <summary>Die Zusatzleistungen sehen.</summary>
+        public const string AddOnsViewPermission = "Billing.AddOns.View";
+
+        /// <summary>Zusatzleistungen anlegen, aendern und schieben.</summary>
+        public const string AddOnsWritePermission = "Billing.AddOns.Write";
+
+        /// <summary>Die Abos aller Mandanten sehen.</summary>
+        public const string SubscriptionsViewPermission = "Billing.Subscriptions.View";
+
+        /// <summary>
+        /// Reserviert. Die Abo-Liste ist heute nur lesend; das Recht oeffnet die Seite und zaehlt als
+        /// Lesen mit, damit ein Konsument, der es schon vergeben hat, nicht ploetzlich aussen vor steht.
+        /// </summary>
+        public const string SubscriptionsWritePermission = "Billing.Subscriptions.Write";
 
         private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IServiceProvider services;
@@ -60,7 +88,25 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public bool CanManage(ClaimsPrincipal user) => CanManage();
 
-        public bool CanAdminister(ClaimsPrincipal user) => CanAdminister();
+        /// <inheritdoc />
+        public bool CanView(BillingArea area) => area switch
+        {
+            BillingArea.Plans => Any(PlansViewPermission, PlansWritePermission),
+            BillingArea.AddOns => Any(AddOnsViewPermission, AddOnsWritePermission),
+            BillingArea.Subscriptions => Any(SubscriptionsViewPermission, SubscriptionsWritePermission),
+            _ => false
+        };
+
+        /// <inheritdoc />
+        public bool CanWrite(BillingArea area) => area switch
+        {
+            BillingArea.Plans => Any(PlansWritePermission),
+            BillingArea.AddOns => Any(AddOnsWritePermission),
+            // Die Abo-Liste kennt keinen Schreibvorgang. Das Recht bleibt trotzdem beantwortbar, damit
+            // eine Maske es abfragen kann, ohne hier einen Sonderfall zu brauchen.
+            BillingArea.Subscriptions => Any(SubscriptionsWritePermission),
+            _ => false
+        };
 
         /// <summary>
         /// The self-service bracket. Overload without the principal because the answer never depended on it: the
@@ -69,9 +115,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         private bool CanManage()
             => services.VerifyUserPermissions(new[] { ManageSubscriptionPermission, ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin });
 
-        /// <summary>The platform bracket: plan authoring and the lists that read across tenants.</summary>
-        private bool CanAdminister()
-            => services.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+        /// <summary>
+        /// Eines der genannten Rechte - oder Sysadmin, der immer dabei ist.
+        /// </summary>
+        /// <remarks>
+        /// <c>TenantAdmin</c> steht bewusst NICHT in der Liste. Er verwaltet seinen Mandanten; der Katalog,
+        /// aus dem alle Mandanten buchen, gehoert ihm nicht.
+        /// </remarks>
+        private bool Any(params string[] permissions)
+            => services.VerifyUserPermissions([.. permissions, ToolkitPermission.Sysadmin]);
 
         /// <summary>
         /// Refuses instead of returning something harmless-looking. An empty plan list for a caller that may not
@@ -134,7 +186,9 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<IReadOnlyList<FeatureCatalogItemViewModel>> GetFeatureCatalogAsync(CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "read the feature catalog");
+            // Beide Autoring-Masken brauchen ihn fuer die Feature-Auswahl, darum die ODER-Verknuepfung.
+            EnsurePermitted(CanWrite(BillingArea.Plans) || CanWrite(BillingArea.AddOns),
+                "read the feature catalog");
             using var db = dbFactory.CreateDbContext();
             var features = await db.Set<Feature>().AsNoTracking().OrderBy(f => f.FeatureName).ToListAsync(cancellationToken);
             return features.Select(f => new FeatureCatalogItemViewModel
@@ -159,7 +213,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// </remarks>
         public async Task<IReadOnlyList<PlanViewModel>> GetAllPlansAsync(CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "read the full plan list");
+            EnsurePermitted(CanView(BillingArea.Plans), "read the full plan list");
             using var db = dbFactory.CreateDbContext();
             return await QueryPlans(db.Plans, cancellationToken);
         }
@@ -193,9 +247,16 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             }).ToList();
         }
 
+        /// <remarks>
+        /// Drei Anlaesse, dieselbe Liste: der Kunde sieht die buchbaren Zusaetze; wer den Zusatz-Bereich
+        /// lesen darf, sowieso; und der PLAN-Autor braucht sie, um Zusaetze einem Plan zuzuordnen - diese
+        /// Zuordnung ist Teil des Plan-Autorings, nicht des Zusatz-Bereichs. Ohne den dritten Fall stuende
+        /// ein Benutzer mit <c>Billing.Plans.Write</c> im Plan-Editor vor einer leeren Auswahl.
+        /// </remarks>
         public async Task<IReadOnlyList<AddOnViewModel>> GetActiveAddOnsAsync(CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanManage(), "read the bookable add-ons");
+            EnsurePermitted(CanManage() || CanView(BillingArea.AddOns) || CanWrite(BillingArea.Plans),
+                "read the bookable add-ons");
             using var db = dbFactory.CreateDbContext();
             return await QueryAddOns(db.AddOns.Where(a => a.IsActive), cancellationToken);
         }
@@ -231,7 +292,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public async Task<int> SavePlanAsync(PlanViewModel model, CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "author plans");
+            EnsurePermitted(CanWrite(BillingArea.Plans), "author plans");
             using var db = dbFactory.CreateDbContext();
             Plan plan;
             if (model.PlanId != 0)
@@ -352,20 +413,20 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public Task PushPlanAsync(int planId, CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "push plans to the payment provider");
+            EnsurePermitted(CanWrite(BillingArea.Plans), "push plans to the payment provider");
             return planSynchronizer.SyncPlanAsync(planId, cancellationToken);
         }
 
         public async Task<IReadOnlyList<AddOnViewModel>> GetAllAddOnsAsync(CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "read the full add-on list");
+            EnsurePermitted(CanView(BillingArea.AddOns), "read the full add-on list");
             using var db = dbFactory.CreateDbContext();
             return await QueryAddOns(db.AddOns, cancellationToken);
         }
 
         public async Task<int> SaveAddOnAsync(AddOnViewModel model, CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "author add-ons");
+            EnsurePermitted(CanWrite(BillingArea.AddOns), "author add-ons");
             using var db = dbFactory.CreateDbContext();
             AddOn addOn;
             if (model.AddOnId != 0)
@@ -403,7 +464,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         public Task PushAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "push add-ons to the payment provider");
+            EnsurePermitted(CanWrite(BillingArea.AddOns), "push add-ons to the payment provider");
             return planSynchronizer.SyncAddOnAsync(addOnId, cancellationToken);
         }
 
@@ -413,7 +474,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// </remarks>
         public async Task<IReadOnlyList<SubscriptionAdminViewModel>> GetAllSubscriptionsAsync(CancellationToken cancellationToken = default)
         {
-            EnsurePermitted(CanAdminister(), "see the subscriptions of all tenants");
+            EnsurePermitted(CanView(BillingArea.Subscriptions), "see the subscriptions of all tenants");
             using var db = dbFactory.CreateDbContext();
             var subs = await db.TenantSubscriptions.AsNoTracking().Include(s => s.Items)
                 .OrderBy(s => s.TenantId).ToListAsync(cancellationToken);

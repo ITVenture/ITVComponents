@@ -13,6 +13,10 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+// Ausgeschrieben als Alias: ITVComponents.WebCoreToolkit.Models fuehrt ein EIGENES Feature, und das ist
+// hier ebenfalls im Spiel (ISecurityRepository.GetFeatures). Ohne den Alias entschiede die
+// using-Reihenfolge, welches gemeint ist - und der Fehler faende sich dann im EF-Modell wieder.
+using SecurityFeature = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Feature;
 using ITVComponents.WebCoreToolkit.Helpers;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
@@ -154,6 +158,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
         public DbSet<AddOnFeature> AddOnFeatures { get; set; } = null!;
         public DbSet<TenantSubscription> TenantSubscriptions { get; set; } = null!;
         public DbSet<TenantSubscriptionItem> TenantSubscriptionItems { get; set; } = null!;
+
+        /// <summary>
+        /// Der Feature-Katalog. Gehoert keinem der beiden Vertraege an - <c>BillingHandler</c> liest ihn
+        /// ueber <c>Set&lt;Feature&gt;()</c> direkt aus dem Sicherheitsmodell, also muss er im Modell stehen.
+        /// </summary>
+        public DbSet<SecurityFeature> Features { get; set; } = null!;
     }
 
     // ------------------------------------------------------------------ Attrappen der Dienstschicht

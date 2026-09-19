@@ -1,4 +1,4 @@
-@page "/Billing/Plans"
+﻿@page "/Billing/Plans"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -17,15 +17,18 @@
 {
     <MudProgressCircular Indeterminate="true" />
 }
-else if (!canAdmin)
+else if (!canView)
 {
     <MudAlert Severity="Severity.Warning">@L["NoAdminPermission"]</MudAlert>
 }
 else
 {
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-3" OnClick="@(() => Edit(new PlanViewModel()))">
-        @L["NewPlan"]
-    </MudButton>
+    @if (canWrite)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mb-3" OnClick="@(() => Edit(new PlanViewModel()))">
+            @L["NewPlan"]
+        </MudButton>
+    }
 
     <MudTable Items="plans" Dense="true" Hover="true">
         <HeaderContent>
@@ -43,12 +46,15 @@ else
             <MudTd DataLabel="Active">@(context.IsActive ? "yes" : "no")</MudTd>
             <MudTd DataLabel="Provider price">@PushSummary(context)</MudTd>
             <MudTd>
-                <MudStack Row="true" Spacing="1">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
-                    <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="@busy" OnClick="@(() => Push(context.PlanId))">
-                        @L["PushToStripe"]
-                    </MudButton>
-                </MudStack>
+                @if (canWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                        <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload" Disabled="@busy" OnClick="@(() => Push(context.PlanId))">
+                            @L["PushToStripe"]
+                        </MudButton>
+                    </MudStack>
+                }
             </MudTd>
         </RowTemplate>
     </MudTable>
@@ -138,7 +144,13 @@ else
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
-    private bool canAdmin;
+    private bool canView;
+
+    /// <summary>
+    /// Getrennt vom Lesen: wer nur <c>Billing.Plans.View</c> hat, sieht die Liste, aber keine Knoepfe.
+    /// Frueher hing beides an <c>Sysadmin</c>, und die beiden Rechte taten nichts.
+    /// </summary>
+    private bool canWrite;
     private bool busy;
     private IReadOnlyList<PlanViewModel> plans = System.Array.Empty<PlanViewModel>();
     private PlanViewModel? editModel;
@@ -154,12 +166,20 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        canAdmin = Handler.CanAdminister(currentUser);
-        if (canAdmin)
+        canView = Handler.CanView(BillingArea.Plans);
+        canWrite = Handler.CanWrite(BillingArea.Plans);
+        if (canView)
+        {
+            await Reload();
+        }
+
+        // Feature-Katalog und Zusatzliste braucht nur der Editor. Wer nicht schreiben darf, soll sie auch
+        // nicht anfordern - der Handler wuerde sie ihm verweigern, und die Seite zeigte eine Fehlermeldung,
+        // wo in Wahrheit alles in Ordnung ist.
+        if (canWrite)
         {
             catalog = await Handler.GetFeatureCatalogAsync();
             allAddOns = await Handler.GetActiveAddOnsAsync();
-            await Reload();
         }
     }
 

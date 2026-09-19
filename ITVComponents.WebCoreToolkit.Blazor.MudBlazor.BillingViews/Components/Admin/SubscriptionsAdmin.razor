@@ -1,4 +1,4 @@
-@page "/Billing/Subscriptions"
+﻿@page "/Billing/Subscriptions"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
@@ -15,7 +15,7 @@
 {
     <MudProgressCircular Indeterminate="true" />
 }
-else if (!canAdmin)
+else if (!canView)
 {
     <MudAlert Severity="Severity.Warning">You don't have permission to view subscriptions.</MudAlert>
 }
@@ -56,7 +56,11 @@ else
 
 @code {
     private System.Security.Claims.ClaimsPrincipal? currentUser;
-    private bool canAdmin;
+    /// <summary>
+    /// Nur Lesen: diese Seite kennt keinen Schreibvorgang. <c>Billing.Subscriptions.Write</c> zaehlt im
+    /// Handler als Lesen mit, damit ein Konsument, der es vergeben hat, nicht aussen vor steht.
+    /// </summary>
+    private bool canView;
     private bool loading;
     private IReadOnlyList<SubscriptionAdminViewModel> subscriptions = System.Array.Empty<SubscriptionAdminViewModel>();
 
@@ -64,8 +68,8 @@ else
     {
         var auth = await AuthState.GetAuthenticationStateAsync();
         currentUser = auth.User;
-        canAdmin = Handler.CanAdminister(currentUser);
-        if (canAdmin)
+        canView = Handler.CanView(BillingArea.Subscriptions);
+        if (canView)
         {
             await Reload();
         }
