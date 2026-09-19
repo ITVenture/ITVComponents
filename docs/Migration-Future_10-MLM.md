@@ -6920,9 +6920,13 @@ Dass eine Umbenennung gespeicherter Schlüssel überhaupt zumutbar ist, liegt da
 ### 69.2 Zwei neue Spalten — und warum es zwei sein müssen
 
 ```sql
-ALTER TABLE TenantPaymentAccounts ADD Provider nvarchar(max) NULL;
-ALTER TABLE TenantSales           ADD Provider nvarchar(max) NULL;
+ALTER TABLE TenantPaymentAccounts ADD Provider nvarchar(64) NULL;
+ALTER TABLE TenantSales           ADD Provider nvarchar(64) NULL;
 ```
+
+**64 Zeichen, und zwar dieselben wie an `TenantPaymentTerminals.Provider`.** Derselbe Wertebereich
+gehört in dieselbe Grenze — sonst geht ein Anbieterschlüssel am Konto durch und scheitert am Gerät.
+Die echten Schlüssel sind `stripe`, `payrexx`, `wallee` und `agent`; Reserve ist reichlich da.
 
 **Zwei Felder, zwei Quellen** — und das zweite ist der Punkt, der sonst später weh tut:
 

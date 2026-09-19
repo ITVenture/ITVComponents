@@ -44,7 +44,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// <b>Dieses Feld sagt nur, was fuer NEUE Vorgaenge gilt.</b> Womit ein einzelner Verkauf
         /// abgewickelt wurde, steht auf seiner eigenen Zeile - siehe <c>TenantSale.Provider</c>.
         /// </para>
+        /// <para>
+        /// <b>64 Zeichen, dieselbe Laenge wie <c>TenantPaymentTerminal.Provider</c>.</b> Derselbe
+        /// Wertebereich gehoert in dieselbe Grenze: verschiedene Laengen fuer denselben Inhalt fallen
+        /// erst bei dem einen ungewoehnlichen Wert auf, und dann an der Stelle, die ihn NICHT fasst.
+        /// Ohne Angabe waere daraus <c>nvarchar(max)</c> geworden - fuer einen Nachschlagewert
+        /// unbrauchbar, weil SQL Server ihn nicht einmal indizieren kann.
+        /// </para>
         /// </remarks>
+        [MaxLength(64)]
         public string? Provider { get; set; }
 
         /// <summary>

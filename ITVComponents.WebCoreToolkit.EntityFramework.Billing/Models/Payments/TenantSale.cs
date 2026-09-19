@@ -92,7 +92,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// zu erstatten. Wuerde die Erstattung den Anbieter am Konto lesen, ginge sie an den neuen - und
         /// scheiterte entweder oder traefe dort eine fremde Transaktion. Deshalb steht er auf der Zeile.
         /// </para>
+        /// <para>
+        /// <b>64 Zeichen, dieselbe Laenge wie <c>TenantPaymentTerminal.Provider</c>.</b> Siehe dort und
+        /// an <c>TenantPaymentAccount.Provider</c>: derselbe Wertebereich, dieselbe Grenze.
+        /// </para>
         /// </remarks>
+        [MaxLength(64)]
         public string? Provider { get; set; }
 
         /// <summary>Optional e-mail for the receipt. Does NOT create a customer profile at the provider.</summary>
