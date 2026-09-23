@@ -56,6 +56,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <param name="method">die Methode</param>
         /// <param name="resource">der Pfad unterhalb der Basis, ohne führenden Schrägstrich</param>
         /// <param name="payload">der Rumpf, oder null</param>
+        /// <param name="cancellationToken">bricht den Aufruf ab</param>
         public async Task<PayrexxEcrPayment?> SendAsync(HttpMethod method, string resource, object? payload,
             CancellationToken cancellationToken)
         {

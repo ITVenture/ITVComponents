@@ -21,5 +21,10 @@
          Abbildung, die ohne Netz und ohne Anbieter-Konto zu pruefen ist - und die einzige Stelle, an der
          eine falsche Uebersetzung unmittelbar Geld bewegt. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Stripe\ITVComponents.WebCoreToolkit.Billing.Stripe.csproj" />
+    <!-- Payrexx und wallee aus demselben Grund - und aus einem zweiten: bis hierher referenzierte sie
+         niemand, und in der Projektmappe standen sie auch nicht. Ein Fehler in ihnen waere nie
+         aufgefallen, weil sie schlicht nie mitgebaut wurden. Schon die Referenz allein haelt sie im Bau. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Payrexx\ITVComponents.WebCoreToolkit.Billing.Payrexx.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Wallee\ITVComponents.WebCoreToolkit.Billing.Wallee.csproj" />
   </ItemGroup>
 </Project>

@@ -210,11 +210,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <summary>
         /// Gleicht die Erstattungen an den Gesamtstand an, den die Meldung nennt.
         /// </summary>
+        /// <param name="sale">die Verkaufszeile, zu der die Meldung gehört</param>
+        /// <param name="db">der Kontext, in dem gebucht wird</param>
+        /// <param name="transaction">die gemeldete Transaktion</param>
+        /// <param name="status">der gemeldete Zustand, für das Protokoll</param>
         /// <param name="strict">
         /// ob ein fehlender Gesamtstand ein Fehler ist. Bei <c>refunded</c> / <c>partially-refunded</c>
         /// ja — dort ist er der Inhalt der Meldung. Bei einer bestätigten Erstattungs-Transaktion nein:
         /// sie trägt den Stand nicht immer, und die zugehörige Meldung auf der Zahlung kommt ohnehin.
         /// </param>
+        /// <param name="cancellationToken">bricht die Verarbeitung ab</param>
         private async Task MirrorTotalAsync(TenantSale sale, TContext db, PayrexxWebhookTransaction transaction,
             string status, bool strict, CancellationToken cancellationToken)
         {

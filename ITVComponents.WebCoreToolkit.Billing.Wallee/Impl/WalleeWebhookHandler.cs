@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
     /// zusätzlicher API-Aufruf, und zwar innerhalb der Zeit, in der geantwortet werden muss.</item>
     /// <item><b>Erstattungen sind eigene Entitäten</b> mit eigener Kennung — anders als bei Payrexx, wo
     /// nur ein Gesamtstand gemeldet wird. Das passt direkt auf
-    /// <see cref="TenantSaleWebhookSink{TContext}.MirrorRefundAsync"/>.</item>
+    /// <see cref="TenantSaleWebhookSink{TContext}.MirrorRefundAsync(TenantSale, TContext, string, long, string, CancellationToken)"/>.</item>
     /// <item><b>Beträge sind Dezimalzahlen in der Hauptwährung</b> und müssen zurückgerechnet werden.</item>
     /// </list>
     /// <para>
