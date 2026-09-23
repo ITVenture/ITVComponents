@@ -46,6 +46,8 @@ namespace ITVComponents.Settings.Native
 
         public static string RawSettingsName { get; private set;}
 
+        public static string SettingsBasePath { get; private set; }
+
         public static void Init(bool reset = false)
         {
             if (reset || builder == null)
@@ -64,6 +66,8 @@ namespace ITVComponents.Settings.Native
                 RawSettingsName = Path.GetFileNameWithoutExtension(settingsFileName);
                 builder = new ConfigurationBuilder().AddJsonFile(settingsFileName, optional: true,
                     reloadOnChange: true);
+                var tmpFull = Path.GetFullPath(settingsFileName);
+                SettingsBasePath = Path.GetDirectoryName(tmpFull);
             }
         }
 
