@@ -64,10 +64,13 @@ namespace ITVComponents.Settings.Native
                 }
 
                 RawSettingsName = Path.GetFileNameWithoutExtension(settingsFileName);
-                builder = new ConfigurationBuilder().AddJsonFile(settingsFileName, optional: true,
-                    reloadOnChange: true);
-                var tmpFull = Path.GetFullPath(settingsFileName);
-                SettingsBasePath = Path.GetDirectoryName(tmpFull);
+                // Die Basis ist das Anwendungsverzeichnis, nicht das Arbeitsverzeichnis: dorthin loest die
+                // Konfiguration einen relativen Dateinamen ohnehin auf. SetBasePath macht das ausdruecklich und
+                // bindet SettingsBasePath an DIESELBE Stelle - beim Autostart, als Dienst oder mit dotnet run
+                // fallen die beiden sonst auseinander, und daneben abgelegte Dateien landen anderswo.
+                SettingsBasePath = AppContext.BaseDirectory;
+                builder = new ConfigurationBuilder().SetBasePath(SettingsBasePath).AddJsonFile(settingsFileName,
+                    optional: true, reloadOnChange: true);
             }
         }
 
