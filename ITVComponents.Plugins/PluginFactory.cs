@@ -1538,6 +1538,35 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Beschreibt ein Bereichs-Plugin (<see cref="PluginLoadType.Scope"/>), das ein <see cref="IDynamicLoader"/>
+        /// dieser Factory kennt - OHNE es zu bauen.
+        /// </summary>
+        /// <param name="pluginName">der Name des Bereichs-Plugins</param>
+        /// <returns>der beschreibende PluginRef, oder <c>null</c> wenn kein Loader den Namen als Bereichs-Plugin
+        /// kennt oder sein Typ nicht aufloesbar ist</returns>
+        /// <remarks>
+        /// Fuer Verfuegbarkeits- und Sicherheitspruefungen: ob es ein Objekt gibt und welchen Typ es haette,
+        /// laesst sich so beantworten, ohne dass sein Konstruktor laeuft - der oeffnet unter Umstaenden Geraete
+        /// oder Verbindungen, und eine reine Pruefung darf das nicht.
+        /// </remarks>
+        public PluginRef DescribeScopedPlugin(string pluginName)
+        {
+            if (string.IsNullOrEmpty(pluginName))
+            {
+                return null;
+            }
+
+            var loader = plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasScopedPlugin(pluginName));
+            var definition = loader?.GetScopedPlugin(pluginName);
+            if (definition == null)
+            {
+                return null;
+            }
+
+            return DescribePlugin(definition.Name, definition.ConstructionString, null);
+        }
+
+        /// <summary>
         /// parses the constructorparameter string for a LogAdapter
         /// </summary>
         /// <param name="constructor">the constructorparameter string</param>

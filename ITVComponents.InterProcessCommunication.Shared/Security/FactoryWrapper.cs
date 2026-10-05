@@ -56,6 +56,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
             get
             {
                 object retVal = null;
+                IPluginFactory scope = null;
                 if (serviceDecorators.TryGetValue(pluginName, out var deco))
                 {
                     retVal = deco;
@@ -63,18 +64,42 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
                 else
                 {
                     retVal = wrapped[pluginName];
+                    if (retVal == null && currentScope.Value is { } activeScope)
+                    {
+                        // Nicht in der Hauptfabrik: dann kann es ein Bereichs-Plugin sein, das erst im Scope dieser
+                        // Nachricht entsteht. Der Scope faellt fuer alles, was er nicht selbst kennt, auf die
+                        // Hauptfabrik zurueck - fuer Singleton-Plugins aendert sich also nichts.
+                        retVal = activeScope[pluginName, true];
+                        if (retVal != null)
+                        {
+                            scope = activeScope;
+                        }
+                    }
                 }
 
                 if (retVal != null)
                 {
                     if (retVal is not IServiceDecorator)
                     {
-                        var decorator =
-                            wrapped.FirstOrDefault(t => t is IServiceDecorator d && d.DecoratedService == retVal);
-                        if (decorator != null)
+                        if (scope != null)
                         {
-                            serviceDecorators.TryAdd(pluginName, (IServiceDecorator)decorator);
-                            retVal = decorator;
+                            // Eine Instanz aus dem Scope lebt nur fuer diese Nachricht. Ihr Decorator entsteht im selben
+                            // Scope und darf NICHT in den Cache: der lebt so lange wie der Wrapper, und der naechste
+                            // Aufruf bekaeme den Decorator einer bereits freigegebenen Instanz.
+                            var decorator = FindDecorator(scope, retVal) ?? FindDecorator(wrapped, retVal);
+                            if (decorator != null)
+                            {
+                                retVal = decorator;
+                            }
+                        }
+                        else
+                        {
+                            var decorator = FindDecorator(wrapped, retVal);
+                            if (decorator != null)
+                            {
+                                serviceDecorators.TryAdd(pluginName, decorator);
+                                retVal = decorator;
+                            }
                         }
                     }
 
@@ -121,16 +146,24 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
 
                 if (plug is not IServiceDecorator)
                 {
-                    var decorator =
-                        wrapped.FirstOrDefault(t => t is IServiceDecorator d && d.DecoratedService == plug);
+                    var decorator = FindDecorator(wrapped, plug);
                     if (decorator != null)
                     {
-                        serviceDecorators.TryAdd(uniqueName, (IServiceDecorator)decorator);
+                        serviceDecorators.TryAdd(uniqueName, decorator);
                         plug = decorator;
                     }
                 }
 
                 securityRequired = plug.RequiresSecurity();
+                retVal = hasSecurity || !securityRequired;
+            }
+            else if (currentScope.Value != null && wrapped.DescribeScopedPlugin(uniqueName) is { } scoped)
+            {
+                // Ein Bereichs-Plugin, das der Indexer im Scope dieser Nachricht bauen wuerde. Geprueft wird am
+                // TYP, nicht an einer Instanz: eine Verfuegbarkeitsabfrage darf keinen Konstruktor laufen lassen,
+                // der Geraete oder Verbindungen oeffnet. Ein Decorator ist so nicht zu sehen - er entstuende erst
+                // im Scope; beim eigentlichen Zugriff prueft der Indexer die Sicherheit am echten Objekt erneut.
+                securityRequired = SecurityExtensions.TypeRequiresSecurity(scoped.PluginType);
                 retVal = hasSecurity || !securityRequired;
             }
 
@@ -149,6 +182,17 @@ namespace ITVComponents.InterProcessCommunication.Shared.Security
         public void AttachProxyDictionary(IDictionary<string, ProxyWrapper> proxies)
         {
             extendedProxies = proxies;
+        }
+
+        /// <summary>
+        /// Searches the given factory or scope for a decorator that wraps the provided service
+        /// </summary>
+        /// <param name="source">the factory or scope to search</param>
+        /// <param name="service">the decorated service</param>
+        /// <returns>the decorator of the service, or null if it is exposed directly</returns>
+        private static IServiceDecorator FindDecorator(IEnumerable<IPlugin> source, object service)
+        {
+            return (IServiceDecorator)source.FirstOrDefault(t => t is IServiceDecorator d && d.DecoratedService == service);
         }
 
         public IPluginFactory OpenScope(Dictionary<string, object> dictionary, IServiceProvider services)
