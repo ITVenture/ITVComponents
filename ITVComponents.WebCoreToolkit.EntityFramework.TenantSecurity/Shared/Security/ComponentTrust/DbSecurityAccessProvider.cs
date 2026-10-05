@@ -1,6 +1,7 @@
 ﻿using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
@@ -21,7 +22,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
     public class DbSecurityAccessProvider:ISecurityAccessProvider
     {
         private readonly IServiceProvider services;
-        private ICoreSystemContext securityDb;
 
         // Scoped (per circuit/request) cache of the trust-component table, keyed by (trustedTypeAQN, targetTypeAQN)
         // -> TrustLevelConfig JSON. The component set is global config that rarely changes; CreateForCaller is hit
@@ -48,8 +48,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         {
             this.services = services;
         }
-
-        private ICoreSystemContext SecurityDb => (securityDb ??= services.GetService<ICoreSystemContext>());
 
         /// <summary>
         /// The logger for the trust decision, under a fixed category so a log-level filter can name it.
@@ -149,11 +147,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// </remarks>
         private List<TrustedFullAccessComponent> LoadTrustEntries()
         {
-            var loadCtx = (ICoreSystemContext)ActivatorUtilities.CreateInstance(services, SecurityDb.GetType());
-            using (loadCtx as IDisposable)
-            {
-                return loadCtx.TrustedFullAccessComponents.IgnoreQueryFilters().ToList();
-            }
+            using var lease = services.GetRequiredService<IToolkitContextFactory>().Lease<ICoreSystemContext>();
+            return lease.Context.TrustedFullAccessComponents.IgnoreQueryFilters().ToList();
         }
 
         /// <summary>
@@ -316,18 +311,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             CallLogger?.LogDebug(
                 "Trust looked up: caller {Caller} ({CallerAssembly}) is external to {TrustingType} ({TrustingAssembly}).",
                 type.FullName, type.Assembly.GetName().Name, trustingType.FullName, trustingType.Assembly.GetName().Name);
-            return CreateForCallerInternal(SecurityDb, trustingObject, trustingType, type, desiredTrust);
+            return CreateForCallerInternal(trustingObject, trustingType, type, desiredTrust);
         }
 
-        /*private IFullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<TTrustConfig, T>(IServiceProvider services,
-            T trustingObject, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
-            where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
-        {
-            var csc = services.GetService<ICoreSystemContext>();
-            return CreateForCallerInternal(csc, trustingObject, trustingType, trustedType, desiredTrust);
-        }*/
-
-        private FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<TTrustConfig,T>(ICoreSystemContext securityDb, T trustingObject, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
+        private FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<TTrustConfig,T>(T trustingObject, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
             where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
         {
             // Trust lookup served from the scoped cache (loaded once on a dedicated context) instead of querying

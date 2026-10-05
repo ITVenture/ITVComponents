@@ -19,19 +19,20 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     public class StripeCheckoutSessionFactory<TContext> : ISubscriptionCheckoutFactory
         where TContext : DbContext, IBillingContext
     {
-        private readonly TContext db;
+        private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IStripeClient client;
         private readonly BillingProviderOptions billingOptions;
 
-        public StripeCheckoutSessionFactory(TContext db, IStripeClient client, IOptions<BillingProviderOptions> billingOptions)
+        public StripeCheckoutSessionFactory(IDbContextFactory<TContext> dbFactory, IStripeClient client, IOptions<BillingProviderOptions> billingOptions)
         {
-            this.db = db;
+            this.dbFactory = dbFactory;
             this.client = client;
             this.billingOptions = billingOptions.Value;
         }
 
         public async Task<string> CreateCheckoutSessionAsync(int tenantId, int planId, IReadOnlyCollection<int> addOnIds, string successUrl, string cancelUrl, string? currency = null, CancellationToken cancellationToken = default)
         {
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var cur = string.IsNullOrWhiteSpace(currency) ? billingOptions.DefaultCurrency : currency;
 
             var plan = await db.Plans.Include(p => p.Prices).FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken)
@@ -95,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             // so a person who owns several tenants would keep billing under the first tenant's customer, and a
             // shared customer id then makes MarkPastDueAsync (keyed on customer id) hit every tenant that shares
             // it. The tenantId metadata makes the customer traceable in the Stripe dashboard and via the API.
-            var customerId = await EnsureTenantCustomerAsync(tenantId, existing, cancellationToken);
+            var customerId = await EnsureTenantCustomerAsync(db, tenantId, existing, cancellationToken);
 
             var options = new SessionCreateOptions
             {
@@ -125,7 +126,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
         /// tenant id) and persisting it on the subscription mirror when none exists yet. Reused by later checkouts
         /// and by the billing portal, so a tenant always maps to exactly one Stripe customer.
         /// </summary>
-        private async Task<string> EnsureTenantCustomerAsync(int tenantId, TenantSubscription? existing, CancellationToken cancellationToken)
+        private async Task<string> EnsureTenantCustomerAsync(TContext db, int tenantId,TenantSubscription? existing, CancellationToken cancellationToken)
         {
             if (!string.IsNullOrEmpty(existing?.ProviderCustomerId))
             {
@@ -160,17 +161,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     public class StripeBillingPortalFactory<TContext> : IBillingPortalFactory
         where TContext : DbContext, IBillingContext
     {
-        private readonly TContext db;
+        private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IStripeClient client;
 
-        public StripeBillingPortalFactory(TContext db, IStripeClient client)
+        public StripeBillingPortalFactory(IDbContextFactory<TContext> dbFactory, IStripeClient client)
         {
-            this.db = db;
+            this.dbFactory = dbFactory;
             this.client = client;
         }
 
         public async Task<string?> CreatePortalSessionAsync(int tenantId, string returnUrl, CancellationToken cancellationToken = default)
         {
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var subscription = await db.TenantSubscriptions.FirstOrDefaultAsync(s => s.TenantId == tenantId, cancellationToken);
             if (subscription?.ProviderCustomerId is not { Length: > 0 } customerId)
             {

@@ -1,4 +1,5 @@
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
+using ITVComponents.Logging;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
@@ -13,17 +14,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     public class PlanSynchronizer<TContext> : IPlanSynchronizer
         where TContext : DbContext, IBillingContext
     {
-        private readonly TContext db;
+        private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IStripeClient client;
 
-        public PlanSynchronizer(TContext db, IStripeClient client)
+        public PlanSynchronizer(IDbContextFactory<TContext> dbFactory, IStripeClient client)
         {
-            this.db = db;
+            this.dbFactory = dbFactory;
             this.client = client;
         }
 
         public async Task SyncPlanAsync(int planId, CancellationToken cancellationToken = default)
         {
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var plan = await db.Plans
                 .Include(p => p.Prices)
                 .Include(p => p.PlanAddOns).ThenInclude(pa => pa.Prices)
@@ -31,6 +33,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                 .FirstOrDefaultAsync(p => p.PlanId == planId, cancellationToken);
             if (plan == null)
             {
+                LogEnvironment.LogEvent($"Plan {planId} does not exist; nothing was pushed to Stripe.", LogSeverity.Warning, "StripeBilling");
                 return;
             }
 
@@ -64,9 +67,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
         public async Task SyncAddOnAsync(int addOnId, CancellationToken cancellationToken = default)
         {
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var addOn = await db.AddOns.FirstOrDefaultAsync(a => a.AddOnId == addOnId, cancellationToken);
             if (addOn == null)
             {
+                LogEnvironment.LogEvent($"Add-on {addOnId} does not exist; nothing was pushed to Stripe.", LogSeverity.Warning, "StripeBilling");
                 return;
             }
 

@@ -137,8 +137,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 var options = new DbContextOptionsBuilder<TreeTestContext>()
                     .UseInMemoryDatabase(dbName).Options;
 
-                // Ein echter Container: DbSecurityAccessProvider baut sich seinen Ladekontext selbst ueber
-                // ActivatorUtilities, es muessen also alle Konstruktor-Abhaengigkeiten aufloesbar sein.
+                // Ein echter Container: DbSecurityAccessProvider holt sich seinen Ladekontext ueber die
+                // IToolkitContextFactory aus dem Container, die ihn per ActivatorUtilities baut - es muessen
+                // also alle Konstruktor-Abhaengigkeiten aufloesbar sein.
                 var sc = new ServiceCollection();
                 sc.AddSingleton<IPermissionScope>(new FixedScope(currentTenant));
                 sc.AddSingleton<IContextUserProvider>(new NoUser());
@@ -148,13 +149,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                     new DbContextModelBuilderOptions<TreeTestContext>()));
                 sc.AddSingleton(options);
                 sc.AddSingleton<ISecurityAccessProvider, DbSecurityAccessProvider>();
-                sc.AddTransient<Shared.ICoreSystemContext>(sp =>
-                    ActivatorUtilities.CreateInstance<TreeTestContext>(sp));
+                sc.AddSingleton<IToolkitContextFactory>(sp => new TestContextFactory(sp));
                 services = sc.BuildServiceProvider();
 
                 var accessProvider = services.GetRequiredService<ISecurityAccessProvider>();
                 Repository = new CoreIdentityTree.Security.AspNetDbTreeSecurityRepository<TreeTestContext>(
-                    new TestContextFactory(services),
+                    services.GetRequiredService<IToolkitContextFactory>(),
                     accessProvider,
                     Microsoft.Extensions.Options.Options.Create(new ExternalOAuthServiceBufferingOptions()),
                     NullLogger<CoreIdentityTree.Security.AspNetDbTreeSecurityRepository<TreeTestContext>>.Instance);

@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -22,16 +24,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
     public class StripeWebhookHandler<TContext> : IStripeWebhookHandler
         where TContext : DbContext, IBillingContext
     {
-        private readonly TContext db;
+        private readonly IDbContextFactory<TContext> dbFactory;
         private readonly IFeatureProvisioner provisioner;
         private readonly IStripeClient client;
         private readonly StripeOptions options;
         private readonly IEnumerable<IVolumeWaiverProcessor> waiverProcessors;
 
-        public StripeWebhookHandler(TContext db, IFeatureProvisioner provisioner, IStripeClient client, IOptions<StripeOptions> options,
+        public StripeWebhookHandler(IDbContextFactory<TContext> dbFactory, IFeatureProvisioner provisioner, IStripeClient client, IOptions<StripeOptions> options,
             IEnumerable<IVolumeWaiverProcessor> waiverProcessors)
         {
-            this.db = db;
+            this.dbFactory = dbFactory;
             this.provisioner = provisioner;
             this.client = client;
             this.options = options.Value;
@@ -89,7 +91,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             var tenantId = ParseTenantId(sub.Metadata);
             if (tenantId == null)
             {
-                return; // cannot attribute without the tenant marker
+                // Cannot attribute without the tenant marker.
+                LogEnvironment.LogEvent($"Subscription {sub.Id} carries no tenantId metadata; the local subscription mirror was not updated.", LogSeverity.Warning, "StripeBilling");
+                return;
             }
 
             // Stripe delivers events at-least-once and NOT strictly ordered, so the event payload can be a
@@ -102,11 +106,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
                     new SubscriptionGetOptions { Expand = new List<string> { "items.data.price" } },
                     cancellationToken: ct);
             }
-            catch (StripeException)
+            catch (StripeException ex)
             {
                 // No longer retrievable (e.g. removed between event and handling) — fall back to the payload.
+                LogEnvironment.LogEvent($"Could not re-read subscription {sub.Id} from Stripe; falling back to the event payload: {ex.OutlineException()}", LogSeverity.Warning, "StripeBilling");
             }
 
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
             var local = await db.TenantSubscriptions.Include(s => s.Items)
                             .FirstOrDefaultAsync(s => s.ProviderSubscriptionId == sub.Id, ct)
                         ?? await db.TenantSubscriptions.Include(s => s.Items)
@@ -193,19 +199,27 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
         private async Task CancelAsync(Subscription sub, CancellationToken ct)
         {
-            var local = await db.TenantSubscriptions
-                .FirstOrDefaultAsync(s => s.ProviderSubscriptionId == sub.Id, ct);
-            var tenantId = local?.TenantId ?? ParseTenantId(sub.Metadata);
-            if (local != null)
+            int? tenantId;
+            await using (var db = await dbFactory.CreateDbContextAsync(ct))
             {
-                local.Status = SubscriptionStatus.Canceled;
-                local.Updated = DateTime.UtcNow;
-                await db.SaveChangesAsync(ct);
+                var local = await db.TenantSubscriptions
+                    .FirstOrDefaultAsync(s => s.ProviderSubscriptionId == sub.Id, ct);
+                tenantId = local?.TenantId ?? ParseTenantId(sub.Metadata);
+                if (local != null)
+                {
+                    local.Status = SubscriptionStatus.Canceled;
+                    local.Updated = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                }
             }
 
             if (tenantId != null)
             {
                 await provisioner.SyncAsync(tenantId.Value, Array.Empty<string>(), null, null, ct);
+            }
+            else
+            {
+                LogEnvironment.LogEvent($"Deleted subscription {sub.Id} could not be attributed to a tenant; no features were revoked.", LogSeverity.Warning, "StripeBilling");
             }
         }
 
@@ -214,9 +228,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
             // The invoice→subscription link moved around across API versions; key off the stable customer id.
             if (string.IsNullOrEmpty(invoice.CustomerId))
             {
+                LogEnvironment.LogEvent($"Failed invoice {invoice.Id} carries no customer id; no subscription was marked past due.", LogSeverity.Warning, "StripeBilling");
                 return;
             }
 
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
             var subs = await db.TenantSubscriptions
                 .Where(s => s.ProviderCustomerId == invoice.CustomerId).ToListAsync(ct);
             foreach (var sub in subs)
