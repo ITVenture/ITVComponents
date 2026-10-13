@@ -57,9 +57,9 @@
   <data name="App_Col_State" xml:space="preserve"><value>Status</value></data>
   <data name="App_State_On" xml:space="preserve"><value>ein</value></data>
   <data name="App_State_Off" xml:space="preserve"><value>aus</value></data>
-  <data name="App_Col_Devices" xml:space="preserve"><value>Geräte</value></data>
+  <data name="App_Col_Devices" xml:space="preserve"><value>Instanzen</value></data>
   <data name="App_Tab_Sets" xml:space="preserve"><value>Zugestandene Berechtigungs-Sets</value></data>
-  <data name="App_Tab_Devices" xml:space="preserve"><value>Geräte</value></data>
+  <data name="App_Tab_Devices" xml:space="preserve"><value>Verbundene Instanzen</value></data>
   <data name="App_NoPermission" xml:space="preserve"><value>Keine Berechtigung, Client-Anwendungen anzusehen.</value></data>
   <data name="App_NoTemplate" xml:space="preserve"><value>Es gibt noch keine Anwendungs-Vorlage. Legen Sie zuerst eine unter «Vorlagen für Client-Anwendungen» an.</value></data>
   <data name="App_Create_Title" xml:space="preserve"><value>Anwendung anlegen</value></data>
@@ -121,4 +121,17 @@
   <data name="Pair_ConfirmedToast" xml:space="preserve"><value>Kopplung bestätigt</value></data>
   <data name="Pair_ConfirmFailed" xml:space="preserve"><value>Die Kopplung konnte nicht bestätigt werden.</value></data>
   <data name="Pair_NoPermission" xml:space="preserve"><value>Keine Berechtigung, Kopplungen zu bestätigen.</value></data>
+  <data name="Pair_Type" xml:space="preserve"><value>Typ: {0}</value></data>
+  <data name="Pair_Application" xml:space="preserve"><value>Client-Anwendung</value></data>
+  <data name="Pair_ChooseApp" xml:space="preserve"><value>Wählen Sie die Client-Anwendung, mit der dieses Gerät verbunden wird.</value></data>
+  <data name="Pair_NoCandidates" xml:space="preserve"><value>In diesem Mandanten gibt es noch keine Client-Anwendung dieses Typs.</value></data>
+  <data name="Pair_ActiveInstance" xml:space="preserve"><value>bereits verbunden: {0}</value></data>
+  <data name="Pair_Replaces" xml:space="preserve"><value>Dieses Gerät ist bereits mit dieser Anwendung verbunden. Sein bisheriger Zugang wird ersetzt.</value></data>
+  <data name="Pair_Occupied" xml:space="preserve"><value>Diese Anwendung hat bereits eine verbundene Instanz ({0}). Widerrufen Sie sie zuerst unter Client-Anwendungen → Verbundene Instanzen.</value></data>
+  <data name="Pair_CreateNew" xml:space="preserve"><value>Neue Client-Anwendung anlegen…</value></data>
+  <data name="Pair_NewName" xml:space="preserve"><value>Name der neuen Client-Anwendung</value></data>
+  <data name="Pair_NewSets" xml:space="preserve"><value>Zu erteilende Berechtigungs-Sets</value></data>
+  <data name="Pair_CreateAndConfirm" xml:space="preserve"><value>Anwendung anlegen und Kopplung bestätigen</value></data>
+  <data name="Pair_CreateFailed" xml:space="preserve"><value>Die Client-Anwendung konnte nicht angelegt werden.</value></data>
+  <data name="Pair_SetsFailed" xml:space="preserve"><value>Die Client-Anwendung wurde angelegt, aber nicht alle Berechtigungs-Sets konnten erteilt werden. Prüfen Sie sie unter Client-Anwendungen.</value></data>
 </root>

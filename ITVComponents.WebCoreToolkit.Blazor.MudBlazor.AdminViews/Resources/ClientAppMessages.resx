@@ -57,9 +57,9 @@
   <data name="App_Col_State" xml:space="preserve"><value>State</value></data>
   <data name="App_State_On" xml:space="preserve"><value>on</value></data>
   <data name="App_State_Off" xml:space="preserve"><value>off</value></data>
-  <data name="App_Col_Devices" xml:space="preserve"><value>Devices</value></data>
+  <data name="App_Col_Devices" xml:space="preserve"><value>Instances</value></data>
   <data name="App_Tab_Sets" xml:space="preserve"><value>Granted permission sets</value></data>
-  <data name="App_Tab_Devices" xml:space="preserve"><value>Devices</value></data>
+  <data name="App_Tab_Devices" xml:space="preserve"><value>Connected instances</value></data>
   <data name="App_NoPermission" xml:space="preserve"><value>No permission to view client applications.</value></data>
   <data name="App_NoTemplate" xml:space="preserve"><value>There is no application template yet. Create one under 'Client app templates' first.</value></data>
   <data name="App_Create_Title" xml:space="preserve"><value>Create application</value></data>
@@ -121,4 +121,17 @@
   <data name="Pair_ConfirmedToast" xml:space="preserve"><value>Pairing confirmed</value></data>
   <data name="Pair_ConfirmFailed" xml:space="preserve"><value>The pairing could not be confirmed.</value></data>
   <data name="Pair_NoPermission" xml:space="preserve"><value>No permission to confirm pairings.</value></data>
+  <data name="Pair_Type" xml:space="preserve"><value>Type: {0}</value></data>
+  <data name="Pair_Application" xml:space="preserve"><value>Application</value></data>
+  <data name="Pair_ChooseApp" xml:space="preserve"><value>Choose the application this device is connected to.</value></data>
+  <data name="Pair_NoCandidates" xml:space="preserve"><value>There is no application of this type in this tenant yet.</value></data>
+  <data name="Pair_ActiveInstance" xml:space="preserve"><value>already connected: {0}</value></data>
+  <data name="Pair_Replaces" xml:space="preserve"><value>This device is already connected to this application. Its previous access is replaced.</value></data>
+  <data name="Pair_Occupied" xml:space="preserve"><value>This application already has a connected instance ({0}). Revoke it first under Client applications → Connected instances.</value></data>
+  <data name="Pair_CreateNew" xml:space="preserve"><value>Create a new application…</value></data>
+  <data name="Pair_NewName" xml:space="preserve"><value>Name of the new application</value></data>
+  <data name="Pair_NewSets" xml:space="preserve"><value>Permission sets to grant</value></data>
+  <data name="Pair_CreateAndConfirm" xml:space="preserve"><value>Create application and confirm pairing</value></data>
+  <data name="Pair_CreateFailed" xml:space="preserve"><value>The application could not be created.</value></data>
+  <data name="Pair_SetsFailed" xml:space="preserve"><value>The application was created, but not every permission set could be granted. Check them under Client applications.</value></data>
 </root>

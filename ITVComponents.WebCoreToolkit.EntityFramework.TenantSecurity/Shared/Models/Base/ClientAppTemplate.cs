@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base
 {
     [Index(nameof(Name), IsUnique = true, Name="IX_UniqueTemplateName")]
+    // Nullbar und eindeutig: SQL Server haengt den Filter "WHERE [TypeKey] IS NOT NULL" selbst an, PostgreSQL
+    // zaehlt NULLs ohnehin als verschieden (siehe ClientAppAccess).
+    [Index(nameof(TypeKey), IsUnique = true, Name = "UQ_ClientAppTemplateTypeKey")]
     public class ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate> : IClientAppTemplateCore
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -40,6 +43,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         /// </remarks>
         [MaxLength(128)]
         public string CatalogObjectName { get; set; }
+
+        /// <summary>
+        /// Was ein Geraet dieses Templates ist, als fester Schluessel (etwa <c>pos-agent</c>). Ein Geraet nennt
+        /// ihn beim Koppeln; wer bestaetigt, bekommt dann nur Anwendungen dieses Templates zur Auswahl.
+        /// </summary>
+        /// <remarks>
+        /// Bewusst nicht <see cref="Name"/>: der ist in der Maske aenderbar, und ein umbenanntes Template
+        /// liesse jedes ausgerollte Geraet ins Leere koppeln. Leer = Geraete dieses Templates koennen nur mit
+        /// ihrem <c>ClientKey</c> koppeln. Eindeutig, sofern gesetzt.
+        /// </remarks>
+        [MaxLength(64)]
+        public string TypeKey { get; set; }
 
         /// <summary>
         /// Die Rechtebuendel, die dieses Template anbietet.

@@ -37,10 +37,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [Key]
         public int DevicePairingId { get; set; }
 
-        public int TenantId { get; set; }
+        /// <summary>
+        /// Der Mandant. Steht fest, sobald die Anwendung feststeht - beim Anlegen nur, wenn das Geraet
+        /// seine Anwendung mitgebracht hat, sonst erst beim Bestaetigen (aus dem Mandanten des Bestaetigers).
+        /// </summary>
+        public int? TenantId { get; set; }
 
-        /// <summary>Die Anwendung, fuer die gekoppelt wird - sie bringt die Rechtebuendel mit.</summary>
-        public int ClientAppId { get; set; }
+        /// <summary>
+        /// Die Anwendung, fuer die gekoppelt wird - sie bringt die Rechtebuendel mit.
+        /// </summary>
+        /// <remarks>
+        /// <b>Im Regelfall erst beim Bestaetigen gesetzt:</b> das Geraet sagt nur, WAS es ist
+        /// (<see cref="ClientAppTemplateId"/>), und wer bestaetigt, waehlt die Anwendung im Web. Nur ein Geraet,
+        /// das beim Anlegen einen <c>ClientKey</c> mitschickt, legt sie selbst fest.
+        /// </remarks>
+        public int? ClientAppId { get; set; }
+
+        /// <summary>
+        /// Was das Geraet ist - das Template, dessen <c>TypeKey</c> es beim Anlegen genannt hat. Begrenzt die
+        /// Auswahl beim Bestaetigen auf Anwendungen dieses Templates.
+        /// </summary>
+        public int? ClientAppTemplateId { get; set; }
 
         /// <summary>
         /// Der Hash des Geraetecodes. <b>Der Geraetecode ist das Geheimnis dieses Vorgangs</b> - er
@@ -102,6 +119,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         [ForeignKey(nameof(ClientAppId))]
         public virtual TClientApp ClientApp { get; set; }
+
+        /// <summary>
+        /// SetNull: ein Template zu loeschen darf nicht an einem laengst abgelaufenen Kopplungsvorgang scheitern.
+        /// </summary>
+        [ForeignKey(nameof(ClientAppTemplateId))]
+        [DeleteBehavior(DeleteBehavior.SetNull)]
+        public virtual TClientAppTemplate ClientAppTemplate { get; set; }
 
         [ForeignKey(nameof(ConfirmedByTenantUserId))]
         public virtual TTenantUser ConfirmedBy { get; set; }

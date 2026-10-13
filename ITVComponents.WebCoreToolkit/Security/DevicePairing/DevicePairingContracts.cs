@@ -30,14 +30,58 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
     /// gleich erteilt werden.
     /// </remarks>
     /// <param name="Found">ob der Code ueberhaupt zu einem offenen Vorgang gehoert</param>
-    /// <param name="ClientAppName">die Anwendung, fuer die gekoppelt wird</param>
+    /// <param name="ClientAppName">
+    /// die Anwendung, fuer die gekoppelt wird - nur, wenn das Geraet sie beim Anlegen selbst festgelegt hat
+    /// (mit seinem <c>ClientKey</c>); sonst null, und die Anwendung wird aus <see cref="Candidates"/> gewaehlt
+    /// </param>
     /// <param name="DeviceLabel">wie sich das Geraet nennt</param>
-    /// <param name="PermissionSets">die Rechtebuendel, die diese Anwendung im Mandanten zugestanden bekommt</param>
+    /// <param name="PermissionSets">die Rechtebuendel, die die festgelegte Anwendung zugestanden bekommt</param>
+    /// <param name="ClientAppId">die festgelegte Anwendung, sonst null</param>
+    /// <param name="ClientAppTemplateId">was das Geraet ist (das Template seines Typ-Schluessels)</param>
+    /// <param name="TemplateName">der Name dieses Templates, zur Anzeige</param>
+    /// <param name="Candidates">
+    /// die Anwendungen dieses Templates im Mandanten des Bestaetigers - die Auswahl, wenn keine Anwendung
+    /// festgelegt ist
+    /// </param>
+    /// <param name="TemplatePermissionSets">
+    /// die Rechtebuendel des Templates - fuer das Anlegen einer neuen Anwendung aus der Bestaetigung heraus
+    /// </param>
     public sealed record PairingPreview(
         bool Found,
         string ClientAppName,
         string DeviceLabel,
-        IReadOnlyList<string> PermissionSets);
+        IReadOnlyList<string> PermissionSets,
+        int? ClientAppId = null,
+        int? ClientAppTemplateId = null,
+        string TemplateName = null,
+        IReadOnlyList<PairingCandidate> Candidates = null,
+        IReadOnlyList<PairingPermissionSet> TemplatePermissionSets = null);
+
+    /// <summary>
+    /// Eine Anwendung, an die ein Geraet gekoppelt werden kann.
+    /// </summary>
+    /// <param name="ClientAppId">die Anwendung</param>
+    /// <param name="ClientAppName">ihr Name</param>
+    /// <param name="PermissionSets">die Rechtebuendel, die sie zugestanden bekommt</param>
+    /// <param name="ActiveInstance">
+    /// das Geraet, das schon an ihr gekoppelt ist (sein Name), sonst null. <b>Eine Anwendung hat hoechstens
+    /// eine aktive Instanz</b>; ist hier etwas eingetragen, laesst sich nur dasselbe Geraet erneut koppeln
+    /// (es ersetzt dann seinen Zugang), jedes andere wird abgewiesen.
+    /// </param>
+    /// <param name="Available">ob dieses Geraet an diese Anwendung gekoppelt werden kann</param>
+    public sealed record PairingCandidate(
+        int ClientAppId,
+        string ClientAppName,
+        IReadOnlyList<string> PermissionSets,
+        string ActiveInstance,
+        bool Available);
+
+    /// <summary>
+    /// Ein Rechtebuendel eines Templates.
+    /// </summary>
+    /// <param name="AppPermissionSetId">das Buendel</param>
+    /// <param name="Name">sein Name</param>
+    public sealed record PairingPermissionSet(int AppPermissionSetId, string Name);
 
     /// <summary>
     /// Das Ergebnis der Bestaetigung.
@@ -56,8 +100,14 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
     /// weitere Nachfragen bekommt hier null.
     /// </param>
     /// <param name="PollIntervalSeconds">wie lange das Geraet bis zum naechsten Versuch warten soll</param>
+    /// <param name="ClientKey">
+    /// die Kennung der Anwendung, an die gekoppelt wurde - zusammen mit <see cref="ApiKey"/> und nur dort.
+    /// Das Geraet meldet sich damit am Dienst-Verteiler an. Steht auch vorne im Schluessel; hier ausgewiesen,
+    /// damit niemand den Schluessel zerlegen muss.
+    /// </param>
     public sealed record PairingResult(
         DevicePairingState State,
         string ApiKey,
-        int PollIntervalSeconds);
+        int PollIntervalSeconds,
+        string ClientKey = null);
 }

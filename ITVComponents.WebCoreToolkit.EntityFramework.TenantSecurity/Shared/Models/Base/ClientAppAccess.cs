@@ -19,11 +19,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
     // PostgreSQL zaehlt NULLs ohnehin als verschieden. Von Hand gefiltert werden muesste er nur bei
     // handgeschriebenem SQL.
     // ACHTUNG BEIM LESEN: er sieht aus wie die Zusicherung "jeder Zugang gehoert einem Benutzer" - das
-    // ist er NICHT. Fuer Maschinenzugaenge haelt er gar nichts zusammen, und das ist gewollt: ein Laden
-    // hat mehrere Kassen an derselben Anwendung. Dass ein GERAET nur einen gueltigen Zugang hat, ist
-    // deshalb keine Sache der Datenbank - dafuer raeumt DbDevicePairingService.ConfirmAsync den
-    // Vorgaenger desselben DeviceLabel ab. Diese Lesart hat schon einmal eine Fehlersuche in die
-    // falsche Richtung geschickt.
+    // ist er NICHT. Fuer Maschinenzugaenge haelt er gar nichts zusammen. Dass eine Anwendung hoechstens
+    // EINE aktive Maschinen-Instanz hat (der Agent meldet sich unter ihrem ClientKey am Verteiler an, ihre
+    // Geraete-Rollen gelten fuer genau einen Rechner - mehrere Kassen = mehrere Anwendungen), ist
+    // deshalb keine Sache der Datenbank: DbDevicePairingService.ConfirmAsync weist ein zweites Geraet ab
+    // und raeumt den Vorgaenger DESSELBEN DeviceLabel ab. Diese Lesart hat schon einmal eine Fehlersuche
+    // in die falsche Richtung geschickt.
     [Index(nameof(TenantUserId), nameof(ClientAppId), IsUnique = true, Name="UQ_TUserPerApp")]
     public class ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>

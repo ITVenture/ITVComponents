@@ -2,6 +2,8 @@
     <MudTextField @bind-Value="Model.Name" Label="Name" Required="true" RequiredError="Name is required" MaxLength="200" />
     <MudTextField @bind-Value="Model.CatalogObjectName" Label="Agent catalog object" MaxLength="128" Class="mt-3"
                   HelperText="Object name under which agents of this template offer their device catalog. Leave empty for the default (AgentCatalog)." />
+    <MudTextField @bind-Value="Model.TypeKey" Label="Device type key" MaxLength="64" Class="mt-3"
+                  HelperText="Fixed key a device of this template sends when it pairs (e.g. pos-agent). The confirming user then picks one of the applications of this template. Leave empty if devices pair with their client key only." />
 </EditDialogShell>
 
 @code {

@@ -56,5 +56,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         /// Unter welchem Objektnamen der Agent seinen Katalog bereitstellt. Leer = der Standardname.
         /// </summary>
         string CatalogObjectName { get; set; }
+
+        /// <summary>
+        /// Was ein Geraet dieses Templates ist, als fester Schluessel - das Geraet nennt ihn beim Koppeln.
+        /// </summary>
+        string TypeKey { get; set; }
     }
 }

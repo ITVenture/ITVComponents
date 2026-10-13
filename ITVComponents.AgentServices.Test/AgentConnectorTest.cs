@@ -39,6 +39,7 @@ namespace ITVComponents.AgentServices.Test
         public int ClientAppTemplateId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string CatalogObjectName { get; set; } = null!;
+        public string TypeKey { get; set; } = null!;
     }
 
     public class AgentTestContext : DbContext, IAgentServiceBindingContext,
@@ -62,6 +63,7 @@ namespace ITVComponents.AgentServices.Test
             modelBuilder.Entity<TestClientApp>().HasKey(a => a.ClientAppId);
             modelBuilder.Entity<TestClientAppTemplate>().HasKey(t => t.ClientAppTemplateId);
             modelBuilder.Entity<TestClientAppTemplate>().Property(t => t.CatalogObjectName).IsRequired(false);
+            modelBuilder.Entity<TestClientAppTemplate>().Property(t => t.TypeKey).IsRequired(false);
             modelBuilder.ConfigureAgentServices<Tenant, TestClientApp>();
         }
     }

@@ -57,9 +57,9 @@
   <data name="App_Col_State" xml:space="preserve"><value>Stato</value></data>
   <data name="App_State_On" xml:space="preserve"><value>attiva</value></data>
   <data name="App_State_Off" xml:space="preserve"><value>disattivata</value></data>
-  <data name="App_Col_Devices" xml:space="preserve"><value>Dispositivi</value></data>
+  <data name="App_Col_Devices" xml:space="preserve"><value>Istanze</value></data>
   <data name="App_Tab_Sets" xml:space="preserve"><value>Set di autorizzazioni concessi</value></data>
-  <data name="App_Tab_Devices" xml:space="preserve"><value>Dispositivi</value></data>
+  <data name="App_Tab_Devices" xml:space="preserve"><value>Istanze connesse</value></data>
   <data name="App_NoPermission" xml:space="preserve"><value>Nessuna autorizzazione per visualizzare le applicazioni client.</value></data>
   <data name="App_NoTemplate" xml:space="preserve"><value>Non esiste ancora alcun modello di applicazione. Creane prima uno in «Modelli di applicazioni client».</value></data>
   <data name="App_Create_Title" xml:space="preserve"><value>Crea applicazione</value></data>
@@ -121,4 +121,17 @@
   <data name="Pair_ConfirmedToast" xml:space="preserve"><value>Accoppiamento confermato</value></data>
   <data name="Pair_ConfirmFailed" xml:space="preserve"><value>Non è stato possibile confermare l'accoppiamento.</value></data>
   <data name="Pair_NoPermission" xml:space="preserve"><value>Nessuna autorizzazione per confermare accoppiamenti.</value></data>
+  <data name="Pair_Type" xml:space="preserve"><value>Tipo: {0}</value></data>
+  <data name="Pair_Application" xml:space="preserve"><value>Applicazione</value></data>
+  <data name="Pair_ChooseApp" xml:space="preserve"><value>Scegliere l'applicazione a cui questo dispositivo viene collegato.</value></data>
+  <data name="Pair_NoCandidates" xml:space="preserve"><value>In questo mandante non esiste ancora un'applicazione di questo tipo.</value></data>
+  <data name="Pair_ActiveInstance" xml:space="preserve"><value>già collegata: {0}</value></data>
+  <data name="Pair_Replaces" xml:space="preserve"><value>Questo dispositivo è già collegato a questa applicazione. Il suo accesso precedente viene sostituito.</value></data>
+  <data name="Pair_Occupied" xml:space="preserve"><value>Questa applicazione ha già un'istanza collegata ({0}). Revocarla prima in Applicazioni client → Istanze connesse.</value></data>
+  <data name="Pair_CreateNew" xml:space="preserve"><value>Crea una nuova applicazione…</value></data>
+  <data name="Pair_NewName" xml:space="preserve"><value>Nome della nuova applicazione</value></data>
+  <data name="Pair_NewSets" xml:space="preserve"><value>Set di autorizzazioni da concedere</value></data>
+  <data name="Pair_CreateAndConfirm" xml:space="preserve"><value>Crea l'applicazione e conferma l'accoppiamento</value></data>
+  <data name="Pair_CreateFailed" xml:space="preserve"><value>Non è stato possibile creare l'applicazione.</value></data>
+  <data name="Pair_SetsFailed" xml:space="preserve"><value>L'applicazione è stata creata, ma non tutti i set di autorizzazioni hanno potuto essere concessi. Verificarli in Applicazioni client.</value></data>
 </root>

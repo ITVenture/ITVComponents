@@ -15,8 +15,11 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
     /// <summary>Was das Geraet beim Anlegen schickt.</summary>
     public class StartPairingModel
     {
-        /// <summary>die oeffentliche Kennung der Anwendung</summary>
+        /// <summary>die oeffentliche Kennung einer Anwendung - nur, wenn das Geraet sie selbst festlegt</summary>
         public string ClientKey { get; set; }
+
+        /// <summary>was das Geraet ist: der Typ-Schluessel seines Templates (der Regelfall)</summary>
+        public string TypeKey { get; set; }
 
         /// <summary>wie sich das Geraet nennt</summary>
         public string DeviceLabel { get; set; }
@@ -34,6 +37,12 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
     {
         /// <summary>der abgetippte Benutzercode</summary>
         public string UserCode { get; set; }
+
+        /// <summary>
+        /// die gewaehlte Anwendung; Pflicht beim Bestaetigen, wenn das Geraet keine festgelegt hat
+        /// (bei <c>describe</c> ohne Bedeutung)
+        /// </summary>
+        public int? ClientAppId { get; set; }
     }
 
     /// <summary>
@@ -48,7 +57,7 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
         /// <para>
         /// <b><c>start</c> und <c>poll</c> laufen anonym</b> - das Geraet hat noch keine Identitaet, das
         /// ist ja der Punkt der Uebung. Ihre Absicherung liegt woanders: <c>start</c> braucht eine
-        /// gueltige Anwendungs-Kennung, <c>poll</c> den Geraetecode, der selbst das Geheimnis ist, und
+        /// gueltige Anwendungs-Kennung oder einen bekannten Typ-Schluessel, <c>poll</c> den Geraetecode, der selbst das Geheimnis ist, und
         /// dazu kommen Ablauf und Abfragebremse.
         /// </para>
         /// <para>
@@ -87,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
         private static async Task<IResult> StartAsync([FromBody] StartPairingModel model,
             [FromServices] IDevicePairingService pairing, CancellationToken ct)
         {
-            var result = await pairing.StartAsync(model?.ClientKey, model?.DeviceLabel, ct);
+            var result = await pairing.StartAsync(model?.ClientKey, model?.TypeKey, model?.DeviceLabel, ct);
             // Kein Unterschied nach aussen zwischen "gibt es nicht" und "abgeschaltet": wer raet, soll
             // nicht erfahren, welche Kennungen existieren. Im Protokoll steht der Grund.
             return result == null ? Results.NotFound() : Results.Ok(result);
@@ -121,7 +130,7 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
                 return Forbid(services, permission, "confirm");
             }
 
-            var result = await pairing.ConfirmAsync(model?.UserCode, ct);
+            var result = await pairing.ConfirmAsync(model?.UserCode, model?.ClientAppId, ct);
             return result.Success ? Results.Ok(result) : Results.BadRequest(result);
         }
 

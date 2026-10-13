@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         where TClientApp : ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
         where TClientAppAccess : ClientAppAccess<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>, new()
         where TDevicePairing : DevicePairing<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>, new()
+        where TClientAppTemplate : ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
         where TTenant : Tenant
         where TRoleRole : RoleRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TGlobalRole : GlobalRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -67,21 +69,58 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         }
 
         /// <inheritdoc/>
-        public async Task<PairingRequest> StartAsync(string clientKey, string deviceLabel,
+        public async Task<PairingRequest> StartAsync(string clientKey, string typeKey, string deviceLabel,
             CancellationToken ct = default)
         {
             var o = settings.Value;
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            var app = await db.Set<TClientApp>()
-                .Where(n => n.ClientKey == clientKey && n.Enabled)
-                .Select(n => new { n.ClientAppId, n.TenantId, n.ClientName })
-                .FirstOrDefaultAsync(ct);
-            if (app == null)
+            int? tenantId = null;
+            int? clientAppId = null;
+            int templateId;
+            string target;
+            if (!string.IsNullOrWhiteSpace(clientKey))
             {
-                logger.LogWarning(
-                    "Pairing was requested for client-key {ClientKey}, which is unknown or switched off.",
-                    clientKey);
+                // Der fruehere Weg: das Geraet legt die Anwendung selbst fest, sie bringt den Mandanten mit.
+                var app = await db.Set<TClientApp>()
+                    .Where(n => n.ClientKey == clientKey && n.Enabled)
+                    .Select(n => new { n.ClientAppId, n.TenantId, n.ClientName, n.ClientAppTemplateId })
+                    .FirstOrDefaultAsync(ct);
+                if (app == null)
+                {
+                    logger.LogWarning(
+                        "Pairing was requested for client-key {ClientKey}, which is unknown or switched off.",
+                        clientKey);
+                    return null;
+                }
+
+                tenantId = app.TenantId;
+                clientAppId = app.ClientAppId;
+                templateId = app.ClientAppTemplateId;
+                target = $"application {app.ClientName} (tenant {app.TenantId})";
+            }
+            else if (!string.IsNullOrWhiteSpace(typeKey))
+            {
+                // Der Regelfall: das Geraet sagt nur, was es ist. Anwendung und Mandant waehlt, wer bestaetigt.
+                var key = typeKey.Trim();
+                var template = await db.Set<TClientAppTemplate>()
+                    .Where(n => n.TypeKey == key)
+                    .Select(n => new { n.ClientAppTemplateId, n.Name })
+                    .FirstOrDefaultAsync(ct);
+                if (template == null)
+                {
+                    logger.LogWarning(
+                        "Pairing was requested for type-key {TypeKey}, which no client-app template carries.",
+                        key);
+                    return null;
+                }
+
+                templateId = template.ClientAppTemplateId;
+                target = $"type {key} (template {template.Name})";
+            }
+            else
+            {
+                logger.LogWarning("Pairing was requested with neither a client-key nor a type-key; refused.");
                 return null;
             }
 
@@ -91,8 +130,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
             var pairing = new TDevicePairing
             {
-                TenantId = app.TenantId,
-                ClientAppId = app.ClientAppId,
+                TenantId = tenantId,
+                ClientAppId = clientAppId,
+                ClientAppTemplateId = templateId,
                 DeviceCodeHash = SecretHasher.Hash(deviceCode),
                 UserCode = UserCodeGenerator.Create(o.UserCodeLength),
                 DeviceLabel = Trim(deviceLabel, 200),
@@ -105,8 +145,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation(
-                "Pairing {UserCode} opened for application {App} (tenant {TenantId}), expires {Expires}.",
-                pairing.UserCode, app.ClientName, app.TenantId, pairing.ExpiresUtc);
+                "Pairing {UserCode} opened for {Target}, expires {Expires}.",
+                pairing.UserCode, target, pairing.ExpiresUtc);
 
             return new PairingRequest(deviceCode, pairing.UserCode, pairing.ExpiresUtc, o.PollIntervalSeconds);
         }
@@ -127,23 +167,81 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return new PairingPreview(false, null, null, Array.Empty<string>());
             }
 
+            string templateName = null;
+            IReadOnlyList<PairingPermissionSet> templateSets = Array.Empty<PairingPermissionSet>();
+            if (pairing.ClientAppTemplateId != null)
+            {
+                templateName = await db.Set<TClientAppTemplate>()
+                    .Where(n => n.ClientAppTemplateId == pairing.ClientAppTemplateId)
+                    .Select(n => n.Name)
+                    .FirstOrDefaultAsync(ct);
+                templateSets = await db.Set<TAppPermissionSet>()
+                    .Where(n => n.ClientAppTemplateId == pairing.ClientAppTemplateId)
+                    .OrderBy(n => n.Name)
+                    .Select(n => new PairingPermissionSet(n.AppPermissionSetId, n.Name))
+                    .ToListAsync(ct);
+            }
+
+            // Die Auswahl: hat das Geraet seine Anwendung festgelegt, ist es genau die; sonst die Anwendungen
+            // seines Templates im Mandanten dessen, der gerade bestaetigt.
+            var apps = db.Set<TClientApp>().AsQueryable();
+            if (pairing.ClientAppId != null)
+            {
+                apps = apps.Where(n => n.ClientAppId == pairing.ClientAppId);
+            }
+            else
+            {
+                var tenant = (permissionScope.PermissionPrefix ?? "").ToLower();
+                apps = apps.Where(n => n.ClientAppTemplateId == pairing.ClientAppTemplateId
+                                       && n.Enabled
+                                       && n.Tenant.TenantNameLower == tenant);
+            }
+
+            var candidates = await LoadCandidatesAsync(apps, pairing.DeviceLabel, ct);
+
             // Genau das, was der Bestaetiger sehen muss: welche Rechtebuendel er gleich erteilt.
-            var sets = await db.Set<TClientAppPermission>()
-                .Where(n => n.ClientAppId == pairing.ClientAppId)
-                .Select(n => n.PermissionSet.Name)
-                .OrderBy(n => n)
+            var fixedApp = pairing.ClientAppId == null ? null : candidates.FirstOrDefault();
+            return new PairingPreview(true, fixedApp?.ClientAppName, pairing.DeviceLabel,
+                fixedApp?.PermissionSets ?? Array.Empty<string>(),
+                pairing.ClientAppId, pairing.ClientAppTemplateId, templateName, candidates, templateSets);
+        }
+
+        /// <summary>
+        /// Die Anwendungen, an die gekoppelt werden kann, samt ihrer Buendel und der Instanz, die schon an
+        /// ihnen haengt.
+        /// </summary>
+        private async Task<IReadOnlyList<PairingCandidate>> LoadCandidatesAsync(IQueryable<TClientApp> apps,
+            string deviceLabel, CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var rows = await apps
+                .OrderBy(n => n.ClientName)
+                .Select(n => new
+                {
+                    n.ClientAppId,
+                    n.ClientName,
+                    Sets = n.AppPermissions.Select(p => p.PermissionSet.Name).OrderBy(p => p).ToList(),
+                    Active = n.Accesses
+                        .Where(a => a.TenantUserId == null && a.RevokedUtc == null
+                                    && (a.ExpiresUtc == null || a.ExpiresUtc > now))
+                        .Select(a => new { a.DeviceLabel, a.Label })
+                        .ToList()
+                })
                 .ToListAsync(ct);
 
-            var appName = await db.Set<TClientApp>()
-                .Where(n => n.ClientAppId == pairing.ClientAppId)
-                .Select(n => n.ClientName)
-                .FirstOrDefaultAsync(ct);
-
-            return new PairingPreview(true, appName, pairing.DeviceLabel, sets);
+            return rows.Select(n => new PairingCandidate(
+                    n.ClientAppId,
+                    n.ClientName,
+                    n.Sets,
+                    n.Active.Count == 0 ? null : string.Join(", ", n.Active.Select(a => a.DeviceLabel ?? a.Label)),
+                    // Dasselbe Geraet darf neu koppeln - es ersetzt dann seinen Zugang.
+                    n.Active.All(a => a.DeviceLabel == deviceLabel)))
+                .ToList();
         }
 
         /// <inheritdoc/>
-        public async Task<PairingConfirmation> ConfirmAsync(string userCode, CancellationToken ct = default)
+        public async Task<PairingConfirmation> ConfirmAsync(string userCode, int? clientAppId,
+            CancellationToken ct = default)
         {
             var code = UserCodeGenerator.Normalize(userCode);
             if (code == null)
@@ -159,22 +257,91 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 return new PairingConfirmation(false, "No open pairing for this code.");
             }
 
-            // Die Mandantengrenze: der Bestaetiger muss im Mandanten der Anwendung stehen. Ohne diese
-            // Pruefung koennte ein Administrator eines fremden Mandanten ein Geraet freischalten.
-            var currentTenant = permissionScope.PermissionPrefix;
-            var appTenant = await db.Set<TClientApp>()
-                .Where(n => n.ClientAppId == pairing.ClientAppId)
-                .Select(n => n.Tenant.TenantName)
+            int targetAppId;
+            if (pairing.ClientAppId != null)
+            {
+                // Das Geraet hat seine Anwendung selbst festgelegt - eine andere Wahl waere eine Umleitung.
+                if (clientAppId != null && clientAppId != pairing.ClientAppId)
+                {
+                    logger.LogWarning(
+                        "Pairing {UserCode} was requested for application {RequestedApp}, but confirmed for {ChosenApp}. Refused.",
+                        code, pairing.ClientAppId, clientAppId);
+                    return new PairingConfirmation(false, "This device asked for another application.");
+                }
+
+                targetAppId = pairing.ClientAppId.Value;
+            }
+            else if (clientAppId == null)
+            {
+                logger.LogWarning("Pairing {UserCode} was confirmed without choosing an application. Refused.", code);
+                return new PairingConfirmation(false, "Choose the application this device is paired to.");
+            }
+            else
+            {
+                targetAppId = clientAppId.Value;
+            }
+
+            var app = await db.Set<TClientApp>()
+                .Where(n => n.ClientAppId == targetAppId)
+                .Select(n => new { n.ClientAppId, n.TenantId, n.ClientName, n.ClientAppTemplateId, n.Enabled, n.Tenant.TenantName })
                 .FirstOrDefaultAsync(ct);
+            if (app == null)
+            {
+                logger.LogWarning("Pairing {UserCode} was confirmed for application {AppId}, which does not exist. Refused.",
+                    code, targetAppId);
+                return new PairingConfirmation(false, "The chosen application does not exist.");
+            }
+
+            // Die Mandantengrenze: der Bestaetiger muss im Mandanten der Anwendung stehen. Ohne diese
+            // Pruefung koennte ein Administrator eines fremden Mandanten ein Geraet freischalten - oder eines
+            // an die Anwendung eines fremden Mandanten haengen.
+            var currentTenant = permissionScope.PermissionPrefix;
+            var appTenant = app.TenantName;
             if (!string.Equals(currentTenant, appTenant, StringComparison.OrdinalIgnoreCase))
             {
                 logger.LogWarning(
-                    "Pairing {UserCode} belongs to tenant {AppTenant}, but was confirmed from {CurrentTenant}. Refused.",
-                    code, appTenant, currentTenant);
+                    "Pairing {UserCode} targets application {AppId} of tenant {AppTenant}, but was confirmed from {CurrentTenant}. Refused.",
+                    code, app.ClientAppId, appTenant, currentTenant);
                 return new PairingConfirmation(false, "This pairing belongs to another tenant.");
             }
 
+            if (!app.Enabled)
+            {
+                logger.LogWarning("Pairing {UserCode} was confirmed for application {App}, which is switched off. Refused.",
+                    code, app.ClientName);
+                return new PairingConfirmation(false, "The chosen application is switched off.");
+            }
+
+            if (pairing.ClientAppTemplateId != null && pairing.ClientAppTemplateId != app.ClientAppTemplateId)
+            {
+                logger.LogWarning(
+                    "Pairing {UserCode} is a device of template {DeviceTemplate}, but application {App} belongs to template {AppTemplate}. Refused.",
+                    code, pairing.ClientAppTemplateId, app.ClientName, app.ClientAppTemplateId);
+                return new PairingConfirmation(false, "The chosen application is of another type than the device.");
+            }
+
             var now = DateTime.UtcNow;
+
+            // Hoechstens EINE aktive Instanz je Anwendung: der Agent meldet sich unter dem ClientKey der
+            // Anwendung am Dienst-Verteiler an, und die Geraete-Rollen haengen an der Anwendung. Eine zweite
+            // Kasse an derselben Anwendung wuerde dort abgewiesen - oder, wenn die erste gerade nicht
+            // verbunden ist, mit deren Geraeten arbeiten. Nur dasselbe Geraet (gleicher Name) darf neu
+            // koppeln; das ersetzt unten seinen Zugang. Gegen zwei GLEICHZEITIGE Bestaetigungen fuer
+            // dieselbe Anwendung schuetzt das nicht - dafuer muesste die Datenbank es halten.
+            var others = await db.Set<TClientAppAccess>()
+                .Where(n => n.ClientAppId == app.ClientAppId && n.TenantUserId == null && n.RevokedUtc == null
+                            && (n.ExpiresUtc == null || n.ExpiresUtc > now)
+                            && n.DeviceLabel != pairing.DeviceLabel)
+                .Select(n => n.DeviceLabel ?? n.Label)
+                .ToListAsync(ct);
+            if (others.Count != 0)
+            {
+                logger.LogWarning(
+                    "Pairing {UserCode} was refused: application {App} already has an active instance ({Instances}).",
+                    code, app.ClientName, string.Join(", ", others));
+                return new PairingConfirmation(false,
+                    $"The application already has an active instance ({string.Join(", ", others)}). Revoke it under 'Connected instances' first.");
+            }
 
             // Ein Geraet, das ERNEUT koppelt, ersetzt seinen bisherigen Zugang. Ohne das sammelt sich je
             // Kopplung ein weiterer an, und - das ist der Punkt - der alte Schluessel bleibt gueltig: ein
@@ -184,10 +351,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             // dadurch an der voellig falschen Stelle.
             // Nur Maschinenzugaenge (TenantUserId == null): eine Delegation gehoert einem Menschen und
             // wird nicht von der naechsten Geraetekopplung abgeraeumt.
-            var replaced = await db.Set<TClientAppAccess>()
-                .Where(n => n.ClientAppId == pairing.ClientAppId && n.DeviceLabel == pairing.DeviceLabel
+            // Geladen statt ExecuteUpdate: es sind null bis wenige Zeilen, und so laeuft derselbe Weg auch im
+            // InMemory-Provider der Tests. Gespeichert wird zusammen mit dem neuen Zugang.
+            var predecessors = await db.Set<TClientAppAccess>()
+                .Where(n => n.ClientAppId == app.ClientAppId && n.DeviceLabel == pairing.DeviceLabel
                             && n.TenantUserId == null && n.RevokedUtc == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(n => n.RevokedUtc, now), ct);
+                .ToListAsync(ct);
+            predecessors.ForEach(n => n.RevokedUtc = now);
+            var replaced = predecessors.Count;
             if (replaced != 0)
             {
                 logger.LogInformation(
@@ -199,15 +370,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             // erzeugt, muesste es bis dahin irgendwo im Klartext liegen.
             var access = new TClientAppAccess
             {
-                ClientAppId = pairing.ClientAppId,
+                ClientAppId = app.ClientAppId,
                 TenantUserId = null,
-                Label = BuildLabel(pairing.DeviceLabel),
+                Label = BuildLabel(app.ClientName),
                 DeviceLabel = pairing.DeviceLabel,
                 CreatedUtc = now
             };
             db.Set<TClientAppAccess>().Add(access);
             await db.SaveChangesAsync(ct);
 
+            pairing.TenantId = app.TenantId;
+            pairing.ClientAppId = app.ClientAppId;
             pairing.State = DevicePairingState.Confirmed;
             pairing.ConfirmedUtc = now;
             pairing.ConfirmedByTenantUserId = await ResolveConfirmingTenantUserAsync(db, appTenant, ct);
@@ -304,7 +477,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 pairing.UserCode, access.Label);
 
             return new PairingResult(DevicePairingState.Delivered,
-                $"{clientKey}.{access.Label}.{secret}", o.PollIntervalSeconds);
+                $"{clientKey}.{access.Label}.{secret}", o.PollIntervalSeconds, clientKey);
         }
 
         /// <inheritdoc/>
@@ -386,13 +559,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// Baut den systemweit eindeutigen Bezeichner eines Zugangs.
         /// </summary>
         /// <remarks>
-        /// Der Zufallsanteil ist Pflicht, nicht Zierde: <c>UQ_ClientAppAccess</c> ist systemweit eindeutig,
-        /// und "Terminal-01" gibt es in jeder Filiale einmal.
+        /// <para>
+        /// Der Zufallsanteil ist Pflicht, nicht Zierde: <c>UQ_ClientAppAccess</c> ist systemweit eindeutig und
+        /// gilt auch fuer widerrufene Zugaenge - jede Neukopplung derselben Kasse braucht ein neues Label, und
+        /// "Kasse 1" gibt es in jedem Mandanten einmal.
+        /// </para>
+        /// <para>
+        /// Der Praefix ist der Name der ANWENDUNG, nicht der des Rechners: im Protokoll und unter den
+        /// verbundenen Instanzen soll man sehen, welche Kasse sich meldet. Ohne Punkte - das Label steht
+        /// mitten im Schluessel <c>&lt;ClientKey&gt;.&lt;Label&gt;.&lt;Geheimnis&gt;</c>.
+        /// </para>
         /// </remarks>
-        private static string BuildLabel(string deviceLabel)
+        private static string BuildLabel(string clientAppName)
         {
-            var prefix = string.IsNullOrWhiteSpace(deviceLabel) ? "device" : deviceLabel.Trim();
-            prefix = new string(prefix.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
+            var prefix = string.IsNullOrWhiteSpace(clientAppName) ? "device" : clientAppName.Trim();
+            // Nur ASCII: der Schluessel reist als Header (X-Api-Key), und "Kasse Büro" ist ein Anwendungsname,
+            // der dort nichts verloren hat.
+            prefix = new string(prefix.Where(c => char.IsAsciiLetterOrDigit(c) || c == '-' || c == '_').ToArray());
             if (prefix.Length > 80)
             {
                 prefix = prefix[..80];

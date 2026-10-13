@@ -43,6 +43,7 @@ else
         <Columns>
             <HierarchyColumn T="ClientAppTemplateViewModel" />
             <PropertyColumn Property="x => x.Name" Title="Name" />
+            <PropertyColumn Property="x => x.TypeKey" Title="Device type key" Sortable="false" />
             <TemplateColumn T="ClientAppTemplateViewModel" Title="" Sortable="false">
                 <CellTemplate>
                     <SecureView RequiredPermissions="Apps.PermissionSets.Write">
@@ -123,7 +124,8 @@ else
         {
             ClientAppTemplateId = item.ClientAppTemplateId,
             Name = item.Name,
-            CatalogObjectName = item.CatalogObjectName
+            CatalogObjectName = item.CatalogObjectName,
+            TypeKey = item.TypeKey
         };
         var parameters = new DialogParameters<AppTemplateDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<AppTemplateDialog>("Edit template", parameters, EditDialogDefaults.Edit);

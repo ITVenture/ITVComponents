@@ -117,7 +117,8 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
             {
                 ClientAppTemplateId = t.ClientAppTemplateId,
                 Name = t.Name,
-                CatalogObjectName = t.CatalogObjectName
+                CatalogObjectName = t.CatalogObjectName,
+                TypeKey = t.TypeKey
             }).ToListAsync();
         return new PagedResult<ClientAppTemplateViewModel> { Items = items, TotalCount = total };
     }
@@ -126,7 +127,13 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     {
         if (!HasPermission("Apps.PermissionSets.Write")) return null;
         using var db = CreateDb();
-        var entity = new TClientAppTemplate { Name = input.Name, CatalogObjectName = Normalize(input.CatalogObjectName) };
+        var typeKey = Normalize(input.TypeKey);
+        if (await TypeKeyTakenAsync(db, typeKey, null))
+        {
+            return null;
+        }
+
+        var entity = new TClientAppTemplate { Name = input.Name, CatalogObjectName = Normalize(input.CatalogObjectName), TypeKey = typeKey };
         db.ClientAppTemplates.Add(entity);
         await db.SaveChangesAsync();
         input.ClientAppTemplateId = entity.ClientAppTemplateId;
@@ -139,15 +146,55 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         using var db = CreateDb();
         var entity = await db.ClientAppTemplates.FirstOrDefaultAsync(t => t.ClientAppTemplateId == input.ClientAppTemplateId);
         if (entity == null) return null;
+        var typeKey = Normalize(input.TypeKey);
+        if (await TypeKeyTakenAsync(db, typeKey, entity.ClientAppTemplateId))
+        {
+            return null;
+        }
+
         entity.Name = input.Name;
         entity.CatalogObjectName = Normalize(input.CatalogObjectName);
+        // Wer den Typ-Schluessel aendert, laesst ausgerollte Geraete beim naechsten Koppeln ins Leere laufen -
+        // erlaubt, aber nicht still.
+        if (entity.TypeKey != typeKey)
+        {
+            logger.LogWarning("The type-key of app-template {Template} changes from '{Old}' to '{New}'; devices that pair with the old key are refused from now on.",
+                entity.Name, entity.TypeKey, typeKey);
+        }
+
+        entity.TypeKey = typeKey;
         await db.SaveChangesAsync();
         return input;
     }
 
-    /// <summary>Leer bleibt leer (= Standardname), sonst ohne Rand.</summary>
-    private static string? Normalize(string? catalogObjectName)
-        => string.IsNullOrWhiteSpace(catalogObjectName) ? null : catalogObjectName.Trim();
+    /// <summary>Leer bleibt leer (= Standardname bzw. kein Typ), sonst ohne Rand.</summary>
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// Ob ein anderes Template den Typ-Schluessel schon fuehrt. Der Index haelt das ohnehin; die Pruefung hier
+    /// macht aus einer Datenbank-Ausnahme eine verstaendliche Abweisung im Protokoll.
+    /// </summary>
+    private async Task<bool> TypeKeyTakenAsync(TContext db, string? typeKey, int? ownId)
+    {
+        if (typeKey == null)
+        {
+            return false;
+        }
+
+        var other = await db.ClientAppTemplates.AsNoTracking()
+            .Where(t => t.TypeKey == typeKey && t.ClientAppTemplateId != ownId)
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync();
+        if (other == null)
+        {
+            return false;
+        }
+
+        logger.LogWarning("The type-key '{TypeKey}' is already used by app-template {Template}; the template was not saved.",
+            typeKey, other);
+        return true;
+    }
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int clientAppTemplateId)
     {

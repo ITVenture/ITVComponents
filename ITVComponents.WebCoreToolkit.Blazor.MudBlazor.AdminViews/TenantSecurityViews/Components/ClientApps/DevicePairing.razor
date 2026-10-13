@@ -1,13 +1,21 @@
-﻿@page "/Connectivity/DevicePairing"
+@page "/Connectivity/DevicePairing"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Security.DevicePairing
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers
+@using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels
 
 @inject IDevicePairingService Pairing
 @inject IStringLocalizer<ClientAppMessages> L
 @inject ISnackbar Snackbar
+@inject IServiceProvider Services
+@inject AuthenticationStateProvider AuthState
+@inject ILogger<DevicePairing> Logger
 
 <PageTitle>@L["Pair_Title"]</PageTitle>
 
@@ -50,32 +58,83 @@
             @if (preview is { Found: true })
             {
                 <MudDivider Class="my-4" />
-                <MudText Typo="Typo.subtitle1">@preview.ClientAppName</MudText>
-                <MudText Typo="Typo.body2" Class="mb-3">@L["Pair_Device", preview.DeviceLabel]</MudText>
-
-                @* Der Punkt dieser Maske: zeigen, WAS gerade erteilt wird. Ein Knopf, hinter dem niemand
-                   weiss, was er freigibt, ist keine Zustimmung. *@
-                <MudText Typo="Typo.body2"><b>@L["Pair_WillGrant"]</b></MudText>
-                @if (preview.PermissionSets.Count == 0)
+                <MudText Typo="Typo.body2">@L["Pair_Device", preview.DeviceLabel ?? ""]</MudText>
+                @if (!string.IsNullOrEmpty(preview.TemplateName))
                 {
-                    <MudAlert Severity="Severity.Info" Class="mt-2">
-                        @L["Pair_NothingGranted"]
-                    </MudAlert>
+                    <MudText Typo="Typo.body2" Class="mb-3">@L["Pair_Type", preview.TemplateName]</MudText>
+                }
+
+                @if (preview.ClientAppId != null)
+                {
+                    @* Das Geraet hat seine Anwendung selbst festgelegt (mit seinem ClientKey). *@
+                    <MudText Typo="Typo.subtitle1">@preview.ClientAppName</MudText>
+                    @InstanceState(SelectedCandidate)
+                    @Grants(preview.PermissionSets)
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                               OnClick="@(() => Confirm(preview.ClientAppId))" Disabled="@(busy || SelectedCandidate is { Available: false })">
+                        @L["Pair_Confirm"]
+                    </MudButton>
                 }
                 else
                 {
-                    <MudList T="string" Dense="true">
-                        @foreach (var set in preview.PermissionSets)
-                        {
-                            <MudListItem T="string" Icon="@Icons.Material.Filled.Check">@set</MudListItem>
-                        }
-                    </MudList>
-                }
+                    @* Der Regelfall: das Geraet sagt nur, was es ist - die Anwendung waehlt, wer bestaetigt. *@
+                    <MudText Typo="Typo.body1" Class="mb-2">@L["Pair_ChooseApp"]</MudText>
+                    @if (Candidates.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Class="mb-2">@L["Pair_NoCandidates"]</MudAlert>
+                    }
 
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
-                           OnClick="Confirm" Disabled="@busy">
-                    @L["Pair_Confirm"]
-                </MudButton>
+                    @if (Candidates.Count != 0 || canCreate)
+                    {
+                        <MudSelect T="int" Label="@L["Pair_Application"]" Value="@selectedAppId" ValueChanged="@(v => selectedAppId = v)" Dense="true">
+                            @foreach (var c in Candidates)
+                            {
+                                <MudSelectItem T="int" Value="@c.ClientAppId" Disabled="@(!c.Available)">
+                                    @c.ClientAppName@(c.ActiveInstance == null ? "" : $" ({L["Pair_ActiveInstance", c.ActiveInstance]})")
+                                </MudSelectItem>
+                            }
+                            @if (canCreate)
+                            {
+                                <MudSelectItem T="int" Value="@NewApp">@L["Pair_CreateNew"]</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+
+                    @if (selectedAppId == NewApp && canCreate)
+                    {
+                        <MudTextField @bind-Value="newName" Label="@L["Pair_NewName"]" MaxLength="200" Immediate="true" Class="mt-3" />
+                        <MudText Typo="Typo.body2" Class="mt-3"><b>@L["Pair_NewSets"]</b></MudText>
+                        @if ((preview.TemplatePermissionSets?.Count ?? 0) == 0)
+                        {
+                            <MudAlert Severity="Severity.Info" Class="mt-2">@L["Pair_NothingGranted"]</MudAlert>
+                        }
+                        else
+                        {
+                            @foreach (var set in preview.TemplatePermissionSets!)
+                            {
+                                <MudCheckBox T="bool" Dense="true" Label="@set.Name"
+                                             Value="@newSets.Contains(set.AppPermissionSetId)"
+                                             ValueChanged="@(v => ToggleSet(set.AppPermissionSetId, v))" />
+                            }
+                        }
+
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                                   OnClick="CreateAndConfirm" Disabled="@(busy || string.IsNullOrWhiteSpace(newName))">
+                            @L["Pair_CreateAndConfirm"]
+                        </MudButton>
+                    }
+                    else if (SelectedCandidate != null)
+                    {
+                        <div class="mt-3">
+                            @InstanceState(SelectedCandidate)
+                            @Grants(SelectedCandidate.PermissionSets)
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                                   OnClick="@(() => Confirm(selectedAppId))" Disabled="@(busy || !SelectedCandidate.Available)">
+                            @L["Pair_Confirm"]
+                        </MudButton>
+                    }
+                }
             }
 
             @if (confirmed)
@@ -92,10 +151,83 @@
 </SecureView>
 
 @code {
+    /// <summary>Der Auswahlwert fuer "neue Anwendung anlegen" - keine echte Id ist 0.</summary>
+    private const int NewApp = 0;
+
     private string? userCode;
     private PairingPreview? preview;
     private bool busy;
     private bool confirmed;
+    private int selectedAppId;
+    private string? newName;
+    private readonly HashSet<int> newSets = new();
+    private bool canCreate;
+    private IClientAppAdminHandler? apps;
+
+    private IReadOnlyList<PairingCandidate> Candidates => preview?.Candidates ?? Array.Empty<PairingCandidate>();
+
+    private PairingCandidate? SelectedCandidate => preview?.ClientAppId != null
+        ? Candidates.FirstOrDefault()
+        : Candidates.FirstOrDefault(c => c.ClientAppId == selectedAppId);
+
+    protected override void OnInitialized()
+    {
+        // Anlegen gehoert zur Verwaltung der Client-Anwendungen (Apps.Write); wer nur koppeln darf, waehlt aus.
+        apps = Services.GetService<IClientAppAdminHandler>();
+        canCreate = apps?.HasPermission("Apps.Write") == true;
+    }
+
+    /// <summary>Ob an der Anwendung schon eine Instanz haengt - und ob das ein Hindernis ist.</summary>
+    private RenderFragment InstanceState(PairingCandidate? candidate) => __builder =>
+    {
+        if (candidate?.ActiveInstance == null)
+        {
+            return;
+        }
+
+        if (candidate.Available)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-2">@L["Pair_Replaces"]</MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2">@L["Pair_Occupied", candidate.ActiveInstance]</MudAlert>
+        }
+    };
+
+    /// <summary>
+    /// Der Punkt dieser Maske: zeigen, WAS gerade erteilt wird. Ein Knopf, hinter dem niemand weiss, was er
+    /// freigibt, ist keine Zustimmung.
+    /// </summary>
+    private RenderFragment Grants(IReadOnlyList<string> sets) => __builder =>
+    {
+        <MudText Typo="Typo.body2"><b>@L["Pair_WillGrant"]</b></MudText>
+        if (sets.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-2">@L["Pair_NothingGranted"]</MudAlert>
+        }
+        else
+        {
+            <MudList T="string" Dense="true">
+                @foreach (var set in sets)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Check">@set</MudListItem>
+                }
+            </MudList>
+        }
+    };
+
+    private void ToggleSet(int id, bool on)
+    {
+        if (on)
+        {
+            newSets.Add(id);
+        }
+        else
+        {
+            newSets.Remove(id);
+        }
+    }
 
     private async Task OnKey(KeyboardEventArgs e)
     {
@@ -112,6 +244,12 @@
         try
         {
             preview = await Pairing.DescribeAsync(userCode);
+            newName = null;
+            newSets.Clear();
+            // Vorwahl: die einzige Anwendung, an die gekoppelt werden kann - sonst bewusst nichts.
+            var available = Candidates.Where(c => c.Available).ToList();
+            selectedAppId = available.Count == 1 ? available[0].ClientAppId
+                : Candidates.Count == 0 && canCreate ? NewApp : -1;
         }
         finally
         {
@@ -119,29 +257,82 @@
         }
     }
 
-    private async Task Confirm()
+    private async Task Confirm(int? clientAppId)
     {
         busy = true;
         try
         {
-            var result = await Pairing.ConfirmAsync(userCode);
-            if (result.Success)
-            {
-                confirmed = true;
-                preview = null;
-                userCode = null;
-                Snackbar.Add(L["Pair_ConfirmedToast"], Severity.Success);
-            }
-            else
-            {
-                // Der Grund kommt vom Dienst - etwa "gehoert einem anderen Mandanten".
-                // result.Reason kommt vom Dienst und ist NICHT uebersetzt - siehe Leitfaden 68.
-                Snackbar.Add(result.Reason ?? L["Pair_ConfirmFailed"], Severity.Error);
-            }
+            await ConfirmCoreAsync(clientAppId);
         }
         finally
         {
             busy = false;
+        }
+    }
+
+    private async Task CreateAndConfirm()
+    {
+        if (apps == null || preview?.ClientAppTemplateId == null || string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var user = (await AuthState.GetAuthenticationStateAsync()).User;
+            var created = await apps.CreateAsync(user, new ClientAppViewModel
+            {
+                ClientName = newName.Trim(),
+                ClientAppTemplateId = preview.ClientAppTemplateId.Value,
+                Enabled = true
+            });
+            if (created == null)
+            {
+                // Den Grund hat der Handler protokolliert (Recht, Mandant, Template).
+                Snackbar.Add(L["Pair_CreateFailed"], Severity.Error);
+                return;
+            }
+
+            var allGranted = true;
+            foreach (var set in newSets)
+            {
+                allGranted &= await apps.SetPermissionSetAsync(user, created.ClientAppId, set, true);
+            }
+
+            if (!allGranted)
+            {
+                Logger.LogWarning("Client app {App} was created while pairing, but not every chosen permission set could be granted.", created.ClientName);
+                Snackbar.Add(L["Pair_SetsFailed"], Severity.Warning);
+            }
+
+            await ConfirmCoreAsync(created.ClientAppId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Creating a client app while pairing failed.");
+            Snackbar.Add(L["Pair_CreateFailed"], Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ConfirmCoreAsync(int? clientAppId)
+    {
+        var result = await Pairing.ConfirmAsync(userCode, clientAppId);
+        if (result.Success)
+        {
+            confirmed = true;
+            preview = null;
+            userCode = null;
+            Snackbar.Add(L["Pair_ConfirmedToast"], Severity.Success);
+        }
+        else
+        {
+            // result.Reason kommt vom Dienst und ist NICHT uebersetzt - siehe Leitfaden 68.
+            Snackbar.Add(result.Reason ?? L["Pair_ConfirmFailed"], Severity.Error);
         }
     }
 }

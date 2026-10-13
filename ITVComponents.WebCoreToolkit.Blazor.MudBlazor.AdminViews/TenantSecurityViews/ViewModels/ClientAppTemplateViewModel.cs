@@ -12,6 +12,10 @@ public class ClientAppTemplateViewModel
     /// <summary>Unter welchem Objektnamen Agenten dieses Templates ihren Katalog bereitstellen; leer = Standard.</summary>
     [MaxLength(128)]
     public string? CatalogObjectName { get; set; }
+
+    /// <summary>Was ein Geraet dieses Templates ist - der Schluessel, den es beim Koppeln nennt; leer = nur per ClientKey.</summary>
+    [MaxLength(64)]
+    public string? TypeKey { get; set; }
 }
 
 public sealed class AppPermissionSetAssignmentViewModel

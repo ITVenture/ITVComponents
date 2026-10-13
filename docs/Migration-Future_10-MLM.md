@@ -5672,6 +5672,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 73 | **Koppeln: das Web wählt die Anwendung** | **Pflicht-Migration für alle mit Sicherheitskontext**: `ClientAppTemplates.TypeKey` (eindeutig, nullbar), `DevicePairings.TenantId`/`ClientAppId` nullbar, `DevicePairings.ClientAppTemplateId`. **Breaking am Vertrag**: `IDevicePairingService.StartAsync(clientKey, typeKey, deviceLabel)`, `ConfirmAsync(userCode, clientAppId)`. Neu: **höchstens eine aktive Instanz je Client-Anwendung** — Bestand vorher mit der Abfrage aus §73.2 prüfen. Agent koppelt mit `typeKey` und übernimmt den `ClientKey` aus `PairingResult` (§73) |
 | 71 | **Handler prüfen ihre Rechte selbst** | Kein Schema-Change, aber **breaking am Vertrag**: `IBillingHandler.CanAdminister` ist entfallen — dafür `CanView(BillingArea)` / `CanWrite(BillingArea)`. Der Konstruktor von `PaymentsHandler` nimmt zusätzlich `IEnumerable<IPaymentFeatureGate>` (über DI nichts zu tun). Die sechs `Billing.*`-Rechte waren tote Buchstaben und **gelten jetzt wirklich** — wer die Katalogpflege nicht über `Sysadmin` fährt, muss sie vergeben. Ein Host **ohne** `AddPaymentFeatureGate` bekommt jetzt auch die Anzeige zu, nicht mehr nur die Verkäufe (§71) |
 | 70 | **Kassieren am Zahlungsterminal (Achse C)** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId` (nullable). Der Vertrag hat ein DbSet mehr — **breaking auch für Test-Attrappen**. Beim Host fehlen `ITerminalChoiceProvider` für `RemoteObjects` und die Sprachressourcen `Terminals_*`. **Merke: eine ausbleibende Antwort ist NICHT „nicht bezahlt“** — `Unknown` ist ein eigener Zustand, sonst baut man die Doppelbelastung ein (§70) |
 | 69 | **Zahlungen sind nicht mehr „Stripe“** | **Pflicht: 3 UPDATEs an gespeicherten Daten** — `GlobalSettings.SettingsKey`, das **JSON** dieses Settings (sechs Felder nach `"Stripe"`) und `Features.FeatureName` + `PlanFeatures.FeatureKey`, je von `StripePayments` auf `TenantPayments`. **Schritt 2 vergessen = die Webhook-Geheimnisse sind still leer; Schritt 3 vergessen = das Modul ist für alle aus.** Dazu `Provider` an `TenantPaymentAccounts` **und** an `TenantSales` — das zweite ist beim Anlegen eingefroren, sonst geht eine Erstattung nach einem Anbieterwechsel an den falschen (§69) |
@@ -6450,7 +6451,7 @@ Globale Einstellung `DevicePairing`, alle mit brauchbaren Vorgaben:
 4. **Bündel zustehen** — in der Unterzeile der Anwendung. Es stehen nur die Bündel ihres Templates zur
    Auswahl; das ist die Obergrenze. **Eine Anwendung ohne zugestandenes Bündel lässt ihre Geräte herein,
    erlaubt ihnen aber nichts** — die Bestätigungsmaske weist darauf hin.
-5. **Gerät koppeln**: der Agent ruft `POST /DevicePairing/start` mit `{ clientKey, deviceLabel }` und
+5. **Gerät koppeln** (seit §73 im Regelfall mit `{ typeKey, deviceLabel }` — die Anwendung wählt dann, wer bestätigt): der Agent ruft `POST /DevicePairing/start` mit `{ clientKey, deviceLabel }` und
    bekommt `deviceCode` (geheim, bleibt bei ihm), `userCode` (zum Vorlesen) und das Poll-Intervall.
 6. **Bestätigen** (`/Connectivity/DevicePairing`): Code eintippen, sehen **welche Bündel** erteilt werden,
    bestätigen.
@@ -7430,3 +7431,160 @@ Connector nicht, auch wenn ihr `ClientKey` stimmt.
 - [ ] opt-in: `IAgentServiceContext`, `ConfigureAgentServices`, Tabelle, `IAgentClientFactory`, Rollen
 - [ ] **gegen einen echten Agenten prüfen** — gelaufen ist das Ganze bisher nur im Test über den
       InMemory-Verteiler
+
+## 73. Koppeln: das Gerät sagt, was es ist — das Web wählt die Anwendung — **Pflicht: 1 Spalte neu, 2 Spalten nullbar, 1 Spalte am Vorgang; breaking am Kopplungs-Vertrag**
+
+Bisher musste ein Agent den `ClientKey` **seiner** Client-Anwendung kennen, bevor er koppeln konnte (§65.8,
+Schritt 5). Bei einer Anwendung je Kasse hiess das: Anwendung im Web anlegen, Schlüssel abschreiben, auf dem
+Laden-PC eintragen — und wer zweimal denselben einträgt, hat zwei Kassen an einer Anwendung. Jetzt gilt:
+
+- **Das Gerät sagt nur, was es ist**: `POST /DevicePairing/start` mit `{ typeKey, deviceLabel }`. Der
+  `typeKey` ist ein neuer, fester Schlüssel am ClientApp-Template (z. B. `pos-agent`).
+- **Wer bestätigt, wählt die Anwendung** (`/Connectivity/DevicePairing`): angeboten werden die Anwendungen
+  dieses Templates im eigenen Mandanten — oder, mit `Apps.Write`, gleich eine **neue** samt Rechtebündeln.
+- **Höchstens eine aktive Instanz je Anwendung.** Hängt schon ein anderes Gerät daran, wird abgewiesen; es
+  muss zuerst unter *Client-Anwendungen → Verbundene Instanzen* widerrufen werden. Dasselbe Gerät (gleicher
+  `deviceLabel`) erneut zu koppeln ersetzt wie bisher seinen Zugang.
+- **Der Agent bekommt den `ClientKey` mit dem Schlüssel**: `PairingResult.ClientKey`. Er merkt sich beides und
+  meldet sich mit dem `ClientKey` am Dienst-Verteiler an — auf dem Laden-PC wird nichts mehr eingetragen.
+- `start` mit `clientKey` geht weiter; die Anwendung ist dann festgelegt und lässt sich beim Bestätigen
+  nicht umbiegen.
+
+**Warum eine Instanz:** der Agent meldet sich unter dem `ClientKey` der Anwendung am Hub an, und der nimmt je
+Dienstname genau eine Anmeldung. Die Geräte-Rollen (§72) hängen an der Anwendung, nicht an der Instanz. Eine
+zweite Kasse an derselben Anwendung würde am Hub abgewiesen — oder, wenn die erste gerade nicht verbunden ist,
+mit deren Geräten arbeiten. **Für mehrere Kassen also mehrere Client-Anwendungen desselben Templates.**
+
+An der Anmeldung ändert sich nichts: `X-Api-Key` = `<ClientKey>.<Label>.<Geheimnis>`, erzeugt beim Abholen,
+gespeichert nur als Hash.
+
+### 73.1 Pflicht für alle mit Sicherheitskontext
+
+`ClientAppTemplates` bekommt den Typ-Schlüssel, `DevicePairings` kennt die Anwendung erst beim Bestätigen.
+Keine neue Entität am Sicherheitskontext — die Vertrauens-Einträge (§67) bleiben gültig.
+
+SQL Server:
+
+```sql
+ALTER TABLE [ClientAppTemplates] ADD [TypeKey] nvarchar(64) NULL;
+CREATE UNIQUE INDEX [UQ_ClientAppTemplateTypeKey] ON [ClientAppTemplates] ([TypeKey]) WHERE [TypeKey] IS NOT NULL;
+
+-- Offene Vorgaenge haben noch keine Anwendung (und damit keinen Mandanten). SQL Server aendert die
+-- Nullbarkeit nicht, solange Index und Fremdschluessel an der Spalte haengen - also abbauen, aendern,
+-- unveraendert wieder aufbauen (Namen wie in 65.3).
+DROP INDEX [IX_DevicePairings_TenantId] ON [DevicePairings];
+DROP INDEX [IX_DevicePairings_ClientAppId] ON [DevicePairings];
+ALTER TABLE [DevicePairings] DROP CONSTRAINT [FK_DevicePairings_Tenants_TenantId];
+ALTER TABLE [DevicePairings] DROP CONSTRAINT [FK_DevicePairings_ClientApps_ClientAppId];
+
+ALTER TABLE [DevicePairings] ALTER COLUMN [TenantId] int NULL;
+ALTER TABLE [DevicePairings] ALTER COLUMN [ClientAppId] int NULL;
+
+ALTER TABLE [DevicePairings] ADD CONSTRAINT [FK_DevicePairings_Tenants_TenantId] FOREIGN KEY ([TenantId])
+    REFERENCES [Tenants] ([TenantId]) ON DELETE CASCADE;
+ALTER TABLE [DevicePairings] ADD CONSTRAINT [FK_DevicePairings_ClientApps_ClientAppId] FOREIGN KEY ([ClientAppId])
+    REFERENCES [ClientApps] ([ClientAppId]) ON DELETE CASCADE;
+CREATE INDEX [IX_DevicePairings_TenantId] ON [DevicePairings] ([TenantId]);
+CREATE INDEX [IX_DevicePairings_ClientAppId] ON [DevicePairings] ([ClientAppId]);
+
+ALTER TABLE [DevicePairings] ADD [ClientAppTemplateId] int NULL;
+CREATE INDEX [IX_DevicePairings_ClientAppTemplateId] ON [DevicePairings] ([ClientAppTemplateId]);
+-- SET NULL: ein Template zu loeschen darf nicht an einem abgelaufenen Vorgang scheitern
+ALTER TABLE [DevicePairings] ADD CONSTRAINT [FK_DevicePairings_ClientAppTemplates_ClientAppTemplateId]
+    FOREIGN KEY ([ClientAppTemplateId]) REFERENCES [ClientAppTemplates] ([ClientAppTemplateId]) ON DELETE SET NULL;
+```
+
+> Habt ihr die Tabelle nicht mit dem SQL aus §65.3 angelegt, heissen Index und Fremdschlüssel womöglich
+> anders — `sp_helpindex 'DevicePairings'` und `sp_fkeys @fktable_name = 'DevicePairings'` zeigen die Namen.
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "ClientAppTemplates" ADD "TypeKey" character varying(64) NULL;
+CREATE UNIQUE INDEX "UQ_ClientAppTemplateTypeKey" ON "ClientAppTemplates" ("TypeKey");
+
+ALTER TABLE "DevicePairings" ALTER COLUMN "TenantId" DROP NOT NULL;
+ALTER TABLE "DevicePairings" ALTER COLUMN "ClientAppId" DROP NOT NULL;
+
+ALTER TABLE "DevicePairings" ADD "ClientAppTemplateId" integer NULL;
+CREATE INDEX "IX_DevicePairings_ClientAppTemplateId" ON "DevicePairings" ("ClientAppTemplateId");
+ALTER TABLE "DevicePairings" ADD CONSTRAINT "FK_DevicePairings_ClientAppTemplates_ClientAppTemplateId"
+    FOREIGN KEY ("ClientAppTemplateId") REFERENCES "ClientAppTemplates" ("ClientAppTemplateId") ON DELETE SET NULL;
+```
+
+Bestehende Vorgänge brauchen keine Nacharbeit — sie verfallen nach Minuten, und wer sie mit `clientKey`
+angelegt hat, hat seine Anwendung ohnehin schon.
+
+Der `TypeKey` wird in der Template-Maske gepflegt („Device type key", leer = Geräte dieses Templates koppeln
+nur mit ihrem `ClientKey`) und reist im Konfigurations-Austausch mit. Wie beim Katalognamen **löscht ein
+leerer Wert in einer Import-Datei nichts**. Wer ihn ändert, lässt ausgerollte Geräte beim nächsten Koppeln ins
+Leere laufen — das steht dann als Warnung im Protokoll.
+
+### 73.2 Vor dem Update: Anwendungen mit mehreren aktiven Instanzen finden
+
+Die neue Regel greift **beim Koppeln**, sie räumt den Bestand nicht auf. Wer schon mehrere Geräte an einer
+Anwendung hat, findet sie so (SQL Server; in PostgreSQL `now()` statt `SYSUTCDATETIME()` und Anführungszeichen
+statt Klammern):
+
+```sql
+SELECT a.[ClientAppId], c.[ClientName], COUNT(*) AS [ActiveInstances]
+FROM [ClientAppAccesses] a
+JOIN [ClientApps] c ON c.[ClientAppId] = a.[ClientAppId]
+WHERE a.[TenantUserId] IS NULL AND a.[RevokedUtc] IS NULL
+  AND (a.[ExpiresUtc] IS NULL OR a.[ExpiresUtc] > SYSUTCDATETIME())
+GROUP BY a.[ClientAppId], c.[ClientName]
+HAVING COUNT(*) > 1;
+```
+
+Je Treffer: für jede weitere Kasse eine eigene Client-Anwendung anlegen, ihre Geräte-Rollen einrichten und die
+Kasse dort neu koppeln, danach den alten Zugang widerrufen. Bis dahin bleibt alles, wie es ist — nur ein
+**neues** Gerät lässt sich an eine solche Anwendung nicht mehr koppeln.
+
+### 73.3 Breaking am Vertrag — Compile-Fehler, mechanisch
+
+| Vorher | Jetzt |
+|---|---|
+| `IDevicePairingService.StartAsync(clientKey, deviceLabel, ct)` | `StartAsync(clientKey, typeKey, deviceLabel, ct)` — eins von beiden muss gesetzt sein |
+| `IDevicePairingService.ConfirmAsync(userCode, ct)` | `ConfirmAsync(userCode, clientAppId, ct)` — `clientAppId` Pflicht, wenn das Gerät keine Anwendung festgelegt hat |
+| `PairingPreview(Found, ClientAppName, DeviceLabel, PermissionSets)` | zusätzlich `ClientAppId`, `ClientAppTemplateId`, `TemplateName`, `Candidates` (`PairingCandidate`), `TemplatePermissionSets` — alle optional, die bisherige Konstruktion kompiliert weiter |
+| `PairingResult(State, ApiKey, PollIntervalSeconds)` | zusätzlich `ClientKey` (optional) |
+| `IClientAppTemplateCore` | neu `TypeKey` — eigene Attrappen nachziehen |
+| `DevicePairing.TenantId` / `.ClientAppId` | `int?` |
+| `DbDevicePairingService<…>` | neue Einschränkung `TClientAppTemplate : ClientAppTemplate<…>` — betrifft nur, wer davon ableitet |
+
+Über REST: `start` nimmt zusätzlich `typeKey`, `confirm` zusätzlich `clientAppId`; die Antwort von `describe`
+trägt die Auswahl. **Eine neue Anwendung anlegen gibt es nur in der Maske**, nicht als Endpunkt.
+
+### 73.4 Am Agenten
+
+1. **Typ-Schlüssel statt `ClientKey`**: `start` mit `{ "typeKey": "pos-agent", "deviceLabel": "<Rechnername>" }`.
+   Den `typeKey` kennt der Agent fest (er weiss, was er ist); am Template muss derselbe stehen.
+2. **Beim Abholen beides speichern**: `ApiKey` (für `X-Api-Key`) und `ClientKey` (für die Anmeldung am
+   Dienst-Verteiler). Eine `ClientKey`-Einstellung auf dem Laden-PC entfällt.
+3. **Ein fester Terminal-Name ist nicht mehr nötig**: welche Kasse es ist, sagt die Client-Anwendung. Hängt
+   fachlich etwas an der Kasse (Belege, Abschlüsse), gehört es an die `ClientAppId`, nicht an einen auf dem
+   PC eingetragenen Namen.
+4. **Erneut koppeln** (neuer PC, verlorener Schlüssel): derselbe `deviceLabel` ersetzt den alten Zugang; ein
+   anderer verlangt, den alten zuerst zu widerrufen.
+
+### 73.5 Was sich sonst ändert
+
+- **Label des Zugangs**: der Präfix ist jetzt der Name der **Anwendung** (nur ASCII-Buchstaben/Ziffern, `-`,
+  `_` — das Label steht im Header `X-Api-Key`), nicht mehr der des Rechners: `Kasse1-3f9a…`. Der Rechnername
+  bleibt als `DeviceLabel` am Zugang sichtbar. Bestehende Schlüssel bleiben gültig.
+- **Reiter umbenannt**: in *Connectivity → ClientApps* heisst der Reiter mit den gekoppelten Zugängen jetzt
+  **„Verbundene Instanzen"** (die Spalte im Gitter „Instanzen"); „Geräte" ist der Reiter aus §72.
+- Die Ersetzung desselben Geräts widerruft nicht mehr per `ExecuteUpdate`, sondern lädt die (wenigen) Zeilen
+  und speichert sie zusammen mit dem neuen Zugang.
+
+**Nicht durch die Datenbank gesichert:** zwei *gleichzeitige* Bestätigungen für dieselbe Anwendung können
+beide durchgehen. Dafür müssten zwei Personen im selben Moment zwei Codes an dieselbe Anwendung hängen.
+
+### 73.6 Checkliste
+
+- [ ] SQL aus 73.1 — alle mit Sicherheitskontext
+- [ ] Abfrage aus 73.2 laufen lassen, Mehrfach-Instanzen auf eigene Anwendungen verteilen
+- [ ] am Template der Agenten einen `TypeKey` setzen
+- [ ] Agent: `start` mit `typeKey`, `ClientKey` aus `PairingResult` speichern, `ClientKey`-/Terminal-Name-Einstellung entfernen
+- [ ] eigene Aufrufer/Attrappen von `IDevicePairingService` und `IClientAppTemplateCore` nachziehen (73.3)
+- [ ] **gegen einen echten Agenten und eine echte Datenbank prüfen** — gelaufen ist das bisher nur im Test (InMemory)

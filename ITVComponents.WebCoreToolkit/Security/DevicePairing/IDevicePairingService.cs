@@ -25,14 +25,29 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
         /// Vom GERAET gerufen. Legt einen offenen Vorgang an und gibt die Codes zurueck.
         /// </summary>
         /// <remarks>
-        /// Laeuft anonym - das Geraet hat noch keine Identitaet. Die Anwendung wird ueber ihre oeffentliche
-        /// Kennung benannt; sie bringt den Mandanten mit.
+        /// <para>
+        /// Laeuft anonym - das Geraet hat noch keine Identitaet.
+        /// </para>
+        /// <para>
+        /// <b>Der Regelfall: das Geraet sagt nur, WAS es ist</b> (<paramref name="typeKey"/>, der Typ-Schluessel
+        /// eines Templates). Welche Anwendung - und damit welcher Mandant - es wird, waehlt beim Bestaetigen,
+        /// wer bestaetigt. So muss auf dem Geraet nichts eingetragen werden, und es kann nicht versehentlich
+        /// an der Anwendung einer anderen Kasse landen.
+        /// </para>
+        /// <para>
+        /// Mit <paramref name="clientKey"/> legt das Geraet die Anwendung selbst fest (der fruehere Weg); sie
+        /// bringt dann den Mandanten mit, und <paramref name="typeKey"/> wird nicht gebraucht.
+        /// </para>
         /// </remarks>
-        /// <param name="clientKey">die oeffentliche Kennung der Anwendung</param>
+        /// <param name="clientKey">die oeffentliche Kennung einer Anwendung, oder null</param>
+        /// <param name="typeKey">der Typ-Schluessel des Templates, oder null, wenn <paramref name="clientKey"/> gesetzt ist</param>
         /// <param name="deviceLabel">wie sich das Geraet nennt (nur beschreibend)</param>
         /// <param name="ct">ein Abbruchtoken</param>
-        /// <returns>die Codes, oder null wenn es die Anwendung nicht gibt oder sie abgeschaltet ist</returns>
-        Task<PairingRequest> StartAsync(string clientKey, string deviceLabel, CancellationToken ct = default);
+        /// <returns>
+        /// die Codes, oder null wenn es die Anwendung oder den Typ nicht gibt, die Anwendung abgeschaltet ist
+        /// oder keins von beidem genannt wurde
+        /// </returns>
+        Task<PairingRequest> StartAsync(string clientKey, string typeKey, string deviceLabel, CancellationToken ct = default);
 
         /// <summary>
         /// Was der Benutzercode betrifft - fuer die Anzeige VOR dem Bestaetigen.
@@ -45,12 +60,23 @@ namespace ITVComponents.WebCoreToolkit.Security.DevicePairing
         /// Von einem ANGEMELDETEN Benutzer gerufen, der die Kopplung bestaetigt.
         /// </summary>
         /// <remarks>
-        /// Legt den Zugang an - noch <b>ohne</b> Geheimnis. Der Vorgang muss zum Mandanten des Benutzers
+        /// <para>
+        /// Legt den Zugang an - noch <b>ohne</b> Geheimnis. Die Anwendung muss zum Mandanten des Benutzers
         /// gehoeren; die Rechtepruefung macht der Aufrufer (der Endpunkt).
+        /// </para>
+        /// <para>
+        /// <b>Eine Anwendung hat hoechstens eine aktive Instanz.</b> Ist schon ein anderes Geraet an ihr
+        /// gekoppelt, wird abgewiesen - es muss zuerst widerrufen werden. Dasselbe Geraet (gleicher Name)
+        /// erneut zu koppeln ersetzt seinen bisherigen Zugang.
+        /// </para>
         /// </remarks>
         /// <param name="userCode">der abgetippte Code</param>
+        /// <param name="clientAppId">
+        /// die gewaehlte Anwendung. Pflicht, wenn das Geraet keine festgelegt hat; hat es eine festgelegt,
+        /// muss das null oder genau diese sein.
+        /// </param>
         /// <param name="ct">ein Abbruchtoken</param>
-        Task<PairingConfirmation> ConfirmAsync(string userCode, CancellationToken ct = default);
+        Task<PairingConfirmation> ConfirmAsync(string userCode, int? clientAppId, CancellationToken ct = default);
 
         /// <summary>
         /// Vom GERAET gerufen, waehrend es wartet. Liefert den Schluessel <b>genau einmal</b>.

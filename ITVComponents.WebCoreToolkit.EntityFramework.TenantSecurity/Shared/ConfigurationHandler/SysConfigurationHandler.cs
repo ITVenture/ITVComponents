@@ -770,6 +770,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             {
                 Name = templateInst.Name,
                 CatalogObjectName = templateInst.CatalogObjectName,
+                TypeKey = templateInst.TypeKey,
                 PermissionSets = templateInst.PermissionSets.Select(s => new AppPermissionSetMarkup
                 {
                     Name = s.Name,
@@ -3113,15 +3114,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                         change.Details.Add(MakeDetail("CatalogObjectName", c.New.CatalogObjectName));
                     }
 
+                    if (!string.IsNullOrWhiteSpace(c.New.TypeKey))
+                    {
+                        change.Details.Add(MakeDetail("TypeKey", c.New.TypeKey));
+                    }
+
                     RegisterChange(change);
                     RegisterAppPermissionSets(c.New.Name, c.New.PermissionSets);
                 }
                 else if (c.Original != null)
                 {
-                    // Der Name IST der Schluessel; zu aendern gibt es am Template nur den Katalognamen der Agenten.
-                    // Ohne Unterschied dort kein Update-Change - der waere Laerm. Ein LEERER Wert in der Datei loescht
-                    // nichts: ein Export aus einer Fassung ohne dieses Feld wuerde sonst still den Ersatz-Katalog entfernen.
+                    // Der Name IST der Schluessel; zu aendern gibt es am Template nur den Katalognamen der Agenten
+                    // und den Typ-Schluessel. Ohne Unterschied dort kein Update-Change - der waere Laerm. Ein LEERER
+                    // Wert in der Datei loescht nichts: ein Export aus einer Fassung ohne diese Felder wuerde sonst
+                    // still den Ersatz-Katalog oder den Typ-Schluessel entfernen.
+                    var details = new List<ChangeDetail>();
                     if (!string.IsNullOrWhiteSpace(c.New.CatalogObjectName) && c.New.CatalogObjectName != c.Original.CatalogObjectName)
+                    {
+                        details.Add(MakeDetail("CatalogObjectName", c.New.CatalogObjectName, currentValue: c.Original.CatalogObjectName));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(c.New.TypeKey) && c.New.TypeKey != c.Original.TypeKey)
+                    {
+                        details.Add(MakeDetail("TypeKey", c.New.TypeKey, currentValue: c.Original.TypeKey));
+                    }
+
+                    if (details.Count != 0)
                     {
                         change = new Change
                         {
@@ -3129,7 +3147,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                             Key = new Dictionary<string, string> { { keyName, c.Original.Name } },
                             EntityName = entityName, Apply = true
                         };
-                        change.Details.Add(MakeDetail("CatalogObjectName", c.New.CatalogObjectName, currentValue: c.Original.CatalogObjectName));
+                        foreach (var detail in details)
+                        {
+                            change.Details.Add(detail);
+                        }
+
                         RegisterChange(change);
                     }
 

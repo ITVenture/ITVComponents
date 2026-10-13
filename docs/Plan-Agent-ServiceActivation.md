@@ -389,3 +389,19 @@ public interface IAgentServiceResolver
   braucht es einen anderen Weg — darum Schritt 2 vor allem anderen am Agenten.
 - **Hub ohne DB** → kein `LastSeenUtc`. Akzeptiert, dokumentiert.
 - **Schreiben auf den Laden-PC über IPC** — Absicherung des Katalogs vor Schritt 4 klären.
+
+## 7. Nachtrag 2026-10-13: Kopplung — das Web wählt die Anwendung
+
+Beim ersten Lauf am Host fiel auf: der Agent musste den `ClientKey` seiner Kasse vor der Kopplung kennen, und
+nichts verhinderte zwei Kassen an einer Client-Anwendung — obwohl Hub-Anmeldung (Dienstname = `ClientKey`) und
+Geräte-Rollen genau eine Instanz voraussetzen. Entschieden (User):
+
+- Das Gerät koppelt mit dem **Typ-Schlüssel** des Templates (`ClientAppTemplate.TypeKey`), die Anwendung
+  wählt, wer bestätigt — auf Wunsch legt die Bestätigungsmaske sie gleich an (mit Rechtebündeln).
+- **Eine aktive Instanz je Client-Anwendung**; mehrere Kassen = mehrere Anwendungen desselben Templates.
+- Der Agent übernimmt den `ClientKey` aus `PairingResult` und meldet sich damit über IPC an; ein fester
+  Terminal-Name auf dem PC entfällt.
+- Anmeldung unverändert (`X-Api-Key`, im Toolkit erzeugt); Label-Präfix = Name der Anwendung (ASCII).
+- Reiter „Geräte“ der Zugänge heisst jetzt „Verbundene Instanzen“.
+
+Leitfaden §73.

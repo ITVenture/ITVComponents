@@ -23,6 +23,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         /// </summary>
         public string CatalogObjectName { get; set; }
 
+        /// <summary>Was ein Geraet dieses Templates ist - der Schluessel, den es beim Koppeln nennt.</summary>
+        public string TypeKey { get; set; }
+
         /// <summary>Die Rechtebuendel, die dieses Template anbietet.</summary>
         public AppPermissionSetMarkup[] PermissionSets { get; set; }
     }
