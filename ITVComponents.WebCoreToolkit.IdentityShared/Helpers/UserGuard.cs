@@ -18,8 +18,9 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
 
         /// <param name="httpContextAccessor">
         /// Optional. Wird gebraucht, um zu erkennen, ob gerade eine Anfrage laeuft:
-        /// <see cref="UserQueryTicket.MachineRememberForTwoFactor"/> liest ein Cookie und ist ohne HttpContext
-        /// nicht zu beantworten. Fehlt der Accessor, wird die Frage uebersprungen statt geraten.
+        /// <see cref="UserQueryTicket.MachineRememberForTwoFactor"/> liest ein Cookie und ist nur waehrend einer
+        /// Anfrage zu beantworten, deren Antwort noch nicht begonnen hat (also nicht auf einem Blazor-Circuit).
+        /// Fehlt der Accessor, wird die Frage uebersprungen statt geraten.
         /// </param>
         public UserGuard(SignInManager<TUser> signInManager, UserManager<TUser> userManager,
             IHttpContextAccessor httpContextAccessor = null)
@@ -122,10 +123,14 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
                     recoveryCodesLeft = await userManager.CountRecoveryCodesAsync(userInstance);
 
                     // "Diesen Browser gemerkt?" steht in einem Cookie, nicht in der Datenbank - die Frage laesst
-                    // sich nur waehrend einer Anfrage beantworten. Auf einem Blazor-Circuit gibt es keine, und
-                    // SignInManager.Context wirft dann "HttpContext must not be null". Darum vorher pruefen:
-                    // ein "nein" waere geraten, und der Aufrufer soll den Unterschied sehen koennen.
-                    if (httpContextAccessor?.HttpContext != null)
+                    // sich nur waehrend einer Anfrage beantworten, deren Antwort noch nicht begonnen hat. Ein
+                    // HttpContext allein genuegt NICHT: auf einem Blazor-Circuit liefert der Accessor den Kontext
+                    // der SignalR-Verbindung, deren Antwort laengst laeuft - der Cookie-Handler wirft dann beim
+                    // Initialisieren "OnStarting cannot be set" und reisst den Circuit mit (ohne Kontext waere es
+                    // "HttpContext must not be null"). Darum vorher pruefen: ein "nein" waere geraten, und der
+                    // Aufrufer soll den Unterschied sehen koennen.
+                    var http = httpContextAccessor?.HttpContext;
+                    if (http != null && !http.Response.HasStarted)
                     {
                         machineRememberedForTwoFactor =
                             await signInManager.IsTwoFactorClientRememberedAsync(userInstance);
@@ -134,8 +139,8 @@ namespace ITVComponents.WebCoreToolkit.IdentityShared.Helpers
                     {
                         LogEnvironment.LogEvent(
                             $"{nameof(UserQueryTicket.MachineRememberForTwoFactor)} not determined for a {typeof(TUser).Name}: " +
-                            "no HttpContext in scope. Callers outside a request must not read 'false' as " +
-                            "'this browser is not remembered'.",
+                            (http == null ? "no HttpContext in scope" : "the response has already started (e.g. a Blazor circuit)") +
+                            ". Callers outside a request must not read 'false' as 'this browser is not remembered'.",
                             LogSeverity.Report);
                     }
                 }

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
 {
     /// <summary>
-    /// Decides whether a tenant is entitled to receive payments (feature <c>StripePayments</c>).
+    /// Decides whether a tenant is entitled to receive payments (feature <c>TenantPayments</c>).
     /// <para>
     /// This is NOT the same check the views do. A view asks the current security scope; the sale service can be
     /// called from a background run or an anonymous shop request where there is no scope at all. It therefore

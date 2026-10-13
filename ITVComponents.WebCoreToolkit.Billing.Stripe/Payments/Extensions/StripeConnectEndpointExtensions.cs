@@ -52,7 +52,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
                     // single most likely mistake, so the message says so instead of leaving a bare 400.
                     LogEnvironment.LogEvent(
                         $"Stripe connect webhook rejected (HTTP 400). {(string.IsNullOrEmpty(signature) ? "No Stripe-Signature header was present. " : string.Empty)}"
-                        + $"Note that StripePayments:ConnectWebhookSecret is a DIFFERENT secret from the platform webhook secret. Error: {ex.Message}",
+                        + $"Note that TenantPayments:Stripe:ConnectWebhookSecret is a DIFFERENT secret from the platform webhook secret. Error: {ex.Message}",
                         LogSeverity.Warning, "StripeConnect");
 
                     // Tell the provider to retry rather than accepting and dropping the event.

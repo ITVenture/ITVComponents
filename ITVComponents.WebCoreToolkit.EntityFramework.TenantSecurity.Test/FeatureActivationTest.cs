@@ -50,12 +50,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         {
             // Das Muster fuer ein verkauftes Modul: Katalog-Zeile AUS, Aktivierung je Mandant.
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int buyer = FlatTenant(ctx, "acme");
             Activate(ctx, feature, buyer);
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", buyer, Now);
+                "TenantPayments", buyer, Now);
 
             Assert.AreEqual(FeatureActivationState.ActivatedForTenant, state);
             Assert.IsTrue(state.IsEnabled(),
@@ -67,13 +67,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task AFeatureSoldPerTenant_IsOffForEveryoneElse()
         {
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int buyer = FlatTenant(ctx, "acme");
             int other = FlatTenant(ctx, "other");
             Activate(ctx, feature, buyer);
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", other, Now);
+                "TenantPayments", other, Now);
 
             Assert.AreEqual(FeatureActivationState.NotActivatedForTenant, state);
             Assert.IsFalse(state.IsEnabled(), "die Aktivierung eines fremden Mandanten zaehlt nicht.");
@@ -98,11 +98,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task WithoutAnyRoadToAYes_ItIsOff()
         {
             using var ctx = FlatContext();
-            Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int tenant = FlatTenant(ctx, "acme");
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.NotActivatedForTenant, state);
             Assert.IsFalse(state.IsEnabled(), "das ist 'Modul aus' - fail-closed bleibt fail-closed.");
@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             int tenant = FlatTenant(ctx, "acme");
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.Unknown, state,
                 "eine fehlende Katalog-Zeile ist ein Auslieferungsfehler, eine fehlende Aktivierung eine " +
@@ -129,12 +129,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task AnExpiredActivation_DoesNotCount()
         {
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int tenant = FlatTenant(ctx, "acme");
             Activate(ctx, feature, tenant, end: Now.AddDays(-1));
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.NotActivatedForTenant, state);
         }
@@ -143,12 +143,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task AnActivationThatHasNotStartedYet_DoesNotCount()
         {
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int tenant = FlatTenant(ctx, "acme");
             Activate(ctx, feature, tenant, start: Now.AddDays(1));
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.NotActivatedForTenant, state);
         }
@@ -157,12 +157,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task AnOpenEndedActivation_Counts()
         {
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int tenant = FlatTenant(ctx, "acme");
             Activate(ctx, feature, tenant, start: null, end: null);
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.ActivatedForTenant, state,
                 "ohne Fenster gilt die Aktivierung unbegrenzt - so legt der Provisionierer sie an.");
@@ -174,12 +174,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task TheFeatureNameIsMatchedCaseInsensitively()
         {
             using var ctx = FlatContext();
-            var feature = Catalogue(ctx, "stripepayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "tenantpayments",enabledForEveryone: false);
             int tenant = FlatTenant(ctx, "acme");
             Activate(ctx, feature, tenant);
 
             var state = await ctx.GetFeatureStateForTenantAsync<Tenant, FlatTenantFeatureActivation>(
-                "StripePayments", tenant, Now);
+                "TenantPayments", tenant, Now);
 
             Assert.AreEqual(FeatureActivationState.ActivatedForTenant, state,
                 "ein roher Vergleich ueberlebt SQL Server mit seiner unempfindlichen Sortierung und " +
@@ -192,13 +192,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task TheSameRuleHolds_InTheHierarchicalModel()
         {
             using var ctx = TreeContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int buyer = TreeTenant(ctx, "acme");
             ActivateTree(ctx, feature, buyer);
 
             var state = await ctx
                 .GetFeatureStateForTenantAsync<HierarchyTenant, HierarchyTenantFeatureActivation>(
-                    "StripePayments", buyer, Now);
+                    "TenantPayments", buyer, Now);
 
             Assert.AreEqual(FeatureActivationState.ActivatedForTenant, state,
                 "die Regel darf zwischen flacher und hierarchischer Auspraegung nicht auseinanderlaufen.");
@@ -208,14 +208,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         public async Task AnActivation_IsNotInheritedByChildTenants()
         {
             using var ctx = TreeContext();
-            var feature = Catalogue(ctx, "StripePayments", enabledForEveryone: false);
+            var feature = Catalogue(ctx, "TenantPayments", enabledForEveryone: false);
             int parent = TreeTenant(ctx, "group");
             int child = TreeTenant(ctx, "acme", parent);
             ActivateTree(ctx, feature, parent);
 
             var state = await ctx
                 .GetFeatureStateForTenantAsync<HierarchyTenant, HierarchyTenantFeatureActivation>(
-                    "StripePayments", child, Now);
+                    "TenantPayments", child, Now);
 
             Assert.AreEqual(FeatureActivationState.NotActivatedForTenant, state,
                 "Feature-Aktivierungen sind streng mandantenlokal: ihr globaler Filter ist die einzige " +
