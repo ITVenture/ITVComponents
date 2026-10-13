@@ -38,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor
             return null;
         }
 
-        /// <summary>Configuration key carrying the payment-views switch.</summary>
+        /// <summary>Configuration key carrying the payment-views and terminal-views switches.</summary>
         public const string PaymentViewsOption = "PaymentViews";
 
         [ServiceRegistrationMethod]
@@ -69,6 +69,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor
                 var method = typeof(BillingViewsExt).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(
                     contextType, nameof(BillingViewsExt.AddMudBlazorPaymentViews));
                 method(services, partTypeLoadBehavior);
+            }
+
+            if (paymentViews is { ActivateTerminalViews: true })
+            {
+                // TClientApp is bound by NAME out of the security context, like TTenant above. A failure is
+                // logged by MethodHelper and leaves a null delegate.
+                var method = typeof(BillingViewsExt).GetMethod<Func<IServiceCollection, AssemblyPartTypeLoadBehaviorOptions?, IServiceCollection>>(
+                    contextType, nameof(BillingViewsExt.AddMudBlazorTerminalViews));
+                method?.Invoke(services, partTypeLoadBehavior);
             }
         }
     }

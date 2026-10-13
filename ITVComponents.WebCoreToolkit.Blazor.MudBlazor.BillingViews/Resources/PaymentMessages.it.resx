@@ -155,4 +155,38 @@
   <data name="Common_Close" xml:space="preserve"><value>Chiudere</value></data>
   <data name="Common_Cancel" xml:space="preserve"><value>Annullare</value></data>
   <data name="Common_Apply" xml:space="preserve"><value>Applicare</value></data>
+  <data name="Terminals_Title" xml:space="preserve"><value>Terminali di pagamento</value></data>
+  <data name="Terminals_Intro" xml:space="preserve"><value>Terminali per carte alle vostre casse. Ogni dispositivo viene raggiunto direttamente tramite il suo fornitore oppure tramite l'agente sul PC di cassa.</value></data>
+  <data name="Terminals_Add" xml:space="preserve"><value>Aggiungi terminale</value></data>
+  <data name="Terminals_Edit" xml:space="preserve"><value>Modifica terminale</value></data>
+  <data name="Terminals_None" xml:space="preserve"><value>Non è ancora configurato alcun terminale.</value></data>
+  <data name="Terminals_Col_Name" xml:space="preserve"><value>Nome</value></data>
+  <data name="Terminals_Col_Provider" xml:space="preserve"><value>Fornitore</value></data>
+  <data name="Terminals_Col_TerminalId" xml:space="preserve"><value>ID terminale</value></data>
+  <data name="Terminals_Col_Route" xml:space="preserve"><value>Instradamento</value></data>
+  <data name="Terminals_Col_State" xml:space="preserve"><value>Stato</value></data>
+  <data name="Terminals_Disabled" xml:space="preserve"><value>disattivato</value></data>
+  <data name="Terminals_Online" xml:space="preserve"><value>raggiungibile</value></data>
+  <data name="Terminals_Offline" xml:space="preserve"><value>non raggiungibile</value></data>
+  <data name="Terminals_Unchecked" xml:space="preserve"><value>non verificato</value></data>
+  <data name="Terminals_Check" xml:space="preserve"><value>Verifica connessione</value></data>
+  <data name="Terminals_Disable" xml:space="preserve"><value>Disattiva</value></data>
+  <data name="Terminals_Enable" xml:space="preserve"><value>Attiva</value></data>
+  <data name="Terminals_NoDeleteHint" xml:space="preserve"><value>I terminali non possono essere eliminati: le vendite passate continuano a fare riferimento al dispositivo su cui sono state incassate. Disattivi un terminale che non utilizza più.</value></data>
+  <data name="Terminals_Saved" xml:space="preserve"><value>Il terminale è stato salvato.</value></data>
+  <data name="Terminals_Step_Kind" xml:space="preserve"><value>Dispositivo</value></data>
+  <data name="Terminals_Step_Service" xml:space="preserve"><value>Collegamento</value></data>
+  <data name="Terminals_Step_Device" xml:space="preserve"><value>Impostazioni del dispositivo</value></data>
+  <data name="Terminals_Field_Provider" xml:space="preserve"><value>Fornitore</value></data>
+  <data name="Terminals_Field_DisplayName" xml:space="preserve"><value>Denominazione</value></data>
+  <data name="Terminals_Field_DisplayNameHint" xml:space="preserve"><value>Così il terminale appare alla cassa, ad es. «Banco 1».</value></data>
+  <data name="Terminals_Field_ProviderTerminalId" xml:space="preserve"><value>ID del terminale presso il fornitore</value></data>
+  <data name="Terminals_Field_ProviderTerminalIdHint" xml:space="preserve"><value>L'identificativo con cui il fornitore gestisce questo dispositivo; lo trova nel portale del fornitore o sul dispositivo.</value></data>
+  <data name="Terminals_NoServerSettings" xml:space="preserve"><value>Questo fornitore non richiede altre impostazioni.</value></data>
+  <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>Questo dispositivo non richiede altre impostazioni.</value></data>
+  <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>La cassa non era raggiungibile ({0}). Il terminale può comunque essere salvato; le sue impostazioni potranno essere definite solo quando la cassa sarà di nuovo raggiungibile.</value></data>
+  <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Compili tutti i campi obbligatori.</value></data>
+  <data name="Terminals_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Terminals_Next" xml:space="preserve"><value>Avanti</value></data>
+  <data name="Terminals_Save" xml:space="preserve"><value>Salva</value></data>
 </root>

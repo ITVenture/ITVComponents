@@ -61,6 +61,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe
             {
                 RegisterPayments(services, options);
             }
+            else if (options.ActivateStripeTerminals)
+            {
+                LogEnvironment.LogEvent(
+                    "ActivateStripeTerminals is set, but ActivatePayments is not. Stripe terminals sit on the payments service layer and are NOT registered.",
+                    LogSeverity.Error, "StripeConnect");
+            }
         }
 
         [EndpointRegistrationMethod]
@@ -97,6 +103,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe
                              && IsStripeOptionsOverload(m))
                 .MakeGenericMethod(contextType);
             addPayments.Invoke(null, new object[] { services, options.Stripe! });
+
+            if (options.ActivateStripeTerminals)
+            {
+                typeof(PaymentsDependencyInjectionExtensions)
+                    .GetMethod(nameof(PaymentsDependencyInjectionExtensions.AddStripeTerminals), BindingFlags.Public | BindingFlags.Static)!
+                    .MakeGenericMethod(contextType)
+                    .Invoke(null, new object[] { services });
+            }
 
             if (!options.ActivateVolumeWaiver)
             {

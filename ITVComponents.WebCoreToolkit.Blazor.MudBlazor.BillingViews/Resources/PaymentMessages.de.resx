@@ -155,4 +155,38 @@
   <data name="Common_Close" xml:space="preserve"><value>Schliessen</value></data>
   <data name="Common_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
   <data name="Common_Apply" xml:space="preserve"><value>Anwenden</value></data>
+  <data name="Terminals_Title" xml:space="preserve"><value>Zahlungsterminals</value></data>
+  <data name="Terminals_Intro" xml:space="preserve"><value>Kartenterminals an Ihren Kassen. Jedes Gerät wird entweder direkt über seinen Anbieter oder über den Agenten auf dem Kassen-PC angesprochen.</value></data>
+  <data name="Terminals_Add" xml:space="preserve"><value>Terminal hinzufügen</value></data>
+  <data name="Terminals_Edit" xml:space="preserve"><value>Terminal bearbeiten</value></data>
+  <data name="Terminals_None" xml:space="preserve"><value>Es ist noch kein Terminal eingerichtet.</value></data>
+  <data name="Terminals_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Terminals_Col_Provider" xml:space="preserve"><value>Anbieter</value></data>
+  <data name="Terminals_Col_TerminalId" xml:space="preserve"><value>Terminal-ID</value></data>
+  <data name="Terminals_Col_Route" xml:space="preserve"><value>Weg</value></data>
+  <data name="Terminals_Col_State" xml:space="preserve"><value>Zustand</value></data>
+  <data name="Terminals_Disabled" xml:space="preserve"><value>ausgeschaltet</value></data>
+  <data name="Terminals_Online" xml:space="preserve"><value>erreichbar</value></data>
+  <data name="Terminals_Offline" xml:space="preserve"><value>nicht erreichbar</value></data>
+  <data name="Terminals_Unchecked" xml:space="preserve"><value>nicht geprüft</value></data>
+  <data name="Terminals_Check" xml:space="preserve"><value>Verbindung prüfen</value></data>
+  <data name="Terminals_Disable" xml:space="preserve"><value>Ausschalten</value></data>
+  <data name="Terminals_Enable" xml:space="preserve"><value>Einschalten</value></data>
+  <data name="Terminals_NoDeleteHint" xml:space="preserve"><value>Terminals lassen sich nicht löschen: frühere Verkäufe verweisen weiterhin auf das Gerät, an dem kassiert wurde. Schalten Sie ein Terminal aus, das Sie nicht mehr verwenden.</value></data>
+  <data name="Terminals_Saved" xml:space="preserve"><value>Das Terminal wurde gespeichert.</value></data>
+  <data name="Terminals_Step_Kind" xml:space="preserve"><value>Gerät</value></data>
+  <data name="Terminals_Step_Service" xml:space="preserve"><value>Anbindung</value></data>
+  <data name="Terminals_Step_Device" xml:space="preserve"><value>Geräte-Einstellungen</value></data>
+  <data name="Terminals_Field_Provider" xml:space="preserve"><value>Anbieter</value></data>
+  <data name="Terminals_Field_DisplayName" xml:space="preserve"><value>Bezeichnung</value></data>
+  <data name="Terminals_Field_DisplayNameHint" xml:space="preserve"><value>So erscheint das Terminal an der Kasse, z.B. „Theke 1“.</value></data>
+  <data name="Terminals_Field_ProviderTerminalId" xml:space="preserve"><value>Terminal-ID beim Anbieter</value></data>
+  <data name="Terminals_Field_ProviderTerminalIdHint" xml:space="preserve"><value>Die Kennung, unter der der Anbieter dieses Gerät führt; Sie finden sie im Portal des Anbieters oder am Gerät.</value></data>
+  <data name="Terminals_NoServerSettings" xml:space="preserve"><value>Dieser Anbieter braucht keine weiteren Angaben.</value></data>
+  <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>Dieses Gerät braucht keine weiteren Einstellungen.</value></data>
+  <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>Die Kasse war nicht erreichbar ({0}). Das Terminal lässt sich trotzdem speichern; seine Geräte-Einstellungen lassen sich erst setzen, wenn die Kasse wieder erreichbar ist.</value></data>
+  <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Bitte füllen Sie alle Pflichtfelder aus.</value></data>
+  <data name="Terminals_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="Terminals_Next" xml:space="preserve"><value>Weiter</value></data>
+  <data name="Terminals_Save" xml:space="preserve"><value>Speichern</value></data>
 </root>

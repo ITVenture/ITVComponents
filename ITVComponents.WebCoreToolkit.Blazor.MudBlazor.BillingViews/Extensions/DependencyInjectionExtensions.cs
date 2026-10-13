@@ -1,6 +1,7 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.Options;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl;
+using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Diagnostics;
 using ITVComponents.WebCoreToolkit.Blazor.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
@@ -8,6 +9,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
 {
@@ -24,6 +27,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             partTypeLoadBehavior ??= new AssemblyPartTypeLoadBehaviorOptions { DefaultBehavior = TypeRegisterBehavior.Use };
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<IBillingHandler, BillingHandler<TContext>>();
+            services.AddTerminalsPageRegistrationCheck();
             return services;
         }
 
@@ -53,6 +57,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             // both.
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<IPaymentsHandler, PaymentsHandler<TContext, TTenant>>();
+            services.AddTerminalsPageRegistrationCheck();
             return services;
         }
 
@@ -81,8 +86,9 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
         /// <typeparam name="TContext">der Kontext mit den Zahlungstabellen und dem aktiven Mandanten</typeparam>
         /// <typeparam name="TClientApp">
         /// die Client-Anwendung, WIE DER HOST sie abgebildet hat. Das WebPart füllt den Parameter von
-        /// selbst: es bindet Typparameter nach NAMEN aus dem Sicherheitskontext, und <c>TClientApp</c>
-        /// ist einer von dessen eigenen Namen — dieselbe Mechanik wie bei <c>TTenant</c> oben.
+        /// selbst, sobald <c>PaymentViews:ActivateTerminalViews</c> gesetzt ist: es bindet Typparameter
+        /// nach NAMEN aus dem Sicherheitskontext, und <c>TClientApp</c> ist einer von dessen eigenen
+        /// Namen — dieselbe Mechanik wie bei <c>TTenant</c> oben.
         /// </typeparam>
         public static IServiceCollection AddMudBlazorTerminalViews<TContext, TClientApp>(
             this IServiceCollection services, AssemblyPartTypeLoadBehaviorOptions? partTypeLoadBehavior = null)
@@ -96,5 +102,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             services.AddScoped<ITerminalChoiceProvider, RemoteObjectTerminalChoiceProvider>();
             return services;
         }
+
+        /// <summary>
+        /// Die Terminal-Seite liegt im selben Assembly wie die übrigen Ansichten und wird mit ihnen
+        /// geroutet — fehlt ihr Handler, soll das beim Start im Log stehen und nicht erst beim Öffnen.
+        /// </summary>
+        private static void AddTerminalsPageRegistrationCheck(this IServiceCollection services)
+            => services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TerminalsPageRegistrationCheck>());
     }
 }

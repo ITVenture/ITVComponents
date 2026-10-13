@@ -46,6 +46,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Options
         /// </summary>
         public string? PaymentsContextType { get; set; }
 
+        /// <summary>
+        /// When <c>true</c> (and <see cref="ActivatePayments"/> is set), Stripe Terminal is registered as a route
+        /// for card terminals (axis C, server-driven). Off by default: a shop selling online needs no terminals.
+        /// </summary>
+        public bool ActivateStripeTerminals { get; set; }
+
         /// <summary>Path the connect webhook receiver is mapped to. A SEPARATE endpoint with its own secret.</summary>
         public string ConnectWebhookPath { get; set; } = "/billing/connect/webhook";
 

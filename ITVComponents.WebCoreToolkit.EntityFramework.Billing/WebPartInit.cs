@@ -1,16 +1,21 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using ITVComponents.Logging;
+using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Configuration;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
 {
-    // Opt-in WebPart that contributes the billing catalog to the downloadable system configuration. Deliberately
-    // kept in the provider-neutral billing library (not the Stripe part) so the config-export section is available
-    // regardless of which billing provider is wired, and independent of the Blazor billing views. Flag-gated:
-    // a host that does not want billing in its system-config export just leaves ActivateBillingConfigExport off.
+    // Opt-in WebPart of the provider-neutral billing library. Contributes the billing catalog to the downloadable
+    // system configuration and registers the agent route for card terminals. Deliberately kept here (not in the
+    // Stripe part) because neither depends on a provider. Both are flag-gated and independent of each other.
     [WebPart]
     public static class WebPartInit
     {
@@ -25,6 +30,36 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
             {
                 services.AddBillingConfigExtension();
             }
+
+            if (options is { ActivateAgentTerminals: true })
+            {
+                RegisterAgentTerminals(services, options.TerminalsContextType);
+            }
+        }
+
+        private static void RegisterAgentTerminals(IServiceCollection services, string? contextTypeName)
+        {
+            if (contextTypeName is not { Length: > 0 })
+            {
+                LogEnvironment.LogEvent(
+                    "ActivateAgentTerminals is set, but TerminalsContextType is empty. The agent terminal route is NOT registered.",
+                    LogSeverity.Error);
+                return;
+            }
+
+            var contextType = (Type)ExpressionParser.Parse(contextTypeName, new Dictionary<string, object>());
+            if (!typeof(IPaymentsContext).IsAssignableFrom(contextType))
+            {
+                LogEnvironment.LogEvent(
+                    $"ActivateAgentTerminals is set, but context '{contextType.FullName}' does not implement IPaymentsContext. The agent terminal route is NOT registered.",
+                    LogSeverity.Error);
+                return;
+            }
+
+            typeof(TerminalDependencyInjectionExtensions)
+                .GetMethod(nameof(TerminalDependencyInjectionExtensions.AddAgentTerminals), BindingFlags.Public | BindingFlags.Static)!
+                .MakeGenericMethod(contextType)
+                .Invoke(null, new object[] { services });
         }
     }
 }

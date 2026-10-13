@@ -155,4 +155,38 @@
   <data name="Common_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Common_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Common_Apply" xml:space="preserve"><value>Apply</value></data>
+  <data name="Terminals_Title" xml:space="preserve"><value>Payment terminals</value></data>
+  <data name="Terminals_Intro" xml:space="preserve"><value>Card terminals at your checkouts. Each device is reached either directly through its provider or through the agent on the checkout PC.</value></data>
+  <data name="Terminals_Add" xml:space="preserve"><value>Add terminal</value></data>
+  <data name="Terminals_Edit" xml:space="preserve"><value>Edit terminal</value></data>
+  <data name="Terminals_None" xml:space="preserve"><value>No terminal has been set up yet.</value></data>
+  <data name="Terminals_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Terminals_Col_Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="Terminals_Col_TerminalId" xml:space="preserve"><value>Terminal ID</value></data>
+  <data name="Terminals_Col_Route" xml:space="preserve"><value>Route</value></data>
+  <data name="Terminals_Col_State" xml:space="preserve"><value>State</value></data>
+  <data name="Terminals_Disabled" xml:space="preserve"><value>disabled</value></data>
+  <data name="Terminals_Online" xml:space="preserve"><value>online</value></data>
+  <data name="Terminals_Offline" xml:space="preserve"><value>offline</value></data>
+  <data name="Terminals_Unchecked" xml:space="preserve"><value>not checked</value></data>
+  <data name="Terminals_Check" xml:space="preserve"><value>Check connection</value></data>
+  <data name="Terminals_Disable" xml:space="preserve"><value>Disable</value></data>
+  <data name="Terminals_Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="Terminals_NoDeleteHint" xml:space="preserve"><value>Terminals cannot be deleted: past sales keep referring to the device they were taken on. Disable a terminal you no longer use.</value></data>
+  <data name="Terminals_Saved" xml:space="preserve"><value>The terminal has been saved.</value></data>
+  <data name="Terminals_Step_Kind" xml:space="preserve"><value>Device</value></data>
+  <data name="Terminals_Step_Service" xml:space="preserve"><value>Connection</value></data>
+  <data name="Terminals_Step_Device" xml:space="preserve"><value>Device settings</value></data>
+  <data name="Terminals_Field_Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="Terminals_Field_DisplayName" xml:space="preserve"><value>Name</value></data>
+  <data name="Terminals_Field_DisplayNameHint" xml:space="preserve"><value>How the terminal appears at the checkout, e.g. "Counter 1".</value></data>
+  <data name="Terminals_Field_ProviderTerminalId" xml:space="preserve"><value>Terminal ID at the provider</value></data>
+  <data name="Terminals_Field_ProviderTerminalIdHint" xml:space="preserve"><value>The identifier the provider uses for this device; you find it in the provider's dashboard or on the device.</value></data>
+  <data name="Terminals_NoServerSettings" xml:space="preserve"><value>This provider needs no further settings.</value></data>
+  <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>This device needs no further settings.</value></data>
+  <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>The checkout could not be reached ({0}). The terminal can still be saved; its device settings can only be made once the checkout is reachable again.</value></data>
+  <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Please fill in all required fields.</value></data>
+  <data name="Terminals_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Terminals_Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Terminals_Save" xml:space="preserve"><value>Save</value></data>
 </root>

@@ -5672,6 +5672,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 74 | **Terminal-Verwaltung über die WebParts** | Kein Schema-Change, nicht breaking. Neue Schalter `PaymentViews:ActivateTerminalViews` (BillingViews), `ActivateStripeTerminals` (Stripe), `ActivateAgentTerminals` + `TerminalsContextType` (Billing). Die Texte `Terminals_*` liefert das Toolkit jetzt mit. **Wer die Terminals bisher im Code registriert, nimmt das heraus, bevor er die Schalter setzt** (§74) |
 | 73 | **Koppeln: das Web wählt die Anwendung** | **Pflicht-Migration für alle mit Sicherheitskontext**: `ClientAppTemplates.TypeKey` (eindeutig, nullbar), `DevicePairings.TenantId`/`ClientAppId` nullbar, `DevicePairings.ClientAppTemplateId`. **Breaking am Vertrag**: `IDevicePairingService.StartAsync(clientKey, typeKey, deviceLabel)`, `ConfirmAsync(userCode, clientAppId)`. Neu: **höchstens eine aktive Instanz je Client-Anwendung** — Bestand vorher mit der Abfrage aus §73.2 prüfen. Agent koppelt mit `typeKey` und übernimmt den `ClientKey` aus `PairingResult` (§73) |
 | 71 | **Handler prüfen ihre Rechte selbst** | Kein Schema-Change, aber **breaking am Vertrag**: `IBillingHandler.CanAdminister` ist entfallen — dafür `CanView(BillingArea)` / `CanWrite(BillingArea)`. Der Konstruktor von `PaymentsHandler` nimmt zusätzlich `IEnumerable<IPaymentFeatureGate>` (über DI nichts zu tun). Die sechs `Billing.*`-Rechte waren tote Buchstaben und **gelten jetzt wirklich** — wer die Katalogpflege nicht über `Sysadmin` fährt, muss sie vergeben. Ein Host **ohne** `AddPaymentFeatureGate` bekommt jetzt auch die Anzeige zu, nicht mehr nur die Verkäufe (§71) |
 | 70 | **Kassieren am Zahlungsterminal (Achse C)** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId` (nullable). Der Vertrag hat ein DbSet mehr — **breaking auch für Test-Attrappen**. Beim Host fehlen `ITerminalChoiceProvider` für `RemoteObjects` und die Sprachressourcen `Terminals_*`. **Merke: eine ausbleibende Antwort ist NICHT „nicht bezahlt“** — `Unknown` ist ein eigener Zustand, sonst baut man die Doppelbelastung ein (§70) |
@@ -7087,14 +7088,14 @@ er kennt kein „meine Geräte".
 
 ### 70.5 Was beim Host noch fehlt
 
-Zwei Dinge liefert das Toolkit bewusst nicht mit:
+> **Überholt durch §74:** die Texte `Terminals_*` liefert das Toolkit mit, und
+> `AddMudBlazorTerminalViews` registriert den Anbieter für `RemoteObjects` selbst
+> (`RemoteObjectTerminalChoiceProvider`). Einschalten lässt sich alles über die WebParts.
 
-- **`ITerminalChoiceProvider` für `RemoteObjects`** — die Auswahlliste „welches Objekt auf diesem
-  Dienst". Der Vertrag `IRemoteObjectCatalog` liegt in **InterProcessExtensions** und fragt **nach
-  Vertrag** (`typeof(ITerminalDevice)`); ohne diese Einschränkung stünde ein Druckertreiber in der
-  Terminal-Auswahl. Fehlt der Anbieter, zeichnet die Maske ein Textfeld statt einer leeren Liste — kein
-  Fehler, aber abgetippte Namen.
-- **Sprachressourcen `Terminals_*`** für die Geräte-Masken.
+Ursprünglich stand hier: **`ITerminalChoiceProvider` für `RemoteObjects`** (die Auswahlliste „welches
+Objekt auf diesem Dienst", nach Vertrag `typeof(ITerminalDevice)` gefiltert) und die **Sprachressourcen
+`Terminals_*`** seien Sache des Hosts. Beides ist nicht mehr so. Einen eigenen Anbieter für
+`RemoteObjects` entfernt ihr — der zuerst registrierte gewinnt, und das ist der mitgelieferte.
 
 Die Geräte-Verwaltung selbst (`/Account/Manage/Payments/Terminals`) und der Assistent „Gerät
 hinzufügen" liegen im Toolkit, nicht bei euch.
@@ -7103,8 +7104,7 @@ hinzufügen" liegen im Toolkit, nicht bei euch.
 
 - [ ] Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId`
 - [ ] `IPaymentsContext`-Implementierung um das DbSet ergänzen — **auch Test-Attrappen**
-- [ ] `ITerminalChoiceProvider` für `RemoteObjects`, wenn ihr den Agenten-Weg nutzt
-- [ ] Sprachressourcen `Terminals_*`
+- [ ] Terminal-Ansichten und Wege einschalten (§74)
 - [ ] **gegen ein echtes Gerät prüfen** — nichts davon ist je an einem gelaufen
 - [ ] im eigenen Code: eine ausbleibende Antwort **nie** als „nicht bezahlt" buchen
 
@@ -7616,3 +7616,46 @@ beide durchgehen. Dafür müssten zwei Personen im selben Moment zwei Codes an d
 - [ ] Agent: `start` mit `typeKey`, `ClientKey` aus `PairingResult` speichern, `ClientKey`-/Terminal-Name-Einstellung entfernen
 - [ ] eigene Aufrufer/Attrappen von `IDevicePairingService` und `IClientAppTemplateCore` nachziehen (73.3)
 - [ ] **gegen einen echten Agenten und eine echte Datenbank prüfen** — gelaufen ist das bisher nur im Test (InMemory)
+
+---
+
+## 74. Terminal-Verwaltung über die WebParts — **kein Schema-Change, nicht breaking**
+
+Bis PRE255 hat kein WebPart die Terminal-Verwaltung (§70) registriert. Die Seite
+`/Account/Manage/Payments/Terminals` war trotzdem erreichbar, weil sie im selben Assembly liegt wie die
+Abo- und Zahlungs-Ansichten. Beim Öffnen stürzte sie dann ab, weil `ITerminalsHandler` fehlte. Dazu
+fehlten alle Texte `Terminals_*`, und an sie kam ein Host auch nicht heran: der `ResourceManager` von
+`PaymentMessages` hängt am Toolkit-Assembly.
+
+### 74.1 Die Schalter
+
+| WebPart | Schalter | ruft |
+|---|---|---|
+| BillingViews | `PaymentViews:ActivateTerminalViews` | `AddMudBlazorTerminalViews<TContext, TClientApp>` — `TClientApp` wird nach Namen aus dem Sicherheitskontext gebunden |
+| Billing.Stripe | `ActivateStripeTerminals` (nur zusammen mit `ActivatePayments`) | `AddStripeTerminals<TContext>` über den Payments-Kontext |
+| EntityFramework.Billing | `ActivateAgentTerminals` + `TerminalsContextType` | `AddAgentTerminals<TContext>` — braucht den `IAgentConnector` aus dem AgentServices-WebPart |
+
+`AddPayrexxTerminals` und `AddWalleeTerminals` haben weiterhin kein WebPart; die registriert ihr im Code.
+
+Die Ansichten und die Wege sind getrennt schaltbar: die Seite ohne einen Weg zeigt einen Assistenten
+ohne Auswahl, ein Weg ohne Seite ist der Fall „Kasse mit eigener Oberfläche".
+
+### 74.2 Was ihr tun müsst
+
+- **Habt ihr die Terminals bisher im Code registriert** (`AddMudBlazorTerminalViews`, `AddStripeTerminals`,
+  `AddAgentTerminals`), nehmt diese Aufrufe heraus, bevor ihr die Schalter setzt. Beides zusammen trägt
+  die Wege doppelt ein, und der Assistent zeigt jeden Anbieter zweimal.
+- **Eigene Texte `Terminals_*`**, etwa über eine eigene `IStringLocalizerFactory`, entfallen.
+
+### 74.3 Startprüfung
+
+Sobald die Abo- oder Zahlungs-Ansichten registriert sind, prüft das Toolkit beim Start, ob es einen
+`ITerminalsHandler` gibt. Fehlt er, steht eine **Warnung** im Log. Geprüft wird am fertigen Container,
+eine Registrierung im eigenen Code zählt also mit.
+
+### 74.4 Checkliste
+
+- [ ] eigene Terminal-Registrierungen im Code entfernen oder die Schalter weglassen, nicht beides
+- [ ] `PaymentViews:ActivateTerminalViews` setzen, wenn ihr die Seite wollt
+- [ ] je Weg den Schalter setzen (Stripe, Agent) oder im Code registrieren (Payrexx, Wallee)
+- [ ] Startlog auf die Warnung zum fehlenden `ITerminalsHandler` prüfen
