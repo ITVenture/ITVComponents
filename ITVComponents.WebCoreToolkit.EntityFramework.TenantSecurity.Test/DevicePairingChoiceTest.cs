@@ -64,6 +64,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 "ein Vorgang ohne jede Zuordnung waere ein anonymer Eintrag ohne Zweck.");
         }
 
+        // --- Loeschregeln (InMemory kennt keine Fremdschluessel - also am Modell pruefen) ---------
+
+        [TestMethod]
+        public void DeleteRules_CascadeOverTheApplicationOnly()
+        {
+            using var ctx = world.New("acme");
+            var pairing = ctx.Model.FindEntityType(ctx.DevicePairings.EntityType.ClrType)!;
+            DeleteBehavior RuleOf(string column) => pairing.GetForeignKeys()
+                .Single(k => k.Properties.Single().Name == column).DeleteBehavior;
+
+            Assert.AreEqual(DeleteBehavior.Cascade, RuleOf("ClientAppId"),
+                "sonst scheitert das Loeschen jeder je gekoppelten Anwendung.");
+            Assert.AreEqual(DeleteBehavior.ClientSetNull, RuleOf("TenantId"),
+                "eine zweite Kaskade waeren zwei Loeschpfade von Tenants - SQL Server 1785.");
+            Assert.AreEqual(DeleteBehavior.SetNull, RuleOf("ClientAppTemplateId"));
+        }
+
         // --- Die Auswahl -----------------------------------------------------------------------
 
         [TestMethod]

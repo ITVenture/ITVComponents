@@ -420,6 +420,7 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
             if (GrabService(service.ServiceName, null, false, out var svc, out var operations, out var waitingMessages))
             {
                 services.TryRemove(service.ServiceName, out _);
+                return;
             }
 
             throw new CommunicationException("Service is unknown!");

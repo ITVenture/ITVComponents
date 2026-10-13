@@ -6210,8 +6210,10 @@ CREATE TABLE [DevicePairings] (
     [PollCount] int NOT NULL,
     [LastPollUtc] datetime2 NULL,
     CONSTRAINT [PK_DevicePairings] PRIMARY KEY ([DevicePairingId]),
+    -- Mandant OHNE Kaskade: der Mandant raeumt seine Vorgaenge ueber ClientApps ab; eine zweite, direkte
+    -- Kaskade waeren zwei Loeschpfade Tenants -> DevicePairings (Fehler 1785). Siehe §73.1.
     CONSTRAINT [FK_DevicePairings_Tenants_TenantId] FOREIGN KEY ([TenantId])
-        REFERENCES [Tenants] ([TenantId]) ON DELETE CASCADE,
+        REFERENCES [Tenants] ([TenantId]),
     CONSTRAINT [FK_DevicePairings_ClientApps_ClientAppId] FOREIGN KEY ([ClientAppId])
         REFERENCES [ClientApps] ([ClientAppId]) ON DELETE CASCADE,
     CONSTRAINT [FK_DevicePairings_TenantUsers_ConfirmedByTenantUserId] FOREIGN KEY ([ConfirmedByTenantUserId])
@@ -6306,7 +6308,7 @@ CREATE TABLE "DevicePairings" (
     "LastPollUtc" timestamp with time zone NULL,
     CONSTRAINT "PK_DevicePairings" PRIMARY KEY ("DevicePairingId"),
     CONSTRAINT "FK_DevicePairings_Tenants_TenantId" FOREIGN KEY ("TenantId")
-        REFERENCES "Tenants" ("TenantId") ON DELETE CASCADE,
+        REFERENCES "Tenants" ("TenantId"),
     CONSTRAINT "FK_DevicePairings_ClientApps_ClientAppId" FOREIGN KEY ("ClientAppId")
         REFERENCES "ClientApps" ("ClientAppId") ON DELETE CASCADE,
     CONSTRAINT "FK_DevicePairings_TenantUsers_ConfirmedByTenantUserId" FOREIGN KEY ("ConfirmedByTenantUserId")
@@ -7480,8 +7482,10 @@ ALTER TABLE [DevicePairings] DROP CONSTRAINT [FK_DevicePairings_ClientApps_Clien
 ALTER TABLE [DevicePairings] ALTER COLUMN [TenantId] int NULL;
 ALTER TABLE [DevicePairings] ALTER COLUMN [ClientAppId] int NULL;
 
+-- Mandant OHNE Kaskade (die Vorgaenge gehen ueber ClientApps mit; zwei Pfade = Fehler 1785),
+-- Anwendung MIT Kaskade (sonst scheitert das Loeschen jeder je gekoppelten Anwendung)
 ALTER TABLE [DevicePairings] ADD CONSTRAINT [FK_DevicePairings_Tenants_TenantId] FOREIGN KEY ([TenantId])
-    REFERENCES [Tenants] ([TenantId]) ON DELETE CASCADE;
+    REFERENCES [Tenants] ([TenantId]);
 ALTER TABLE [DevicePairings] ADD CONSTRAINT [FK_DevicePairings_ClientApps_ClientAppId] FOREIGN KEY ([ClientAppId])
     REFERENCES [ClientApps] ([ClientAppId]) ON DELETE CASCADE;
 CREATE INDEX [IX_DevicePairings_TenantId] ON [DevicePairings] ([TenantId]);
@@ -7506,11 +7510,34 @@ CREATE UNIQUE INDEX "UQ_ClientAppTemplateTypeKey" ON "ClientAppTemplates" ("Type
 ALTER TABLE "DevicePairings" ALTER COLUMN "TenantId" DROP NOT NULL;
 ALTER TABLE "DevicePairings" ALTER COLUMN "ClientAppId" DROP NOT NULL;
 
+-- Loeschregeln wie im Modell: Mandant ohne, Anwendung mit Kaskade (siehe unten)
+ALTER TABLE "DevicePairings" DROP CONSTRAINT "FK_DevicePairings_Tenants_TenantId";
+ALTER TABLE "DevicePairings" ADD CONSTRAINT "FK_DevicePairings_Tenants_TenantId" FOREIGN KEY ("TenantId")
+    REFERENCES "Tenants" ("TenantId");
+ALTER TABLE "DevicePairings" DROP CONSTRAINT "FK_DevicePairings_ClientApps_ClientAppId";
+ALTER TABLE "DevicePairings" ADD CONSTRAINT "FK_DevicePairings_ClientApps_ClientAppId" FOREIGN KEY ("ClientAppId")
+    REFERENCES "ClientApps" ("ClientAppId") ON DELETE CASCADE;
+
 ALTER TABLE "DevicePairings" ADD "ClientAppTemplateId" integer NULL;
 CREATE INDEX "IX_DevicePairings_ClientAppTemplateId" ON "DevicePairings" ("ClientAppTemplateId");
 ALTER TABLE "DevicePairings" ADD CONSTRAINT "FK_DevicePairings_ClientAppTemplates_ClientAppTemplateId"
     FOREIGN KEY ("ClientAppTemplateId") REFERENCES "ClientAppTemplates" ("ClientAppTemplateId") ON DELETE SET NULL;
 ```
+
+**Löschregeln an `DevicePairings`** (seit 5.0.0-PRE254 ausdrücklich im Modell): `ClientAppId` **mit**
+Kaskade, `TenantId` **ohne**. Mandant und Anwendung werden immer zusammen gesetzt, aus derselben Anwendung
+— ein gelöschter Mandant räumt seine Vorgänge also über `ClientApps` ab. Eine zweite, direkte Kaskade wären
+zwei Löschpfade von `Tenants` nach `DevicePairings`, und die weist SQL Server mit Fehler 1785 ab
+(PostgreSQL nähme sie, aber beide Datenbanken sollen dasselbe Schema haben).
+
+- **Per EF migriert mit PRE253** (EF hatte für die nun nullbaren Spalten `NO ACTION` abgeleitet): die
+  nächste `migrations add` stellt `FK_DevicePairings_ClientApps_ClientAppId` wieder auf `CASCADE`, der
+  Mandanten-Fremdschlüssel bleibt `NO ACTION`. Nichts von Hand.
+- **Per SQL migriert:** das SQL oben setzt beide Regeln richtig. Wer §73.1 schon in der alten Fassung
+  (Mandant mit `ON DELETE CASCADE`) ausgeführt hat, baut den Mandanten-Fremdschlüssel noch einmal ohne
+  Kaskade auf — sonst meldet die nächste EF-Migration eine Abweichung.
+- **SQL Server mit dem SQL aus §65.3 in der alten Fassung:** dort scheiterte `FK_ClientApps_Tenants_TenantId`
+  an Fehler 1785; jetzt ist der Mandanten-Fremdschlüssel an `DevicePairings` ohne Kaskade.
 
 Bestehende Vorgänge brauchen keine Nacharbeit — sie verfallen nach Minuten, und wer sie mit `clientKey`
 angelegt hat, hat seine Anwendung ohnehin schon.
@@ -7583,6 +7610,7 @@ beide durchgehen. Dafür müssten zwei Personen im selben Moment zwei Codes an d
 ### 73.6 Checkliste
 
 - [ ] SQL aus 73.1 — alle mit Sicherheitskontext
+- [ ] Löschregeln an `DevicePairings` prüfen: `ClientAppId` CASCADE, `TenantId` NO ACTION (73.1) — wer per EF migriert, erzeugt eine neue Migration
 - [ ] Abfrage aus 73.2 laufen lassen, Mehrfach-Instanzen auf eigene Anwendungen verteilen
 - [ ] am Template der Agenten einen `TypeKey` setzen
 - [ ] Agent: `start` mit `typeKey`, `ClientKey` aus `PairingResult` speichern, `ClientKey`-/Terminal-Name-Einstellung entfernen

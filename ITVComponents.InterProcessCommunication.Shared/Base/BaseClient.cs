@@ -658,7 +658,10 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
                     catch (Exception ex)
                     {
-                        if (!tmpConn && connectionStatus)
+                        LogException(ex, false);
+                        // Test() hat geworfen, connectionStatus ist also noch der alte Wert: war die
+                        // Verbindung bis eben gut, ist sie es jetzt nicht mehr.
+                        if (connectionStatus)
                         {
                             connectionStatus = false;
                             OnOperationalChanged();

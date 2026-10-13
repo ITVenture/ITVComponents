@@ -114,10 +114,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         public DateTime? LastPollUtc { get; set; }
 
+        /// <summary>
+        /// Bewusst KEINE Kaskade (NO ACTION in der Datenbank): Mandant und Anwendung werden immer zusammen
+        /// gesetzt, aus derselben Anwendung - wird ein Mandant geloescht, raeumt die Kaskade ueber
+        /// ClientApps seine Vorgaenge ab. Eine zweite, direkte Kaskade waeren zwei Loeschpfade von
+        /// Tenants nach DevicePairings, und die weist SQL Server ab (Fehler 1785).
+        /// </summary>
         [ForeignKey(nameof(TenantId))]
+        [DeleteBehavior(DeleteBehavior.ClientSetNull)]
         public virtual TTenant Tenant { get; set; }
 
+        /// <summary>
+        /// Cascade: Kopplungsvorgaenge werden sonst nirgends geloescht - ohne Kaskade scheiterte das Loeschen
+        /// jeder Anwendung, an der je ein Geraet gekoppelt wurde. Ausdruecklich, weil EF fuer die nullbare
+        /// Spalte sonst ClientSetNull ableitet.
+        /// </summary>
         [ForeignKey(nameof(ClientAppId))]
+        [DeleteBehavior(DeleteBehavior.Cascade)]
         public virtual TClientApp ClientApp { get; set; }
 
         /// <summary>

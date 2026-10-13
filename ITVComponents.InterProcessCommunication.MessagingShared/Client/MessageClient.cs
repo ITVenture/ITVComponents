@@ -356,6 +356,12 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
                 return connected = connection.DiscoverService(targetService);
             }
+            else if (connector == null)
+            {
+                // In-Prozess: die lokale Verbindung ist immer operational, es gibt nichts neu aufzubauen.
+                // Nur fragen, ob der Dienst inzwischen (wieder) angemeldet ist.
+                return connected = connection.DiscoverService(targetService);
+            }
             else
             {
                 try
@@ -363,9 +369,18 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
                     ReConnectClient();
                     //return Test();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    connection?.Dispose();
+                    LogEnvironment.LogEvent($"Failed to reconnect to service {targetService}: {ex.OutlineException()}", LogSeverity.Error);
+                    try
+                    {
+                        connection?.Dispose();
+                    }
+                    catch (Exception dex)
+                    {
+                        LogEnvironment.LogEvent($"Failed to dispose broken connection to service {targetService}: {dex.OutlineException()}", LogSeverity.Warning);
+                    }
+
                     connection = null;
                     connected = false;
                 }
@@ -376,16 +391,21 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
         protected override void Dispose(bool disposing)
         {
-            if (useEvents)
+            if (connection != null)
             {
-                connection.MessageArrived -= ProcessMessage;
-                if (connection is not LocalServiceHubConsumer)
+                if (useEvents)
                 {
-                    connection.OperationalChanged -= ConnectivityChanged;
+                    connection.MessageArrived -= ProcessMessage;
+                    if (connection is not LocalServiceHubConsumer)
+                    {
+                        connection.OperationalChanged -= ConnectivityChanged;
+                    }
                 }
+
+                connection.Dispose();
+                connection = null;
             }
 
-            connection.Dispose();
             base.Dispose(disposing);
         }
 

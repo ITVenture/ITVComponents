@@ -125,6 +125,8 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.HubConnect
             {
                 brok.RegisterService(this);
             }
+
+            initialized = true;
         }
 
         /// <summary>
