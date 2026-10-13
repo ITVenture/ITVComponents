@@ -1,5 +1,6 @@
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
@@ -88,9 +89,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         public virtual bool HasDeviceSettings => false;
 
         /// <inheritdoc />
-        public virtual Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
-            string? configurationJson, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>([]);
+        public virtual Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(
+            TerminalDefinition draft, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SettingDescriptor>>([]);
+
+        /// <inheritdoc />
+        public virtual Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(null);
+
+        /// <inheritdoc />
+        public virtual Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft,
+            string settingName, string? draftJson, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<SettingChoice>>([]);
+
+        /// <inheritdoc />
+        /// <remarks>Die Vorgabe lehnt ab: ein Weg ohne zweiten Schritt hat kein Gerät, das etwas ablegen könnte.</remarks>
+        public virtual Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft,
+            string settingsJson, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ApplySettingsResult
+            {
+                Message = $"Terminals of provider '{ProviderKey}' have no device settings."
+            });
 
         /// <summary>
         /// Das Gerät, so wie eine Ausprägung es braucht: Kennung plus die Angaben, mit denen sich mit

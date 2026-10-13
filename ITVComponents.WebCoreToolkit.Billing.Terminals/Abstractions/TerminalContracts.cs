@@ -25,9 +25,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Gerät im lokalen Netz etwa Adresse, Port und Kassenkennung.
         /// </summary>
         /// <remarks>
-        /// Bewusst undurchsichtig: was hier drinsteht, geht nur die Ausprägung etwas an. Der Weg dorthin
-        /// (welcher Dienst, welches Objekt) kann im selben JSON stehen und wird dann schon vom Aufrufer
-        /// gelesen — beides aus einer Quelle zu nehmen ist genau der Punkt.
+        /// <b>Auf dem Agenten-Weg leer.</b> Ein Gerät am Agenten hält seine Einstellungen selbst (lokal
+        /// eingerichtet, im Konstruktor übergeben) und liest dieses Feld nicht. Es bleibt für Ausprägungen,
+        /// die ohne Agenten auskommen.
         /// </remarks>
         public string? ConfigurationJson { get; set; }
     }

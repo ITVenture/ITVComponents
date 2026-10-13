@@ -7064,6 +7064,9 @@ Der Weg steht am **Gerät**, nicht am Konto.
 
 ### 70.4 Was ihr beim Agenten-Weg wissen müsst
 
+> **Überholt durch §72:** die Einstellungen der Geräte liegen inzwischen beim Agenten und reisen nicht
+> mehr mit jedem Aufruf. Was hier über Dienstname und Vertrauensgrenze steht, gilt weiter.
+
 **Der Agent hält nichts.** `TerminalTarget` (Kennung + `ConfigurationJson`) reist bei **jedem** Aufruf
 mit — auch beim Nachfragen und Abbrechen. Das ist Absicht: ausgerechnet das Nachfragen (der Weg
 herauszufinden, ob die Karte belastet wurde) hätte sonst eine zweite Pflegestelle vorausgesetzt.
@@ -7181,3 +7184,249 @@ eine Berechtigung fehlt. Die Übersetzungen liegen im Toolkit bei.
 - [ ] `Billing.*`-Rechte vergeben, **falls** ihr die Katalogpflege nicht über `Sysadmin` fahrt
 - [ ] im eigenen Code: Methoden, die eine Mandanten-Id **als Parameter** nehmen, brauchen eine eigene
       Rechteprüfung — die Dienstschicht kann sie nicht liefern
+
+---
+
+## 72. Geräte am Agenten: das Web wählt, der Agent hält die Einstellungen — **Pflicht: 2 Spalten; opt-in: 1 Tabelle; breaking für Agent-Terminals**
+
+Anstoss: `docs/ISSUE-MiniStore-AgentServiceActivation.md`, Plan: `docs/Plan-Agent-ServiceActivation.md`.
+
+Bisher konnte nur ein Zahlterminal am Agenten hängen, und dessen Einstellungen reisten mit jedem Aufruf
+(§70.4). Jetzt gilt für **alle** Geräte am Agenten (Bondrucker, Schublade, Terminal):
+
+- **Die Konstruktion bleibt im Agenten.** Seine Geräte sind Bereichs-Plugins in seiner lokalen
+  Konfiguration; das Web sieht nie eine Konstruktionszeile.
+- **Der Agent sagt, was er anbietet** — über einen Katalog (`IAgentObjectCatalog`) unter dem Objektnamen
+  `AgentCatalog` (oder dem, der am ClientApp-Template steht). Der Katalog **baut kein Gerät**: Aufzählen
+  und Beschreiben laufen über den Typ.
+- **Das Web wählt** je Kasse und Rolle ein Gerät aus (`ClientAppServiceBinding`) und richtet es ein.
+- **Die Einstellungen liegen beim Agenten**, in seinen nativen Einstellungen unter
+  `ITVenture:AgentServices:Devices:<Name>`. Das Gerät bekommt sie im Konstruktor. Die Aufrufe tragen danach nur
+  noch das Was. **Wird der Laden-PC neu aufgesetzt, wird neu eingerichtet** — einen Spiegel im Web gibt es
+  bewusst nicht.
+
+### 72.1 Pflicht für alle mit Sicherheitskontext: zwei nullbare Spalten
+
+Gilt auch, wenn ihr keinen Agenten habt — die Spalten stehen an `ClientApp` und `ClientAppTemplate`.
+Keine neue Entität am Sicherheitskontext, die Vertrauens-Einträge (§67) bleiben gültig.
+
+SQL Server:
+
+```sql
+ALTER TABLE [ClientAppTemplates] ADD [CatalogObjectName] nvarchar(128) NULL;
+ALTER TABLE [ClientApps]         ADD [LastSeenUtc]       datetime2      NULL;
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE "ClientAppTemplates" ADD "CatalogObjectName" character varying(128) NULL;
+ALTER TABLE "ClientApps"         ADD "LastSeenUtc"       timestamp with time zone NULL;
+```
+
+`CatalogObjectName` reist im Konfigurations-Austausch mit dem Template mit. Ein leerer Wert in einer
+Import-Datei **löscht nichts** (ältere Exporte kennen das Feld nicht). Gepflegt wird er in der
+Template-Maske („Agent catalog object", leer = Standard).
+
+### 72.2 Breaking — Compile-Fehler, mechanisch zu beheben
+
+| Alt | Neu |
+|---|---|
+| `TerminalSettingKind` | `SettingKind` (`ITVComponents.AgentServices.Abstractions`), gleiche Werte |
+| `TerminalSettingChoice` | `SettingChoice` (dito) |
+| `TerminalSettingDescriptor` (eigene Klasse) | erbt jetzt von `SettingDescriptor`; nur `StoredIn` steht noch dort |
+| `ITerminalDevice.DescribeSettingsAsync` | **entfällt** — das Gerät deklariert `IHasDeviceSettings<TSettings>` |
+| `ITerminalPaymentService.DescribeDeviceSettingsAsync(string? json)` | `(TerminalDefinition draft)`, dazu `GetDeviceSettingsAsync`, `GetDeviceChoicesAsync`, `ApplyDeviceSettingsAsync` — gleich in `ITerminalProviderCatalog` und `ITerminalsHandler` |
+| `AgentTerminalPaymentService(…, ITerminalAgentLocator)` | zusätzlich `IAgentConnector` |
+| `TerminalFieldProjection` (BillingViews) | reicht an `SettingFieldProjection` (Blazor-Toolkit) weiter; Parameter sind jetzt `SettingDescriptor` |
+| `ISecurityContext.ClientApps` / `.ClientAppTemplates` | stehen jetzt in `IClientAppContext<TClientApp, TClientAppTemplate>`, den `ISecurityContext` erbt — wer über `ISecurityContext` zugreift, merkt nichts |
+
+Wer `ITerminalPaymentService` oder `ITerminalProviderCatalog` selbst implementiert (auch Test-Attrappen):
+die vier Geräte-Methoden nachziehen. Wer von `TerminalPaymentServiceBase` erbt, bekommt sie geschenkt.
+
+### 72.3 Breaking für Agent-Zahlterminals: die Einstellungen ziehen um
+
+Auf dem Agenten-Weg wird `ConfigurationJson` **nicht mehr an das Gerät geschickt**. Dort steht nur noch,
+was das Web braucht (`objectName`); `TerminalTarget.ConfigurationJson` bleibt leer.
+
+**Für jedes bestehende Agent-Terminal einmal:** in der Geräte-Verwaltung öffnen, Schritt „Gerät" prüfen,
+speichern — damit gehen die Werte an den Agenten. Die alten Geräte-Werte in `ConfigurationJson` dürfen
+stehen bleiben, gelesen werden sie nicht mehr.
+
+Das mitgelieferte `WalleeLtiTerminalDevice` hat jetzt einen Konstruktor-Parameter. Agent-Konfiguration:
+
+```json
+{ "Name": "walleeTerminal", "LoadType": "Scope", "DisplayName": "wallee an der Theke",
+  "ConstructionString": "[ITVComponents.WebCoreToolkit.Billing.Terminals.dll]<ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti.WalleeLtiTerminalDevice>$DeviceSettings" }
+```
+
+> **Achtung, Schreibweise:** Konstruktor-Parameter stehen **ohne Klammern** direkt hinter `>`, durch
+> Kommas getrennt. `<Typ>($DeviceSettings)` wird zu einem Parameter mit dem unbekannten Kennzeichen `(` —
+> der kam bisher **still als `null`** an. Das wird jetzt als Warnung protokolliert, am Verhalten ändert
+> sich nichts.
+
+§70.4 („der Agent hält nichts") gilt damit nicht mehr für die Einstellungen der Geräte — nur noch für die
+Buchführung, die weiterhin am Server liegt.
+
+### 72.4 Am Agenten
+
+Paket `ITVComponents.AgentServices`. Den Katalog als Plugin laden und am Dienst-Verteiler bereitstellen;
+er schaltet zugleich `$DeviceSettings` frei:
+
+```json
+{ "Name": "AgentCatalog",
+  "ConstructionString": "[ITVComponents.AgentServices.dll]<ITVComponents.AgentServices.PluginAgentObjectCatalog>$factory" }
+```
+
+`$factory` verlangt `PluginFactory.AllowFactoryParameter = true`.
+
+**Die Benutzerdatei registrieren** — beim Start, vor dem ersten Lesen der Einstellungen:
+
+```csharp
+NativeSettings.AddUserSettings(Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "<Firma>", "<App>", "appsettings.json"));
+```
+
+Das ersetzt ein eigenes `NativeSettings.Builder.AddJsonFile(…, reloadOnChange: true)` und merkt sich die
+Datei (`NativeSettings.UserSettingsFile`). Dorthin schreibt der Katalog mit `JsonUserSettings`; gelesen wird
+über `NativeSettings.GetSection` aus **allen** Quellen — ein Gerät lässt sich also auch von Hand in der
+`appsettings.json` des Agenten vorbelegen:
+
+```json
+{ "ITVenture": { "AgentServices": { "Devices": {
+    "epson": { "printerName": "EPSON TM-T20III", "columns": 48 } } } } }
+```
+
+Ohne registrierte Benutzerdatei lehnt der Katalog jedes Einrichten mit einer Meldung ab. Ein Gerätename mit
+`:` wird abgelehnt — er wäre in der Konfiguration ein weiterer Abschnitt.
+
+> **Wer selbst mit `JsonUserSettings` in dieselbe Datei schreibt:** eine Instanz, die lange lebt, schreibt
+> beim `Save()` den Stand zurück, den sie beim Laden gelesen hat — und überschreibt damit, was der Katalog
+> seither abgelegt hat. Vor dem Schreiben neu laden (`JsonUserSettings.LoadFrom`), wie es der Katalog tut.
+
+`JsonUserSettings` selbst wurde dabei repariert: `GetSubSection` / `GetSubSection<T>` scheiterten an einem
+Abschnitt, der **schon in der Datei** stand (`GetValue<T>` kann nur einfache Werte), und ein zweites `Save()`
+auf derselben Instanz an bereits eingehängten Knoten. Neu ist `SetSubSection(name, value)`.
+
+Ein Gerät mit Einstellungen:
+
+```csharp
+public sealed class EscPosPrinterSettings
+{
+    [DeviceSetting("Drucker", Required = true, ChoiceSource = "windowsPrinters")] public string PrinterName { get; set; } = "";
+    [DeviceSetting("Papierbreite (Zeichen)")]                                     public int Columns { get; set; } = 42;
+}
+
+public class EscPosPrinter : IReceiptPrinter, IHasDeviceSettings<EscPosPrinterSettings>, IPlugin
+{
+    public EscPosPrinter(EscPosPrinterSettings settings) { … }
+}
+```
+
+Konstruktionszeile `…<EscPosPrinter>$DeviceSettings`. Was kein `[DeviceSetting]` trägt, ist kein Feld
+und lässt sich vom Web nicht setzen — ein unbekannter Schlüssel wird abgelehnt. Auswahlwerte, die nur der
+Laden-PC kennt (installierte Drucker, Ports), liefert ein **eigenes** Plugin, das `IDeviceChoiceProvider`
+implementiert, unter dem Namen aus `ChoiceSource`. Das Gerät selbst ist **nie** seine eigene Quelle.
+Diese Anbieter liefert ihr; das Toolkit bleibt plattformneutral.
+
+`PluginConfigurationItem.DisplayName` ist neu und optional — so heisst das Gerät in der Auswahl im Web.
+Ein lokal abgeschaltetes Plugin (`Disabled`) erscheint gar nicht erst im Katalog.
+
+### 72.5 Im Web — opt-in, eine Tabelle
+
+Paket `ITVComponents.WebCoreToolkit.EntityFramework.AgentServices` (+ `…Blazor.MudBlazor.AgentServiceViews`
+für die Maske). Euer Kontext implementiert zusätzlich
+`IAgentServiceContext<TTenant, …, TTrustConfig, TClientApp, TClientAppTemplate>` (= `IBaseTenantContext` +
+`IClientAppContext` + `DbSet<ClientAppServiceBinding> ClientAppServiceBindings`) und ruft im
+`OnModelCreating` **`modelBuilder.ConfigureAgentServices<TTenant, TClientApp>()`** auf.
+
+SQL Server:
+
+```sql
+CREATE TABLE [ClientAppServiceBindings] (
+    [ClientAppServiceBindingId] int IDENTITY(1,1) NOT NULL,
+    [TenantId]                  int           NOT NULL,
+    [ClientAppId]               int           NOT NULL,
+    [Slot]                      nvarchar(64)  NOT NULL,
+    [ObjectName]                nvarchar(128) NOT NULL,
+    [Enabled]                   bit           NOT NULL,
+    CONSTRAINT [PK_ClientAppServiceBindings] PRIMARY KEY ([ClientAppServiceBindingId]),
+    CONSTRAINT [FK_ClientAppServiceBindings_ClientApps_ClientAppId] FOREIGN KEY ([ClientAppId])
+        REFERENCES [ClientApps] ([ClientAppId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ClientAppServiceBindings_Tenants_TenantId] FOREIGN KEY ([TenantId])
+        REFERENCES [Tenants] ([TenantId])
+);
+CREATE UNIQUE INDEX [UQ_ClientAppServiceBinding_Slot] ON [ClientAppServiceBindings] ([ClientAppId], [Slot]);
+CREATE INDEX [IX_ClientAppServiceBinding_Tenant] ON [ClientAppServiceBindings] ([TenantId]);
+```
+
+PostgreSQL:
+
+```sql
+CREATE TABLE "ClientAppServiceBindings" (
+    "ClientAppServiceBindingId" integer GENERATED BY DEFAULT AS IDENTITY,
+    "TenantId"                  integer                NOT NULL,
+    "ClientAppId"               integer                NOT NULL,
+    "Slot"                      character varying(64)  NOT NULL,
+    "ObjectName"                character varying(128) NOT NULL,
+    "Enabled"                   boolean                NOT NULL,
+    CONSTRAINT "PK_ClientAppServiceBindings" PRIMARY KEY ("ClientAppServiceBindingId"),
+    CONSTRAINT "FK_ClientAppServiceBindings_ClientApps_ClientAppId" FOREIGN KEY ("ClientAppId")
+        REFERENCES "ClientApps" ("ClientAppId") ON DELETE CASCADE,
+    CONSTRAINT "FK_ClientAppServiceBindings_Tenants_TenantId" FOREIGN KEY ("TenantId")
+        REFERENCES "Tenants" ("TenantId")
+);
+CREATE UNIQUE INDEX "UQ_ClientAppServiceBinding_Slot" ON "ClientAppServiceBindings" ("ClientAppId", "Slot");
+CREATE INDEX "IX_ClientAppServiceBinding_Tenant" ON "ClientAppServiceBindings" ("TenantId");
+```
+
+Der Mandanten-Fremdschlüssel ist **ohne** Kaskade: sonst gäbe es zwei Löschpfade (Mandant → ClientApp →
+Bindung und Mandant → Bindung), und SQL Server lehnt die Tabelle ab. Tabellen- und Schlüsselnamen der
+Mandanten- und ClientApp-Tabelle vor dem Ausführen gegen euer Schema prüfen.
+
+Registrierung (das WebPart tut das von selbst, sobald euer Kontext `IAgentServiceBindingContext` trägt):
+
+```csharp
+services.AddAgentServices<TContext, TClientApp, TClientAppTemplate>();
+services.AddAgentServiceSlot<IReceiptPrinter>("receiptPrinter", "Bondrucker")
+        .AddAgentServiceSlot<ICashDrawer>("cashDrawer", "Schublade");
+services.AddSingleton<IAgentClientFactory, EuerAgentClientFactory>();
+```
+
+**`IAgentClientFactory` stellt ihr:** sie liefert zu einem Dienstnamen (dem `ClientKey`) den
+`IBaseClient`, über den eure Anwendung den Dienst-Verteiler erreicht. Ohne sie meldet jede Auflösung
+„not configured" — laut, nicht still.
+
+Die Fachaufrufe gehen über `IAgentServiceResolver.GetAsync<IReceiptPrinter>(clientAppId, "receiptPrinter")`.
+Jeder Abbruchgrund hat einen eigenen Status (`NotBound`, `Disabled`, `Unreachable`, …) — „kein Drucker
+eingerichtet" ist ein anderer Fehler als „Kasse aus".
+
+Die Rollen einer Kasse und die Einstellungen ihrer Geräte pflegt der neue Reiter **„Geräte"** in der
+Detailzeile von *Connectivity → ClientApps* (Rechte `Apps.View` / `Apps.Write`, wie die ClientApp-Verwaltung;
+lokalisiert de/en/fr/it über `AgentServiceMessages`). Am Template steht nur der Katalogname. Weitere Reiter
+lassen sich mit `AddClientAppDetailTab<TComponent>(title, titleResource)` einhängen.
+
+### 72.6 Mitgeliefert, was bisher der Host bauen musste
+
+- **`ITerminalAgentLocator`**: `AgentConnectorTerminalLocator` (über den `IAgentConnector`). Ein eigener
+  bleibt möglich und hat dann Vorrang.
+- **`ITerminalChoiceProvider` für `RemoteObjects`**: `RemoteObjectTerminalChoiceProvider`. **Einen eigenen
+  Anbieter für diese Quelle entfernen** — der zuerst registrierte gewinnt, und das ist jetzt dieser.
+- **`IRemoteObjectCatalog`**: `AgentRemoteObjectCatalog` fragt den Katalog des Agenten im aktiven Mandanten.
+- **`LastSeenUtc`**: schreibt ein Beobachter aus den An-/Abmeldungen am Dienst-Verteiler
+  (`IServiceRegistrationEvents` am `EndPointBroker`) — sofern der Verteiler im selben Prozess läuft.
+  Sonst bleibt die Spalte leer; das steht beim Start im Protokoll.
+
+Der Mandant ist bei allem **Teil der Auflösung**: eine Kasse eines anderen Mandanten gibt es für den
+Connector nicht, auch wenn ihr `ClientKey` stimmt.
+
+### 72.7 Checkliste
+
+- [ ] 2 Spalten (`ClientAppTemplates.CatalogObjectName`, `ClientApps.LastSeenUtc`) — alle
+- [ ] Compile-Fehler aus 72.2 beheben, Attrappen von `ITerminalPaymentService`/`ITerminalProviderCatalog` nachziehen
+- [ ] Agent: `PluginAgentObjectCatalog` laden und bereitstellen, Geräte auf `$DeviceSettings` umstellen
+- [ ] Agent-Terminals: je einmal im Assistenten speichern (72.3)
+- [ ] eigenen `RemoteObjects`-Anbieter und eigenen `ITerminalAgentLocator` entfernen, sofern vorhanden
+- [ ] opt-in: `IAgentServiceContext`, `ConfigureAgentServices`, Tabelle, `IAgentClientFactory`, Rollen
+- [ ] **gegen einen echten Agenten prüfen** — gelaufen ist das Ganze bisher nur im Test über den
+      InMemory-Verteiler

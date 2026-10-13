@@ -122,7 +122,8 @@ else
         var copy = new ClientAppTemplateViewModel
         {
             ClientAppTemplateId = item.ClientAppTemplateId,
-            Name = item.Name
+            Name = item.Name,
+            CatalogObjectName = item.CatalogObjectName
         };
         var parameters = new DialogParameters<AppTemplateDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<AppTemplateDialog>("Edit template", parameters, EditDialogDefaults.Edit);

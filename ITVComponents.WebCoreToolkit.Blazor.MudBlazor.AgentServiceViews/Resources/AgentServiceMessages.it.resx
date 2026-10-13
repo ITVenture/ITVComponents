@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Tab_Devices" xml:space="preserve"><value>Dispositivi</value></data>
+  <data name="Dev_NoPermission" xml:space="preserve"><value>Nessuna autorizzazione per visualizzare i dispositivi di questa applicazione.</value></data>
+  <data name="Dev_Reachable" xml:space="preserve"><value>Agent raggiungibile</value></data>
+  <data name="Dev_Unreachable" xml:space="preserve"><value>Agent non raggiungibile</value></data>
+  <data name="Dev_LastSeen" xml:space="preserve"><value>Visto l'ultima volta: {0}</value></data>
+  <data name="Dev_Never" xml:space="preserve"><value>mai</value></data>
+  <data name="Dev_NoSlots" xml:space="preserve"><value>Questa applicazione non dichiara ruoli di dispositivo.</value></data>
+  <data name="Dev_Device" xml:space="preserve"><value>Dispositivo</value></data>
+  <data name="Dev_DeviceName" xml:space="preserve"><value>Dispositivo (nome oggetto)</value></data>
+  <data name="Dev_InUse" xml:space="preserve"><value>Attivo</value></data>
+  <data name="Dev_Save" xml:space="preserve"><value>Salva</value></data>
+  <data name="Dev_Release" xml:space="preserve"><value>Rilascia</value></data>
+  <data name="Dev_Settings" xml:space="preserve"><value>Impostazioni</value></data>
+  <data name="Dev_NoSettings" xml:space="preserve"><value>Questo dispositivo non ha impostazioni.</value></data>
+  <data name="Dev_RequiredMissing" xml:space="preserve"><value>Compilare tutti i campi obbligatori.</value></data>
+  <data name="Dev_SendToAgent" xml:space="preserve"><value>Invia all'agente</value></data>
+  <data name="Dev_Close" xml:space="preserve"><value>Chiudi</value></data>
+  <data name="Dev_Sent" xml:space="preserve"><value>Le impostazioni sono state salvate sull'agente.</value></data>
+  <data name="Dev_Refused" xml:space="preserve"><value>L'agente ha rifiutato le impostazioni:</value></data>
+  <data name="Dev_LoadFailed" xml:space="preserve"><value>Non è stato possibile caricare i dispositivi - vedere il registro.</value></data>
+  <data name="Dev_SaveFailed" xml:space="preserve"><value>Non è stato possibile assegnare il dispositivo - vedere il registro.</value></data>
+  <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Non è stato possibile rilasciare il ruolo - vedere il registro.</value></data>
+  <data name="Dev_OpenSettingsFailed" xml:space="preserve"><value>Non è stato possibile leggere le impostazioni dall'agente - vedere il registro.</value></data>
+  <data name="Dev_ApplyFailed" xml:space="preserve"><value>Non è stato possibile inviare le impostazioni all'agente - vedere il registro.</value></data>
+</root>

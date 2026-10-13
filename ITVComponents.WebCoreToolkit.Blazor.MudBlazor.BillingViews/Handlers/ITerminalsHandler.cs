@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 
@@ -45,8 +46,21 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         /// <summary>
         /// Die Felder, die das Gerät selbst verlangt — der zweite Schritt. Leer, wenn es keinen gibt.
         /// </summary>
-        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
-            string? configurationJson, CancellationToken cancellationToken = default);
+        /// <param name="draft">das Gerät nach dem ersten Schritt; der Mandant wird hier gesetzt</param>
+        /// <param name="cancellationToken">bricht die Abfrage ab</param>
+        Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Was das Gerät gerade eingestellt hat, als JSON; <c>null</c> = noch nicht eingerichtet.</summary>
+        Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default);
+
+        /// <summary>Eine Auswahl für ein Geräte-Feld, die nur der Rechner vor Ort kennt.</summary>
+        Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+            string? draftJson, CancellationToken cancellationToken = default);
+
+        /// <summary>Übergibt die Einstellungen an das Gerät, das sie prüft und bei sich ablegt.</summary>
+        Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Füllt eine Auswahlliste, die erst zur Laufzeit feststeht.
@@ -60,7 +74,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         /// die Einträge, oder eine leere Liste. <b>Leer heisst „unbekannte Quelle" oder „nichts da"</b>;
         /// die Maske zeichnet dann ein Textfeld statt einer Auswahl — unschön, aber bedienbar.
         /// </returns>
-        Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
+        Task<IReadOnlyList<SettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
             CancellationToken cancellationToken = default);
 
         /// <summary>Legt ein Gerät an oder ändert es.</summary>
@@ -94,7 +108,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         bool Handles(string source);
 
         /// <summary>Die Einträge.</summary>
-        Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
+        Task<IReadOnlyList<SettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
             CancellationToken cancellationToken = default);
     }
 }

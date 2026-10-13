@@ -17,6 +17,9 @@
     <!-- The provider-neutral billing library: the money arithmetic and the price model are pure, and proving
          them needs neither a container nor a provider account. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />
+    <!-- Die Agent-Seite der Geraete-Einstellungen: was die Maske aus der Selbstbeschreibung eines Terminals
+         erzeugt, muss die strenge Pruefung am Agenten annehmen. -->
+    <ProjectReference Include="..\ITVComponents.AgentServices\ITVComponents.AgentServices.csproj" />
     <!-- Und der Stripe-Teil, aber nur fuer die Spiegelung des Connect-Kontos: auch die ist eine reine
          Abbildung, die ohne Netz und ohne Anbieter-Konto zu pruefen ist - und die einzige Stelle, an der
          eine falsche Uebersetzung unmittelbar Geld bewegt. -->

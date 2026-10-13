@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -100,16 +101,42 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         /// <inheritdoc />
         /// <remarks>
-        /// <b>Dieser Weg fragt das GERÄT</b>, und zwar an der Adresse, die in der übergebenen Konfiguration
-        /// steht. Ohne Prüfung könnte damit jeder angemeldete Benutzer die Anwendung eine Verbindung zu einem
-        /// frei gewählten Ziel aufbauen lassen — das ist keine Katalogabfrage mehr, sondern ein Aufruf nach
-        /// aussen auf fremde Rechnung. Darum das Verwaltungsrecht und nicht das Leserecht.
+        /// <b>Dieser Weg fragt den AGENTEN</b>, den der Entwurf nennt. Ohne Prüfung könnte damit jeder
+        /// angemeldete Benutzer die Anwendung einen frei gewählten Dienst ansprechen lassen. Darum das
+        /// Verwaltungsrecht und nicht das Leserecht — und der Mandant kommt aus dem Sicherheitsbereich,
+        /// nie aus dem Entwurf: über ihn wird der Agent aufgelöst, und eine fremde Kasse gibt es dann nicht.
         /// </remarks>
-        public async Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
-            string? configurationJson, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default)
         {
-            await EnsureAsync(CanManage(), cancellationToken);
-            return await catalog.DescribeDeviceSettingsAsync(providerKey, configurationJson, cancellationToken);
+            draft.TenantId = await EnsureAsync(CanManage(), cancellationToken);
+            return await catalog.DescribeDeviceSettingsAsync(draft, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>Die Einstellungen eines Geräts sind Mandantendaten: Verwaltungsrecht, Mandant aus dem Bereich.</remarks>
+        public async Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default)
+        {
+            draft.TenantId = await EnsureAsync(CanManage(), cancellationToken);
+            return await catalog.GetDeviceSettingsAsync(draft, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft,
+            string settingName, string? draftJson, CancellationToken cancellationToken = default)
+        {
+            draft.TenantId = await EnsureAsync(CanManage(), cancellationToken);
+            return await catalog.GetDeviceChoicesAsync(draft, settingName, draftJson, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        /// <remarks><b>Schreibt auf dem Kassen-PC.</b> Verwaltungsrecht, Mandant aus dem Bereich.</remarks>
+        public async Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+            CancellationToken cancellationToken = default)
+        {
+            draft.TenantId = await EnsureAsync(CanManage(), cancellationToken);
+            return await catalog.ApplyDeviceSettingsAsync(draft, settingsJson, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -118,7 +145,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// Mandanten mit Namen und Schlüssel. Eine Liste, die man ohne Recht abfragen kann, ist eine Liste, die
         /// man ohne Recht hat.
         /// </remarks>
-        public async Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source,
+        public async Task<IReadOnlyList<SettingChoice>> GetChoicesAsync(string source,
             string? dependsOnValue, CancellationToken cancellationToken = default)
         {
             await EnsureAsync(CanManage(), cancellationToken);
@@ -260,7 +287,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// schmales Interface wäre in einem EF-Ausdruck nicht übersetzbar — dieselbe Falle wie beim
         /// Mandanten-Interceptor.
         /// </remarks>
-        public async Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source,
+        public async Task<IReadOnlyList<SettingChoice>> GetChoicesAsync(string source,
             string? dependsOnValue, CancellationToken cancellationToken = default)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -280,7 +307,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 })
                 .ToListAsync(cancellationToken);
 
-            return [.. rows.Select(r => new TerminalSettingChoice { Value = r.Key, Label = r.Name })];
+            return [.. rows.Select(r => new SettingChoice { Value = r.Key, Label = r.Name })];
         }
     }
 }

@@ -1,9 +1,12 @@
+@using ITVComponents.AgentServices.Abstractions
 @using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
 @using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
 @using ITVComponents.WebCoreToolkit.Blazor.SharedComponents
+@using Microsoft.Extensions.Logging
 
 @inject ITerminalsHandler Handler
 @inject IStringLocalizer<PaymentMessages> L
+@inject ILogger<TerminalWizardDialog> Logger
 
 @*
     Der Assistent "Geraet hinzufuegen". Er zeichnet die Masken NICHT selbst, sondern laesst
@@ -48,6 +51,7 @@
                     {
                         <DeclaredFieldsForm @ref="serverForm"
                                             Fields="@serverDeclared"
+                                            FieldChanged="OnServerFieldChanged"
                                             Prefill="@serverPrefill"
                                             PrefillIsInvariant="true"
                                             ResetKey="@($"server:{provider}")"
@@ -61,9 +65,9 @@
                     <MudStep Title="@L["Terminals_Step_Device"]">
                         @if (deviceError != null)
                         {
-                            @* Der Agent war nicht erreichbar. KEIN Abbruch: wer die Felder kennt, soll
-                               trotzdem speichern koennen - sonst laesst sich ein Geraet nur einrichten,
-                               solange die Kasse laeuft. *@
+                            @* Der Agent war nicht erreichbar. KEIN Abbruch: das Geraet selbst laesst sich
+                               anlegen. Seine Einstellungen liegen aber beim Agenten - die lassen sich erst
+                               setzen, wenn die Kasse wieder erreichbar ist. *@
                             <MudAlert Severity="Severity.Warning" Class="mb-3">@deviceError</MudAlert>
                         }
                         else if (deviceFields.Count == 0)
@@ -113,7 +117,7 @@
 
     private IReadOnlyList<TerminalProviderInfo> providers = [];
     private IReadOnlyList<TerminalSettingDescriptor> serverFields = [];
-    private IReadOnlyList<TerminalSettingDescriptor> deviceFields = [];
+    private IReadOnlyList<SettingDescriptor> deviceFields = [];
     private IReadOnlyList<DeclaredField> serverDeclared = [];
     private IReadOnlyList<DeclaredField> deviceDeclared = [];
     private Dictionary<string, object?> serverPrefill = new();
@@ -171,7 +175,7 @@
         hasDeviceStep = providers.FirstOrDefault(p => p.Key == provider).HasDeviceSettings;
         serverPrefill = TerminalFieldProjection.Defaults(serverFields, Stored(serverJson, routeValue));
         serverDeclared = TerminalFieldProjection.ToDeclaredFields(serverFields);
-        _ = FillChoicesAsync(serverFields, null, fields => serverDeclared = fields);
+        _ = FillChoicesAsync(serverFields, routeValue, fields => serverDeclared = fields);
     }
 
     /// <summary>
@@ -184,7 +188,7 @@
     private async Task FillChoicesAsync(IReadOnlyList<TerminalSettingDescriptor> fields, string? dependsValue,
         Action<IReadOnlyList<DeclaredField>> apply)
     {
-        var choices = new Dictionary<string, IReadOnlyList<TerminalSettingChoice>>();
+        var choices = new Dictionary<string, IReadOnlyList<SettingChoice>>();
         foreach (var field in fields.Where(f => !string.IsNullOrEmpty(f.ChoiceSource)))
         {
             var value = field.DependsOn == null ? null : dependsValue;
@@ -195,6 +199,18 @@
         {
             apply(TerminalFieldProjection.ToDeclaredFields(fields, choices));
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>
+    /// Haengt eine Auswahl von einem anderen Feld ab (die Objekte von der gewaehlten Kasse), wird sie neu
+    /// geholt, sobald sich jenes aendert - sonst zeigte sie die Objekte der vorher gewaehlten Kasse.
+    /// </summary>
+    private async Task OnServerFieldChanged(KeyValuePair<string, object?> change)
+    {
+        if (serverFields.Any(f => f.DependsOn == change.Key))
+        {
+            await FillChoicesAsync(serverFields, change.Value?.ToString(), fields => serverDeclared = fields);
         }
     }
 
@@ -253,16 +269,21 @@
         deviceError = null;
         try
         {
-            // Erst JETZT moeglich: die Angaben aus Schritt zwei sagen, WEN wir fragen.
-            deviceFields = await Handler.DescribeDeviceSettingsAsync(provider, serverJson);
-            devicePrefill = TerminalFieldProjection.Defaults(deviceFields, Stored(Existing?.ConfigurationJson, null));
+            // Erst JETZT moeglich: die Angaben aus Schritt zwei sagen, WEN wir fragen. Gefragt wird der
+            // Katalog des Agenten, nicht das Geraet - und vorbelegt wird mit dem, was DORT eingestellt ist.
+            var draft = Draft();
+            deviceFields = await Handler.DescribeDeviceSettingsAsync(draft);
+            var current = deviceFields.Count == 0 ? null : await Handler.GetDeviceSettingsAsync(Draft());
+            devicePrefill = TerminalFieldProjection.Defaults(deviceFields, Stored(current, null));
             deviceDeclared = TerminalFieldProjection.ToDeclaredFields(deviceFields);
-            await FillChoicesAsync(deviceFields, routeValue, fields => deviceDeclared = fields);
+            await FillDeviceChoicesAsync(current);
         }
         catch (Exception ex)
         {
-            // Der Agent antwortet nicht. Das darf das Einrichten nicht verhindern - sonst laesst sich ein
-            // Geraet nur konfigurieren, solange die Kasse laeuft.
+            // Der Agent antwortet nicht. Das Geraet selbst laesst sich trotzdem anlegen - nur einrichten
+            // laesst es sich erst, wenn die Kasse wieder erreichbar ist. Veraltete Werte gibt es keine zu
+            // zeigen: die Einstellungen liegen beim Geraet.
+            Logger.LogWarning(ex, "The agent of terminal {DisplayName} could not be asked for its device settings.", displayName);
             deviceFields = [];
             deviceDeclared = [];
             deviceError = string.Format(L["Terminals_DeviceUnreachable"], ex.Message);
@@ -270,6 +291,23 @@
         finally
         {
             busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Holt die Auswahllisten der Geraete-Felder beim Agenten — Werte, die nur der Rechner vor Ort kennt.
+    /// </summary>
+    private async Task FillDeviceChoicesAsync(string? currentJson)
+    {
+        var choices = new Dictionary<string, IReadOnlyList<SettingChoice>>();
+        foreach (var field in deviceFields.Where(f => !string.IsNullOrEmpty(f.ChoiceSource)))
+        {
+            choices[field.Name] = await Handler.GetDeviceChoicesAsync(Draft(), field.Name, currentJson);
+        }
+
+        if (choices.Count != 0)
+        {
+            deviceDeclared = TerminalFieldProjection.ToDeclaredFields(deviceFields, choices);
         }
     }
 
@@ -281,37 +319,37 @@
             return;
         }
 
-        var json = serverJson;
-        if (hasDeviceStep && deviceFields.Count != 0)
-        {
-            if (deviceForm == null || !deviceForm.TryGetInvariantResult(out var deviceValues))
-            {
-                error = L["Terminals_RequiredMissing"];
-                return;
-            }
-
-            // Beide Abschnitte in EIN JSON; der zweite gewinnt bei gleichen Namen.
-            json = TerminalSettings.Compose((serverFields, ServerValues()), (deviceFields, deviceValues));
-        }
-
         busy = true;
         try
         {
-            var id = await Handler.SaveAsync(new TerminalDefinition
+            if (hasDeviceStep && deviceFields.Count != 0)
             {
-                TerminalId = Existing?.TerminalId ?? 0,
-                Provider = provider,
-                ProviderTerminalId = providerTerminalId,
-                Route = routeValue,
-                DisplayName = displayName,
-                ConfigurationJson = json,
-                Enabled = Existing?.Enabled ?? true
-            });
+                if (deviceForm == null || !deviceForm.TryGetInvariantResult(out var deviceValues))
+                {
+                    error = L["Terminals_RequiredMissing"];
+                    return;
+                }
 
+                // Die Geraete-Einstellungen gehen an den Agenten, NICHT in die Geraete-Zeile. Erst wenn er
+                // sie angenommen hat, wird gespeichert - sonst stuende ein Geraet da, das niemand
+                // eingerichtet hat.
+                var applied = await Handler.ApplyDeviceSettingsAsync(Draft(),
+                    TerminalSettings.Compose((deviceFields, deviceValues)));
+                if (!applied.Success)
+                {
+                    error = string.Join(" ", new[] { applied.Message }
+                        .Concat(applied.Errors.Select(e => e.Message))
+                        .Where(m => !string.IsNullOrWhiteSpace(m)));
+                    return;
+                }
+            }
+
+            var id = await Handler.SaveAsync(Draft());
             Dialog.Close(DialogResult.Ok(id));
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Terminal {DisplayName} could not be saved.", displayName);
             error = ex.Message;
         }
         finally
@@ -320,13 +358,20 @@
         }
     }
 
-    private IReadOnlyDictionary<string, string?> ServerValues()
-        => serverForm != null && serverForm.TryGetInvariantResult(out var values)
-            ? values
-            : new Dictionary<string, string?>();
+    /// <summary>Das Geraet, wie der Assistent es gerade kennt.</summary>
+    private TerminalDefinition Draft() => new()
+    {
+        TerminalId = Existing?.TerminalId ?? 0,
+        Provider = provider,
+        ProviderTerminalId = providerTerminalId,
+        Route = routeValue,
+        DisplayName = displayName,
+        ConfigurationJson = serverJson,
+        Enabled = Existing?.Enabled ?? true
+    };
 
     /// <summary>Was bereits gespeichert ist, als Vorbelegung.</summary>
-    private static Dictionary<string, string?> Stored(string? json, string? route)
+    private Dictionary<string, string?> Stored(string? json, string? route)
     {
         var result = new Dictionary<string, string?>();
         if (route != null)
@@ -347,10 +392,11 @@
                 result[property.Name] = property.Value.ToString();
             }
         }
-        catch (System.Text.Json.JsonException)
+        catch (System.Text.Json.JsonException ex)
         {
             // Unlesbares JSON: dann eben ohne Vorbelegung weitermachen. Die Maske bleibt bedienbar, und
             // was der Benutzer eintraegt, ersetzt es sauber.
+            Logger.LogWarning(ex, "Stored settings of terminal {DisplayName} are not readable JSON; the form starts without them.", displayName);
         }
 
         return result;

@@ -71,10 +71,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
         /// sie steht im Assistenten keine Auswahl.
         /// </para>
         /// <para>
-        /// <b>Was der Host zusätzlich stellen muss</b>, wenn er den Weg über einen Agenten nutzt: einen
-        /// <see cref="Handlers.ITerminalChoiceProvider"/> für
-        /// <c>TerminalChoiceSources.RemoteObjects</c>. Nur er weiss, welche Objekte auf welcher Kasse
-        /// bereitstehen. Fehlt er, wird aus der Auswahl ein Textfeld — bedienbar, nur unschöner.
+        /// Die Auswahl <c>TerminalChoiceSources.RemoteObjects</c> („Geräte-Objekt auf dieser Kasse") füllt der
+        /// mitgelieferte <see cref="Handlers.Impl.RemoteObjectTerminalChoiceProvider"/> über den
+        /// <c>IRemoteObjectCatalog</c> des AgentServices-Webpakets. Ohne dieses Paket wird daraus ein
+        /// Textfeld. <b>Ein eigener Anbieter des Hosts für diese Quelle gehört entfernt</b> — der zuerst
+        /// registrierte gewinnt, und das ist dieser.
         /// </para>
         /// </remarks>
         /// <typeparam name="TContext">der Kontext mit den Zahlungstabellen und dem aktiven Mandanten</typeparam>
@@ -92,6 +93,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<ITerminalsHandler, TerminalsHandler<TContext>>();
             services.AddScoped<ITerminalChoiceProvider, ClientAppTerminalChoiceProvider<TContext, TClientApp>>();
+            services.AddScoped<ITerminalChoiceProvider, RemoteObjectTerminalChoiceProvider>();
             return services;
         }
     }

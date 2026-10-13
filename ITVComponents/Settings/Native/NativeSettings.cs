@@ -48,6 +48,48 @@ namespace ITVComponents.Settings.Native
 
         public static string SettingsBasePath { get; private set; }
 
+        /// <summary>
+        /// Die Datei, in die zur Laufzeit geschrieben wird (<see cref="JsonUserSettings"/>), oder <c>null</c>,
+        /// wenn keine registriert ist (<see cref="AddUserSettings"/>).
+        /// </summary>
+        public static string UserSettingsFile { get; private set; }
+
+        /// <summary>
+        /// Haengt die Datei an, in die zur Laufzeit geschrieben wird, und merkt sie sich - wer schreibt, findet
+        /// sie unter <see cref="UserSettingsFile"/>, und was er schreibt, ist ueber <see cref="GetSection{T}"/>
+        /// lesbar.
+        /// </summary>
+        /// <param name="fileName">die Datei; sie darf (noch) fehlen</param>
+        /// <remarks>
+        /// Muss vor dem ersten Lesen der Einstellungen laufen: was erst danach angehaengt wird, sieht die
+        /// bereits gebaute <see cref="Configuration"/> nicht.
+        /// </remarks>
+        public static void AddUserSettings(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ArgumentNullException(nameof(fileName));
+            }
+
+            if (configuration != null)
+            {
+                LogEnvironment.LogEvent($"The user settings file {fileName} is added after the configuration was built; its values are not visible until NativeSettings is reset.",
+                    LogSeverity.Warning);
+            }
+
+            UserSettingsFile = Path.GetFullPath(fileName);
+            Builder.AddJsonFile(UserSettingsFile, optional: true, reloadOnChange: true);
+        }
+
+        /// <summary>
+        /// Liest die Konfiguration sofort neu ein - nach einem Schreiben in <see cref="UserSettingsFile"/>
+        /// gilt der neue Stand so ab dem naechsten Lesen und nicht erst, wenn die Dateiueberwachung anschlaegt.
+        /// </summary>
+        public static void Reload()
+        {
+            (Configuration as IConfigurationRoot)?.Reload();
+        }
+
         public static void Init(bool reset = false)
         {
             if (reset || builder == null)
@@ -55,6 +97,7 @@ namespace ITVComponents.Settings.Native
                 Configuration = null;
                 reloadToken?.Dispose();
                 reloadToken = null;
+                UserSettingsFile = null;
                 var startAssembly = Assembly.GetEntryAssembly();
                 var settingsFileName = "appsettings.json";
                 if (startAssembly != null)
@@ -77,6 +120,23 @@ namespace ITVComponents.Settings.Native
         public static T GetSection<T>(string path, Action<T> configureDefaults = null) where T : class, new()
         {
             return Configuration.GetSection(path, configureDefaults);
+        }
+
+        /// <summary>
+        /// Wie <see cref="GetSection{T}"/>, fuer einen Typ, der erst zur Laufzeit feststeht.
+        /// </summary>
+        /// <param name="path">der Pfad des Abschnitts</param>
+        /// <param name="type">der Typ, in den gelesen wird; braucht einen parameterlosen Konstruktor</param>
+        public static object GetSection(string path, Type type)
+        {
+            return Configuration.GetSection(path, type);
+        }
+
+        /// <summary>Ob es einen Abschnitt unter diesem Pfad gibt.</summary>
+        /// <param name="path">der Pfad des Abschnitts</param>
+        public static bool SectionExists(string path)
+        {
+            return Configuration.GetSection(path).Exists();
         }
 
         public static string ReadSection(string path)

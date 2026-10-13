@@ -1,5 +1,6 @@
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -66,7 +67,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
             {
                 Name = "pairingNote",
                 Label = "Hinweis zur Kopplung",
-                Kind = TerminalSettingKind.Text,
+                Kind = SettingKind.Text,
                 HelpText = "Das Gerät muss vorher mit dem Payrexx-Konto gekoppelt sein (Einmalcode am Terminal). Die Seriennummer gehört in die Gerätekennung."
             }
         ];

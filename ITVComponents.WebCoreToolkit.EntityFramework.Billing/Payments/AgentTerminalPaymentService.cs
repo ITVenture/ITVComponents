@@ -1,3 +1,4 @@
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
@@ -21,10 +22,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     /// einer Zahlung neu startet.
     /// </para>
     /// <para>
-    /// Wie aus <see cref="TenantPaymentTerminal.Route"/> eine Verbindung wird, entscheidet die Anwendung
-    /// über ihren <see cref="ITerminalAgentLocator"/>. Das Toolkit schreibt keinen Transport vor und
-    /// kennt die Proxy-Verdrahtung des Hosts nicht — es fragt nur nach einem <see cref="ITerminalDevice"/>
-    /// für dieses eine Gerät.
+    /// Das Gerät findet der <see cref="ITerminalAgentLocator"/> (mitgeliefert: über den
+    /// <see cref="IAgentConnector"/>); eingerichtet wird es über den Katalog des Agenten. <b>Die Einstellungen
+    /// des Geräts liegen am Agenten</b>, nicht in der Geräte-Zeile — die Aufrufe tragen nur das Was.
     /// </para>
     /// </remarks>
     public class AgentTerminalPaymentService<TContext> : TerminalPaymentServiceBase<TContext>
@@ -35,12 +35,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
         private readonly ITerminalAgentLocator locator;
 
+        private readonly IAgentConnector connector;
+
         /// <summary>Initializes a new instance of the <see cref="AgentTerminalPaymentService{TContext}"/> class.</summary>
         public AgentTerminalPaymentService(IDbContextFactory<TContext> dbFactory, PaymentsRuntime runtime,
-            TenantSaleWebhookSink<TContext> sink, ITerminalAgentLocator locator)
+            TenantSaleWebhookSink<TContext> sink, ITerminalAgentLocator locator, IAgentConnector connector)
             : base(dbFactory, runtime, sink)
         {
             this.locator = locator;
+            this.connector = connector;
         }
 
         /// <inheritdoc />
@@ -57,7 +60,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             {
                 Name = "route",
                 Label = "Kasse",
-                Kind = TerminalSettingKind.Choice,
+                Kind = SettingKind.Choice,
                 // Die Client-Anwendungen des Mandanten. Der gespeicherte Wert ist ihr ClientKey - der
                 // traegt einen systemweit eindeutigen Index und ist damit als Dienstname auch ueber
                 // Mandantengrenzen kollisionsfrei, anders als ein Anzeigename.
@@ -68,9 +71,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             },
             new()
             {
-                Name = "objectName",
+                Name = AgentTerminals.ObjectNameSetting,
                 Label = "Geräte-Objekt auf dieser Kasse",
-                Kind = TerminalSettingKind.Choice,
+                Kind = SettingKind.Choice,
                 ChoiceSource = TerminalChoiceSources.RemoteObjects,
                 // Ohne diese Angabe zeigte die Maske weiter die Objekte der zuvor gewaehlten Kasse.
                 DependsOn = "route",
@@ -84,31 +87,73 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
         /// <inheritdoc />
         /// <remarks>
-        /// <b>Hier wird der Agent tatsächlich gefragt.</b> Das ist der Punkt, an dem sich der zweite
-        /// Schritt lohnt: läuft dort eine neuere Fassung, beschreibt sie sich selbst richtig, und die
-        /// Web-Anwendung muss von ihren Feldern nichts wissen.
+        /// <b>Hier wird der Agent gefragt — aber nicht das Gerät.</b> Der Katalog des Agenten beschreibt die
+        /// Einstellungen über den Typ; ein Terminal, dessen Konstruktor die Verbindung öffnet, springt nicht
+        /// deshalb an, weil jemand die Maske aufklappt.
         /// </remarks>
-        public override async Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
-            string? configurationJson, CancellationToken cancellationToken = default)
+        public override async Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(
+            TerminalDefinition draft, CancellationToken cancellationToken = default)
         {
-            // Ein Geraet, das es noch nicht gibt: die Zeile ist nur das Vehikel, mit dem der Aufloeser
-            // den Weg findet. Gespeichert wird sie nicht - der Assistent ist noch nicht fertig.
-            var draft = new TenantPaymentTerminal
-            {
-                Provider = Key,
-                ConfigurationJson = configurationJson
-            };
-
-            var device = await locator.GetDeviceAsync(draft, cancellationToken);
-            return await device.DescribeSettingsAsync(cancellationToken);
+            var (catalog, objectName) = await CatalogAsync(draft, cancellationToken);
+            return await catalog.DescribeSettingsAsync(objectName);
         }
+
+        /// <inheritdoc />
+        public override async Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default)
+        {
+            var (catalog, objectName) = await CatalogAsync(draft, cancellationToken);
+            return await catalog.GetSettingsAsync(objectName);
+        }
+
+        /// <inheritdoc />
+        public override async Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft,
+            string settingName, string? draftJson, CancellationToken cancellationToken = default)
+        {
+            var (catalog, objectName) = await CatalogAsync(draft, cancellationToken);
+            return await catalog.GetChoicesAsync(objectName, settingName, draftJson);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Die Werte gehen an den Agenten und liegen danach dort — nicht in der Geräte-Zeile. Geprüft wird am
+        /// Agenten gegen den Einstellungstyp des Geräts.
+        /// </remarks>
+        public override async Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft,
+            string settingsJson, CancellationToken cancellationToken = default)
+        {
+            var (catalog, objectName) = await CatalogAsync(draft, cancellationToken);
+            return await catalog.ApplySettingsAsync(objectName, settingsJson);
+        }
+
+        /// <summary>Der Katalog des Agenten, auf den der Entwurf zeigt, und das Objekt dort.</summary>
+        private async Task<(IAgentObjectCatalog Catalog, string ObjectName)> CatalogAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken)
+        {
+            var (route, objectName) = AgentConnectorTerminalLocator.Address(draft.Route, draft.ConfigurationJson,
+                draft.DisplayName);
+            try
+            {
+                return (await connector.GetCatalogAsync(draft.TenantId, route, cancellationToken), objectName);
+            }
+            catch (AgentConnectionException ex)
+            {
+                throw new TerminalDeviceException($"The agent '{route}' cannot be reached: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Das Ziel für das Gerät: nur die Kennung. Die Einstellungen hält das Gerät selbst.
+        /// </summary>
+        private static TerminalTarget AgentTargetOf(TenantPaymentTerminal terminal)
+            => new() { TerminalId = terminal.ProviderTerminalId };
 
         /// <inheritdoc />
         protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.StartPaymentAsync(TargetOf(terminal), command, cancellationToken);
+            return await device.StartPaymentAsync(AgentTargetOf(terminal), command, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -116,7 +161,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             TenantPaymentTerminal terminal, string operationId, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.GetPaymentAsync(TargetOf(terminal), operationId, cancellationToken);
+            return await device.GetPaymentAsync(AgentTargetOf(terminal), operationId, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -124,7 +169,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             TenantPaymentTerminal terminal, string operationId, CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.CancelPaymentAsync(TargetOf(terminal), operationId, cancellationToken);
+            return await device.CancelPaymentAsync(AgentTargetOf(terminal), operationId, cancellationToken);
         }
 
         /// <inheritdoc />
@@ -132,7 +177,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             CancellationToken cancellationToken)
         {
             var device = await locator.GetDeviceAsync(terminal, cancellationToken);
-            return await device.GetStatusAsync(TargetOf(terminal), cancellationToken);
+            return await device.GetStatusAsync(AgentTargetOf(terminal), cancellationToken);
         }
     }
 }

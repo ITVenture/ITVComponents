@@ -22,10 +22,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
     /// </para>
     /// <para>
     /// <b>Jede Methode bekommt das Ziel mitgeliefert</b> (<see cref="TerminalTarget"/>), auch das
-    /// Nachfragen und das Abbrechen. Eine Ausprägung hält also <b>keine</b> eigene Geräteliste: was
-    /// nötig ist, um mit diesem einen Gerät zu reden, steht in der Anfrage. Das ist kein Beiwerk —
-    /// sonst müsste an jedem Kassen-PC eine Konfiguration gepflegt werden, die es anderswo schon gibt,
-    /// und nach einem Neuaufsetzen wäre der Agent stumm.
+    /// Nachfragen und das Abbrechen — die Kennung, unter der der Vorgang geführt wird.
+    /// </para>
+    /// <para>
+    /// <b>Die Einstellungen dagegen liegen beim Gerät.</b> Ein Gerät, das welche braucht (Adresse, Port),
+    /// deklariert sie über <c>IHasDeviceSettings&lt;T&gt;</c> und bekommt sie im Konstruktor
+    /// (<c>$DeviceSettings</c>). Eingerichtet wird es einmal über den Katalog des Agenten; danach ist es
+    /// eine Blackbox, und die Aufrufe tragen nur das Was. <see cref="TerminalTarget.ConfigurationJson"/>
+    /// bleibt auf dem Agenten-Weg leer.
     /// </para>
     /// </remarks>
     public interface ITerminalDevice
@@ -77,27 +81,5 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Meldet, ob das Gerät erreichbar und bereit ist.
         /// </summary>
         Task<TerminalStatus> GetStatusAsync(TerminalTarget target, CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Sagt, welche Angaben diese Ausprägung braucht, um mit einem Gerät reden zu können.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Damit lässt sich eine Eingabemaske erzeugen, statt sie je Anbindung von Hand zu bauen — und
-        /// vor allem: <b>sie bleibt richtig</b>. Wer ein Feld hinzufügt, ändert diese Liste, und die
-        /// Maske zieht mit. Eine anderswo gepflegte Feldliste wäre schon beim zweiten Feld veraltet.
-        /// </para>
-        /// <para>
-        /// <b>Die Antwort kommt vom Gerät, nicht aus der Web-Anwendung.</b> Läuft auf dem Kassen-PC
-        /// eine neuere Fassung, beschreibt sie sich selbst richtig — die Web-Seite muss dafür nichts
-        /// wissen und nichts nachgezogen bekommen.
-        /// </para>
-        /// <para>
-        /// Was die Maske einsammelt, wird über <see cref="TerminalSettings.Compose"/> zu dem JSON, das
-        /// später als <see cref="TerminalTarget.ConfigurationJson"/> zurückkommt.
-        /// </para>
-        /// </remarks>
-        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeSettingsAsync(
-            CancellationToken cancellationToken = default);
     }
 }

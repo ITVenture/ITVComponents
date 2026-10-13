@@ -13,6 +13,8 @@
 @inject AuthenticationStateProvider AuthState
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IEnumerable<ClientAppDetailTabDescriptor> DetailTabs
+@inject IStringLocalizerFactory LocalizerFactory
 
 <PageTitle>@L["App_Title"]</PageTitle>
 
@@ -92,6 +94,14 @@
                             <MudTabPanel Text="@L["App_Tab_Devices"]">
                                 <ClientAppAccessesGrid ClientAppId="@context.Item.ClientAppId" />
                             </MudTabPanel>
+                            @foreach (var tab in DetailTabs)
+                            {
+                                @* Reiter aus anderen Paketen (etwa die Geraete-Rollen der Agent-Dienste). *@
+                                <MudTabPanel Text="@TitleOf(tab)">
+                                    <DynamicComponent Type="tab.ComponentType"
+                                                      Parameters="@(new Dictionary<string, object> { ["ClientAppId"] = context.Item.ClientAppId })" />
+                                </MudTabPanel>
+                            }
                         </MudTabs>
                     </MudPaper>
                 </ChildRowContent>
@@ -111,6 +121,9 @@
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private string? search;
     private IReadOnlyList<ClientAppTemplateViewModel> templates = Array.Empty<ClientAppTemplateViewModel>();
+
+    private string TitleOf(ClientAppDetailTabDescriptor tab)
+        => tab.TitleResource == null ? tab.Title : LocalizerFactory.Create(tab.TitleResource)[tab.Title];
 
     protected override async Task OnInitializedAsync()
     {

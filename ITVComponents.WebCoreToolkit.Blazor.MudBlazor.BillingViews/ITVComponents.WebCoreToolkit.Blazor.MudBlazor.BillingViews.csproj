@@ -25,5 +25,7 @@
     <!-- For IBaseTenantContext.CurrentTenantId (the active tenant scope). The Billing data model itself is
          decoupled; this UI layer is toolkit-specific and tenant-scoped, like the other admin views. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.csproj" />
+    <!-- IRemoteObjectCatalog: die Auswahl "Geraete-Objekt auf dieser Kasse" im Terminal-Assistenten. -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.InterProcessExtensions\ITVComponents.WebCoreToolkit.InterProcessExtensions.csproj" />
   </ItemGroup>
 </Project>

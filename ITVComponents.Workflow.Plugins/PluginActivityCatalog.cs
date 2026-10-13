@@ -130,31 +130,7 @@ namespace ITVComponents.Workflow.Plugins
         /// </summary>
         private IEnumerable<(PluginConfigurationItem Item, Type Type)> Activities()
         {
-            foreach (IDynamicLoader loader in factory.GetPlugins<IDynamicLoader>())
-            {
-                IEnumerable<PluginConfigurationItem> names;
-                try
-                {
-                    names = loader.GetScopedPluginNames() ?? Enumerable.Empty<PluginConfigurationItem>();
-                }
-                catch (Exception ex)
-                {
-                    LogEnvironment.LogEvent(
-                        $"Could not read scoped plugin names from a dynamic loader: {ex.OutlineException()}",
-                        LogSeverity.Warning);
-                    continue;
-                }
-
-                foreach (PluginConfigurationItem item in names)
-                {
-                    if (item?.ConstructionString != null
-                        && factory.TryGetPluginType(item.ConstructionString, out Type type)
-                        && typeof(IActivityPlugin).IsAssignableFrom(type))
-                    {
-                        yield return (item, type);
-                    }
-                }
-            }
+            return factory.GetScopedPluginTypes(typeof(IActivityPlugin));
         }
 
         /// <summary>

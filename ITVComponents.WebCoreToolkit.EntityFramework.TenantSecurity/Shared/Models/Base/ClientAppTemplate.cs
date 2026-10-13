@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base
 {
     [Index(nameof(Name), IsUnique = true, Name="IX_UniqueTemplateName")]
-    public class ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate>
+    public class ClientAppTemplate<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppTemplate> : IClientAppTemplateCore
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -29,6 +29,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         [Required, MaxLength(200)]
         public string Name { get; set; }
+
+        /// <summary>
+        /// Unter welchem Objektnamen Agenten dieses Templates ihren Katalog bereitstellen. Leer = der Standardname
+        /// (<c>AgentCatalog.DefaultObjectName</c>).
+        /// </summary>
+        /// <remarks>
+        /// Für den Fall, dass ein Agent auf einen Ersatz-Katalog ausweichen muss — vom Administrator setzbar,
+        /// ohne dass Agent und Web den Namen aushandeln.
+        /// </remarks>
+        [MaxLength(128)]
+        public string CatalogObjectName { get; set; }
 
         /// <summary>
         /// Die Rechtebuendel, die dieses Template anbietet.

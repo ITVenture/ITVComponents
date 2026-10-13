@@ -27,6 +27,8 @@
     <PackageReference Include="Scriban" Version="7.2.6" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Das abhaengigkeitsfreie Feldmodell (SettingDescriptor): Masken aus Selbstbeschreibungen. -->
+    <ProjectReference Include="..\ITVComponents.AgentServices.Abstractions\ITVComponents.AgentServices.Abstractions.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor\ITVComponents.WebCoreToolkit.Blazor.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework\ITVComponents.WebCoreToolkit.EntityFramework.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.ServiceShared\ITVComponents.WebCoreToolkit.ServiceShared.csproj" />

@@ -24,6 +24,12 @@ namespace ITVComponents.Plugins.Config
         public PluginLoadType LoadType { get; set; } = PluginLoadType.Singleton;
 
         /// <summary>
+        /// Gets or sets an optional name for display purposes - e.g. when a catalog offers this plugin for selection.
+        /// Empty means <see cref="Name"/> is shown.
+        /// </summary>
+        public string DisplayName { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether a specific plugin is disabled
         /// </summary>
         public bool Disabled { get;set; }

@@ -769,6 +769,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             return new ClientAppTemplateMarkup
             {
                 Name = templateInst.Name,
+                CatalogObjectName = templateInst.CatalogObjectName,
                 PermissionSets = templateInst.PermissionSets.Select(s => new AppPermissionSetMarkup
                 {
                     Name = s.Name,
@@ -3107,13 +3108,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 {
                     change = new Change { ChangeType = ChangeType.Insert, EntityName = entityName, Apply = true };
                     change.Details.Add(MakeDetail(keyName, c.New.Name));
+                    if (!string.IsNullOrWhiteSpace(c.New.CatalogObjectName))
+                    {
+                        change.Details.Add(MakeDetail("CatalogObjectName", c.New.CatalogObjectName));
+                    }
+
                     RegisterChange(change);
                     RegisterAppPermissionSets(c.New.Name, c.New.PermissionSets);
                 }
                 else if (c.Original != null)
                 {
-                    // Am Template selbst gibt es ausser dem Namen nichts zu aendern - der Name IST der
-                    // Schluessel. Ein Update-Change entstuende also immer ohne Details und waere Laerm.
+                    // Der Name IST der Schluessel; zu aendern gibt es am Template nur den Katalognamen der Agenten.
+                    // Ohne Unterschied dort kein Update-Change - der waere Laerm. Ein LEERER Wert in der Datei loescht
+                    // nichts: ein Export aus einer Fassung ohne dieses Feld wuerde sonst still den Ersatz-Katalog entfernen.
+                    if (!string.IsNullOrWhiteSpace(c.New.CatalogObjectName) && c.New.CatalogObjectName != c.Original.CatalogObjectName)
+                    {
+                        change = new Change
+                        {
+                            ChangeType = ChangeType.Update,
+                            Key = new Dictionary<string, string> { { keyName, c.Original.Name } },
+                            EntityName = entityName, Apply = true
+                        };
+                        change.Details.Add(MakeDetail("CatalogObjectName", c.New.CatalogObjectName, currentValue: c.Original.CatalogObjectName));
+                        RegisterChange(change);
+                    }
+
                     RegisterAppPermissionSets(c.New.Name, c.New.PermissionSets, c.Original.PermissionSets);
                 }
 

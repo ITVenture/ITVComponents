@@ -10,5 +10,9 @@
   </PropertyGroup>
   <!-- BEWUSST OHNE JEDE ABHAENGIGKEIT. Dieses Paket wird vom Kassen-Agenten referenziert, und der soll
        wegen eines Vertrags nicht EF Core, ASP.NET und das halbe Toolkit mitladen muessen. Was hier
-       hineingehoert, ist die Frage: braucht es der AGENT? Alles andere gehoert in die Billing-Pakete. -->
+       hineingehoert, ist die Frage: braucht es der AGENT? Alles andere gehoert in die Billing-Pakete.
+       Einzige Referenz: die ebenfalls abhaengigkeitsfreien AgentServices.Abstractions (Feldmodell). -->
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.AgentServices.Abstractions\ITVComponents.AgentServices.Abstractions.csproj" />
+  </ItemGroup>
 </Project>

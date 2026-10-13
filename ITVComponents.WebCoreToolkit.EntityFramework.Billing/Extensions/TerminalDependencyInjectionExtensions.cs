@@ -40,10 +40,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <b>Der Host muss einen <see cref="ITerminalAgentLocator"/> beisteuern.</b> Ohne ihn scheitert
-        /// die Auflösung, und zwar ausdrücklich: wie aus dem Namen in der Route eine Verbindung wird,
-        /// weiss nur die Anwendung, die ihre Proxies ohnehin schon verdrahtet hat. Eine mitgelieferte
-        /// Vorgabe wäre eine Annahme, die bei zwei Agenten falsch ist.
+        /// <b>Braucht einen <c>IAgentConnector</c></b> — den bringt das AgentServices-Webpaket mit
+        /// (<c>AddAgentServices</c>). Über ihn erreicht der Weg den Katalog des Agenten (Einrichten) und das
+        /// Gerät selbst (Kassieren). Ein Host mit eigener Verdrahtung darf zusätzlich einen eigenen
+        /// <see cref="ITerminalAgentLocator"/> registrieren; der mitgelieferte tritt dann zurück.
         /// </para>
         /// <para>
         /// Die geräteseitige Umsetzung (<c>ITerminalDevice</c>) läuft auf dem Kassen-PC und wird hier
@@ -53,6 +53,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         public static IServiceCollection AddAgentTerminals<TContext>(this IServiceCollection services)
             where TContext : DbContext, IPaymentsContext
         {
+            services.TryAddScoped<ITerminalAgentLocator, AgentConnectorTerminalLocator>();
             services.AddScoped<AgentTerminalPaymentService<TContext>>();
             services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
                 AgentTerminalPaymentService<TContext>.Key,

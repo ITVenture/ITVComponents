@@ -55,9 +55,16 @@ namespace ITVComponents.Settings.Native
         public JsonUserSettings GetSubSection(string name)
         {
             JsonUserSettings retVal;
-            if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting))
+            if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting) && setting != null)
             {
-                var tmp = setting.GetValue<Dictionary<string,JsonNode>>();
+                // GetValue<T> kann nur ein JsonValue - ein Abschnitt aus der Datei ist ein JsonObject. Die Knoten
+                // werden kopiert: sie haengen noch an ihrem Objekt und koennen in kein zweites.
+                if (setting is not JsonObject section)
+                {
+                    throw new InvalidOperationException($"'{name}' is no section but a {setting.GetValueKind()} value.");
+                }
+
+                var tmp = section.ToDictionary(n => n.Key, n => n.Value?.DeepClone());
                 retVal = new JsonUserSettings
                 {
                     parent = this,
@@ -86,9 +93,10 @@ namespace ITVComponents.Settings.Native
         public T GetSubSection<T>(string name) where T : new()
         {
             T retVal;
-            if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting))
+            if (!bufferedObjects.ContainsKey(name) && rootSettings.TryGetValue(name, out var setting) && setting != null)
             {
-                retVal = setting.GetValue<T>();
+                // Deserialize statt GetValue<T>: GetValue kann nur ein JsonValue, ein Objekt aus der Datei ist keines.
+                retVal = setting.Deserialize<T>();
                 bufferedObjects.Add(name, retVal);
             }
             else if (bufferedObjects.TryGetValue(name, out var o))
@@ -102,6 +110,16 @@ namespace ITVComponents.Settings.Native
             }
 
             return retVal;
+        }
+
+        /// <summary>
+        /// Ersetzt den Wert unter <paramref name="name"/> beim naechsten <see cref="Save"/>; <c>null</c> entfernt ihn.
+        /// </summary>
+        /// <param name="name">der Name des Eintrags</param>
+        /// <param name="value">der neue Wert - ein Objekt, das serialisiert wird, oder ein <see cref="JsonNode"/></param>
+        public void SetSubSection(string name, object value)
+        {
+            bufferedObjects[name] = value;
         }
 
         public void Save()
@@ -128,7 +146,9 @@ namespace ITVComponents.Settings.Native
                 if (tmp.Value is JsonUserSettings jse)
                 {
                     jse.Persist();
-                    var jt = new JsonObject(jse.rootSettings);//JsonObject.Create(jse.rootSettings);
+                    // Kopien: nach dem ersten Speichern haengen die Knoten am vorigen Objekt, und ein zweites
+                    // Save wuerde sie sonst ein zweites Mal einhaengen.
+                    var jt = new JsonObject(jse.rootSettings.Select(n => new KeyValuePair<string, JsonNode>(n.Key, n.Value?.DeepClone())));
                     rootSettings[tmp.Key] =jt;
                     CleanupObject(jt);
                 }

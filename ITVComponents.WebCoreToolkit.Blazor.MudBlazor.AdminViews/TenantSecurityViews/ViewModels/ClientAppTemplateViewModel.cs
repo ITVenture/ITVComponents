@@ -8,6 +8,10 @@ public class ClientAppTemplateViewModel
 
     [Required, MaxLength(200)]
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Unter welchem Objektnamen Agenten dieses Templates ihren Katalog bereitstellen; leer = Standard.</summary>
+    [MaxLength(128)]
+    public string? CatalogObjectName { get; set; }
 }
 
 public sealed class AppPermissionSetAssignmentViewModel

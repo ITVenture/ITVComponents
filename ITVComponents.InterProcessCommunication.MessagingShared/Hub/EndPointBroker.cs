@@ -12,14 +12,21 @@ using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Proxy;
 using ITVComponents.InterProcessCommunication.MessagingShared.Messages;
 using ITVComponents.InterProcessCommunication.MessagingShared.Messages.ProtocolHelper;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
+using ITVComponents.Helpers;
 using ITVComponents.Json;
 using ITVComponents.Logging;
 using Exception = System.Exception;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 {
-    public class EndPointBroker : IDisposable, IEndPointBroker
+    public class EndPointBroker : IDisposable, IEndPointBroker, IServiceRegistrationEvents
     {
+        /// <inheritdoc />
+        public event EventHandler<ServiceRegistrationEventArgs> ServiceRegistered;
+
+        /// <inheritdoc />
+        public event EventHandler<ServiceRegistrationEventArgs> ServiceUnregistered;
+
         private ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>> messages = new ConcurrentDictionary<string, ConcurrentQueue<OperationWaitHandle>>();
         private ConcurrentDictionary<string, ServiceStatus> services = new ConcurrentDictionary<string, ServiceStatus>();
         private ConcurrentDictionary<string, ConcurrentDictionary<string, OperationWaitHandle>> openWaitHandles = new ConcurrentDictionary<string, ConcurrentDictionary<string, OperationWaitHandle>>();
@@ -318,11 +325,16 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
                         {
                             UnsafeServerDrop(registration.ServiceName);
                         }
+                        else
+                        {
+                            Raise(ServiceRegistered, registration.ServiceName, ownerScope);
+                        }
 
                         return retVal;
                     }
                     catch (Exception ex)
                     {
+                        LogEnvironment.LogEvent($"Registering service {registration.ServiceName} failed: {ex.OutlineException()}", LogSeverity.Error);
                         return new RegisterServiceResponseMessage
                         {
                             Ok = false,
@@ -391,8 +403,9 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
                 {
                     UnRegisterService(msg);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    LogEnvironment.LogEvent($"Unregistering service {msg.ServiceName} failed: {ex.OutlineException()}", LogSeverity.Warning);
                     retVal = false;
                 }
 
@@ -478,6 +491,27 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
             return remoteBroker.DiscoverService(request);
         }
 
+        /// <summary>
+        /// Meldet eine An- oder Abmeldung. Ein Zuhoerer, der wirft, darf die Registrierung nicht stoeren -
+        /// sein Fehler wird protokolliert.
+        /// </summary>
+        private void Raise(EventHandler<ServiceRegistrationEventArgs> handler, string serviceName, string ownerScope)
+        {
+            if (handler == null)
+            {
+                return;
+            }
+
+            try
+            {
+                handler(this, new ServiceRegistrationEventArgs(serviceName, ownerScope));
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"A listener on the (un)registration of service {serviceName} failed: {ex.OutlineException()}", LogSeverity.Error);
+            }
+        }
+
         public void Dispose()
         {
             tickOpenWaits.Dispose();
@@ -497,6 +531,7 @@ with new Registration (serviceName: {newSvc.ServiceName}, isAlive:{newSvc.IsAliv
                 {
                     if (services.TryRemove(serviceName, out var svc))
                     {
+                        Raise(ServiceUnregistered, serviceName, svc.OwnerScope);
                         lock (svc)
                         {
                             if (svc.OpenTaskWait != null)

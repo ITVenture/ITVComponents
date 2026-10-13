@@ -116,7 +116,8 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
             .Select(t => new ClientAppTemplateViewModel
             {
                 ClientAppTemplateId = t.ClientAppTemplateId,
-                Name = t.Name
+                Name = t.Name,
+                CatalogObjectName = t.CatalogObjectName
             }).ToListAsync();
         return new PagedResult<ClientAppTemplateViewModel> { Items = items, TotalCount = total };
     }
@@ -125,7 +126,7 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
     {
         if (!HasPermission("Apps.PermissionSets.Write")) return null;
         using var db = CreateDb();
-        var entity = new TClientAppTemplate { Name = input.Name };
+        var entity = new TClientAppTemplate { Name = input.Name, CatalogObjectName = Normalize(input.CatalogObjectName) };
         db.ClientAppTemplates.Add(entity);
         await db.SaveChangesAsync();
         input.ClientAppTemplateId = entity.ClientAppTemplateId;
@@ -139,9 +140,14 @@ public class AppTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole, T
         var entity = await db.ClientAppTemplates.FirstOrDefaultAsync(t => t.ClientAppTemplateId == input.ClientAppTemplateId);
         if (entity == null) return null;
         entity.Name = input.Name;
+        entity.CatalogObjectName = Normalize(input.CatalogObjectName);
         await db.SaveChangesAsync();
         return input;
     }
+
+    /// <summary>Leer bleibt leer (= Standardname), sonst ohne Rand.</summary>
+    private static string? Normalize(string? catalogObjectName)
+        => string.IsNullOrWhiteSpace(catalogObjectName) ? null : catalogObjectName.Trim();
 
     public async Task<bool> DeleteAsync(ClaimsPrincipal user, int clientAppTemplateId)
     {

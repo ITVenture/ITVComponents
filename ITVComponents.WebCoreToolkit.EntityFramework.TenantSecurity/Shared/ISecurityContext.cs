@@ -25,7 +25,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
         TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence,
         TTenantSetting,
         TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant,
-        TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>
+        TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig>,
+        IClientAppContext<TClientApp, TClientAppTemplate>
         where TTenant : Tenant
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser,
             TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -168,11 +169,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared
         public DbSet<TAppPermissionSet> AppPermissionSets { get; set; }
 
 
-        public DbSet<TClientAppTemplate> ClientAppTemplates { get; set; }
+        // ClientApps und ClientAppTemplates kommen aus IClientAppContext - dort, damit andere Kontext-Vertraege
+        // auf die ClientApp zeigen koennen, ohne diese Rechte-Kette mitzuerben.
 
         public DbSet<TClientAppPermission> ClientAppPermissions { get; set; }
-
-        public DbSet<TClientApp> ClientApps { get; set; }
 
         public DbSet<TClientAppAccess> ClientAppAccesses { get; set; }
     }

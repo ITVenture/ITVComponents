@@ -1,0 +1,309 @@
+@inject IAgentServiceAdministration Admin
+@inject ILogger<ClientAppServiceSlots> Logger
+@inject IStringLocalizer<AgentServiceMessages> L
+@inject ISnackbar Snackbar
+
+@*
+    Die Rollen einer Kasse: welches Geraet am Agenten sie in welcher Rolle benutzt, und dessen Einstellungen.
+    Die Einstellungen liegen beim Agenten - diese Maske liest sie dort und gibt sie dorthin zurueck. Ist der
+    Agent nicht erreichbar, zeigt sie das, statt veraltete Werte vorzutaeuschen.
+*@
+
+@if (!Admin.CanView())
+{
+    <MudAlert Severity="Severity.Warning">@L["Dev_NoPermission"]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudStack Spacing="2">
+        @if (status != null)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                @if (status.Reachable)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small">@L["Dev_Reachable"]</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">@L["Dev_Unreachable"]</MudChip>
+                    <MudText Typo="Typo.caption">@status.Message</MudText>
+                }
+
+                <MudText Typo="Typo.caption">
+                    @(L["Dev_LastSeen", status.LastSeenUtc?.ToLocalTime().ToString("g") ?? L["Dev_Never"].Value])
+                </MudText>
+            </MudStack>
+        }
+
+        @if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="@(() => error = null)">@error</MudAlert>
+        }
+
+        @if (rows.Count == 0)
+        {
+            <MudText Typo="Typo.body2">@L["Dev_NoSlots"]</MudText>
+        }
+
+        @foreach (var row in rows)
+        {
+            <MudPaper Outlined="true" Class="pa-3">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+                    <MudText Typo="Typo.subtitle2" Style="min-width:10rem">@row.Binding.DisplayName</MudText>
+
+                    @if (row.Offers.Count != 0)
+                    {
+                        <MudSelect T="string" Label="@L["Dev_Device"]" Dense="true" Style="min-width:16rem"
+                                   Value="@row.ObjectName" ValueChanged="@(v => row.ObjectName = v)"
+                                   ReadOnly="@(!canManage)" Clearable="false">
+                            @foreach (var offer in row.Offers)
+                            {
+                                <MudSelectItem T="string" Value="@offer.Name">@(offer.DisplayName ?? offer.Name)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        @* Agent aus oder bietet nichts an: der Name laesst sich trotzdem eintragen. *@
+                        <MudTextField T="string" Label="@L["Dev_DeviceName"]" Dense="true" @bind-Value="row.ObjectName"
+                                      ReadOnly="@(!canManage)" Style="min-width:16rem" />
+                    }
+
+                    <MudSwitch T="bool" @bind-Value="row.Enabled" Label="@L["Dev_InUse"]" Color="Color.Primary" Disabled="@(!canManage)" />
+
+                    @if (canManage)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@(busy || string.IsNullOrWhiteSpace(row.ObjectName))"
+                                   OnClick="@(() => SaveAsync(row))">@L["Dev_Save"]</MudButton>
+                        @if (row.Binding.ObjectName != null)
+                        {
+                            <MudButton Size="Size.Small" Color="Color.Error" Disabled="@busy"
+                                       OnClick="@(() => RemoveAsync(row))">@L["Dev_Release"]</MudButton>
+                        }
+
+                        <MudButton Size="Size.Small" Disabled="@(busy || string.IsNullOrWhiteSpace(row.ObjectName) || status is not { Reachable: true })"
+                                   OnClick="@(() => OpenSettingsAsync(row))">@L["Dev_Settings"]</MudButton>
+                    }
+                </MudStack>
+
+                @if (settingsFor == row)
+                {
+                    <MudDivider Class="my-3" />
+                    @if (settingsFields.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2">@L["Dev_NoSettings"]</MudText>
+                    }
+                    else
+                    {
+                        <DeclaredFieldsForm @ref="settingsForm"
+                                            Fields="@settingsDeclared"
+                                            Prefill="@settingsPrefill"
+                                            PrefillIsInvariant="true"
+                                            ResetKey="@($"{ClientAppId}:{row.ObjectName}")"
+                                            AllowReadOnly="false"
+                                            RequiredFieldMessage="@L["Dev_RequiredMissing"]" />
+                        <MudStack Row="true" Spacing="2" Class="mt-2">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
+                                       OnClick="ApplySettingsAsync">@L["Dev_SendToAgent"]</MudButton>
+                            <MudButton Size="Size.Small" OnClick="@(() => settingsFor = null)">@L["Dev_Close"]</MudButton>
+                        </MudStack>
+                    }
+                }
+            </MudPaper>
+        }
+    </MudStack>
+}
+
+@code {
+    /// <summary>Die Kasse.</summary>
+    [Parameter] public int ClientAppId { get; set; }
+
+    private sealed class Row
+    {
+        public required AgentServiceBindingInfo Binding { get; set; }
+
+        public IReadOnlyList<AgentObjectInfo> Offers { get; set; } = [];
+
+        public string? ObjectName { get; set; }
+
+        public bool Enabled { get; set; }
+    }
+
+    private List<Row> rows = [];
+    private AgentStatusInfo? status;
+    private bool loading = true;
+    private bool busy;
+    private bool canManage;
+    private string? error;
+
+    private Row? settingsFor;
+    private IReadOnlyList<SettingDescriptor> settingsFields = [];
+    private IReadOnlyList<DeclaredField> settingsDeclared = [];
+    private Dictionary<string, object?> settingsPrefill = new();
+    private DeclaredFieldsForm? settingsForm;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Admin.CanView())
+        {
+            loading = false;
+            return;
+        }
+
+        canManage = Admin.CanManage();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            status = await Admin.GetStatusAsync(ClientAppId);
+            var bindings = await Admin.GetBindingsAsync(ClientAppId);
+            var loaded = new List<Row>();
+            foreach (var binding in bindings)
+            {
+                var row = new Row { Binding = binding, ObjectName = binding.ObjectName, Enabled = binding.ObjectName == null || binding.Enabled };
+                if (status.Reachable)
+                {
+                    try
+                    {
+                        row.Offers = await Admin.GetOffersAsync(ClientAppId, binding.Slot);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Eine Rolle ohne Liste bleibt bedienbar (Textfeld); die anderen laden weiter.
+                        Logger.LogWarning(ex, "The offers for slot {Slot} of client app {ClientAppId} could not be loaded.", binding.Slot, ClientAppId);
+                    }
+                }
+
+                loaded.Add(row);
+            }
+
+            rows = loaded;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The device roles of client app {ClientAppId} could not be loaded.", ClientAppId);
+            error = L["Dev_LoadFailed"];
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SaveAsync(Row row)
+    {
+        await RunAsync(async () =>
+        {
+            await Admin.SaveBindingAsync(ClientAppId, row.Binding.Slot, row.ObjectName!, row.Enabled);
+            await LoadAsync();
+        }, "save the binding", "Dev_SaveFailed");
+    }
+
+    private async Task RemoveAsync(Row row)
+    {
+        await RunAsync(async () =>
+        {
+            await Admin.RemoveBindingAsync(ClientAppId, row.Binding.Slot);
+            settingsFor = null;
+            await LoadAsync();
+        }, "release the binding", "Dev_ReleaseFailed");
+    }
+
+    private async Task OpenSettingsAsync(Row row)
+    {
+        await RunAsync(async () =>
+        {
+            var objectName = row.ObjectName!;
+            settingsFields = await Admin.DescribeSettingsAsync(ClientAppId, objectName);
+            var current = settingsFields.Count == 0 ? null : await Admin.GetSettingsAsync(ClientAppId, objectName);
+            settingsPrefill = SettingFieldProjection.Defaults(settingsFields, Parse(current));
+            var choices = new Dictionary<string, IReadOnlyList<SettingChoice>>();
+            foreach (var field in settingsFields.Where(f => !string.IsNullOrEmpty(f.ChoiceSource)))
+            {
+                choices[field.Name] = await Admin.GetChoicesAsync(ClientAppId, objectName, field.Name, current);
+            }
+
+            settingsDeclared = SettingFieldProjection.ToDeclaredFields(settingsFields, choices);
+            settingsFor = row;
+        }, "open the settings", "Dev_OpenSettingsFailed");
+    }
+
+    private async Task ApplySettingsAsync()
+    {
+        if (settingsFor == null || settingsForm == null || !settingsForm.TryGetInvariantResult(out var values))
+        {
+            return;
+        }
+
+        var row = settingsFor;
+        await RunAsync(async () =>
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(values.Where(v => !string.IsNullOrWhiteSpace(v.Value))
+                .ToDictionary(v => v.Key, v => v.Value));
+            var result = await Admin.ApplySettingsAsync(ClientAppId, row.ObjectName!, json);
+            if (result.Success)
+            {
+                settingsFor = null;
+                Snackbar.Add(L["Dev_Sent"].Value, Severity.Success);
+            }
+            else
+            {
+                // Die Einzelmeldungen kommen vom Agenten und nennen die Felder mit den Beschriftungen des Geraets.
+                error = string.Join(" ", new[] { L["Dev_Refused"].Value, result.Message }.Concat(result.Errors.Select(e => e.Message))
+                    .Where(m => !string.IsNullOrWhiteSpace(m)));
+            }
+        }, "send the settings", "Dev_ApplyFailed");
+    }
+
+    private async Task RunAsync(Func<Task> action, string what, string failureKey)
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not {What} for client app {ClientAppId}.", what, ClientAppId);
+            error = L[failureKey];
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private Dictionary<string, string?> Parse(string? json)
+    {
+        var result = new Dictionary<string, string?>();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return result;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                result[property.Name] = property.Value.ToString();
+            }
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            Logger.LogWarning(ex, "The settings stored on the agent of client app {ClientAppId} are not readable JSON; the form starts with defaults.", ClientAppId);
+        }
+
+        return result;
+    }
+}

@@ -1,5 +1,6 @@
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Wallee.Options;
 using ITVComponents.WebCoreToolkit.Configuration;
@@ -72,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             {
                 Name = "language",
                 Label = "Sprache am Gerät",
-                Kind = TerminalSettingKind.Text,
+                Kind = SettingKind.Text,
                 HelpText = "Leer heisst: die Vorgabe aus den wallee-Einstellungen."
             }
         ];

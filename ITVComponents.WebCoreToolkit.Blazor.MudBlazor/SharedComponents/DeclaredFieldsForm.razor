@@ -162,6 +162,11 @@
     /// </summary>
     [Parameter] public string? TimeText { get; set; }
 
+    /// <summary>
+    /// Meldet jede Eingabe (Feldname, neuer Wert) - fuer Masken, deren Auswahl von einem anderen Feld abhaengt.
+    /// </summary>
+    [Parameter] public EventCallback<KeyValuePair<string, object?>> FieldChanged { get; set; }
+
     private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -349,10 +354,13 @@
         };
     }
 
-    private void Set(DeclaredField field, object? value)
+    private Task Set(DeclaredField field, object? value)
     {
         values[field.Name] = value;
         error = null;
+        return FieldChanged.HasDelegate
+            ? FieldChanged.InvokeAsync(new KeyValuePair<string, object?>(field.Name, value))
+            : Task.CompletedTask;
     }
 
     /// <summary>

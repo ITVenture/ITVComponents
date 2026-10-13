@@ -1,41 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ITVComponents.AgentServices.Abstractions;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
 {
-    /// <summary>
-    /// Die Art eines Einstellungsfeldes — sie bestimmt, welches Eingabe-Element die Maske zeichnet.
-    /// </summary>
-    /// <remarks>
-    /// <b>Dieselbe Reihenfolge wie <c>DeclaredFieldKind</c> im Blazor-Toolkit</b>, und das ist keine
-    /// Kosmetik: die Maske dort rendert gegen jene Aufzählung, die Werte werden numerisch abgebildet,
-    /// und eine abweichende Reihenfolge machte aus einer Auswahlliste stillschweigend ein Datumsfeld.
-    /// Neue Arten gehören ans Ende — hier wie dort.
-    /// </remarks>
-    public enum TerminalSettingKind
-    {
-        /// <summary>Einzeiliger Text (Vorgabe).</summary>
-        Text,
-
-        /// <summary>Mehrzeiliger Text.</summary>
-        MultilineText,
-
-        /// <summary>Zahl.</summary>
-        Number,
-
-        /// <summary>Ja/Nein.</summary>
-        Boolean,
-
-        /// <summary>Datum.</summary>
-        Date,
-
-        /// <summary>Auswahl aus <see cref="TerminalSettingDescriptor.Choices"/>.</summary>
-        Choice,
-
-        /// <summary>Datum und Uhrzeit.</summary>
-        DateTime
-    }
-
     /// <summary>
     /// Wohin der Wert eines Feldes gespeichert wird.
     /// </summary>
@@ -70,7 +38,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Die Objekte auf dem gewählten Dienst, die <see cref="ITerminalDevice"/> erfüllen.
         /// </summary>
         /// <remarks>
-        /// Braucht ein <see cref="TerminalSettingDescriptor.DependsOn"/> auf das Feld, das den Dienst
+        /// Braucht ein <see cref="SettingDescriptor.DependsOn"/> auf das Feld, das den Dienst
         /// nennt — ohne den weiss die Maske nicht, wen sie fragen soll.
         /// </remarks>
         public const string RemoteObjects = "remoteObjects";
@@ -82,85 +50,23 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Eigenes Modell und keine Übernahme von <c>DeclaredField</c>: das liegt im Blazor-Toolkit, und
-    /// dieses Paket wird vom Kassen-Agenten geladen, der weder Blazor noch ASP.NET kennt. Die Kante,
-    /// an der projiziert wird, liegt in der Oberfläche — dort besteht die Abhängigkeit ohnehin, und es
-    /// sind zwanzig Zeilen. Die Alternative wäre, dem Agenten die halbe Web-Schicht aufzuzwingen.
+    /// Das gemeinsame Feldmodell (<see cref="SettingDescriptor"/>) plus das, was nur Terminals haben:
+    /// wohin ein Wert gespeichert wird. Agent-Geräte beschreiben sich mit demselben Modell, darum kann
+    /// eine Maske beide zeichnen.
     /// </para>
     /// <para>
-    /// Deshalb auch kein gemeinsames Interface: das zöge die Abhängigkeit in die falsche Richtung.
-    /// Genau diese Entscheidung ist bei <c>DeclaredField</c> bereits so getroffen und begründet
-    /// worden; hier wird sie nur befolgt.
+    /// Kein <c>DeclaredField</c>: das liegt im Blazor-Toolkit, und dieses Paket wird vom Kassen-Agenten
+    /// geladen, der weder Blazor noch ASP.NET kennt. Projiziert wird in der Oberfläche.
     /// </para>
     /// </remarks>
-    public class TerminalSettingDescriptor
+    public class TerminalSettingDescriptor : SettingDescriptor
     {
-        /// <summary>Der Name des Feldes — der Schlüssel, unter dem der Wert im JSON landet.</summary>
-        public string Name { get; set; } = string.Empty;
-
-        /// <summary>Die Beschriftung. Leer heisst: der Name wird angezeigt.</summary>
-        public string? Label { get; set; }
-
-        /// <summary>Die Art des Feldes.</summary>
-        public TerminalSettingKind Kind { get; set; } = TerminalSettingKind.Text;
-
-        /// <summary>Ob ohne diesen Wert nicht gespeichert werden kann.</summary>
-        public bool Required { get; set; }
-
-        /// <summary>Ein Hinweis unter dem Feld — hier gehört hin, was sonst niemand weiss.</summary>
-        public string? HelpText { get; set; }
-
-        /// <summary>
-        /// Die Vorbelegung, als Text. Leer heisst: kein Vorschlag.
-        /// </summary>
-        public string? DefaultValue { get; set; }
-
-        /// <summary>
-        /// Die <b>festen</b> Auswahlmöglichkeiten — nur bei <see cref="TerminalSettingKind.Choice"/>.
-        /// </summary>
-        public IReadOnlyList<TerminalSettingChoice>? Choices { get; set; }
-
-        /// <summary>
-        /// Der Name einer Liste, die erst zur Laufzeit feststeht — siehe
-        /// <see cref="TerminalChoiceSources"/>. Gesetzt, wenn <see cref="Choices"/> nicht reicht.
-        /// </summary>
-        /// <remarks>
-        /// Es gibt Auswahlen, die dieses Paket nicht kennen kann: die Kassen eines Mandanten etwa
-        /// stehen in der Sicherheitsschicht, und Billing kennt die absichtlich nicht. Statt hier eine
-        /// Abhängigkeit aufzumachen, nennt das Feld die Quelle, und die Oberfläche füllt sie.
-        /// <para>
-        /// Wer sie nicht auflösen kann, zeichnet ein Textfeld — <b>unschön, aber bedienbar</b>. Ein
-        /// Feld ganz wegzulassen wäre schlimmer.
-        /// </para>
-        /// </remarks>
-        public string? ChoiceSource { get; set; }
-
-        /// <summary>
-        /// Der Name des Feldes, dessen Wert diese Liste bestimmt.
-        /// </summary>
-        /// <remarks>
-        /// Die Kaskade: welche Objekte zur Auswahl stehen, hängt davon ab, welche Kasse gewählt wurde.
-        /// Ohne diese Angabe wüsste die Maske nicht, wann sie neu laden muss — und zeigte die Objekte
-        /// der zuvor gewählten Kasse weiter an.
-        /// </remarks>
-        public string? DependsOn { get; set; }
-
         /// <summary>Wohin der Wert gespeichert wird. Vorgabe: ins Konfigurations-JSON.</summary>
         public TerminalSettingTarget StoredIn { get; set; } = TerminalSettingTarget.Configuration;
     }
 
-    /// <summary>Eine Auswahlmöglichkeit.</summary>
-    public class TerminalSettingChoice
-    {
-        /// <summary>Der Wert, der gespeichert wird.</summary>
-        public string Value { get; set; } = string.Empty;
-
-        /// <summary>Die Beschriftung; leer = <see cref="Value"/>.</summary>
-        public string? Label { get; set; }
-    }
-
     /// <summary>
-    /// Macht aus dem, was eine Maske eingesammelt hat, das JSON des Geräts.
+    /// Macht aus dem, was eine Maske eingesammelt hat, ein Einstellungs-JSON.
     /// </summary>
     /// <remarks>
     /// <b>Der Grund, warum es diesen Helfer gibt und nicht jeder selbst serialisiert:</b> eine Maske
@@ -172,14 +78,17 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
     public static class TerminalSettings
     {
         /// <summary>
-        /// Baut das Konfigurations-JSON aus einem oder mehreren Abschnitten.
+        /// Baut das JSON aus einem oder mehreren Abschnitten.
         /// </summary>
         /// <param name="sections">
         /// die Abschnitte des Assistenten, in ihrer Reihenfolge — erst die Angaben der Web-Seite, dann
         /// die des Geräts. Spätere überschreiben gleichnamige frühere.
         /// </param>
-        /// <returns>das JSON, das an <see cref="TerminalTarget.ConfigurationJson"/> gehört</returns>
-        public static string Compose(params (IReadOnlyList<TerminalSettingDescriptor> Fields,
+        /// <returns>
+        /// das JSON — für Cloud-Terminals das, was an <see cref="TerminalTarget.ConfigurationJson"/> gehört,
+        /// für Agent-Geräte das, was an den Agenten geht
+        /// </returns>
+        public static string Compose(params (IReadOnlyList<SettingDescriptor> Fields,
             IReadOnlyDictionary<string, string?> Values)[] sections)
         {
             var result = new JsonObject();
@@ -187,7 +96,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
             {
                 foreach (var field in fields)
                 {
-                    if (field.StoredIn != TerminalSettingTarget.Configuration)
+                    if (field is TerminalSettingDescriptor { StoredIn: not TerminalSettingTarget.Configuration })
                     {
                         // Gehoert in eine eigene Spalte, nicht ins JSON. Beides zu schreiben hiesse
                         // zwei Staende desselben Werts, und der eine wird irgendwann nicht mitgeaendert.
@@ -235,10 +144,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         }
 
         /// <summary>Schreibt einen Wert in der Form, in der er gelesen wird.</summary>
-        private static JsonNode? Convert(TerminalSettingDescriptor field, string raw)
+        private static JsonNode? Convert(SettingDescriptor field, string raw)
             => field.Kind switch
             {
-                TerminalSettingKind.Number => long.TryParse(raw, out var whole)
+                SettingKind.Number => long.TryParse(raw, out var whole)
                     ? JsonValue.Create(whole)
                     : double.TryParse(raw, System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out var fraction)
@@ -247,7 +156,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
                         // dem Leser ueberlassen. Hier still eine 0 einzusetzen waere schlimmer - eine 0
                         // ist bei einem Port oder einem Betrag eine Aussage.
                         : JsonValue.Create(raw),
-                TerminalSettingKind.Boolean => JsonValue.Create(
+                SettingKind.Boolean => JsonValue.Create(
                     bool.TryParse(raw, out var flag)
                         ? flag
                         : raw is "1" or "yes" or "ja" or "on"),

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -72,7 +73,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 Name = "readerNote",
                 Label = "Hinweis zum Gerät",
-                Kind = TerminalSettingKind.Text,
+                Kind = SettingKind.Text,
                 HelpText = "Frei. Die Reader-Kennung (tmr_…) gehört in die Gerätekennung, nicht hierher. Server-gesteuert laufen nur WisePOS E, Reader S700/S710 und Verifone — der WisePad 3 braucht ein SDK, das es für .NET nicht gibt."
             }
         ];

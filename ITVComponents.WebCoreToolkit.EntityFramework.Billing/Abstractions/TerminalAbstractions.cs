@@ -1,3 +1,4 @@
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 
@@ -90,17 +91,41 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Bekommt, was im ersten Schritt zusammengekommen ist: erst damit lässt sich der Agent
+        /// Bekommt das Gerät, wie es nach dem ersten Schritt aussieht: erst damit lässt sich der Agent
         /// überhaupt erreichen und fragen. Das ist der Grund für zwei Schritte statt einem — die
         /// zweite Feldliste hängt von der Antwort auf die erste ab.
         /// </para>
         /// <para>
-        /// Liefert eine leere Liste, wenn es nichts zu fragen gibt. Der Assistent überspringt den
-        /// Schritt dann, statt eine leere Maske zu zeigen.
+        /// <b>Die Werte dieses Schritts landen nicht in der Geräte-Zeile</b>, sondern beim Gerät selbst
+        /// (<see cref="ApplyDeviceSettingsAsync"/>). Liefert eine leere Liste, wenn es nichts zu fragen gibt.
         /// </para>
         /// </remarks>
-        /// <param name="configurationJson">das Ergebnis des ersten Schritts</param>
-        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string? configurationJson,
+        /// <param name="draft">das Gerät nach dem ersten Schritt; <see cref="TerminalDefinition.TenantId"/> ist gesetzt</param>
+        /// <param name="cancellationToken">bricht die Abfrage ab</param>
+        Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Die Einstellungen, die das Gerät gerade hat, als JSON — zum Vorbelegen der Maske.
+        /// </summary>
+        /// <returns>das JSON, oder <c>null</c>, wenn das Gerät noch nicht eingerichtet ist</returns>
+        Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Eine Auswahl für ein Geräte-Feld, die nur der Rechner vor Ort kennt.
+        /// </summary>
+        /// <param name="draft">das Gerät</param>
+        /// <param name="settingName">das Feld</param>
+        /// <param name="draftJson">was in der Maske gerade steht</param>
+        /// <param name="cancellationToken">bricht die Abfrage ab</param>
+        Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+            string? draftJson, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Übergibt die Einstellungen an das Gerät, das sie prüft und bei sich ablegt.
+        /// </summary>
+        /// <returns>das Ergebnis; bei Fehlern je Feld eine Meldung, nichts wurde abgelegt</returns>
+        Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
             CancellationToken cancellationToken = default);
     }
 
@@ -121,9 +146,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         /// <summary>Die Angaben, die ein bestimmter Weg im ersten Schritt braucht.</summary>
         IReadOnlyList<TerminalSettingDescriptor> DescribeSettings(string providerKey);
 
-        /// <summary>Die Angaben, die das Gerät im zweiten Schritt verlangt — leer, wenn es keinen gibt.</summary>
-        Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
-            string? configurationJson, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Der zweite Schritt für den Weg, den <see cref="TerminalDefinition.Provider"/> nennt — siehe
+        /// <see cref="ITerminalPaymentService.DescribeDeviceSettingsAsync"/>.
+        /// </summary>
+        Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Siehe <see cref="ITerminalPaymentService.GetDeviceSettingsAsync"/>.</summary>
+        Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default);
+
+        /// <summary>Siehe <see cref="ITerminalPaymentService.GetDeviceChoicesAsync"/>.</summary>
+        Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+            string? draftJson, CancellationToken cancellationToken = default);
+
+        /// <summary>Siehe <see cref="ITerminalPaymentService.ApplyDeviceSettingsAsync"/>.</summary>
+        Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+            CancellationToken cancellationToken = default);
     }
 
     /// <summary>Ein Terminal-Weg, wie ihn die Auswahlliste braucht.</summary>
@@ -182,9 +221,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         public string DisplayName { get; set; } = string.Empty;
 
         /// <summary>
-        /// Das Ergebnis beider Assistenten-Schritte, zusammengeführt — gebaut mit
-        /// <see cref="TerminalSettings.Compose"/>.
+        /// Das Ergebnis des ersten Assistenten-Schritts — gebaut mit <see cref="TerminalSettings.Compose"/>.
         /// </summary>
+        /// <remarks>
+        /// Beim Agenten-Weg steht hier nur, was die Web-Anwendung braucht (etwa das Objekt am Agenten). Die
+        /// Einstellungen des Geräts liegen beim Gerät.
+        /// </remarks>
         public string? ConfigurationJson { get; set; }
 
         /// <summary>Ob das Gerät benutzt werden darf.</summary>
@@ -282,17 +324,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Bewusst nur ein Vertrag, ohne mitgelieferte Umsetzung.</b> Wie aus der Geräte-Zeile eine
-    /// Verbindung wird, weiss die Anwendung — sie hat ihre Proxy-Verdrahtung schon, und das Toolkit
-    /// hätte hier nichts beizutragen ausser einer Annahme, die bei zwei Agenten falsch wäre.
+    /// Die Zeile nennt den Weg: <see cref="TenantPaymentTerminal.Route"/> den Dienst (den <c>ClientKey</c>
+    /// der Kasse), <see cref="TenantPaymentTerminal.ConfigurationJson"/> das Objekt, das dort
+    /// <see cref="ITerminalDevice"/> bereitstellt (<see cref="AgentTerminals.ObjectNameSetting"/>).
     /// </para>
     /// <para>
-    /// Die Zeile trägt beides: <see cref="TenantPaymentTerminal.Route"/> nennt den Dienst, und
-    /// <see cref="TenantPaymentTerminal.ConfigurationJson"/> kann darüber hinaus alles enthalten, was
-    /// der Weg dorthin braucht — etwa den Namen des Objekts, das auf dem Agenten
-    /// <see cref="ITerminalDevice"/> bereitstellt. <b>Dasselbe JSON geht danach unverändert an das
-    /// Gerät weiter</b>, das sich daraus nimmt, was es versteht. Eine Quelle für beide Hälften der
-    /// Frage „wen rufe ich, und wie redet der mit dem Terminal".
+    /// Mitgeliefert ist <see cref="Payments.AgentConnectorTerminalLocator"/>, der über den
+    /// <c>IAgentConnector</c> des AgentServices-Webpakets geht. Ein Host mit eigener Verdrahtung darf
+    /// einen eigenen registrieren; er hat dann Vorrang.
     /// </para>
     /// </remarks>
     public interface ITerminalAgentLocator
@@ -300,5 +339,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         /// <summary>Liefert den Zugang zu dem Gerät, das die Zeile beschreibt.</summary>
         /// <exception cref="TerminalDeviceException">wenn der Agent nicht erreichbar oder nicht bekannt ist</exception>
         Task<ITerminalDevice> GetDeviceAsync(TenantPaymentTerminal terminal, CancellationToken cancellationToken = default);
+    }
+
+    /// <summary>
+    /// Was der Agenten-Weg in der Geräte-Zeile ablegt.
+    /// </summary>
+    public static class AgentTerminals
+    {
+        /// <summary>
+        /// Der Schlüssel im Konfigurations-JSON, unter dem das Objekt am Agenten steht.
+        /// </summary>
+        public const string ObjectNameSetting = "objectName";
+
+        /// <summary>
+        /// Liest den Objektnamen aus dem Konfigurations-JSON einer Geräte-Zeile.
+        /// </summary>
+        /// <returns>der Name, oder <c>null</c>, wenn keiner eingetragen ist</returns>
+        /// <exception cref="TerminalDeviceException">wenn das JSON nicht lesbar ist</exception>
+        public static string? ObjectNameOf(string? configurationJson)
+        {
+            if (string.IsNullOrWhiteSpace(configurationJson))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(configurationJson);
+                return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                       && document.RootElement.TryGetProperty(ObjectNameSetting, out var value)
+                       && value.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                throw new TerminalDeviceException(
+                    $"The configuration of this terminal is not readable JSON, so the object on the agent is unknown: {ex.Message}", ex);
+            }
+        }
     }
 }

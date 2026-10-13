@@ -18,6 +18,7 @@ using ITVComponents.AssemblyResolving;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins.Collections;
+using ITVComponents.Plugins.Config;
 using ITVComponents.Plugins.Helpers;
 using ITVComponents.Plugins.Initialization;
 using ITVComponents.Plugins.PluginServices;
@@ -1564,6 +1565,47 @@ namespace ITVComponents.Plugins
             }
 
             return DescribePlugin(definition.Name, definition.ConstructionString, null);
+        }
+
+        /// <summary>
+        /// Zaehlt die Bereichs-Plugins (<see cref="PluginLoadType.Scope"/>) aller <see cref="IDynamicLoader"/>
+        /// dieser Factory auf, deren Typ einen Vertrag erfuellt - OHNE eines davon zu bauen.
+        /// </summary>
+        /// <param name="contract">der Vertrag; <c>null</c> = alle aufloesbaren Bereichs-Plugins</param>
+        /// <returns>die Definition und der CLR-Typ jedes passenden Bereichs-Plugins</returns>
+        /// <remarks>
+        /// Grundlage fuer Kataloge, die anbieten, was eine Factory bauen KOENNTE (Workflow-Aktivitaeten,
+        /// Geraete am Agenten). Abgeschaltete Eintraege liefern die Loader gar nicht erst aus. Ein Loader, der
+        /// beim Aufzaehlen scheitert, wird protokolliert und uebersprungen - die anderen bleiben sichtbar.
+        /// </remarks>
+        public IEnumerable<(PluginConfigurationItem Item, Type Type)> GetScopedPluginTypes(Type contract)
+        {
+            foreach (IDynamicLoader loader in plugins(null).DynamicLoaders)
+            {
+                PluginConfigurationItem[] names;
+                try
+                {
+                    names = loader.GetScopedPluginNames()?.ToArray() ?? Array.Empty<PluginConfigurationItem>();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Could not read scoped plugin names from a dynamic loader: {ex.OutlineException()}",
+                        LogSeverity.Warning);
+                    continue;
+                }
+
+                foreach (PluginConfigurationItem item in names)
+                {
+                    if (item?.ConstructionString != null
+                        && !item.Disabled
+                        && TryGetPluginType(item.ConstructionString, out Type type)
+                        && (contract == null || contract.IsAssignableFrom(type)))
+                    {
+                        yield return (item, type);
+                    }
+                }
+            }
         }
 
         /// <summary>

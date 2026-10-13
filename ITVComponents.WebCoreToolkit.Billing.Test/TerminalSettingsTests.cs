@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using ITVComponents.AgentServices;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
@@ -43,24 +45,26 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         }
 
         [TestMethod]
-        public async Task Compose_ProducesSomethingTheDeviceCanActuallyRead()
+        public void Compose_ProducesSomethingTheDeviceCanActuallyRead()
         {
-            // Der Test, der wirklich zaehlt: die Maske beschreibt sich selbst, und was dabei herauskommt,
-            // muss dieselbe Klasse wieder einlesen koennen. Beide Seiten stammen aus derselben Quelle -
-            // wenn eine driftet, faellt es hier auf und nicht an der Kasse.
-            var device = new WalleeLtiTerminalDevice();
-            var fields = await device.DescribeSettingsAsync();
+            // Der Test, der wirklich zaehlt: das Geraet beschreibt sich selbst (ueber seinen
+            // Einstellungstyp), die Maske schreibt daraus JSON, und die STRENGE Pruefung am Agenten muss es
+            // annehmen. Beide Seiten stammen aus derselben Quelle - wenn eine driftet, faellt es hier auf
+            // und nicht an der Kasse.
+            var settingsType = DeviceSettingsReflection.SettingsTypeOf(typeof(WalleeLtiTerminalDevice));
+            Assert.AreEqual(typeof(WalleeLtiTerminalOptions), settingsType);
+            var fields = DeviceSettingsReflection.Describe(settingsType);
 
             var json = TerminalSettings.Compose((fields, new Dictionary<string, string?>
             {
                 ["host"] = "192.168.10.44",
-                ["posid"] = "2001"
+                ["posId"] = "2001"
             }));
 
-            var options = JsonSerializer.Deserialize<WalleeLtiTerminalOptions>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var errors = new List<SettingError>();
+            var options = (WalleeLtiTerminalOptions)DeviceSettingsReflection.Validate(settingsType, json, errors);
 
-            Assert.IsNotNull(options);
+            Assert.AreEqual(0, errors.Count, string.Join("; ", errors.Select(e => e.Message)));
             Assert.AreEqual("192.168.10.44", options.Host);
             Assert.AreEqual("2001", options.PosId);
             Assert.AreEqual(50000, options.Port, "The default of a field the user left alone must survive.");
@@ -102,7 +106,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             // still ein Datumsfeld - sichtbar erst in der fertigen Maske.
             string[] expected =
                 ["Text", "MultilineText", "Number", "Boolean", "Date", "Choice", "DateTime"];
-            CollectionAssert.AreEqual(expected, Enum.GetNames<TerminalSettingKind>(),
+            CollectionAssert.AreEqual(expected, Enum.GetNames<SettingKind>(),
                 "Add new kinds at the END, here and in DeclaredFieldKind.");
         }
 
@@ -179,10 +183,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         /// <summary>Ein kleiner Satz Felder, der für die reinen Umwandlungs-Tests genügt.</summary>
         private static readonly IReadOnlyList<TerminalSettingDescriptor> Fields =
         [
-            new() { Name = "host", Kind = TerminalSettingKind.Text, Required = true },
-            new() { Name = "port", Kind = TerminalSettingKind.Number, DefaultValue = "50000" },
-            new() { Name = "posid", Kind = TerminalSettingKind.Text },
-            new() { Name = "suppressdynamiccurrencyconversion", Kind = TerminalSettingKind.Boolean }
+            new() { Name = "host", Kind = SettingKind.Text, Required = true },
+            new() { Name = "port", Kind = SettingKind.Number, DefaultValue = "50000" },
+            new() { Name = "posid", Kind = SettingKind.Text },
+            new() { Name = "suppressdynamiccurrencyconversion", Kind = SettingKind.Boolean }
         ];
     }
 }

@@ -1,4 +1,5 @@
 using ITVComponents.Logging;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using Microsoft.EntityFrameworkCore;
@@ -126,9 +127,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         public bool HasDeviceSettings => false;
 
         /// <inheritdoc />
-        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(
-            string? configurationJson, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>([]);
+        /// <remarks>
+        /// Der zweite Schritt gehört dem Weg, den der Entwurf nennt — unter beiden Verträgen dieselbe
+        /// Weiterleitung.
+        /// </remarks>
+        public Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+            CancellationToken cancellationToken = default)
+            => Resolve(draft.Provider, "a new terminal").DescribeDeviceSettingsAsync(draft, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default)
+            => Resolve(draft.Provider, "the settings of a terminal").GetDeviceSettingsAsync(draft, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+            string? draftJson, CancellationToken cancellationToken = default)
+            => Resolve(draft.Provider, "a choice of a terminal setting")
+                .GetDeviceChoicesAsync(draft, settingName, draftJson, cancellationToken);
+
+        /// <inheritdoc />
+        public Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+            CancellationToken cancellationToken = default)
+            => Resolve(draft.Provider, "the settings of a terminal")
+                .ApplyDeviceSettingsAsync(draft, settingsJson, cancellationToken);
 
         /// <inheritdoc />
         public IReadOnlyList<TerminalProviderInfo> GetProviders()
@@ -137,11 +158,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <inheritdoc />
         IReadOnlyList<TerminalSettingDescriptor> ITerminalProviderCatalog.DescribeSettings(string providerKey)
             => Resolve(providerKey, "a new terminal").DescribeSettings();
-
-        /// <inheritdoc />
-        public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
-            string? configurationJson, CancellationToken cancellationToken = default)
-            => Resolve(providerKey, "a new terminal").DescribeDeviceSettingsAsync(configurationJson, cancellationToken);
 
         /// <summary>Der Weg, über den dieses Gerät abrechnet.</summary>
         private async Task<ITerminalPaymentService> ForTerminalAsync(int terminalId, CancellationToken cancellationToken)

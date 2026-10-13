@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AgentServiceViews</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE251</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <!-- Die Maske der Agent-Dienste: ein Reiter in der Detailzeile der ClientApps (AdminViews), der die Rollen
+       einer Kasse besetzt und die Geraete am Agenten einrichtet. -->
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.AgentServices\ITVComponents.WebCoreToolkit.EntityFramework.AgentServices.csproj" />
+  </ItemGroup>
+</Project>

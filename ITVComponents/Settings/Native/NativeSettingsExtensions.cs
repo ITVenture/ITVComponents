@@ -26,5 +26,26 @@ namespace ITVComponents.Settings.Native
 
             return retVal;
         }
+
+        /// <summary>
+        /// Wie <see cref="GetSection{T}"/>, fuer einen Typ, der erst zur Laufzeit feststeht. Fehlt der Abschnitt,
+        /// kommt die Vorbelegung des Typs zurueck.
+        /// </summary>
+        public static object GetSection(this IConfiguration configuration, string path, Type type)
+        {
+            if (type == null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+
+            var retVal = Activator.CreateInstance(type);
+            var cfg = configuration.GetSection(path);
+            if (cfg.Exists())
+            {
+                cfg.Bind(retVal);
+            }
+
+            return retVal;
+        }
     }
 }

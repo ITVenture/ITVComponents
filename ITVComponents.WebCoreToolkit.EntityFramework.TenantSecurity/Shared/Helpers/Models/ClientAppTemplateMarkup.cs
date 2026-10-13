@@ -18,6 +18,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
         /// <summary>Der systemweit eindeutige Name - der fachliche Schluessel dieser Sektion.</summary>
         public string Name { get; set; }
 
+        /// <summary>
+        /// Unter welchem Objektnamen Agenten dieses Templates ihren Katalog bereitstellen; leer = Standardname.
+        /// </summary>
+        public string CatalogObjectName { get; set; }
+
         /// <summary>Die Rechtebuendel, die dieses Template anbietet.</summary>
         public AppPermissionSetMarkup[] PermissionSets { get; set; }
     }

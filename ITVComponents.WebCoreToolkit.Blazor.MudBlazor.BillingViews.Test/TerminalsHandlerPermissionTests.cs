@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl;
@@ -28,6 +29,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             SpyTerminalPaymentService terminals, SpyChoiceProvider choices)
             => new(env.DbFactory(), env.Services, administration, catalog, terminals,
                 new ITerminalChoiceProvider[] { choices }, env.PaymentSettings(), env.FeatureGates());
+
+        /// <summary>Ein Agent-Terminal nach dem ersten Schritt des Assistenten.</summary>
+        private static TerminalDefinition AgentDraft()
+            => new() { Provider = "agent", Route = "kasse-1", ConfigurationJson = "{\"objectName\":\"terminal\"}" };
 
         private static void AssertRefused(Action operation, string because)
         {
@@ -56,8 +61,10 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             AssertRefused(() => handler.GetProviders(), "Anbieter auflisten");
             AssertRefused(() => handler.DescribeSettings("stripe"), "Felder beschreiben");
-            await AssertRefusedAsync(() => handler.DescribeDeviceSettingsAsync("agent", "{\"host\":\"10.0.0.1\"}"),
-                "das Geraet befragen");
+            await AssertRefusedAsync(() => handler.DescribeDeviceSettingsAsync(AgentDraft()), "den Agenten befragen");
+            await AssertRefusedAsync(() => handler.GetDeviceSettingsAsync(AgentDraft()), "Geraete-Einstellungen lesen");
+            await AssertRefusedAsync(() => handler.GetDeviceChoicesAsync(AgentDraft(), "printer", null), "Geraete-Auswahl lesen");
+            await AssertRefusedAsync(() => handler.ApplyDeviceSettingsAsync(AgentDraft(), "{}"), "auf dem Kassen-PC schreiben");
             await AssertRefusedAsync(() => handler.GetChoicesAsync(TerminalChoiceSources.ClientApps, null),
                 "Auswahllisten lesen");
             await AssertRefusedAsync(() => handler.GetTerminalsAsync(), "Geraete auflisten");
@@ -105,8 +112,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
         /// Verwaltungsrecht — nicht das Leserecht.
         /// </summary>
         /// <remarks>
-        /// <c>DescribeDeviceSettingsAsync</c> baut eine Verbindung zu der Adresse auf, die in der uebergebenen
-        /// Konfiguration steht; <c>GetChoicesAsync</c> liefert die Anwendungen dieses Mandanten mit Namen und
+        /// Die Geraete-Wege sprechen den Agenten an, den der Entwurf nennt - und einer davon schreibt auf dem
+        /// Kassen-PC; <c>GetChoicesAsync</c> liefert die Anwendungen dieses Mandanten mit Namen und
         /// Schluessel. Beides ist keine Katalogabfrage.
         /// </remarks>
         [TestMethod]
@@ -119,8 +126,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             var choices = new SpyChoiceProvider();
             var handler = Handler(env, administration, catalog, terminals, choices);
 
-            await AssertRefusedAsync(() => handler.DescribeDeviceSettingsAsync("agent", "{\"host\":\"10.0.0.1\",\"port\":50000}"),
-                "Leserecht darf keine Verbindung nach aussen ausloesen.");
+            await AssertRefusedAsync(() => handler.DescribeDeviceSettingsAsync(AgentDraft()),
+                "Leserecht darf keinen Agenten befragen.");
+            await AssertRefusedAsync(() => handler.GetDeviceSettingsAsync(AgentDraft()),
+                "Leserecht darf die Einstellungen eines Geraets nicht lesen.");
+            await AssertRefusedAsync(() => handler.ApplyDeviceSettingsAsync(AgentDraft(), "{}"),
+                "Leserecht darf nicht auf dem Kassen-PC schreiben.");
             await AssertRefusedAsync(() => handler.GetChoicesAsync(TerminalChoiceSources.ClientApps, null),
                 "Leserecht darf die Anwendungen des Mandanten nicht auflisten.");
 
@@ -140,11 +151,13 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             handler.GetProviders();
             handler.DescribeSettings("agent");
-            await handler.DescribeDeviceSettingsAsync("agent", "{}");
+            await handler.DescribeDeviceSettingsAsync(AgentDraft());
+            await handler.GetDeviceSettingsAsync(AgentDraft());
+            await handler.ApplyDeviceSettingsAsync(AgentDraft(), "{}");
             var list = await handler.GetChoicesAsync(TerminalChoiceSources.ClientApps, null);
             await handler.SaveAsync(new TerminalDefinition { Provider = "agent" });
 
-            Assert.AreEqual(3, catalog.Calls.Count, "Mit dem Verwaltungsrecht muss der Assistent durchlaufen.");
+            Assert.AreEqual(5, catalog.Calls.Count, "Mit dem Verwaltungsrecht muss der Assistent durchlaufen.");
             Assert.AreEqual(1, choices.Calls.Count);
             Assert.AreEqual(1, list.Count, "Die Auswahlliste der Attrappe hat genau einen Eintrag.");
             Assert.AreEqual(1, administration.Calls.Count);
@@ -167,6 +180,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             Assert.AreEqual(7, administration.LastSaved!.TenantId,
                 "Eine fremde Mandanten-Id aus der Anfrage darf niemals stehen bleiben.");
+
+            var catalog = new SpyTerminalCatalog();
+            handler = Handler(env, administration, catalog, new SpyTerminalPaymentService(), new SpyChoiceProvider());
+            await handler.ApplyDeviceSettingsAsync(new TerminalDefinition { TenantId = 999, Provider = "agent", Route = "kasse-1" }, "{}");
+            Assert.AreEqual(7, catalog.LastDraft!.TenantId,
+                "Ueber den Mandanten wird der Agent aufgeloest - eine fremde Id darf nie bis dorthin kommen.");
         }
 
         // ------------------------------------------------------------------ Hauptschalter und Feature
@@ -246,11 +265,37 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
                 return Array.Empty<TerminalSettingDescriptor>();
             }
 
-            public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string providerKey,
-                string? configurationJson, CancellationToken cancellationToken = default)
+            public TerminalDefinition? LastDraft { get; private set; }
+
+            public Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
+                CancellationToken cancellationToken = default)
             {
-                Calls.Add($"{nameof(DescribeDeviceSettingsAsync)}({providerKey})");
-                return Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>(Array.Empty<TerminalSettingDescriptor>());
+                Calls.Add($"{nameof(DescribeDeviceSettingsAsync)}({draft.Provider})");
+                LastDraft = draft;
+                return Task.FromResult<IReadOnlyList<SettingDescriptor>>(Array.Empty<SettingDescriptor>());
+            }
+
+            public Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default)
+            {
+                Calls.Add($"{nameof(GetDeviceSettingsAsync)}({draft.Provider})");
+                LastDraft = draft;
+                return Task.FromResult<string?>(null);
+            }
+
+            public Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+                string? draftJson, CancellationToken cancellationToken = default)
+            {
+                Calls.Add($"{nameof(GetDeviceChoicesAsync)}({draft.Provider})");
+                LastDraft = draft;
+                return Task.FromResult<IReadOnlyList<SettingChoice>>(Array.Empty<SettingChoice>());
+            }
+
+            public Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+                CancellationToken cancellationToken = default)
+            {
+                Calls.Add($"{nameof(ApplyDeviceSettingsAsync)}({draft.Provider})");
+                LastDraft = draft;
+                return Task.FromResult(new ApplySettingsResult { Success = true });
             }
         }
 
@@ -302,11 +347,31 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             public bool HasDeviceSettings => true;
 
-            public Task<IReadOnlyList<TerminalSettingDescriptor>> DescribeDeviceSettingsAsync(string? configurationJson,
+            public Task<IReadOnlyList<SettingDescriptor>> DescribeDeviceSettingsAsync(TerminalDefinition draft,
                 CancellationToken cancellationToken = default)
             {
                 Calls.Add(nameof(DescribeDeviceSettingsAsync));
-                return Task.FromResult<IReadOnlyList<TerminalSettingDescriptor>>(Array.Empty<TerminalSettingDescriptor>());
+                return Task.FromResult<IReadOnlyList<SettingDescriptor>>(Array.Empty<SettingDescriptor>());
+            }
+
+            public Task<string?> GetDeviceSettingsAsync(TerminalDefinition draft, CancellationToken cancellationToken = default)
+            {
+                Calls.Add(nameof(GetDeviceSettingsAsync));
+                return Task.FromResult<string?>(null);
+            }
+
+            public Task<IReadOnlyList<SettingChoice>> GetDeviceChoicesAsync(TerminalDefinition draft, string settingName,
+                string? draftJson, CancellationToken cancellationToken = default)
+            {
+                Calls.Add(nameof(GetDeviceChoicesAsync));
+                return Task.FromResult<IReadOnlyList<SettingChoice>>(Array.Empty<SettingChoice>());
+            }
+
+            public Task<ApplySettingsResult> ApplyDeviceSettingsAsync(TerminalDefinition draft, string settingsJson,
+                CancellationToken cancellationToken = default)
+            {
+                Calls.Add(nameof(ApplyDeviceSettingsAsync));
+                return Task.FromResult(new ApplySettingsResult());
             }
         }
 
@@ -316,12 +381,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
 
             public bool Handles(string source) => true;
 
-            public Task<IReadOnlyList<TerminalSettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
+            public Task<IReadOnlyList<SettingChoice>> GetChoicesAsync(string source, string? dependsOnValue,
                 CancellationToken cancellationToken = default)
             {
                 Calls.Add($"{nameof(GetChoicesAsync)}({source})");
-                return Task.FromResult<IReadOnlyList<TerminalSettingChoice>>(
-                    new[] { new TerminalSettingChoice { Value = "kasse-1", Label = "Kasse 1" } });
+                return Task.FromResult<IReadOnlyList<SettingChoice>>(
+                    new[] { new SettingChoice { Value = "kasse-1", Label = "Kasse 1" } });
             }
         }
     }

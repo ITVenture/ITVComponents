@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.AgentServices\ITVComponents.AgentServices.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.AgentServices\ITVComponents.WebCoreToolkit.EntityFramework.AgentServices.csproj" />
+    <ProjectReference Include="..\ITVComponents.AgentServices.Abstractions\ITVComponents.AgentServices.Abstractions.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.InMemory\ITVComponents.InterProcessCommunication.InMemory.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.MessagingShared\ITVComponents.InterProcessCommunication.MessagingShared.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.Shared\ITVComponents.InterProcessCommunication.Shared.csproj" />
+  </ItemGroup>
+</Project>

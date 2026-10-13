@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base
 {
     [Index(nameof(ClientKey), IsUnique = true, Name = "UQ_ClientAppKey")]
-    public class ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate>
+    public class ClientApp<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TAppPermission, TAppPermissionSet, TClientAppPermission, TClientApp, TClientAppAccess, TClientAppTemplate> : IClientAppCore
         where TRole : Role<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TPermission : Permission<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
         where TUserRole : UserRole<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole>
@@ -100,6 +100,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public bool Enabled { get; set; } = true;
 
         public DateTime CreatedUtc { get; set; }
+
+        /// <summary>
+        /// Wann sich die Anwendung zuletzt am Dienst-Verteiler an- oder abgemeldet hat.
+        /// </summary>
+        /// <remarks>
+        /// Geschrieben vom Beobachter der Agent-Dienste aus den Ereignissen des Verteilers — eine Quelle für
+        /// alles, was „zuletzt gesehen" anzeigt. Leer, solange sie sich nie angemeldet hat oder der Verteiler
+        /// ohne Zugang zu dieser Datenbank läuft. Ob sie <b>jetzt</b> erreichbar ist, sagt der Verteiler selbst.
+        /// </remarks>
+        public DateTime? LastSeenUtc { get; set; }
 
         [ForeignKey(nameof(TenantId))]
         public virtual TTenant Tenant { get; set; }

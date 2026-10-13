@@ -435,4 +435,21 @@ public static class DependencyInjectionExtensions
         services.AddSingleton(new TenantUsersGridDescriptor(typeof(TComponent)));
         return services;
     }
+
+    /// <summary>
+    /// Registriert einen zusätzlichen Reiter in der Detailzeile der ClientApps — für Pakete, die AdminViews
+    /// nicht kennt. Die Komponente bekommt <c>int ClientAppId</c> und prüft ihre Rechte selbst.
+    /// </summary>
+    /// <typeparam name="TComponent">die Komponente des Reiters</typeparam>
+    /// <param name="services">the service collection to register into</param>
+    /// <param name="title">die Beschriftung, bzw. ihr Schlüssel in <paramref name="titleResource"/></param>
+    /// <param name="titleResource">die Ressource für die Beschriftung; leer = wörtlich</param>
+    /// <returns>the service collection for chaining</returns>
+    public static IServiceCollection AddClientAppDetailTab<TComponent>(this IServiceCollection services, string title,
+        Type? titleResource = null)
+        where TComponent : IComponent
+    {
+        services.AddSingleton(new ClientAppDetailTabDescriptor(title, typeof(TComponent), titleResource));
+        return services;
+    }
 }

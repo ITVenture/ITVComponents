@@ -189,6 +189,16 @@ namespace ITVComponents.Plugins.PluginServices
                         retVal.ParameterValue = value;
                         break;
                     }
+                default:
+                    {
+                        // Kein bekanntes Kennzeichen: der Parameter bleibt null, wie bisher. Aber nicht still - eine
+                        // Klammer um die Parameter etwa ("<Typ>($x)") baut sonst ein Plugin mit null-Argument, und
+                        // der Fehler zeigt sich erst viel spaeter an ganz anderer Stelle.
+                        LogEnvironment.LogEvent(
+                            $"Unknown constructor parameter marker '{type}' in '{type}{value}'; the parameter is passed as null. Parameters follow the type directly, separated by commas, e.g. <Type>$plugin,I42.",
+                            LogSeverity.Warning);
+                        break;
+                    }
             }
 
             list.Add(retVal);

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE251</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <!-- Laeuft am AGENTEN (Laden-PC). Kein ASP.NET, kein EF - und plattformneutral: was nur unter
+       Windows geht (installierte Drucker), liefert der Konsument als IDeviceChoiceProvider. -->
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.AgentServices.Abstractions\ITVComponents.AgentServices.Abstractions.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+    <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
+  </ItemGroup>
+</Project>
