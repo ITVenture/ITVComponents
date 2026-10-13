@@ -1,7 +1,8 @@
 # Issue: Dienst-Aktivierung für Agent-Anwendungen — „der Agent sagt, was er kann, das Web wählt"
 
-**Status:** ANGENOMMEN, Plan steht — `docs/Plan-Agent-ServiceActivation.md`. Entscheidungen siehe
-Abschnitt „Entscheidungen 2026-10-12" am Ende.
+**Status:** UMGESETZT — erstmals in `5.0.0-PRE252` (`50d5e05e`), Leitfaden §72; die Kopplung kam mit PRE253
+dazu (§73). Plan: `docs/Plan-Agent-ServiceActivation.md`, Entscheidungen im Abschnitt „Entscheidungen
+2026-10-12" am Ende.
 **Datum:** 2026-10-12
 **Quelle:** MiniStore-Session (Konsument). Der POS-Agent (Tray-Anwendung am Laden-PC) stellt Bondrucker
 und Schublade als Bereichs-Plugins bereit; das Web soll pro Kasse auswählen, was davon benutzt wird.

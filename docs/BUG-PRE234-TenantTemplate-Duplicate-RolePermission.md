@@ -1,5 +1,7 @@
 # BUG (PRE234): Eine Vorlagen-Rolle mit `Permissions` **und** `RoleGrants` verletzt beim Anwenden `IX_UniqueRolePermission`
 
+**Status:** behoben in `5.0.0-PRE235` (`4c0226f2`) — `WithoutPendingDuplicates` im `SecurityModificationInterceptor`, Test `RoleInheritanceDuplicateTest`
+
 > Gemeldet aus MiniStore (`5.0.0-PRE234`). Hat dort eine Mandanten-Anlage über das Onboarding
 > vollständig blockiert; umgangen wird er zurzeit dadurch, dass die Vorlage **keine** `RoleGrants`
 > mehr benutzt und jede Rolle ihre Rechte selbst trägt.

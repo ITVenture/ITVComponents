@@ -1,5 +1,7 @@
 # BUG (PRE141): `TenantUrlGuard` ist **kein** Sicherheitsnetz gegen root-absolute `<a href>` — Doku verspricht zu viel
 
+**Status:** teilweise behoben in `5.0.0-PRE148` (`c44b9e24`): (a) Reichweite am `TenantUrlGuard` dokumentiert, (b) Konvention als Test `BlazorAbsoluteLinkConventionTests`. **Offen:** (c) Umleitung anhand des Referers — es gibt nur eine diagnostische 404-Logzeile mit Referer in `TenantPathPrefixMiddleware`
+
 > **Gemeldet aus der MLM-Konsumenten-Session, 2026-07-27.** Nachgang zum Workflow-Routing-404
 > (`BUG-PRE141-Workflow-Integration.md`). Die Toolkit-Session hatte als Nebenbefund vermutet, es gebe
 > mit `TenantUrlGuard` bereits ein Sicherheitsnetz gegen root-absolute Navigationen, und dass trotzdem

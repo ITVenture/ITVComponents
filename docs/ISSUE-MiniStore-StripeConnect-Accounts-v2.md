@@ -1,7 +1,7 @@
 # Issue: Stripe Connect — eine NEUE Plattform kann mit `Accounts v1` kein verbundenes Konto mehr anlegen
 
-**Status:** OFFEN — Wunsch, kein Fehler im Toolkit-Code. Der vorhandene Weg ist korrekt, Stripe hat
-ihn für neue Integrationen nur geschlossen.
+**Status:** UMGESETZT in `5.0.0-PRE236` (`88f05c13`), nachgezogen in PRE237 (`041a5f6c`), Leitfaden §64.
+Ursprünglich ein Wunsch, kein Fehler: der v1-Weg war korrekt, Stripe hat ihn für neue Integrationen geschlossen.
 **Datum:** 2026-09-14
 **Quelle:** MiniStore (Kassensystem, Achse B / Stripe Connect, Toolkit `5.0.0-PRE235`, `Stripe.net 52.4.0`)
 

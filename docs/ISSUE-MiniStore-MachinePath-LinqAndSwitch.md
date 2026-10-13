@@ -1,6 +1,7 @@
 # Issue: Der Maschinen-Weg ist nach PRE244 noch zweimal blockiert — ein Schalter und eine untranslatierbare Abfrage
 
-**Status:** OFFEN — Fehlerbericht ans Toolkit
+**Status:** BEHOBEN in `5.0.0-PRE245` (`64c03c41`) — das Gate über `MapApplicationId` ist aus beiden Mappern
+entfernt, die Abfrage ist übersetzbar.
 **Datum:** 2026-09-16
 **Quelle:** MiniStore-Session (Konsument). Durchstich von Leitfaden §65.8 Schritt 8, POS-Agent am
 ServiceHub.

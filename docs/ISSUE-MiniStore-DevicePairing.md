@@ -1,6 +1,7 @@
 # Issue: Geräte-Kopplung (Device-Code-Fluss) als Toolkit-Baustein
 
-**Status:** OFFEN — Anfrage an das Toolkit
+**Status:** UMGESETZT in `5.0.0-PRE240` (`0c3b0763` ff.), Leitfaden §65. Die Signatur weicht vom Vorschlag ab
+(`clientKey`/`typeKey` statt `target`/`roleName`). Umgebaut in PRE253 (§73, breaking) und PRE254 (Löschregeln).
 **Datum:** 2026-09-15
 **Quelle:** MiniStore-Session (Konsument). MiniStore koppelt Kassenterminals: auf jedem Laden-PC läuft
 ein Agent, der seinen Gerätedienst am ServiceHub anmeldet und sich dafür ausweisen muss.

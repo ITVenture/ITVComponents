@@ -1,6 +1,7 @@
 # Issue: Ein per `X-Api-Key` angemeldetes Gerät bekommt seinen Mandanten — aber **keine Rechte**
 
-**Status:** OFFEN — Fehlerbericht ans Toolkit
+**Status:** BEHOBEN in `5.0.0-PRE244` (`c5d04358`) — `ClientAppIdentity.BuildClaims` baut die Ansprüche an
+einer Stelle, für API-Schlüssel, ClientApp-Token und JWT gleich.
 **Datum:** 2026-09-16
 **Quelle:** MiniStore-Session (Konsument). Beim Durchstich von Leitfaden §65.8 Schritt 8 aufgetreten:
 der POS-Agent meldet seinen Gerätedienst am ServiceHub an.

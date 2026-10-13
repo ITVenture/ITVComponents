@@ -1,5 +1,7 @@
 # BUG (PRE187): Der Fix aus `710e8a81` greift bei Hosts mit `UseTenantPathPrefix()` nicht — die Routenwerte tragen den Mandanten dort nie
 
+**Status:** behoben in `5.0.0-PRE188` (`c461ca93`), siehe „Umsetzung"
+
 > **Nachtrag zu `BUG-PRE186-PermissionScope-NonBlazor-Endpoints.md`.** Der dortige Fix ist umgesetzt und
 > im Ansatz richtig, bleibt aber für die Host-Bauart wirkungslos, aus der er gemeldet wurde. Am
 > laufenden MLM auf PRE187 nachgemessen: `CurrentTenant` meldet weiterhin den Default-Mandanten.

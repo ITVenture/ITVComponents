@@ -18,7 +18,7 @@
 
 # Issue: „Zeig mir meinen eigenen Link als QR-Code" — Weitergabe ohne neue Freigabe (Anstoß aus MiniStore)
 
-**Status:** OFFEN — Wunsch, kein Fehler. Bewusst als **eigener** Vorgang gemeldet, obwohl er
+**Status:** UMGESETZT in `5.0.0-PRE233` (`626e635e`), siehe Vermerk oben — ursprünglich ein Wunsch, kein Fehler. Bewusst als **eigener** Vorgang gemeldet, obwohl er
 denselben Dialog berührt wie `ISSUE-MiniStore-AssetTemplate-Dialog-Defaults.md`: dort geht es um
 das **Ausstellen** einer Freigabe, hier um das **Weiterreichen** einer bestehenden.
 **Datum:** 2026-09-12

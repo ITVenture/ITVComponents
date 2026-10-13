@@ -1,6 +1,9 @@
 # Issue: Der mitgelieferte API-Schlüssel-Resolver vergleicht Klartext — ein gehashter fehlt
 
-**Status:** OFFEN — Anfrage an das Toolkit
+**Status:** UMGESETZT, in anderer Form — `5.0.0-PRE240` (`20f4e79c`), Leitfaden §65.7. Statt eines
+`HashedApiKeyUserResolver` prüft `ClientAppApiKeyResolver` per `SecretHasher.Verify` gegen den gespeicherten
+Hash; die Doppelrolle von `ApiKeyInfo.Key` ist dokumentiert. **Nicht** umgesetzt: Ablauf/Widerruf an
+`ApiKeyInfo` (Vorschlag 3) — widerrufen wird über `IDevicePairingService.RevokeAsync` bzw. den ClientApp-Zugang.
 **Datum:** 2026-09-15
 **Quelle:** MiniStore-Session (Konsument). MiniStore koppelt Kassenterminals: eine Anwendung auf dem
 Laden-PC meldet ihren Gerätedienst am ServiceHub an und weist sich dabei mit einem API-Schlüssel aus

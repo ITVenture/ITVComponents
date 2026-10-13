@@ -1,5 +1,7 @@
 # BUG (PRE250): `NativeSettings.SettingsBasePath` zeigt aufs Arbeitsverzeichnis, die Einstellungen kommen aber aus dem Anwendungsverzeichnis
 
+**Status:** behoben in `5.0.0-PRE251` (`92c24bfd`) — `SettingsBasePath` ist `AppContext.BaseDirectory`
+
 > Gemeldet aus **MiniStore** (POS-Agent, WinForms-Tray, .NET 10). Quellstand geprüft:
 > `cleanworkspace/ITVComponents-Public` @ `d4ae7238` („nativeSettings expose SettingsBase-Path now“).
 

@@ -1,5 +1,7 @@
 # BUG (PRE201): Der anonyme Freigabe-Link endet weiterhin im 404 — der Asset-Dekorator wird gebaut, bevor es den Asset-Prinzipal gibt
 
+**Status:** behoben in `5.0.0-PRE202` (`5719c1b1`), siehe „Umsetzung"
+
 > Gemeldet aus **MLMManager** (Blazor Server/WASM-Auto, `TenantSource.PathSegment`, Toolkit
 > `5.0.0-PRE201+2a7df2bd`, am laufenden System gemessen). Fortsetzung von
 > `BUG-PRE197-AnonymousAssetLink-TenantPrefix-404.md` — der Fix von damals greift, dies hier ist die

@@ -27,7 +27,7 @@
 
 # Issue: Die Vorlage soll den Teilen-Dialog bestimmen — sichtbare Felder und Vorgabewerte (Anstoß aus MiniStore)
 
-**Status:** OFFEN — Wunsch, kein Fehler
+**Status:** UMGESETZT in `5.0.0-PRE233` (`626e635e`), siehe Vermerk oben — ursprünglich ein Wunsch, kein Fehler
 **Datum:** 2026-09-12
 **Quelle:** MiniStore (Kassensystem, Self-Checkout über SharedAssets)
 

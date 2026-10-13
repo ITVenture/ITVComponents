@@ -1,5 +1,7 @@
 # BUG (PRE250): `FactoryWrapper` öffnet je Aufruf einen Scope, sucht das Zielobjekt aber nur in der Hauptfabrik — Bereichs-Plugins sind über IPC nicht erreichbar
 
+**Status:** behoben in `5.0.0-PRE251` (`f99a0565`) — der `FactoryWrapper` findet Bereichs-Plugins über `PluginFactory.DescribeScopedPlugin`, Test `DescribeScopedPluginTest`
+
 > Gemeldet aus **MiniStore** (POS-Agent, WinForms-Tray, .NET 10, meldet sich als `GrpcServer` am Hub
 > des Webs an; `ITVComponents.InterProcessCommunication.Grpc 5.0.0-PRE250`). Quellstand geprüft:
 > `cleanworkspace/ITVComponents-Public` @ `d4ae7238`.

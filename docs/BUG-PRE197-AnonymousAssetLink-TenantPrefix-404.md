@@ -1,5 +1,7 @@
 # BUG (PRE197): Anonyme Freigabe-Links laufen auf Blazor-Hosts mit `UseTenantPathPrefix()` immer in einen 404 — und zwar lautlos
 
+**Status:** behoben in `5.0.0-PRE198` (`ac0798e0`), Leitfaden §50.2, siehe „Umsetzung"
+
 > Gemeldet aus **MLMManager** (Blazor Server/WASM-Auto, `TenantSource.PathSegment`, Toolkit
 > `5.0.0-PRE197`), beim ersten echten Einsatz der SharedAssets aus Leitfaden §50–§56.
 > Die Verdrahtung des Hosts folgt §50.2 wortwörtlich; die Reihenfolge in `Program.cs` ist korrekt.

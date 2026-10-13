@@ -1,5 +1,7 @@
 # BUG (PRE233): `PaymentFeatureGate` liest `Feature.Enabled` anders als die Feature-Auflösung — ein je Mandant verkauftes Zahlungs-Feature lässt sich nicht einschalten
 
+**Status:** behoben in `5.0.0-PRE235` (`cb3c5b8f`), Leitfaden §57.7 — `FeatureActivationExtensions.IsFeatureEnabled` ist jetzt die gemeinsame Regel für `PaymentFeatureGate` und `DbSecurityRepository`
+
 > Gemeldet aus **MiniStore** (Blazor Web App, .NET 10, TreeTenants, PostgreSQL, Toolkit
 > `5.0.0-PRE233`, Achse B / Stripe Connect gerade in Betrieb genommen).
 

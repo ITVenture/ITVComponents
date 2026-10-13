@@ -1,5 +1,7 @@
 # BUG (PRE141): Workflow-Einbindung — zwei Blocker + drei Doku-Lücken im Einbindungs-Leitfaden
 
+**Status:** teilweise behoben — Punkte 1 und 5 in `5.0.0-PRE145` (`940d632c`), IOptions-Konstruktor in PRE179 (`feb439a1`). **Offen:** Punkt 2 (`Workflow-Integration-Guide.md` zeigt noch `GetRequiredService<PluginFactory>()`, kein Ctor `PluginActivityCatalog(IWebPluginHelper)`), Punkt 3 (Hinweis auf eigene Design-Time-Factory), Punkt 4 nur halb (Absatz zur geteilten Datenbank fehlt)
+
 > **Gemeldet aus der MLM-Konsumenten-Session, 2026-07-27.** Erste Adoption des Workflow-Subsystems
 > nach `docs/Workflow-Integration-Guide.md`, **Szenario a) Web-Only**, **globaler (filterfreier)
 > Kontext**, Schema in der **bestehenden** System-DB des Hosts (keine separate Workflow-DB).

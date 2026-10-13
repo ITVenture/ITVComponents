@@ -1,5 +1,7 @@
 # BUG (PRE079): „A second operation was started on this context instance" bei der Scope-Auflösung (Login/NavMenu)
 
+**Status:** behoben in PRE080 (`8c8b7bdf`, gehärtet mit `98d194d6`), siehe „Fix" und „Nachtrag"
+
 > **Gemeldet aus der MLM-Konsumenten-Session, 2026-06-17.** Folgefund nach dem PRE079-Tenant-Fix
 > (`BUG-PRE078-Tenant-table-name.md`): Login läuft jetzt durch, aber beim Rendern (`NavMenu`,
 > Permission-Check) wirft die Security-Pipeline `InvalidOperationException: A second operation was

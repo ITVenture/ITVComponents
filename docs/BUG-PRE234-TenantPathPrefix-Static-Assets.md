@@ -1,5 +1,7 @@
 # BUG (PRE234): `TenantPathPrefixMiddleware` beantwortet statische Dateien mit 404, sobald der Benutzer einen Geltungsbereich hat
 
+**Status:** behoben in `5.0.0-PRE235` (`4c0226f2`) — Pfade mit Dateiendung laufen vor dem 404 an der Middleware vorbei
+
 > Gemeldet aus MiniStore (`5.0.0-PRE234`). Unabhängig von
 > `BUG-PRE234-Onboarding-Reload-Without-TenantPrefix.md`, aber im selben Fall aufgefallen: jener
 > Report erklärt, warum eine Seite ohne Mandantensegment steht, dieser, warum das die Seite zerlegt.

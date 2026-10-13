@@ -1,5 +1,7 @@
 # BUG (PRE234): Nach dem Onboarding lädt `MyTenants` präfixlos neu — der frisch angelegte Mandant kommt nie in die Adresse
 
+**Status:** behoben in `5.0.0-PRE235` (`4c0226f2`) — `MyTenants` stellt beim Neuladen das Mandantensegment voran
+
 > Gemeldet aus MiniStore (`5.0.0-PRE234`), am laufenden System nachgemessen. Hängt mit
 > `BUG-PRE234-TenantPathPrefix-Static-Assets.md` zusammen: dieser Report erklärt, **warum** die Seite
 > ohne Mandantensegment steht, jener, **warum** das ab diesem Moment die ganze Seite zerlegt. Beide

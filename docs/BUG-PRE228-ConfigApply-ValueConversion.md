@@ -1,5 +1,7 @@
 # BUG (PRE228): Die allgemeine Wertwandlung beim Config-Import kennt weder Aufzählungen noch eine Kultur
 
+**Status:** behoben in `5.0.0-PRE229` (`afaa026d`), siehe „Behebung"
+
 > Gemeldet aus **MLMManager** (Blazor Server/WASM-Auto, Toolkit `5.0.0-PRE228`, .NET 10). Gefunden
 > beim Bau einer eigenen `IConfigExtension` für die CustomerCare-Stammdaten — also beim Lesen von
 > `BillingConfigExtension` und `HelpConfigExtension` als Vorbild. Die beiden Befunde unten sind am
