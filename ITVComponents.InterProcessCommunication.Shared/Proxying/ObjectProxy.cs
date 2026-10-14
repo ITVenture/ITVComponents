@@ -77,9 +77,36 @@ namespace ITVComponents.InterProcessCommunication.Shared.Proxying
         /// <summary>
         /// Finalizes this object
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A finalizer must never throw: an exception on the finalizer thread terminates the whole process.
+        /// Releasing the remote object is a network call that fails routinely (server shutting down, client
+        /// offline), so a failure is logged and otherwise ignored - the server drops the object with its
+        /// session anyway.
+        /// </para>
+        /// <para>
+        /// The call is handed to the thread pool instead of being made here: it waits for a server answer,
+        /// and a blocked finalizer thread stalls finalization for the entire process.
+        /// </para>
+        /// </remarks>
         ~ObjectProxy()
         {
-            client.AbandonObject(objectName);
+            var abandonClient = client;
+            var abandonName = objectName;
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (!abandonClient.AbandonObject(abandonName))
+                    {
+                        LogEnvironment.LogDebugEvent($"Remote object {abandonName} was not released by the server.", LogSeverity.Report);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Remote object {abandonName} could not be released: {ex.OutlineException()}", LogSeverity.Warning);
+                }
+            });
         }
 
         /// <summary>
