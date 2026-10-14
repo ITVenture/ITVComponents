@@ -188,5 +188,6 @@
   <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Compili tutti i campi obbligatori.</value></data>
   <data name="Terminals_Cancel" xml:space="preserve"><value>Annulla</value></data>
   <data name="Terminals_Next" xml:space="preserve"><value>Avanti</value></data>
+  <data name="Terminals_Back" xml:space="preserve"><value>Indietro</value></data>
   <data name="Terminals_Save" xml:space="preserve"><value>Salva</value></data>
 </root>

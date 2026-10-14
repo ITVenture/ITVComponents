@@ -20,8 +20,12 @@
 <MudDialog>
     <DialogContent>
         @* Kein NonLinear: die Schritte bauen aufeinander auf - der dritte kann erst gefragt werden,
-           wenn der zweite beantwortet ist. Linear ist die Vorgabe, deshalb steht hier nichts. *@
-        <MudStepper @bind-ActiveIndex="step" ShowResetButton="false">
+           wenn der zweite beantwortet ist. Linear ist die Vorgabe, deshalb steht hier nichts.
+           Die eingebauten Knoepfe sind abgeschaltet (leeres ActionContent): sie schalten nur den Index
+           weiter und uebergingen dabei NextAsync - das Geraet wurde dann ohne Kasse und Objekt
+           gespeichert (BUG-PRE256). Weiter geht es nur ueber die Knoepfe des Dialogs. *@
+        <MudStepper @bind-ActiveIndex="step" ShowResetButton="false" OnPreviewInteraction="OnStepperInteraction">
+            <ActionContent></ActionContent>
             <ChildContent>
                 <MudStep Title="@L["Terminals_Step_Kind"]">
                     <MudSelect T="string" Label="@L["Terminals_Field_Provider"]"
@@ -96,6 +100,10 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">@L["Terminals_Cancel"]</MudButton>
+        @if (step > 0)
+        {
+            <MudButton OnClick="Back" Disabled="@busy">@L["Terminals_Back"]</MudButton>
+        }
         @if (step < LastStep)
         {
             <MudButton Color="Color.Primary" OnClick="NextAsync" Disabled="@busy">@L["Terminals_Next"]</MudButton>
@@ -130,6 +138,8 @@
     private string providerTerminalId = string.Empty;
     private string? routeValue;
     private string? serverJson;
+    private bool serverCollected;
+    private bool deviceLoaded;
     private bool hasDeviceStep;
     private int step;
     private bool busy;
@@ -172,6 +182,9 @@
         }
 
         serverFields = Handler.DescribeSettings(provider);
+        // Anderer Weg, andere Felder: was zuvor eingesammelt wurde, gilt nicht mehr.
+        serverCollected = false;
+        deviceLoaded = false;
         hasDeviceStep = providers.FirstOrDefault(p => p.Key == provider).HasDeviceSettings;
         serverPrefill = TerminalFieldProjection.Defaults(serverFields, Stored(serverJson, routeValue));
         serverDeclared = TerminalFieldProjection.ToDeclaredFields(serverFields);
@@ -242,12 +255,40 @@
         }
     }
 
+    private void Back()
+    {
+        error = null;
+        if (step > 0)
+        {
+            step--;
+        }
+    }
+
+    /// <summary>
+    /// Laesst über die Schritt-Köpfe nur den Weg zurück zu - vorwärts geht es ausschliesslich über
+    /// <see cref="NextAsync"/>, weil nur dort eingesammelt und der Agent gefragt wird.
+    /// </summary>
+    private Task OnStepperInteraction(StepperInteractionEventArgs args)
+    {
+        if (args.Action != StepAction.Activate || args.StepIndex > step)
+        {
+            args.Cancel = true;
+        }
+        else
+        {
+            error = null;
+        }
+
+        return Task.CompletedTask;
+    }
+
     /// <summary>Liest den ersten Abschnitt ein und trennt dabei Route vom JSON.</summary>
     private bool CollectServer()
     {
         if (serverFields.Count == 0)
         {
             serverJson = null;
+            serverCollected = true;
             return true;
         }
 
@@ -260,6 +301,7 @@
         // Die Route gehoert in ihre eigene Spalte, nicht ins JSON - sonst gaebe es den Wert zweimal.
         routeValue = TerminalSettings.ValueFor(serverFields, values, TerminalSettingTarget.Route);
         serverJson = TerminalSettings.Compose((serverFields, values));
+        serverCollected = true;
         return true;
     }
 
@@ -290,6 +332,8 @@
         }
         finally
         {
+            // Auch nach einem Fehler: gefragt wurde, und die Antwort "nicht erreichbar" ist eine.
+            deviceLoaded = true;
             busy = false;
         }
     }
@@ -316,6 +360,18 @@
         error = null;
         if (step == 1 && !CollectServer())
         {
+            return;
+        }
+
+        // Nur ueber NextAsync kommt man sauber hierher. Fehlt ein Abschnitt trotzdem, wird nicht
+        // gespeichert - ein Geraet ohne Kasse liesse sich zwar anlegen, aber nie erreichen.
+        if (!serverCollected || (hasDeviceStep && !deviceLoaded))
+        {
+            Logger.LogWarning("Terminal {DisplayName} was not saved: the wizard reached the save step without collecting all sections (server: {ServerCollected}, device: {DeviceLoaded}).",
+                displayName, serverCollected, deviceLoaded);
+            // Zurueck auf den Dienst-Schritt: von dort sammelt "Weiter" ein und fragt den Agenten.
+            step = 1;
+            error = L["Terminals_RequiredMissing"];
             return;
         }
 

@@ -1,7 +1,9 @@
 using ITVComponents.AgentServices.Abstractions;
 using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
+using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
@@ -38,9 +40,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         private readonly IAgentConnector connector;
 
         /// <summary>Initializes a new instance of the <see cref="AgentTerminalPaymentService{TContext}"/> class.</summary>
-        public AgentTerminalPaymentService(IDbContextFactory<TContext> dbFactory, PaymentsRuntime runtime,
+        /// <remarks>
+        /// Baut sein <see cref="PaymentsRuntime"/> selbst, wie die übrigen Wege auch: es steht nicht im DI
+        /// (BUG-PRE256). Die Tore kommen als Aufzählung, damit ein fehlendes nicht beim Auflösen scheitert,
+        /// sondern wie überall als <c>FeatureMissing</c> abgelehnt wird.
+        /// </remarks>
+        public AgentTerminalPaymentService(IDbContextFactory<TContext> dbFactory,
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
             TenantSaleWebhookSink<TContext> sink, ITerminalAgentLocator locator, IAgentConnector connector)
-            : base(dbFactory, runtime, sink)
+            : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()), sink)
         {
             this.locator = locator;
             this.connector = connector;

@@ -157,7 +157,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             var list = await handler.GetChoicesAsync(TerminalChoiceSources.ClientApps, null);
             await handler.SaveAsync(new TerminalDefinition { Provider = "agent" });
 
-            Assert.AreEqual(5, catalog.Calls.Count, "Mit dem Verwaltungsrecht muss der Assistent durchlaufen.");
+            // 6: SaveAsync fragt den Katalog nach den Pflichtfeldern des Wegs (BUG-PRE256).
+            Assert.AreEqual(6, catalog.Calls.Count, "Mit dem Verwaltungsrecht muss der Assistent durchlaufen.");
             Assert.AreEqual(1, choices.Calls.Count);
             Assert.AreEqual(1, list.Count, "Die Auswahlliste der Attrappe hat genau einen Eintrag.");
             Assert.AreEqual(1, administration.Calls.Count);
@@ -186,6 +187,39 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             await handler.ApplyDeviceSettingsAsync(new TerminalDefinition { TenantId = 999, Provider = "agent", Route = "kasse-1" }, "{}");
             Assert.AreEqual(7, catalog.LastDraft!.TenantId,
                 "Ueber den Mandanten wird der Agent aufgeloest - eine fremde Id darf nie bis dorthin kommen.");
+        }
+
+        /// <summary>
+        /// BUG-PRE256: der Assistent hat einen Schritt uebersprungen und ein Agent-Terminal ohne Kasse und
+        /// Objekt gespeichert. Der Handler laesst das nicht mehr durch - egal, wer ihn ruft.
+        /// </summary>
+        [TestMethod]
+        public async Task SaveRefusesATerminalThatLacksARequiredSetting()
+        {
+            var env = HandlerTestEnvironment.WithPermissions(TerminalsHandler<BillingTestContext>.ManagePermission);
+            var administration = new SpyTerminalAdministration();
+            var catalog = new SpyTerminalCatalog
+            {
+                Settings =
+                [
+                    new() { Name = "route", StoredIn = TerminalSettingTarget.Route, Required = true },
+                    new() { Name = "objectName", Required = true }
+                ]
+            };
+            var handler = Handler(env, administration, catalog, new SpyTerminalPaymentService(), new SpyChoiceProvider());
+
+            var ex = await Assert.ThrowsExactlyAsync<TenantPaymentException>(() => handler.SaveAsync(
+                new TerminalDefinition { Provider = "agent", ProviderTerminalId = "gaga", DisplayName = "gaga" }));
+            StringAssert.Contains(ex.Message, "route");
+            StringAssert.Contains(ex.Message, "objectName");
+            Assert.AreEqual(0, administration.Calls.Count, "Ein unvollstaendiges Geraet darf nie gespeichert werden.");
+
+            await handler.SaveAsync(new TerminalDefinition
+            {
+                Provider = "agent", ProviderTerminalId = "gaga", DisplayName = "gaga", Route = "kasse-1",
+                ConfigurationJson = "{\"objectName\":\"Kartenterminal\"}"
+            });
+            Assert.AreEqual(1, administration.Calls.Count, "Vollstaendig muss es durchgehen.");
         }
 
         // ------------------------------------------------------------------ Hauptschalter und Feature
@@ -259,10 +293,13 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
                 return new[] { new TerminalProviderInfo("agent", true) };
             }
 
+            /// <summary>Was <see cref="DescribeSettings"/> liefert; Vorgabe: nichts.</summary>
+            public IReadOnlyList<TerminalSettingDescriptor> Settings { get; set; } = Array.Empty<TerminalSettingDescriptor>();
+
             public IReadOnlyList<TerminalSettingDescriptor> DescribeSettings(string providerKey)
             {
                 Calls.Add($"{nameof(DescribeSettings)}({providerKey})");
-                return Array.Empty<TerminalSettingDescriptor>();
+                return Settings;
             }
 
             public TerminalDefinition? LastDraft { get; private set; }

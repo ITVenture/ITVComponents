@@ -3,11 +3,13 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
 @using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
+@using Microsoft.Extensions.Logging
 
 @inject ITerminalsHandler Handler
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject IStringLocalizer<PaymentMessages> L
+@inject ILogger<TerminalsAdmin> Logger
 
 <PageTitle>@L["Terminals_Title"]</PageTitle>
 
@@ -147,6 +149,8 @@
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Terminal {TerminalId} could not be {Action}.", terminal.TerminalId,
+                terminal.Enabled ? "disabled" : "enabled");
             Snackbar.Add(ex.Message, Severity.Error);
         }
     }
@@ -172,6 +176,9 @@
         }
         catch (Exception ex)
         {
+            // Ein Geraet, das nicht antwortet, ist ein Betriebsfall - aber ohne Eintrag im Log sah die
+            // Fehlersuche nach der Terminal-Abfrage nur noch Stille (BUG-PRE256).
+            Logger.LogWarning(ex, "Status of terminal {TerminalId} could not be queried.", terminalId);
             reachable[terminalId] = false;
             Snackbar.Add(ex.Message, Severity.Error);
         }

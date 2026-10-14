@@ -143,6 +143,39 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
             return null;
         }
 
+        /// <summary>
+        /// Die Pflichtfelder, die in einer gespeicherten Geräte-Zeile fehlen.
+        /// </summary>
+        /// <remarks>
+        /// Die Gegenprobe zu <see cref="Compose"/> und <see cref="ValueFor"/>: was die Maske verlangt,
+        /// muss auch angekommen sein. Sonst liesse sich ein Gerät speichern, das nie erreichbar ist —
+        /// genau so geschehen, als der Assistent einen Schritt übersprungen hat (BUG-PRE256).
+        /// </remarks>
+        /// <param name="fields">die Felder des Wegs, wie <c>DescribeSettings</c> sie liefert</param>
+        /// <param name="route">der Wert der Route-Spalte</param>
+        /// <param name="configuration">die Eigenschaften des Konfigurations-JSON, nach Namen</param>
+        /// <returns>die Namen der fehlenden Felder; leer, wenn alles da ist</returns>
+        public static IReadOnlyList<string> MissingRequired(IReadOnlyList<TerminalSettingDescriptor> fields,
+            string? route, IReadOnlyDictionary<string, string?> configuration)
+        {
+            var missing = new List<string>();
+            foreach (var field in fields.Where(f => f.Required))
+            {
+                var present = field.StoredIn switch
+                {
+                    TerminalSettingTarget.Route => !string.IsNullOrWhiteSpace(route),
+                    _ => configuration.TryGetValue(field.Name, out var value) && !string.IsNullOrWhiteSpace(value)
+                };
+
+                if (!present)
+                {
+                    missing.Add(field.Name);
+                }
+            }
+
+            return missing;
+        }
+
         /// <summary>Schreibt einen Wert in der Form, in der er gelesen wird.</summary>
         private static JsonNode? Convert(SettingDescriptor field, string raw)
             => field.Kind switch

@@ -151,7 +151,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var terminal = await LoadTerminalAsync(db, tenantId, terminalId, cancellationToken);
-            var status = await QueryStatusAsync(terminal, cancellationToken);
+            TerminalStatus status;
+            try
+            {
+                status = await QueryStatusAsync(terminal, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Weitergereicht wird unveraendert - der Aufrufer zeigt es an. Aber ohne diesen Eintrag
+                // endete die Spur im Log bei der Terminal-Abfrage (BUG-PRE256).
+                LogEnvironment.LogEvent(
+                    $"Status of terminal {terminal.DisplayName} ({ProviderKey}/{terminal.ProviderTerminalId}) could not be queried: {ex.OutlineException()}",
+                    LogSeverity.Warning, LogContext);
+                throw;
+            }
+
             if (status.Online)
             {
                 terminal.LastSeenUtc = DateTime.UtcNow;

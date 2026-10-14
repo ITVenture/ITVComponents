@@ -163,13 +163,63 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         /// <inheritdoc />
         /// <remarks>
+        /// <para>
         /// Der Mandant kommt aus dem Sicherheitsbereich, <b>nicht</b> aus der Anfrage: sonst liesse sich
         /// ein Gerät für einen fremden Mandanten anlegen, indem man die Id austauscht.
+        /// </para>
+        /// <para>
+        /// Die Pflichtfelder des Wegs werden hier noch einmal geprüft und nicht nur in der Maske: ein
+        /// Agent-Terminal ohne Kasse lässt sich speichern, aber nie erreichen (BUG-PRE256).
+        /// </para>
         /// </remarks>
         public async Task<int> SaveAsync(TerminalDefinition definition, CancellationToken cancellationToken = default)
         {
             definition.TenantId = await EnsureAsync(CanManage(), cancellationToken);
+            EnsureRequiredSettings(definition);
             return await administration.SaveAsync(definition, cancellationToken);
+        }
+
+        /// <summary>
+        /// Lehnt ein Gerät ab, dem eine Angabe fehlt, die sein Weg als Pflicht deklariert.
+        /// </summary>
+        private void EnsureRequiredSettings(TerminalDefinition definition)
+        {
+            if (string.IsNullOrWhiteSpace(definition.Provider))
+            {
+                // Das meldet die Verwaltung selbst, mit dem Satz, der sagt, was ein Geraet braucht.
+                return;
+            }
+
+            var fields = catalog.DescribeSettings(definition.Provider);
+            if (fields.Count == 0)
+            {
+                return;
+            }
+
+            var configuration = new Dictionary<string, string?>();
+            if (!string.IsNullOrWhiteSpace(definition.ConfigurationJson))
+            {
+                try
+                {
+                    using var document = System.Text.Json.JsonDocument.Parse(definition.ConfigurationJson);
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        configuration[property.Name] = property.Value.ToString();
+                    }
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    throw new TenantPaymentException(PaymentErrorCodes.InvalidAmount,
+                        $"The settings of terminal '{definition.DisplayName}' are not readable JSON: {ex.Message}", ex);
+                }
+            }
+
+            var missing = TerminalSettings.MissingRequired(fields, definition.Route, configuration);
+            if (missing.Count != 0)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.InvalidAmount,
+                    $"Terminal '{definition.DisplayName}' cannot be saved: the {definition.Provider} provider requires {string.Join(", ", missing)}. A terminal saved without it could never be reached.");
+            }
         }
 
         /// <inheritdoc />

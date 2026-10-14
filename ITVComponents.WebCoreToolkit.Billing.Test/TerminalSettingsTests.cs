@@ -110,6 +110,32 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
                 "Add new kinds at the END, here and in DeclaredFieldKind.");
         }
 
+        /// <summary>
+        /// BUG-PRE256: ein Agent-Terminal ohne Kasse und Objekt liess sich speichern, war aber nie erreichbar.
+        /// </summary>
+        [TestMethod]
+        public void MissingRequired_NamesWhatTheRowLacks_RouteAndJsonAlike()
+        {
+            IReadOnlyList<TerminalSettingDescriptor> fields =
+            [
+                new() { Name = "route", StoredIn = TerminalSettingTarget.Route, Required = true },
+                new() { Name = "objectName", Required = true },
+                new() { Name = "note" }
+            ];
+
+            var empty = TerminalSettings.MissingRequired(fields, null, new Dictionary<string, string?>());
+            CollectionAssert.AreEqual(new[] { "route", "objectName" }, empty.ToArray());
+
+            var blank = TerminalSettings.MissingRequired(fields, "  ",
+                new Dictionary<string, string?> { ["objectName"] = " " });
+            CollectionAssert.AreEqual(new[] { "route", "objectName" }, blank.ToArray(),
+                "Leerraum ist keine Angabe.");
+
+            var complete = TerminalSettings.MissingRequired(fields, "kasse-1",
+                new Dictionary<string, string?> { ["objectName"] = "Kartenterminal" });
+            Assert.AreEqual(0, complete.Count, "Ein optionales Feld darf fehlen.");
+        }
+
         [TestMethod]
         public async Task Administration_RefusesToTouchAnotherTenantsTerminal()
         {
