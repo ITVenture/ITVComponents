@@ -118,6 +118,37 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         /// <summary>UTC moment the payment completed; null while unpaid.</summary>
         public DateTime? PaidUtc { get; set; }
 
+        /// <summary>
+        /// What the terminal reported for the card receipt, as JSON of a <c>TerminalReceipt</c>; null for
+        /// online sales and for terminals that reported none.
+        /// </summary>
+        /// <remarks>
+        /// Never holds a full card number: <see cref="ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments.TerminalReceiptStore"/> drops a number that
+        /// does not look masked. Read it through <see cref="ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments.TerminalReceiptStore.Of"/>.
+        /// </remarks>
+        public string? TerminalReceiptJson { get; set; }
+
+        /// <summary>A tip the terminal recorded on top of <see cref="AmountMinor"/>, in minor units.</summary>
+        public long? TipMinor { get; set; }
+
+        /// <summary>
+        /// Set while a paid terminal sale waits for its receipt before the observers are told; null otherwise.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A provider webhook can report the payment before the terminal answers with the receipt. The sale is
+        /// paid at once, but the observers (which book the host's receipt) are held back until the receipt is
+        /// there, or until <c>TenantPaymentsOptions.ReceiptWaitSeconds</c> have passed.
+        /// </para>
+        /// <para>
+        /// Null on every existing row, so nothing is notified twice after the column is added. Clearing it is
+        /// the claim to notify — a concurrency token, so only one of webhook, terminal answer and background
+        /// sweep gets to do it.
+        /// </para>
+        /// </remarks>
+        [ConcurrencyCheck]
+        public DateTime? CompletionPendingSince { get; set; }
+
         public virtual ICollection<TenantSaleRefund> Refunds { get; set; } = new List<TenantSaleRefund>();
     }
 }

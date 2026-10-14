@@ -206,7 +206,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                     TimeSpan.FromSeconds(terminal.ConnectTimeoutSeconds), cancellationToken);
 
                 var response = await connection.ExchangeAsync(request, responseName, receipt.Collect, timed.Token);
-                return Translate(response, operationId, receipt);
+                return Translate(response, operationId, receipt, terminal.TipOnReceipt);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -234,7 +234,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         }
 
         /// <summary>Übersetzt die Antwort des Geräts.</summary>
-        private static TerminalPaymentOutcome Translate(XElement response, string operationId, ReceiptCollector receipt)
+        private static TerminalPaymentOutcome Translate(XElement response, string operationId, ReceiptCollector receipt,
+            bool tipOnReceipt)
         {
             // Bei reprintReceiptResponse stecken die Felder eine Ebene tiefer, unter lastTrx.
             var body = response.Element("lastTrx") ?? response;
@@ -252,6 +253,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                 _ => TerminalPaymentState.Failed
             };
 
+            var built = receipt.Build(body);
+            if (built != null && tipOnReceipt && tip is > 0)
+            {
+                built.TipMinor = tip;
+            }
+
             return new TerminalPaymentOutcome
             {
                 OperationId = operationId,
@@ -265,7 +272,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
                 FailureMessage = body.Element("ep2AuthResponseCode")?.Value is { } code && state == TerminalPaymentState.Failed
                     ? $"The terminal answered with authorisation code '{code}'."
                     : null,
-                Receipt = receipt.Build(body)
+                Receipt = built
             };
         }
 

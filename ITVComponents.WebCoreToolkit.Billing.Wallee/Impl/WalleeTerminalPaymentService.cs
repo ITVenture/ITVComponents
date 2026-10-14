@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Wallee.Client;
 using Wallee.Model;
 using Wallee.Service;
+using WalleeConfiguration = Wallee.Client.Configuration;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 {
@@ -75,6 +76,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 Label = "Sprache am Gerät",
                 Kind = SettingKind.Text,
                 HelpText = "Leer heisst: die Vorgabe aus den wallee-Einstellungen."
+            },
+            new()
+            {
+                Name = TerminalReceipts.TipOnReceiptSetting,
+                Label = "Trinkgeld auf den Beleg",
+                Kind = SettingKind.Boolean,
+                HelpText = "Ein am Terminal erfasstes Trinkgeld erscheint auf dem Kartenbeleg. Gespeichert wird es in jedem Fall."
             }
         ];
 
@@ -138,7 +146,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                         cancellationToken)
                     .ConfigureAwait(false);
 
-                return Translate(started, command.OperationId);
+                return await WithReceiptAsync(Translate(started, command.OperationId), started, configuration, space,
+                    wallee, sale, cancellationToken);
             }
             catch (ApiException ex)
             {
@@ -169,12 +178,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             var space = ResolveSpace(sale, wallee);
             try
             {
+                var configuration = WalleeRuntime.Configure(wallee);
                 var transaction = await Task.Run(
-                        () => new TransactionsService(WalleeRuntime.Configure(wallee))
-                            .GetPaymentTransactionsId(transactionId, space),
+                        () => new TransactionsService(configuration).GetPaymentTransactionsId(transactionId, space),
                         cancellationToken)
                     .ConfigureAwait(false);
-                return Translate(transaction, operationId);
+                return await WithReceiptAsync(Translate(transaction, operationId), transaction, configuration, space,
+                    wallee, sale, cancellationToken);
             }
             catch (ApiException ex)
             {
@@ -266,6 +276,77 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 return new TerminalStatus { TerminalId = terminal.ProviderTerminalId, Online = false };
             }
         }
+
+        /// <summary>
+        /// Holt zu einer bezahlten Transaktion den Kartenbeleg und das Trinkgeld.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// wallee liefert den Beleg <b>fertig gesetzt</b> (<c>GetPaymentTransactionsIdTerminalReceipts</c>); er
+        /// wird so übernommen und nicht in Felder zerlegt. Es kann mehrere geben (Kunden- und Händlerbeleg) —
+        /// auf den Bon gehört der des Kunden, darum wird der bevorzugt.
+        /// </para>
+        /// <para>
+        /// Scheitert der Abruf, bleibt die Zahlung bezahlt — nur ohne Beleg. Das wird protokolliert, nicht
+        /// verschwiegen: ein Beleg ohne Kartendaten fällt sonst erst an der Kasse auf.
+        /// </para>
+        /// </remarks>
+        private async Task<TerminalPaymentOutcome> WithReceiptAsync(TerminalPaymentOutcome outcome,
+            Transaction transaction, WalleeConfiguration configuration, long space, WalleeOptions wallee,
+            TenantSale sale, CancellationToken cancellationToken)
+        {
+            if (outcome.State != TerminalPaymentState.Succeeded)
+            {
+                return outcome;
+            }
+
+            var tip = transaction.LineItems?
+                .Where(i => i.Type == LineItemType.TIP)
+                .Sum(i => i.AmountIncludingTax) ?? 0m;
+            if (tip > 0 && transaction.Currency != null)
+            {
+                outcome.TipMinor = CurrencyMinorUnits.ToMinor(tip, transaction.Currency);
+            }
+
+            try
+            {
+                var receipts = await Task.Run(
+                        () => new TransactionsService(configuration).GetPaymentTransactionsIdTerminalReceipts(
+                            transaction.Id, TerminalReceiptFormat.TXT, Math.Max(20, wallee.TerminalReceiptWidth), space),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                var chosen = receipts?.Data?
+                                 .OrderByDescending(r => IsCustomerReceipt(r.ReceiptType))
+                                 .FirstOrDefault(r => r.Data is { Length: > 0 });
+                if (chosen == null)
+                {
+                    LogEnvironment.LogEvent(
+                        $"wallee returned no terminal receipt for transaction {transaction.Id} (sale {sale.TenantSaleId}). The sale is paid, but the receipt lacks the card details.",
+                        LogSeverity.Warning, WalleeRuntime.LogContext);
+                    return outcome;
+                }
+
+                outcome.Receipt = new TerminalReceipt
+                {
+                    MerchantReference = transaction.MerchantReference,
+                    TimestampUtc = transaction.AuthorizedOn,
+                    PreformattedText = System.Text.Encoding.UTF8.GetString(chosen.Data)
+                };
+            }
+            catch (ApiException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not fetch the terminal receipt of wallee transaction {transaction.Id} (sale {sale.TenantSaleId}). The sale is paid, but the receipt lacks the card details: {ex.OutlineException()}",
+                    LogSeverity.Warning, WalleeRuntime.LogContext);
+            }
+
+            return outcome;
+        }
+
+        /// <summary>Ob ein Belegtyp der des Kunden ist — wallee benennt ihn nur in Klartext je Sprache.</summary>
+        private static bool IsCustomerReceipt(PaymentTerminalReceiptType? type)
+            => type?.Name?.Values.Any(n => n.Contains("customer", StringComparison.OrdinalIgnoreCase)
+                                           || n.Contains("kunde", StringComparison.OrdinalIgnoreCase)) == true;
 
         /// <summary>Übersetzt den Zustand einer wallee-Transaktion.</summary>
         private static TerminalPaymentOutcome Translate(Transaction transaction, string operationId)

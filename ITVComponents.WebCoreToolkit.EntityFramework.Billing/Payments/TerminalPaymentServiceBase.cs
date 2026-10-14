@@ -311,6 +311,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var (sale, terminal) = await LoadSaleAsync(db, tenantSaleId, cancellationToken);
 
+            if (sale.Status != TenantSaleStatus.Pending && sale.CompletionPendingSince != null)
+            {
+                // Bezahlt (der Webhook war schneller), aber der Beleg fehlt noch: EINMAL beim Geraet nachfragen.
+                return await CollectPendingReceiptAsync(sale, terminal, db, cancellationToken);
+            }
+
             if (sale.Status != TenantSaleStatus.Pending)
             {
                 // Schon entschieden. Das Geraet zu fragen, koennte es nur noch verwirren.
@@ -354,6 +360,58 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         }
 
         /// <summary>
+        /// Holt den Beleg eines Verkaufs, den ein Webhook schon als bezahlt gemeldet hat, und gibt dann die
+        /// zurückgehaltene Meldung frei.
+        /// </summary>
+        /// <remarks>
+        /// Antwortet das Gerät mit dem Ergebnis, ist der Vorgang zu Ende — mit oder ohne Beleg. Antwortet es
+        /// nicht (Kasse aus, Agent nicht erreichbar), wird bis zur Frist weiter gewartet und danach ohne Beleg
+        /// gemeldet: ein bezahlter Verkauf, der nie gebucht wird, wäre der schlimmere Ausgang.
+        /// </remarks>
+        private async Task<TerminalSaleResult> CollectPendingReceiptAsync(TenantSale sale,
+            TenantPaymentTerminal terminal, TContext db, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var outcome = await QueryDeviceAsync(sale, terminal, sale.TenantSaleId.ToString(), cancellationToken);
+                if (outcome.State == TerminalPaymentState.Succeeded)
+                {
+                    return await ApplyAsync(sale, terminal, db, outcome, cancellationToken);
+                }
+
+                LogEnvironment.LogEvent(
+                    $"Terminal {terminal.DisplayName} ({ProviderKey}/{terminal.ProviderTerminalId}) reports '{outcome.State}' for sale {sale.TenantSaleId}, which the provider already reported as paid. Waiting for the receipt until the wait period ends.",
+                    LogSeverity.Warning, LogContext);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not ask terminal {terminal.DisplayName} ({ProviderKey}/{terminal.ProviderTerminalId}) for the receipt of the paid sale {sale.TenantSaleId}: {ex.OutlineException()}",
+                    LogSeverity.Warning, LogContext);
+            }
+
+            await ReleaseIfOverdueAsync(sale, db, runtime.Options, sink, cancellationToken);
+            return await DescribeAsync(sale, terminal, db, cancellationToken);
+        }
+
+        /// <summary>
+        /// Gibt eine zurückgehaltene Meldung ohne Beleg frei, wenn die Frist abgelaufen ist.
+        /// </summary>
+        /// <returns>true, wenn dieser Aufruf gemeldet hat</returns>
+        internal static async Task<bool> ReleaseIfOverdueAsync(TenantSale sale, TContext db,
+            Options.TenantPaymentsOptions options, TenantSaleWebhookSink<TContext> sink,
+            CancellationToken cancellationToken)
+        {
+            if (sale.CompletionPendingSince is not { } since
+                || DateTime.UtcNow - since < TimeSpan.FromSeconds(Math.Max(0, options.ReceiptWaitSeconds)))
+            {
+                return false;
+            }
+
+            return await sink.ReleasePendingCompletionAsync(sale, db, cancellationToken);
+        }
+
+        /// <summary>
         /// Bucht, was das Gerät gemeldet hat.
         /// </summary>
         /// <remarks>
@@ -374,7 +432,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             {
                 case TerminalPaymentState.Succeeded:
                     WarnOnAmountMismatch(sale, terminal, outcome);
-                    await sink.MarkPaidAsync(sale, db, outcome.ProviderPaymentId, sale.CustomerEmail, cancellationToken);
+                    ApplyTipOnReceipt(terminal, outcome);
+                    await sink.MarkTerminalPaidAsync(sale, db, outcome.ProviderPaymentId, sale.CustomerEmail,
+                        outcome.Receipt, outcome.TipMinor, cancellationToken);
                     break;
 
                 case TerminalPaymentState.Failed:
@@ -394,6 +454,36 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             }
 
             return Describe(sale, terminal, outcome);
+        }
+
+        /// <summary>
+        /// Setzt das Trinkgeld auf den Beleg, wenn das Gerät so eingestellt ist.
+        /// </summary>
+        /// <remarks>
+        /// Für die Cloud-Wege steht der Schalter in der Geräte-Zeile und wird hier ausgewertet, damit ihn nicht
+        /// jede Anbindung selbst lesen muss. Ein Agent-Gerät führt ihn in seinen eigenen Einstellungen und
+        /// setzt das Feld selbst — was schon gesetzt ist, bleibt.
+        /// </remarks>
+        private void ApplyTipOnReceipt(TenantPaymentTerminal terminal, TerminalPaymentOutcome outcome)
+        {
+            if (outcome.Receipt is not { TipMinor: null } receipt || outcome.TipMinor is not > 0)
+            {
+                return;
+            }
+
+            try
+            {
+                if (TerminalReceipts.TipOnReceipt(terminal.ConfigurationJson))
+                {
+                    receipt.TipMinor = outcome.TipMinor;
+                }
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"The settings of terminal {terminal.DisplayName} ({ProviderKey}/{terminal.ProviderTerminalId}) are not readable JSON; the tip is left off the receipt: {ex.OutlineException()}",
+                    LogSeverity.Warning, LogContext);
+            }
         }
 
         /// <summary>
@@ -430,10 +520,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 SaleStatus = sale.Status,
                 AmountMinor = sale.AmountMinor,
                 Currency = sale.Currency,
-                TipMinor = outcome.TipMinor,
+                // Was das Geraet gerade meldet, sonst was am Verkauf steht - ein spaeteres Nachfragen fragt das
+                // Geraet nicht mehr, und dann ist die Zeile das Einzige, was die Angaben noch kennt.
+                TipMinor = outcome.TipMinor ?? sale.TipMinor,
                 FailureCode = outcome.FailureCode,
                 FailureMessage = outcome.FailureMessage,
-                Receipt = outcome.Receipt
+                Receipt = outcome.Receipt ?? TerminalReceiptStore.Of(sale)
             };
 
         /// <summary>Beschreibt einen Verkauf, der bereits entschieden ist, ohne das Gerät zu behelligen.</summary>

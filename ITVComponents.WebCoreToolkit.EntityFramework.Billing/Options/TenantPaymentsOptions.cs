@@ -88,6 +88,23 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// second provider can sit beside it rather than inside it.
         /// </summary>
         public StripeConnectOptions Stripe { get; set; } = new();
+
+        /// <summary>
+        /// How long a paid terminal sale waits for its card receipt before the observers are told without it,
+        /// in seconds. Default 60.
+        /// </summary>
+        /// <remarks>
+        /// Only matters when a provider webhook reports the payment before the terminal answers. The terminal
+        /// usually answers within seconds; the deadline covers a till that restarted mid-payment and never asks
+        /// again — without it, the sale would be paid but never booked.
+        /// </remarks>
+        public int ReceiptWaitSeconds { get; set; } = 60;
+
+        /// <summary>
+        /// How often the background sweep looks for terminal sales still waiting for their receipt, in seconds.
+        /// Default 5.
+        /// </summary>
+        public int ReceiptPollSeconds { get; set; } = 5;
     }
 
     /// <summary>
@@ -216,5 +233,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// </para>
         /// </summary>
         public string ConnectV2WebhookSecret { get; set; } = string.Empty;
+
     }
 }

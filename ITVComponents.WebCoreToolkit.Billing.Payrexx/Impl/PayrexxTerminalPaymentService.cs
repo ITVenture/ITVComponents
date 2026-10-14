@@ -69,6 +69,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                 Label = "Hinweis zur Kopplung",
                 Kind = SettingKind.Text,
                 HelpText = "Das Gerät muss vorher mit dem Payrexx-Konto gekoppelt sein (Einmalcode am Terminal). Die Seriennummer gehört in die Gerätekennung."
+            },
+            new()
+            {
+                Name = TerminalReceipts.TipOnReceiptSetting,
+                Label = "Trinkgeld auf den Beleg",
+                Kind = SettingKind.Boolean,
+                HelpText = "Ein am Terminal erfasstes Trinkgeld erscheint auf dem Kartenbeleg. Gespeichert wird es in jedem Fall."
             }
         ];
 

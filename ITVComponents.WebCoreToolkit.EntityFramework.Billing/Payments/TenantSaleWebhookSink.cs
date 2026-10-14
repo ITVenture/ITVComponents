@@ -1,4 +1,5 @@
 using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using Microsoft.EntityFrameworkCore;
 
@@ -122,16 +123,120 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 return false;
             }
 
+            SetPaid(sale);
+            if (sale.TenantPaymentTerminalId != null && sale.TerminalReceiptJson == null)
+            {
+                // Ein Terminal-Verkauf, und der Anbieter war schneller als das Geraet. Bezahlt ist er - aber
+                // der Beobachter bucht beim Host den Beleg, und dem fehlten jetzt die Kartendaten. Die Meldung
+                // wartet auf die Antwort des Terminals oder, falls die ausbleibt, auf die Frist.
+                sale.CompletionPendingSince = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+                LogEnvironment.LogEvent(
+                    $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}) was reported paid before the terminal delivered the receipt. The observers are notified once the receipt arrives or the wait period ends.",
+                    LogSeverity.Report, LogContext);
+                return true;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            await notifier.NotifyCompletedAsync(sale, cancellationToken);
+            return true;
+        }
+
+        /// <summary>
+        /// Bucht einen Terminal-Verkauf als bezahlt, mit dem, was das Gerät dazu gemeldet hat.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Weg der Terminal-Antwort, im Gegensatz zu <see cref="MarkPaidAsync"/> (Webhook). Die Antwort des
+        /// Geräts ist das Ende des Vorgangs: was jetzt nicht an Belegangaben da ist, kommt nicht mehr. Darum wird
+        /// hier nie zurückgehalten — auch nicht ohne Beleg.
+        /// </para>
+        /// <para>
+        /// War der Webhook schneller, steht der Verkauf schon als bezahlt da und die Meldung aus. Dann wird sie
+        /// hier nachgeholt, jetzt mit Beleg.
+        /// </para>
+        /// </remarks>
+        /// <returns>true, wenn dieser Aufruf die Beobachter benachrichtigt hat</returns>
+        public async Task<bool> MarkTerminalPaidAsync(TenantSale sale, TContext db, string? chargeId,
+            string? customerEmail, TerminalReceipt? receipt, long? tipMinor, CancellationToken cancellationToken)
+        {
+            TerminalReceiptStore.Store(sale, receipt, tipMinor);
+            sale.ProviderChargeId ??= chargeId;
+            if (string.IsNullOrWhiteSpace(sale.CustomerEmail) && !string.IsNullOrWhiteSpace(customerEmail))
+            {
+                sale.CustomerEmail = customerEmail;
+            }
+
+            if (sale.Status == TenantSaleStatus.Pending)
+            {
+                SetPaid(sale);
+                await db.SaveChangesAsync(cancellationToken);
+                await notifier.NotifyCompletedAsync(sale, cancellationToken);
+                return true;
+            }
+
+            if (sale.CompletionPendingSince != null)
+            {
+                return await ReleasePendingCompletionAsync(sale, db, cancellationToken);
+            }
+
+            sale.Updated = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+            return false;
+        }
+
+        /// <summary>
+        /// Holt eine zurückgehaltene Meldung nach — mit Beleg, falls er inzwischen da ist, sonst ohne.
+        /// </summary>
+        /// <remarks>
+        /// <b>Genau einmal</b>, auch wenn Terminal-Antwort, Webhook und Hintergrund-Durchlauf gleichzeitig
+        /// kommen, auch über mehrere Instanzen: <see cref="TenantSale.CompletionPendingSince"/> ist ein
+        /// Nebenläufigkeits-Merkmal. Wer es nicht als Erster leert, bekommt beim Speichern einen Konflikt und
+        /// meldet nicht.
+        /// </remarks>
+        /// <returns>true, wenn dieser Aufruf die Beobachter benachrichtigt hat</returns>
+        public async Task<bool> ReleasePendingCompletionAsync(TenantSale sale, TContext db,
+            CancellationToken cancellationToken)
+        {
+            if (sale.CompletionPendingSince is not { } since || sale.Status == TenantSaleStatus.Pending)
+            {
+                return false;
+            }
+
+            sale.CompletionPendingSince = null;
+            sale.Updated = DateTime.UtcNow;
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Ein anderer Weg hat die Meldung schon uebernommen - das ist der Sinn des Merkmals.
+                LogEnvironment.LogDebugEvent(
+                    $"The completion of sale {sale.TenantSaleId} was already released elsewhere: {ex.Message}",
+                    LogSeverity.Report, LogContext);
+                return false;
+            }
+
+            if (sale.TerminalReceiptJson == null)
+            {
+                LogEnvironment.LogEvent(
+                    $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}) is reported to the observers WITHOUT a receipt: none arrived within {(DateTime.UtcNow - since).TotalSeconds:0} seconds of the payment. The receipt booked by the host lacks the card details.",
+                    LogSeverity.Warning, LogContext);
+            }
+
+            await notifier.NotifyCompletedAsync(sale, cancellationToken);
+            return true;
+        }
+
+        private static void SetPaid(TenantSale sale)
+        {
             sale.Status = TenantSaleStatus.Paid;
             sale.PaidUtc = DateTime.UtcNow;
             // Die Zahlungsseite ist verbraucht. Stehen zu lassen hiesse, dem Kunden einen Link zu zeigen,
             // der ihn ein zweites Mal zahlen lassen koennte.
             sale.CheckoutUrl = null;
             sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-
-            await notifier.NotifyCompletedAsync(sale, cancellationToken);
-            return true;
         }
 
         /// <summary>

@@ -197,6 +197,172 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             Assert.AreEqual(0, device.Starts, "Nothing may reach a terminal while the feature is unproven.");
         }
 
+        // ------------------------------------------------------------------ Belege (ISSUE TerminalReceipt)
+
+        [TestMethod]
+        public async Task Start_StoresReceiptAndTipBeforeTheObserverRuns()
+        {
+            // Der Beobachter bucht beim Host den Bon - er muss die Kartendaten schon am Verkauf vorfinden.
+            var (service, factory, device, observer) = Build();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            device.Next = Paid(new TerminalReceipt { Brand = "VISA", MaskedPan = "**** 4242", AuthorizationCode = "A1" }, tip: 300);
+
+            var result = await service.StartPaymentAsync(Request());
+
+            Assert.AreEqual(1, observer.Completed);
+            Assert.IsNotNull(observer.LastReceiptJson, "The receipt must be on the sale BEFORE the observer is called.");
+            Assert.AreEqual(300, observer.LastTipMinor);
+            Assert.AreEqual("A1", result.Receipt?.AuthorizationCode);
+
+            await using var db = await factory.CreateDbContextAsync();
+            var sale = await db.TenantSales.SingleAsync();
+            Assert.AreEqual("VISA", TerminalReceiptStore.Of(sale)?.Brand);
+            Assert.IsNull(sale.CompletionPendingSince);
+        }
+
+        [TestMethod]
+        public async Task Get_ReturnsTheStoredReceiptWithoutAskingTheDevice()
+        {
+            // Nach einem "Spaeter klaeren" an der Kasse: das Geraet wird nicht mehr gefragt, die Angaben muessen
+            // trotzdem kommen.
+            var (service, factory, device, _) = Build();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            device.Next = Paid(new TerminalReceipt { Brand = "VISA" }, tip: 150);
+            var started = await service.StartPaymentAsync(Request());
+
+            var queriesBefore = device.Queries;
+            var again = await service.GetPaymentAsync(started.TenantSaleId);
+
+            Assert.AreEqual(queriesBefore, device.Queries);
+            Assert.AreEqual("VISA", again.Receipt?.Brand);
+            Assert.AreEqual(150, again.TipMinor);
+        }
+
+        [TestMethod]
+        public async Task Webhook_FirstHoldsTheNotificationUntilTheTerminalDeliversTheReceipt()
+        {
+            var (service, factory, device, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            device.Next = new TerminalPaymentOutcome { State = TerminalPaymentState.InProgress, ProviderPaymentId = "pay-1" };
+            var started = await service.StartPaymentAsync(Request());
+
+            await PayByWebhookAsync(factory, sink, started.TenantSaleId);
+            Assert.AreEqual(0, observer.Completed, "Paid, but without the receipt the observer must wait.");
+
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var sale = await db.TenantSales.SingleAsync();
+                Assert.AreEqual(TenantSaleStatus.Paid, sale.Status, "The money is in - the STATUS is not held back.");
+                Assert.IsNotNull(sale.CompletionPendingSince);
+            }
+
+            device.Next = Paid(new TerminalReceipt { Brand = "MASTERCARD" });
+            await service.GetPaymentAsync(started.TenantSaleId);
+
+            Assert.AreEqual(1, observer.Completed);
+            Assert.IsNotNull(observer.LastReceiptJson, "The held-back notification must carry the receipt.");
+
+            await service.GetPaymentAsync(started.TenantSaleId);
+            Assert.AreEqual(1, observer.Completed, "Exactly once.");
+        }
+
+        [TestMethod]
+        public async Task Pending_IsReleasedWithoutReceiptOnlyAfterTheWaitPeriod()
+        {
+            // Die Kasse ist aus - ohne Frist waere der Verkauf bezahlt, aber nie gebucht.
+            var (service, factory, device, observer, sink) = BuildWithSink(receiptWaitSeconds: 3600);
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            device.Next = new TerminalPaymentOutcome { State = TerminalPaymentState.InProgress, ProviderPaymentId = "pay-1" };
+            var started = await service.StartPaymentAsync(Request());
+            await PayByWebhookAsync(factory, sink, started.TenantSaleId);
+
+            device.Throw = new TerminalDeviceException("till is off");
+            await service.GetPaymentAsync(started.TenantSaleId);
+            Assert.AreEqual(0, observer.Completed, "Within the wait period the receipt is still awaited.");
+
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var sale = await db.TenantSales.SingleAsync();
+                sale.CompletionPendingSince = DateTime.UtcNow.AddHours(-2);
+                await db.SaveChangesAsync();
+            }
+
+            await service.GetPaymentAsync(started.TenantSaleId);
+            Assert.AreEqual(1, observer.Completed, "After the wait period the sale is reported without the receipt.");
+            Assert.IsNull(observer.LastReceiptJson);
+        }
+
+        [TestMethod]
+        public async Task Release_HappensOnlyOnceAcrossConcurrentClaims()
+        {
+            // Terminal-Antwort, Webhook und Hintergrund-Durchlauf - auch aus verschiedenen Instanzen.
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                db.TenantSales.Add(new TenantSale
+                {
+                    TenantId = 1, ExternalReference = "order-1", Description = "test", AmountMinor = 5000,
+                    Currency = "CHF", Status = TenantSaleStatus.Paid, TenantPaymentTerminalId = 1,
+                    CompletionPendingSince = DateTime.UtcNow, Created = DateTime.UtcNow, Updated = DateTime.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+
+            await using var first = await factory.CreateDbContextAsync();
+            await using var second = await factory.CreateDbContextAsync();
+            var a = await first.TenantSales.SingleAsync();
+            var b = await second.TenantSales.SingleAsync();
+
+            var one = await sink.ReleasePendingCompletionAsync(a, first, default);
+            var two = await sink.ReleasePendingCompletionAsync(b, second, default);
+
+            Assert.IsTrue(one ^ two, "Exactly one claim may win.");
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public void Store_DropsACardNumberThatIsNotMasked()
+        {
+            var sale = new TenantSale { TenantSaleId = 9, TenantId = 1 };
+
+            TerminalReceiptStore.Store(sale, new TerminalReceipt { Brand = "VISA", MaskedPan = "4242 4242 4242 4242" }, null);
+
+            var stored = TerminalReceiptStore.Of(sale);
+            Assert.AreEqual("VISA", stored?.Brand, "The rest of the receipt is kept.");
+            Assert.IsNull(stored?.MaskedPan, "A full card number must never be stored.");
+            StringAssert.DoesNotMatch(sale.TerminalReceiptJson!, new System.Text.RegularExpressions.Regex("4242 4242 4242"));
+
+            TerminalReceiptStore.Store(sale, new TerminalReceipt { MaskedPan = "424242******4242" }, null);
+            Assert.AreEqual("424242******4242", TerminalReceiptStore.Of(sale)?.MaskedPan, "First six and last four may stay.");
+        }
+
+        [TestMethod]
+        public void TipOnReceipt_IsReadFromTheTerminalSettings()
+        {
+            Assert.IsTrue(TerminalReceipts.TipOnReceipt("{\"tipOnReceipt\":true}"));
+            Assert.IsFalse(TerminalReceipts.TipOnReceipt("{\"tipOnReceipt\":false}"));
+            Assert.IsFalse(TerminalReceipts.TipOnReceipt("{}"));
+            Assert.IsFalse(TerminalReceipts.TipOnReceipt(null));
+        }
+
+        private static TerminalPaymentOutcome Paid(TerminalReceipt? receipt, long? tip = null) => new()
+        {
+            State = TerminalPaymentState.Succeeded,
+            ProviderPaymentId = "pay-1",
+            AmountMinor = 5000,
+            TipMinor = tip,
+            Receipt = receipt
+        };
+
+        private static async Task PayByWebhookAsync(IDbContextFactory<PaymentsTestContext> factory,
+            TenantSaleWebhookSink<PaymentsTestContext> sink, int saleId)
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            var sale = await db.TenantSales.Include(s => s.Refunds).SingleAsync(s => s.TenantSaleId == saleId);
+            await sink.MarkPaidAsync(sale, db, "pay-1", null, default);
+        }
+
         private static TerminalSaleRequest Request() => new()
         {
             TenantId = 1,
@@ -210,16 +376,25 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         private static (TestTerminalService Service, IDbContextFactory<PaymentsTestContext> Factory,
             FakeDevice Device, CountingSaleObserver Observer) Build()
         {
+            var (service, factory, device, observer, _) = BuildWithSink();
+            return (service, factory, device, observer);
+        }
+
+        private static (TestTerminalService Service, IDbContextFactory<PaymentsTestContext> Factory,
+            FakeDevice Device, CountingSaleObserver Observer, TenantSaleWebhookSink<PaymentsTestContext> Sink)
+            BuildWithSink(int receiptWaitSeconds = 60)
+        {
             var factory = new PaymentsTestContextFactory(Guid.NewGuid().ToString());
             var observer = new CountingSaleObserver();
             var sink = new TenantSaleWebhookSink<PaymentsTestContext>(factory, new TenantSaleNotifier([observer]));
             var runtime = new PaymentsRuntime(new StaticSettings(new TenantPaymentsOptions
             {
                 Enabled = true,
-                DefaultCurrency = "CHF"
+                DefaultCurrency = "CHF",
+                ReceiptWaitSeconds = receiptWaitSeconds
             }), new OpenGate());
             var device = new FakeDevice();
-            return (new TestTerminalService(factory, runtime, sink, device), factory, device, observer);
+            return (new TestTerminalService(factory, runtime, sink, device), factory, device, observer, sink);
         }
 
         private static async Task Seed(IDbContextFactory<PaymentsTestContext> factory, int terminalId, int tenantId,
@@ -328,9 +503,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         {
             public int Completed { get; private set; }
 
+            /// <summary>Was der Beobachter beim Melden am Verkauf vorfand.</summary>
+            public string? LastReceiptJson { get; private set; }
+
+            public long? LastTipMinor { get; private set; }
+
             public Task OnSaleCompletedAsync(TenantSale sale, CancellationToken cancellationToken = default)
             {
                 Completed++;
+                LastReceiptJson = sale.TerminalReceiptJson;
+                LastTipMinor = sale.TipMinor;
                 return Task.CompletedTask;
             }
 

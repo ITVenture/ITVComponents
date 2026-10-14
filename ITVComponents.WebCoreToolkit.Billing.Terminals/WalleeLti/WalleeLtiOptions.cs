@@ -38,6 +38,15 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.WalleeLti
         [DeviceSetting("Belegformat", HelpText = "2 ist das übliche Textformat.")]
         public int ReceiptFormat { get; set; } = 2;
 
+        /// <summary>Ob ein am Gerät erfasstes Trinkgeld auf den Kartenbeleg gehört.</summary>
+        /// <remarks>
+        /// Der Name ergibt <see cref="ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions.TerminalReceipts.TipOnReceiptSetting"/>. Gespeichert wird das Trinkgeld so
+        /// oder so — der Schalter entscheidet nur über den Beleg.
+        /// </remarks>
+        [DeviceSetting("Trinkgeld auf den Beleg",
+            HelpText = "Ein am Terminal erfasstes Trinkgeld erscheint auf dem Kartenbeleg. Gespeichert wird es in jedem Fall.")]
+        public bool TipOnReceipt { get; set; }
+
         /// <summary>Ob das Gerät seine Ergebnisbildschirme selbst anzeigt.</summary>
         [DeviceSetting("Ergebnis am Gerät anzeigen")]
         public bool ShowTransactionResultScreens { get; set; } = true;

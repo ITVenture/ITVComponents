@@ -78,5 +78,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Options
         /// </para>
         /// </remarks>
         public bool VerifyWebhookSignatures { get; set; } = true;
+
+        /// <summary>
+        /// Die Breite, in der wallee den Kartenbeleg eines Terminals als Text setzt, in Zeichen. Vorgabe: 40.
+        /// </summary>
+        /// <remarks>
+        /// wallee liefert den Beleg fertig gesetzt; die Breite muss zum Bondrucker der Kasse passen.
+        /// </remarks>
+        public int TerminalReceiptWidth { get; set; } = 40;
     }
 }

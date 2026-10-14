@@ -32,6 +32,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
             // zwei Exemplare hiessen zwei Listen, die auseinanderlaufen koennen.
             services.AddScoped<ITerminalProviderCatalog>(sp => sp.GetRequiredService<RoutingTerminalPaymentService<TContext>>());
             services.TryAddScoped<ITerminalAdministration, TerminalAdministration<TContext>>();
+            // Holt Belege nach, wenn ein Webhook schneller war als das Terminal (AddHostedService traegt
+            // denselben Dienst nur einmal ein, auch wenn mehrere Terminal-Pakete hier vorbeikommen).
+            services.AddHostedService<TerminalCompletionSweeper<TContext>>();
             return services;
         }
 

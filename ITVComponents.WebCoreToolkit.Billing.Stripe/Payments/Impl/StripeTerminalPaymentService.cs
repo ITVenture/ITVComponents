@@ -75,6 +75,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 Label = "Hinweis zum Gerät",
                 Kind = SettingKind.Text,
                 HelpText = "Frei. Die Reader-Kennung (tmr_…) gehört in die Gerätekennung, nicht hierher. Server-gesteuert laufen nur WisePOS E, Reader S700/S710 und Verifone — der WisePad 3 braucht ein SDK, das es für .NET nicht gibt."
+            },
+            new()
+            {
+                Name = TerminalReceipts.TipOnReceiptSetting,
+                Label = "Trinkgeld auf den Beleg",
+                Kind = SettingKind.Boolean,
+                HelpText = "Ein am Lesegerät erfasstes Trinkgeld (Tipping in der Reader-Konfiguration bei Stripe) erscheint auf dem Kartenbeleg. Gespeichert wird es in jedem Fall."
             }
         ];
 
@@ -245,11 +252,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         private static TerminalPaymentOutcome Translate(PaymentIntent intent, string operationId)
         {
             var charge = intent.LatestCharge;
+            // Trinkgeld am Lesegeraet (on-reader tipping) steht in den Betragsdetails der Absicht.
+            var tip = intent.AmountDetails?.Tip?.Amount;
             return new TerminalPaymentOutcome
             {
                 OperationId = operationId,
                 ProviderPaymentId = intent.Id,
                 AmountMinor = intent.AmountReceived > 0 ? intent.AmountReceived : intent.Amount,
+                TipMinor = tip is > 0 ? tip : null,
                 State = intent.Status switch
                 {
                     "succeeded" => TerminalPaymentState.Succeeded,

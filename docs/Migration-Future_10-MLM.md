@@ -5673,6 +5673,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 | # | Was | Aktion |
 |---|---|---|
 | 74 | **Terminal-Verwaltung über die WebParts** | Kein Schema-Change, nicht breaking. Neue Schalter `PaymentViews:ActivateTerminalViews` (BillingViews), `ActivateStripeTerminals` (Stripe), `ActivateAgentTerminals` + `TerminalsContextType` (Billing). Die Texte `Terminals_*` liefert das Toolkit jetzt mit. **Wer die Terminals bisher im Code registriert, nimmt das heraus, bevor er die Schalter setzt** (§74) |
+| 75 | **Terminal-Belege am Verkauf** | **Pflicht: 3 nullbare Spalten an `TenantSale`** (`TerminalReceiptJson`, `TipMinor`, `CompletionPendingSince`). Der Beobachter findet den Beleg jetzt am Verkauf vor; meldet ein Webhook vor dem Terminal, wird `OnSaleCompletedAsync` bis zum Beleg (höchstens `ReceiptWaitSeconds`) zurückgehalten. Neuer Hintergrunddienst, wallee Cloud mit Beleg, Schalter „Trinkgeld auf den Beleg“ (§75) |
 | 73 | **Koppeln: das Web wählt die Anwendung** | **Pflicht-Migration für alle mit Sicherheitskontext**: `ClientAppTemplates.TypeKey` (eindeutig, nullbar), `DevicePairings.TenantId`/`ClientAppId` nullbar, `DevicePairings.ClientAppTemplateId`. **Breaking am Vertrag**: `IDevicePairingService.StartAsync(clientKey, typeKey, deviceLabel)`, `ConfirmAsync(userCode, clientAppId)`. Neu: **höchstens eine aktive Instanz je Client-Anwendung** — Bestand vorher mit der Abfrage aus §73.2 prüfen. Agent koppelt mit `typeKey` und übernimmt den `ClientKey` aus `PairingResult` (§73) |
 | 71 | **Handler prüfen ihre Rechte selbst** | Kein Schema-Change, aber **breaking am Vertrag**: `IBillingHandler.CanAdminister` ist entfallen — dafür `CanView(BillingArea)` / `CanWrite(BillingArea)`. Der Konstruktor von `PaymentsHandler` nimmt zusätzlich `IEnumerable<IPaymentFeatureGate>` (über DI nichts zu tun). Die sechs `Billing.*`-Rechte waren tote Buchstaben und **gelten jetzt wirklich** — wer die Katalogpflege nicht über `Sysadmin` fährt, muss sie vergeben. Ein Host **ohne** `AddPaymentFeatureGate` bekommt jetzt auch die Anzeige zu, nicht mehr nur die Verkäufe (§71) |
 | 70 | **Kassieren am Zahlungsterminal (Achse C)** | **Pflicht-Migration, wenn ihr `IPaymentsContext` implementiert**: Tabelle `TenantPaymentTerminals` + Spalte `TenantSales.TenantPaymentTerminalId` (nullable). Der Vertrag hat ein DbSet mehr — **breaking auch für Test-Attrappen**. Beim Host fehlen `ITerminalChoiceProvider` für `RemoteObjects` und die Sprachressourcen `Terminals_*`. **Merke: eine ausbleibende Antwort ist NICHT „nicht bezahlt“** — `Unknown` ist ein eigener Zustand, sonst baut man die Doppelbelastung ein (§70) |
@@ -7659,3 +7660,76 @@ eine Registrierung im eigenen Code zählt also mit.
 - [ ] `PaymentViews:ActivateTerminalViews` setzen, wenn ihr die Seite wollt
 - [ ] je Weg den Schalter setzen (Stripe, Agent) oder im Code registrieren (Payrexx, Wallee)
 - [ ] Startlog auf die Warnung zum fehlenden `ITerminalsHandler` prüfen
+
+## 75. Terminal-Belege am Verkauf, Meldung erst mit Beleg — **Pflicht: 3 Spalten am `TenantSale`; Verhalten der Beobachter ändert sich**
+
+Ab PRE259. Bis dahin kamen die Belegangaben eines Terminals (`TerminalReceipt`: Marke, maskierte Nummer,
+Autorisierung, AID, …) nur bis in den Rückgabewert von `StartPaymentAsync`/`GetPaymentAsync`. Gespeichert
+wurden sie nirgends, und der `ITenantSaleObserver`, der beim Host den Beleg bucht, sah sie nie: er wurde
+gerufen, **bevor** das Ergebnis zurückkam. Ausserdem konnte ein Webhook (Payrexx, wallee) die Zahlung vor
+der Antwort des Terminals melden — dann buchte der Beobachter ganz ohne Kartendaten.
+
+### 75.1 Pflicht: Migration für den Kontext mit `IPaymentsContext`
+
+Drei nullbare Spalten an `TenantSale`:
+
+| Spalte | Typ | Zweck |
+|---|---|---|
+| `TerminalReceiptJson` | Text, nullbar | die Belegangaben als JSON eines `TerminalReceipt` |
+| `TipMinor` | `bigint`, nullbar | das am Terminal erfasste Trinkgeld |
+| `CompletionPendingSince` | Zeitpunkt, nullbar, **Nebenläufigkeits-Merkmal** | Meldung an die Beobachter steht noch aus |
+
+```
+dotnet ef migrations add TerminalReceipts --context <EuerKontext>
+```
+
+Bestehende Zeilen bleiben `NULL` — damit wird **nichts nachträglich gemeldet**. Ein SQL-Nachtrag ist
+nicht nötig.
+
+### 75.2 Was sich am Verhalten ändert
+
+- **Der Beobachter findet den Beleg am Verkauf vor.** `sale.TerminalReceiptJson` ist gesetzt, bevor
+  `OnSaleCompletedAsync` läuft. Lesen über `TerminalReceiptStore.Of(sale)` — kein eigenes JSON-Deuten.
+  `sale.TipMinor` trägt das Trinkgeld.
+- **Meldet ein Webhook einen Terminal-Verkauf vor dem Terminal, wird die Meldung zurückgehalten.** Der
+  Status wird sofort `Paid` (Erstattung, Abgleich funktionieren), aber `OnSaleCompletedAsync` kommt erst,
+  wenn die Antwort des Terminals mit dem Beleg da ist — oder nach `ReceiptWaitSeconds` ohne Beleg (mit
+  Warnung im Log). **Wer im Beobachter nur auf `Status == Paid` schaut, merkt davon nichts**; wer Paid-Zeilen
+  selbst abfragt und daraus bucht, muss `CompletionPendingSince == null` mitprüfen.
+- **Ein späteres `GetPaymentAsync`** liefert `Receipt` und `TipMinor` aus der Zeile, auch ohne das Gerät
+  zu fragen.
+- **Gemeldet wird genau einmal**, auch über mehrere Instanzen: das Leeren von `CompletionPendingSince`
+  ist der Anspruch, und nur einer bekommt ihn.
+
+### 75.3 Der Hintergrunddienst
+
+`AddTenantTerminalRouting` (also jeder Terminal-Weg) registriert `TerminalCompletionSweeper<TContext>`
+als `IHostedService`. Er sucht Verkäufe mit offener Meldung, fragt über die Weiche das Gerät nach dem
+Beleg (anbindungsneutral, auch beim Agenten) und meldet nach der Frist ohne Beleg. Er sucht **ohne
+Mandantenfilter**.
+
+Einstellungen in `TenantPaymentsOptions`:
+
+| Einstellung | Vorgabe | Bedeutung |
+|---|---|---|
+| `ReceiptWaitSeconds` | 60 | Frist ab „bezahlt“, nach der ohne Beleg gemeldet wird |
+| `ReceiptPollSeconds` | 5 | Abstand der Durchläufe |
+
+### 75.4 Anbindungen
+
+- **wallee Cloud liefert jetzt einen Beleg** — den von wallee fertig gesetzten Text (Kundenbeleg bevorzugt)
+  in `TerminalReceipt.PreformattedText`, nicht in Felder zerlegt. Breite: `WalleeOptions.TerminalReceiptWidth`
+  (Vorgabe 40). Dazu das Trinkgeld aus der Position `TIP`.
+- **Stripe Terminal liefert jetzt das Trinkgeld** (`amount_details.tip`).
+- **„Trinkgeld auf den Beleg“** ist ein Schalter am Gerät (`tipOnReceipt`), den der Assistent bei Payrexx,
+  Stripe, wallee und dem wallee-LTI-Agenten anbietet. Gesetzt, steht das Trinkgeld in
+  `TerminalReceipt.TipMinor`. Gespeichert wird es am Verkauf in jedem Fall.
+- **Kartennummern werden geprüft**: eine Nummer mit mehr als zehn Ziffern gilt als unmaskiert, wird
+  verworfen und als Fehler protokolliert.
+
+### 75.5 Checkliste
+
+- [ ] Migration für den Kontext mit `IPaymentsContext` (3 Spalten an `TenantSale`)
+- [ ] im `ITenantSaleObserver` den Beleg über `TerminalReceiptStore.Of(sale)` übernehmen
+- [ ] eigene Abfragen auf bezahlte Verkäufe: `CompletionPendingSince == null` mitprüfen
+- [ ] bei wallee: `TerminalReceiptWidth` an den Bondrucker anpassen, falls nicht 40

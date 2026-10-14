@@ -199,6 +199,48 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// Feldern oben vorzuziehen — was vorgeschrieben ist, weiss der Abwickler besser als wir.
         /// </summary>
         public string? PreformattedText { get; set; }
+
+        /// <summary>
+        /// Das Trinkgeld, wenn es auf den Beleg gehört — in der kleinsten Einheit.
+        /// </summary>
+        /// <remarks>
+        /// Ob es hier steht, entscheidet das Gerät (<see cref="TerminalReceipts.TipOnReceiptSetting"/>).
+        /// Gespeichert wird das Trinkgeld so oder so: es steht unabhängig davon am Verkauf.
+        /// </remarks>
+        public long? TipMinor { get; set; }
+    }
+
+    /// <summary>
+    /// Gemeinsame Namen rund um den Kartenbeleg.
+    /// </summary>
+    public static class TerminalReceipts
+    {
+        /// <summary>
+        /// Der Name des Schalters „Trinkgeld auf den Beleg“.
+        /// </summary>
+        /// <remarks>
+        /// Ein Weg, der Trinkgeld kennt, deklariert ein Feld dieses Namens (<c>SettingKind.Boolean</c>) — ein
+        /// Cloud-Weg in seinen Einstellungen, ein Agent-Gerät in seinen Geräte-Einstellungen. Wer kein
+        /// Trinkgeld kennt, deklariert es nicht.
+        /// </remarks>
+        public const string TipOnReceiptSetting = "tipOnReceipt";
+
+        /// <summary>
+        /// Liest den Schalter aus einem Einstellungs-JSON.
+        /// </summary>
+        /// <returns>true nur, wenn der Schalter ausdrücklich gesetzt ist</returns>
+        public static bool TipOnReceipt(string? configurationJson)
+        {
+            if (string.IsNullOrWhiteSpace(configurationJson))
+            {
+                return false;
+            }
+
+            using var document = System.Text.Json.JsonDocument.Parse(configurationJson);
+            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                   && document.RootElement.TryGetProperty(TipOnReceiptSetting, out var value)
+                   && value.ValueKind == System.Text.Json.JsonValueKind.True;
+        }
     }
 
     /// <summary>Ob ein Gerät ansprechbar ist.</summary>
