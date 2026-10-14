@@ -110,6 +110,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
         /// commission proportionally, so the tenant does not pay for cancelling.
         /// </summary>
         Task<RefundResult> RefundSaleAsync(int tenantSaleId, long? amountMinor, string? reason, bool? refundApplicationFee = null, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Abandons a sale that has not been paid: the hosted payment page is invalidated at the provider and the
+        /// sale moves to <see cref="TenantSaleStatus.Canceled"/>. The answer is the point of the call — afterwards
+        /// the caller KNOWS whether the customer can still pay through the page:
+        /// <list type="bullet">
+        /// <item><see cref="TenantSaleStatus.Canceled"/> — the page is dead; the order can be paid elsewhere.</item>
+        /// <item><see cref="TenantSaleStatus.Paid"/> — the customer paid before the page could be closed. The sale
+        /// is booked (observers notified once) and the money is there; do NOT take a second payment.</item>
+        /// <item><see cref="TenantSaleStatus.Pending"/> — a payment is underway, or the provider cannot close the
+        /// page before it runs out. Nothing was changed; treat the page as still payable.</item>
+        /// </list>
+        /// A sale that has already left <see cref="TenantSaleStatus.Pending"/> is returned unchanged, so a second
+        /// call is harmless. A later <see cref="CreateSaleAsync"/> with the same reference issues a NEW page,
+        /// exactly as after an expiry.
+        /// </summary>
+        /// <remarks>Terminal sales are cancelled through the terminal service, not here.</remarks>
+        Task<SaleResult> CancelSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default);
     }
 
     /// <summary>What the host has to say to record a sale.</summary>

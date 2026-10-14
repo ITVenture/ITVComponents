@@ -117,7 +117,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 case EventTypes.CheckoutSessionExpired:
                     if (stripeEvent.Data.Object is Session expired)
                     {
-                        await MoveToAsync(expired.ClientReferenceId, expired.PaymentIntentId, accountId, TenantSaleStatus.Expired, cancellationToken);
+                        await MoveToAsync(expired.ClientReferenceId, expired.PaymentIntentId, accountId, TenantSaleStatus.Expired, cancellationToken, expired.Id);
                     }
 
                     break;
@@ -365,7 +365,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <summary>Moves an unpaid sale to a terminal state. Never touches one that has already been paid.</summary>
-        private async Task MoveToAsync(string? clientReferenceId, string? paymentIntentId, string? accountId, TenantSaleStatus status, CancellationToken cancellationToken)
+        /// <remarks>
+        /// <paramref name="sessionId"/> keeps the expiry of an OLD session — one the host cancelled and replaced —
+        /// from declaring the sale's current session dead. Both carry the same client reference.
+        /// </remarks>
+        private async Task MoveToAsync(string? clientReferenceId, string? paymentIntentId, string? accountId, TenantSaleStatus status, CancellationToken cancellationToken, string? sessionId = null)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var sale = await ResolveSaleAsync(db, clientReferenceId, paymentIntentId, null, accountId, cancellationToken);
@@ -374,7 +378,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 return;
             }
 
-            await sink.MoveToAsync(sale, db, status, cancellationToken);
+            await sink.MoveToAsync(sale, db, status, cancellationToken, sessionId);
         }
 
         /// <summary>

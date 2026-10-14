@@ -126,6 +126,76 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Payrexx schliesst eine Zahlungsseite, indem man sie LOESCHT. Vorher wird sie gelesen: eine bezahlte
+        /// Seite zu loeschen, wuerde die Antwort auf die eigentliche Frage - kann hier noch bezahlt werden? -
+        /// verwischen. Noch nicht gegen ein echtes Konto gelaufen, wie der Rest dieser Klasse.
+        /// </remarks>
+        protected override async Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken cancellationToken)
+        {
+            var resource = $"Gateway/{sale.ProviderSessionId}/";
+            var before = await ReadGatewayAsync(sale, resource, cancellationToken);
+            var verdict = Classify(before);
+            if (verdict != null)
+            {
+                return verdict.Value;
+            }
+
+            try
+            {
+                await api.DeleteAsync<PayrexxGateway>(resource, cancellationToken);
+                return new ProviderCancel(ProviderCancelOutcome.Canceled);
+            }
+            catch (PayrexxApiException ex)
+            {
+                // Zwischen Lesen und Loeschen kann bezahlt worden sein. Was es war, sagt ein zweiter Blick.
+                LogEnvironment.LogEvent(
+                    $"Payrexx refused to delete gateway {sale.ProviderSessionId} of sale {sale.TenantSaleId}; reading its state: {ex.OutlineException()}",
+                    LogSeverity.Warning, PayrexxApiClient.LogContext);
+            }
+
+            var after = await ReadGatewayAsync(sale, resource, cancellationToken);
+            return Classify(after)
+                   ?? throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                       $"Payrexx gateway {sale.ProviderSessionId} is still '{after.Status}' but could not be deleted.");
+        }
+
+        private async Task<PayrexxGateway> ReadGatewayAsync(TenantSale sale, string resource, CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await api.GetAsync<PayrexxGateway>(resource, cancellationToken)
+                       ?? throw new PayrexxApiException($"Payrexx returned nothing for gateway {sale.ProviderSessionId}.");
+            }
+            catch (PayrexxApiException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not read gateway {sale.ProviderSessionId} of sale {sale.TenantSaleId}; the sale stays pending: {ex.OutlineException()}",
+                    LogSeverity.Error, PayrexxApiClient.LogContext);
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
+            }
+        }
+
+        /// <summary>
+        /// Was der Zustand einer Zahlungsseite fuer den Abbruch bedeutet - oder null, solange sie offen ist
+        /// und geloescht werden kann.
+        /// </summary>
+        private static ProviderCancel? Classify(PayrexxGateway gateway)
+            => gateway.Status?.Trim().ToLowerInvariant() switch
+            {
+                "waiting" => null,
+                // Die Transaktions-UUID steht nicht an der Seite. Gebucht wird ohne; die Bestaetigung per
+                // Webhook folgt und traegt sie nach (die Senke ergaenzt Kennungen auch bei einer Wiederholung).
+                "confirmed" => new ProviderCancel(ProviderCancelOutcome.Paid),
+                "authorized" or "reserved" => new ProviderCancel(ProviderCancelOutcome.InProgress,
+                    Detail: $"the gateway is '{gateway.Status}' — the amount is reserved, not yet collected"),
+                "cancelled" or "declined" or "expired" => new ProviderCancel(ProviderCancelOutcome.Canceled),
+                // Die Liste gehoert Payrexx. Ein unbekannter Zustand wird nicht als "tot" geraten.
+                _ => new ProviderCancel(ProviderCancelOutcome.InProgress,
+                    Detail: $"the gateway is in the unknown state '{gateway.Status}'")
+            };
+
+        /// <inheritdoc />
         protected override async Task<ProviderRefund> CreateRefundAsync(TenantSale sale, long amountMinor,
             string? reason, bool refundApplicationFee, string accountId, long alreadyRefundedMinor,
             CancellationToken cancellationToken)

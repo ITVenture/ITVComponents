@@ -226,6 +226,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
             Calls.Add($"{nameof(RefundSaleAsync)}({tenantSaleId})");
             return Task.FromResult(new RefundResult());
         }
+
+        public Task<SaleResult> CancelSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default)
+        {
+            Calls.Add($"{nameof(CancelSaleAsync)}({tenantSaleId})");
+            return Task.FromResult(new SaleResult());
+        }
     }
 
     internal sealed class SpyCheckoutFactory : ISubscriptionCheckoutFactory

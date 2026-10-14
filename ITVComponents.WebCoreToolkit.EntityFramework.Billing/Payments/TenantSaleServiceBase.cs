@@ -25,8 +25,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     /// bezahlte aber unberuehrt zurueckkommt.
     /// </para>
     /// <para>
-    /// Der Anbieter steuert nur <see cref="CreateCheckoutAsync"/> und <see cref="CreateRefundAsync"/> bei.
-    /// Beide sollen ihre eigenen Fehler in eine <see cref="TenantPaymentException"/> mit
+    /// Der Anbieter steuert nur <see cref="CreateCheckoutAsync"/>, <see cref="CreateRefundAsync"/> und
+    /// <see cref="CancelCheckoutAsync"/> bei. Alle drei sollen ihre eigenen Fehler in eine <see cref="TenantPaymentException"/> mit
     /// <see cref="PaymentErrorCodes.ProviderError"/> uebersetzen - der Aufrufer soll nicht wissen muessen,
     /// welches SDK dahinter liegt.
     /// </para>
@@ -38,12 +38,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         private readonly PaymentsRuntime runtime;
         private readonly TenantSaleNotifier notifier;
 
+        /// <summary>
+        /// Bucht eine Zahlung oder einen Abbruch, der beim Abbrechen festgestellt wird - mit denselben Regeln
+        /// wie ein Webhook (einmal freigeben, eine Zahlung nie zuruecknehmen).
+        /// </summary>
+        private readonly TenantSaleWebhookSink<TContext> sink;
+
         protected TenantSaleServiceBase(IDbContextFactory<TContext> dbFactory, PaymentsRuntime runtime,
             TenantSaleNotifier notifier)
         {
             this.dbFactory = dbFactory;
             this.runtime = runtime;
             this.notifier = notifier;
+            sink = new TenantSaleWebhookSink<TContext>(dbFactory, notifier);
         }
 
         /// <summary>Die gemeinsame Klammer: Hauptschalter, Feature-Gate, Verkaufsfaehigkeit, Einstellungen.</summary>
@@ -67,8 +74,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <param name="request">der urspruengliche Auftrag, wegen der Rueckkehr-Adressen</param>
         /// <param name="account">das Konto des Mandanten, auf das gezahlt wird</param>
         /// <param name="attempt">
-        /// 0 beim ersten Anlauf, 1 bei einem weiteren. Gehoert in den Idempotenz-Schluessel: ein wiederholter
-        /// Klick soll dieselbe Seite bekommen, ein bewusster zweiter Anlauf nach Ablauf eine neue.
+        /// 0 beim ersten Anlauf, 1 bei JEDEM weiteren. Fuer einen Idempotenz-Schluessel reicht das nicht: der
+        /// zweite und der dritte Anlauf (abgelaufen, neu ausgestellt, abgebrochen, wieder neu) truegen
+        /// denselben Schluessel und bekaemen beim Anbieter die TOTE Seite zurueck. Unterscheiden laesst sie
+        /// sich an <see cref="TenantSale.ProviderSessionId"/> - beim Aufruf steht dort noch die VORIGE Seite.
         /// </param>
         protected abstract Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount account, int attempt, CancellationToken cancellationToken);
@@ -84,6 +93,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         protected abstract Task<ProviderRefund> CreateRefundAsync(TenantSale sale, long amountMinor,
             string? reason, bool refundApplicationFee, string accountId, long alreadyRefundedMinor,
             CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Macht die Zahlungsseite <see cref="TenantSale.ProviderSessionId"/> beim Anbieter ungueltig - oder
+        /// stellt fest, warum das nicht geht.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der Verkauf steht auf <see cref="TenantSaleStatus.Pending"/> und hat eine Seite. Gebucht wird hier
+        /// nichts; das tut die Basis mit dem, was zurueckkommt.
+        /// </para>
+        /// <para>
+        /// <b>Nie raten.</b> Laesst sich die Seite nicht schliessen, muss der Anbieter gefragt werden, wie sie
+        /// steht. <see cref="ProviderCancelOutcome.Canceled"/> nur, wenn sicher ist, dass auf ihr nicht mehr
+        /// bezahlt werden kann - der Aufrufer kassiert daraufhin womoeglich anders.
+        /// </para>
+        /// <para>
+        /// Was nur dieser Anbieter kennt (Stripes PaymentIntent etwa), darf direkt auf die Zeile geschrieben
+        /// werden: sie ist verfolgt und wird mit der Buchung gespeichert.
+        /// </para>
+        /// </remarks>
+        protected abstract Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken cancellationToken);
 
         /// <inheritdoc />
         public async Task<SaleResult> CreateSaleAsync(SaleRequest request, CancellationToken cancellationToken = default)
@@ -282,6 +312,88 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             };
         }
 
+        /// <inheritdoc />
+        public async Task<SaleResult> CancelSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default)
+        {
+            runtime.EnsureEnabled();
+
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+            var sale = await db.TenantSales.Include(s => s.Refunds)
+                           .FirstOrDefaultAsync(s => s.TenantSaleId == tenantSaleId, cancellationToken)
+                       ?? throw new TenantPaymentException(PaymentErrorCodes.SaleNotFound, $"Sale {tenantSaleId} not found.");
+
+            if (sale.TenantPaymentTerminalId != null)
+            {
+                // Die Kennung auf einem Terminal-Verkauf ist ein Geraetevorgang, keine Zahlungsseite. Sie dem
+                // Seiten-Abbruch des Anbieters zu geben, trifft im besten Fall nichts.
+                throw new InvalidOperationException(
+                    $"Sale {tenantSaleId} is a terminal sale; cancel it through ITerminalPaymentService.CancelPaymentAsync.");
+            }
+
+            if (sale.Status != TenantSaleStatus.Pending)
+            {
+                // Bezahlt, erstattet, abgelaufen, gescheitert oder schon abgebrochen: so wie es ist. Ein zweiter
+                // Abbruch ist damit harmlos.
+                return ToResult(sale, wasExisting: true);
+            }
+
+            if (string.IsNullOrEmpty(sale.ProviderSessionId))
+            {
+                // Die Seite ist nie entstanden (der Anbieter hat beim Anlegen abgelehnt). Es gibt nichts zu
+                // schliessen, aber der Verkauf soll trotzdem sagen, dass er aufgegeben wurde.
+                await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken);
+                return ToResult(sale, wasExisting: true);
+            }
+
+            var outcome = await CancelCheckoutAsync(sale, cancellationToken);
+
+            // Waehrend der Anbieter gefragt wurde, kann ein Webhook die Zahlung gebucht haben. Dann gilt, was
+            // er geschrieben hat - mit dem alten Stand weiterzubuchen, liesse die Beobachter zweimal feuern.
+            var stored = await db.TenantSales.AsNoTracking().Where(s => s.TenantSaleId == sale.TenantSaleId)
+                .Select(s => s.Status).FirstAsync(cancellationToken);
+            if (stored != sale.Status)
+            {
+                await db.Entry(sale).ReloadAsync(cancellationToken);
+                return ToResult(sale, wasExisting: true);
+            }
+
+            switch (outcome.Outcome)
+            {
+                case ProviderCancelOutcome.Canceled:
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken);
+                    if (sale.Status == TenantSaleStatus.Canceled)
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}') was cancelled; its payment page {sale.ProviderSessionId} at {ProviderKey} no longer accepts a payment.",
+                            LogSeverity.Report, TenantSaleWebhookSink<TContext>.LogContext);
+                    }
+
+                    break;
+
+                case ProviderCancelOutcome.Paid:
+                    // Der Kunde war schneller. Die Zahlung wird hier gebucht und nicht dem Webhook ueberlassen:
+                    // der Aufrufer bekommt "bezahlt" zu hoeren und soll in der Datenbank dasselbe finden.
+                    // Kommt der Webhook danach, ist es fuer die Senke eine Wiederholung.
+                    LogEnvironment.LogEvent(
+                        $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}') could not be cancelled: it was paid on {ProviderKey} first. It is booked as paid.",
+                        LogSeverity.Warning, TenantSaleWebhookSink<TContext>.LogContext);
+                    await sink.MarkPaidAsync(sale, db, outcome.ChargeId, outcome.CustomerEmail, cancellationToken);
+                    break;
+
+                case ProviderCancelOutcome.InProgress:
+                    // Nichts entscheiden: die Seite ist noch zahlbar, oder eine Zahlung ist unterwegs.
+                    LogEnvironment.LogEvent(
+                        $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}') could not be cancelled at {ProviderKey}: {outcome.Detail ?? "a payment is in progress"}. It stays pending.",
+                        LogSeverity.Warning, TenantSaleWebhookSink<TContext>.LogContext);
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown cancel outcome '{outcome.Outcome}' from {ProviderKey}.");
+            }
+
+            return ToResult(sale, wasExisting: true);
+        }
+
         private async Task<SaleResult> EnsureCheckoutAsync(TContext db, TenantSale sale, TenantPaymentAccount account, SaleRequest request, CancellationToken cancellationToken, bool wasExisting)
         {
             if (sale.Status == TenantSaleStatus.Pending && !string.IsNullOrEmpty(sale.CheckoutUrl) && !string.IsNullOrEmpty(sale.ProviderSessionId))
@@ -354,4 +466,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     /// <param name="RefundId">seine Kennung der Erstattung</param>
     /// <param name="Status">sein Status-Wort, unveraendert uebernommen</param>
     public readonly record struct ProviderRefund(string RefundId, string? Status);
+
+    /// <summary>Was beim Versuch herauskam, eine Zahlungsseite zu schliessen.</summary>
+    public enum ProviderCancelOutcome
+    {
+        /// <summary>Auf der Seite kann nicht mehr bezahlt werden - geschlossen oder schon abgelaufen.</summary>
+        Canceled,
+
+        /// <summary>Zu spaet: auf der Seite wurde bezahlt.</summary>
+        Paid,
+
+        /// <summary>
+        /// Weder noch: eine Zahlung ist unterwegs, oder der Anbieter kann die Seite vor ihrem Ablauf nicht
+        /// schliessen. Sie gilt weiter als zahlbar.
+        /// </summary>
+        InProgress
+    }
+
+    /// <summary>Was der Anbieter zum Schliessen einer Zahlungsseite zurueckmeldet.</summary>
+    /// <param name="Outcome">das Ergebnis</param>
+    /// <param name="ChargeId">bei <see cref="ProviderCancelOutcome.Paid"/>: die Kennung, gegen die erstattet wird, falls bekannt</param>
+    /// <param name="CustomerEmail">bei <see cref="ProviderCancelOutcome.Paid"/>: die auf der Seite erfasste Adresse, falls gewuenscht</param>
+    /// <param name="Detail">bei <see cref="ProviderCancelOutcome.InProgress"/>: warum, fuers Protokoll</param>
+    public readonly record struct ProviderCancel(ProviderCancelOutcome Outcome, string? ChargeId = null,
+        string? CustomerEmail = null, string? Detail = null);
 }

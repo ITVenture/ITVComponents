@@ -94,9 +94,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 var session = await new SessionService(client).CreateAsync(create,
                     // Keyed on the sale and the attempt: a repeated click returns the same session, a deliberate
-                    // second attempt after an expiry gets a fresh one.
+                    // further attempt after an expiry or a cancel gets a fresh one. From the second attempt on,
+                    // the PREVIOUS session is part of the key — "attempt" is 1 for every one of them, and the
+                    // third attempt would otherwise get the dead page of the second back for 24 hours.
                     StripePaymentsRuntime.ForAccount(account.ProviderAccountId,
-                        $"sale:{sale.TenantId}:{sale.ExternalReference}:{attempt}"),
+                        attempt == 0 || string.IsNullOrEmpty(sale.ProviderSessionId)
+                            ? $"sale:{sale.TenantId}:{sale.ExternalReference}:{attempt}"
+                            : $"sale:{sale.TenantId}:{sale.ExternalReference}:after:{sale.ProviderSessionId}"),
                     cancellationToken);
                 return new ProviderCheckout(session.Id, session.Url);
             }
@@ -135,6 +139,93 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     $"Refund of {amountMinor} on sale {sale.TenantSaleId} (charge {sale.ProviderChargeId}, account {accountId}) was refused by the provider: {ex.OutlineException()}",
                     LogSeverity.Error, "StripeConnect");
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
+            }
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Stripe only expires an OPEN session. When that is refused, the session is read back and its state
+        /// decides — a refusal alone says nothing about whether the customer paid.
+        /// </remarks>
+        protected override async Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken cancellationToken)
+        {
+            var accountId = sale.ProviderAccountId
+                            ?? throw new TenantPaymentException(PaymentErrorCodes.NoAccount,
+                                $"Sale {sale.TenantSaleId} has no connected account on record; its checkout session cannot be addressed.");
+            var sessions = new SessionService(client);
+
+            try
+            {
+                await sessions.ExpireAsync(sale.ProviderSessionId, null, StripePaymentsRuntime.ForAccount(accountId),
+                    cancellationToken);
+                return new ProviderCancel(ProviderCancelOutcome.Canceled);
+            }
+            catch (StripeException ex)
+            {
+                // Expected when the session is no longer open (paid, or already expired). Which of the two is
+                // read right below; the refusal itself is kept for the trail.
+                LogEnvironment.LogEvent(
+                    $"Stripe refused to expire checkout session {sale.ProviderSessionId} of sale {sale.TenantSaleId} (account {accountId}); reading its state: {ex.OutlineException()}",
+                    LogSeverity.Warning, "StripeConnect");
+            }
+
+            Session current;
+            try
+            {
+                current = await sessions.GetAsync(sale.ProviderSessionId, null, StripePaymentsRuntime.ForAccount(accountId),
+                    cancellationToken);
+            }
+            catch (StripeException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not read checkout session {sale.ProviderSessionId} of sale {sale.TenantSaleId} (account {accountId}) after the expiry was refused; the sale stays pending: {ex.OutlineException()}",
+                    LogSeverity.Error, "StripeConnect");
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
+            }
+
+            if (string.Equals(current.Status, "expired", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ProviderCancel(ProviderCancelOutcome.Canceled);
+            }
+
+            if (string.Equals(current.Status, "complete", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(current.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(current.PaymentStatus, "no_payment_required", StringComparison.OrdinalIgnoreCase)))
+            {
+                sale.ProviderPaymentIntentId ??= current.PaymentIntentId;
+                var email = Runtime.Options.CaptureCustomerEmail ? Trim(current.CustomerDetails?.Email, 256) : null;
+                return new ProviderCancel(ProviderCancelOutcome.Paid,
+                    await ResolveChargeAsync(sale, current.PaymentIntentId, accountId, cancellationToken), email);
+            }
+
+            // "complete" but unpaid is a delayed payment method still settling; "open" means the expiry was
+            // refused for some other reason. Either way the page cannot be declared dead.
+            return new ProviderCancel(ProviderCancelOutcome.InProgress,
+                Detail: $"checkout session is '{current.Status}' with payment status '{current.PaymentStatus}'");
+        }
+
+        /// <summary>Charge behind a payment intent — the identifier a refund is issued against.</summary>
+        private async Task<string?> ResolveChargeAsync(TenantSale sale, string? paymentIntentId, string accountId,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrEmpty(paymentIntentId))
+            {
+                return null;
+            }
+
+            try
+            {
+                var intent = await new PaymentIntentService(client).GetAsync(paymentIntentId, null,
+                    StripePaymentsRuntime.ForAccount(accountId), cancellationToken);
+                return intent.LatestChargeId;
+            }
+            catch (StripeException ex)
+            {
+                // Not fatal: the webhook that follows records the charge on its repeat delivery.
+                LogEnvironment.LogEvent(
+                    $"Could not read the charge of payment intent {paymentIntentId} (sale {sale.TenantSaleId}, account {accountId}); the sale is booked as paid without a charge until the webhook supplies it: {ex.OutlineException()}",
+                    LogSeverity.Warning, "StripeConnect");
+                return null;
             }
         }
 

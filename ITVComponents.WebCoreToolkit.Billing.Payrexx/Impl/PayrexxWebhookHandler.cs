@@ -164,16 +164,19 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                     break;
 
                 case "cancelled":
-                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken);
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken,
+                        transaction.Invoice?.PaymentRequestId?.ToString());
                     break;
 
                 case "expired":
-                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Expired, cancellationToken);
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Expired, cancellationToken,
+                        transaction.Invoice?.PaymentRequestId?.ToString());
                     break;
 
                 case "declined":
                 case "error":
-                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Failed, cancellationToken);
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Failed, cancellationToken,
+                        transaction.Invoice?.PaymentRequestId?.ToString());
                     break;
 
                 case "chargeback":

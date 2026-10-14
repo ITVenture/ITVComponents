@@ -226,6 +226,58 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
         }
 
+        /// <inheritdoc />
+        /// <remarks>
+        /// <para>
+        /// <b>wallee kann eine offene Zahlungsseite nicht schliessen.</b> Es gibt keinen Abbruch fuer eine
+        /// Transaktion vor der Autorisierung - sie laeuft erst mit ihrer Frist ab. (Void gilt nur fuer
+        /// autorisierte, und das waere hier eine Zahlung im Gange, die nicht stillschweigend gekippt werden
+        /// soll.) Bei einer offenen Seite bleibt der Verkauf darum offen, und der Aufrufer erfaehrt genau das.
+        /// </para>
+        /// <para>
+        /// Was hier geht: feststellen, dass die Seite schon bezahlt oder schon tot ist.
+        /// </para>
+        /// </remarks>
+        protected override async Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken cancellationToken)
+        {
+            if (!long.TryParse(sale.ProviderSessionId, out var transactionId))
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                    $"Sale {sale.TenantSaleId} carries '{sale.ProviderSessionId}', which is no wallee transaction id.");
+            }
+
+            var wallee = Wallee;
+            var space = ResolveSpace(null, wallee, sale.ProviderAccountId);
+            Transaction transaction;
+            try
+            {
+                var service = new TransactionsService(WalleeRuntime.Configure(wallee));
+                transaction = await Task.Run(() => service.GetPaymentTransactionsId(transactionId, space), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (ApiException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not read wallee transaction {transactionId} (space {space}) of sale {sale.TenantSaleId}; the sale stays pending: {ex.OutlineException()}",
+                    LogSeverity.Error, WalleeRuntime.LogContext);
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
+            }
+
+            return transaction.State switch
+            {
+                // Die Transaktion ist zugleich die Kennung, gegen die erstattet wird - wie im Webhook.
+                TransactionState.FULFILL or TransactionState.COMPLETED
+                    => new ProviderCancel(ProviderCancelOutcome.Paid, transactionId.ToString()),
+                TransactionState.FAILED or TransactionState.DECLINE or TransactionState.VOIDED
+                    => new ProviderCancel(ProviderCancelOutcome.Canceled),
+                TransactionState.AUTHORIZED
+                    => new ProviderCancel(ProviderCancelOutcome.InProgress,
+                        Detail: "the transaction is authorized — the amount is reserved, not yet collected"),
+                _ => new ProviderCancel(ProviderCancelOutcome.InProgress,
+                    Detail: $"wallee cannot close a payment page in state '{transaction.State}'; it stays payable until it times out")
+            };
+        }
+
         /// <summary>
         /// Der Raum, in dem gearbeitet wird: der des Mandanten, sonst der aus den Einstellungen.
         /// </summary>

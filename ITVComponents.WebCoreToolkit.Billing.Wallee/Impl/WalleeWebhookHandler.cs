@@ -165,11 +165,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
                 case "FAILED":
                 case "DECLINE":
-                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Failed, cancellationToken);
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Failed, cancellationToken,
+                        notice.EntityId.ToString());
                     break;
 
                 case "VOIDED":
-                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken);
+                    await sink.MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken,
+                        notice.EntityId.ToString());
                     break;
 
                 case "AUTHORIZED":

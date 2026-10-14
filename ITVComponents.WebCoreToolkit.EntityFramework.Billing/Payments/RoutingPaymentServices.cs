@@ -53,6 +53,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             var provider = await router.ForSaleAsync(tenantSaleId, cancellationToken);
             return await provider.Sales.RefundSaleAsync(tenantSaleId, amountMinor, reason, refundApplicationFee, cancellationToken);
         }
+
+        /// <inheritdoc />
+        public async Task<SaleResult> CancelSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default)
+        {
+            // Wie bei der Erstattung: die Zahlungsseite gehoert dem Anbieter, der sie ausgestellt hat.
+            var provider = await router.ForSaleAsync(tenantSaleId, cancellationToken);
+            return await provider.Sales.CancelSaleAsync(tenantSaleId, cancellationToken);
+        }
     }
 
     /// <summary>

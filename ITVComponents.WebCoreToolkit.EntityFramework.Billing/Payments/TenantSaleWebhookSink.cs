@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 sale.CustomerEmail = customerEmail;
             }
 
-            if (sale.Status != TenantSaleStatus.Pending)
+            if (!IsUnpaid(sale.Status))
             {
                 // Schon gebucht. Neue Kennungen sichern, aber die Ware nicht ein zweites Mal freigeben.
                 sale.Updated = DateTime.UtcNow;
@@ -123,6 +123,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 return false;
             }
 
+            WarnOnLatePayment(sale);
             SetPaid(sale);
             if (sale.TenantPaymentTerminalId != null && sale.TerminalReceiptJson == null)
             {
@@ -167,8 +168,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 sale.CustomerEmail = customerEmail;
             }
 
-            if (sale.Status == TenantSaleStatus.Pending)
+            if (IsUnpaid(sale.Status))
             {
+                WarnOnLatePayment(sale);
                 SetPaid(sale);
                 await db.SaveChangesAsync(cancellationToken);
                 await notifier.NotifyCompletedAsync(sale, cancellationToken);
@@ -229,6 +231,42 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             return true;
         }
 
+        /// <summary>
+        /// Ob auf diesen Verkauf noch eine Zahlung gebucht werden kann - also ob er nie bezahlt wurde.
+        /// </summary>
+        /// <remarks>
+        /// <b>Nicht nur <see cref="TenantSaleStatus.Pending"/>.</b> Ein Endzustand ohne Zahlung ist eine
+        /// Aussage ueber die Zahlungsseite, nicht ueber das Geld: bei Stripe meldet ein abgelehnter
+        /// Kartenversuch <c>payment_intent.payment_failed</c>, und der Kunde zahlt auf DERSELBEN Seite mit
+        /// einer anderen Karte. Ein Abbruch kann eine Zahlung ueberholen, die schon unterwegs war. Kommt das
+        /// Geld danach an, ist es da - es zu ignorieren hiesse, eine Zahlung zu verschlucken, die niemand
+        /// mehr findet.
+        /// </remarks>
+        private static bool IsUnpaid(TenantSaleStatus status)
+            => status is TenantSaleStatus.Pending or TenantSaleStatus.Failed or TenantSaleStatus.Expired
+                or TenantSaleStatus.Canceled;
+
+        private static void WarnOnLatePayment(TenantSale sale)
+        {
+            if (sale.Status == TenantSaleStatus.Pending)
+            {
+                return;
+            }
+
+            // Abgebrochen heisst: der Host wurde ausdruecklich informiert, dass hier nichts mehr bezahlt wird,
+            // und hat womoeglich anders kassiert. Das braucht einen Menschen - darum ein Fehler und keine
+            // Warnung. Bei Failed ist es der gewoehnliche zweite Kartenversuch.
+            LogEnvironment.LogEvent(
+                $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}') was '{sale.Status}' and has now been paid after all. It is booked as paid."
+                + (sale.Status == TenantSaleStatus.Canceled ? " The sale had been cancelled — check whether the order was paid a second time elsewhere and refund one of the payments." : string.Empty),
+                sale.Status switch
+                {
+                    TenantSaleStatus.Canceled => LogSeverity.Error,
+                    TenantSaleStatus.Expired => LogSeverity.Warning,
+                    _ => LogSeverity.Report
+                }, LogContext);
+        }
+
         private static void SetPaid(TenantSale sale)
         {
             sale.Status = TenantSaleStatus.Paid;
@@ -246,11 +284,30 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// Ein bezahlter bleibt unberührt — Meldungen überholen sich, und eine verspätete Absage darf eine
         /// Zahlung nicht zurücknehmen.
         /// </remarks>
+        /// <param name="sale">die Verkaufszeile, verfolgt in <paramref name="db"/></param>
+        /// <param name="db">der Kontext, in dem gebucht wird</param>
+        /// <param name="status">der Endzustand</param>
+        /// <param name="cancellationToken">bricht die Verarbeitung ab</param>
+        /// <param name="providerSessionId">
+        /// die Zahlungsseite, von der die Meldung handelt, falls sie sie nennt. Ist inzwischen eine NEUE Seite
+        /// ausgestellt (nach Ablauf oder Abbruch), betrifft die Absage der alten den Verkauf nicht mehr - sie
+        /// wuerde sonst eine gueltige Seite fuer tot erklaeren. Typisch: der Host bricht ab, stellt sofort neu
+        /// aus, und Sekunden spaeter kommt das <c>expired</c> der alten Seite.
+        /// </param>
         public async Task MoveToAsync(TenantSale sale, TContext db, TenantSaleStatus status,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, string? providerSessionId = null)
         {
             if (sale.Status != TenantSaleStatus.Pending)
             {
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(providerSessionId) && !string.IsNullOrEmpty(sale.ProviderSessionId)
+                && !string.Equals(providerSessionId, sale.ProviderSessionId, StringComparison.Ordinal))
+            {
+                LogEnvironment.LogEvent(
+                    $"A '{status}' notification for payment page {providerSessionId} reached sale {sale.TenantSaleId}, which has since been given page {sale.ProviderSessionId}. It is ignored — the current page is still valid.",
+                    LogSeverity.Report, LogContext);
                 return;
             }
 

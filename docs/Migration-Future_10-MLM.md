@@ -7733,3 +7733,69 @@ Einstellungen in `TenantPaymentsOptions`:
 - [ ] im `ITenantSaleObserver` den Beleg über `TerminalReceiptStore.Of(sale)` übernehmen
 - [ ] eigene Abfragen auf bezahlte Verkäufe: `CompletionPendingSince == null` mitprüfen
 - [ ] bei wallee: `TerminalReceiptWidth` an den Bondrucker anpassen, falls nicht 40
+
+## 76. Offenen Verkauf abbrechen (`ITenantSaleService.CancelSaleAsync`) — **kein Schema-Change; breaking nur für eigene Implementierungen**
+
+Ab PRE260. Bis dahin gab es keinen Weg, eine ausgestellte Zahlungsseite vor ihrem Ablauf
+(`CheckoutExpiryMinutes`, mindestens 30 Minuten) ungültig zu machen. Wer den alten Link noch hatte, konnte
+weiter bezahlen, auch nachdem der Kunde an einer Kasse oder mit einem geänderten Korb bezahlt hatte.
+
+### 76.1 Der neue Aufruf
+
+```csharp
+var result = await sales.CancelSaleAsync(tenantSaleId);
+```
+
+Entscheidend ist die Antwort:
+
+| `result.Status` | Bedeutung | Was der Host tut |
+|---|---|---|
+| `Canceled` | Die Seite ist tot, auf ihr kann nicht mehr bezahlt werden. | anderswo kassieren (Kasse, neue Seite) |
+| `Paid` | Der Kunde war schneller. Der Verkauf ist gebucht, die Beobachter sind **einmal** gerufen. | **nicht** ein zweites Mal kassieren |
+| `Pending` | Eine Zahlung ist unterwegs, oder der Anbieter kann die Seite nicht schliessen. Nichts geändert. | die Seite als weiterhin zahlbar behandeln |
+
+Ein Verkauf, der nicht mehr `Pending` ist, kommt unverändert zurück; ein zweiter Aufruf ist harmlos. Ein
+späteres `CreateSaleAsync` mit derselben Referenz stellt eine **neue** Seite aus (wie nach einem Ablauf).
+Terminal-Verkäufe werden weiterhin über `ITerminalPaymentService.CancelPaymentAsync` abgebrochen; hier
+werfen sie `InvalidOperationException`.
+
+Je Anbieter:
+
+- **Stripe:** `checkout.sessions.expire`. Lehnt Stripe ab, wird die Session gelesen: `complete` + `paid`
+  → `Paid` (mit Charge), `expired` → `Canceled`, sonst `Pending`.
+- **Payrexx:** Die Zahlungsseite wird gelesen und bei `waiting` gelöscht (`DELETE Gateway/{id}/`). Ist sie
+  `confirmed`, kommt `Paid`. Die Transaktions-UUID trägt der nachfolgende Webhook ein. Noch nicht gegen ein
+  echtes Konto gelaufen.
+- **wallee:** Eine offene Transaktion lässt sich **nicht** schliessen, sie läuft erst mit ihrer Frist ab.
+  Darum gibt es dort nur `Paid` (schon bezahlt), `Canceled` (schon gescheitert oder storniert) oder
+  `Pending`.
+
+### 76.2 Breaking — nur wer selbst implementiert
+
+- Eigene Implementierungen von `ITenantSaleService` (auch Test-Attrappen) brauchen `CancelSaleAsync`.
+- Eigene Ableitungen von `TenantSaleServiceBase<TContext>` brauchen
+  `protected override Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken)`.
+  Dabei gilt: nie raten. `ProviderCancelOutcome.Canceled` nur zurückgeben, wenn sicher ist, dass auf der
+  Seite nicht mehr bezahlt werden kann.
+
+### 76.3 Was sich am Verhalten ändert
+
+- **Eine Zahlung auf einen `Failed`-, `Expired`- oder `Canceled`-Verkauf wird gebucht.** Bisher wurde sie
+  stillschweigend übergangen. Das betraf auch einen gewöhnlichen Fall: Bei Stripe setzt ein abgelehnter
+  Kartenversuch den Verkauf über `payment_intent.payment_failed` auf `Failed`. Zahlt der Kunde danach auf
+  derselben Seite mit einer anderen Karte, ging diese Zahlung bisher verloren. Bei `Canceled` steht
+  zusätzlich ein Fehler im Log (mögliche Doppelzahlung).
+- **Die Absage einer ersetzten Seite trifft den Verkauf nicht mehr.** `TenantSaleWebhookSink.MoveToAsync`
+  nimmt optional die Seite entgegen, von der die Meldung handelt. Ist inzwischen eine neue ausgestellt,
+  wird die Meldung übergangen. Stripe (`checkout.session.expired`), Payrexx und wallee reichen sie mit.
+  Ohne diese Prüfung hätte das `expired` der abgebrochenen Seite die neue für tot erklärt.
+- **Stripe, Idempotenz-Schlüssel ab dem zweiten Anlauf:** `sale:{Mandant}:{Referenz}:after:{vorige Session}`
+  statt `…:1`. Mit dem alten Schlüssel bekam ein dritter Anlauf innerhalb von 24 Stunden die tote Seite
+  des zweiten zurück.
+
+### 76.4 Checkliste
+
+- [ ] eigene `ITenantSaleService`-Implementierungen und Attrappen um `CancelSaleAsync` ergänzen
+- [ ] eigene Ableitungen von `TenantSaleServiceBase` um `CancelCheckoutAsync` ergänzen
+- [ ] Übergabe an Kasse oder Station: statt bei `Pending` abzulehnen, `CancelSaleAsync` rufen und nach
+      `result.Status` entscheiden
