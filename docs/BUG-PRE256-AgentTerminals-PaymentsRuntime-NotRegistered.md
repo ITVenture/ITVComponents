@@ -1,6 +1,6 @@
 # BUG PRE256: `AddAgentTerminals` — `PaymentsRuntime` wird nirgends registriert
 
-**Status:** behoben auf `Future_10`, noch nicht publiziert — `AgentTerminalPaymentService` baut sein `PaymentsRuntime` selbst aus `IGlobalSettings<TenantPaymentsOptions>` und `IEnumerable<IPaymentFeatureGate>` (wie Payrexx/Stripe). Test `TerminalRegistrationTests.AddAgentTerminals_BuildsWithValidation` baut die Verdrahtung mit `ValidateOnBuild`. Die Umgehung im MiniStore kann danach entfallen · **Datum:** 2026-10-14 · **Quelle:** MiniStore, Umstellung auf die Schalter aus §74
+**Status:** behoben in `5.0.0-PRE257` (`963505ca`) — `AgentTerminalPaymentService` baut sein `PaymentsRuntime` selbst aus `IGlobalSettings<TenantPaymentsOptions>` und `IEnumerable<IPaymentFeatureGate>` (wie Payrexx/Stripe). Test `TerminalRegistrationTests.AddAgentTerminals_BuildsWithValidation` baut die Verdrahtung mit `ValidateOnBuild`. Die Umgehung im MiniStore kann danach entfallen · **Datum:** 2026-10-14 · **Quelle:** MiniStore, Umstellung auf die Schalter aus §74
 
 ## Der Fall
 

@@ -1,6 +1,6 @@
 # BUG PRE256: Terminal-Assistent — die eingebaute Stepper-Navigation überspringt `CollectServer`, das Gerät wird ohne Kasse und Objekt gespeichert
 
-**Status:** behoben auf `Future_10`, noch nicht publiziert — eingebaute Stepper-Knöpfe abgeschaltet (leeres `ActionContent`, `OnPreviewInteraction` lässt nur Zurück zu), eigener Zurück-Knopf; `SaveAsync` im Assistenten speichert nur, wenn beide Abschnitte eingesammelt wurden; `TerminalsHandler.SaveAsync` prüft die `Required`-Felder des Wegs (`TerminalSettings.MissingRequired`); Log-Einträge in `TerminalsAdmin` und `GetTerminalStatusAsync`. Tests `MissingRequired_NamesWhatTheRowLacks_RouteAndJsonAlike`, `SaveRefusesATerminalThatLacksARequiredSetting` · **Datum:** 2026-10-14 · **Quelle:** MiniStore, erstes Agent-Terminal (Simulator) über `/Account/Manage/Payments/Terminals`
+**Status:** behoben in `5.0.0-PRE257` (`963505ca`) — eingebaute Stepper-Knöpfe abgeschaltet (leeres `ActionContent`, `OnPreviewInteraction` lässt nur Zurück zu), eigener Zurück-Knopf; `SaveAsync` im Assistenten speichert nur, wenn beide Abschnitte eingesammelt wurden; `TerminalsHandler.SaveAsync` prüft die `Required`-Felder des Wegs (`TerminalSettings.MissingRequired`); Log-Einträge in `TerminalsAdmin` und `GetTerminalStatusAsync`. Tests `MissingRequired_NamesWhatTheRowLacks_RouteAndJsonAlike`, `SaveRefusesATerminalThatLacksARequiredSetting` · **Datum:** 2026-10-14 · **Quelle:** MiniStore, erstes Agent-Terminal (Simulator) über `/Account/Manage/Payments/Terminals`
 
 ## Der Fall
 
