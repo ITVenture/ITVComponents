@@ -1,6 +1,6 @@
 # ISSUE: Achse C — die Belegangaben des Terminals erreichen den Beobachter nie
 
-**Status:** umgesetzt auf `Future_10`, noch nicht publiziert — Spalten `TerminalReceiptJson`, `TipMinor`, `CompletionPendingSince` am `TenantSale`; `TerminalReceiptStore`; zurückgehaltene Meldung in `TenantSaleWebhookSink` (`MarkTerminalPaidAsync`, `ReleasePendingCompletionAsync`); `TerminalCompletionSweeper`; wallee Cloud mit Beleg und Trinkgeld, Stripe mit Trinkgeld; Schalter `tipOnReceipt`. Leitfaden §75 · **Datum:** 2026-10-14 · **Version:** 5.0.0-PRE258 · **Quelle:** MiniStore, Kartendaten auf dem Kassenbon
+**Status:** umgesetzt in `5.0.0-PRE259` (`07a2d07d`) — Spalten `TerminalReceiptJson`, `TipMinor`, `CompletionPendingSince` am `TenantSale`; `TerminalReceiptStore`; zurückgehaltene Meldung in `TenantSaleWebhookSink` (`MarkTerminalPaidAsync`, `ReleasePendingCompletionAsync`); `TerminalCompletionSweeper`; wallee Cloud mit Beleg und Trinkgeld, Stripe mit Trinkgeld; Schalter `tipOnReceipt`. Leitfaden §75 · **Datum:** 2026-10-14 · **Version:** 5.0.0-PRE258 · **Quelle:** MiniStore, Kartendaten auf dem Kassenbon
 
 ## Der Fall
 
