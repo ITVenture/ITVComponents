@@ -104,5 +104,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// was nie passieren darf: das Geld ginge auf ein Konto, das der Mandant nicht gewaehlt hat.
         /// </remarks>
         public const string OwnAccessUnavailable = "Payments_Error_OwnAccessUnavailable";
+
+        /// <summary>Angaben in einer Maske fehlen oder passen nicht (eigener Zugang, Gerät).</summary>
+        public const string InvalidSettings = "Payments_Error_InvalidSettings";
     }
 }

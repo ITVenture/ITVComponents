@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
 {
@@ -51,6 +52,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
                 sp.GetRequiredService<PayrexxSaleService<TContext>>(),
                 sp.GetRequiredService<PayrexxAccountService<TContext>>()));
 
+            // Plan B: die eigene Instanz eines Mandanten. Die Verwaltung legt Zeile und Geheimnisse an.
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IOwnAccessProvider, PayrexxOwnAccessProvider>());
+            services.AddProviderAccessAdministration<TContext>();
+
             return services.AddTenantPaymentRouting<TContext>();
         }
 
@@ -71,6 +76,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
             where TContext : DbContext, IPaymentsContext
         {
             services.AddHttpClient<PayrexxEcrClient>();
+            services.AddHttpClient<PayrexxApiClient>();
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IOwnAccessProvider, PayrexxOwnAccessProvider>());
+            services.AddProviderAccessAdministration<TContext>();
             services.AddScoped<PayrexxTerminalPaymentService<TContext>>();
             services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
                 PayrexxTerminalPaymentService<TContext>.Key,

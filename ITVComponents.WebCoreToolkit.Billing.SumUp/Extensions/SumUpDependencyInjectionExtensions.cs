@@ -4,6 +4,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 
 namespace ITVComponents.WebCoreToolkit.Billing.SumUp.Extensions
 {
@@ -43,6 +45,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.SumUp.Extensions
                 SumUpTerminalPaymentService<TContext>.Key,
                 sp.GetRequiredService<SumUpTerminalPaymentService<TContext>>()));
             services.AddScoped<SumUpWebhookHandler<TContext>>();
+            // Der Assistent fragt bei SumUp nach dem Code, den der Solo anzeigt, statt nach einer Kennung.
+            services.AddScoped<ITerminalPairing, SumUpTerminalPairing<TContext>>();
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IOwnAccessProvider, SumUpOwnAccessProvider>());
+            services.AddProviderAccessAdministration<TContext>();
 
             services.AddScoped<SumUpSaleService<TContext>>();
             services.AddScoped<IPaymentProviderAdapter>(sp => new PaymentProviderAdapter(ProviderKey,

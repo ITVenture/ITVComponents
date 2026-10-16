@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
 {
@@ -45,6 +46,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
                 new UnsupportedTenantPaymentAccountService(ProviderKey,
                     "wallee has no marketplace model: a tenant cannot onboard itself, and no commission is withheld. Set the space up in the wallee portal and record it as the tenant's ProviderAccountId.")));
 
+            // Plan B: das eigene Konto eines Mandanten. Die Verwaltung legt Zeile und Geheimnisse an.
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IOwnAccessProvider, WalleeOwnAccessProvider>());
+            services.AddProviderAccessAdministration<TContext>();
+
             return services.AddTenantPaymentRouting<TContext>();
         }
 
@@ -60,6 +65,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
             where TContext : DbContext, IPaymentsContext
         {
             services.AddScoped<WalleeTerminalPaymentService<TContext>>();
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IOwnAccessProvider, WalleeOwnAccessProvider>());
+            services.AddProviderAccessAdministration<TContext>();
             services.AddScoped<ITerminalProviderAdapter>(sp => new TerminalProviderAdapter(
                 WalleeTerminalPaymentService<TContext>.Key,
                 sp.GetRequiredService<WalleeTerminalPaymentService<TContext>>()));

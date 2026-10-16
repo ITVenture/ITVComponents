@@ -63,6 +63,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Extensions
         }
 
         /// <summary>
+        /// Registriert die Verwaltung eigener Zugänge (<see cref="IProviderAccessAdministration"/>).
+        /// </summary>
+        /// <remarks>
+        /// Jedes Anbieter-Paket, das einen eigenen Zugang kann, ruft das mit auf und meldet seinen
+        /// <see cref="IOwnAccessProvider"/> an. Die Geheimnisse legt der <see cref="IProviderCredentialStore"/> ab;
+        /// den muss der Host registrieren (<c>AddFlatProviderCredentialStore</c> bzw.
+        /// <c>AddHierarchyProviderCredentialStore</c>), sonst lehnt das Anlegen ab.
+        /// </remarks>
+        public static IServiceCollection AddProviderAccessAdministration<TContext>(this IServiceCollection services)
+            where TContext : DbContext, IPaymentsContext
+        {
+            services.TryAddScoped<IProviderAccessAdministration>(sp => new ProviderAccessAdministration<TContext>(
+                sp.GetRequiredService<IDbContextFactory<TContext>>(),
+                sp.GetServices<IOwnAccessProvider>(),
+                sp.GetService<IProviderCredentialStore>()));
+            return services;
+        }
+
+        /// <summary>
         /// Registriert die Buchung eingehender Zahlungsmeldungen.
         /// </summary>
         /// <remarks>

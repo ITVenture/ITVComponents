@@ -8031,3 +8031,51 @@ Anwendungsbenutzer über die API anzulegen, gehört zum Assistenten „Eigenen Z
 
 - [ ] je Mandant mit eigenem Konto: `TenantProviderAccess` (Space-Id) + ExternalService (Anwendungsbenutzer, `Basic`)
 - [ ] im Space des Mandanten: Webhook-URL mit Zugangs-Kennung, zwei Listener mit „payload signing and state“
+
+## 82. Eigene Zugänge einrichten: Verwaltung und Anbieter-Beiträge — **kein Schema-Change, nicht breaking**
+
+Bisher entstand ein eigener Zugang (§78–§81) nur von Hand: Zeile anlegen, Geheimnisse über
+`IProviderCredentialStore` ablegen. Neu gibt es die Verwaltung dafür und je Anbieter einen Beitrag.
+
+### 82.1 Verträge
+
+- `IOwnAccessProvider` je Anbieter (Payrexx, wallee, SumUp): beschreibt die Felder der Maske (`OwnAccessField`,
+  mit `Secret` für Kennwortfelder und `PartOfCredential` für das Erneuern), teilt die Angaben in Zeile und
+  Geheimnisse auf, prüft den Zugang mit einem harmlosen Aufruf und richtet, wo möglich, die Meldungen ein.
+- `IProviderAccessAdministration`: anlegen, Schlüssel erneuern, prüfen, an/aus, Meldungen einrichten.
+  Geprüft wird nur die Zugehörigkeit zum Mandanten; Rechte, Hauptschalter und Feature prüft der Handler der
+  Oberfläche.
+- `ITerminalPairing`: ein Terminal-Weg, dessen Gerät über einen angezeigten Code gekoppelt wird (SumUp Solo).
+- Neuer Fehlercode `Payments_Error_InvalidSettings`.
+
+Die Anbieter-Pakete melden ihren Beitrag selbst an (`AddPayrexxPayments`/`AddPayrexxTerminals`,
+`AddWalleePayments`/`AddWalleeTerminals`, `AddSumUpTerminals`) und rufen `AddProviderAccessAdministration`.
+
+### 82.2 Regeln
+
+- **Ein neues Konto ist eine neue Zeile** mit eigenem Dienstnamen `payments-{anbieter}-{zufall}`. Ein bisher
+  aktiver Zugang beim selben Anbieter wird abgeschaltet und behält seine Geheimnisse, damit seine Verkäufe
+  darüber erstattbar bleiben.
+- **Erneuern** ersetzt die Geheimnisse derselben Zeile. Das ist für einen neuen Schlüssel am selben Konto
+  gedacht.
+- Wieder einschalten geht nur, wenn beim Anbieter kein anderer Zugang aktiv ist.
+- Jede Prüfung landet an der Zeile (`LastVerifiedUtc` bzw. `LastVerificationError`).
+
+### 82.3 Je Anbieter
+
+| | Felder | Prüfung | Meldungen |
+|---|---|---|---|
+| Payrexx | Instanz, API-Secret, Signierschlüssel der Webhooks, opt. API-Adresse | `GET SignatureCheck/` | der Mandant trägt `/billing/payrexx/webhook/{id}` in seinem Portal ein |
+| wallee | Space-Id, Anwendungsbenutzer (Id), Schlüssel, opt. API-Adresse | `GetSpacesId` | **von hier aus:** Webhook-URL + Listener Transaction/Refund im Space des Mandanten |
+| SumUp | Händlercode, API-Schlüssel | Geräteliste | keine; SumUp bekommt die Adresse je Checkout |
+
+**wallee:** Das SDK kann „payload signing and state“ am Listener nicht setzen, weder beim Anlegen noch danach;
+es lässt sich nur lesen. Ist es nach dem Anlegen aus, meldet die Einrichtung einen Fehlschlag mit dem
+Hinweis, es im Portal einzuschalten. Bis dahin werden die Meldungen dieses Mandanten abgelehnt. Die
+Kennungen der Entitäten (Transaction 1472041829003, Refund 1472041839405) stammen aus der wallee-Doku und
+sind **noch nicht gegen ein echtes Konto geprüft**.
+
+### 82.4 Checkliste
+
+- [ ] Sprachressource `Payments_Error_InvalidSettings`
+- [ ] Zugangsdaten-Speicher registriert (§78.4), sonst lehnt das Anlegen ab
