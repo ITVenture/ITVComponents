@@ -7879,3 +7879,70 @@ Baum-Modell erbt ein Kind-Mandant keinen Zugang seines Elternteils.
 - [ ] Sprachressource `Payments_Error_OwnAccessUnavailable`
 - [ ] `AddFlatProviderCredentialStore` bzw. `AddHierarchyProviderCredentialStore` registrieren (erst nötig,
       sobald eine Anbindung eigene Zugänge kann)
+
+## 79. SumUp-Terminals (`ITVComponents.WebCoreToolkit.Billing.SumUp`) — **neues Paket, kein Schema-Change**
+
+Kassieren an einem **SumUp Solo** über die Cloud API, als vierter Cloud-Weg neben Stripe, Payrexx und wallee.
+Die übrigen SumUp-Geräte (Air, 3G, PIN+) lassen sich nur aus einer App steuern und bleiben aussen vor.
+**Noch nicht gegen die SumUp-Sandbox gelaufen**: gebaut nach Doku und OpenAPI-Beschreibung (Oktober 2026).
+
+### 79.1 Grundsatz: nur mit eigenem Zugang
+
+SumUp führt kein Konto für die Plattform. Jeder Mandant bringt sein SumUp-Konto mit, als
+`TenantProviderAccess` (§78) mit `Provider = "sumup"`, dem **Händlercode** als `ProviderAccountId` und
+einem ExternalService des Mandanten. Darin steht vorerst ein API-Key (`sup_sk_…`) als `BearerToken`, am
+besten ein eingeschränkter. Ohne diesen Zugang wird jeder Vorgang abgelehnt
+(`Payments_Error_OwnAccessUnavailable`). OAuth ist vorbereitet (der Zugangsdaten-Speicher erneuert Tokens),
+es ist aber offen, ob SumUp einer Fremd-App die Scopes `readers.read`/`readers.write` gibt.
+
+### 79.2 Einrichten
+
+```csharp
+services.AddSumUpTerminals<MyPaymentsContext>();
+services.AddFlatProviderCredentialStore<MySecurityContext>();   // bzw. AddHierarchy…
+app.MapSumUpWebhook<MyPaymentsContext>();                        // Vorgabe: /billing/sumup/webhook
+```
+
+GlobalSetting `SumUpPayments`: `AffiliateAppId` und `AffiliateKey` der Plattform (Pflicht: ohne sie wird
+vor dem Gerät abgelehnt), `WebhookUrl` (volle öffentliche HTTPS-Adresse des Endpunkts; leer heisst, es gibt
+nur das Nachfragen) und `ApiBaseUrl`.
+
+**Kopplung:** Am Solo abmelden, WLAN einrichten, *Connections → API → Connect*. Den angezeigten Code
+(5 Minuten gültig) an `SumUpTerminalPaymentService.PairReaderAsync(tenantId, code, name)` geben; das
+Ergebnis über `ITerminalAdministration.SaveAsync` anlegen. Im Assistenten ist dieser Schritt noch nicht
+eingebaut. Geräte-Einstellungen: `tipRates` (Prozent, durch Komma getrennt) und `tipOnReceipt`.
+
+### 79.3 Verhalten
+
+- **Kennungen:** unsere Vorgangskennung geht als `affiliate.foreign_transaction_id` mit, darüber wird
+  immer nachgefragt. Die `client_transaction_id` steht in `ProviderSessionId` (die Meldung nennt nur sie),
+  die `checkout_id` in `ProviderPaymentIntentId` und die bezahlte Transaktion in `ProviderChargeId`.
+- **Beträge:** Der Checkout rechnet in Rappen. Transaktion und Erstattung rechnen in Franken.
+- `READER_BUSY` beim Start bleibt offen (`Unknown`), weil es auch der eigene frühere Versuch sein kann.
+  `READER_OFFLINE` ist sicher nicht gestartet und gilt als gescheitert.
+- **Abbrechen** (`terminate`) wird von SumUp nicht bestätigt. Der Vorgang gilt als laufend, bis das
+  Nachfragen etwas anderes sagt.
+- **Meldung an `return_url`:** Sie trägt keine Signatur und gilt nur als Anstoss; gebucht wird, was SumUp
+  auf Nachfrage sagt. Unbekannte Kennung → 404, fremder Händler → 400, damit SumUp wiederholt bzw. die
+  Meldung verworfen wird.
+- **Beleg:** SumUp liefert die Felder zerlegt (Karte, Autorisierungscode, TID). Der Beleg wird aus diesen
+  Feldern gefüllt und `PreformattedText` bleibt leer. Fehlt der Beleg-Abruf, entsteht er aus der Transaktion.
+- **Erstattung:** läuft über `ITenantSaleService`. Ohne Antwort ist **nicht** bekannt, ob sie durchging, und
+  SumUp kennt keinen Idempotenz-Schlüssel. Vor einem zweiten Versuch im SumUp-Dashboard nachsehen.
+- **Provision:** SumUp behält nichts für die Plattform ein. Die Provision ist nur eine Buchgrösse.
+
+### 79.4 Änderung an der Weiche (nicht breaking)
+
+`IPaymentProviderAdapter` hat `SupportsOnlineSales` (Vorgabe `true`), und `PaymentProviderAdapter` nimmt es
+optional entgegen. SumUp meldet sich nur wegen der Erstattungen bei der Weiche der Online-Verkäufe an, und
+zwar mit `false`. Ohne diese Angabe hätte ein Host mit einem einzigen Online-Anbieter und ohne Vorgabe nach
+dem Hinzufügen der SumUp-Terminals zwei Anbieter, und jeder Online-Verkauf scheiterte an „mehrere
+registriert“.
+
+### 79.5 Checkliste
+
+- [ ] Paket referenzieren, `AddSumUpTerminals` und `MapSumUpWebhook` einhängen
+- [ ] GlobalSetting `SumUpPayments` mit Affiliate Key, App-Id und `WebhookUrl`
+- [ ] Zugangsdaten-Speicher registrieren (§78.4)
+- [ ] je Mandant: `TenantProviderAccess` (`sumup`, Händlercode) + ExternalService mit dem API-Key
+- [ ] je Solo: koppeln (`PairReaderAsync`) und als Gerät anlegen

@@ -118,15 +118,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     public sealed class PaymentProviderAdapter : IPaymentProviderAdapter
     {
         /// <summary>Initializes a new instance of the <see cref="PaymentProviderAdapter"/> class.</summary>
-        public PaymentProviderAdapter(string key, ITenantSaleService sales, ITenantPaymentAccountService accounts)
+        /// <param name="key">der Name des Anbieters</param>
+        /// <param name="sales">Verkaeufe und Erstattungen</param>
+        /// <param name="accounts">die Konto-Anbindung</param>
+        /// <param name="supportsOnlineSales">
+        /// <c>false</c> fuer einen Anbieter, der nur wegen der Erstattung seiner Terminalverkaeufe hier steht -
+        /// siehe <see cref="IPaymentProviderAdapter.SupportsOnlineSales"/>.
+        /// </param>
+        public PaymentProviderAdapter(string key, ITenantSaleService sales, ITenantPaymentAccountService accounts,
+            bool supportsOnlineSales = true)
         {
             Key = key.Trim().ToLowerInvariant();
             Sales = sales;
             Accounts = accounts;
+            SupportsOnlineSales = supportsOnlineSales;
         }
 
         /// <inheritdoc />
         public string Key { get; }
+
+        /// <inheritdoc />
+        public bool SupportsOnlineSales { get; }
 
         /// <inheritdoc />
         public ITenantSaleService Sales { get; }

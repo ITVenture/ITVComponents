@@ -180,8 +180,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// Die Alternative waere, den Vorgang mit den Zugangsdaten der Plattform auszufuehren - beim Anlegen
         /// ginge das Geld dann auf das Plattform-Konto, beim Erstatten an ein Konto, auf dem die Zahlung nie lag.
         /// </remarks>
-        public static void EnsureSupported(ProviderAccessSelection access, bool supportsOwnAccess, string providerKey, string what)
+        /// <param name="access">der gewaehlte Zugang</param>
+        /// <param name="supportsOwnAccess">ob die Anbindung einen eigenen Zugang verwenden kann</param>
+        /// <param name="providerKey">der Anbieter, fuers Protokoll</param>
+        /// <param name="what">der Vorgang, fuers Protokoll</param>
+        /// <param name="requiresOwnAccess">
+        /// ob die Anbindung NUR mit einem eigenen Zugang arbeitet - bei Anbietern ohne Plattform-Konto (SumUp).
+        /// Ohne eigenen Zugang wird dann abgelehnt, statt mit einer Frage nach dem Plattform-Konto zu scheitern,
+        /// die es dort gar nicht gibt.
+        /// </param>
+        public static void EnsureSupported(ProviderAccessSelection access, bool supportsOwnAccess, string providerKey, string what,
+            bool requiresOwnAccess = false)
         {
+            if (requiresOwnAccess && !access.IsOwnAccess)
+            {
+                LogEnvironment.LogEvent(
+                    $"{what} is refused: '{providerKey}' only works with the tenant's own access, and tenant {access.TenantId} has none there.",
+                    LogSeverity.Warning, LogContext);
+                throw new TenantPaymentException(PaymentErrorCodes.OwnAccessUnavailable,
+                    $"'{providerKey}' needs the tenant's own access, and tenant {access.TenantId} has none.");
+            }
+
             if (!access.IsOwnAccess || supportsOwnAccess)
             {
                 return;

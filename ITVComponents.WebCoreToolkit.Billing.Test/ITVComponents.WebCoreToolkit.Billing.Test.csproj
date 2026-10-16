@@ -29,5 +29,6 @@
          aufgefallen, weil sie schlicht nie mitgebaut wurden. Schon die Referenz allein haelt sie im Bau. -->
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Payrexx\ITVComponents.WebCoreToolkit.Billing.Payrexx.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Wallee\ITVComponents.WebCoreToolkit.Billing.Wallee.csproj" />
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.SumUp\ITVComponents.WebCoreToolkit.Billing.SumUp.csproj" />
   </ItemGroup>
 </Project>

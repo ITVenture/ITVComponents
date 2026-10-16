@@ -71,6 +71,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// </remarks>
         protected virtual bool SupportsOwnAccess => false;
 
+        /// <summary>
+        /// Ob diese Anbindung NUR mit einem eigenen Zugang des Mandanten arbeitet - bei einem Anbieter, bei dem die
+        /// Plattform kein Konto fuehrt (SumUp). Ohne eigenen Zugang wird dann abgelehnt.
+        /// </summary>
+        protected virtual bool RequiresOwnAccess => false;
+
         /// <summary>Der Zugang, ueber den dieser Verkauf laeuft - eingefroren beim Anlegen.</summary>
         protected Task<ProviderAccessSelection> AccessForSaleAsync(TenantSale sale, CancellationToken cancellationToken)
             => accessRouter.ForSaleAsync(sale, cancellationToken);
@@ -167,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 ? await accessRouter.ForNewAsync(request.TenantId, ProviderKey, cancellationToken)
                 : await accessRouter.ForSaleAsync(sale, cancellationToken);
             ProviderAccessRouter<TContext>.EnsureSupported(access, SupportsOwnAccess, ProviderKey,
-                $"Sale '{reference}' of tenant {request.TenantId}");
+                $"Sale '{reference}' of tenant {request.TenantId}", RequiresOwnAccess);
             if (!access.IsOwnAccess)
             {
                 // Checked before EVERY sale, not just at onboarding: the provider can restrict a live account days
@@ -297,7 +303,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             var withFee = refundApplicationFee ?? runtime.Options.RefundApplicationFeeByDefault;
             var access = await accessRouter.ForSaleAsync(sale, cancellationToken);
             ProviderAccessRouter<TContext>.EnsureSupported(access, SupportsOwnAccess, ProviderKey,
-                $"Refund of sale {sale.TenantSaleId}");
+                $"Refund of sale {sale.TenantSaleId}", RequiresOwnAccess);
             // Bei einem eigenen Zugang steht die Kennung auf der Zeile oder nirgends: das Plattform-Konto als
             // Rueckfall waere ein Konto, auf dem diese Zahlung nie lag.
             var accountId = sale.ProviderAccountId
@@ -389,7 +395,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             }
 
             ProviderAccessRouter<TContext>.EnsureSupported(await accessRouter.ForSaleAsync(sale, cancellationToken),
-                SupportsOwnAccess, ProviderKey, $"Cancelling sale {sale.TenantSaleId}");
+                SupportsOwnAccess, ProviderKey, $"Cancelling sale {sale.TenantSaleId}", RequiresOwnAccess);
             var outcome = await CancelCheckoutAsync(sale, cancellationToken);
 
             // Waehrend der Anbieter gefragt wurde, kann ein Webhook die Zahlung gebucht haben. Dann gilt, was

@@ -28,6 +28,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
         /// <summary>Konto-Anbindung dieses Anbieters.</summary>
         ITenantPaymentAccountService Accounts { get; }
+
+        /// <summary>
+        /// Ob dieser Anbieter eine Zahlungsseite ausstellen kann. <c>false</c> bei einem Anbieter, der hier nur
+        /// steht, damit seine Terminalverkaeufe erstattet werden koennen (SumUp).
+        /// </summary>
+        /// <remarks>
+        /// Die Weiche zaehlt beim "genau einer registriert" nur Anbieter, die das koennen. Sonst machte ein
+        /// zusaetzlich angebundenes Terminal aus einem Host mit EINEM Online-Anbieter einen mit zweien - und
+        /// jeder Online-Verkauf scheiterte an der Frage, welcher gemeint ist.
+        /// </remarks>
+        bool SupportsOnlineSales => true;
     }
 
     /// <summary>
@@ -101,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             var own = (await db.TenantProviderAccesses.AsNoTracking()
                     .Where(a => a.TenantId == tenantId && !a.Disabled)
                     .Select(a => a.Provider).Distinct().ToListAsync(cancellationToken))
-                .Where(p => adapters.Any(a => string.Equals(a.Key, p, StringComparison.OrdinalIgnoreCase)))
+                .Where(p => adapters.Any(a => a.SupportsOnlineSales && string.Equals(a.Key, p, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             switch (own.Count)
             {
@@ -153,11 +164,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                            $"The payment provider '{key}' is configured for {what} but not registered. Registered: {Describe()}.");
             }
 
-            return adapters.Count switch
+            var online = adapters.Where(a => a.SupportsOnlineSales).ToList();
+            return online.Count switch
             {
-                1 => adapters[0],
+                1 => online[0],
                 0 => throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
-                    "No payment provider is registered."),
+                    "No payment provider for online sales is registered."),
                 // Mehrere registriert und keiner benannt: hier zu raten hiesse, Geld ueber einen Anbieter
                 // zu leiten, den niemand gewaehlt hat.
                 _ => throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
