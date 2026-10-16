@@ -48,20 +48,32 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         public const string Key = "wallee";
 
         private readonly IGlobalSettings<WalleeOptions> walleeSettings;
+        private readonly IProviderCredentialStore? credentials;
 
         /// <summary>Initializes a new instance of the <see cref="WalleeTerminalPaymentService{TContext}"/> class.</summary>
         public WalleeTerminalPaymentService(IDbContextFactory<TContext> dbFactory,
             IGlobalSettings<WalleeOptions> walleeSettings, IGlobalSettings<TenantPaymentsOptions> settings,
-            IEnumerable<IPaymentFeatureGate> featureGates, TenantSaleWebhookSink<TContext> sink)
+            IEnumerable<IPaymentFeatureGate> featureGates, TenantSaleWebhookSink<TContext> sink,
+            IProviderCredentialStore? credentials = null)
             : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()), sink)
         {
             this.walleeSettings = walleeSettings;
+            this.credentials = credentials;
         }
 
         private WalleeOptions Wallee => walleeSettings.Value;
 
         /// <inheritdoc />
         protected override string ProviderKey => Key;
+
+        /// <inheritdoc />
+        /// <remarks>Ein eigener Zugang ist ein Space im eigenen wallee-Konto des Mandanten; das Gerät muss dort angelegt sein.</remarks>
+        protected override bool SupportsOwnAccess => true;
+
+        /// <summary>Konto und Space, in denen dieser Verkauf läuft - eingefroren beim Anlegen.</summary>
+        private async Task<WalleeConnection> ConnectionForAsync(TenantSale sale, CancellationToken cancellationToken)
+            => await WalleeConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), Wallee,
+                sale.ProviderAccountId, credentials, cancellationToken);
 
         /// <inheritdoc />
         /// <remarks>
@@ -91,7 +103,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
         {
             var wallee = Wallee;
-            var space = ResolveSpace(sale, wallee);
+            var connection = await ConnectionForAsync(sale, cancellationToken);
+            var space = connection.SpaceId;
             var terminalId = RequireTerminalId(terminal);
 
             if (sale.ApplicationFeeMinor > 0)
@@ -132,7 +145,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
             try
             {
-                var configuration = WalleeRuntime.Configure(wallee);
+                var configuration = connection.Configuration;
                 var transaction = await Task.Run(
                         () => new TransactionsService(configuration).PostPaymentTransactions(space, create),
                         cancellationToken)
@@ -175,10 +188,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
 
             var wallee = Wallee;
-            var space = ResolveSpace(sale, wallee);
+            var connection = await ConnectionForAsync(sale, cancellationToken);
+            var space = connection.SpaceId;
             try
             {
-                var configuration = WalleeRuntime.Configure(wallee);
+                var configuration = connection.Configuration;
                 var transaction = await Task.Run(
                         () => new TransactionsService(configuration).GetPaymentTransactionsId(transactionId, space),
                         cancellationToken)
@@ -215,12 +229,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 return new TerminalPaymentOutcome { OperationId = operationId, State = TerminalPaymentState.Unknown };
             }
 
-            var wallee = Wallee;
-            var space = ResolveSpace(sale, wallee);
+            var connection = await ConnectionForAsync(sale, cancellationToken);
+            var space = connection.SpaceId;
             try
             {
                 await Task.Run(
-                        () => new TransactionsService(WalleeRuntime.Configure(wallee))
+                        () => new TransactionsService(connection.Configuration)
                             .PostPaymentTransactionsIdVoidOnline(transactionId, space),
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -244,19 +258,29 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         protected override async Task<TerminalStatus> QueryStatusAsync(TenantPaymentTerminal terminal,
             CancellationToken cancellationToken)
         {
-            var wallee = Wallee;
             var terminalId = RequireTerminalId(terminal);
-            if (wallee.SpaceId <= 0)
+
+            // Kein Verkauf, also der Zugang, der jetzt fuer den Mandanten gilt. Auf dem Plattform-Konto bleibt es
+            // beim Space aus den Einstellungen - wie bisher.
+            WalleeConnection connection;
+            try
             {
-                throw new TenantPaymentException(PaymentErrorCodes.NoAccount,
-                    "No 'WalleePayments:SpaceId' is configured, so a terminal cannot be looked up.");
+                connection = await WalleeConnection.ForAsync(await AccessForTenantAsync(terminal.TenantId, cancellationToken),
+                    Wallee, null, credentials, cancellationToken);
+            }
+            catch (TenantPaymentException ex) when (ex.Code == PaymentErrorCodes.OwnAccessUnavailable)
+            {
+                LogEnvironment.LogEvent(
+                    $"The state of wallee terminal {terminalId} cannot be asked: the own access of tenant {terminal.TenantId} is not usable ({ex.Message}).",
+                    LogSeverity.Warning, WalleeRuntime.LogContext);
+                return new TerminalStatus { TerminalId = terminal.ProviderTerminalId, Online = false };
             }
 
             try
             {
                 var device = await Task.Run(
-                        () => new PaymentTerminalsService(WalleeRuntime.Configure(wallee))
-                            .GetPaymentTerminalsId(terminalId, wallee.SpaceId),
+                        () => new PaymentTerminalsService(connection.Configuration)
+                            .GetPaymentTerminalsId(terminalId, connection.SpaceId),
                         cancellationToken)
                     .ConfigureAwait(false);
 
@@ -378,23 +402,5 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 ? id
                 : throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
                     $"Terminal '{terminal.DisplayName}' has '{terminal.ProviderTerminalId}' on record, but wallee addresses terminals by a numeric id.");
-
-        /// <summary>Der Raum: der des Mandanten, sonst der aus den Einstellungen.</summary>
-        private static long ResolveSpace(TenantSale sale, WalleeOptions options)
-        {
-            if (!string.IsNullOrWhiteSpace(sale.ProviderAccountId)
-                && long.TryParse(sale.ProviderAccountId, out var space) && space > 0)
-            {
-                return space;
-            }
-
-            if (options.SpaceId <= 0)
-            {
-                throw new TenantPaymentException(PaymentErrorCodes.NoAccount,
-                    "Neither the sale nor the 'WalleePayments' setting names a wallee space to work in.");
-            }
-
-            return options.SpaceId;
-        }
     }
 }

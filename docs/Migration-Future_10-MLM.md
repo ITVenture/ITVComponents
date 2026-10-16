@@ -7991,3 +7991,43 @@ dabei nur Verkäufe ohne eigenen Zugang, ein Mandanten-Endpunkt nur die seines Z
       `-webhook`-Signierschlüssel)
 - [ ] Webhook-Adresse mit Zugangs-Kennung im Payrexx-Portal des Mandanten eintragen
 - [ ] eigene Webhook-Handler: `FindSaleAsync(db, SaleSearchScope…, …)`
+
+## 81. wallee mit eigenem Konto des Mandanten (Achse B + C) — **kein Schema-Change**
+
+Ein Mandant mit eigenem wallee-Konto bindet einen **Space in seinem Konto** als `TenantProviderAccess`
+(§78) an: `Provider = "wallee"`, die **Space-Id** als `ProviderAccountId`, im ExternalService
+`ConnectionName` einen **Anwendungsbenutzer seines Kontos** als `Basic`. Dabei ist die Benutzer-Id der
+ClientId und der Schlüssel das Geheimnis. Online-Verkauf und Cloud-Terminals laufen dann über sein Konto.
+wallee LTI über den Kassen-Agenten war schon vorher unabhängig vom Konto. **Noch nicht gegen ein echtes
+Konto gelaufen.**
+
+### 81.1 Was es braucht
+
+- `IProviderCredentialStore.SaveSecretAsync(tenantId, connectionName, Basic, "<Benutzer-Id>", "<Schlüssel>")`
+- Im Space des Mandanten: eine Webhook-URL `{Webhook-Pfad}/{TenantProviderAccessId}` (Vorgabe
+  `/billing/wallee/webhook/17`) und **zwei Listener** darauf, `Transaction` und `Refund`, mit
+  **„payload signing and state“**. Die Signatur wird am Mandanten-Endpunkt **immer** geprüft, der Schalter
+  `VerifyWebhookSignatures` gilt nur für den Plattform-Endpunkt. `MapWalleeWebhook` hängt die Route mit ein.
+- Optional in `SettingsJson`: `apiBaseUrl` und `paymentMethodConfigurations`.
+- Cloud-Terminals müssen im Space **des Mandanten** angelegt sein.
+
+### 81.2 Verhalten
+
+- Konto und Space eines Verkaufs werden beim Anlegen eingefroren (§78). Erstattung, Abbrechen und
+  Nachfragen laufen über dieses Konto. Den Gerätestatus fragt der Dienst mit dem Zugang, der gerade für
+  den Mandanten gilt.
+- Eine Meldung am Mandanten-Endpunkt wird mit dem Anwendungsbenutzer des Mandanten in seinem Space
+  zurückgelesen. Nennt sie einen anderen Space, wird sie abgelehnt. Gesucht wird nur unter den Verkäufen
+  dieses Zugangs (§80.3).
+- Ist der Zugang nicht verwendbar (kein Zugangsdaten-Speicher, keine Benutzer-Id, kein Space), wird
+  abgelehnt und als Fehler protokolliert. Auf das Plattform-Konto wird nie ausgewichen.
+
+### 81.3 Noch offen
+
+Webhook-URL und Listener muss der Mandant heute selbst im Portal anlegen. Sie mit seinem
+Anwendungsbenutzer über die API anzulegen, gehört zum Assistenten „Eigenen Zugang verbinden“.
+
+### 81.4 Checkliste
+
+- [ ] je Mandant mit eigenem Konto: `TenantProviderAccess` (Space-Id) + ExternalService (Anwendungsbenutzer, `Basic`)
+- [ ] im Space des Mandanten: Webhook-URL mit Zugangs-Kennung, zwei Listener mit „payload signing and state“

@@ -58,16 +58,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         where TContext : DbContext, IPaymentsContext
     {
         private readonly IGlobalSettings<WalleeOptions> walleeSettings;
+        private readonly IProviderCredentialStore? credentials;
 
         /// <summary>Initializes a new instance of the <see cref="WalleeSaleService{TContext}"/> class.</summary>
         public WalleeSaleService(IDbContextFactory<TContext> dbFactory,
             IGlobalSettings<WalleeOptions> walleeSettings,
             IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
-            IEnumerable<ITenantSaleObserver> observers)
+            IEnumerable<ITenantSaleObserver> observers, IProviderCredentialStore? credentials = null)
             : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()),
                    new TenantSaleNotifier(observers))
         {
             this.walleeSettings = walleeSettings;
+            this.credentials = credentials;
         }
 
         private WalleeOptions Wallee => walleeSettings.Value;
@@ -76,13 +78,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         protected override string ProviderKey => "wallee";
 
         /// <inheritdoc />
+        /// <remarks>Ein eigener Zugang ist ein Space im eigenen wallee-Konto des Mandanten (<see cref="WalleeConnection"/>).</remarks>
+        protected override bool SupportsOwnAccess => true;
+
+        /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken)
         {
-            // Ohne SupportsOwnAccess kommt hier immer das Plattform-Konto an; die Basis lehnt den Rest vorher ab.
-            ArgumentNullException.ThrowIfNull(account);
+            // Ohne Plattform-Konto kommt nur ein Verkauf ueber den eigenen Zugang hier an; den Space sagt dann der Zugang.
             var wallee = Wallee;
-            var space = ResolveSpace(account, wallee);
+            var connection = await WalleeConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), wallee,
+                account?.ProviderAccountId, credentials, cancellationToken);
+            var space = connection.SpaceId;
 
             if (sale.ApplicationFeeMinor > 0)
             {
@@ -136,15 +143,15 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 create.CustomerEmailAddress = sale.CustomerEmail;
             }
 
-            if (wallee.PaymentMethodConfigurations is { Length: > 0 })
+            if (connection.PaymentMethodConfigurations is { Length: > 0 })
             {
                 // Derselbe Gebuehren-Hebel wie anderswo: steht TWINT hier drin, zahlt der Endkunde eher damit.
-                create.AllowedPaymentMethodConfigurations = [.. wallee.PaymentMethodConfigurations];
+                create.AllowedPaymentMethodConfigurations = [.. connection.PaymentMethodConfigurations];
             }
 
             try
             {
-                var service = new TransactionsService(WalleeRuntime.Configure(wallee));
+                var service = new TransactionsService(connection.Configuration);
                 var transaction = await Task.Run(() => service.PostPaymentTransactions(space, create), cancellationToken)
                     .ConfigureAwait(false);
                 // ACHTUNG Parameter-Reihenfolge: erst die Transaktion, DANN der Raum. Vertauscht laeuft der
@@ -191,7 +198,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
 
             var wallee = Wallee;
-            var space = ResolveSpace(null, wallee, accountId);
+            var connection = await WalleeConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), wallee,
+                accountId, credentials, cancellationToken);
+            var space = connection.SpaceId;
 
             var create = new RefundCreate
             {
@@ -214,7 +223,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
             try
             {
-                var service = new RefundsService(WalleeRuntime.Configure(wallee));
+                var service = new RefundsService(connection.Configuration);
                 var refund = await Task.Run(() => service.PostPaymentRefunds(space, create), cancellationToken)
                     .ConfigureAwait(false);
                 return new ProviderRefund(refund.Id.ToString(), refund.State?.ToString());
@@ -249,11 +258,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
 
             var wallee = Wallee;
-            var space = ResolveSpace(null, wallee, sale.ProviderAccountId);
+            var connection = await WalleeConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), wallee,
+                sale.ProviderAccountId, credentials, cancellationToken);
+            var space = connection.SpaceId;
             Transaction transaction;
             try
             {
-                var service = new TransactionsService(WalleeRuntime.Configure(wallee));
+                var service = new TransactionsService(connection.Configuration);
                 transaction = await Task.Run(() => service.GetPaymentTransactionsId(transactionId, space), cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -278,26 +289,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                 _ => new ProviderCancel(ProviderCancelOutcome.InProgress,
                     Detail: $"wallee cannot close a payment page in state '{transaction.State}'; it stays payable until it times out")
             };
-        }
-
-        /// <summary>
-        /// Der Raum, in dem gearbeitet wird: der des Mandanten, sonst der aus den Einstellungen.
-        /// </summary>
-        private static long ResolveSpace(TenantPaymentAccount? account, WalleeOptions options, string? accountId = null)
-        {
-            var raw = accountId ?? account?.ProviderAccountId;
-            if (!string.IsNullOrWhiteSpace(raw) && long.TryParse(raw, out var space) && space > 0)
-            {
-                return space;
-            }
-
-            if (options.SpaceId <= 0)
-            {
-                throw new TenantPaymentException(PaymentErrorCodes.NoAccount,
-                    "Neither the tenant nor the 'WalleePayments' setting names a wallee space to work in.");
-            }
-
-            return options.SpaceId;
         }
 
     }

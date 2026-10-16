@@ -67,6 +67,37 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Extensions
                 }
             }).AllowAnonymous();
 
+            // Das eigene wallee-Konto eines Mandanten meldet an seine eigene Adresse: {webhookPath}/{Kennung seines
+            // Zugangs}. Webhook-URL und die beiden Listener legt der Mandant in SEINEM Space an; am Listener muss
+            // "payload signing" an sein - hier wird immer geprueft.
+            endpoints.MapPost($"{webhookPath.TrimEnd('/')}/{{accessId:int}}", async (int accessId, HttpRequest request,
+                WalleeWebhookHandler<TContext> handler, CancellationToken cancellationToken) =>
+            {
+                using var reader = new StreamReader(request.Body);
+                var payload = await reader.ReadToEndAsync(cancellationToken);
+                var signature = request.Headers["x-signature"].ToString();
+
+                try
+                {
+                    await handler.HandleOwnAsync(accessId, payload, signature, cancellationToken);
+                    return Results.Ok();
+                }
+                catch (WalleeWebhookRejectedException ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"A wallee notification for the own access {accessId} was rejected (HTTP 400). wallee will retry. Reason: {ex.OutlineException()}",
+                        LogSeverity.Warning, WalleeRuntime.LogContext);
+                    return Results.BadRequest();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"A wallee notification for the own access {accessId} could not be processed (HTTP 500). wallee will retry: {ex.OutlineException()}",
+                        LogSeverity.Error, WalleeRuntime.LogContext);
+                    return Results.StatusCode(StatusCodes.Status500InternalServerError);
+                }
+            }).AllowAnonymous();
+
             return endpoints;
         }
     }

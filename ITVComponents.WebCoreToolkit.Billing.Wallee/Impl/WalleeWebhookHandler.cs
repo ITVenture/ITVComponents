@@ -5,6 +5,7 @@ using ITVComponents.WebCoreToolkit.Billing.Wallee.Models;
 using ITVComponents.WebCoreToolkit.Billing.Wallee.Options;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,8 @@ using Wallee.Client;
 using Wallee.Model;
 using Wallee.Service;
 using Wallee.Util;
+// Alias, weil ITVComponents.WebCoreToolkit.Configuration ein NAMENSRAUM ist und den Typ verdeckt.
+using WalleeConfiguration = Wallee.Client.Configuration;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 {
@@ -67,12 +70,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
         private readonly TenantSaleWebhookSink<TContext> sink;
         private readonly IGlobalSettings<WalleeOptions> settings;
+        private readonly IProviderCredentialStore? credentials;
+
+        /// <summary>Der Name dieses Anbieters auf der Verkaufszeile.</summary>
+        private const string ProviderKey = Extensions.WalleeDependencyInjectionExtensions.ProviderKey;
 
         /// <summary>Initializes a new instance of the <see cref="WalleeWebhookHandler{TContext}"/> class.</summary>
-        public WalleeWebhookHandler(TenantSaleWebhookSink<TContext> sink, IGlobalSettings<WalleeOptions> settings)
+        public WalleeWebhookHandler(TenantSaleWebhookSink<TContext> sink, IGlobalSettings<WalleeOptions> settings,
+            IProviderCredentialStore? credentials = null)
         {
             this.sink = sink;
             this.settings = settings;
+            this.credentials = credentials;
         }
 
         /// <summary>
@@ -89,24 +98,94 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         public async Task HandleAsync(string rawBody, string? signatureHeader, CancellationToken cancellationToken)
         {
             var options = settings.Value;
-            VerifySignature(rawBody, signatureHeader, options);
+            VerifySignature(rawBody, signatureHeader, options.VerifyWebhookSignatures, () => WalleeRuntime.Configure(options));
 
             var notice = Read(rawBody);
-            var space = notice.SpaceId > 0 ? notice.SpaceId : options.SpaceId;
-            if (space <= 0)
+            WalleeConnection connection;
+            try
+            {
+                connection = WalleeConnection.Platform(options, notice.SpaceId > 0 ? notice.SpaceId.ToString() : null);
+            }
+            catch (TenantPaymentException ex)
             {
                 throw new WalleeWebhookRejectedException(
-                    "The notification names no space and no 'WalleePayments:SpaceId' is configured; there is no way to read the entity it refers to.");
+                    $"The notification names no space and no 'WalleePayments:SpaceId' is configured; there is no way to read the entity it refers to: {ex.Message}", ex);
             }
 
+            await DispatchAsync(notice, connection, SaleSearchScope.Platform(ProviderKey), cancellationToken);
+        }
+
+        /// <summary>
+        /// Verarbeitet eine Meldung aus dem EIGENEN wallee-Konto eines Mandanten.
+        /// </summary>
+        /// <param name="accessId">der eigene Zugang, den die Adresse nennt (<c>…/webhook/{accessId}</c>)</param>
+        /// <param name="rawBody">der Rumpf, unverändert</param>
+        /// <param name="signatureHeader">der Wert von <c>x-signature</c></param>
+        /// <param name="cancellationToken">bricht die Verarbeitung ab</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Die Signatur ist hier immer Pflicht.</b> Der Schalter <c>VerifyWebhookSignatures</c> gilt nur für den
+        /// Endpunkt der Plattform. Ein Mandanten-Endpunkt ohne Prüfung hiesse: wer die Adresse kennt, meldet die
+        /// Verkäufe dieses Mandanten als bezahlt. Am Listener des Mandanten muss darum "payload signing" an sein.
+        /// </para>
+        /// <para>
+        /// Zurückgelesen wird mit dem Anwendungsbenutzer des Mandanten in SEINEM Space. Eine Meldung, die einen
+        /// anderen Space nennt, wird abgelehnt. Gesucht wird nur unter den Verkäufen dieses Zugangs.
+        /// </para>
+        /// </remarks>
+        public async Task HandleOwnAsync(int accessId, string rawBody, string? signatureHeader,
+            CancellationToken cancellationToken)
+        {
+            TenantProviderAccess? access;
+            await using (var db = await sink.CreateContextAsync(cancellationToken))
+            {
+                access = await db.TenantProviderAccesses.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.TenantProviderAccessId == accessId && a.Provider == ProviderKey, cancellationToken);
+            }
+
+            if (access == null)
+            {
+                throw new WalleeWebhookRejectedException($"No own wallee access {accessId} exists.");
+            }
+
+            WalleeConnection connection;
+            try
+            {
+                connection = await WalleeConnection.ForAsync(ProviderAccessSelection.Own(access), settings.Value, null,
+                    credentials, cancellationToken);
+            }
+            catch (TenantPaymentException ex)
+            {
+                // Laut: bis der Zugang verwendbar ist, wird KEINE Zahlung dieses Mandanten gebucht.
+                LogEnvironment.LogEvent(
+                    $"wallee notifications of tenant {access.TenantId} (own access {accessId}) are rejected: its access is not usable. {ex.Message}",
+                    LogSeverity.Error, WalleeRuntime.LogContext);
+                throw new WalleeWebhookRejectedException(ex.Message, ex);
+            }
+
+            VerifySignature(rawBody, signatureHeader, verify: true, () => connection.Configuration);
+
+            var notice = Read(rawBody);
+            if (notice.SpaceId > 0 && notice.SpaceId != connection.SpaceId)
+            {
+                throw new WalleeWebhookRejectedException(
+                    $"The notification names space {notice.SpaceId}, but the own access {accessId} works in space {connection.SpaceId}.");
+            }
+
+            await DispatchAsync(notice, connection, new SaleSearchScope(ProviderKey, accessId), cancellationToken);
+        }
+
+        private async Task DispatchAsync(WalleeWebhookNotice notice, WalleeConnection connection, SaleSearchScope scope,
+            CancellationToken cancellationToken)
+        {
             switch (notice.ListenerEntityTechnicalName)
             {
                 case "Transaction":
-                    await HandleTransactionAsync(notice, space, options, cancellationToken);
+                    await HandleTransactionAsync(notice, connection, scope, cancellationToken);
                     break;
 
                 case "Refund":
-                    await HandleRefundAsync(notice, space, options, cancellationToken);
+                    await HandleRefundAsync(notice, connection, scope, cancellationToken);
                     break;
 
                 default:
@@ -122,13 +201,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         /// <summary>
         /// Eine Transaktion hat den Zustand gewechselt.
         /// </summary>
-        private async Task HandleTransactionAsync(WalleeWebhookNotice notice, long space, WalleeOptions options,
-            CancellationToken cancellationToken)
+        private async Task HandleTransactionAsync(WalleeWebhookNotice notice, WalleeConnection connection,
+            SaleSearchScope scope, CancellationToken cancellationToken)
         {
+            var space = connection.SpaceId;
             await using var db = await sink.CreateContextAsync(cancellationToken);
             // Die Transaktions-Kennung IST, was beim Anlegen gespeichert wurde. Es braucht darum keinen
             // Rueckruf, um den Verkauf zu finden - und wenn der Zustand mitkommt, gar keinen.
-            var sale = await sink.FindSaleAsync(db, SaleSearchScope.Platform(Extensions.WalleeDependencyInjectionExtensions.ProviderKey),
+            var sale = await sink.FindSaleAsync(db, scope,
                 notice.EntityId.ToString(), null, null, cancellationToken);
             if (sale == null)
             {
@@ -143,7 +223,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             {
                 // Ohne eingeschaltete Zustandsmitgabe bleibt nur der Rueckruf. Das kostet einen Aufruf je
                 // Meldung - am Listener laesst sich das mit 'payload signing and state' abstellen.
-                var transaction = await ReadTransactionAsync(notice.EntityId, space, options, cancellationToken);
+                var transaction = await ReadTransactionAsync(notice.EntityId, connection, cancellationToken);
                 state = transaction.State?.ToString();
             }
 
@@ -198,13 +278,14 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         /// <summary>
         /// Eine Erstattung hat den Zustand gewechselt — auch eine, die im Portal von wallee ausgelöst wurde.
         /// </summary>
-        private async Task HandleRefundAsync(WalleeWebhookNotice notice, long space, WalleeOptions options,
-            CancellationToken cancellationToken)
+        private async Task HandleRefundAsync(WalleeWebhookNotice notice, WalleeConnection connection,
+            SaleSearchScope scope, CancellationToken cancellationToken)
         {
+            var space = connection.SpaceId;
             Refund refund;
             try
             {
-                var service = new RefundsService(WalleeRuntime.Configure(options));
+                var service = new RefundsService(connection.Configuration);
                 // 'transaction' ausdruecklich anfordern: ohne expand kommt das Feld als null zurueck, und
                 // dann fehlt genau die Kennung, ueber die der Verkauf gefunden wird.
                 refund = await Task.Run(
@@ -229,7 +310,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
 
             await using var db = await sink.CreateContextAsync(cancellationToken);
-            var sale = await sink.FindSaleAsync(db, SaleSearchScope.Platform(Extensions.WalleeDependencyInjectionExtensions.ProviderKey),
+            var sale = await sink.FindSaleAsync(db, scope,
                 refund.Transaction?.Id.ToString(),
                 refund.MerchantReference, null, cancellationToken);
             if (sale == null)
@@ -247,12 +328,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         }
 
         /// <summary>Liest die Transaktion zurück, wenn die Meldung den Zustand nicht mitbringt.</summary>
-        private static async Task<Transaction> ReadTransactionAsync(long id, long space, WalleeOptions options,
+        private static async Task<Transaction> ReadTransactionAsync(long id, WalleeConnection connection,
             CancellationToken cancellationToken)
         {
+            var space = connection.SpaceId;
             try
             {
-                var service = new TransactionsService(WalleeRuntime.Configure(options));
+                var service = new TransactionsService(connection.Configuration);
                 // Reihenfolge: erst die Transaktion, DANN der Raum - beim Anlegen ist es andersherum.
                 return await Task.Run(() => service.GetPaymentTransactionsId(id, space), cancellationToken)
                     .ConfigureAwait(false);
@@ -298,9 +380,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
         /// Der öffentliche Schlüssel wird bei wallee unter der Kennung aus der Kopfzeile geholt und
         /// danach behalten — ein Aufruf je Schlüssel, nicht je Meldung.
         /// </remarks>
-        private static void VerifySignature(string rawBody, string? signatureHeader, WalleeOptions options)
+        private static void VerifySignature(string rawBody, string? signatureHeader, bool verify,
+            Func<WalleeConfiguration> configuration)
         {
-            if (!options.VerifyWebhookSignatures)
+            if (!verify)
             {
                 LogEnvironment.LogEvent(
                     "A wallee notification was accepted WITHOUT checking its signature ('WalleePayments:VerifyWebhookSignatures' is off). Anyone who knows this endpoint can mark sales as paid. Switch payload signing on at the webhook listener and turn this back on.",
@@ -329,7 +412,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             {
                 try
                 {
-                    var service = new WebhookEncryptionKeysService(WalleeRuntime.Configure(options));
+                    var service = new WebhookEncryptionKeysService(configuration());
                     return service.GetWebhooksEncryptionKeysId(id);
                 }
                 catch (ApiException ex)
