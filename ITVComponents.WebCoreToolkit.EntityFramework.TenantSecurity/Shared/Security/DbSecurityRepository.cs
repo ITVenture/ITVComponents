@@ -1480,17 +1480,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
         private ExternalServiceConnection ToExternalDefinition(TExternalOAuthService svc, bool decryptSecret, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
-            var retVal = new ExternalServiceConnection
-            {
-                AuthorizationEndpoint = svc.AuthorizationEndpoint,
-                ClientId = svc.ClientId,
-                Global = svc.TenantId == null,
-                Scope = svc.Scope,
-                UniqueConnectionName = svc.UniqueConnectionName,
-                TokenEndpoint = svc.TokenEndpoint,
-                RevocationEndpoint = svc.RevocationEndpoint,
-                AuthenticationType = svc.AuthenticationType
-            };
+            // Same mapping as the tree variant. The hand-written copy that stood here set neither ClientSecret nor
+            // GlobalUniqueConnectionName: the redirect uri could not be built (EscapeDataString(null) throws),
+            // no client_secret ever reached the token endpoint, and Basic/ApiKey/BearerToken sent an empty secret.
+            // Global follows the COLUMN, because that is what decides how the secret was encrypted on save.
+            var retVal = svc.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>();
             if (!string.IsNullOrEmpty(retVal.ClientSecret) && decryptSecret)
             {
                 retVal.ClientSecret = retVal.Global

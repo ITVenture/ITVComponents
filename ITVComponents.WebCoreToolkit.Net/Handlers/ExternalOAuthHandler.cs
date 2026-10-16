@@ -85,7 +85,20 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
 
             var stateEntry = securityRepo.GetOAuthRequest(externalServiceName, state);
             if (stateEntry == null)
+            {
+                LogEnvironment.LogEvent($"OAuth callback for external service '{externalServiceName}' carried an unknown, used or expired state.", LogSeverity.Warning);
                 return Results.BadRequest("Invalid state");
+            }
+
+            // RFC 6749 4.1.2.1: a refusal (or a provider-side failure) comes back as error=..., without a code.
+            // Without this check the empty code went to the token endpoint and surfaced as a 500.
+            var error = request.Query["error"].ToString();
+            if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code))
+            {
+                var description = request.Query["error_description"].ToString();
+                LogEnvironment.LogEvent($"Authorization for external service '{externalServiceName}' was not granted: {(string.IsNullOrEmpty(error) ? "no code returned" : error)} {description}", LogSeverity.Warning);
+                return Results.BadRequest($"The authorization was not granted ({(string.IsNullOrEmpty(error) ? "no code returned" : error)}).");
+            }
 
             if (stateEntry.ScopeSwitchRequired)
             {
@@ -111,15 +124,19 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
 
                 if (!string.IsNullOrEmpty(connection.ClientSecret))
                 {
-                    LogEnvironment.LogDebugEvent($"Providing client secret: {connection.ClientSecret}", LogSeverity.Report);
                     rawForm.Add("client_secret", connection.ClientSecret);
                 }
 
-                var tokenResponse = await client.PostAsync(
+                using var tokenResponse = await client.PostAsync(
                     connection.TokenEndpoint,
                     new FormUrlEncodedContent(rawForm));
 
-                tokenResponse.EnsureSuccessStatusCode();
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    var body = await tokenResponse.Content.ReadAsStringAsync();
+                    LogEnvironment.LogEvent($"Code exchange for external service '{stateEntry.ConnectionName}' was rejected with {(int)tokenResponse.StatusCode}: {body}", LogSeverity.Error);
+                    return Results.Problem($"The provider rejected the authorization code ({(int)tokenResponse.StatusCode}).", statusCode: StatusCodes.Status502BadGateway);
+                }
 
                 var token = await tokenResponse.Content
                     .ReadFromJsonAsync<TokenResponse>();

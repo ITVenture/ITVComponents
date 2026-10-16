@@ -10,6 +10,8 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.Threading;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Server.HttpSys;
@@ -46,7 +48,9 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 var token = securityRepo.GetBufferedToken(connectionName, false, false, out var svc, out var update);
                 if (token != null)
                 {
-                    if (token.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(-1))
+                    // One minute of headroom BEFORE expiry. With AddMinutes(-1) a token was handed out for up to a
+                    // minute after it had expired, and the call it was meant for failed with 401.
+                    if (token.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
                         return token.AccessToken;
                 }
                 else if (svc.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
@@ -68,17 +72,30 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
         {
 
             TranslatedTokenResponse token = null;
-            ExternalServiceConnection svc = null; 
+            ExternalServiceConnection svc = null;
             try
             {
                 token = securityRepo.GetBufferedToken(connectionName, true, false, out svc, out var update);
             }
-            catch
+            catch (Exception ex)
             {
+                // Revoking must not fail the caller: the local login is gone either way. But a lookup failure is
+                // not the same as "nothing to revoke", so it has to be visible.
+                LogEnvironment.LogEvent($"Could not read the stored token of external service '{connectionName}' for revocation: {ex.OutlineException()}", LogSeverity.Error);
+                return;
             }
 
             if (token == null || token.RefreshToken == null)
+            {
+                LogEnvironment.LogDebugEvent($"No refresh token stored for external service '{connectionName}'; nothing to revoke at the provider.", LogSeverity.Report);
                 return;
+            }
+
+            if (string.IsNullOrEmpty(svc?.RevocationEndpoint))
+            {
+                LogEnvironment.LogEvent($"External service '{connectionName}' has no revocation endpoint. The login was removed locally, the refresh token stays valid at the provider until it expires.", LogSeverity.Warning);
+                return;
+            }
 
             var client = httpClientFactory.CreateClient();
             var formRaw = new Dictionary<string, string>
@@ -94,18 +111,31 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 formRaw.Add("client_secret", svc.ClientSecret);
             }
 
-            var response = await client.PostAsync(
-                svc.RevocationEndpoint,
-                new FormUrlEncodedContent(formRaw));
+            try
+            {
+                using var response = await client.PostAsync(
+                    svc.RevocationEndpoint,
+                    new FormUrlEncodedContent(formRaw));
 
-            // RFC: 200 OK auch bei bereits ungültigem Token
-            // => keine harte Fehlerbehandlung nötig
+                // RFC 7009: 200 OK even for an already invalid token - anything else means the provider did NOT
+                // revoke, and the refresh token stays usable there.
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    LogEnvironment.LogEvent($"Revocation of the refresh token for external service '{connectionName}' was rejected with {(int)response.StatusCode}: {body}", LogSeverity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"Revocation of the refresh token for external service '{connectionName}' failed: {ex.OutlineException()}", LogSeverity.Error);
+            }
         }
 
         private async Task<TranslatedTokenResponse> RefreshAsync(TranslatedTokenResponse token, ExternalServiceConnection svc, Action<TranslatedTokenResponse> update)
         {
             var c = svc;
-            if (token.RefreshToken == null && c.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
+            // token is null on the first client-credentials call - there is nothing buffered yet.
+            if (token?.RefreshToken == null && c.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
                 throw new InvalidOperationException("No refresh token");
 
             //var refreshToken = _protector.Unprotect(c.EncryptedRefreshToken);
@@ -156,7 +186,14 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 throw new InvalidOperationException($"Unsupported OAuth-Flow: {c.AuthenticationType}");
             }
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                // The body carries the reason (e.g. invalid_grant = the login has to be renewed by the user);
+                // EnsureSuccessStatusCode alone would only leave the status code behind.
+                var body = await response.Content.ReadAsStringAsync();
+                LogEnvironment.LogEvent($"Token request for external service '{c.UniqueConnectionName}' ({c.AuthenticationType}) was rejected with {(int)response.StatusCode}: {body}", LogSeverity.Error);
+                response.EnsureSuccessStatusCode();
+            }
 
             var newToken = await response.Content
                 .ReadFromJsonAsync<TokenResponse>();
