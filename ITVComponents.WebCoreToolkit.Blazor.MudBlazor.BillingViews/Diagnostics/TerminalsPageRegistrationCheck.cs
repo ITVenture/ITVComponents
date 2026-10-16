@@ -42,6 +42,13 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Diagnostics
                     nameof(ITerminalsHandler));
             }
 
+            if (!isService.IsService(typeof(IOwnAccessHandler)))
+            {
+                logger.LogWarning(
+                    "The billing views are registered, which also routes /Account/Manage/Payments/OwnAccess, but no {Handler} is registered - the page fails when opened. It comes with AddMudBlazorPaymentViews or AddMudBlazorTerminalViews.",
+                    nameof(IOwnAccessHandler));
+            }
+
             return Task.CompletedTask;
         }
 

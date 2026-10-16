@@ -190,4 +190,35 @@
   <data name="Terminals_Next" xml:space="preserve"><value>Suivant</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Précédent</value></data>
   <data name="Terminals_Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Payments_Error_OwnAccessUnavailable" xml:space="preserve"><value>Votre propre compte auprès de ce prestataire ne peut pas être utilisé pour le moment. Vérifiez-le sous « Comptes propres auprès des prestataires » et renouvelez la clé si nécessaire.</value></data>
+  <data name="Payments_Error_InvalidSettings" xml:space="preserve"><value>Certaines indications manquent ou ne conviennent pas.</value></data>
+  <data name="OwnAccess_Title" xml:space="preserve"><value>Comptes propres auprès des prestataires</value></data>
+  <data name="OwnAccess_Intro" xml:space="preserve"><value>Si vous avez déjà un compte chez wallee, Payrexx ou SumUp, connectez-le ici. Les paiements en ligne et les terminaux de ce prestataire passent alors par votre propre compte.</value></data>
+  <data name="OwnAccess_NotAvailable" xml:space="preserve"><value>Aucun prestataire prenant en charge les comptes propres n'est configuré dans cette installation.</value></data>
+  <data name="OwnAccess_Connect" xml:space="preserve"><value>Connecter un compte</value></data>
+  <data name="OwnAccess_None" xml:space="preserve"><value>Aucun compte propre n'est encore connecté. Les paiements passent par le compte de la plateforme.</value></data>
+  <data name="OwnAccess_Col_Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="OwnAccess_Col_Provider" xml:space="preserve"><value>Prestataire</value></data>
+  <data name="OwnAccess_Col_Account" xml:space="preserve"><value>Compte</value></data>
+  <data name="OwnAccess_Col_State" xml:space="preserve"><value>État</value></data>
+  <data name="OwnAccess_Col_Webhook" xml:space="preserve"><value>Adresse de notification</value></data>
+  <data name="OwnAccess_Disabled" xml:space="preserve"><value>désactivé</value></data>
+  <data name="OwnAccess_Rejected" xml:space="preserve"><value>refusé</value></data>
+  <data name="OwnAccess_VerifiedAt" xml:space="preserve"><value>vérifié {0:g}</value></data>
+  <data name="OwnAccess_Unchecked" xml:space="preserve"><value>non vérifié</value></data>
+  <data name="OwnAccess_NoWebhookNeeded" xml:space="preserve"><value>pas nécessaire</value></data>
+  <data name="OwnAccess_Verify" xml:space="preserve"><value>Vérifier la connexion</value></data>
+  <data name="OwnAccess_VerifyOk" xml:space="preserve"><value>Le prestataire a accepté le compte.</value></data>
+  <data name="OwnAccess_Renew" xml:space="preserve"><value>Renouveler la clé</value></data>
+  <data name="OwnAccess_RenewIntro" xml:space="preserve"><value>Saisissez la nouvelle clé du MÊME compte. Pour un autre compte, utilisez « Connecter un compte » – les ventes de l'ancien compte restent remboursables par celui-ci.</value></data>
+  <data name="OwnAccess_SetUpWebhooks" xml:space="preserve"><value>Configurer les notifications dans le compte</value></data>
+  <data name="OwnAccess_Enable" xml:space="preserve"><value>Activer</value></data>
+  <data name="OwnAccess_Disable" xml:space="preserve"><value>Désactiver</value></data>
+  <data name="OwnAccess_NoDeleteHint" xml:space="preserve"><value>Les comptes sont désactivés, pas supprimés : les ventes payées dessus sont remboursées par eux.</value></data>
+  <data name="OwnAccess_Saved" xml:space="preserve"><value>Le compte a été enregistré.</value></data>
+  <data name="OwnAccess_Field_Provider" xml:space="preserve"><value>Prestataire</value></data>
+  <data name="OwnAccess_Field_DisplayName" xml:space="preserve"><value>Nom</value></data>
+  <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>Ce qui vous permet de reconnaître ce compte, p. ex. « Payrexx magasin Berne ».</value></data>
+  <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Code d'appairage</value></data>
+  <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>Sur l'appareil : Connections → API → Connect. Le code affiché est valable cinq minutes.</value></data>
 </root>

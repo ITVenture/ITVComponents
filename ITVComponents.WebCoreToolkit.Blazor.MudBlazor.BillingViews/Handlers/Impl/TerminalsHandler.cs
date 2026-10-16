@@ -43,11 +43,15 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// </summary>
         private readonly PaymentsRuntime runtime;
 
+        /// <summary>Die Wege, deren Geräte über einen angezeigten Code gekoppelt werden.</summary>
+        private readonly IReadOnlyList<ITerminalPairing> pairings;
+
         /// <summary>Initializes a new instance of the <see cref="TerminalsHandler{TContext}"/> class.</summary>
         public TerminalsHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services,
             ITerminalAdministration administration, ITerminalProviderCatalog catalog,
             ITerminalPaymentService terminals, IEnumerable<ITerminalChoiceProvider> choiceProviders,
-            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates)
+            IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
+            IEnumerable<ITerminalPairing>? pairings = null)
         {
             this.dbFactory = dbFactory;
             this.services = services;
@@ -60,6 +64,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             // lautet die Antwort NEIN. Lieber keine Geraeteverwaltung als eine fuer einen Mandanten,
             // der das Modul gar nicht hat.
             runtime = new PaymentsRuntime(settings, featureGates.FirstOrDefault());
+            this.pairings = pairings?.ToList() ?? [];
         }
 
         /// <inheritdoc />
@@ -252,6 +257,25 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         /// Geräte mehr einrichten — sonst wäre alles bereit für den Tag, an dem niemand mehr hinsieht.
         /// </para>
         /// </remarks>
+        /// <inheritdoc />
+        public bool SupportsPairing(string provider)
+            => pairings.Any(p => string.Equals(p.Key, provider, StringComparison.OrdinalIgnoreCase));
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Verwaltungsrecht, Mandant aus dem Bereich: die Kopplung bindet ein Gerät an das Konto DIESES Mandanten.
+        /// Gespeichert wird hier nichts - das tut <see cref="SaveAsync"/> mit der Kennung, die herauskommt.
+        /// </remarks>
+        public async Task<string> PairAsync(string provider, string pairingCode, string displayName,
+            CancellationToken cancellationToken = default)
+        {
+            var tenantId = await EnsureAsync(CanManage(), cancellationToken);
+            var pairing = pairings.FirstOrDefault(p => string.Equals(p.Key, provider, StringComparison.OrdinalIgnoreCase))
+                          ?? throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                              $"Terminals of '{provider}' are not paired by a code.");
+            return await pairing.PairAsync(tenantId, pairingCode, displayName, cancellationToken);
+        }
+
         private async Task<int> EnsureAsync(bool permitted, CancellationToken cancellationToken)
         {
             EnsurePermitted(permitted);

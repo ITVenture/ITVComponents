@@ -190,4 +190,35 @@
   <data name="Terminals_Next" xml:space="preserve"><value>Weiter</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Zurück</value></data>
   <data name="Terminals_Save" xml:space="preserve"><value>Speichern</value></data>
+  <data name="Payments_Error_OwnAccessUnavailable" xml:space="preserve"><value>Ihr eigenes Konto bei diesem Anbieter lässt sich gerade nicht verwenden. Prüfen Sie es unter „Eigene Anbieter-Konten“ und erneuern Sie bei Bedarf den Schlüssel.</value></data>
+  <data name="Payments_Error_InvalidSettings" xml:space="preserve"><value>Einige Angaben fehlen oder passen nicht.</value></data>
+  <data name="OwnAccess_Title" xml:space="preserve"><value>Eigene Anbieter-Konten</value></data>
+  <data name="OwnAccess_Intro" xml:space="preserve"><value>Wenn Sie bereits ein Konto bei wallee, Payrexx oder SumUp haben, verbinden Sie es hier. Online-Zahlungen und Terminals dieses Anbieters laufen dann über Ihr eigenes Konto.</value></data>
+  <data name="OwnAccess_NotAvailable" xml:space="preserve"><value>In dieser Installation ist kein Anbieter eingerichtet, der eigene Konten unterstützt.</value></data>
+  <data name="OwnAccess_Connect" xml:space="preserve"><value>Konto verbinden</value></data>
+  <data name="OwnAccess_None" xml:space="preserve"><value>Es ist noch kein eigenes Konto verbunden. Zahlungen laufen über das Konto der Plattform.</value></data>
+  <data name="OwnAccess_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="OwnAccess_Col_Provider" xml:space="preserve"><value>Anbieter</value></data>
+  <data name="OwnAccess_Col_Account" xml:space="preserve"><value>Konto</value></data>
+  <data name="OwnAccess_Col_State" xml:space="preserve"><value>Zustand</value></data>
+  <data name="OwnAccess_Col_Webhook" xml:space="preserve"><value>Meldeadresse</value></data>
+  <data name="OwnAccess_Disabled" xml:space="preserve"><value>abgeschaltet</value></data>
+  <data name="OwnAccess_Rejected" xml:space="preserve"><value>abgelehnt</value></data>
+  <data name="OwnAccess_VerifiedAt" xml:space="preserve"><value>geprüft {0:g}</value></data>
+  <data name="OwnAccess_Unchecked" xml:space="preserve"><value>nicht geprüft</value></data>
+  <data name="OwnAccess_NoWebhookNeeded" xml:space="preserve"><value>nicht nötig</value></data>
+  <data name="OwnAccess_Verify" xml:space="preserve"><value>Verbindung prüfen</value></data>
+  <data name="OwnAccess_VerifyOk" xml:space="preserve"><value>Der Anbieter hat das Konto angenommen.</value></data>
+  <data name="OwnAccess_Renew" xml:space="preserve"><value>Schlüssel erneuern</value></data>
+  <data name="OwnAccess_RenewIntro" xml:space="preserve"><value>Geben Sie den neuen Schlüssel DESSELBEN Kontos ein. Für ein anderes Konto verwenden Sie „Konto verbinden“ – die Verkäufe des alten Kontos bleiben darüber erstattbar.</value></data>
+  <data name="OwnAccess_SetUpWebhooks" xml:space="preserve"><value>Meldungen im Konto einrichten</value></data>
+  <data name="OwnAccess_Enable" xml:space="preserve"><value>Einschalten</value></data>
+  <data name="OwnAccess_Disable" xml:space="preserve"><value>Abschalten</value></data>
+  <data name="OwnAccess_NoDeleteHint" xml:space="preserve"><value>Konten werden abgeschaltet, nicht gelöscht: die darauf bezahlten Verkäufe werden darüber erstattet.</value></data>
+  <data name="OwnAccess_Saved" xml:space="preserve"><value>Das Konto wurde gespeichert.</value></data>
+  <data name="OwnAccess_Field_Provider" xml:space="preserve"><value>Anbieter</value></data>
+  <data name="OwnAccess_Field_DisplayName" xml:space="preserve"><value>Name</value></data>
+  <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>Woran Sie dieses Konto erkennen, z. B. „Payrexx Laden Bern“.</value></data>
+  <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Kopplungscode</value></data>
+  <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>Am Gerät: Connections → API → Connect. Der dort angezeigte Code gilt fünf Minuten.</value></data>
 </root>

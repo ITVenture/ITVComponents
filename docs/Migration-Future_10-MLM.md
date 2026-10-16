@@ -8079,3 +8079,36 @@ sind **noch nicht gegen ein echtes Konto geprüft**.
 
 - [ ] Sprachressource `Payments_Error_InvalidSettings`
 - [ ] Zugangsdaten-Speicher registriert (§78.4), sonst lehnt das Anlegen ab
+
+## 83. Seite „Eigene Anbieter-Konten“ und SumUp-Kopplung im Terminal-Assistenten — **nicht breaking**
+
+### 83.1 Neue Seite `/Account/Manage/Payments/OwnAccess`
+
+Die Seite listet die eigenen Zugänge des Mandanten mit Konto, Zustand (geprüft, abgelehnt, abgeschaltet)
+und der **vollständigen Meldeadresse**, die er bei Payrexx bzw. wallee einträgt. Zur Verfügung stehen
+**Konto verbinden**, **Verbindung prüfen**, **Schlüssel erneuern**, **Meldungen im Konto einrichten** (nur
+wallee) und **An/Aus**. Geheimnisse werden als Kennwortfelder abgefragt und nie angezeigt.
+
+- Rechte wie bei den Terminals (`TenantPayments.View` / `TenantPayments.Manage`, `TenantAdmin`,
+  `Sysadmin`). Prüfen, Erneuern und Einrichten verlangen das Verwaltungsrecht. Der Handler
+  (`IOwnAccessHandler`) prüft in jeder Methode selbst Recht, Hauptschalter und Feature; der Mandant kommt
+  aus dem Bereich.
+- Registriert mit `AddMudBlazorPaymentViews` **und** `AddMudBlazorTerminalViews` (je `TryAdd`). Fehlt der
+  Handler, steht beim Start eine Warnung im Log.
+- Ein Navigationseintrag wird nicht mitgeliefert; der Host hängt die Seite dort ein, wo auch die Terminals
+  stehen.
+
+### 83.2 Terminal-Assistent: Kopplung
+
+Bei einem neuen Gerät eines Weges mit `ITerminalPairing` (heute SumUp) fragt der erste Schritt nach dem
+**Kopplungscode**, den das Gerät anzeigt, statt nach der Gerätekennung. Gekoppelt wird beim Speichern.
+Gelingt die Kopplung und scheitert danach das Speichern, bleibt die Kennung im Assistenten stehen, und ein
+zweiter Versuch koppelt nicht noch einmal. `ITerminalsHandler` hat dafür `SupportsPairing` und `PairAsync`.
+Beide sind im Vertrag vorbelegt, eigene Umsetzungen brechen also nicht.
+
+### 83.3 Checkliste
+
+- [ ] Navigationseintrag für `/Account/Manage/Payments/OwnAccess` (Rechte wie bei den Terminals)
+- [ ] Sprachressourcen `OwnAccess_*`, `Terminals_Field_PairingCode*`, `Payments_Error_OwnAccessUnavailable`,
+      `Payments_Error_InvalidSettings` sind in BillingViews für de/en/fr/it enthalten. Nur ein Host mit
+      eigenen Texten muss nachziehen.

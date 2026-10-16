@@ -1,0 +1,147 @@
+@using ITVComponents.AgentServices.Abstractions
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
+@using Microsoft.Extensions.Logging
+
+@inject IOwnAccessHandler Handler
+@inject IStringLocalizer<PaymentMessages> L
+@inject ILogger<OwnAccessDialog> Logger
+
+@*
+    "Eigenes Konto verbinden" bzw. "Schluessel erneuern". Die Felder sagt der Anbieter selbst. Gezeichnet werden
+    sie hier und nicht ueber DeclaredFieldsForm: die kennt kein Kennwortfeld, und ein API-Schluessel im Klartext
+    auf dem Bildschirm ist genau das, was nicht sein soll.
+*@
+
+<MudDialog>
+    <DialogContent>
+        @if (RenewAccessId == null)
+        {
+            <MudSelect T="string" Label="@L["OwnAccess_Field_Provider"]" Value="@provider" ValueChanged="@OnProviderChanged"
+                       Required="true">
+                @foreach (var p in providers)
+                {
+                    <MudSelectItem T="string" Value="@p">@p</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField T="string" @bind-Value="displayName" Class="mt-3" Label="@L["OwnAccess_Field_DisplayName"]"
+                          Required="true" HelperText="@(L["OwnAccess_Field_DisplayNameHint"].Value)" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-3">@L["OwnAccess_RenewIntro"]</MudAlert>
+        }
+
+        @foreach (var field in VisibleFields)
+        {
+            <MudTextField T="string" Class="mt-3" Label="@(field.Label ?? field.Name)" Required="@field.Required"
+                          HelperText="@field.HelpText"
+                          InputType="@(field.Secret ? InputType.Password : field.Kind == SettingKind.Number ? InputType.Number : InputType.Text)"
+                          Value="@ValueOf(field.Name)" ValueChanged="@(v => values[field.Name] = v)" />
+        }
+
+        @if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">@L["Terminals_Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="@busy">
+            @(RenewAccessId == null ? L["OwnAccess_Connect"] : L["OwnAccess_Renew"])
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+
+    /// <summary>Beim Erneuern: der Zugang, dessen Schlüssel ersetzt wird; leer verbindet ein neues Konto.</summary>
+    [Parameter] public int? RenewAccessId { get; set; }
+
+    /// <summary>Beim Erneuern: sein Anbieter.</summary>
+    [Parameter] public string? RenewProvider { get; set; }
+
+    private IReadOnlyList<string> providers = [];
+    private IReadOnlyList<OwnAccessField> fields = [];
+    private readonly Dictionary<string, string?> values = new();
+    private string provider = string.Empty;
+    private string displayName = string.Empty;
+    private bool busy;
+    private string? error;
+
+    /// <summary>Beim Erneuern nur, was zur Anmeldung gehört - das Konto selbst bleibt dasselbe.</summary>
+    private IEnumerable<OwnAccessField> VisibleFields
+        => RenewAccessId == null ? fields : fields.Where(f => f.Secret || f.PartOfCredential);
+
+    protected override void OnInitialized()
+    {
+        if (RenewAccessId != null && RenewProvider != null)
+        {
+            provider = RenewProvider;
+            fields = Handler.DescribeFields(provider);
+            return;
+        }
+
+        providers = Handler.GetProviders();
+        if (providers.Count == 1)
+        {
+            // Eine Auswahl mit einem Eintrag ist keine Wahl.
+            OnProviderChanged(providers[0]);
+        }
+    }
+
+    private void OnProviderChanged(string value)
+    {
+        provider = value;
+        fields = Handler.DescribeFields(provider);
+        // Anderer Anbieter, andere Felder: was zuvor eingetippt wurde, gehoert nicht dazu - und schon gar kein
+        // Geheimnis, das fuer einen anderen Anbieter gedacht war.
+        values.Clear();
+        foreach (var field in fields.Where(f => !string.IsNullOrEmpty(f.DefaultValue)))
+        {
+            values[field.Name] = field.DefaultValue;
+        }
+    }
+
+    private string? ValueOf(string name) => values.TryGetValue(name, out var value) ? value : null;
+
+    private async Task SaveAsync()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(provider)
+            || (RenewAccessId == null && string.IsNullOrWhiteSpace(displayName))
+            || VisibleFields.Any(f => f.Required && string.IsNullOrWhiteSpace(ValueOf(f.Name))))
+        {
+            error = L["Terminals_RequiredMissing"];
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            if (RenewAccessId is { } accessId)
+            {
+                await Handler.RenewSecretsAsync(accessId, values);
+                Dialog.Close(DialogResult.Ok(accessId));
+            }
+            else
+            {
+                var id = await Handler.CreateAsync(provider, displayName, values);
+                Dialog.Close(DialogResult.Ok(id));
+            }
+        }
+        catch (Exception ex)
+        {
+            // Die Meldung enthaelt nie ein Geheimnis - die Verwaltung schreibt keines hinein.
+            Logger.LogError(ex, "The own {Provider} access could not be {Action}.", provider, RenewAccessId == null ? "connected" : "renewed");
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}

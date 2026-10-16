@@ -1,0 +1,228 @@
+@page "/Account/Manage/Payments/OwnAccess"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions
+@using Microsoft.Extensions.Logging
+
+@inject IOwnAccessHandler Handler
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IStringLocalizer<PaymentMessages> L
+@inject ILogger<OwnAccessAdmin> Logger
+
+<PageTitle>@L["OwnAccess_Title"]</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">@L["OwnAccess_Title"]</MudText>
+
+<SecureView RequiredFeatures="TenantPayments" RequiredPermissions="TenantPayments.View,TenantPayments.Manage,TenantAdmin,Sysadmin">
+    <Permitted>
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else if (!enabled)
+        {
+            <MudAlert Severity="Severity.Info">@L["Payments_ModuleDisabled"]</MudAlert>
+        }
+        else if (!available)
+        {
+            <MudAlert Severity="Severity.Info">@L["OwnAccess_NotAvailable"]</MudAlert>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">@L["OwnAccess_Intro"]</MudText>
+
+            @if (canManage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Link"
+                           OnClick="ConnectAsync" Class="mb-3">
+                    @L["OwnAccess_Connect"]
+                </MudButton>
+            }
+
+            @if (accesses.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">@L["OwnAccess_None"]</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@accesses" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                    <HeaderContent>
+                        <MudTh>@L["OwnAccess_Col_Name"]</MudTh>
+                        <MudTh>@L["OwnAccess_Col_Provider"]</MudTh>
+                        <MudTh>@L["OwnAccess_Col_Account"]</MudTh>
+                        <MudTh>@L["OwnAccess_Col_State"]</MudTh>
+                        <MudTh>@L["OwnAccess_Col_Webhook"]</MudTh>
+                        <MudTh />
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="@L["OwnAccess_Col_Name"]">@context.DisplayName</MudTd>
+                        <MudTd DataLabel="@L["OwnAccess_Col_Provider"]">@context.Provider</MudTd>
+                        <MudTd DataLabel="@L["OwnAccess_Col_Account"]">@context.ProviderAccountId</MudTd>
+                        <MudTd DataLabel="@L["OwnAccess_Col_State"]">
+                            @if (context.Disabled)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@L["OwnAccess_Disabled"]</MudChip>
+                            }
+                            else if (!string.IsNullOrEmpty(context.LastVerificationError))
+                            {
+                                <MudTooltip Text="@context.LastVerificationError">
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error">@L["OwnAccess_Rejected"]</MudChip>
+                                </MudTooltip>
+                            }
+                            else if (context.LastVerifiedUtc != null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                    @string.Format(L["OwnAccess_VerifiedAt"], context.LastVerifiedUtc.Value.ToLocalTime())
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">@L["OwnAccess_Unchecked"]</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="@L["OwnAccess_Col_Webhook"]">
+                            @if (context.WebhookPath != null)
+                            {
+                                @* Die volle Adresse, die der Mandant in SEINEM Konto eintraegt. *@
+                                <MudText Typo="Typo.caption" Style="word-break: break-all;">@WebhookUrl(context)</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption">@L["OwnAccess_NoWebhookNeeded"]</MudText>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            @if (canManage)
+                            {
+                                <MudStack Row="true" Spacing="1">
+                                    <MudTooltip Text="@(L["OwnAccess_Verify"].Value)">
+                                        <MudIconButton Icon="@Icons.Material.Filled.NetworkCheck" Size="Size.Small"
+                                                       OnClick="@(() => VerifyAsync(context))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="@(L["OwnAccess_Renew"].Value)">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Key" Size="Size.Small"
+                                                       OnClick="@(() => RenewAsync(context))" />
+                                    </MudTooltip>
+                                    @if (context.CanSetUpWebhooks && !context.Disabled)
+                                    {
+                                        <MudTooltip Text="@(L["OwnAccess_SetUpWebhooks"].Value)">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Webhook" Size="Size.Small"
+                                                           OnClick="@(() => SetUpWebhooksAsync(context))" />
+                                        </MudTooltip>
+                                    }
+                                    <MudTooltip Text="@(context.Disabled ? L["OwnAccess_Enable"].Value : L["OwnAccess_Disable"].Value)">
+                                        <MudIconButton Size="Size.Small"
+                                                       Icon="@(context.Disabled ? Icons.Material.Filled.ToggleOff : Icons.Material.Filled.ToggleOn)"
+                                                       OnClick="@(() => ToggleAsync(context))" />
+                                    </MudTooltip>
+                                </MudStack>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                @* Warum kein Loeschen: die Verkaeufe auf einem Konto werden darueber erstattet. *@
+                <MudText Typo="Typo.caption" Class="mt-2">@L["OwnAccess_NoDeleteHint"]</MudText>
+            }
+        }
+    </Permitted>
+</SecureView>
+
+@code {
+    private IReadOnlyList<OwnAccessInfo> accesses = [];
+    private bool loading = true;
+    private bool enabled;
+    private bool available;
+    private bool canManage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        enabled = Handler.IsEnabled();
+        available = Handler.IsAvailable();
+        canManage = Handler.CanManage();
+        if (enabled && available)
+        {
+            await ReloadAsync();
+        }
+
+        loading = false;
+    }
+
+    private async Task ReloadAsync()
+        => accesses = await Handler.GetAsync();
+
+    private string WebhookUrl(OwnAccessInfo access) => $"{Navigation.BaseUri.TrimEnd('/')}{access.WebhookPath}";
+
+    private async Task ConnectAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<OwnAccessDialog>(L["OwnAccess_Connect"], new DialogParameters<OwnAccessDialog>(),
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await ReloadAsync();
+            Snackbar.Add(L["OwnAccess_Saved"], Severity.Success);
+        }
+    }
+
+    private async Task RenewAsync(OwnAccessInfo access)
+    {
+        var parameters = new DialogParameters<OwnAccessDialog>
+        {
+            { x => x.RenewAccessId, access.AccessId },
+            { x => x.RenewProvider, access.Provider }
+        };
+        var dialog = await Dialogs.ShowAsync<OwnAccessDialog>(L["OwnAccess_Renew"], parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (!(await dialog.Result)!.Canceled)
+        {
+            await ReloadAsync();
+            Snackbar.Add(L["OwnAccess_Saved"], Severity.Success);
+        }
+    }
+
+    private async Task VerifyAsync(OwnAccessInfo access)
+    {
+        try
+        {
+            var result = await Handler.VerifyAsync(access.AccessId);
+            Snackbar.Add(result.Message ?? (result.Success ? L["OwnAccess_VerifyOk"] : L["OwnAccess_Rejected"]),
+                result.Success ? Severity.Success : Severity.Warning);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Own access {AccessId} could not be verified.", access.AccessId);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task SetUpWebhooksAsync(OwnAccessInfo access)
+    {
+        try
+        {
+            var result = await Handler.SetUpWebhooksAsync(access.AccessId, Navigation.BaseUri);
+            Snackbar.Add(result.Message ?? string.Empty, result.Success ? Severity.Success : Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The notifications of own access {AccessId} could not be set up.", access.AccessId);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ToggleAsync(OwnAccessInfo access)
+    {
+        try
+        {
+            await Handler.SetDisabledAsync(access.AccessId, !access.Disabled);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Own access {AccessId} could not be {Action}.", access.AccessId, access.Disabled ? "enabled" : "disabled");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

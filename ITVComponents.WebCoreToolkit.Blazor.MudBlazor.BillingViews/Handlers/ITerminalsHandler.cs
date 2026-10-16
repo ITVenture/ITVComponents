@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,6 +86,17 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 
         /// <summary>Fragt, ob ein Gerät gerade erreichbar ist.</summary>
         Task<TerminalStatus> GetStatusAsync(int terminalId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Ob ein neues Gerät dieses Weges über einen Code gekoppelt wird, den es selbst anzeigt (SumUp Solo). Dann
+        /// fragt der Assistent nach dem Code statt nach der Kennung.
+        /// </summary>
+        bool SupportsPairing(string provider) => false;
+
+        /// <summary>Koppelt ein Gerät und liefert die Kennung, unter der es danach angesprochen wird.</summary>
+        Task<string> PairAsync(string provider, string pairingCode, string displayName,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException($"Terminals of '{provider}' are not paired by a code.");
     }
 
     /// <summary>

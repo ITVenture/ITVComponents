@@ -190,4 +190,35 @@
   <data name="Terminals_Next" xml:space="preserve"><value>Avanti</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Indietro</value></data>
   <data name="Terminals_Save" xml:space="preserve"><value>Salva</value></data>
+  <data name="Payments_Error_OwnAccessUnavailable" xml:space="preserve"><value>Il suo conto presso questo fornitore non può essere utilizzato al momento. Lo verifichi in «Conti propri presso i fornitori» e, se necessario, rinnovi la chiave.</value></data>
+  <data name="Payments_Error_InvalidSettings" xml:space="preserve"><value>Alcuni dati mancano o non sono corretti.</value></data>
+  <data name="OwnAccess_Title" xml:space="preserve"><value>Conti propri presso i fornitori</value></data>
+  <data name="OwnAccess_Intro" xml:space="preserve"><value>Se ha già un conto presso wallee, Payrexx o SumUp, lo colleghi qui. I pagamenti online e i terminali di questo fornitore passano allora dal suo conto.</value></data>
+  <data name="OwnAccess_NotAvailable" xml:space="preserve"><value>In questa installazione non è configurato alcun fornitore che supporti conti propri.</value></data>
+  <data name="OwnAccess_Connect" xml:space="preserve"><value>Collegare un conto</value></data>
+  <data name="OwnAccess_None" xml:space="preserve"><value>Non è ancora collegato alcun conto proprio. I pagamenti passano dal conto della piattaforma.</value></data>
+  <data name="OwnAccess_Col_Name" xml:space="preserve"><value>Nome</value></data>
+  <data name="OwnAccess_Col_Provider" xml:space="preserve"><value>Fornitore</value></data>
+  <data name="OwnAccess_Col_Account" xml:space="preserve"><value>Conto</value></data>
+  <data name="OwnAccess_Col_State" xml:space="preserve"><value>Stato</value></data>
+  <data name="OwnAccess_Col_Webhook" xml:space="preserve"><value>Indirizzo di notifica</value></data>
+  <data name="OwnAccess_Disabled" xml:space="preserve"><value>disattivato</value></data>
+  <data name="OwnAccess_Rejected" xml:space="preserve"><value>rifiutato</value></data>
+  <data name="OwnAccess_VerifiedAt" xml:space="preserve"><value>verificato {0:g}</value></data>
+  <data name="OwnAccess_Unchecked" xml:space="preserve"><value>non verificato</value></data>
+  <data name="OwnAccess_NoWebhookNeeded" xml:space="preserve"><value>non necessario</value></data>
+  <data name="OwnAccess_Verify" xml:space="preserve"><value>Verificare la connessione</value></data>
+  <data name="OwnAccess_VerifyOk" xml:space="preserve"><value>Il fornitore ha accettato il conto.</value></data>
+  <data name="OwnAccess_Renew" xml:space="preserve"><value>Rinnovare la chiave</value></data>
+  <data name="OwnAccess_RenewIntro" xml:space="preserve"><value>Inserisca la nuova chiave dello STESSO conto. Per un altro conto usi «Collegare un conto»: le vendite del vecchio conto restano rimborsabili tramite esso.</value></data>
+  <data name="OwnAccess_SetUpWebhooks" xml:space="preserve"><value>Configurare le notifiche nel conto</value></data>
+  <data name="OwnAccess_Enable" xml:space="preserve"><value>Attivare</value></data>
+  <data name="OwnAccess_Disable" xml:space="preserve"><value>Disattivare</value></data>
+  <data name="OwnAccess_NoDeleteHint" xml:space="preserve"><value>I conti vengono disattivati, non eliminati: le vendite pagate su di essi vengono rimborsate tramite essi.</value></data>
+  <data name="OwnAccess_Saved" xml:space="preserve"><value>Il conto è stato salvato.</value></data>
+  <data name="OwnAccess_Field_Provider" xml:space="preserve"><value>Fornitore</value></data>
+  <data name="OwnAccess_Field_DisplayName" xml:space="preserve"><value>Nome</value></data>
+  <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>Come riconosce questo conto, p. es. «Payrexx negozio Berna».</value></data>
+  <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Codice di accoppiamento</value></data>
+  <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>Sull'apparecchio: Connections → API → Connect. Il codice mostrato è valido cinque minuti.</value></data>
 </root>

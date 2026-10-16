@@ -190,4 +190,35 @@
   <data name="Terminals_Next" xml:space="preserve"><value>Next</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Back</value></data>
   <data name="Terminals_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Payments_Error_OwnAccessUnavailable" xml:space="preserve"><value>Your own account at this provider cannot be used right now. Check it under "Own provider accounts" and renew the key if necessary.</value></data>
+  <data name="Payments_Error_InvalidSettings" xml:space="preserve"><value>Some details are missing or do not fit.</value></data>
+  <data name="OwnAccess_Title" xml:space="preserve"><value>Own provider accounts</value></data>
+  <data name="OwnAccess_Intro" xml:space="preserve"><value>If you already have an account with wallee, Payrexx or SumUp, connect it here. Online payments and terminals of that provider then run over your own account.</value></data>
+  <data name="OwnAccess_NotAvailable" xml:space="preserve"><value>No provider that supports own accounts is set up in this installation.</value></data>
+  <data name="OwnAccess_Connect" xml:space="preserve"><value>Connect account</value></data>
+  <data name="OwnAccess_None" xml:space="preserve"><value>No own account is connected yet. Payments run over the platform account.</value></data>
+  <data name="OwnAccess_Col_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="OwnAccess_Col_Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="OwnAccess_Col_Account" xml:space="preserve"><value>Account</value></data>
+  <data name="OwnAccess_Col_State" xml:space="preserve"><value>State</value></data>
+  <data name="OwnAccess_Col_Webhook" xml:space="preserve"><value>Notification address</value></data>
+  <data name="OwnAccess_Disabled" xml:space="preserve"><value>disabled</value></data>
+  <data name="OwnAccess_Rejected" xml:space="preserve"><value>rejected</value></data>
+  <data name="OwnAccess_VerifiedAt" xml:space="preserve"><value>checked {0:g}</value></data>
+  <data name="OwnAccess_Unchecked" xml:space="preserve"><value>not checked</value></data>
+  <data name="OwnAccess_NoWebhookNeeded" xml:space="preserve"><value>not needed</value></data>
+  <data name="OwnAccess_Verify" xml:space="preserve"><value>Check connection</value></data>
+  <data name="OwnAccess_VerifyOk" xml:space="preserve"><value>The provider accepted the account.</value></data>
+  <data name="OwnAccess_Renew" xml:space="preserve"><value>Renew key</value></data>
+  <data name="OwnAccess_RenewIntro" xml:space="preserve"><value>Enter the new key of the SAME account. To connect a different account, use "Connect account" instead - the sales of the old account stay refundable over it.</value></data>
+  <data name="OwnAccess_SetUpWebhooks" xml:space="preserve"><value>Set up notifications in the account</value></data>
+  <data name="OwnAccess_Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="OwnAccess_Disable" xml:space="preserve"><value>Disable</value></data>
+  <data name="OwnAccess_NoDeleteHint" xml:space="preserve"><value>Accounts are disabled, not deleted: the sales paid on them are refunded over them.</value></data>
+  <data name="OwnAccess_Saved" xml:space="preserve"><value>The account was saved.</value></data>
+  <data name="OwnAccess_Field_Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="OwnAccess_Field_DisplayName" xml:space="preserve"><value>Name</value></data>
+  <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>How you recognise this account, e.g. "Payrexx shop Bern".</value></data>
+  <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Pairing code</value></data>
+  <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>On the device: Connections → API → Connect. The code shown there is valid for five minutes.</value></data>
 </root>

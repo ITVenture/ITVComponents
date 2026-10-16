@@ -41,9 +41,20 @@
                                   Label="@L["Terminals_Field_DisplayName"]" Required="true"
                                   HelperText="@(L["Terminals_Field_DisplayNameHint"].Value)" />
 
-                    <MudTextField T="string" @bind-Value="providerTerminalId" Class="mt-3"
-                                  Label="@L["Terminals_Field_ProviderTerminalId"]" Required="true"
-                                  HelperText="@(L["Terminals_Field_ProviderTerminalIdHint"].Value)" />
+                    @if (Pairing)
+                    {
+                        @* Das Geraet bekommt seine Kennung erst durch die Kopplung - gefragt wird darum nach dem Code,
+                           den es anzeigt. Gekoppelt wird beim Speichern. *@
+                        <MudTextField T="string" @bind-Value="pairingCode" Class="mt-3"
+                                      Label="@L["Terminals_Field_PairingCode"]" Required="true"
+                                      HelperText="@(L["Terminals_Field_PairingCodeHint"].Value)" />
+                    }
+                    else
+                    {
+                        <MudTextField T="string" @bind-Value="providerTerminalId" Class="mt-3"
+                                      Label="@L["Terminals_Field_ProviderTerminalId"]" Required="true"
+                                      HelperText="@(L["Terminals_Field_ProviderTerminalIdHint"].Value)" />
+                    }
                 </MudStep>
 
                 <MudStep Title="@L["Terminals_Step_Service"]">
@@ -136,6 +147,10 @@
     private string provider = string.Empty;
     private string displayName = string.Empty;
     private string providerTerminalId = string.Empty;
+    private string pairingCode = string.Empty;
+
+    /// <summary>Ein NEUES Geraet eines Weges, der ueber einen angezeigten Code gekoppelt wird.</summary>
+    private bool Pairing => Existing == null && !string.IsNullOrEmpty(provider) && Handler.SupportsPairing(provider);
     private string? routeValue;
     private string? serverJson;
     private bool serverCollected;
@@ -233,7 +248,7 @@
         if (step == 0)
         {
             if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(displayName)
-                                                    || string.IsNullOrWhiteSpace(providerTerminalId))
+                                                    || (Pairing ? string.IsNullOrWhiteSpace(pairingCode) : string.IsNullOrWhiteSpace(providerTerminalId)))
             {
                 error = L["Terminals_RequiredMissing"];
                 return;
@@ -398,6 +413,14 @@
                         .Where(m => !string.IsNullOrWhiteSpace(m)));
                     return;
                 }
+            }
+
+            if (Pairing && string.IsNullOrEmpty(providerTerminalId))
+            {
+                // Erst JETZT koppeln - der Code gilt nur Minuten. Gelingt die Kopplung und scheitert danach das
+                // Speichern, bleibt die Kennung stehen: ein zweiter Versuch koppelt nicht noch einmal mit einem
+                // abgelaufenen Code.
+                providerTerminalId = await Handler.PairAsync(provider, pairingCode, displayName);
             }
 
             var id = await Handler.SaveAsync(Draft());

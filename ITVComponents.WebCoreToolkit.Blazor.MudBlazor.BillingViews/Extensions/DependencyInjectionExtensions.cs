@@ -57,6 +57,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             // both.
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<IPaymentsHandler, PaymentsHandler<TContext, TTenant>>();
+            // Eigene Anbieter-Zugaenge gehoeren zum Online-Verkauf UND zu den Terminals - darum hier wie dort.
+            services.TryAddScoped<IOwnAccessHandler, OwnAccessHandler<TContext>>();
             services.AddTerminalsPageRegistrationCheck();
             return services;
         }
@@ -98,6 +100,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Extensions
             partTypeLoadBehavior ??= new AssemblyPartTypeLoadBehaviorOptions { DefaultBehavior = TypeRegisterBehavior.Use };
             services.AddBlazorRoutingAssembly(typeof(DependencyInjectionExtensions).Assembly, partTypeLoadBehavior);
             services.AddScoped<ITerminalsHandler, TerminalsHandler<TContext>>();
+            services.TryAddScoped<IOwnAccessHandler, OwnAccessHandler<TContext>>();
             services.AddScoped<ITerminalChoiceProvider, ClientAppTerminalChoiceProvider<TContext, TClientApp>>();
             services.AddScoped<ITerminalChoiceProvider, RemoteObjectTerminalChoiceProvider>();
             return services;
