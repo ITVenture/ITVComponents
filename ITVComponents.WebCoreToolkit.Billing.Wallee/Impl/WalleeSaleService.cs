@@ -77,8 +77,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
 
         /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
-            TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
+            TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken)
         {
+            // Ohne SupportsOwnAccess kommt hier immer das Plattform-Konto an; die Basis lehnt den Rest vorher ab.
+            ArgumentNullException.ThrowIfNull(account);
             var wallee = Wallee;
             var space = ResolveSpace(account, wallee);
 

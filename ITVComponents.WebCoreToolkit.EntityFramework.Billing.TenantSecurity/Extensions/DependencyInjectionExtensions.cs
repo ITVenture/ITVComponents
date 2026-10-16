@@ -1,6 +1,9 @@
 ﻿using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using Onboarding = ITVComponents.WebCoreToolkit.EntityFramework.Onboarding;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.TreeModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,6 +43,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.Ex
             services.AddScoped<IPaymentFeatureGate, PaymentFeatureGate<TContext, TTenant, TActivation>>();
             return services;
         }
+
+        /// <summary>
+        /// Registriert den <see cref="IProviderCredentialStore"/> ueber die ExternalServices - die Geheimnisse der
+        /// eigenen Anbieter-Zugaenge der Mandanten.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Ohne diese Registrierung ist ein eigener Zugang nicht verwendbar: jede Anbindung, die einen braucht,
+        /// lehnt den Vorgang dann ab, statt auf den Zugang der Plattform auszuweichen.
+        /// </para>
+        /// <para>
+        /// <typeparamref name="TContext"/> braucht eine registrierte <see cref="IDbContextFactory{TContext}"/>
+        /// und muss die Mandanten und die drei ExternalService-Tabellen abbilden. Fuer die mitgelieferten Modelle
+        /// gibt es <see cref="AddFlatProviderCredentialStore{TContext}"/> und
+        /// <see cref="AddHierarchyProviderCredentialStore{TContext}"/>.
+        /// </para>
+        /// </remarks>
+        public static IServiceCollection AddProviderCredentialStore<TContext, TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(this IServiceCollection services)
+            where TContext : DbContext
+            where TTenant : Tenant
+            where TExternalOAuthService : ExternalOAuthService<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>, new()
+            where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+            where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
+        {
+            services.AddHttpClient();
+            services.AddScoped<IProviderCredentialStore, ExternalServiceProviderCredentialStore<TContext, TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>>();
+            return services;
+        }
+
+        /// <summary>
+        /// <see cref="AddProviderCredentialStore{TContext,TTenant,TExternalOAuthService,TExternalOAuthServiceState,TExternalOAuthServiceTenantLogin}"/>
+        /// fuer das flache Mandantenmodell.
+        /// </summary>
+        public static IServiceCollection AddFlatProviderCredentialStore<TContext>(this IServiceCollection services)
+            where TContext : DbContext
+            => services.AddProviderCredentialStore<TContext, Tenant, FlatExternalOAuthService, FlatExternalOAuthServiceState, FlatExternalOAuthServiceTenantLogin>();
+
+        /// <summary>
+        /// <see cref="AddProviderCredentialStore{TContext,TTenant,TExternalOAuthService,TExternalOAuthServiceState,TExternalOAuthServiceTenantLogin}"/>
+        /// fuer das hierarchische Mandantenmodell. Ein Kind-Mandant erbt dabei KEINEN Zugang seines Elternteils.
+        /// </summary>
+        public static IServiceCollection AddHierarchyProviderCredentialStore<TContext>(this IServiceCollection services)
+            where TContext : DbContext
+            => services.AddProviderCredentialStore<TContext, HierarchyTenant, HierarchyExternalOAuthService, HierarchyExternalOAuthServiceState, HierarchyExternalOAuthServiceTenantLogin>();
 
         /// <summary>
         /// Registers the billing-profile-backed <see cref="ITenantIdentityProvider"/> for a FLAT tenant model,

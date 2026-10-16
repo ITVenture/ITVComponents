@@ -93,5 +93,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// decision with money attached - not something a retry or a support ticket fixes.
         /// </summary>
         public const string UnsupportedAccountConfiguration = "Payments_Error_UnsupportedAccountConfiguration";
+
+        /// <summary>
+        /// Der eigene Zugang des Mandanten bei diesem Anbieter laesst sich nicht verwenden: die Anbindung kann ihn
+        /// (noch) nicht, die Zugangsdaten fehlen, oder die Anmeldung muss erneuert werden.
+        /// </summary>
+        /// <remarks>
+        /// Eigener Code, weil die Abhilfe beim Mandanten liegt (Zugang neu verbinden) und nicht beim Anbieter.
+        /// Und weil die naheliegende "Abhilfe" im Code - auf den Plattform-Zugang ausweichen - genau das ist,
+        /// was nie passieren darf: das Geld ginge auf ein Konto, das der Mandant nicht gewaehlt hat.
+        /// </remarks>
+        public const string OwnAccessUnavailable = "Payments_Error_OwnAccessUnavailable";
     }
 }

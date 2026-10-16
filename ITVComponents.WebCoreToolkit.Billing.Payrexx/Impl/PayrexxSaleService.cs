@@ -57,8 +57,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
         /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
-            TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
+            TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken)
         {
+            // Ohne SupportsOwnAccess kommt hier immer das Plattform-Konto an; die Basis lehnt den Rest vorher ab.
+            ArgumentNullException.ThrowIfNull(account);
             var options = Runtime.Options;
             var payrexx = api.Options;
 

@@ -34,6 +34,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing
         /// </remarks>
         DbSet<TenantPaymentTerminal> TenantPaymentTerminals { get; set; }
 
+        /// <summary>
+        /// Eigene Zugaenge der Mandanten bei einem Anbieter - der Rueckfall neben dem Plattform-Konto, fuer
+        /// Online-Verkauf und Terminals. Die Geheimnisse liegen nicht hier, sondern in den ExternalServices.
+        /// </summary>
+        DbSet<TenantProviderAccess> TenantProviderAccesses { get; set; }
+
         DbSet<TenantSale> TenantSales { get; set; }
 
         DbSet<TenantSaleRefund> TenantSaleRefunds { get; set; }

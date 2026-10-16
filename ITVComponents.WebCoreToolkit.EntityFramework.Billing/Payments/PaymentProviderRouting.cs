@@ -81,12 +81,40 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         public IReadOnlyList<IPaymentProviderAdapter> Adapters => adapters;
 
         /// <summary>Der Anbieter, der fuer NEUE Vorgaenge dieses Mandanten gilt.</summary>
+        /// <remarks>
+        /// Das Plattform-Konto entscheidet, wenn es eines gibt - dort hat der Mandant seinen Anbieter gewaehlt.
+        /// Ohne Plattform-Konto gilt der Anbieter, bei dem er einen eigenen Zugang hinterlegt hat
+        /// (<see cref="TenantProviderAccess"/>), sofern dieser Anbieter hier fuer den Online-Verkauf
+        /// angemeldet ist. Sonst fiele ein Mandant, der nur sein eigenes Konto mitbringt, auf den Anbieter
+        /// der Plattform - und dort gibt es fuer ihn kein Konto.
+        /// </remarks>
         public async Task<IPaymentProviderAdapter> ForTenantAsync(int tenantId, CancellationToken cancellationToken)
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-            var key = await db.TenantPaymentAccounts.AsNoTracking().Where(a => a.TenantId == tenantId)
-                .Select(a => a.Provider).FirstOrDefaultAsync(cancellationToken);
-            return Resolve(key, $"tenant {tenantId}");
+            var account = await db.TenantPaymentAccounts.AsNoTracking().Where(a => a.TenantId == tenantId)
+                .Select(a => new { a.Provider }).FirstOrDefaultAsync(cancellationToken);
+            if (account != null)
+            {
+                return Resolve(account.Provider, $"tenant {tenantId}");
+            }
+
+            var own = (await db.TenantProviderAccesses.AsNoTracking()
+                    .Where(a => a.TenantId == tenantId && !a.Disabled)
+                    .Select(a => a.Provider).Distinct().ToListAsync(cancellationToken))
+                .Where(p => adapters.Any(a => string.Equals(a.Key, p, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            switch (own.Count)
+            {
+                case 1:
+                    return Resolve(own[0], $"tenant {tenantId} (own access)");
+                case > 1:
+                    // Zwei eigene Zugaenge bei zwei Anbietern und kein Plattform-Konto, das waehlt: raten hiesse,
+                    // Geld ueber einen Anbieter zu leiten, den der Mandant fuer den Online-Verkauf nie bestimmt hat.
+                    throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                        $"Tenant {tenantId} has own accesses at several providers ({string.Join(", ", own)}) and no payout account naming one for online sales.");
+                default:
+                    return Resolve(null, $"tenant {tenantId}");
+            }
         }
 
         /// <summary>

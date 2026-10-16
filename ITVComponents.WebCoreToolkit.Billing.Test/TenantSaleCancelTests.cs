@@ -237,7 +237,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             protected override string ProviderKey => "test";
 
             protected override Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
-                TenantPaymentAccount account, int attempt, CancellationToken cancellationToken)
+                TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken)
             {
                 if (FailCheckout)
                 {

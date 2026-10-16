@@ -7799,3 +7799,83 @@ Je Anbieter:
 - [ ] eigene Ableitungen von `TenantSaleServiceBase` um `CancelCheckoutAsync` ergänzen
 - [ ] Übergabe an Kasse oder Station: statt bei `Pending` abzulehnen, `CancelSaleAsync` rufen und nach
       `result.Status` entscheiden
+
+## 77. ExternalServices: OAuth-Weg repariert — **kein Schema-Change, nicht breaking**
+
+Ab `05015c5d`. Betrifft jeden Host, der Dienste unter `/Connectivity/Services` mit OAuth, Basic, ApiKey
+oder BearerToken anbindet.
+
+- **Flaches Mandantenmodell:** `GetExternalService` lieferte weder Client-Secret noch
+  `GlobalUniqueConnectionName`. Folgen: `/XSvcAuth/connect/…` warf schon beim Aufbau der Redirect-URI, beim
+  Code-Tausch fehlte `client_secret`, und Basic, ApiKey und BearerToken schickten ein leeres Geheimnis. Die
+  Baum-Variante war nicht betroffen. Wer im flachen Modell einen solchen Dienst „vergeblich“ eingerichtet
+  hat, sollte ihn jetzt erneut prüfen.
+- **Token-Ablauf:** Ein Token wird bis eine Minute *vor* Ablauf verwendet (vorher bis eine Minute danach).
+- **401 mit einem behaltenen Token:** Der Client wiederholt einmal mit frischem Token und schickt dabei eine
+  Kopie der Anfrage. Vorher warf genau dieser Weg („already sent“).
+- **Callback:** `error=…` vom Anbieter und eine abgelehnte Code-Einlösung ergeben 400 bzw. 502 mit
+  Protokolleintrag statt einer 500. Das Client-Secret steht nicht mehr im Debug-Log. Wer Logs mit diesem
+  Eintrag aufbewahrt, sollte das Secret beim Anbieter neu ausstellen.
+
+## 78. Eigener Zugang des Mandanten bei einem Anbieter (`TenantProviderAccess`) — **Schema-Change, breaking für `IPaymentsContext`**
+
+Grundlage für den „Plan B“ bei Online-Verkauf (Achse B) und Terminals (Achse C): ein Mandant, der schon ein
+eigenes Konto bei wallee, Payrexx oder SumUp hat, bindet dieses an, statt über das Plattform-Konto zu
+laufen. In diesem Stand ist erst das Gerüst da. **Noch keine Anbindung kann einen eigenen Zugang
+verwenden.** Hat ein Mandant einen, wird jeder Vorgang bei diesem Anbieter abgelehnt
+(`Payments_Error_OwnAccessUnavailable`). Er läuft nie still über den Plattform-Zugang.
+
+### 78.1 Schema
+
+- Neue Tabelle `TenantProviderAccesses`: Mandant, Anbieter, `ConnectionName` (verweist auf den
+  ExternalService des Mandanten mit den Geheimnissen), `ProviderAccountId` (Payrexx-Instanz,
+  wallee-Space, SumUp-Händlercode), `SettingsJson`, `Disabled`, Prüfstand. Eindeutig über
+  (Mandant, `ConnectionName`).
+- `TenantSales.TenantProviderAccessId` (int, nullable). Leer heisst Plattform-Zugang, also alle bestehenden
+  Zeilen.
+
+### 78.2 Breaking
+
+- `IPaymentsContext` bekommt `DbSet<TenantProviderAccess> TenantProviderAccesses`. Das betrifft jeden
+  Implementierer, auch Test-Attrappen.
+- `TenantSaleServiceBase.CreateCheckoutAsync` nimmt `TenantPaymentAccount? account`. Leer ist es nur bei
+  Ableitungen, die `SupportsOwnAccess` melden. Eigene Ableitungen passen die Signatur an, sonst ändert sich
+  nichts.
+
+### 78.3 Regeln
+
+- Für einen **neuen** Vorgang gilt der aktive eigene Zugang des Mandanten bei diesem Anbieter, sonst die
+  Plattform. Zwei aktive Zugänge beim selben Anbieter werden abgelehnt.
+- Ein **bestehender** Verkauf bleibt bei dem Zugang, über den er lief, auch abgeschaltet. Das gilt für
+  Erstattungen, Abbrechen und Nachfragen. Ist der Zugang nicht mehr da, ist das ein Fehler und kein Anlass,
+  es über die Plattform zu versuchen.
+- Ein eigener Zugang braucht kein Plattform-Konto. Ohne Plattform-Konto wählt die Anbieter-Weiche für den
+  Online-Verkauf den Anbieter des eigenen Zugangs, sofern er dafür angemeldet ist. Gibt es ein
+  Plattform-Konto, bleibt dessen Anbieter massgeblich.
+- Ein neues Konto ist eine neue Zeile mit eigenem `ConnectionName`; die alte wird abgeschaltet, nicht
+  gelöscht.
+
+### 78.4 Zugangsdaten
+
+`IProviderCredentialStore` liest die Geheimnisse **nach Mandanten-Id**, nicht über den aktuellen Bereich
+(Webhooks und der Beleg-Sweeper haben keinen). Registrierung im Brückenpaket
+`EntityFramework.Billing.TenantSecurity`:
+
+```csharp
+services.AddFlatProviderCredentialStore<MySecurityContext>();       // flaches Modell
+services.AddHierarchyProviderCredentialStore<MySecurityContext>();  // Baum-Modell
+```
+
+Voraussetzung ist eine registrierte `IDbContextFactory` für den Sicherheitskontext. Feste Schlüssel
+(ApiKey, BearerToken, Basic) sind ein Dienst des Mandanten selbst. Eine OAuth-Anmeldung darf an einem
+globalen Dienst (der App der Plattform) hängen, die Anmeldung muss aber die des Mandanten sein. Im
+Baum-Modell erbt ein Kind-Mandant keinen Zugang seines Elternteils.
+
+### 78.5 Checkliste
+
+- [ ] Migration: Tabelle `TenantProviderAccesses`, Spalte `TenantSales.TenantProviderAccessId`
+- [ ] `IPaymentsContext`-Implementierungen und Attrappen um `TenantProviderAccesses` ergänzen
+- [ ] eigene Ableitungen von `TenantSaleServiceBase`: Signatur von `CreateCheckoutAsync`
+- [ ] Sprachressource `Payments_Error_OwnAccessUnavailable`
+- [ ] `AddFlatProviderCredentialStore` bzw. `AddHierarchyProviderCredentialStore` registrieren (erst nötig,
+      sobald eine Anbindung eigene Zugänge kann)

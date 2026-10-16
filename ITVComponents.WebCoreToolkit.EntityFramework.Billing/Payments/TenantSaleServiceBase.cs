@@ -51,10 +51,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             this.runtime = runtime;
             this.notifier = notifier;
             sink = new TenantSaleWebhookSink<TContext>(dbFactory, notifier);
+            accessRouter = new ProviderAccessRouter<TContext>(dbFactory);
         }
+
+        private readonly ProviderAccessRouter<TContext> accessRouter;
 
         /// <summary>Die gemeinsame Klammer: Hauptschalter, Feature-Gate, Verkaufsfaehigkeit, Einstellungen.</summary>
         protected PaymentsRuntime Runtime => runtime;
+
+        /// <summary>
+        /// Ob diese Anbindung mit einem eigenen Zugang des Mandanten (<see cref="TenantProviderAccess"/>) umgehen
+        /// kann. Solange nicht, wird ein Verkauf eines Mandanten mit eigenem Zugang ABGELEHNT - nicht ueber den
+        /// Plattform-Zugang gefuehrt.
+        /// </summary>
+        /// <remarks>
+        /// Wer <c>true</c> meldet, holt sich in jedem Anbieter-Schritt den Zugang des Verkaufs ueber
+        /// <see cref="AccessForSaleAsync"/> und bekommt in <see cref="CreateCheckoutAsync"/> womoeglich kein
+        /// Plattform-Konto.
+        /// </remarks>
+        protected virtual bool SupportsOwnAccess => false;
+
+        /// <summary>Der Zugang, ueber den dieser Verkauf laeuft - eingefroren beim Anlegen.</summary>
+        protected Task<ProviderAccessSelection> AccessForSaleAsync(TenantSale sale, CancellationToken cancellationToken)
+            => accessRouter.ForSaleAsync(sale, cancellationToken);
 
         /// <summary>
         /// Der Name dieses Anbieters - <c>stripe</c>, <c>payrexx</c>, <c>wallee</c>. Er wird beim Anlegen
@@ -72,7 +91,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// </summary>
         /// <param name="sale">der bereits gebuchte Verkauf - Betrag, Waehrung und Provision stehen fest</param>
         /// <param name="request">der urspruengliche Auftrag, wegen der Rueckkehr-Adressen</param>
-        /// <param name="account">das Konto des Mandanten, auf das gezahlt wird</param>
+        /// <param name="account">
+        /// das Plattform-Konto des Mandanten, auf das gezahlt wird. <b>Leer</b>, wenn der Verkauf ueber einen
+        /// eigenen Zugang laeuft und der Mandant kein Plattform-Konto hat - das kommt nur bei Anbindungen vor,
+        /// die <see cref="SupportsOwnAccess"/> melden; der Zugang steht dann ueber <see cref="AccessForSaleAsync"/>.
+        /// </param>
         /// <param name="attempt">
         /// 0 beim ersten Anlauf, 1 bei JEDEM weiteren. Fuer einen Idempotenz-Schluessel reicht das nicht: der
         /// zweite und der dritte Anlauf (abgelaufen, neu ausgestellt, abgebrochen, wieder neu) truegen
@@ -80,7 +103,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// sich an <see cref="TenantSale.ProviderSessionId"/> - beim Aufruf steht dort noch die VORIGE Seite.
         /// </param>
         protected abstract Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
-            TenantPaymentAccount account, int attempt, CancellationToken cancellationToken);
+            TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken);
 
         /// <summary>
         /// Loest die Erstattung beim Anbieter aus. Die Betragspruefungen sind bereits gelaufen.
@@ -133,13 +156,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var account = await db.TenantPaymentAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(a => a.TenantId == request.TenantId, cancellationToken);
-            // Checked before EVERY sale, not just at onboarding: the provider can restrict a live account days
-            // later when it asks for further documents.
-            runtime.EnsureCanSell(account);
 
             var reference = request.ExternalReference.Trim();
             var sale = await db.TenantSales.Include(s => s.Refunds)
                 .FirstOrDefaultAsync(s => s.TenantId == request.TenantId && s.ExternalReference == reference, cancellationToken);
+
+            // Ein neuer Verkauf nimmt den Zugang, der jetzt gilt; ein bestehender bleibt bei seinem - auch ein
+            // neuer Anlauf derselben Bestellung laeuft auf dem Konto, auf dem sie angelegt wurde.
+            var access = sale == null
+                ? await accessRouter.ForNewAsync(request.TenantId, ProviderKey, cancellationToken)
+                : await accessRouter.ForSaleAsync(sale, cancellationToken);
+            ProviderAccessRouter<TContext>.EnsureSupported(access, SupportsOwnAccess, ProviderKey,
+                $"Sale '{reference}' of tenant {request.TenantId}");
+            if (!access.IsOwnAccess)
+            {
+                // Checked before EVERY sale, not just at onboarding: the provider can restrict a live account days
+                // later when it asks for further documents. A tenant's own access is the tenant's own business -
+                // the platform account is neither needed for it nor asked about.
+                runtime.EnsureCanSell(account);
+            }
 
             if (sale == null)
             {
@@ -158,7 +193,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     // noch sagen koennen, WER sie abgewickelt hat - sonst geht die Erstattung an den
                     // neuen Anbieter und trifft dort nichts.
                     Provider = ProviderKey,
-                    ProviderAccountId = account!.ProviderAccountId,
+                    // Eingefroren aus demselben Grund: nach einem Kontowechsel wird dieser Verkauf auf dem Konto
+                    // erstattet, auf dem er bezahlt wurde.
+                    TenantProviderAccessId = access.AccessId,
+                    ProviderAccountId = access.IsOwnAccess ? access.ProviderAccountId : account!.ProviderAccountId,
                     CustomerEmail = Trim(request.CustomerEmail, 256),
                     MetadataJson = request.Metadata is { Count: > 0 } ? JsonSerializer.Serialize(request.Metadata) : null,
                     Created = DateTime.UtcNow,
@@ -186,10 +224,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                         throw;
                     }
 
-                    return await EnsureCheckoutAsync(db, winner, account!, request, cancellationToken, wasExisting: true);
+                    return await EnsureCheckoutAsync(db, winner, account, request, cancellationToken, wasExisting: true);
                 }
 
-                return await EnsureCheckoutAsync(db, sale, account!, request, cancellationToken, wasExisting: false);
+                return await EnsureCheckoutAsync(db, sale, account, request, cancellationToken, wasExisting: false);
             }
 
             // The reference is already known. Paid or refunded sales are handed back untouched — recording the
@@ -202,7 +240,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             // Pending, expired, failed or cancelled: the order still has not been paid, so the tenant gets a
             // usable payment page again. That is a deliberate second ATTEMPT at the same sale, not a second sale
             // — amount and frozen fee stay as they were.
-            return await EnsureCheckoutAsync(db, sale, account!, request, cancellationToken, wasExisting: true);
+            return await EnsureCheckoutAsync(db, sale, account, request, cancellationToken, wasExisting: true);
         }
 
         /// <inheritdoc />
@@ -257,8 +295,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             }
 
             var withFee = refundApplicationFee ?? runtime.Options.RefundApplicationFeeByDefault;
+            var access = await accessRouter.ForSaleAsync(sale, cancellationToken);
+            ProviderAccessRouter<TContext>.EnsureSupported(access, SupportsOwnAccess, ProviderKey,
+                $"Refund of sale {sale.TenantSaleId}");
+            // Bei einem eigenen Zugang steht die Kennung auf der Zeile oder nirgends: das Plattform-Konto als
+            // Rueckfall waere ein Konto, auf dem diese Zahlung nie lag.
             var accountId = sale.ProviderAccountId
-                            ?? (await db.TenantPaymentAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.TenantId == sale.TenantId, cancellationToken))?.ProviderAccountId
+                            ?? (access.IsOwnAccess ? access.ProviderAccountId : (await db.TenantPaymentAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.TenantId == sale.TenantId, cancellationToken))?.ProviderAccountId)
                             ?? throw new TenantPaymentException(PaymentErrorCodes.NoAccount, $"Tenant {sale.TenantId} has no payout account.");
 
             var refund = await CreateRefundAsync(sale, amount, reason, withFee, accountId, alreadyRefunded, cancellationToken);
@@ -345,6 +388,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 return ToResult(sale, wasExisting: true);
             }
 
+            ProviderAccessRouter<TContext>.EnsureSupported(await accessRouter.ForSaleAsync(sale, cancellationToken),
+                SupportsOwnAccess, ProviderKey, $"Cancelling sale {sale.TenantSaleId}");
             var outcome = await CancelCheckoutAsync(sale, cancellationToken);
 
             // Waehrend der Anbieter gefragt wurde, kann ein Webhook die Zahlung gebucht haben. Dann gilt, was
@@ -394,7 +439,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             return ToResult(sale, wasExisting: true);
         }
 
-        private async Task<SaleResult> EnsureCheckoutAsync(TContext db, TenantSale sale, TenantPaymentAccount account, SaleRequest request, CancellationToken cancellationToken, bool wasExisting)
+        private async Task<SaleResult> EnsureCheckoutAsync(TContext db, TenantSale sale, TenantPaymentAccount? account, SaleRequest request, CancellationToken cancellationToken, bool wasExisting)
         {
             if (sale.Status == TenantSaleStatus.Pending && !string.IsNullOrEmpty(sale.CheckoutUrl) && !string.IsNullOrEmpty(sale.ProviderSessionId))
             {
@@ -410,7 +455,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             sale.ProviderSessionId = checkout.SessionId;
             sale.CheckoutUrl = checkout.Url;
             sale.Status = TenantSaleStatus.Pending;
-            sale.ProviderAccountId = account.ProviderAccountId;
+            if (sale.TenantProviderAccessId == null && account != null)
+            {
+                // Nur beim Plattform-Zugang nachziehen. Ein eigener Zugang hat seine Kennung beim Anlegen
+                // eingefroren - das Plattform-Konto daneben hat mit diesem Verkauf nichts zu tun.
+                sale.ProviderAccountId = account.ProviderAccountId;
+            }
+
             sale.Updated = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
 

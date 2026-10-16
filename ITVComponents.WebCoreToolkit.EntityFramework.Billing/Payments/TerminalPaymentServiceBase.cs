@@ -45,10 +45,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             this.dbFactory = dbFactory;
             this.runtime = runtime;
             this.sink = sink;
+            accessRouter = new ProviderAccessRouter<TContext>(dbFactory);
         }
+
+        private readonly ProviderAccessRouter<TContext> accessRouter;
 
         /// <summary>Hauptschalter, Feature-Gate, Verkaufsfähigkeit, Einstellungen.</summary>
         protected PaymentsRuntime Runtime => runtime;
+
+        /// <summary>
+        /// Ob dieser Weg mit einem eigenen Zugang des Mandanten (<see cref="TenantProviderAccess"/>) umgehen
+        /// kann. Solange nicht, wird ein Terminalverkauf eines Mandanten mit eigenem Zugang ABGELEHNT - nicht über
+        /// den Plattform-Zugang geführt.
+        /// </summary>
+        /// <remarks>
+        /// Wer <c>true</c> meldet, holt sich in jedem Geräte-Schritt den Zugang des Verkaufs über
+        /// <see cref="AccessForSaleAsync"/>; für Schritte ohne Verkauf (Gerätestatus) gilt
+        /// <see cref="AccessForTenantAsync"/>.
+        /// </remarks>
+        protected virtual bool SupportsOwnAccess => false;
+
+        /// <summary>Der Zugang, über den dieser Verkauf läuft - eingefroren beim Anlegen.</summary>
+        protected Task<ProviderAccessSelection> AccessForSaleAsync(TenantSale sale, CancellationToken cancellationToken)
+            => accessRouter.ForSaleAsync(sale, cancellationToken);
+
+        /// <summary>Der Zugang, der für neue Vorgänge dieses Mandanten bei diesem Anbieter gilt.</summary>
+        protected Task<ProviderAccessSelection> AccessForTenantAsync(int tenantId, CancellationToken cancellationToken)
+            => accessRouter.ForNewAsync(tenantId, ProviderKey, cancellationToken);
 
         /// <summary>
         /// Der Name dieses Weges: <c>stripe</c>, <c>payrexx</c>, <c>wallee</c>, <c>agent</c>. Muss zu dem
@@ -197,14 +220,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
             var account = await db.TenantPaymentAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(a => a.TenantId == request.TenantId, cancellationToken);
-            // Vor JEDEM Verkauf, nicht nur beim Einrichten: ein Anbieter kann ein laufendes Konto Tage
-            // spaeter einschraenken, wenn er weitere Unterlagen sehen will.
-            runtime.EnsureCanSell(account);
 
             var reference = request.ExternalReference.Trim();
             var sale = await db.TenantSales.Include(s => s.Refunds)
                 .FirstOrDefaultAsync(s => s.TenantId == request.TenantId && s.ExternalReference == reference,
                     cancellationToken);
+
+            // Ein neuer Verkauf nimmt den Zugang, der jetzt gilt; ein bestehender bleibt bei seinem.
+            var access = sale == null
+                ? await accessRouter.ForNewAsync(request.TenantId, ProviderKey, cancellationToken)
+                : await accessRouter.ForSaleAsync(sale, cancellationToken);
+            ProviderAccessRouter<TContext>.EnsureSupported(access, SupportsOwnAccess, ProviderKey,
+                $"Terminal sale '{reference}' of tenant {request.TenantId}");
+            if (!access.IsOwnAccess)
+            {
+                // Vor JEDEM Verkauf, nicht nur beim Einrichten: ein Anbieter kann ein laufendes Konto Tage
+                // spaeter einschraenken, wenn er weitere Unterlagen sehen will. Ein eigener Zugang braucht
+                // das Plattform-Konto nicht.
+                runtime.EnsureCanSell(account);
+            }
 
             if (sale is { Status: TenantSaleStatus.Paid or TenantSaleStatus.Refunded or TenantSaleStatus.PartiallyRefunded })
             {
@@ -224,7 +258,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     ApplicationFeeMinor = ApplicationFeeMath.Calculate(options.ApplicationFee, amountMinor, currency),
                     Status = TenantSaleStatus.Pending,
                     Provider = ProviderKey,
-                    ProviderAccountId = account!.ProviderAccountId,
+                    TenantProviderAccessId = access.AccessId,
+                    ProviderAccountId = access.IsOwnAccess ? access.ProviderAccountId : account!.ProviderAccountId,
                     TenantPaymentTerminalId = terminal.TenantPaymentTerminalId,
                     CustomerEmail = Trim(request.CustomerEmail, 256),
                     MetadataJson = request.Metadata is { Count: > 0 }
@@ -310,6 +345,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         {
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var (sale, terminal) = await LoadSaleAsync(db, tenantSaleId, cancellationToken);
+            ProviderAccessRouter<TContext>.EnsureSupported(await accessRouter.ForSaleAsync(sale, cancellationToken),
+                SupportsOwnAccess, ProviderKey, $"Querying terminal sale {sale.TenantSaleId}");
 
             if (sale.Status != TenantSaleStatus.Pending && sale.CompletionPendingSince != null)
             {
@@ -355,6 +392,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 return await DescribeAsync(sale, terminal, db, cancellationToken);
             }
 
+            ProviderAccessRouter<TContext>.EnsureSupported(await accessRouter.ForSaleAsync(sale, cancellationToken),
+                SupportsOwnAccess, ProviderKey, $"Cancelling terminal sale {sale.TenantSaleId}");
             var outcome = await CancelAtDeviceAsync(sale, terminal, sale.TenantSaleId.ToString(), cancellationToken);
             return await ApplyAsync(sale, terminal, db, outcome, cancellationToken);
         }

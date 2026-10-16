@@ -145,6 +145,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
         public DbSet<TenantPaymentAccount> TenantPaymentAccounts { get; set; } = null!;
         public DbSet<TenantPaymentProfile> TenantPaymentProfiles { get; set; } = null!;
         public DbSet<TenantPaymentTerminal> TenantPaymentTerminals { get; set; } = null!;
+        public DbSet<TenantProviderAccess> TenantProviderAccesses { get; set; } = null!;
         public DbSet<TenantSale> TenantSales { get; set; } = null!;
         public DbSet<TenantSaleRefund> TenantSaleRefunds { get; set; } = null!;
         public DbSet<TenantFeeWaiver> TenantFeeWaivers { get; set; } = null!;

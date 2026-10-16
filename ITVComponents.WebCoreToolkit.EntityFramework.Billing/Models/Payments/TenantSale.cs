@@ -100,6 +100,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         [MaxLength(64)]
         public string? Provider { get; set; }
 
+        /// <summary>
+        /// Ueber welchen eigenen Zugang des Mandanten dieser Verkauf lief; leer heisst: ueber den Zugang der
+        /// Plattform.
+        /// </summary>
+        /// <remarks>
+        /// <b>Beim Anlegen eingefroren</b>, aus demselben Grund wie <see cref="Provider"/>: nach einem
+        /// Kontowechsel ist dieser Verkauf weiterhin auf dem Konto zu erstatten, auf dem er bezahlt wurde. Kein
+        /// Fremdschluessel mit Loeschregel - ein Zugang wird abgeschaltet, nicht geloescht.
+        /// </remarks>
+        public int? TenantProviderAccessId { get; set; }
+
         /// <summary>Optional e-mail for the receipt. Does NOT create a customer profile at the provider.</summary>
         [MaxLength(256)]
         public string? CustomerEmail { get; set; }
