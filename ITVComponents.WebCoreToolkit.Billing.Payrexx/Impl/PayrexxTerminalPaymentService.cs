@@ -42,18 +42,29 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         public const string Key = "payrexx";
 
         private readonly PayrexxEcrClient ecr;
+        private readonly IProviderCredentialStore? credentials;
 
         /// <summary>Initializes a new instance of the <see cref="PayrexxTerminalPaymentService{TContext}"/> class.</summary>
         public PayrexxTerminalPaymentService(IDbContextFactory<TContext> dbFactory, PayrexxEcrClient ecr,
             IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
-            TenantSaleWebhookSink<TContext> sink)
+            TenantSaleWebhookSink<TContext> sink, IProviderCredentialStore? credentials = null)
             : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()), sink)
         {
             this.ecr = ecr;
+            this.credentials = credentials;
         }
 
         /// <inheritdoc />
         protected override string ProviderKey => Key;
+
+        /// <inheritdoc />
+        /// <remarks>Ein eigener Zugang ist die eigene Payrexx-Instanz des Mandanten; das Gerät muss mit DIESER gekoppelt sein.</remarks>
+        protected override bool SupportsOwnAccess => true;
+
+        /// <summary>Die Instanz, auf der dieser Verkauf läuft - eingefroren beim Anlegen.</summary>
+        private async Task<PayrexxConnection> ConnectionForAsync(TenantSale sale, CancellationToken cancellationToken)
+            => await PayrexxConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), ecr.Options,
+                credentials, cancellationToken);
 
         /// <inheritdoc />
         /// <remarks>
@@ -105,7 +116,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
             try
             {
-                var payment = await ecr.SendAsync(HttpMethod.Post, $"ecr/{Escape(terminal)}/payment", payload,
+                var payment = await ecr.SendAsync(await ConnectionForAsync(sale, cancellationToken), HttpMethod.Post, $"ecr/{Escape(terminal)}/payment", payload,
                     cancellationToken);
                 return Translate(payment, command.OperationId);
             }
@@ -134,7 +145,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
             try
             {
-                var payment = await ecr.SendAsync(HttpMethod.Get,
+                var payment = await ecr.SendAsync(await ConnectionForAsync(sale, cancellationToken), HttpMethod.Get,
                     $"ecr/{Escape(terminal)}/payment/{Uri.EscapeDataString(sale.ProviderSessionId)}", null,
                     cancellationToken);
                 return Translate(payment, operationId);
@@ -167,7 +178,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                 // 'cancel' bricht einen LAUFENDEN Vorgang ab. Fuer einen abgeschlossenen waere es 'void' -
                 // das ist eine andere Entscheidung und gehoert nicht in diesen Aufruf, weil hier niemand
                 // sicher weiss, ob die Karte schon belastet wurde.
-                var payment = await ecr.SendAsync(HttpMethod.Post,
+                var payment = await ecr.SendAsync(await ConnectionForAsync(sale, cancellationToken), HttpMethod.Post,
                     $"ecr/{Escape(terminal)}/payment/{Uri.EscapeDataString(sale.ProviderSessionId)}/cancel", null,
                     cancellationToken);
                 return Translate(payment, operationId, fallback: TerminalPaymentState.Canceled);
@@ -197,9 +208,24 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         protected override async Task<TerminalStatus> QueryStatusAsync(TenantPaymentTerminal terminal,
             CancellationToken cancellationToken)
         {
+            PayrexxConnection connection;
             try
             {
-                var paired = await ecr.SendAsync(HttpMethod.Get, $"ecr/{Escape(terminal)}/pair", null, cancellationToken);
+                // Kein Verkauf, also der Zugang, der jetzt fuer den Mandanten gilt.
+                connection = await PayrexxConnection.ForAsync(await AccessForTenantAsync(terminal.TenantId, cancellationToken),
+                    ecr.Options, credentials, cancellationToken);
+            }
+            catch (TenantPaymentException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"The pairing state of Payrexx terminal {terminal.ProviderTerminalId} cannot be asked: the access of tenant {terminal.TenantId} is not usable ({ex.Message}).",
+                    LogSeverity.Warning, PayrexxApiClient.LogContext);
+                return new TerminalStatus { TerminalId = terminal.ProviderTerminalId, Online = false };
+            }
+
+            try
+            {
+                var paired = await ecr.SendAsync(connection, HttpMethod.Get, $"ecr/{Escape(terminal)}/pair", null, cancellationToken);
                 return new TerminalStatus
                 {
                     TerminalId = terminal.ProviderTerminalId,

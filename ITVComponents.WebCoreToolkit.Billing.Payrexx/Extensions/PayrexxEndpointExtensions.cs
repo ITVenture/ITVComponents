@@ -72,6 +72,37 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Extensions
                 }
             }).AllowAnonymous();
 
+            // Die eigene Instanz eines Mandanten meldet an ihre eigene Adresse. Der Mandant traegt sie in SEINEM
+            // Payrexx-Portal ein: {webhookPath}/{Kennung seines Zugangs}. Die Kennung waehlt nur den Schluessel, mit
+            // dem geprueft wird - fremde Meldungen scheitern an der Signatur.
+            endpoints.MapPost($"{webhookPath.TrimEnd('/')}/{{accessId:int}}", async (int accessId, HttpRequest request,
+                PayrexxWebhookHandler<TContext> handler, CancellationToken cancellationToken) =>
+            {
+                using var reader = new StreamReader(request.Body);
+                var payload = await reader.ReadToEndAsync(cancellationToken);
+                var signature = request.Headers["X-Webhook-Signature"].ToString();
+
+                try
+                {
+                    await handler.HandleOwnAsync(accessId, payload, signature, request.ContentType, cancellationToken);
+                    return Results.Ok();
+                }
+                catch (PayrexxWebhookRejectedException ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"A Payrexx notification for the own access {accessId} was rejected (HTTP 400). Payrexx will retry. Reason: {ex.OutlineException()}",
+                        LogSeverity.Warning, PayrexxApiClient.LogContext);
+                    return Results.BadRequest();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"A Payrexx notification for the own access {accessId} could not be processed (HTTP 500). Payrexx will retry: {ex.OutlineException()}",
+                        LogSeverity.Error, PayrexxApiClient.LogContext);
+                    return Results.StatusCode(StatusCodes.Status500InternalServerError);
+                }
+            }).AllowAnonymous();
+
             return endpoints;
         }
     }

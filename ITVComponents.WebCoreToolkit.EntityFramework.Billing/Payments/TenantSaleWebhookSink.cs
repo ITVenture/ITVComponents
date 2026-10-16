@@ -51,12 +51,45 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// zusammen mit <paramref name="tenantId"/> brauchbar.
         /// </param>
         /// <param name="tenantId">der Mandant, falls die Meldung ihn nennt</param>
-        public async Task<TenantSale?> FindSaleAsync(TContext db, string? providerSessionId,
+        /// <remarks>
+        /// <b>Ohne Eingrenzung - fuer neue Anbindungen die Ueberladung mit <see cref="SaleSearchScope"/>
+        /// verwenden.</b> Diese hier sucht die Kennung ueber ALLE Anbieter und Zugaenge; bei Anbietern mit
+        /// fortlaufenden Nummern (Payrexx, wallee) kann dieselbe Zahl bei zweien vorkommen.
+        /// </remarks>
+        public Task<TenantSale?> FindSaleAsync(TContext db, string? providerSessionId,
+            string? externalReference, int? tenantId, CancellationToken cancellationToken)
+            => FindSaleAsync(db, null, providerSessionId, externalReference, tenantId, cancellationToken);
+
+        /// <summary>
+        /// Sucht den Verkauf, den eine Meldung meint - nur unter den Verkaeufen dieses Anbieters und dieses
+        /// Zugangs.
+        /// </summary>
+        /// <param name="db">der Kontext, in dem gesucht wird</param>
+        /// <param name="scope">
+        /// Anbieter und Zugang, von dem die Meldung kommt. Die Kennungen von Payrexx und wallee sind
+        /// fortlaufende Nummern - je Instanz bzw. Space. Ohne Eingrenzung traefe eine wallee-Meldung zur
+        /// Transaktion 123 einen Payrexx-Verkauf mit Zahlungsseite 123, und die Meldung eines eigenen Zugangs
+        /// einen Verkauf auf dem Plattform-Konto mit derselben Nummer.
+        /// </param>
+        /// <param name="providerSessionId">die Kennung, die der Anbieter beim Anlegen vergeben hat</param>
+        /// <param name="externalReference">unsere eigene Referenz, als zweiter Versuch</param>
+        /// <param name="tenantId">der Mandant, falls die Meldung ihn nennt</param>
+        /// <param name="cancellationToken">bricht die Suche ab</param>
+        public async Task<TenantSale?> FindSaleAsync(TContext db, SaleSearchScope? scope, string? providerSessionId,
             string? externalReference, int? tenantId, CancellationToken cancellationToken)
         {
+            IQueryable<TenantSale> sales = db.TenantSales.Include(s => s.Refunds);
+            if (scope is { } within)
+            {
+                var provider = ProviderAccessRouter<TContext>.Normalize(within.Provider);
+                var accessId = within.TenantProviderAccessId;
+                // Zeilen ohne Anbieter stammen aus der Zeit vor der Spalte - vom damals einzigen Anbieter.
+                sales = sales.Where(s => (s.Provider == provider || s.Provider == null) && s.TenantProviderAccessId == accessId);
+            }
+
             if (!string.IsNullOrWhiteSpace(providerSessionId))
             {
-                var bySession = await db.TenantSales.Include(s => s.Refunds)
+                var bySession = await sales
                     .FirstOrDefaultAsync(s => s.ProviderSessionId == providerSessionId, cancellationToken);
                 if (bySession != null)
                 {
@@ -71,14 +104,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
 
             if (tenantId is > 0)
             {
-                return await db.TenantSales.Include(s => s.Refunds)
+                return await sales
                     .FirstOrDefaultAsync(s => s.TenantId == tenantId && s.ExternalReference == externalReference,
                         cancellationToken);
             }
 
             // Ohne Mandant ist die Referenz nicht eindeutig. Lieber nichts zurueckgeben als den Verkauf
             // eines FREMDEN Mandanten zu bezahlen, nur weil er dieselbe Bestellnummer vergeben hat.
-            var candidates = await db.TenantSales.Include(s => s.Refunds)
+            var candidates = await sales
                 .Where(s => s.ExternalReference == externalReference).Take(2).ToListAsync(cancellationToken);
             if (candidates.Count == 1)
             {

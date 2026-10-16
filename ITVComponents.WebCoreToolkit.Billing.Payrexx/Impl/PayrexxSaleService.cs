@@ -39,30 +39,44 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
     {
         private readonly PayrexxApiClient api;
         private readonly PayrexxServiceApiClient serviceApi;
+        private readonly IProviderCredentialStore? credentials;
 
         /// <summary>Initializes a new instance of the <see cref="PayrexxSaleService{TContext}"/> class.</summary>
         public PayrexxSaleService(IDbContextFactory<TContext> dbFactory, PayrexxApiClient api,
             PayrexxServiceApiClient serviceApi,
             IGlobalSettings<TenantPaymentsOptions> settings, IEnumerable<IPaymentFeatureGate> featureGates,
-            IEnumerable<ITenantSaleObserver> observers)
+            IEnumerable<ITenantSaleObserver> observers, IProviderCredentialStore? credentials = null)
             : base(dbFactory, new PaymentsRuntime(settings, featureGates.FirstOrDefault()),
                    new TenantSaleNotifier(observers))
         {
             this.api = api;
             this.serviceApi = serviceApi;
+            this.credentials = credentials;
         }
+
+        /// <summary>Die Instanz, auf der dieser Verkauf laeuft - eingefroren beim Anlegen.</summary>
+        private async Task<PayrexxConnection> ConnectionForAsync(TenantSale sale, CancellationToken cancellationToken)
+            => await PayrexxConnection.ForAsync(await AccessForSaleAsync(sale, cancellationToken), api.Options,
+                credentials, cancellationToken);
 
         /// <inheritdoc />
         protected override string ProviderKey => "payrexx";
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Ein eigener Zugang ist eine eigene Payrexx-Instanz des Mandanten (<see cref="PayrexxConnection"/>). Erstattet
+        /// wird dort ueber die HAENDLER-API, denn die Service-API der Plattform reicht nicht in eine fremde Instanz.
+        /// </remarks>
+        protected override bool SupportsOwnAccess => true;
+
+        /// <inheritdoc />
         protected override async Task<ProviderCheckout> CreateCheckoutAsync(TenantSale sale, SaleRequest request,
             TenantPaymentAccount? account, int attempt, CancellationToken cancellationToken)
         {
-            // Ohne SupportsOwnAccess kommt hier immer das Plattform-Konto an; die Basis lehnt den Rest vorher ab.
-            ArgumentNullException.ThrowIfNull(account);
+            // Ohne Plattform-Konto kommt nur ein Verkauf ueber den eigenen Zugang hier an. Die Instanz sagt der
+            // Zugang des Verkaufs, nicht das Konto.
             var options = Runtime.Options;
-            var payrexx = api.Options;
+            var connection = await ConnectionForAsync(sale, cancellationToken);
 
             var payload = new Dictionary<string, object?>
             {
@@ -91,11 +105,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                     LogSeverity.Warning, PayrexxApiClient.LogContext);
             }
 
-            if (payrexx.PaymentMeans is { Length: > 0 })
+            if (connection.PaymentMeans is { Length: > 0 })
             {
                 // Der Hebel gegen die Gebuehren: steht TWINT hier vorn, zahlt der Endkunde eher damit, und
                 // das kostet rund einen Prozentpunkt weniger als eine Karte.
-                payload["pm"] = payrexx.PaymentMeans;
+                payload["pm"] = connection.PaymentMeans;
             }
 
             if (!string.IsNullOrWhiteSpace(sale.CustomerEmail))
@@ -106,7 +120,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
             try
             {
-                var gateway = await api.PostAsync<PayrexxGateway>("Gateway/", payload, cancellationToken)
+                var gateway = await api.PostAsync<PayrexxGateway>(connection, "Gateway/", payload, cancellationToken)
                               ?? throw new PayrexxApiException("Payrexx accepted the gateway but returned nothing.");
 
                 if (string.IsNullOrWhiteSpace(gateway.Link))
@@ -136,7 +150,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         protected override async Task<ProviderCancel> CancelCheckoutAsync(TenantSale sale, CancellationToken cancellationToken)
         {
             var resource = $"Gateway/{sale.ProviderSessionId}/";
-            var before = await ReadGatewayAsync(sale, resource, cancellationToken);
+            var connection = await ConnectionForAsync(sale, cancellationToken);
+            var before = await ReadGatewayAsync(connection, sale, resource, cancellationToken);
             var verdict = Classify(before);
             if (verdict != null)
             {
@@ -145,7 +160,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
             try
             {
-                await api.DeleteAsync<PayrexxGateway>(resource, cancellationToken);
+                await api.DeleteAsync<PayrexxGateway>(connection, resource, cancellationToken);
                 return new ProviderCancel(ProviderCancelOutcome.Canceled);
             }
             catch (PayrexxApiException ex)
@@ -156,17 +171,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                     LogSeverity.Warning, PayrexxApiClient.LogContext);
             }
 
-            var after = await ReadGatewayAsync(sale, resource, cancellationToken);
+            var after = await ReadGatewayAsync(connection, sale, resource, cancellationToken);
             return Classify(after)
                    ?? throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
                        $"Payrexx gateway {sale.ProviderSessionId} is still '{after.Status}' but could not be deleted.");
         }
 
-        private async Task<PayrexxGateway> ReadGatewayAsync(TenantSale sale, string resource, CancellationToken cancellationToken)
+        private async Task<PayrexxGateway> ReadGatewayAsync(PayrexxConnection connection, TenantSale sale, string resource,
+            CancellationToken cancellationToken)
         {
             try
             {
-                return await api.GetAsync<PayrexxGateway>(resource, cancellationToken)
+                return await api.GetAsync<PayrexxGateway>(connection, resource, cancellationToken)
                        ?? throw new PayrexxApiException($"Payrexx returned nothing for gateway {sale.ProviderSessionId}.");
             }
             catch (PayrexxApiException ex)
@@ -218,6 +234,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                     LogSeverity.Warning, PayrexxApiClient.LogContext);
             }
 
+            var connection = await ConnectionForAsync(sale, cancellationToken);
+            if (connection.IsOwnAccess)
+            {
+                return await RefundOnOwnInstanceAsync(connection, sale, amountMinor, cancellationToken);
+            }
+
             try
             {
                 // ACHTUNG, drei Dinge auf einmal, und alle drei anders als bei der Haendler-API:
@@ -236,6 +258,49 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
             {
                 LogEnvironment.LogEvent(
                     $"Refund of {amountMinor} on sale {sale.TenantSaleId} (transaction {sale.ProviderChargeId}) was refused by Payrexx: {ex.OutlineException()}",
+                    LogSeverity.Error, PayrexxApiClient.LogContext);
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
+            }
+        }
+
+        /// <summary>
+        /// Erstattet auf der eigenen Instanz des Mandanten - ueber die Haendler-API.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Die Service-API der Plattform reicht nicht in eine fremde Instanz. Die Haendler-API erstattet mit
+        /// <c>POST Transaction/{id}/refund/</c>; adressiert wird dort mit der NUMMER der Transaktion, nicht mit
+        /// ihrer UUID. Darum legt der Webhook-Weg eines eigenen Zugangs die Nummer als
+        /// <see cref="TenantSale.ProviderChargeId"/> ab.
+        /// </para>
+        /// <para>
+        /// <b>Noch nicht gegen ein echtes Konto gelaufen.</b> Pfad und Feld (<c>amount</c> in Rappen) stammen aus
+        /// der Referenz der Haendler-API.
+        /// </para>
+        /// </remarks>
+        private async Task<ProviderRefund> RefundOnOwnInstanceAsync(PayrexxConnection connection, TenantSale sale,
+            long amountMinor, CancellationToken cancellationToken)
+        {
+            if (!long.TryParse(sale.ProviderChargeId, out var transactionId))
+            {
+                LogEnvironment.LogEvent(
+                    $"Sale {sale.TenantSaleId} ran on the own Payrexx instance {connection.Instance} but carries '{sale.ProviderChargeId}' instead of a transaction number; the merchant API cannot refund it. Refund it in the Payrexx portal.",
+                    LogSeverity.Error, PayrexxApiClient.LogContext);
+                throw new TenantPaymentException(PaymentErrorCodes.MissingCharge,
+                    $"Sale {sale.TenantSaleId} has no Payrexx transaction number on record; refund it in the Payrexx portal.");
+            }
+
+            try
+            {
+                var refund = await api.PostAsync<PayrexxTransaction>(connection, $"Transaction/{transactionId}/refund/",
+                    new Dictionary<string, object?> { ["amount"] = amountMinor }, cancellationToken)
+                             ?? throw new PayrexxApiException("Payrexx accepted the refund but returned nothing.");
+                return new ProviderRefund(refund.Id.ToString(), refund.Status);
+            }
+            catch (PayrexxApiException ex)
+            {
+                LogEnvironment.LogEvent(
+                    $"Refund of {amountMinor} on sale {sale.TenantSaleId} (transaction {transactionId} on the own instance {connection.Instance}) was refused by Payrexx: {ex.OutlineException()}",
                     LogSeverity.Error, PayrexxApiClient.LogContext);
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError, ex.Message, ex);
             }

@@ -6,6 +6,7 @@ using ITVComponents.WebCoreToolkit.Billing.Payrexx.Models;
 using ITVComponents.WebCoreToolkit.Billing.Payrexx.Options;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
@@ -55,12 +56,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
 
         private readonly TenantSaleWebhookSink<TContext> sink;
         private readonly IGlobalSettings<PayrexxOptions> settings;
+        private readonly IProviderCredentialStore? credentials;
+
+        /// <summary>Der Name dieses Anbieters auf der Verkaufszeile.</summary>
+        private const string ProviderKey = "payrexx";
 
         /// <summary>Initializes a new instance of the <see cref="PayrexxWebhookHandler{TContext}"/> class.</summary>
-        public PayrexxWebhookHandler(TenantSaleWebhookSink<TContext> sink, IGlobalSettings<PayrexxOptions> settings)
+        public PayrexxWebhookHandler(TenantSaleWebhookSink<TContext> sink, IGlobalSettings<PayrexxOptions> settings,
+            IProviderCredentialStore? credentials = null)
         {
             this.sink = sink;
             this.settings = settings;
+            this.credentials = credentials;
         }
 
         /// <summary>
@@ -82,7 +89,81 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         {
             var options = settings.Value;
             VerifySignature(rawBody, signature, options.WebhookSecret);
+            await ProcessAsync(rawBody, contentType, SaleSearchScope.Platform(ProviderKey), ownInstance: false,
+                cancellationToken);
+        }
 
+        /// <summary>
+        /// Verarbeitet eine Benachrichtigung der EIGENEN Instanz eines Mandanten.
+        /// </summary>
+        /// <param name="accessId">der eigene Zugang, den die Adresse nennt (<c>…/webhook/{accessId}</c>)</param>
+        /// <param name="rawBody">der Rumpf, unverändert</param>
+        /// <param name="signature">der Wert von <c>X-Webhook-Signature</c></param>
+        /// <param name="contentType">der gemeldete Inhaltstyp</param>
+        /// <param name="cancellationToken">bricht die Verarbeitung ab</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Hier ist die Signatur Pflicht.</b> Beim Plattform-Endpunkt entscheidet der Betreiber, ob er signiert.
+        /// Ein Mandanten-Endpunkt ohne Prüfung hiesse dagegen: wer die Adresse kennt, meldet die Verkäufe dieses
+        /// Mandanten als bezahlt. Der Signierschlüssel liegt als eigener Dienst neben dem API-Geheimnis
+        /// (<see cref="PayrexxConnection.WebhookConnectionName"/>). Fehlt er, wird abgelehnt, und Payrexx
+        /// wiederholt über Tage. Das lässt Zeit, ihn nachzutragen.
+        /// </para>
+        /// <para>
+        /// Gesucht wird nur unter den Verkäufen DIESES Zugangs: die Nummern zweier Instanzen überschneiden sich.
+        /// </para>
+        /// </remarks>
+        public async Task HandleOwnAsync(int accessId, string rawBody, string? signature, string? contentType,
+            CancellationToken cancellationToken)
+        {
+            TenantProviderAccess? access;
+            await using (var db = await sink.CreateContextAsync(cancellationToken))
+            {
+                access = await db.TenantProviderAccesses.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.TenantProviderAccessId == accessId && a.Provider == ProviderKey, cancellationToken);
+            }
+
+            if (access == null)
+            {
+                throw new PayrexxWebhookRejectedException($"No own Payrexx access {accessId} exists.");
+            }
+
+            if (credentials == null)
+            {
+                throw new PayrexxWebhookRejectedException(
+                    $"A notification for the own Payrexx access {accessId} cannot be verified: no IProviderCredentialStore is registered.");
+            }
+
+            string signingKey;
+            try
+            {
+                signingKey = (await credentials.GetCredentialAsync(access.TenantId,
+                    PayrexxConnection.WebhookConnectionName(access.ConnectionName), cancellationToken)).Secret;
+            }
+            catch (TenantPaymentException ex)
+            {
+                // Laut: bis der Schluessel da ist, wird KEINE Zahlung dieses Mandanten gebucht.
+                LogEnvironment.LogEvent(
+                    $"Payrexx notifications of tenant {access.TenantId} (own access {accessId}) are rejected until its webhook signing key is stored as '{PayrexxConnection.WebhookConnectionName(access.ConnectionName)}': {ex.Message}",
+                    LogSeverity.Error, PayrexxApiClient.LogContext);
+                throw new PayrexxWebhookRejectedException(
+                    $"The own Payrexx access {accessId} of tenant {access.TenantId} has no webhook signing key stored (service '{PayrexxConnection.WebhookConnectionName(access.ConnectionName)}'). Set up webhook signing in the tenant's Payrexx portal and store the key: {ex.Message}", ex);
+            }
+
+            if (string.IsNullOrEmpty(signingKey))
+            {
+                throw new PayrexxWebhookRejectedException(
+                    $"The webhook signing key of the own Payrexx access {accessId} is empty.");
+            }
+
+            VerifySignature(rawBody, signature, signingKey);
+            await ProcessAsync(rawBody, contentType, new SaleSearchScope(ProviderKey, accessId), ownInstance: true,
+                cancellationToken);
+        }
+
+        private async Task ProcessAsync(string rawBody, string? contentType, SaleSearchScope scope, bool ownInstance,
+            CancellationToken cancellationToken)
+        {
             var transaction = Parse(rawBody, contentType);
             if (transaction == null)
             {
@@ -95,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
             }
 
             await using var db = await sink.CreateContextAsync(cancellationToken);
-            var sale = await sink.FindSaleAsync(db,
+            var sale = await sink.FindSaleAsync(db, scope,
                 transaction.Invoice?.PaymentRequestId?.ToString(),
                 transaction.ReferenceId ?? transaction.Invoice?.ReferenceId,
                 null, cancellationToken);
@@ -111,20 +192,22 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
                 return;
             }
 
-            await ApplyAsync(sale, db, transaction, cancellationToken);
+            await ApplyAsync(sale, db, transaction, ownInstance, cancellationToken);
         }
 
         /// <summary>
         /// Übersetzt den Zustand einer Payrexx-Transaktion in das, was mit dem Verkauf geschieht.
         /// </summary>
         private async Task ApplyAsync(TenantSale sale, TContext db, PayrexxWebhookTransaction transaction,
-            CancellationToken cancellationToken)
+            bool ownInstance, CancellationToken cancellationToken)
         {
             var status = transaction.Status?.Trim().ToLowerInvariant() ?? string.Empty;
             // Die Kennung, gegen die spaeter erstattet wird. Die UUID, nicht die Nummer - und bei einer
             // Erstattungs-Transaktion die der ZAHLUNG, nicht die eigene.
-            var chargeUuid = transaction.OriginalTransactionUuid ?? transaction.SourceTransactionUuid
-                ?? transaction.Uuid;
+            // Auf einer EIGENEN Instanz erstattet die Haendler-API, und die adressiert mit der NUMMER.
+            var chargeUuid = ownInstance && transaction.Id > 0
+                ? transaction.Id.ToString()
+                : transaction.OriginalTransactionUuid ?? transaction.SourceTransactionUuid ?? transaction.Uuid;
             // Eine abgeleitete Transaktion ist eine Erstattung, keine Zahlung - auch wenn sie
             // 'confirmed' meldet. Sie hier durchzulassen hiesse, aus einer bestaetigten Rueckzahlung eine
             // bestaetigte Zahlung zu machen.

@@ -57,14 +57,23 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <param name="resource">der Pfad unterhalb der Basis, ohne führenden Schrägstrich</param>
         /// <param name="payload">der Rumpf, oder null</param>
         /// <param name="cancellationToken">bricht den Aufruf ab</param>
-        public async Task<PayrexxEcrPayment?> SendAsync(HttpMethod method, string resource, object? payload,
+        public Task<PayrexxEcrPayment?> SendAsync(HttpMethod method, string resource, object? payload,
             CancellationToken cancellationToken)
+            => SendAsync(PayrexxConnection.Platform(Options), method, resource, payload, cancellationToken);
+
+        /// <summary>Beauftragt ein Gerät oder fragt es ab - über die genannte Instanz.</summary>
+        /// <param name="connection">die Instanz: die der Plattform oder die eigene des Mandanten</param>
+        /// <param name="method">die Methode</param>
+        /// <param name="resource">der Pfad unterhalb der Basis, ohne führenden Schrägstrich</param>
+        /// <param name="payload">der Rumpf, oder null</param>
+        /// <param name="cancellationToken">bricht den Aufruf ab</param>
+        public async Task<PayrexxEcrPayment?> SendAsync(PayrexxConnection connection, HttpMethod method, string resource,
+            object? payload, CancellationToken cancellationToken)
         {
-            var options = Options;
-            var url = BuildUrl(options, resource);
+            var url = BuildUrl(connection, resource);
 
             using var request = new HttpRequestMessage(method, url);
-            request.Headers.Add("X-API-KEY", options.ApiSecret);
+            request.Headers.Add("X-API-KEY", connection.ApiSecret);
             if (payload != null)
             {
                 request.Content = JsonContent.Create(payload, options: Json);
@@ -120,11 +129,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// ist kein Geheimnis. Im White-Label-Betrieb ist die Basis <b>nicht</b> <c>api.payrexx.com</c>,
         /// sondern die Domain der Plattform; das steht in <see cref="PayrexxOptions.ApiBaseUrl"/>.
         /// </remarks>
-        private static string BuildUrl(PayrexxOptions options, string resource)
+        private static string BuildUrl(PayrexxConnection connection, string resource)
         {
-            var baseUrl = options.ApiBaseUrl.TrimEnd('/');
+            var baseUrl = connection.ApiBaseUrl.TrimEnd('/');
             var separator = resource.Contains('?') ? '&' : '?';
-            return $"{baseUrl}/{resource.TrimStart('/')}{separator}instance={Uri.EscapeDataString(options.Instance)}";
+            return $"{baseUrl}/{resource.TrimStart('/')}{separator}instance={Uri.EscapeDataString(connection.Instance)}";
         }
 
         private static string Shorten(string body)

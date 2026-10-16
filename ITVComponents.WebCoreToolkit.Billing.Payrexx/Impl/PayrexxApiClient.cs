@@ -44,36 +44,48 @@ namespace ITVComponents.WebCoreToolkit.Billing.Payrexx.Impl
         /// <summary>Die aktuelle Konfiguration - bei jedem Zugriff frisch aus dem GlobalSetting.</summary>
         public PayrexxOptions Options => settings.Value;
 
-        /// <summary>Legt etwas an (<c>POST</c>) und liefert das ERSTE Element der Antwort.</summary>
+        /// <summary>Legt etwas an (<c>POST</c>) und liefert das ERSTE Element der Antwort - auf der Instanz der Plattform.</summary>
         public Task<T?> PostAsync<T>(string resource, object payload, CancellationToken cancellationToken)
-            => SendAsync<T>(HttpMethod.Post, resource, payload, cancellationToken);
+            => SendAsync<T>(PayrexxConnection.Platform(Options), HttpMethod.Post, resource, payload, cancellationToken);
 
-        /// <summary>Liest etwas (<c>GET</c>) und liefert das ERSTE Element der Antwort, oder null.</summary>
+        /// <summary>Liest etwas (<c>GET</c>) und liefert das ERSTE Element der Antwort, oder null - auf der Instanz der Plattform.</summary>
         public Task<T?> GetAsync<T>(string resource, CancellationToken cancellationToken)
-            => SendAsync<T>(HttpMethod.Get, resource, null, cancellationToken);
+            => SendAsync<T>(PayrexxConnection.Platform(Options), HttpMethod.Get, resource, null, cancellationToken);
 
         /// <summary>Loescht etwas (<c>DELETE</c>) - etwa eine Zahlungsseite, die niemand mehr bezahlen soll.</summary>
         public Task<T?> DeleteAsync<T>(string resource, CancellationToken cancellationToken)
-            => SendAsync<T>(HttpMethod.Delete, resource, null, cancellationToken);
+            => SendAsync<T>(PayrexxConnection.Platform(Options), HttpMethod.Delete, resource, null, cancellationToken);
 
-        private async Task<T?> SendAsync<T>(HttpMethod method, string resource, object? payload,
+        /// <summary>Legt etwas auf der genannten Instanz an.</summary>
+        public Task<T?> PostAsync<T>(PayrexxConnection connection, string resource, object payload, CancellationToken cancellationToken)
+            => SendAsync<T>(connection, HttpMethod.Post, resource, payload, cancellationToken);
+
+        /// <summary>Liest etwas von der genannten Instanz.</summary>
+        public Task<T?> GetAsync<T>(PayrexxConnection connection, string resource, CancellationToken cancellationToken)
+            => SendAsync<T>(connection, HttpMethod.Get, resource, null, cancellationToken);
+
+        /// <summary>Loescht etwas auf der genannten Instanz.</summary>
+        public Task<T?> DeleteAsync<T>(PayrexxConnection connection, string resource, CancellationToken cancellationToken)
+            => SendAsync<T>(connection, HttpMethod.Delete, resource, null, cancellationToken);
+
+        private async Task<T?> SendAsync<T>(PayrexxConnection connection, HttpMethod method, string resource, object? payload,
             CancellationToken cancellationToken)
         {
-            var options = Options;
-            if (string.IsNullOrWhiteSpace(options.Instance) || string.IsNullOrWhiteSpace(options.ApiSecret))
+            if (string.IsNullOrWhiteSpace(connection.Instance) || string.IsNullOrWhiteSpace(connection.ApiSecret))
             {
                 // Fail-fast mit Ansage: ohne diese beiden antwortet Payrexx mit einem nichtssagenden
                 // Fehler, und die Suche beginnt bei der Anfrage statt bei der Konfiguration.
-                throw new InvalidOperationException(
-                    "Payrexx is not configured: the 'PayrexxPayments' setting needs both Instance and ApiSecret.");
+                throw new InvalidOperationException(connection.IsOwnAccess
+                    ? $"The own Payrexx access {connection.AccessId} has no instance or no API secret."
+                    : "Payrexx is not configured: the 'PayrexxPayments' setting needs both Instance and ApiSecret.");
             }
 
             // Die Instanz gehoert IMMER in die Query - auch bei POST, wo alles andere in den Rumpf geht.
-            var uri = $"{options.ApiBaseUrl.TrimEnd('/')}/{resource.TrimStart('/')}" +
-                      (resource.Contains('?') ? "&" : "?") + $"instance={Uri.EscapeDataString(options.Instance)}";
+            var uri = $"{connection.ApiBaseUrl.TrimEnd('/')}/{resource.TrimStart('/')}" +
+                      (resource.Contains('?') ? "&" : "?") + $"instance={Uri.EscapeDataString(connection.Instance)}";
 
             using var request = new HttpRequestMessage(method, uri);
-            request.Headers.Add("X-API-KEY", options.ApiSecret);
+            request.Headers.Add("X-API-KEY", connection.ApiSecret);
             if (payload != null)
             {
                 request.Content = JsonContent.Create(payload, options: Json);

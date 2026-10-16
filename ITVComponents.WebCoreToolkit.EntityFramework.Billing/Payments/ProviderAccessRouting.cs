@@ -77,6 +77,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     }
 
     /// <summary>
+    /// Wo eine Zahlungsmeldung herkommt: von welchem Anbieter und ueber welchen Zugang.
+    /// </summary>
+    /// <param name="Provider">der Anbieter</param>
+    /// <param name="TenantProviderAccessId">der eigene Zugang, oder leer fuer den der Plattform</param>
+    public readonly record struct SaleSearchScope(string Provider, int? TenantProviderAccessId)
+    {
+        /// <summary>Meldungen an den Endpunkt der Plattform.</summary>
+        public static SaleSearchScope Platform(string provider) => new(provider, null);
+    }
+
+    /// <summary>
     /// Sucht zu einem Vorgang den Zugang heraus - die zweite Weiche neben <see cref="PaymentProviderRouter{TContext}"/>.
     /// </summary>
     /// <remarks>

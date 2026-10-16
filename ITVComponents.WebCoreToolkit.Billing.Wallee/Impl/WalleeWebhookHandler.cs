@@ -128,7 +128,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             await using var db = await sink.CreateContextAsync(cancellationToken);
             // Die Transaktions-Kennung IST, was beim Anlegen gespeichert wurde. Es braucht darum keinen
             // Rueckruf, um den Verkauf zu finden - und wenn der Zustand mitkommt, gar keinen.
-            var sale = await sink.FindSaleAsync(db, notice.EntityId.ToString(), null, null, cancellationToken);
+            var sale = await sink.FindSaleAsync(db, SaleSearchScope.Platform(Extensions.WalleeDependencyInjectionExtensions.ProviderKey),
+                notice.EntityId.ToString(), null, null, cancellationToken);
             if (sale == null)
             {
                 LogEnvironment.LogEvent(
@@ -228,7 +229,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
             }
 
             await using var db = await sink.CreateContextAsync(cancellationToken);
-            var sale = await sink.FindSaleAsync(db, refund.Transaction?.Id.ToString(),
+            var sale = await sink.FindSaleAsync(db, SaleSearchScope.Platform(Extensions.WalleeDependencyInjectionExtensions.ProviderKey),
+                refund.Transaction?.Id.ToString(),
                 refund.MerchantReference, null, cancellationToken);
             if (sale == null)
             {

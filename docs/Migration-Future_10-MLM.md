@@ -7946,3 +7946,48 @@ registriert“.
 - [ ] Zugangsdaten-Speicher registrieren (§78.4)
 - [ ] je Mandant: `TenantProviderAccess` (`sumup`, Händlercode) + ExternalService mit dem API-Key
 - [ ] je Solo: koppeln (`PairReaderAsync`) und als Gerät anlegen
+
+## 80. Payrexx mit eigener Instanz des Mandanten (Achse B + C) — **kein Schema-Change; Fehlerbehebung bei der Webhook-Zuordnung**
+
+Ein Mandant mit eigenem Payrexx-Konto bindet seine Instanz als `TenantProviderAccess` (§78) an:
+`Provider = "payrexx"`, die **Instanz** als `ProviderAccountId`, im ExternalService `ConnectionName` das
+API-Secret der Instanz (`ApiKey`). Online-Verkauf und Terminals laufen dann über seine Instanz. **Noch nicht
+gegen ein echtes Konto gelaufen.**
+
+### 80.1 Was es braucht
+
+- `ConnectionName`: das API-Secret (`IProviderCredentialStore.SaveSecretAsync(…, ApiKey, "X-API-KEY", secret)`)
+- `<ConnectionName>-webhook`: der **Signierschlüssel der Webhooks** aus dem Payrexx-Portal des Mandanten.
+  Payrexx signiert mit einem eigenen Schlüssel, nicht mit dem API-Secret. **Ohne ihn werden die Meldungen
+  dieses Mandanten abgelehnt** (Payrexx wiederholt über Tage). Beim Plattform-Endpunkt bleibt die Signatur
+  wie bisher optional.
+- Im Portal des Mandanten als Webhook-Adresse: `{Webhook-Pfad}/{TenantProviderAccessId}`, also mit der
+  Vorgabe `/billing/payrexx/webhook/17`. `MapPayrexxWebhook` hängt diese Route mit ein.
+- Optional in `SettingsJson`: `apiBaseUrl` (Vorgabe `https://api.payrexx.com/v1.0/`) und `paymentMeans`.
+- Ein Terminal muss mit der Instanz **des Mandanten** gekoppelt sein.
+
+### 80.2 Verhalten
+
+- Ohne Plattform-Konto wählt die Weiche für den Online-Verkauf Payrexx, wenn der Mandant dort einen eigenen
+  Zugang hat (§78.3).
+- **Erstattung** läuft auf der eigenen Instanz über die **Händler-API** (`POST Transaction/{Nummer}/refund/`,
+  Betrag in Rappen). Die Service-API der Plattform reicht nicht in eine fremde Instanz. Darum legt der
+  Webhook-Weg eines eigenen Zugangs die **Nummer** der Transaktion als `ProviderChargeId` ab, nicht die UUID
+  wie auf dem Plattform-Konto.
+- Eine Provision behält Payrexx auch hier nicht ein.
+
+### 80.3 Fehlerbehebung: Zahlungsmeldungen trafen fremde Verkäufe
+
+`TenantSaleWebhookSink.FindSaleAsync` suchte die Kennung der Zahlungsseite **über alle Anbieter und
+Konten**. Payrexx-Gateways und wallee-Transaktionen sind beide fortlaufende Nummern: eine wallee-Meldung zur
+Transaktion 123 konnte einen Payrexx-Verkauf mit Gateway 123 als bezahlt buchen. Neu gibt es die Überladung
+mit `SaleSearchScope` (Anbieter + Zugang). Payrexx und wallee verwenden sie. Der Plattform-Endpunkt sieht
+dabei nur Verkäufe ohne eigenen Zugang, ein Mandanten-Endpunkt nur die seines Zugangs. Zeilen ohne Anbieter
+(Altbestand) werden weiter gefunden. **Eigene Webhook-Handler sollten auf die neue Überladung umstellen.**
+
+### 80.4 Checkliste
+
+- [ ] je Mandant mit eigener Instanz: `TenantProviderAccess` + zwei ExternalServices (API-Secret,
+      `-webhook`-Signierschlüssel)
+- [ ] Webhook-Adresse mit Zugangs-Kennung im Payrexx-Portal des Mandanten eintragen
+- [ ] eigene Webhook-Handler: `FindSaleAsync(db, SaleSearchScope…, …)`
