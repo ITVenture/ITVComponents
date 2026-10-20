@@ -22,6 +22,12 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
         public string GlobalUniqueConnectionName { get; set; }
 
         public ExternalServiceAuthenticationType AuthenticationType { get; set; }
+
+        /// <summary>
+        /// Additional form-parameters for the token-request. Treat as read-only: connection objects are flat-copied from
+        /// buffered instances, so the array may be shared.
+        /// </summary>
+        public KeyValuePair<string, string>[] TokenRequestParameters { get; set; } = Array.Empty<KeyValuePair<string, string>>();
     }
 
     public enum ExternalServiceAuthenticationType

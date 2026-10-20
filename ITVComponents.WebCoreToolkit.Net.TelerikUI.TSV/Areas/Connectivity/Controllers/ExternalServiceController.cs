@@ -265,9 +265,138 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
             //var model = new TExternalOAuthService();
             var model = db.ExternalOAuthServices.First(n => n.OAuthServiceId == viewModel.OAuthServiceId);
             db.ExternalOAuthServices.Remove(model);
+            await db.SaveChangesAsync();
 
             return Json(await new[] { BuildViewModel(model, isAdmin, model.TenantId) }
                 .ToDataSourceResultAsync(request, ModelState));
+        }
+
+        public IActionResult ParameterTable(int oauthServiceId)
+        {
+            ViewData["OAuthServiceId"] = oauthServiceId;
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            ViewData["SupportsParameters"] = service != null && TokenRequestParameterRules.SupportsParameters(service.AuthenticationType);
+            return PartialView();
+        }
+
+        [HttpPost]
+        public IActionResult ReadParameters([DataSourceRequest] DataSourceRequest request, int oauthServiceId)
+        {
+            // the parameters have no tenant-filter of their own; they are only reachable through the (filtered) service
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            var parameters = service?.TokenParameters ?? new List<ExternalOAuthServiceParameter>();
+            return Json(parameters.ToDataSourceResult(request, n => ToParameterViewModel(n)));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> CreateParameter([DataSourceRequest] DataSourceRequest request, [FromQuery] int oauthServiceId, ExternalOAuthServiceParameterViewModel viewModel)
+        {
+            var service = FindServiceForParameterEdit(oauthServiceId);
+            ExternalOAuthServiceParameter model = null;
+            if (service != null && ValidateParameter(service, viewModel) && ModelState.IsValid)
+            {
+                model = new ExternalOAuthServiceParameter
+                {
+                    ParameterName = viewModel.ParameterName.Trim(),
+                    ParameterValue = viewModel.ParameterValue
+                };
+
+                service.TokenParameters.Add(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model != null ? ToParameterViewModel(model) : viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> UpdateParameter([DataSourceRequest] DataSourceRequest request, ExternalOAuthServiceParameterViewModel viewModel)
+        {
+            var service = FindServiceForParameterEdit(viewModel.OAuthServiceId);
+            var model = service?.TokenParameters.FirstOrDefault(n => n.OAuthServiceParameterId == viewModel.OAuthServiceParameterId);
+            if (service != null && model == null)
+            {
+                ModelState.AddModelError(nameof(viewModel.ParameterName), TextsAndMessagesHelper.IWCN_ES_ParamNotEditable);
+            }
+
+            if (model != null && ValidateParameter(service, viewModel) && ModelState.IsValid)
+            {
+                model.ParameterName = viewModel.ParameterName.Trim();
+                model.ParameterValue = viewModel.ParameterValue;
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { model != null ? ToParameterViewModel(model) : viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> DestroyParameter([DataSourceRequest] DataSourceRequest request, ExternalOAuthServiceParameterViewModel viewModel)
+        {
+            var service = FindServiceForParameterEdit(viewModel.OAuthServiceId);
+            var model = service?.TokenParameters.FirstOrDefault(n => n.OAuthServiceParameterId == viewModel.OAuthServiceParameterId);
+            if (service != null && model == null)
+            {
+                ModelState.AddModelError(nameof(viewModel.ParameterName), TextsAndMessagesHelper.IWCN_ES_ParamNotEditable);
+            }
+
+            if (model != null && ModelState.IsValid)
+            {
+                // required relationship: removing the parameter from the collection deletes the orphaned row
+                service.TokenParameters.Remove(model);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        private TExternalOAuthService FindServiceForParameterEdit(int oauthServiceId)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            if (service == null || (!isAdmin && service.TenantId == null))
+            {
+                ModelState.AddModelError(nameof(ExternalOAuthServiceParameterViewModel.ParameterName), TextsAndMessagesHelper.IWCN_ES_ParamNotEditable);
+                return null;
+            }
+
+            return service;
+        }
+
+        private bool ValidateParameter(TExternalOAuthService service, ExternalOAuthServiceParameterViewModel viewModel)
+        {
+            var name = viewModel.ParameterName?.Trim();
+            if (string.IsNullOrEmpty(name))
+            {
+                ModelState.AddModelError(nameof(viewModel.ParameterName), TextsAndMessagesHelper.IWCN_ES_ParamNameRequired);
+                return false;
+            }
+
+            if (TokenRequestParameterRules.IsReserved(service.AuthenticationType, name))
+            {
+                ModelState.AddModelError(nameof(viewModel.ParameterName), string.Format(TextsAndMessagesHelper.IWCN_ES_ParamReserved, name));
+                return false;
+            }
+
+            if (service.TokenParameters.Any(n => n.OAuthServiceParameterId != viewModel.OAuthServiceParameterId && string.Equals(n.ParameterName, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                ModelState.AddModelError(nameof(viewModel.ParameterName), string.Format(TextsAndMessagesHelper.IWCN_ES_ParamDuplicate, name));
+                return false;
+            }
+
+            return true;
+        }
+
+        private static ExternalOAuthServiceParameterViewModel ToParameterViewModel(ExternalOAuthServiceParameter model)
+        {
+            return new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceParameterId = model.OAuthServiceParameterId,
+                OAuthServiceId = model.OAuthServiceId,
+                ParameterName = model.ParameterName,
+                ParameterValue = model.ParameterValue
+            };
         }
 
         private void EncryptSecret(TExternalOAuthService model, string secret)

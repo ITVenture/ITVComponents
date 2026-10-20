@@ -1008,12 +1008,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
             {
                 AuthorizationEndpoint = svc.AuthorizationEndpoint,
                 ClientId = svc.ClientId,
+                ClientSecret = svc.ClientSecret,
                 Global = svc.TenantId == null,
+                GlobalUniqueConnectionName = svc.CalculatedUniqueServiceName,
                 Scope = svc.Scope,
                 UniqueConnectionName = svc.UniqueConnectionName,
                 TokenEndpoint = svc.TokenEndpoint,
                 RevocationEndpoint = svc.RevocationEndpoint,
-                AuthenticationType = svc.AuthenticationType
+                AuthenticationType = svc.AuthenticationType,
+                TokenRequestParameters = svc.TokenParameters.ToTokenRequestParameters()
             };
             if (!string.IsNullOrEmpty(retVal.ClientSecret) && decryptSecret)
             {

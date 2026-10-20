@@ -44,5 +44,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Mode
         public virtual TTenant Tenant { get; set; }
 
         public virtual IList<TExternalOAuthServiceState> ServiceStates { get; set; } = new List<TExternalOAuthServiceState>();
+
+        [ForeignKey(nameof(ExternalOAuthServiceParameter.OAuthServiceId))]
+        public virtual IList<ExternalOAuthServiceParameter> TokenParameters { get; set; } = new List<ExternalOAuthServiceParameter>();
     }
 }

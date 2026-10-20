@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using ITVComponents.Threading;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Server.HttpSys;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 {
@@ -23,13 +24,16 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 
         private readonly ISecurityRepository securityRepo;
         private readonly IHttpClientFactory httpClientFactory;
+        private readonly ILogger<OAuthTokenService> logger;
 
         public OAuthTokenService(
             ISecurityRepository securityRepo,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            ILogger<OAuthTokenService> logger)
         {
             this.securityRepo = securityRepo;
             this.httpClientFactory = httpClientFactory;
+            this.logger = logger;
         }
 
         public string GetValidAccessToken(string connectionName)
@@ -75,8 +79,10 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             {
                 token = securityRepo.GetBufferedToken(connectionName, true, false, out svc, out var update);
             }
-            catch
+            catch (Exception ex)
             {
+                // revocation is best-effort: without a buffered token there is nothing to revoke
+                logger.LogWarning(ex, "Unable to read the buffered token of {ConnectionName} for revocation.", connectionName);
             }
 
             if (token == null || token.RefreshToken == null)
@@ -130,21 +136,25 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             }
             else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthClientCredentialsFlow)
             {
-                response = await client.PostAsync(c.AuthorizationEndpoint, new FormUrlEncodedContent(
-                    new Dictionary<string, string>
-                    {
-                        ["grant_type"] = "client_credentials",
-                        ["client_id"] = c.ClientId,
-                        ["client_secret"] = c.ClientSecret,
-                    }));
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "client_credentials",
+                    ["client_id"] = c.ClientId,
+                    ["client_secret"] = c.ClientSecret,
+                };
+
+                AppendTokenRequestParameters(formRaw, c);
+                response = await client.PostAsync(c.AuthorizationEndpoint, new FormUrlEncodedContent(formRaw));
             }
             else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow)
             {
-                var content = new FormUrlEncodedContent(
-                    new Dictionary<string, string>
-                    {
-                        ["grant_type"] = "client_credentials",
-                    });
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "client_credentials",
+                };
+
+                AppendTokenRequestParameters(formRaw, c);
+                var content = new FormUrlEncodedContent(formRaw);
 
                 var authHeaderRaw = $"{c.ClientId}:{c.ClientSecret}";
                 var authHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes(authHeaderRaw));
@@ -168,6 +178,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                     formRaw.Add("scope", c.Scope);
                 }
 
+                AppendTokenRequestParameters(formRaw, c);
                 response = await client.PostAsync(c.AuthorizationEndpoint, new FormUrlEncodedContent(formRaw));
             }
             else
@@ -194,6 +205,38 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             update(dbToken);
 
             return dbToken;
+        }
+
+        /// <summary>
+        /// Appends the additional token-request parameters of the connection to the form. Parameters that the flow already set
+        /// are skipped, so a configured parameter never overrides grant_type, credentials or scope
+        /// </summary>
+        /// <param name="formRaw">the form-data of the token-request</param>
+        /// <param name="connection">the connection that provides the additional parameters</param>
+        private void AppendTokenRequestParameters(Dictionary<string, string> formRaw, ExternalServiceConnection connection)
+        {
+            if (connection.TokenRequestParameters == null)
+            {
+                return;
+            }
+
+            foreach (var parameter in connection.TokenRequestParameters)
+            {
+                if (string.IsNullOrWhiteSpace(parameter.Key))
+                {
+                    logger.LogWarning("Skipping a token-request parameter without name on {ConnectionName}.", connection.UniqueConnectionName);
+                    continue;
+                }
+
+                var name = parameter.Key.Trim();
+                if (formRaw.Keys.Any(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    logger.LogWarning("Token-request parameter {ParameterName} on {ConnectionName} is set by the {AuthenticationType} itself and is ignored.", name, connection.UniqueConnectionName, connection.AuthenticationType);
+                    continue;
+                }
+
+                formRaw.Add(name, parameter.Value ?? string.Empty);
+            }
         }
     }
 }

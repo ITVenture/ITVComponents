@@ -405,4 +405,22 @@
   <data name="IWCN_Titles_Services" xml:space="preserve">
     <value>External Services</value>
   </data>
+  <data name="IWCN_ES_ParamNotEditable" xml:space="preserve">
+    <value>I parametri di questo servizio non possono essere modificati.</value>
+  </data>
+  <data name="IWCN_ES_ParamNameRequired" xml:space="preserve">
+    <value>È richiesto un nome di parametro.</value>
+  </data>
+  <data name="IWCN_ES_ParamReserved" xml:space="preserve">
+    <value>Il parametro «{0}» è impostato dal tipo di autenticazione stesso e non può essere sovrascritto.</value>
+  </data>
+  <data name="IWCN_ES_ParamDuplicate" xml:space="preserve">
+    <value>Esiste già un parametro denominato «{0}».</value>
+  </data>
+  <data name="IWCN_ES_ParamHint" xml:space="preserve">
+    <value>I parametri aggiuntivi vengono inviati solo con la richiesta del token dei tipi OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow e OAuthPasswordFlow. I valori vengono codificati automaticamente per l'URL.</value>
+  </data>
+  <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
+    <value>Il tipo di autenticazione attuale non invia parametri aggiuntivi – vengono conservati ma ignorati.</value>
+  </data>
 </root>

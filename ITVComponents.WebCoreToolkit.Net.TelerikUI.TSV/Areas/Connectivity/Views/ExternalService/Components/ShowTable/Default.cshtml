@@ -82,5 +82,13 @@
     {
         tmp.ClientDetailTemplateId("serviceDetails");
     }
+    else
+    {
+        tmp.ClientDetailTemplateId("serviceParameters");
+    }
+}
+@if (!useConnect)
+{
+    @Html.DetailViewScript("serviceParameters", "oAuthParams#=OAuthServiceId#", "~/Connectivity/ExternalService/ParameterTable?oauthServiceId=#=OAuthServiceId#")
 }
 @tmp
