@@ -82,7 +82,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.TenantSecurityViews.Areas.C
         {
             ViewData["OAuthServiceId"] = oauthServiceId;
             var isConnected =
-                db.ExternalOAuthServiceTenantLogins.Any(n => n.OAuthServiceId == oauthServiceId && !n.Revoked);
+                db.ExternalOAuthServiceTenantLogins.Any(n => n.OAuthServiceId == oauthServiceId && !n.Revoked)
+                || db.ExternalOAuthServices.FirstOrDefault(n=> n.OAuthServiceId == oauthServiceId)?.AuthenticationType != ExternalServiceAuthenticationType.OAuthAuthorizationFlow;
             ViewData["IsConnected"] = isConnected;
             return PartialView();
         }
