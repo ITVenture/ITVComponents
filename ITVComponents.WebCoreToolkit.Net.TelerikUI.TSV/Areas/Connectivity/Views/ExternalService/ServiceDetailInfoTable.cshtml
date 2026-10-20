@@ -55,6 +55,33 @@
             <td>@Model.Scope</td>
         </tr>
     }
+    else if (Model.AuthenticationType == ExternalServiceAuthenticationType.OAuthPasswordFlow)
+    {
+        <tr>
+            <td>
+                TokenEndpoint
+            </td>
+            <td>@Model.AuthorizationEndpoint</td>
+        </tr>
+        <tr>
+            <td>
+                UserName
+            </td>
+            <td>@Model.ClientId</td>
+        </tr>
+        <tr>
+            <td>
+                Password
+            </td>
+            <td>@Model.ClientSecret</td>
+        </tr>
+        <tr>
+            <td>
+                Scope
+            </td>
+            <td>@Model.Scope</td>
+        </tr>
+    }
     else if (Model.AuthenticationType == ExternalServiceAuthenticationType.ApiKey)
     {
         <tr>

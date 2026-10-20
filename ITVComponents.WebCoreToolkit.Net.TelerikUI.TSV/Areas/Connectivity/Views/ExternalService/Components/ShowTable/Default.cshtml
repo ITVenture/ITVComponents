@@ -71,7 +71,7 @@
         .Sortable(c => c.Enabled(true))
         .Filterable(f => f.Enabled(true))
         .Resizable(c => c.Columns(true))
-        .Editable(ed => ed.Mode(GridEditMode.PopUp).TemplateName("ExOsvcEdit"));
+        .Editable(ed => ed.Mode(GridEditMode.PopUp).TemplateName("ExOsvcEdit").Window(w => w.Width(960).Resizable().Draggable()));
 
     if (Context.RequestServices.VerifyUserPermissions(new[] { "Services.Connections.Write" }))
     {

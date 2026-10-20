@@ -32,7 +32,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             var connection = securityRepo.GetExternalService(connectionName, false);
             if (connection.AuthenticationType is ExternalServiceAuthenticationType.OAuthAuthorizationFlow
                 or ExternalServiceAuthenticationType.OAuthClientCredentialsFlow
-                or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow)
+                or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow
+                or ExternalServiceAuthenticationType.OAuthPasswordFlow)
             {
                 var handler = new OAuthBearerHandler(tokenService, connectionName)
                 {

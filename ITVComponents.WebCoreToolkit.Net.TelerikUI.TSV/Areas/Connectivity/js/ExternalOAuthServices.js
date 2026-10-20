@@ -37,8 +37,13 @@
             if (typeof ($(d).attr("data-auth-label")) !== "undefined") {
                 $(d).text(ITVenture.Text.getText(`${$(d).attr("data-auth-label")}${authType}`));
             }
-
-            $(d).attr("required", $(d).attr("data-auth-required") === "true" ? "required" : null);
+        });
+        // data-auth-required is either "true" (required whenever visible) or a list of auth-types ("00.06") for which the field is required
+        $("input.authTypeConfig").each((c, d) => {
+            var visible = ($(d).attr("data-auth-type") || "").split(".").indexOf(authType) !== -1;
+            var requiredFor = $(d).attr("data-auth-required") || "false";
+            var required = visible && (requiredFor === "true" || requiredFor.split(".").indexOf(authType) !== -1);
+            $(d).attr("required", required ? "required" : null);
         });
     },
     editorReady: function () {
@@ -59,6 +64,12 @@ ITVenture.Text.setText("de", "labelForClientSecret02", "Passwort");
 ITVenture.Text.setText("de", "labelForClientSecret03", "Passwort");
 ITVenture.Text.setText("de", "labelForClientSecret04", "API-Key");
 ITVenture.Text.setText("de", "labelForClientSecret05", "Bearer-Token");
+ITVenture.Text.setText("de", "labelForClientId06", "Benutzername");
+ITVenture.Text.setText("de", "labelForClientSecret06", "Passwort");
+ITVenture.Text.setText("de", "labelForAuthEndpoint00", "Authentifizierungsendpunkt");
+ITVenture.Text.setText("de", "labelForAuthEndpoint01", "Token-Endpunkt");
+ITVenture.Text.setText("de", "labelForAuthEndpoint02", "Token-Endpunkt");
+ITVenture.Text.setText("de", "labelForAuthEndpoint06", "Token-Endpunkt");
 
 ITVenture.Text.setText("fr", "labelForClientId00", "Identifiant client");
 ITVenture.Text.setText("fr", "labelForClientId01", "Identifiant client");
@@ -71,6 +82,12 @@ ITVenture.Text.setText("fr", "labelForClientSecret02", "Mot de passe");
 ITVenture.Text.setText("fr", "labelForClientSecret03", "Mot de passe");
 ITVenture.Text.setText("fr", "labelForClientSecret04", "API-Key");
 ITVenture.Text.setText("fr", "labelForClientSecret05", "Bearer-Token");
+ITVenture.Text.setText("fr", "labelForClientId06", "Nom d'utilisateur");
+ITVenture.Text.setText("fr", "labelForClientSecret06", "Mot de passe");
+ITVenture.Text.setText("fr", "labelForAuthEndpoint00", "Point de terminaison d'authentification");
+ITVenture.Text.setText("fr", "labelForAuthEndpoint01", "Point de terminaison du jeton");
+ITVenture.Text.setText("fr", "labelForAuthEndpoint02", "Point de terminaison du jeton");
+ITVenture.Text.setText("fr", "labelForAuthEndpoint06", "Point de terminaison du jeton");
 
 ITVenture.Text.setText("it", "labelForClientId00", "ID client");
 ITVenture.Text.setText("it", "labelForClientId01", "ID client");
@@ -83,6 +100,12 @@ ITVenture.Text.setText("it", "labelForClientSecret02", "Password");
 ITVenture.Text.setText("it", "labelForClientSecret03", "Password");
 ITVenture.Text.setText("it", "labelForClientSecret04", "API-Key");
 ITVenture.Text.setText("it", "labelForClientSecret05", "Bearer-Token");
+ITVenture.Text.setText("it", "labelForClientId06", "Nome utente");
+ITVenture.Text.setText("it", "labelForClientSecret06", "Password");
+ITVenture.Text.setText("it", "labelForAuthEndpoint00", "Endpoint di autenticazione");
+ITVenture.Text.setText("it", "labelForAuthEndpoint01", "Endpoint del token");
+ITVenture.Text.setText("it", "labelForAuthEndpoint02", "Endpoint del token");
+ITVenture.Text.setText("it", "labelForAuthEndpoint06", "Endpoint del token");
 
 ITVenture.Text.setText("en", "labelForClientId00", "Client-ID");
 ITVenture.Text.setText("en", "labelForClientId01", "Client-ID");
@@ -95,3 +118,9 @@ ITVenture.Text.setText("en", "labelForClientSecret02", "Password");
 ITVenture.Text.setText("en", "labelForClientSecret03", "Password");
 ITVenture.Text.setText("en", "labelForClientSecret04", "API-Key");
 ITVenture.Text.setText("en", "labelForClientSecret05", "Bearer-Token");
+ITVenture.Text.setText("en", "labelForClientId06", "Username");
+ITVenture.Text.setText("en", "labelForClientSecret06", "Password");
+ITVenture.Text.setText("en", "labelForAuthEndpoint00", "Authorization endpoint");
+ITVenture.Text.setText("en", "labelForAuthEndpoint01", "Token endpoint");
+ITVenture.Text.setText("en", "labelForAuthEndpoint02", "Token endpoint");
+ITVenture.Text.setText("en", "labelForAuthEndpoint06", "Token endpoint");

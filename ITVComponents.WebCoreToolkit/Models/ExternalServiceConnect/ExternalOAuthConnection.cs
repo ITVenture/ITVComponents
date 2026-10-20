@@ -32,6 +32,6 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
         Basic,
         ApiKey,
         BearerToken,
-
+        OAuthPasswordFlow
     }
 }

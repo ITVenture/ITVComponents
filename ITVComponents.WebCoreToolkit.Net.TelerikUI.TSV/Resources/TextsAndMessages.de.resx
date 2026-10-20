@@ -387,6 +387,9 @@
   <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
     <value>-- Verschlüsselter Wert. Verwenden Sie das Präfix „encrypt:“, um einen Wert festzulegen. --</value>
   </data>
+  <data name="IWCN_ES_EncryptHint" xml:space="preserve">
+    <value>Wird verschlüsselt gespeichert und nie angezeigt. Neuen Wert mit dem Präfix „encrypt:“ eingeben (z. B. encrypt:MeinPasswort) – ohne Präfix wird die Eingabe ignoriert. Leer lassen, um den bisherigen Wert zu behalten.</value>
+  </data>
   <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
     <value>--Verschlüsselter Wert--</value>
   </data>
@@ -398,5 +401,8 @@
   </data>
   <data name="IWCN_ES_AuthType" xml:space="preserve">
     <value>Authentifizierungstyp</value>
+  </data>
+  <data name="IWCN_Titles_Services" xml:space="preserve">
+    <value>Externe Dienste</value>
   </data>
 </root>

@@ -47,7 +47,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 var token = securityRepo.GetBufferedToken(connectionName, false, false, out var svc, out var update);
                 if (token != null)
                 {
-                    if (token.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(-1))
+                    // renew the token one minute ahead of its expiration
+                    if (token.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
                         return token.AccessToken;
                 }
                 else if (svc.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
@@ -106,7 +107,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
         private async Task<TranslatedTokenResponse> RefreshAsync(TranslatedTokenResponse token, ExternalServiceConnection svc, Action<TranslatedTokenResponse> update)
         {
             var c = svc;
-            if (token.RefreshToken == null && c.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
+            if (token?.RefreshToken == null && c.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
                 throw new InvalidOperationException("No refresh token");
 
             //var refreshToken = _protector.Unprotect(c.EncryptedRefreshToken);
@@ -152,6 +153,23 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 response = await client.PostAsync(c.AuthorizationEndpoint, content);
                 client.DefaultRequestHeaders.Authorization = null;
             }
+            else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthPasswordFlow)
+            {
+                // Resource Owner Password Credentials Grant (RFC 6749, 4.3): ClientId/ClientSecret carry username/password
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "password",
+                    ["username"] = c.ClientId,
+                    ["password"] = c.ClientSecret
+                };
+
+                if (!string.IsNullOrEmpty(c.Scope))
+                {
+                    formRaw.Add("scope", c.Scope);
+                }
+
+                response = await client.PostAsync(c.AuthorizationEndpoint, new FormUrlEncodedContent(formRaw));
+            }
             else
             {
                 throw new InvalidOperationException($"Unsupported OAuth-Flow: {c.AuthenticationType}");
@@ -161,20 +179,19 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 
             var newToken = await response.Content
                 .ReadFromJsonAsync<TokenResponse>();
+            // tokens without refresh-token (e.g. client-credentials) are buffered too. When a refresh does not
+            // return a new refresh-token, the previous one remains valid and is kept.
             var dbToken = new TranslatedTokenResponse
             {
                 ExpiresAt =
                     DateTimeOffset.UtcNow.AddSeconds(newToken.ExpiresIn),
                 Scope = newToken.Scope,
-                RefreshToken = newToken.RefreshToken,
+                RefreshToken = !string.IsNullOrEmpty(newToken.RefreshToken) ? newToken.RefreshToken : token?.RefreshToken,
                 AccessToken = newToken.AccessToken,
                 TokenType = newToken.TokenType
             };
 
-            if (!string.IsNullOrEmpty(dbToken.RefreshToken))
-            {
-                update(dbToken);
-            }
+            update(dbToken);
 
             return dbToken;
         }

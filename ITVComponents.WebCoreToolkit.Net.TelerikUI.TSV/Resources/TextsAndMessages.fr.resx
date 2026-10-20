@@ -387,6 +387,9 @@
   <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
     <value>-- Valeur chiffrée. Utilisez le préfixe «encrypt:» pour définir une valeur. --</value>
   </data>
+  <data name="IWCN_ES_EncryptHint" xml:space="preserve">
+    <value>Enregistré de manière chiffrée et jamais affiché. Saisissez une nouvelle valeur avec le préfixe «encrypt:» (p. ex. encrypt:MonMotDePasse) – sans préfixe, la saisie est ignorée. Laissez vide pour conserver la valeur actuelle.</value>
+  </data>
   <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
     <value>-- Valeur chiffrée--</value>
   </data>
@@ -398,5 +401,8 @@
   </data>
   <data name="IWCN_ES_AuthType" xml:space="preserve">
     <value>Type d'authentification</value>
+  </data>
+  <data name="IWCN_Titles_Services" xml:space="preserve">
+    <value>Services externe</value>
   </data>
 </root>

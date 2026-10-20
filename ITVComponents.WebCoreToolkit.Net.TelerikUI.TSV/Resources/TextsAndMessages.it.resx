@@ -387,6 +387,9 @@
   <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
     <value>-- Valore crittografato. Utilizzare il prefisso «encrypt:» per impostare un valore. --</value>
   </data>
+  <data name="IWCN_ES_EncryptHint" xml:space="preserve">
+    <value>Salvato in forma crittografata e mai visualizzato. Inserire un nuovo valore con il prefisso «encrypt:» (ad es. encrypt:MiaPassword) – senza prefisso l'inserimento viene ignorato. Lasciare vuoto per mantenere il valore attuale.</value>
+  </data>
   <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
     <value>-- Valore crittografato--</value>
   </data>
@@ -398,5 +401,8 @@
   </data>
   <data name="IWCN_ES_AuthType" xml:space="preserve">
     <value>Tipo di autenticazione</value>
+  </data>
+  <data name="IWCN_Titles_Services" xml:space="preserve">
+    <value>External Services</value>
   </data>
 </root>

@@ -57,6 +57,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
             where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         {
+            // same as the global string.Decrypt(): nothing to decrypt for null/empty values
+            if (string.IsNullOrEmpty(encryptedValue))
+            {
+                return encryptedValue;
+            }
+
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
             {
@@ -202,6 +208,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             where TExternalOAuthServiceState : ExternalOAuthServiceState<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
             where TExternalOAuthServiceTenantLogin : ExternalOAuthServiceTenantLogin<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>
         {
+            // same as the global string.Encrypt(): nothing to encrypt for null/empty values (e.g. a missing refresh-token)
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
             byte[] passwd = null;
             if (!string.IsNullOrEmpty(permissionScopeName))
             {
