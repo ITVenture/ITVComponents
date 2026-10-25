@@ -21,7 +21,10 @@
     </ItemGroup>
   </Target-->
   <ItemGroup>
-    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="8.22.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens.Saml" Version="8.23.0" />
+    <!-- Sustainsys.Saml2 only asks for Protocols >= 5.2.4 (deprecated); without this pin NuGet
+         settles on that minimum while Tokens/Tokens.Saml above already sit on 8.x. -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols" Version="8.23.0" />
     <PackageReference Include="Sustainsys.Saml2.AspNetCore2" Version="2.11.0" />
   </ItemGroup>
   <ItemGroup>

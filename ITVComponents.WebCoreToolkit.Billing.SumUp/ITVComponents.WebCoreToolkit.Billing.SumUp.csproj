@@ -15,7 +15,7 @@
     <!-- Bewusst ohne das NuGet-Paket "SumUp": gebraucht werden sechs REST-Aufrufe, und jeder davon muss mit
          dem Token DES MANDANTEN laufen und das Affiliate-Feld mitschicken. Ein eigener HttpClient haelt beides
          in der Hand, statt einen SDK-Client je Mandant und Aufruf aufzubauen. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing\ITVComponents.WebCoreToolkit.EntityFramework.Billing.csproj" />

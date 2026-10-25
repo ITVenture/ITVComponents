@@ -4549,6 +4549,13 @@ zeigt den Code, lässt ihn als **PNG speichern** und **drucken**. Gedacht für d
 sonst nicht geht: auf ein Mobilgerät, an dem niemand eine solche URL abtippt, und auf ein Blatt, an
 dem nichts anklickbar ist.
 
+**QR zuerst:** Wo der Link einem Gegenüber hingehalten statt verschickt wird (Kasse, Aushang, zweites
+Telefon), nehmen `<ShareButton QrFirst="true" />` und `<ShareCurrentButton QrFirst="true" />` die
+Reihenfolge um: der Dialog öffnet direkt mit dem Code, das Linkfeld steht hinter *Show link*, *Copy*
+bleibt unten. Scheitert der Code oder das Kopieren, klappt das Linkfeld von selbst auf. Wer
+`ShareLinkDialog` selbst öffnet, setzt denselben Parameter `QrFirst`. Vorgabe ist `false` — bestehende
+Stellen verhalten sich unverändert.
+
 Der Ausdruck trägt den **Titel der Freigabe** und den Link im Klartext unter dem Code — damit ein
 Aushang auch dann brauchbar bleibt, wenn die Kamera nicht mitspielt. Der Titel benennt auch die
 gespeicherte Datei (`auftrag-4711-lieferschein-qr.png`).

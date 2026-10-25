@@ -11,10 +11,18 @@
 
 <MudDialog>
     <DialogContent>
-        <MudTextField T="string" Value="@Link" Label="Link" ReadOnly="true" Lines="3" Class="itv-share-link" />
-        <MudText Typo="Typo.caption" Class="mt-2">
-            Anyone holding this link uses the share. Send it the way you would send a password.
-        </MudText>
+        @* Die Reihenfolge folgt dem Zweck: wer verschickt, braucht zuerst den Link; wer den Code einem
+           Gegenueber hinhaelt (Kasse, Aushang, zweites Telefon), zuerst das Bild. *@
+        @if (QrFirst)
+        {
+            @QrSection
+            @LinkSection
+        }
+        else
+        {
+            @LinkSection
+            @QrSection
+        }
 
         @* Die Restlaufzeit ist die naechste Frage, die ein Empfaenger hat - und bei einem Ad-hoc-Ticket
            die einzige Antwort darauf, denn zurueckziehen laesst es sich nicht einzeln. *@
@@ -24,36 +32,6 @@
                       Class="mt-2">
                 @Describe(left)
             </MudAlert>
-        }
-
-        @* Der QR-Code entsteht erst auf Wunsch: die meisten Freigaben werden verschickt, und wer sie
-           verschickt, braucht kein Bild. Gefragt ist er dort, wo der Link auf ein Mobilgeraet oder auf
-           Papier soll - beides ohne Abtippen. *@
-        @if (qr is null)
-        {
-            <MudButton StartIcon="@Icons.Material.Filled.QrCode2" OnClick="ShowQr" Class="mt-3">
-                Show QR code
-            </MudButton>
-        }
-        else if (!qr.Success)
-        {
-            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@qr.Error</MudAlert>
-        }
-        else
-        {
-            <MudPaper Outlined="true" Class="mt-3 pa-3 d-flex flex-column align-center">
-                @* Weisser Grund fest verdrahtet, unabhaengig vom Farbschema: ein invertierter QR-Code wird
-                   von vielen Kameras nicht gelesen, und gedruckt wird er ohnehin schwarz auf weiss. Die
-                   Angaben stehen hier und nicht in einer .razor.css - scoped CSS erreicht den Dialog nicht,
-                   weil der MudDialogProvider ihn ausserhalb dieser Komponente zeichnet. *@
-                <img src="@qr.DataUri" alt="QR code for this link" width="220" height="220"
-                     style="max-width:100%;height:auto;background:#fff;padding:8px;border-radius:4px;image-rendering:pixelated" />
-                <MudStack Row="true" Spacing="1" Class="mt-2">
-                    <MudButton StartIcon="@Icons.Material.Filled.Download" OnClick="SaveQr">Save as PNG</MudButton>
-                    <MudButton StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQr">Print</MudButton>
-                    <MudButton OnClick="HideQr">Hide</MudButton>
-                </MudStack>
-            </MudPaper>
         }
     </DialogContent>
     <DialogActions>
@@ -81,6 +59,12 @@
     /// Wann die Freigabe endet, oder null, wenn sie unbefristet ist.
     /// </summary>
     [Parameter] public DateTime? ValidUntil { get; set; }
+
+    /// <summary>
+    /// Zeigt sofort den QR-Code und den Link erst auf Wunsch. Fuer Stellen, an denen der Link nicht
+    /// verschickt, sondern einem Gegenueber hingehalten wird. Kopieren bleibt in beiden Faellen da.
+    /// </summary>
+    [Parameter] public bool QrFirst { get; set; }
 
     /// <summary>
     /// Wie lange sie noch gilt. Null, wenn unbefristet - abgelaufen ergibt <see cref="TimeSpan.Zero"/>,
@@ -113,12 +97,80 @@
 
     private ShareQrResult? qr;
     private IJSObjectReference? module;
+    private bool linkShown = true;
+
+    /// <summary>
+    /// Ob das Linkfeld zu sehen ist. Scheitert der QR-Code, steht es immer da - sonst saesse man im
+    /// QR-zuerst-Modus vor einer Fehlermeldung und haette nichts in der Hand.
+    /// </summary>
+    private bool LinkVisible => linkShown || qr is { Success: false };
+
+    protected override void OnInitialized()
+    {
+        if (QrFirst)
+        {
+            linkShown = false;
+            ShowQr();
+        }
+    }
+
+    private RenderFragment LinkSection => __builder =>
+    {
+        if (LinkVisible)
+        {
+            <MudTextField T="string" Value="@Link" Label="Link" ReadOnly="true" Lines="3" Class="itv-share-link mt-3" />
+            <MudText Typo="Typo.caption" Class="mt-2">
+                Anyone holding this link uses the share. Send it the way you would send a password.
+            </MudText>
+        }
+        else
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Link" OnClick="ShowLink" Class="mt-3">
+                Show link
+            </MudButton>
+        }
+    };
+
+    // Der QR-Code entsteht erst auf Wunsch - es sei denn, der Aufrufer sagt mit QrFirst, dass genau er
+    // gefragt ist: die meisten Freigaben werden verschickt, und wer sie verschickt, braucht kein Bild.
+    // Gefragt ist er dort, wo der Link auf ein Mobilgeraet oder auf Papier soll - beides ohne Abtippen.
+    private RenderFragment QrSection => __builder =>
+    {
+        if (qr is null)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.QrCode2" OnClick="ShowQr" Class="mt-3">
+                Show QR code
+            </MudButton>
+        }
+        else if (!qr.Success)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">@qr.Error</MudAlert>
+        }
+        else
+        {
+            <MudPaper Outlined="true" Class="mt-3 pa-3 d-flex flex-column align-center">
+                @* Weisser Grund fest verdrahtet, unabhaengig vom Farbschema: ein invertierter QR-Code wird
+                   von vielen Kameras nicht gelesen, und gedruckt wird er ohnehin schwarz auf weiss. Die
+                   Angaben stehen hier und nicht in einer .razor.css - scoped CSS erreicht den Dialog nicht,
+                   weil der MudDialogProvider ihn ausserhalb dieser Komponente zeichnet. *@
+                <img src="@qr.DataUri" alt="QR code for this link" width="220" height="220"
+                     style="max-width:100%;height:auto;background:#fff;padding:8px;border-radius:4px;image-rendering:pixelated" />
+                <MudStack Row="true" Spacing="1" Class="mt-2">
+                    <MudButton StartIcon="@Icons.Material.Filled.Download" OnClick="SaveQr">Save as PNG</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQr">Print</MudButton>
+                    <MudButton OnClick="HideQr">Hide</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+    };
 
     private void Close() => MudDialog.Close();
 
     private void ShowQr() => qr = ShareQrCode.Create(Link, Logger);
 
     private void HideQr() => qr = null;
+
+    private void ShowLink() => linkShown = true;
 
     private async Task Copy()
     {
@@ -130,8 +182,9 @@
         catch (Exception ex)
         {
             // Die Zwischenablage ist nicht ueberall erreichbar (kein sicherer Kontext, verweigerte
-            // Berechtigung). Das Feld daneben zeigt den Link weiterhin - der Benutzer ist also nicht
-            // aufgeschmissen, aber wir verschweigen den Grund nicht.
+            // Berechtigung). Das Feld zeigt den Link weiterhin - im QR-zuerst-Modus wird es dafuer
+            // aufgeklappt -, der Benutzer ist also nicht aufgeschmissen, aber wir verschweigen den Grund nicht.
+            linkShown = true;
             Snackbar.Add("Could not copy - select the link and copy it yourself.", Severity.Warning);
             Logger.LogWarning(ex, "Could not write a share link to the clipboard.");
         }

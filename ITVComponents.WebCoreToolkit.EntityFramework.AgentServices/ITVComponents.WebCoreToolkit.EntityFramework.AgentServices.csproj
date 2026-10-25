@@ -10,7 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
   </ItemGroup>
   <!-- Die Web-Seite der Agent-Dienste: welche Kasse welches Geraet in welcher Rolle benutzt, der Weg zum
        Katalog des Agenten, und LastSeenUtc aus dem Dienst-Verteiler. Opt-in: wer keinen Agenten hat,

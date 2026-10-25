@@ -32,6 +32,12 @@
     /// </summary>
     [Parameter] public string Tooltip { get; set; } = "Show this link as a QR code";
 
+    /// <summary>
+    /// Zeigt den Link zuerst als QR-Code und als Text erst auf Wunsch - der Regelfall dieses Knopfs ist
+    /// das zweite Telefon daneben, nicht die Nachricht.
+    /// </summary>
+    [Parameter] public bool QrFirst { get; set; }
+
     private bool visible;
     private AssetContext? current;
 
@@ -103,7 +109,8 @@
         {
             { d => d.Link, Navigation.Uri },
             { d => d.Title, current.Title },
-            { d => d.ValidUntil, current.NotAfter }
+            { d => d.ValidUntil, current.NotAfter },
+            { d => d.QrFirst, QrFirst }
         };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
     }

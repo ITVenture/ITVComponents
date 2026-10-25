@@ -56,7 +56,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
         /// </list>
         /// Gemessen ergibt das 49, 73, 97 und 125 Module - alles weit unter der Grenze.
         /// </remarks>
-        [DataTestMethod]
+        [TestMethod]
         [DataRow(96, DisplayName = "signed-in")]
         [DataRow(271, DisplayName = "anonymous")]
         [DataRow(535, DisplayName = "ad-hoc ticket, small payload")]

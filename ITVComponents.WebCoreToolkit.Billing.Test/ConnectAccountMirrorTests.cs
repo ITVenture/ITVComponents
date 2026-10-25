@@ -39,7 +39,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             Assert.AreEqual("active", account.CardPaymentsStatus);
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow("pending")]
         [DataRow("restricted")]
         [DataRow("unsupported")]

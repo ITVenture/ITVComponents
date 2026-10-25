@@ -36,6 +36,12 @@
 
     [Parameter] public Size Size { get; set; } = Size.Small;
 
+    /// <summary>
+    /// Zeigt die neue Freigabe zuerst als QR-Code und den Link erst auf Wunsch - fuer Stellen, an denen
+    /// der Link einem Gegenueber hingehalten und nicht verschickt wird (Kasse, Aushang).
+    /// </summary>
+    [Parameter] public bool QrFirst { get; set; }
+
     private AssetTemplateInfo[] templates = Array.Empty<AssetTemplateInfo>();
     private System.Security.Claims.ClaimsPrincipal? currentUser;
     private int resolveSequence;
@@ -161,7 +167,8 @@
         var parameters = new DialogParameters<ShareLinkDialog>
         {
             { d => d.Link, link },
-            { d => d.Title, title }
+            { d => d.Title, title },
+            { d => d.QrFirst, QrFirst }
         };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
     }
