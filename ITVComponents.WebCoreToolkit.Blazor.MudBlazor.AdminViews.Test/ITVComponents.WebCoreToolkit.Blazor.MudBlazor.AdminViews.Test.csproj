@@ -18,6 +18,9 @@
          Schicht genau dort sitzen, wo eine Deklaration allein nichts mehr beweist: der Klickweg eines
          Diagramms lief ueber MudBlazor, und die Deklaration war dabei die ganze Zeit richtig. -->
     <PackageReference Include="bunit" Version="2.9.0" />
+    <!-- Fuer die Handler-Tests gegen den echten Sicherheitskontext (ExternalServices). InMemory statt SQLite: der
+         Basic-Kontext bringt Abfragen mit, die APPLY/LATERAL brauchen - siehe TenantSecurity.Test. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews\ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.csproj" />
