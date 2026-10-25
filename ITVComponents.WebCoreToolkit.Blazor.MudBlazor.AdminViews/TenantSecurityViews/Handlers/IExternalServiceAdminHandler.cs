@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
@@ -18,4 +18,12 @@ public interface IExternalServiceAdminHandler
 
     Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId);
     Task<ExternalServiceTestResultViewModel> PerformTestAsync(ClaimsPrincipal user, ExternalServiceTestRequestViewModel request);
+
+    /// <summary>Additional form-parameters that are sent with the token-request of the service</summary>
+    Task<PagedResult<ExternalOAuthServiceParameterViewModel>> ListParametersAsync(ClaimsPrincipal user, int oauthServiceId, ListQuery query);
+
+    /// <summary>Creates (id 0) or updates a token-parameter; a rejected parameter comes back with the reason</summary>
+    Task<ExternalOAuthServiceParameterSaveResult> SaveParameterAsync(ClaimsPrincipal user, ExternalOAuthServiceParameterViewModel input);
+
+    Task<bool> DeleteParameterAsync(ClaimsPrincipal user, int oauthServiceId, int oauthServiceParameterId);
 }

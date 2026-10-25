@@ -387,6 +387,9 @@
   <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
     <value>-- Valeur chiffrée. Utilisez le préfixe «encrypt:» pour définir une valeur. --</value>
   </data>
+  <data name="IWCN_ES_EncryptHint" xml:space="preserve">
+    <value>Enregistré de manière chiffrée et jamais affiché. Saisissez une nouvelle valeur avec le préfixe «encrypt:» (p. ex. encrypt:MonMotDePasse) – sans préfixe, la saisie est ignorée. Laissez vide pour conserver la valeur actuelle.</value>
+  </data>
   <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
     <value>-- Valeur chiffrée--</value>
   </data>
@@ -398,5 +401,26 @@
   </data>
   <data name="IWCN_ES_AuthType" xml:space="preserve">
     <value>Type d'authentification</value>
+  </data>
+  <data name="IWCN_Titles_Services" xml:space="preserve">
+    <value>Services externe</value>
+  </data>
+  <data name="IWCN_ES_ParamNotEditable" xml:space="preserve">
+    <value>Les paramètres de ce service ne peuvent pas être modifiés.</value>
+  </data>
+  <data name="IWCN_ES_ParamNameRequired" xml:space="preserve">
+    <value>Un nom de paramètre est requis.</value>
+  </data>
+  <data name="IWCN_ES_ParamReserved" xml:space="preserve">
+    <value>Le paramètre «{0}» est défini par le type d'authentification lui-même et ne peut pas être remplacé.</value>
+  </data>
+  <data name="IWCN_ES_ParamDuplicate" xml:space="preserve">
+    <value>Un paramètre nommé «{0}» existe déjà.</value>
+  </data>
+  <data name="IWCN_ES_ParamHint" xml:space="preserve">
+    <value>Les paramètres supplémentaires ne sont envoyés qu'avec la demande de jeton des types OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow et OAuthPasswordFlow. Les valeurs sont encodées automatiquement pour l'URL.</value>
+  </data>
+  <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
+    <value>Le type d'authentification actuel n'envoie pas de paramètres supplémentaires – ils sont conservés mais ignorés.</value>
   </data>
 </root>

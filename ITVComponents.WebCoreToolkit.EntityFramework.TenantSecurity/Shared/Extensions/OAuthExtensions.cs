@@ -29,8 +29,21 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 Scope = definition.Scope,
                 TokenEndpoint = definition.TokenEndpoint,
                 UniqueConnectionName = definition.UniqueConnectionName,
-                AuthenticationType = definition.AuthenticationType
+                AuthenticationType = definition.AuthenticationType,
+                TokenRequestParameters = definition.TokenParameters.ToTokenRequestParameters()
             };
+        }
+
+        /// <summary>
+        /// Converts the configured token-parameters of a service into the representation of an ExternalServiceConnection
+        /// </summary>
+        /// <param name="parameters">the parameters of a service (may be null)</param>
+        /// <returns>the parameters as key-value pairs, ordered by name</returns>
+        public static KeyValuePair<string, string>[] ToTokenRequestParameters(this IEnumerable<ExternalOAuthServiceParameter> parameters)
+        {
+            return parameters?.OrderBy(n => n.ParameterName, StringComparer.OrdinalIgnoreCase)
+                .Select(n => new KeyValuePair<string, string>(n.ParameterName, n.ParameterValue))
+                .ToArray() ?? Array.Empty<KeyValuePair<string, string>>();
         }
     }
 }

@@ -1,6 +1,7 @@
-@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
+@using ITVComponents.WebCoreToolkit.ExternalServiceConnect
 
 @inject IExternalServiceAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -35,6 +36,12 @@ else
                 <tr><td>Client ID</td><td>@details.ClientId</td></tr>
                 <tr><td>Scope</td><td>@details.Scope</td></tr>
             }
+            else if (details.AuthenticationType == ExternalServiceAuthenticationType.OAuthPasswordFlow)
+            {
+                <tr><td>Token endpoint</td><td>@details.AuthorizationEndpoint</td></tr>
+                <tr><td>Username</td><td>@details.ClientId</td></tr>
+                <tr><td>Scope</td><td>@details.Scope</td></tr>
+            }
             else if (details.AuthenticationType == ExternalServiceAuthenticationType.ApiKey)
             {
                 <tr><td>API key header</td><td>@details.ClientId</td></tr>
@@ -42,6 +49,13 @@ else
             else if (details.AuthenticationType == ExternalServiceAuthenticationType.Basic)
             {
                 <tr><td>Username</td><td>@details.ClientId</td></tr>
+            }
+            @if (TokenRequestParameterRules.SupportsParameters(details.AuthenticationType))
+            {
+                foreach (var parameter in details.TokenRequestParameters)
+                {
+                    <tr><td>Parameter: @parameter.Key</td><td>@parameter.Value</td></tr>
+                }
             }
             <tr><td>Redirect URI</td><td><code>@details.RedirectUri</code></td></tr>
             <tr><td>Connection status</td>

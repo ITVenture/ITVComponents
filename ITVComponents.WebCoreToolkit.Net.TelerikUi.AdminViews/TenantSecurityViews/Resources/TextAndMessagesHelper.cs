@@ -166,7 +166,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string IWCN_ES_UniqueName => GetString(nameof(IWCN_ES_UniqueName));
 
-        public static string IWCN_ES_AuthenticationType => GetString(nameof(IWCN_ES_AuthenticationType));
+        // the resource-key is named IWCN_ES_AuthType in the resx-files
+        public static string IWCN_ES_AuthenticationType => GetString("IWCN_ES_AuthType");
 
         public static string IWCN_ES_RedirectUri => GetString(nameof(IWCN_ES_RedirectUri));
 
@@ -187,6 +188,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         public static string IWCN_ES_UseEncryptPrefix => GetString(nameof(IWCN_ES_UseEncryptPrefix));
 
         public static string IWCN_ES_EncryptedValue => GetString(nameof(IWCN_ES_EncryptedValue));
+
+        public static string IWCN_ES_EncryptHint => GetString(nameof(IWCN_ES_EncryptHint));
+
+        public static string IWCN_ES_ParamNotEditable => GetString(nameof(IWCN_ES_ParamNotEditable));
+
+        public static string IWCN_ES_ParamNameRequired => GetString(nameof(IWCN_ES_ParamNameRequired));
+
+        public static string IWCN_ES_ParamReserved => GetString(nameof(IWCN_ES_ParamReserved));
+
+        public static string IWCN_ES_ParamDuplicate => GetString(nameof(IWCN_ES_ParamDuplicate));
+
+        public static string IWCN_ES_ParamHint => GetString(nameof(IWCN_ES_ParamHint));
+
+        public static string IWCN_ES_ParamNotSupported => GetString(nameof(IWCN_ES_ParamNotSupported));
 
         public static string IWCN_ES_DetailsTitle_Params => GetString(nameof(IWCN_ES_DetailsTitle_Params));
 
@@ -543,7 +558,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         public static string GetIWCN_ES_Global(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_Global), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_UniqueName(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_UniqueName), requestCulture.RequestCulture.UICulture);
-        public static string GetIWCN_ES_AuthenticationType(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_AuthenticationType), requestCulture.RequestCulture.UICulture);
+        public static string GetIWCN_ES_AuthenticationType(this IRequestCultureFeature requestCulture) => GetString("IWCN_ES_AuthType", requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_RedirectUri(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_RedirectUri), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_AuthEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_AuthEndpoint), requestCulture.RequestCulture.UICulture);
         public static string GetIWCN_ES_TokenEndpoint(this IRequestCultureFeature requestCulture) => GetString(nameof(IWCN_ES_TokenEndpoint), requestCulture.RequestCulture.UICulture);
@@ -557,6 +572,27 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string GetIWCN_ES_EncryptedValue(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_EncryptedValue), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_EncryptHint(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_EncryptHint), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamNotEditable(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamNotEditable), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamNameRequired(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamNameRequired), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamReserved(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamReserved), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamDuplicate(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamDuplicate), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamHint(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamHint), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamNotSupported(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamNotSupported), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_DetailsTitle_Params(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_DetailsTitle_Params), requestCulture.RequestCulture.UICulture);

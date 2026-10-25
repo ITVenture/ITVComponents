@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
@@ -52,6 +52,35 @@ public sealed class ExternalServiceDetailsViewModel
     public bool Global { get; set; }
     public string RedirectUri { get; set; } = string.Empty;
     public bool IsConnected { get; set; }
+    public KeyValuePair<string, string>[] TokenRequestParameters { get; set; } = Array.Empty<KeyValuePair<string, string>>();
+}
+
+public sealed class ExternalOAuthServiceParameterViewModel
+{
+    public int OAuthServiceParameterId { get; set; }
+
+    public int OAuthServiceId { get; set; }
+
+    [Required, MaxLength(255)]
+    public string ParameterName { get; set; } = string.Empty;
+
+    public string? ParameterValue { get; set; }
+}
+
+public sealed class ExternalOAuthServiceParameterSaveResult
+{
+    public bool Success { get; private init; }
+
+    /// <summary>Why the parameter was rejected (reserved name, duplicate, not editable)</summary>
+    public string? Error { get; private init; }
+
+    public ExternalOAuthServiceParameterViewModel? Parameter { get; private init; }
+
+    public static ExternalOAuthServiceParameterSaveResult Saved(ExternalOAuthServiceParameterViewModel parameter)
+        => new() { Success = true, Parameter = parameter };
+
+    public static ExternalOAuthServiceParameterSaveResult Failed(string error)
+        => new() { Success = false, Error = error };
 }
 
 public sealed class ExternalServiceTestRequestViewModel

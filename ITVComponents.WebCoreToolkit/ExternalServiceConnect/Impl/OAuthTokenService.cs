@@ -20,6 +20,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
 {
     public sealed class OAuthTokenService : IOAuthTokenService
     {
+        private const int MaxLoggedResponseLength = 2000;
+
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
         private readonly ISecurityRepository securityRepo;
@@ -143,43 +145,73 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             var client = httpClientFactory.CreateClient();
 
             HttpResponseMessage response = null;
+            string endpoint;
+            IDictionary<string, string> sentForm;
             if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
             {
-                response = await client.PostAsync(
-                    c.TokenEndpoint,
-                    new FormUrlEncodedContent(new Dictionary<string, string>
-                    {
-                        ["grant_type"] = "refresh_token",
-                        ["refresh_token"] = token.RefreshToken,
-                        ["client_id"] = c.ClientId,
-                        ["client_secret"] = c.ClientSecret,
-                        ["scope"] = token.Scope
-                    }));
+                endpoint = c.TokenEndpoint;
+                sentForm = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "refresh_token",
+                    ["refresh_token"] = token.RefreshToken,
+                    ["client_id"] = c.ClientId,
+                    ["client_secret"] = c.ClientSecret,
+                    ["scope"] = token.Scope
+                };
+                response = await client.PostAsync(endpoint, new FormUrlEncodedContent(sentForm));
             }
             else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthClientCredentialsFlow)
             {
-                response = await client.PostAsync(c.AuthorizationEndpoint, new FormUrlEncodedContent(
-                    new Dictionary<string, string>
-                    {
-                        ["grant_type"] = "client_credentials",
-                        ["client_id"] = c.ClientId,
-                        ["client_secret"] = c.ClientSecret,
-                    }));
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "client_credentials",
+                    ["client_id"] = c.ClientId,
+                    ["client_secret"] = c.ClientSecret,
+                };
+
+                AppendTokenRequestParameters(formRaw, c);
+                endpoint = c.AuthorizationEndpoint;
+                sentForm = formRaw;
+                response = await client.PostAsync(endpoint, new FormUrlEncodedContent(formRaw));
             }
             else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow)
             {
-                var content = new FormUrlEncodedContent(
-                    new Dictionary<string, string>
-                    {
-                        ["grant_type"] = "client_credentials",
-                    });
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "client_credentials",
+                };
+
+                AppendTokenRequestParameters(formRaw, c);
+                var content = new FormUrlEncodedContent(formRaw);
 
                 var authHeaderRaw = $"{c.ClientId}:{c.ClientSecret}";
                 var authHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes(authHeaderRaw));
                 //content.Headers.Add(new AuthenticationHeaderValue("Basic", authHeaderValue));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeaderValue);
-                response = await client.PostAsync(c.AuthorizationEndpoint, content);
+                endpoint = c.AuthorizationEndpoint;
+                sentForm = formRaw;
+                response = await client.PostAsync(endpoint, content);
                 client.DefaultRequestHeaders.Authorization = null;
+            }
+            else if (c.AuthenticationType == ExternalServiceAuthenticationType.OAuthPasswordFlow)
+            {
+                // Resource Owner Password Credentials Grant (RFC 6749, 4.3): ClientId/ClientSecret carry username/password
+                var formRaw = new Dictionary<string, string>
+                {
+                    ["grant_type"] = "password",
+                    ["username"] = c.ClientId,
+                    ["password"] = c.ClientSecret
+                };
+
+                if (!string.IsNullOrEmpty(c.Scope))
+                {
+                    formRaw.Add("scope", c.Scope);
+                }
+
+                AppendTokenRequestParameters(formRaw, c);
+                endpoint = c.AuthorizationEndpoint;
+                sentForm = formRaw;
+                response = await client.PostAsync(endpoint, new FormUrlEncodedContent(formRaw));
             }
             else
             {
@@ -189,30 +221,116 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
             if (!response.IsSuccessStatusCode)
             {
                 // The body carries the reason (e.g. invalid_grant = the login has to be renewed by the user);
-                // EnsureSuccessStatusCode alone would only leave the status code behind.
-                var body = await response.Content.ReadAsStringAsync();
-                LogEnvironment.LogEvent($"Token request for external service '{c.UniqueConnectionName}' ({c.AuthenticationType}) was rejected with {(int)response.StatusCode}: {body}", LogSeverity.Error);
-                response.EnsureSuccessStatusCode();
+                // EnsureSuccessStatusCode alone would only leave the status code behind. Field names only, never
+                // values - they carry credentials. Empty values are marked, which reveals e.g. a missing password.
+                var errorBody = await ReadResponseBodyForLogAsync(response, c.UniqueConnectionName);
+                var fields = DescribeFormFields(sentForm);
+                LogEnvironment.LogEvent($"Token request for external service '{c.UniqueConnectionName}' ({c.AuthenticationType}) to {endpoint} was rejected with {(int)response.StatusCode} ({response.ReasonPhrase}). Sent fields: {fields}. Response: {errorBody}", LogSeverity.Error);
+                throw new HttpRequestException($"Token request of {c.UniqueConnectionName} to {endpoint} failed with {(int)response.StatusCode} ({response.ReasonPhrase}). Sent fields: {fields}. Response: {errorBody}", null, response.StatusCode);
             }
 
-            var newToken = await response.Content
-                .ReadFromJsonAsync<TokenResponse>();
+            TokenResponse newToken;
+            try
+            {
+                newToken = await response.Content
+                    .ReadFromJsonAsync<TokenResponse>();
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"The token response of external service '{c.UniqueConnectionName}' from {endpoint} could not be read as token-json: {ex.OutlineException()}", LogSeverity.Error);
+                throw;
+            }
+
+            if (string.IsNullOrEmpty(newToken?.AccessToken))
+            {
+                LogEnvironment.LogEvent($"The token response of external service '{c.UniqueConnectionName}' from {endpoint} contains no access_token.", LogSeverity.Error);
+                throw new InvalidOperationException($"The token response of {c.UniqueConnectionName} from {endpoint} contains no access_token.");
+            }
+
+            // tokens without refresh-token (e.g. client-credentials) are buffered too. When a refresh does not
+            // return a new refresh-token, the previous one remains valid and is kept.
             var dbToken = new TranslatedTokenResponse
             {
                 ExpiresAt =
                     DateTimeOffset.UtcNow.AddSeconds(newToken.ExpiresIn),
                 Scope = newToken.Scope,
-                RefreshToken = newToken.RefreshToken,
+                RefreshToken = !string.IsNullOrEmpty(newToken.RefreshToken) ? newToken.RefreshToken : token?.RefreshToken,
                 AccessToken = newToken.AccessToken,
                 TokenType = newToken.TokenType
             };
 
-            if (!string.IsNullOrEmpty(dbToken.RefreshToken))
-            {
-                update(dbToken);
-            }
+            update(dbToken);
 
             return dbToken;
+        }
+
+        /// <summary>
+        /// Describes the sent form-fields for diagnostics. Only names are listed, values are never exposed because they may
+        /// contain credentials. Empty values are marked, which reveals e.g. a password that was not stored
+        /// </summary>
+        /// <param name="form">the sent form-data</param>
+        /// <returns>a comma-separated list of the field-names</returns>
+        private static string DescribeFormFields(IDictionary<string, string> form)
+        {
+            return string.Join(", ", form.Select(n => string.IsNullOrEmpty(n.Value) ? $"{n.Key} (empty)" : n.Key));
+        }
+
+        /// <summary>
+        /// Reads the body of a failed response for diagnostics and truncates it to a reasonable length
+        /// </summary>
+        /// <param name="response">the failed response</param>
+        /// <param name="connectionName">the connection for which the token was requested</param>
+        /// <returns>the (truncated) response-body</returns>
+        private static async Task<string> ReadResponseBodyForLogAsync(HttpResponseMessage response, string connectionName)
+        {
+            try
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrEmpty(body))
+                {
+                    return "(empty)";
+                }
+
+                return body.Length > MaxLoggedResponseLength ? $"{body.Substring(0, MaxLoggedResponseLength)}..." : body;
+            }
+            catch (Exception ex)
+            {
+                // the body is diagnostic only, the failed status is reported anyway
+                LogEnvironment.LogEvent($"Unable to read the error response of the token request of external service '{connectionName}': {ex.OutlineException()}", LogSeverity.Warning);
+                return "(unreadable)";
+            }
+        }
+
+        /// <summary>
+        /// Appends the additional token-request parameters of the connection to the form. Parameters that the flow already set
+        /// are skipped, so a configured parameter never overrides grant_type, credentials or scope
+        /// </summary>
+        /// <param name="formRaw">the form-data of the token-request</param>
+        /// <param name="connection">the connection that provides the additional parameters</param>
+        private static void AppendTokenRequestParameters(Dictionary<string, string> formRaw, ExternalServiceConnection connection)
+        {
+            if (connection.TokenRequestParameters == null)
+            {
+                return;
+            }
+
+            foreach (var parameter in connection.TokenRequestParameters)
+            {
+                if (string.IsNullOrWhiteSpace(parameter.Key))
+                {
+                    LogEnvironment.LogEvent($"Skipping a token-request parameter without name on external service '{connection.UniqueConnectionName}'.", LogSeverity.Warning);
+                    continue;
+                }
+
+                var name = parameter.Key.Trim();
+                if (formRaw.Keys.Any(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    LogEnvironment.LogEvent($"Token-request parameter '{name}' on external service '{connection.UniqueConnectionName}' is set by {connection.AuthenticationType} itself and is ignored.", LogSeverity.Warning);
+                    continue;
+                }
+
+                formRaw.Add(name, parameter.Value ?? string.Empty);
+            }
         }
     }
 }

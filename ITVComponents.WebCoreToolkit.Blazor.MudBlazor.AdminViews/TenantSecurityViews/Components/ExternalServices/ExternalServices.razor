@@ -1,8 +1,9 @@
-@page "/Connectivity/Services"
+﻿@page "/Connectivity/Services"
 @rendermode @(RenderMode.InteractiveServer)
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using ITVComponents.WebCoreToolkit.ExternalServiceConnect
 
 @inject IExternalServiceAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
@@ -70,6 +71,11 @@ else
                                    OnClick="@(() => OpenTestDialog(context.Item.OAuthServiceId))">
                             Open test form
                         </MudButton>
+                    </MudTabPanel>
+                    <MudTabPanel Text="Token parameters">
+                        <ExternalServiceParametersGrid OAuthServiceId="@context.Item.OAuthServiceId"
+                                                       CanWrite="@(hasWrite && (isSysAdmin || context.Item.TenantId != null))"
+                                                       SupportsParameters="@TokenRequestParameterRules.SupportsParameters(context.Item.AuthenticationType)" />
                     </MudTabPanel>
                     <MudTabPanel Text="Tenant logins">
                         <ExternalServiceLoginsGrid OAuthServiceId="@context.Item.OAuthServiceId" CanWrite="@hasWrite" />

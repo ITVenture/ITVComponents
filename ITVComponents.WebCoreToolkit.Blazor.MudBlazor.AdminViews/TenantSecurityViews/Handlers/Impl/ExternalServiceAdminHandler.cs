@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
@@ -81,13 +82,15 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
     private readonly ISecurityRepository secRepo;
+    private readonly ILogger<IExternalServiceAdminHandler> logger;
     private readonly IOAuthHttpClientFactory? oauthClientFactory;
 
-    public ExternalServiceAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ISecurityRepository secRepo, IOAuthHttpClientFactory? oauthClientFactory = null)
+    public ExternalServiceAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ISecurityRepository secRepo, ILogger<IExternalServiceAdminHandler> logger, IOAuthHttpClientFactory? oauthClientFactory = null)
     {
         this.dbFactory = dbFactory;
         this.services = services;
         this.secRepo = secRepo;
+        this.logger = logger;
         this.oauthClientFactory = oauthClientFactory;
     }
 
@@ -104,25 +107,41 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
 
     private bool IsSysAdmin() => services.VerifyUserPermissions(new[] { "Sysadmin" });
 
+    /// <summary>
+    /// The services the current user may see (<paramref name="forWrite"/> = false) or change (true). The context runs with
+    /// ShowAllTenants, so this is the ONLY tenant-boundary of the handler: a sysadmin reaches every service, everybody else
+    /// reads the services of the current tenant plus the global ones and changes only those of the current tenant.
+    /// </summary>
+    /// <param name="db">the per-operation context</param>
+    /// <param name="forWrite">indicates whether the services are about to be changed</param>
+    /// <returns>a query over the accessible services</returns>
+    private IQueryable<TExternalOAuthService> AccessibleServices(TContext db, bool forWrite)
+    {
+        if (IsSysAdmin())
+        {
+            return db.ExternalOAuthServices;
+        }
+
+        // read before the query is built: the first read may query the database itself
+        var currentTenantId = db.CurrentTenantId;
+        if (currentTenantId == null)
+        {
+            // without a tenant, "TenantId == currentTenantId" would match the global services
+            return db.ExternalOAuthServices.Where(n => false);
+        }
+
+        return forWrite
+            ? db.ExternalOAuthServices.Where(n => n.TenantId == currentTenantId)
+            : db.ExternalOAuthServices.Where(n => n.TenantId == currentTenantId || n.TenantId == null);
+    }
+
     public async Task<PagedResult<ExternalOAuthServiceViewModel>> ListAsync(ClaimsPrincipal user, ListQuery query)
     {
         if (!HasPermission("Services.Connections.View", "Services.Connections.Write"))
             return new PagedResult<ExternalOAuthServiceViewModel>();
 
         using var db = CreateDb();
-        var sysAdmin = IsSysAdmin();
-        var currentTenantId = db.CurrentTenantId;
-        IQueryable<TExternalOAuthService> q;
-        if (sysAdmin)
-        {
-            q = db.ExternalOAuthServices.AsNoTracking();
-        }
-        else
-        {
-            q = db.ExternalOAuthServices.AsNoTracking()
-                .Where(n => n.TenantId == currentTenantId || n.TenantId == null);
-        }
-
+        var q = AccessibleServices(db, false).AsNoTracking();
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var s = query.Search.Trim();
@@ -153,8 +172,21 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (!HasPermission("Services.Connections.Write")) return null;
         using var db = CreateDb();
         var sysAdmin = IsSysAdmin();
-        if (!sysAdmin) input.Global = false;
-        if (!input.Global && input.TenantId == null) input.TenantId = db.CurrentTenantId;
+        if (!sysAdmin)
+        {
+            // a tenant-admin creates services for the own tenant only, whatever the input says
+            input.Global = false;
+            input.TenantId = db.CurrentTenantId;
+            if (input.TenantId == null)
+            {
+                logger.LogWarning("External service '{ConnectionName}' was not created: there is no current tenant.", input.UniqueConnectionName);
+                return null;
+            }
+        }
+        else if (!input.Global && input.TenantId == null)
+        {
+            input.TenantId = db.CurrentTenantId;
+        }
 
         var entity = new TExternalOAuthService
         {
@@ -180,8 +212,12 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     {
         if (!HasPermission("Services.Connections.Write")) return null;
         using var db = CreateDb();
-        var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
-        if (entity == null) return null;
+        var entity = await AccessibleServices(db, true).FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
+        if (entity == null)
+        {
+            logger.LogWarning("External service {OAuthServiceId} was not updated: it does not exist or is not editable for the current user.", input.OAuthServiceId);
+            return null;
+        }
 
         entity.UniqueConnectionName = input.UniqueConnectionName;
         entity.AuthorizationEndpoint = input.AuthorizationEndpoint ?? string.Empty;
@@ -201,8 +237,13 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     {
         if (!HasPermission("Services.Connections.Write")) return false;
         using var db = CreateDb();
-        var entity = await db.ExternalOAuthServices.FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
-        if (entity == null) return false;
+        var entity = await AccessibleServices(db, true).FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
+        if (entity == null)
+        {
+            logger.LogWarning("External service {OAuthServiceId} was not deleted: it does not exist or is not editable for the current user.", oauthServiceId);
+            return false;
+        }
+
         db.ExternalOAuthServices.Remove(entity);
         await db.SaveChangesAsync();
         return true;
@@ -214,8 +255,17 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             return new PagedResult<ExternalOAuthServiceTenantLoginViewModel>();
 
         using var db = CreateDb();
+        var sysAdmin = IsSysAdmin();
+        var currentTenantId = db.CurrentTenantId;
+        if (!await AccessibleServices(db, false).AnyAsync(n => n.OAuthServiceId == oauthServiceId))
+        {
+            logger.LogWarning("Tenant logins of external service {OAuthServiceId} were not listed: it does not exist or is not visible for the current user.", oauthServiceId);
+            return new PagedResult<ExternalOAuthServiceTenantLoginViewModel>();
+        }
+
+        // a global service is used by many tenants - a tenant-admin only sees the login of the own tenant
         var q = from l in db.ExternalOAuthServiceTenantLogins.AsNoTracking()
-                where l.OAuthServiceId == oauthServiceId
+                where l.OAuthServiceId == oauthServiceId && (sysAdmin || l.TenantId == currentTenantId)
                 join t in db.Tenants.AsNoTracking() on l.TenantId equals t.TenantId into tj
                 from tn in tj.DefaultIfEmpty()
                 select new ExternalOAuthServiceTenantLoginViewModel
@@ -236,8 +286,16 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     {
         if (!HasPermission("Services.Connections.Write")) return false;
         using var db = CreateDb();
-        var entity = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId);
-        if (entity == null) return false;
+        var sysAdmin = IsSysAdmin();
+        var currentTenantId = db.CurrentTenantId;
+        var entity = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId
+                                                                                      && (sysAdmin || n.TenantId == currentTenantId));
+        if (entity == null)
+        {
+            logger.LogWarning("Tenant login {LoginId} was not revoked: it does not exist or does not belong to the current tenant.", externalOAuthServiceTenantLoginId);
+            return false;
+        }
+
         entity.Revoked = true;
         await db.SaveChangesAsync();
         return true;
@@ -247,8 +305,14 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     {
         if (!HasPermission("Services.Connections.View", "Services.Connections.Write")) return null;
         using var db = CreateDb();
-        var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
-        if (entity == null) return null;
+        // no lazy loading on untracked entities - the parameters are included explicitly
+        var entity = await AccessibleServices(db, false).AsNoTracking().Include(n => n.TokenParameters)
+            .FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
+        if (entity == null)
+        {
+            logger.LogWarning("Details of external service {OAuthServiceId} are unavailable: it does not exist or is not visible for the current user.", oauthServiceId);
+            return null;
+        }
 
         var serviceDef = entity.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(true);
         var isConnected = entity.AuthenticationType != ExternalServiceAuthenticationType.OAuthAuthorizationFlow
@@ -267,7 +331,8 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             Scope = entity.Scope,
             Global = entity.Global,
             RedirectUri = serviceDef.RedirectUri(),
-            IsConnected = isConnected
+            IsConnected = isConnected,
+            TokenRequestParameters = serviceDef.TokenRequestParameters
         };
     }
 
@@ -278,16 +343,20 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         if (oauthClientFactory == null)
             return new ExternalServiceTestResultViewModel { ErrorMessage = "OAuth client factory is not registered", IsSuccess = false };
 
-        using var db = CreateDb();
-        var entity = await db.ExternalOAuthServices.AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == request.OAuthServiceId);
-        if (entity == null)
-            return new ExternalServiceTestResultViewModel { ErrorMessage = "Service not found", IsSuccess = false };
+        string globalConnectionName;
+        using (var db = CreateDb())
+        {
+            var entity = await AccessibleServices(db, false).AsNoTracking().FirstOrDefaultAsync(n => n.OAuthServiceId == request.OAuthServiceId);
+            if (entity == null)
+                return new ExternalServiceTestResultViewModel { ErrorMessage = "Service not found", IsSuccess = false };
 
-        var serviceDef = entity.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(true);
+            globalConnectionName = entity.ToServiceDefinition<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(true).GlobalUniqueConnectionName;
+        }
 
+        // the context is gone before the request starts - the client resolves the service on its own
         try
         {
-            using var client = oauthClientFactory.Create(serviceDef.GlobalUniqueConnectionName);
+            using var client = oauthClientFactory.Create(globalConnectionName);
             var httpMethod = new HttpMethod(request.Verb.ToUpperInvariant());
             using var message = new HttpRequestMessage(httpMethod, request.TargetUrl);
             if (!string.IsNullOrEmpty(request.HttpActionBody))
@@ -315,8 +384,108 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Test request against external service {ConnectionName} failed.", globalConnectionName);
             return new ExternalServiceTestResultViewModel { ErrorMessage = ex.Message, IsSuccess = false };
         }
+    }
+
+    public async Task<PagedResult<ExternalOAuthServiceParameterViewModel>> ListParametersAsync(ClaimsPrincipal user, int oauthServiceId, ListQuery query)
+    {
+        if (!HasPermission("Services.Connections.View", "Services.Connections.Write"))
+            return new PagedResult<ExternalOAuthServiceParameterViewModel>();
+
+        using var db = CreateDb();
+        // the parameters have no tenant-filter of their own; they are only reachable through an accessible service
+        var q = AccessibleServices(db, false).AsNoTracking()
+            .Where(n => n.OAuthServiceId == oauthServiceId)
+            .SelectMany(n => n.TokenParameters);
+        var total = await q.CountAsync();
+        var items = await q.OrderBy(n => n.ParameterName).Page(n => n.OAuthServiceParameterId, query)
+            .Select(n => new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceParameterId = n.OAuthServiceParameterId,
+                OAuthServiceId = n.OAuthServiceId,
+                ParameterName = n.ParameterName,
+                ParameterValue = n.ParameterValue
+            }).ToListAsync();
+        return new PagedResult<ExternalOAuthServiceParameterViewModel> { Items = items, TotalCount = total };
+    }
+
+    public async Task<ExternalOAuthServiceParameterSaveResult> SaveParameterAsync(ClaimsPrincipal user, ExternalOAuthServiceParameterViewModel input)
+    {
+        if (!HasPermission("Services.Connections.Write"))
+            return ExternalOAuthServiceParameterSaveResult.Failed("Insufficient permission.");
+
+        using var db = CreateDb();
+        var service = await AccessibleServices(db, true).Include(n => n.TokenParameters)
+            .FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
+        if (service == null)
+        {
+            logger.LogWarning("Token parameter of external service {OAuthServiceId} was not saved: the service does not exist or is not editable for the current user.", input.OAuthServiceId);
+            return ExternalOAuthServiceParameterSaveResult.Failed("The parameters of this service can not be edited.");
+        }
+
+        var name = input.ParameterName?.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            return ExternalOAuthServiceParameterSaveResult.Failed("A parameter name is required.");
+        }
+
+        if (TokenRequestParameterRules.IsReserved(service.AuthenticationType, name))
+        {
+            return ExternalOAuthServiceParameterSaveResult.Failed($"The parameter '{name}' is set by the authentication type itself and can not be overridden.");
+        }
+
+        if (service.TokenParameters.Any(n => n.OAuthServiceParameterId != input.OAuthServiceParameterId && string.Equals(n.ParameterName, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ExternalOAuthServiceParameterSaveResult.Failed($"A parameter named '{name}' already exists.");
+        }
+
+        ExternalOAuthServiceParameter? model;
+        if (input.OAuthServiceParameterId == 0)
+        {
+            model = new ExternalOAuthServiceParameter();
+            service.TokenParameters.Add(model);
+        }
+        else
+        {
+            model = service.TokenParameters.FirstOrDefault(n => n.OAuthServiceParameterId == input.OAuthServiceParameterId);
+            if (model == null)
+            {
+                logger.LogWarning("Token parameter {ParameterId} was not updated: it does not belong to external service {OAuthServiceId}.", input.OAuthServiceParameterId, input.OAuthServiceId);
+                return ExternalOAuthServiceParameterSaveResult.Failed("The parameter does not exist (anymore).");
+            }
+        }
+
+        model.ParameterName = name;
+        model.ParameterValue = input.ParameterValue;
+        await db.SaveChangesAsync();
+        return ExternalOAuthServiceParameterSaveResult.Saved(new ExternalOAuthServiceParameterViewModel
+        {
+            OAuthServiceParameterId = model.OAuthServiceParameterId,
+            OAuthServiceId = service.OAuthServiceId,
+            ParameterName = model.ParameterName,
+            ParameterValue = model.ParameterValue
+        });
+    }
+
+    public async Task<bool> DeleteParameterAsync(ClaimsPrincipal user, int oauthServiceId, int oauthServiceParameterId)
+    {
+        if (!HasPermission("Services.Connections.Write")) return false;
+        using var db = CreateDb();
+        var service = await AccessibleServices(db, true).Include(n => n.TokenParameters)
+            .FirstOrDefaultAsync(n => n.OAuthServiceId == oauthServiceId);
+        var model = service?.TokenParameters.FirstOrDefault(n => n.OAuthServiceParameterId == oauthServiceParameterId);
+        if (model == null)
+        {
+            logger.LogWarning("Token parameter {ParameterId} of external service {OAuthServiceId} was not deleted: it does not exist or is not editable for the current user.", oauthServiceParameterId, oauthServiceId);
+            return false;
+        }
+
+        // required relationship: removing the parameter from the collection deletes the orphaned row
+        service!.TokenParameters.Remove(model);
+        await db.SaveChangesAsync();
+        return true;
     }
 
     private void EncryptSecret(TContext db, TExternalOAuthService entity, string? secret)
@@ -330,7 +499,14 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         else
         {
             var t = db.Tenants.FirstOrDefault(n => n.TenantId == entity.TenantId);
-            if (t != null) entity.ClientSecret = secRepo.Encrypt(plain, t.TenantName);
+            if (t != null)
+            {
+                entity.ClientSecret = secRepo.Encrypt(plain, t.TenantName);
+            }
+            else
+            {
+                logger.LogError("The secret of external service '{ConnectionName}' was not stored: tenant {TenantId} was not found.", entity.UniqueConnectionName, entity.TenantId);
+            }
         }
     }
 }

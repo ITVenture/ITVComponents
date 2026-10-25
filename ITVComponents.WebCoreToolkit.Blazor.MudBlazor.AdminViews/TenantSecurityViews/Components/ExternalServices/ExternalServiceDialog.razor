@@ -1,30 +1,71 @@
 @using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 
+@* Which field is visible, required and how it is labelled depends on the authentication type - the same rules as the
+   Kendo-mask (data-auth-type / data-auth-required in ExOsvcEdit.cshtml). Hidden fields are not rendered and therefore
+   not validated. *@
 <EditDialogShell Model="Model" IsCreate="IsCreate">
-    <MudTextField @bind-Value="Model.UniqueConnectionName" Label="Connection name" Required="true" RequiredError="Name is required" MaxLength="255" />
-    @if (AllowGlobal)
-    {
-        <MudCheckBox @bind-Value="Model.Global" Label="Global (shared across tenants)" />
-    }
     <MudSelect T="ExternalServiceAuthenticationType" @bind-Value="Model.AuthenticationType" Label="Authentication type">
         @foreach (var t in Enum.GetValues<ExternalServiceAuthenticationType>())
         {
             <MudSelectItem T="ExternalServiceAuthenticationType" Value="@t">@t</MudSelectItem>
         }
     </MudSelect>
-    <MudTextField @bind-Value="Model.AuthorizationEndpoint" Label="Authorization endpoint" />
-    <MudTextField @bind-Value="Model.TokenEndpoint" Label="Token endpoint" />
-    <MudTextField @bind-Value="Model.RevocationEndpoint" Label="Revocation endpoint" />
-    <MudTextField @bind-Value="Model.ClientId" Label="Client ID" />
+    <MudTextField @bind-Value="Model.UniqueConnectionName" Label="Connection name" Required="true" RequiredError="Name is required" MaxLength="255" />
+    @if (AllowGlobal)
+    {
+        <MudCheckBox @bind-Value="Model.Global" Label="Global (shared across tenants)" />
+    }
+    @if (Is(OAuthAuthorizationFlow, OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow, OAuthPasswordFlow))
+    {
+        <MudTextField @bind-Value="Model.AuthorizationEndpoint"
+                      Label="@(Is(OAuthAuthorizationFlow) ? "Authorization endpoint" : "Token endpoint")"
+                      Required="true" RequiredError="Endpoint is required" />
+    }
+    @if (Is(OAuthAuthorizationFlow))
+    {
+        <MudTextField @bind-Value="Model.TokenEndpoint" Label="Token endpoint" Required="true" RequiredError="Token endpoint is required" />
+        <MudTextField @bind-Value="Model.RevocationEndpoint" Label="Revocation endpoint" />
+    }
+    @if (!Is(BearerToken))
+    {
+        <MudTextField @bind-Value="Model.ClientId" Label="@ClientIdLabel" Required="true" RequiredError="@($"{ClientIdLabel} is required")" />
+    }
     <MudTextField @bind-Value="Model.ClientSecret"
-                  Label="Client secret"
-                  HelperText="Prefix with 'encrypt:' to encrypt before saving. Leave empty to keep existing secret."
+                  Label="@ClientSecretLabel"
+                  Placeholder="encrypt:..."
+                  HelperText="Stored encrypted and never displayed. Enter a new value with the prefix 'encrypt:' (e.g. encrypt:MyPassword) – input without the prefix is ignored. Leave empty to keep the current value."
                   InputType="@(MudBlazor.InputType.Password)" />
-    <MudTextField @bind-Value="Model.Scope" Label="Scope" />
+    @if (Is(OAuthAuthorizationFlow, OAuthPasswordFlow))
+    {
+        <MudTextField @bind-Value="Model.Scope" Label="Scope" Required="@Is(OAuthAuthorizationFlow)" RequiredError="Scope is required" />
+    }
 </EditDialogShell>
 
 @code {
+    private const ExternalServiceAuthenticationType OAuthAuthorizationFlow = ExternalServiceAuthenticationType.OAuthAuthorizationFlow;
+    private const ExternalServiceAuthenticationType OAuthClientCredentialsFlow = ExternalServiceAuthenticationType.OAuthClientCredentialsFlow;
+    private const ExternalServiceAuthenticationType OAuthBasicClientCredentialsFlow = ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow;
+    private const ExternalServiceAuthenticationType OAuthPasswordFlow = ExternalServiceAuthenticationType.OAuthPasswordFlow;
+    private const ExternalServiceAuthenticationType BearerToken = ExternalServiceAuthenticationType.BearerToken;
+
     [Parameter, EditorRequired] public ExternalOAuthServiceViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool AllowGlobal { get; set; }
+
+    private bool Is(params ExternalServiceAuthenticationType[] types) => types.Contains(Model.AuthenticationType);
+
+    private string ClientIdLabel => Model.AuthenticationType switch
+    {
+        ExternalServiceAuthenticationType.Basic or ExternalServiceAuthenticationType.OAuthPasswordFlow => "Username",
+        ExternalServiceAuthenticationType.ApiKey => "API key header",
+        _ => "Client ID"
+    };
+
+    private string ClientSecretLabel => Model.AuthenticationType switch
+    {
+        ExternalServiceAuthenticationType.OAuthAuthorizationFlow => "Client secret",
+        ExternalServiceAuthenticationType.ApiKey => "API key",
+        ExternalServiceAuthenticationType.BearerToken => "Bearer token",
+        _ => "Password"
+    };
 }

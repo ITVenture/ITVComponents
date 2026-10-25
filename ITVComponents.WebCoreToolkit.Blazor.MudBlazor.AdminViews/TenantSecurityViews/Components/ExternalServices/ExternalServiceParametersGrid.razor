@@ -1,0 +1,118 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.caption" Class="d-block mb-1">
+    Additional parameters are only sent with the token request of the types OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow and OAuthPasswordFlow. Values are URL-encoded automatically.
+</MudText>
+@if (!SupportsParameters)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">The current authentication type does not send additional parameters - they are kept but ignored.</MudAlert>
+}
+<MudDataGrid T="ExternalOAuthServiceParameterViewModel"
+             @ref="grid"
+             ServerData="LoadData"
+             SortMode="SortMode.None"
+             RowsPerPage="10"
+             Hover="true"
+             Dense="true">
+    <ToolBarContent>
+        <CrudGridToolbar OnRefresh="@(() => grid is null ? Task.CompletedTask : grid.ReloadServerData())" Title="Token parameters" TitleTypo="Typo.subtitle2">
+            @if (CanWrite)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Variant="Variant.Outlined" Size="Size.Small" OnClick="OpenCreate">
+                    Add parameter
+                </MudButton>
+            }
+        </CrudGridToolbar>
+    </ToolBarContent>
+    <Columns>
+        <PropertyColumn Property="x => x.ParameterName" Title="Name" />
+        <PropertyColumn Property="x => x.ParameterValue" Title="Value" />
+        <TemplateColumn T="ExternalOAuthServiceParameterViewModel" Title="" Sortable="false">
+            <CellTemplate>
+                @if (CanWrite)
+                {
+                    <MudStack Row="true" Spacing="1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEdit(context.Item))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Item))" />
+                    </MudStack>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager T="ExternalOAuthServiceParameterViewModel" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Parameter, EditorRequired] public int OAuthServiceId { get; set; }
+
+    /// <summary>
+    /// Write permission AND the service is editable for the user (globals only for sysadmins). Only steers the buttons -
+    /// the handler checks the same on every write.
+    /// </summary>
+    [Parameter] public bool CanWrite { get; set; }
+
+    /// <summary>Whether the authentication type of the service sends the parameters at all</summary>
+    [Parameter] public bool SupportsParameters { get; set; }
+
+    private MudDataGrid<ExternalOAuthServiceParameterViewModel>? grid;
+    private System.Security.Claims.ClaimsPrincipal? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        currentUser = auth.User;
+    }
+
+    private async Task<GridData<ExternalOAuthServiceParameterViewModel>> LoadData(GridState<ExternalOAuthServiceParameterViewModel> state, CancellationToken ct)
+    {
+        if (currentUser is null) return new GridData<ExternalOAuthServiceParameterViewModel> { Items = Array.Empty<ExternalOAuthServiceParameterViewModel>(), TotalItems = 0 };
+        var query = new ListQuery { Page = state.Page, PageSize = state.PageSize };
+        var result = await Handler.ListParametersAsync(currentUser, OAuthServiceId, query);
+        return new GridData<ExternalOAuthServiceParameterViewModel> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+
+    private Task OpenCreate()
+        => OpenDialog(new ExternalOAuthServiceParameterViewModel { OAuthServiceId = OAuthServiceId }, true);
+
+    private Task OpenEdit(ExternalOAuthServiceParameterViewModel item)
+        => OpenDialog(new ExternalOAuthServiceParameterViewModel
+        {
+            OAuthServiceParameterId = item.OAuthServiceParameterId,
+            OAuthServiceId = item.OAuthServiceId,
+            ParameterName = item.ParameterName,
+            ParameterValue = item.ParameterValue
+        }, false);
+
+    private async Task OpenDialog(ExternalOAuthServiceParameterViewModel model, bool isCreate)
+    {
+        var parameters = new DialogParameters<ExternalServiceParameterDialog>
+        {
+            { d => d.Model, model },
+            { d => d.IsCreate, isCreate }
+        };
+        var dlg = await DialogService.ShowAsync<ExternalServiceParameterDialog>(isCreate ? "Add parameter" : "Edit parameter", parameters, EditDialogDefaults.Edit);
+        var result = await dlg.Result;
+        if (result is { Canceled: false })
+        {
+            // the dialog saved already - it only closes on success
+            Snackbar.Add(isCreate ? "Parameter added" : "Parameter updated", Severity.Success);
+            if (grid is not null) await grid.ReloadServerData();
+        }
+    }
+
+    private async Task Delete(ExternalOAuthServiceParameterViewModel item)
+    {
+        var ok = await DialogService.ShowMessageBoxAsync("Delete parameter", $"Really delete '{item.ParameterName}'?", yesText: "Delete", cancelText: "Cancel");
+        if (ok != true) return;
+        var success = await Handler.DeleteParameterAsync(currentUser!, item.OAuthServiceId, item.OAuthServiceParameterId);
+        if (success) { Snackbar.Add("Parameter deleted", Severity.Success); if (grid is not null) await grid.ReloadServerData(); }
+        else Snackbar.Add("Failed to delete", Severity.Error);
+    }
+}

@@ -387,6 +387,9 @@
   <data name="IWCN_ES_UseEncryptPrefix" xml:space="preserve">
     <value>-- Encrypted value. Use 'encrypt:' prefix to assign a value--</value>
   </data>
+  <data name="IWCN_ES_EncryptHint" xml:space="preserve">
+    <value>Stored encrypted and never displayed. Enter a new value with the prefix 'encrypt:' (e.g. encrypt:MyPassword) – input without the prefix is ignored. Leave empty to keep the current value.</value>
+  </data>
   <data name="IWCN_ES_EncryptedValue" xml:space="preserve">
     <value>Encrypted value</value>
   </data>
@@ -398,5 +401,26 @@
   </data>
   <data name="IWCN_ES_AuthType" xml:space="preserve">
     <value>Authentication Type</value>
+  </data>
+  <data name="IWCN_Titles_Services" xml:space="preserve">
+    <value>External Services</value>
+  </data>
+  <data name="IWCN_ES_ParamNotEditable" xml:space="preserve">
+    <value>The parameters of this service can not be edited.</value>
+  </data>
+  <data name="IWCN_ES_ParamNameRequired" xml:space="preserve">
+    <value>A parameter name is required.</value>
+  </data>
+  <data name="IWCN_ES_ParamReserved" xml:space="preserve">
+    <value>The parameter '{0}' is set by the authentication type itself and can not be overridden.</value>
+  </data>
+  <data name="IWCN_ES_ParamDuplicate" xml:space="preserve">
+    <value>A parameter named '{0}' already exists.</value>
+  </data>
+  <data name="IWCN_ES_ParamHint" xml:space="preserve">
+    <value>Additional parameters are only sent with the token request of the types OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow and OAuthPasswordFlow. Values are URL-encoded automatically.</value>
+  </data>
+  <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
+    <value>The current authentication type does not send additional parameters - they are kept but ignored.</value>
   </data>
 </root>

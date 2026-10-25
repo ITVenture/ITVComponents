@@ -1,0 +1,47 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IExternalServiceAdminHandler Handler
+@inject AuthenticationStateProvider AuthState
+
+@* Saves inside the dialog: the handler checks reserved names and duplicates, and a rejected parameter keeps the dialog
+   open with the reason - the same messages as the Kendo detail-grid. *@
+<EditDialogShell Model="Model" IsCreate="IsCreate" OnValidated="SaveAsync" Result="@(() => saved)" Busy="busy">
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@error</MudAlert>
+    }
+    <MudTextField @bind-Value="Model.ParameterName" Label="Parameter name" Required="true" RequiredError="A parameter name is required." MaxLength="255" />
+    <MudTextField @bind-Value="Model.ParameterValue" Label="Value" />
+</EditDialogShell>
+
+@code {
+    [Parameter, EditorRequired] public ExternalOAuthServiceParameterViewModel Model { get; set; } = default!;
+    [Parameter] public bool IsCreate { get; set; }
+
+    private ExternalOAuthServiceParameterViewModel? saved;
+    private string? error;
+    private bool busy;
+
+    private async Task<bool> SaveAsync()
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var result = await Handler.SaveParameterAsync(auth.User, Model);
+            if (!result.Success)
+            {
+                error = result.Error;
+                return false;
+            }
+
+            saved = result.Parameter;
+            return true;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

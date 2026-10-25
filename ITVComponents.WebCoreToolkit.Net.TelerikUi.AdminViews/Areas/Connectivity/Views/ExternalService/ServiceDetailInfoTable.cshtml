@@ -1,4 +1,5 @@
 ﻿@using ITVComponents.WebCoreToolkit.Extensions
+@using ITVComponents.WebCoreToolkit.ExternalServiceConnect
 @using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
 @model ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect.ExternalServiceConnection
 
@@ -55,6 +56,33 @@
             <td>@Model.Scope</td>
         </tr>
     }
+    else if (Model.AuthenticationType == ExternalServiceAuthenticationType.OAuthPasswordFlow)
+    {
+        <tr>
+            <td>
+                TokenEndpoint
+            </td>
+            <td>@Model.AuthorizationEndpoint</td>
+        </tr>
+        <tr>
+            <td>
+                UserName
+            </td>
+            <td>@Model.ClientId</td>
+        </tr>
+        <tr>
+            <td>
+                Password
+            </td>
+            <td>@Model.ClientSecret</td>
+        </tr>
+        <tr>
+            <td>
+                Scope
+            </td>
+            <td>@Model.Scope</td>
+        </tr>
+    }
     else if (Model.AuthenticationType == ExternalServiceAuthenticationType.ApiKey)
     {
         <tr>
@@ -93,6 +121,18 @@
         </td>
         <td>@Model.ClientSecret</td>
     </tr>
+    }
+    @if (TokenRequestParameterRules.SupportsParameters(Model.AuthenticationType))
+    {
+        foreach (var parameter in Model.TokenRequestParameters)
+        {
+            <tr>
+                <td>
+                    Parameter: @parameter.Key
+                </td>
+                <td>@parameter.Value</td>
+            </tr>
+        }
     }
     <tr>
         <td>
