@@ -4,6 +4,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @inject ILogger<ShareLinkDialog> Logger
 
 @* Der Link ist das Ergebnis des Teilens - er gehoert dorthin, wo man ihn in Ruhe kopieren kann, und
@@ -35,6 +36,11 @@
         }
     </DialogContent>
     <DialogActions>
+        @if (Renew != null)
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Autorenew" Color="Color.Warning" OnClick="RenewLink"
+                       Disabled="renewing">Renew</MudButton>
+        }
         <MudButton StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="Copy">Copy</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Close">Close</MudButton>
     </DialogActions>
@@ -65,6 +71,17 @@
     /// verschickt, sondern einem Gegenueber hingehalten wird. Kopieren bleibt in beiden Faellen da.
     /// </summary>
     [Parameter] public bool QrFirst { get; set; }
+
+    /// <summary>
+    /// Erneuert das Geheimnis der Freigabe und liefert den neuen Link (oder null, wenn es nicht ging).
+    /// Null = kein Knopf. Gesetzt wird es nur fuer gespeicherte, anonyme Freigaben - und nur vom
+    /// Besitzer, denn nur er bekommt den Link ueberhaupt zu sehen.
+    /// </summary>
+    /// <remarks>
+    /// Der Weg, einen missbrauchten Aushang zu entwerten, wenn die Vorlage nur eine Freigabe je Ort fuehrt:
+    /// eine zweite laesst sich dort nicht mehr ausstellen.
+    /// </remarks>
+    [Parameter] public Func<Task<string?>>? Renew { get; set; }
 
     /// <summary>
     /// Wie lange sie noch gilt. Null, wenn unbefristet - abgelaufen ergibt <see cref="TimeSpan.Zero"/>,
@@ -105,8 +122,13 @@
     /// </summary>
     private bool LinkVisible => linkShown || qr is { Success: false };
 
+    /// <summary>Der gezeigte Link - nach dem Erneuern ein anderer als der uebergebene.</summary>
+    private string currentLink = string.Empty;
+    private bool renewing;
+
     protected override void OnInitialized()
     {
+        currentLink = Link;
         if (QrFirst)
         {
             linkShown = false;
@@ -118,7 +140,7 @@
     {
         if (LinkVisible)
         {
-            <MudTextField T="string" Value="@Link" Label="Link" ReadOnly="true" Lines="3" Class="itv-share-link mt-3" />
+            <MudTextField T="string" Value="@currentLink" Label="Link" ReadOnly="true" Lines="3" Class="itv-share-link mt-3" />
             <MudText Typo="Typo.caption" Class="mt-2">
                 Anyone holding this link uses the share. Send it the way you would send a password.
             </MudText>
@@ -166,17 +188,64 @@
 
     private void Close() => MudDialog.Close();
 
-    private void ShowQr() => qr = ShareQrCode.Create(Link, Logger);
+    private void ShowQr() => qr = ShareQrCode.Create(currentLink, Logger);
 
     private void HideQr() => qr = null;
 
     private void ShowLink() => linkShown = true;
 
+    private async Task RenewLink()
+    {
+        if (Renew == null)
+        {
+            return;
+        }
+
+        var ok = await DialogService.ShowMessageBoxAsync("Renew link",
+            "The current link and every printed QR code of it stop working. The share itself stays. Continue?",
+            yesText: "Renew", cancelText: "Cancel");
+        if (ok != true)
+        {
+            return;
+        }
+
+        renewing = true;
+        try
+        {
+            var renewed = await Renew();
+            if (string.IsNullOrEmpty(renewed))
+            {
+                // Warum, steht im Log. Ob das alte Geheimnis schon ersetzt ist, weiss der Dialog nicht - deshalb
+                // der Verweis auf die Uebersicht und keine Behauptung ueber den alten Link.
+                Snackbar.Add("Renewing the link failed - check the share under My shares.", Severity.Error);
+                return;
+            }
+
+            currentLink = renewed;
+            if (qr != null)
+            {
+                // Das alte Bild zeigt auf einen toten Link - es darf nicht stehen bleiben.
+                ShowQr();
+            }
+
+            Snackbar.Add("Link renewed - print or hand out the new one.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Renewing the link failed - check the share under My shares.", Severity.Error);
+            Logger.LogError(ex, "Could not renew a share link.");
+        }
+        finally
+        {
+            renewing = false;
+        }
+    }
+
     private async Task Copy()
     {
         try
         {
-            await Js.InvokeVoidAsync("navigator.clipboard.writeText", Link);
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", currentLink);
             Snackbar.Add("Link copied", Severity.Success);
         }
         catch (Exception ex)
@@ -221,7 +290,7 @@
         try
         {
             var js = await LoadModuleAsync();
-            await js.InvokeVoidAsync("printCode", Title ?? string.Empty, Link, qr.PngBase64);
+            await js.InvokeVoidAsync("printCode", Title ?? string.Empty, currentLink, qr.PngBase64);
         }
         catch (Exception ex)
         {

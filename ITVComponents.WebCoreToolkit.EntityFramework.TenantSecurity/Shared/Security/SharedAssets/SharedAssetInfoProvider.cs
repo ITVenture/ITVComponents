@@ -118,6 +118,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                                          (asset.Template.RequiredPermission == null ||
                                           services.VerifyUserPermissions(
                                               new[] { asset.Template.RequiredPermission.PermissionName }, out _));
+
+                    // Das Recht der Vorlage gilt im AKTIVEN Mandanten - verwalten (und das Geheimnis sehen)
+                    // laesst sich damit nur, was diesem Mandanten gehoert. Dieselbe Grenze wie beim
+                    // Aendern, Loeschen und Erneuern.
+                    if (hasOwnerPrivileges && (database.CurrentTenantId == null || asset.TenantId != database.CurrentTenantId))
+                    {
+                        LogEnvironment.LogEvent(
+                            $"Owner access to share '{assetKey}' refused: it belongs to tenant {asset.TenantId}, the active tenant is {database.CurrentTenantId?.ToString() ?? "none"}.",
+                            LogSeverity.Warning);
+                        hasOwnerPrivileges = false;
+                    }
                 }
 
                 if (hasOwnerPrivileges)
@@ -258,7 +269,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                             Arguments = ReadArguments(database, template.AssetTemplateId),
                             PathValues = pathValues,
                             // Ungedeutet weitergereicht - siehe AssetTemplateInfo.ShareDialogConfig.
-                            ShareDialogConfig = template.ShareDialogConfig
+                            ShareDialogConfig = template.ShareDialogConfig,
+                            ReuseStoredShare = template.ReuseStoredShare
                         });
                     }
                 }
@@ -685,6 +697,104 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             asset.AnonymousAccessTokenRaw = Guid.NewGuid().ToString("B");
             database.SaveChanges();
             return true;
+        }
+
+        /// <inheritdoc/>
+        public FullAssetInfo FindReusableSharedAsset(string requestPath, AssetTemplateInfo template,
+            IDictionary<string, string> argumentValues, ClaimsPrincipal requestor)
+        {
+            if (ImpersonationDeactivated)
+            {
+                LogEnvironment.LogEvent("No reusable share looked up: asset impersonation is switched off.", LogSeverity.Report);
+                return null;
+            }
+
+            requestPath = Canonical(requestPath);
+            string assetKey;
+            using (var lease = contextFactory.Lease<TContext>())
+            {
+                var database = lease.Context;
+                if (database.CurrentTenantId == null)
+                {
+                    LogEnvironment.LogEvent($"No reusable share of '{template?.TemplateKey}' looked up: there is no active tenant.", LogSeverity.Warning);
+                    return null;
+                }
+
+                var assetTmp = database.AssetTemplates.FirstOrDefault(n => n.SystemKey == template.TemplateKey);
+                if (assetTmp == null)
+                {
+                    LogEnvironment.LogEvent($"No reusable share looked up: the template '{template.TemplateKey}' does not exist.", LogSeverity.Warning);
+                    return null;
+                }
+
+                if (!assetTmp.ReuseStoredShare)
+                {
+                    // Der Normalfall fuer die meisten Vorlagen - jedes Teilen stellt neu aus.
+                    return null;
+                }
+
+                if (!IsTemplateValidForPath(assetTmp, requestPath))
+                {
+                    LogEnvironment.LogEvent($"No reusable share of '{assetTmp.SystemKey}' looked up: the template does not apply to '{requestPath}'.", LogSeverity.Warning);
+                    return null;
+                }
+
+                // Dieselbe Normalisierung wie beim Anlegen - sonst waere "04711" ein anderer Ort als 4711.
+                var declarations = ReadArguments(database, assetTmp.AssetTemplateId);
+                if (!AssetArgumentValues.TryCreate(declarations, argumentValues, out var values, out var error))
+                {
+                    LogEnvironment.LogEvent($"No reusable share of '{assetTmp.SystemKey}' looked up: {error}", LogSeverity.Warning);
+                    return null;
+                }
+
+                var today = DateTime.UtcNow.Date;
+                var tenantId = database.CurrentTenantId.Value;
+                var candidates = database.SharedAssets
+                    .Where(n => n.TenantId == tenantId
+                                && n.AssetTemplateId == assetTmp.AssetTemplateId
+                                && n.RootPath == requestPath
+                                && (n.NotBefore == null || n.NotBefore <= today)
+                                && (n.NotAfter == null || n.NotAfter >= today)
+                                // Anonym und sonst niemand: eine Freigabe mit Empfaengern ist nie "dieselbe".
+                                && n.UserFilters.Any(f => f.LabelFilter == AnonymousTag)
+                                && n.UserFilters.All(f => f.LabelFilter == AnonymousTag)
+                                && !n.TenantFilters.Any())
+                    .OrderByDescending(n => n.SharedAssetId)
+                    .Select(n => new { n.AssetKey, n.ArgumentValuesJson })
+                    .ToArray()
+                    .Where(n => values.SameAs(AssetArgumentValues.FromJson(n.ArgumentValuesJson)))
+                    .ToArray();
+                if (candidates.Length == 0)
+                {
+                    LogEnvironment.LogEvent($"No stored share of '{assetTmp.SystemKey}' at '{requestPath}' in tenant {tenantId} yet - a new one will be issued.", LogSeverity.Report);
+                    return null;
+                }
+
+                if (candidates.Length > 1)
+                {
+                    // Zwei gleichzeitige Klicks. Die aeltere bleibt gueltig - womoeglich haengt genau sie
+                    // gedruckt an der Tuer. Aufraeumen geht ueber "Meine Freigaben".
+                    LogEnvironment.LogEvent(
+                        $"{candidates.Length} stored shares of '{assetTmp.SystemKey}' at '{requestPath}' in tenant {tenantId} match; using the newest ('{candidates[0].AssetKey}'). Older ones: {string.Join(", ", candidates.Skip(1).Select(n => n.AssetKey))}.",
+                        LogSeverity.Warning);
+                }
+
+                assetKey = candidates[0].AssetKey;
+
+                // Die Argumentwerte sind fuer alle Kandidaten dieselben, also auch die Antwort der Regel.
+                if (!IsStillValid(assetTmp.ValidityRuleKey, values, assetKey))
+                {
+                    return null;
+                }
+            }
+
+            if (GetAssetInfo(assetKey, requestor, asOwner: true) is FullAssetInfo { AssetKey: not null } full)
+            {
+                return full;
+            }
+
+            LogEnvironment.LogEvent($"The stored share '{assetKey}' exists, but this user may not manage it - it is not reused.", LogSeverity.Warning);
+            return null;
         }
 
         /// <summary>

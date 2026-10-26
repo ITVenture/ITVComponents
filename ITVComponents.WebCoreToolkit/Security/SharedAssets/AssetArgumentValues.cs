@@ -159,6 +159,23 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         }
 
         /// <summary>
+        /// Ob zwei kanonische Wertemengen dasselbe bezeichnen: dieselben Namen (ohne Ruecksicht auf
+        /// Gross- und Kleinschreibung) mit denselben Werten.
+        /// </summary>
+        /// <remarks>
+        /// <b>Nicht ueber <see cref="ToJson"/> vergleichen.</b> Die Namen stehen dort in der Reihenfolge,
+        /// in der die Vorlage ihre Argumente fuehrt - stellt jemand die Reihenfolge um, sind gleiche Werte
+        /// als Zeichenkette verschieden.
+        /// </remarks>
+        /// <param name="other">die andere Wertemenge</param>
+        /// <returns>true, wenn beide gleich sind</returns>
+        public bool SameAs(AssetArgumentValues other)
+            => other != null
+               && other.values.Count == values.Count
+               && values.All(n => other.values.TryGetValue(n.Key, out var value)
+                                  && string.Equals(n.Value, value, StringComparison.Ordinal));
+
+        /// <summary>
         /// Serialisiert die Werte. Dieselbe Form wird an der Freigabe gespeichert und in ein Ad-hoc-Ticket
         /// gelegt - ein Format, ein Vergleichsweg.
         /// </summary>

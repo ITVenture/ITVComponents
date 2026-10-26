@@ -138,6 +138,14 @@
             }
         }
 
+        // Eine Freigabe je Ort: gibt es sie schon, ist der Dialog keine Frage mehr - es wird gezeigt, was
+        // an der Tuer haengt. Nur bei GENAU einer Vorlage, sonst waere die Wahl der Vorlage uebergangen.
+        if (templates is [{ ReuseStoredShare: true } only] && await FindReusable(only, model) is { } existing)
+        {
+            await ShowLink(existing, model.Title);
+            return;
+        }
+
         var parameters = new DialogParameters<ShareDialog>
         {
             { d => d.Model, model },
@@ -148,28 +156,88 @@
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: ShareResultViewModel created })
         {
+            if (created is { Success: true, Created: false })
+            {
+                Snackbar.Add("This place already has a share - showing it instead of issuing a second one.", Severity.Info);
+            }
+
             // Der Link kommt aus dem Ergebnis und wird nicht neu geholt - und er gehoert dorthin, wo man
             // ihn kopieren kann, nicht in eine Meldung, die nach drei Sekunden verschwindet.
-            await ShowLink(created.Link ?? string.Empty, model.Title);
+            await ShowLink(created, model.Title);
         }
     }
 
-    private async Task ShowLink(string link, string? title)
+    /// <summary>
+    /// Die bestehende Freigabe dieses Orts, mit denselben Argumentwerten, die der Dialog vorbelegen wuerde:
+    /// Seite und <see cref="Context"/> stehen schon im Modell, der Pfad fuellt nur Luecken.
+    /// </summary>
+    private async Task<ShareResultViewModel?> FindReusable(AssetTemplateInfo template, ShareRequestViewModel model)
     {
+        var values = new Dictionary<string, string>(model.ArgumentValues, StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in template.PathValues ?? new Dictionary<string, string>())
+        {
+            if (!values.TryGetValue(pair.Key, out var known) || string.IsNullOrEmpty(known))
+            {
+                values[pair.Key] = pair.Value;
+            }
+        }
+
+        try
+        {
+            return await Handler.FindReusableAsync(currentUser!, model.RequestPath, template.TemplateKey, values, Origin);
+        }
+        catch (Exception ex)
+        {
+            // Dann eben der Dialog - CreateAsync sucht ohnehin noch einmal, bevor es anlegt.
+            Logger.LogError(ex, "Could not look up the stored share of '{Template}' on {Path}.", template.TemplateKey,
+                model.RequestPath);
+            return null;
+        }
+    }
+
+    private async Task ShowLink(ShareResultViewModel result, string? fallbackTitle)
+    {
+        var link = result.Link;
         if (string.IsNullOrEmpty(link))
         {
             Snackbar.Add("Shared, but the link could not be built.", Severity.Warning);
             return;
         }
 
+        // Erneuern gibt es nur fuer ein Geheimnis, das gespeichert ist: ein Ad-hoc-Ticket hat keines, ein
+        // Link mit Anmeldung braucht keines.
+        var assetKey = result.AssetKey;
+        Func<Task<string?>>? renew = result.Anonymous && !string.IsNullOrEmpty(assetKey)
+            ? () => RenewAsync(assetKey)
+            : null;
+
         // Der Titel geht mit: er benennt die Datei, wenn der QR-Code gespeichert wird, und steht auf dem
         // Ausdruck.
         var parameters = new DialogParameters<ShareLinkDialog>
         {
             { d => d.Link, link },
-            { d => d.Title, title },
-            { d => d.QrFirst, QrFirst }
+            { d => d.Title, string.IsNullOrEmpty(result.Title) ? fallbackTitle : result.Title },
+            { d => d.QrFirst, QrFirst },
+            { d => d.Renew, renew }
         };
         await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+    }
+
+    private async Task<string?> RenewAsync(string assetKey)
+    {
+        if (!await Handler.RotateAsync(currentUser!, assetKey))
+        {
+            Logger.LogError("The secret of share '{AssetKey}' was not renewed.", assetKey);
+            return null;
+        }
+
+        var link = await Handler.GetLinkAsync(currentUser!, assetKey, true, Origin);
+        if (string.IsNullOrEmpty(link))
+        {
+            Logger.LogError("Share '{AssetKey}' was renewed, but its new link could not be built.", assetKey);
+            return null;
+        }
+
+        return link;
     }
 }

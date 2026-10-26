@@ -20,6 +20,11 @@
                          HelperText="A ticket is stored nowhere and can not be withdrawn one by one - the deadline is what makes that acceptable." />
     }
 
+    <MudSwitch T="bool" @bind-Value="Model.ReuseStoredShare" Label="One share per place" Color="Color.Primary" Class="mt-2" />
+    <MudText Typo="Typo.caption" Class="d-block mb-2">
+        Sharing again shows the existing anonymous share of the same place (tenant, path and arguments) instead of issuing a second one - for notices such as a QR code at the door. Shares with recipients and ad-hoc tickets are not affected. A misused link is renewed from the link dialog.
+    </MudText>
+
     <MudTextField @bind-Value="Model.ValidityRuleKey" Label="Validity rule" MaxLength="128" Class="mt-2"
                   HelperText="Key of a host-side rule ('the order is still open'). A named rule that is not registered refuses access - deliberately. It is asked once per operation, from the page - a rule may lease its own business context." />
 

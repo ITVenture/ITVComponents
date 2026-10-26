@@ -94,6 +94,18 @@ public class ShareResultViewModel
     public string? AssetKey { get; set; }
 
     /// <summary>
+    /// Ob die Freigabe eben erst entstanden ist. <c>false</c> bei Erfolg heisst: die Vorlage fuehrt nur
+    /// eine Freigabe je Ort (<c>ReuseStoredShare</c>), und das ist die bestehende.
+    /// </summary>
+    public bool Created { get; set; }
+
+    /// <summary>Ob der Link ohne Anmeldung funktioniert - nur dann gibt es ein Geheimnis zu erneuern.</summary>
+    public bool Anonymous { get; set; }
+
+    /// <summary>Der Titel der Freigabe - bei einer bestehenden der gespeicherte, nicht der eingegebene.</summary>
+    public string? Title { get; set; }
+
+    /// <summary>
     /// Warum nichts entstanden ist. Kommt aus der harten Pruefung und benennt das fehlende oder
     /// unpassende Argument - eine gemeinsame Meldung "geht nicht" waere im Support wertlos.
     /// </summary>

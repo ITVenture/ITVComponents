@@ -172,7 +172,15 @@ else
             ArgumentEnforcement = item.ArgumentEnforcement,
             AllowAdHoc = item.AllowAdHoc,
             MaxAdHocMinutes = item.MaxAdHocMinutes,
-            ValidityRuleKey = item.ValidityRuleKey
+            ReuseStoredShare = item.ReuseStoredShare,
+            ValidityRuleKey = item.ValidityRuleKey,
+            // Fehlte hier, und der Handler schreibt beim Speichern, was der Dialog hat: jedes Bearbeiten
+            // loeschte so still die Vorgaben der Teilen-Maske. Als KOPIE - die Zeile der Liste haelt fuer
+            // eine Vorlage ohne Angabe die gemeinsame Instanz ShareDialogOptions.Default, und der Editor
+            // aendert sein Modell an Ort und Stelle.
+            DialogOptions = item.DialogOptions is null or { IsEmpty: true }
+                ? new ShareDialogOptions()
+                : ShareDialogOptions.Parse(item.DialogOptions.ToJson(), out _)
         };
         var parameters = new DialogParameters<AssetTemplateDialog> { { d => d.Model, copy }, { d => d.IsCreate, false } };
         var dlg = await DialogService.ShowAsync<AssetTemplateDialog>("Edit asset template", parameters, EditDialogDefaults.Edit);

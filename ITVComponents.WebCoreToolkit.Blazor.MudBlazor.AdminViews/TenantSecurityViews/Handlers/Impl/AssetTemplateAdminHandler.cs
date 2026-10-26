@@ -119,6 +119,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
                 ArgumentEnforcement = t.ArgumentEnforcement,
                 AllowAdHoc = t.AllowAdHoc,
                 MaxAdHocMinutes = t.MaxAdHocMinutes,
+                ReuseStoredShare = t.ReuseStoredShare,
                 ValidityRuleKey = t.ValidityRuleKey,
                 // Roh mitnehmen: gedeutet wird nach der Abfrage. In einem Ausdrucksbaum gibt es weder
                 // Discards noch out-Parameter - und uebersetzen liesse sich das ohnehin nicht.
@@ -146,6 +147,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
             ArgumentEnforcement = input.ArgumentEnforcement,
             AllowAdHoc = input.AllowAdHoc,
             MaxAdHocMinutes = input.MaxAdHocMinutes,
+            ReuseStoredShare = input.ReuseStoredShare,
             ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey,
             ShareDialogConfig = input.DialogOptions?.ToJson()
         };
@@ -168,6 +170,7 @@ public class AssetTemplateAdminHandler<TContext, TTenant, TUserId, TUser, TRole,
         entity.ArgumentEnforcement = input.ArgumentEnforcement;
         entity.AllowAdHoc = input.AllowAdHoc;
         entity.MaxAdHocMinutes = input.MaxAdHocMinutes;
+        entity.ReuseStoredShare = input.ReuseStoredShare;
         entity.ValidityRuleKey = string.IsNullOrWhiteSpace(input.ValidityRuleKey) ? null : input.ValidityRuleKey;
         entity.ShareDialogConfig = input.DialogOptions?.ToJson();
         await db.SaveChangesAsync();

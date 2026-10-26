@@ -95,6 +95,28 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         bool RotateAnonymousToken(string assetKey);
 
         /// <summary>
+        /// Sucht die bestehende Freigabe "dieses Orts" fuer eine Vorlage mit
+        /// <see cref="AssetTemplateInfo.ReuseStoredShare"/>.
+        /// <para>
+        /// Kandidaten sind nur <b>gespeicherte, anonyme Freigaben ohne Empfaenger</b> des aktiven Mandanten,
+        /// die jetzt gelten (Datum und Gueltigkeitsregel), mit demselben Pfad und denselben Argumentwerten.
+        /// Eine Freigabe mit Empfaengern ist nie "dieselbe": wer zum zweiten Mal teilt, meint einen anderen.
+        /// </para>
+        /// <para>
+        /// Gibt es mehrere (zwei gleichzeitige Klicks), gilt die juengste. Die aelteren bleiben gueltig - einer
+        /// davon haengt womoeglich gedruckt an der Tuer -, werden aber nie mehr gezeigt.
+        /// </para>
+        /// </summary>
+        /// <param name="requestPath">der Pfad, auf dem geteilt wird</param>
+        /// <param name="template">die Vorlage</param>
+        /// <param name="argumentValues">die Argumentwerte dieser Stelle</param>
+        /// <param name="requestor">wer teilt; bekommt die Freigabe nur mit den Rechten der Vorlage</param>
+        /// <returns>die Freigabe samt Geheimnis, oder null, wenn es keine gibt, die Vorlage nicht
+        /// wiederverwendet oder der Aufrufer sie nicht verwalten darf</returns>
+        FullAssetInfo FindReusableSharedAsset(string requestPath, AssetTemplateInfo template,
+            IDictionary<string, string> argumentValues, ClaimsPrincipal requestor);
+
+        /// <summary>
         /// Erzeugt ein Ad-hoc-Ticket: eine Freigabe, die nirgends gespeichert wird, sondern
         /// verschluesselt in der URL reist.
         /// <para>

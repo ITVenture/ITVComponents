@@ -135,6 +135,32 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.IsFalse(restored.Matches("orderId", 4711, AssetArgumentType.Int));
         }
 
+        [TestMethod]
+        public void SameAs_Ignores_The_Order_Of_The_Names()
+        {
+            // Stellt jemand die Argumente der Vorlage um, steht in ToJson eine andere Reihenfolge - derselbe
+            // Ort muss trotzdem derselbe bleiben, sonst entsteht beim naechsten Teilen ein zweiter Aushang.
+            var first = Create(("clientAppId", AssetArgumentType.Int, "7"), ("lane", AssetArgumentType.String, "A"));
+            var second = Create(("lane", AssetArgumentType.String, "a"), ("clientAppId", AssetArgumentType.Int, "007"));
+
+            Assert.AreNotEqual(first.ToJson(), second.ToJson());
+            Assert.IsTrue(first.SameAs(second));
+            Assert.IsTrue(AssetArgumentValues.FromJson(second.ToJson()).SameAs(first));
+        }
+
+        [TestMethod]
+        public void SameAs_Tells_Different_Places_Apart()
+        {
+            var tillOne = Create(("clientAppId", AssetArgumentType.Int, "1"));
+
+            Assert.IsFalse(tillOne.SameAs(Create(("clientAppId", AssetArgumentType.Int, "2"))),
+                "Kasse 2 darf nie den Link von Kasse 1 bekommen");
+            Assert.IsFalse(tillOne.SameAs(AssetArgumentValues.Empty));
+            Assert.IsFalse(AssetArgumentValues.Empty.SameAs(tillOne));
+            Assert.IsFalse(tillOne.SameAs(null));
+            Assert.IsTrue(AssetArgumentValues.Empty.SameAs(AssetArgumentValues.FromJson(null)));
+        }
+
         private static AssetArgumentValues Create(params (string Name, AssetArgumentType Type, string Value)[] items)
         {
             var declarations = new List<AssetArgumentDeclaration>();

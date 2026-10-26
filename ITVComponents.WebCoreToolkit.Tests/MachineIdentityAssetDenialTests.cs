@@ -237,6 +237,8 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public string CreateLink(AssetInfo info, Microsoft.AspNetCore.Http.HttpContext context) => null;
             public string CreateLink(AssetInfo info, string origin) => null;
             public bool RotateAnonymousToken(string assetKey) => false;
+            public FullAssetInfo FindReusableSharedAsset(string requestPath, AssetTemplateInfo template,
+                IDictionary<string, string> argumentValues, ClaimsPrincipal requestor) => null;
             public bool RevokeTicket(string nonce, DateTime expiresUtc) => false;
             public bool VerifyAssetValidity(AssetInfo info) => true;
             public FullAssetInfo FindAnonymousAsset(string assetKey) => null;

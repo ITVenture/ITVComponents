@@ -398,6 +398,8 @@ namespace ITVComponents.WebCoreToolkit.Tests
             }
 
             public bool RotateAnonymousToken(string assetKey) => false;
+            public FullAssetInfo FindReusableSharedAsset(string requestPath, AssetTemplateInfo template,
+                IDictionary<string, string> argumentValues, ClaimsPrincipal requestor) => null;
 
             public string CreateAdHocTicket(string requestPath, AssetTemplateInfo template,
                 IDictionary<string, string> argumentValues, string recipientLabel, TimeSpan? lifetime,

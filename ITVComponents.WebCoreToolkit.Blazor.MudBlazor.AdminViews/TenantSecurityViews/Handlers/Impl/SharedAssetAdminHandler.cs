@@ -50,7 +50,10 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
                 return Task.FromResult(new ShareResultViewModel { Success = false, Error = ticketError });
             }
 
-            return Task.FromResult(new ShareResultViewModel { Success = true, Link = ticket });
+            return Task.FromResult(new ShareResultViewModel
+            {
+                Success = true, Link = ticket, Created = true, Anonymous = request.Anonymous, Title = request.Title
+            });
         }
 
         // Die Reichweite geht mit in die Anlage und nicht erst in den Link. Ein anonymer Link auf eine
@@ -63,6 +66,15 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
             _ => new List<string>()
         };
         var tenants = request.Reach == ShareReach.Tenants ? request.TenantFilters : new List<string>();
+
+        // Nur eine anonyme Freigabe ohne Empfaenger kann "dieselbe" sein: wer mit Empfaengern teilt, meint
+        // beim zweiten Mal einen anderen. Ob die Vorlage ueberhaupt wiederverwendet, weiss der Adapter.
+        if (request.Anonymous && users.Count == 0 && tenants.Count == 0
+            && Reuse(user, request.RequestPath ?? "/", request.TemplateKey, request.ArgumentValues, origin) is { } existing)
+        {
+            return Task.FromResult(existing);
+        }
+
         var created = adapter.CreateSharedAsset(request.RequestPath ?? "/", template, request.Title,
             request.ArgumentValues, request.RecipientLabel, request.Anonymous, users, tenants, out var error);
         if (created == null)
@@ -78,8 +90,49 @@ public class SharedAssetAdminHandler : ISharedAssetAdminHandler
         {
             Success = true,
             AssetKey = created.AssetKey,
-            Link = link
+            Link = link,
+            Created = true,
+            Anonymous = request.Anonymous,
+            Title = request.Title
         });
+    }
+
+    public Task<ShareResultViewModel?> FindReusableAsync(ClaimsPrincipal user, string requestPath, string templateKey,
+        IDictionary<string, string> argumentValues, string origin)
+        => Task.FromResult(Reuse(user, requestPath ?? "/", templateKey, argumentValues, origin));
+
+    /// <summary>
+    /// Die bestehende Freigabe dieses Orts samt anonymem Link, oder null - dann wird ausgestellt.
+    /// </summary>
+    private ShareResultViewModel? Reuse(ClaimsPrincipal user, string requestPath, string templateKey,
+        IDictionary<string, string> argumentValues, string origin)
+    {
+        var existing = adapter.FindReusableSharedAsset(requestPath, new AssetTemplateInfo { TemplateKey = templateKey },
+            argumentValues, user);
+        if (existing == null)
+        {
+            return null;
+        }
+
+        var link = adapter.CreateAnonymousLink(existing, origin);
+        if (string.IsNullOrEmpty(link))
+        {
+            logger.LogWarning("The stored share '{AssetKey}' of '{Template}' yields no anonymous link and is not reused.",
+                existing.AssetKey, templateKey);
+            return null;
+        }
+
+        logger.LogInformation("Showing the stored share '{AssetKey}' of '{Template}' instead of issuing a second one.",
+            existing.AssetKey, templateKey);
+        return new ShareResultViewModel
+        {
+            Success = true,
+            AssetKey = existing.AssetKey,
+            Link = link,
+            Created = false,
+            Anonymous = true,
+            Title = existing.AssetTitle
+        };
     }
 
     public Task<PagedResult<SharedAssetListItem>> ListAsync(ClaimsPrincipal user, ListQuery query)

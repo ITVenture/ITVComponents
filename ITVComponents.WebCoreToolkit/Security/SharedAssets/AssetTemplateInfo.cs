@@ -41,5 +41,12 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
         /// <c>ShareDialogOptions.Parse</c> in den AdminViews.
         /// </remarks>
         public string ShareDialogConfig { get; set; }
+
+        /// <summary>
+        /// Ob es je Ort nur eine gespeicherte, anonyme Freigabe dieser Vorlage gibt - dann zeigt der
+        /// Teilen-Knopf die bestehende, statt eine zweite auszustellen. Siehe
+        /// <see cref="ISharedAssetAdapter.FindReusableSharedAsset"/>.
+        /// </summary>
+        public bool ReuseStoredShare { get; set; }
     }
 }

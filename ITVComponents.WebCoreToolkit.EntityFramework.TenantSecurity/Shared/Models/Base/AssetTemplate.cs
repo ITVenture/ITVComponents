@@ -58,6 +58,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         public int MaxAdHocMinutes { get; set; } = 60;
 
         /// <summary>
+        /// Ob es je Ort nur EINE gespeicherte, anonyme Freigabe dieser Vorlage geben soll. Wer erneut teilt,
+        /// bekommt dann die bestehende gezeigt, statt eine zweite auszustellen.
+        /// <para>
+        /// Eine Eigenschaft des Zwecks, nicht der einzelnen Freigabe: der Aushang an der Ladentuer ist
+        /// "einer je Ort", ein verschickter Link auf einen Einkauf ist das nicht. "Derselbe Ort" heisst
+        /// Mandant + Vorlage + Pfad + Argumentwerte. Vorgabe aus - bestehende Vorlagen bleiben unveraendert.
+        /// </para>
+        /// </summary>
+        public bool ReuseStoredShare { get; set; }
+
+        /// <summary>
         /// Der Schluessel einer Gueltigkeitsregel, die der Host implementiert ("Auftrag ist offen").
         /// Leer = es zaehlt allein das Datum.
         /// </summary>

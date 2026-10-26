@@ -32,6 +32,12 @@ public class AssetTemplateViewModel
     public int MaxAdHocMinutes { get; set; } = 60;
 
     /// <summary>
+    /// Ob es je Ort nur eine gespeicherte, anonyme Freigabe dieser Vorlage gibt - erneutes Teilen zeigt
+    /// dann die bestehende.
+    /// </summary>
+    public bool ReuseStoredShare { get; set; }
+
+    /// <summary>
     /// Der Schluessel einer Gueltigkeitsregel, die der Host implementiert ("Auftrag ist offen").
     /// </summary>
     [MaxLength(128)]

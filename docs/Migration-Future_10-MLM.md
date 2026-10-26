@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 85 | **Eine Freigabe je Ort** | **Pflicht: 1 Spalte** `AssetTemplates.ReuseStoredShare` (manuelles SQL, Vorgabe aus). Mit Schalter zeigt `<ShareButton />` bzw. `CreateAsync` die bestehende anonyme Freigabe von Mandant + Vorlage + Pfad + Argumenten, statt eine zweite auszustellen; „Renew“ im Link-Dialog. **Behoben:** Besitzerrecht ohne Mandantengrenze, Vorlage bearbeiten löschte `ShareDialogConfig`. Nur bei eigener Implementierung: `ISharedAssetAdapter.FindReusableSharedAsset` (§85) |
 | 74 | **Terminal-Verwaltung über die WebParts** | Kein Schema-Change, nicht breaking. Neue Schalter `PaymentViews:ActivateTerminalViews` (BillingViews), `ActivateStripeTerminals` (Stripe), `ActivateAgentTerminals` + `TerminalsContextType` (Billing). Die Texte `Terminals_*` liefert das Toolkit jetzt mit. **Wer die Terminals bisher im Code registriert, nimmt das heraus, bevor er die Schalter setzt** (§74) |
 | 75 | **Terminal-Belege am Verkauf** | **Pflicht: 3 nullbare Spalten an `TenantSale`** (`TerminalReceiptJson`, `TipMinor`, `CompletionPendingSince`). Der Beobachter findet den Beleg jetzt am Verkauf vor; meldet ein Webhook vor dem Terminal, wird `OnSaleCompletedAsync` bis zum Beleg (höchstens `ReceiptWaitSeconds`) zurückgehalten. Neuer Hintergrunddienst, wallee Cloud mit Beleg, Schalter „Trinkgeld auf den Beleg“ (§75) |
 | 73 | **Koppeln: das Web wählt die Anwendung** | **Pflicht-Migration für alle mit Sicherheitskontext**: `ClientAppTemplates.TypeKey` (eindeutig, nullbar), `DevicePairings.TenantId`/`ClientAppId` nullbar, `DevicePairings.ClientAppTemplateId`. **Breaking am Vertrag**: `IDevicePairingService.StartAsync(clientKey, typeKey, deviceLabel)`, `ConfirmAsync(userCode, clientAppId)`. Neu: **höchstens eine aktive Instanz je Client-Anwendung** — Bestand vorher mit der Abfrage aus §73.2 prüfen. Agent koppelt mit `typeKey` und übernimmt den `ClientKey` aus `PairingResult` (§73) |
@@ -8199,3 +8200,77 @@ Ohne die Tabelle scheitert jeder Abruf eines Dienstes, weil `ToServiceDefinition
 - [ ] Kendo-Host mit eigenen Texten: Ressourcen `IWCN_ES_EncryptHint`, `IWCN_ES_Param*`,
       `IWCN_Titles_Services` (in AdminViews für de/en/fr/it enthalten)
 - [ ] Dienste mit Password-Grant oder Zusatzparametern einrichten und einmal per „Test request“ prüfen
+
+## 85. Eine Freigabe je Ort (`AssetTemplates.ReuseStoredShare`) — **Schema-Change (1 Spalte); breaking nur für eigene `ISharedAssetAdapter`**
+
+Anlass: der Laden-QR an der Kasse (MiniStore). `<ShareButton />` stellte bei jedem Druck eine neue,
+unbefristete anonyme Freigabe aus; wer den Aushang nur nachdrucken wollte, hatte danach zwei gültige
+Geheimnisse im Umlauf.
+
+### 85.1 Verhalten
+
+Neuer Schalter an der Vorlage, **Vorgabe aus** (bestehende Vorlagen unverändert), gepflegt in der
+Vorlagen-Maske („One share per place“). Ist er gesetzt, gibt es je **Mandant + Vorlage + Pfad +
+Argumentwerte** nur eine gespeicherte, anonyme Freigabe:
+
+- **`<ShareButton />`:** passt an der Stelle genau eine Vorlage, und hat sie den Schalter und schon eine
+  Freigabe, öffnet der Knopf direkt den Link-Dialog (mit `QrFirst`, wie gesetzt) und überspringt den
+  Teilen-Dialog. Die Argumentwerte setzt er dabei so zusammen wie der Dialog (Pfad, Seite, `Context`).
+- **`ISharedAssetAdminHandler.CreateAsync`** wendet dieselbe Regel selbst an, damit ein Host, der im Code
+  ausstellt, keine zweite anlegt. `ShareResultViewModel.Created = false` heisst: das ist die bestehende.
+  Neu dazu `FindReusableAsync(...)` (nur suchen) sowie `Anonymous` und `Title` am Ergebnis.
+- Nur **gespeicherte, anonyme Freigaben ohne Empfänger** zählen (Benutzerfilter genau `##ANONYMOUS`, kein
+  Mandantenfilter). Ad-hoc-Tickets und Freigaben mit Empfängern sind nie „dieselbe“. Kandidaten müssen
+  **jetzt** gelten: `NotBefore`/`NotAfter` und die Gültigkeitsregel der Vorlage.
+- Die Argumentwerte werden **kanonisch** verglichen (`AssetArgumentValues.SameAs`), nicht als JSON-Text: „007“
+  und 7 sind dieselbe Kasse, die Reihenfolge der Argumente spielt keine Rolle.
+- **Zwei gleichzeitige Klicks:** Doppelte sind erlaubt, gezeigt wird die jüngste. Die ältere wird **nicht**
+  widerrufen (sie hängt womöglich gedruckt an der Tür), aber nie mehr gezeigt. Das Log meldet es als
+  Warnung mit allen Schlüsseln; aufräumen über „Meine Freigaben“.
+- **Erneuern:** Der Link-Dialog hat für gespeicherte anonyme Freigaben den Knopf „Renew“ (`RotateAsync`, mit
+  Rückfrage). Danach zeigt er den neuen Link und QR-Code. Das ist der Weg, einen missbrauchten Aushang zu
+  entwerten, denn eine zweite Freigabe lässt sich mit dem Schalter nicht mehr ausstellen.
+
+### 85.2 Behoben nebenbei
+
+- **Mandantengrenze beim Besitzerrecht:** `GetAssetInfo(…, asOwner: true)` prüfte nur Recht und Feature der
+  Vorlage, nicht den Mandanten der Freigabe. `GetLinkAsync` und `GetForEditAsync` gaben so das anonyme
+  Geheimnis und die Filter einer **fremden** Freigabe heraus, wenn jemand das Vorlagenrecht im eigenen
+  Mandanten hatte und den Schlüssel kannte (er steht in jedem angemeldeten Link). Jetzt gilt dieselbe
+  Grenze wie beim Ändern, Löschen und Erneuern: nur Freigaben des aktiven Mandanten.
+- **Vorlage bearbeiten löschte die Vorgaben der Teilen-Maske:** Die Blazor-Vorlagenliste gab dem
+  Bearbeiten-Dialog `DialogOptions` nicht mit. Jedes Speichern schrieb `ShareDialogConfig = null`. Wer Vorlagen
+  nach §54.5a eingerichtet und danach bearbeitet hat, prüft `ShareDialogConfig` und setzt es neu.
+
+### 85.3 Schema
+
+Wie bei allen Änderungen am Sicherheitskontext als manuelles SQL:
+
+```sql
+-- SQL Server
+ALTER TABLE [AssetTemplates] ADD [ReuseStoredShare] bit NOT NULL
+    CONSTRAINT [DF_AssetTemplates_ReuseStoredShare] DEFAULT CAST(0 AS bit);
+```
+
+```sql
+-- PostgreSQL
+ALTER TABLE "AssetTemplates" ADD "ReuseStoredShare" boolean NOT NULL DEFAULT FALSE;
+```
+
+Ohne die Spalte scheitert jede Abfrage auf `AssetTemplates`, also auch jedes Teilen.
+
+### 85.4 Eigene Implementierungen
+
+- `ISharedAssetAdapter`: neu `FindReusableSharedAsset(requestPath, template, argumentValues, requestor)`. Wer
+  nicht wiederverwenden will, liefert `null`.
+- `ISharedAssetAdminHandler`: neu `FindReusableAsync(...)`; `CreateAsync` muss die Regel aus §85.1 anwenden.
+- `ShareLinkDialog`: neuer optionaler Parameter `Renew` (`Func<Task<string?>>`, liefert den neuen Link).
+
+### 85.5 Checkliste
+
+- [ ] Spalte `AssetTemplates.ReuseStoredShare` anlegen (SQL oben)
+- [ ] Vorlagen für Aushänge (Laden-QR, Station) auf „One share per place“ stellen, z. B.
+      `UPDATE AssetTemplates SET ReuseStoredShare = 1 WHERE SystemKey IN ('pos-start', 'pos-kiosk')`
+- [ ] Eigene Umgehungen entfernen (gemerkte Schlüssel, eigene Suche in `SharedAssets`) und über
+      `CreateAsync` bzw. `<ShareButton QrFirst="true" />` gehen
+- [ ] `ShareDialogConfig` der Vorlagen prüfen, die in der Blazor-Maske bearbeitet wurden (§85.2)
