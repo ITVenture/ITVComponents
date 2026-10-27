@@ -190,3 +190,57 @@ zusätzlich schneller über ihren Rückkanal. Das Nachfragen an der Kasse ist da
 Anzeige. Offen bleiben nur Fälle, in denen das Gerät oder der Anbieter das Ergebnis selbst nicht mehr liefern kann:
 Payrexx ohne Antwort schon auf den Start, wallee LTI nach einer neueren Zahlung am selben Gerät. Diese erscheinen
 nach der Frist als Fehler im Log und in der Übersicht und werden dort von Hand abgeschlossen (F4).
+
+
+---
+
+## Nachtrag: Antwort zu E10, Teil 2 — Wo liegen die Zugangsdaten des Anbieters? (2026-10-27)
+
+Ursprünglich nicht Teil dieser Anfrage (siehe oben). Die Frage hat im Toolkit einen Umbau ausgelöst, der jetzt
+abgeschlossen ist (Leitfaden §88–§93, Plan `docs/Plan-ExternalServices-Credentials.md`). Die Antwort beschreibt
+den Stand **ab dem Paket mit §93**. Gegen echte Anbieter-Konten ist auch das noch nicht gelaufen.
+
+### Ort: im Backend, nicht am Laden-PC
+
+- Das Konto beim Anbieter (API-Schlüssel, Benutzer/Schlüssel, OAuth-Token) liegt im Backend unter
+  ExternalServices, in der **Zugangsdaten-Zeile des Mandanten** zum jeweiligen Dienst. Es ist mit dem Schlüssel
+  des Mandanten verschlüsselt. Die Dienst-Definition trägt nur noch, was nicht zum Konto gehört: Endpunkte und
+  bei ApiKey den Header-Namen.
+- Der **Laden-PC** (Agent, Weg `agent`) hält nur, was er braucht, um mit dem Gerät im lokalen Netz zu reden, etwa
+  bei wallee LTI `Host`, `Port`, `PosId`, Belegformat. Er hält kein Anbieter-Konto. Webhook-Prüfung, Abgleich und
+  Erstattung laufen über das Backend und lesen das Konto dort.
+- Gesetzt wird das Konto wie bisher über die Einrichtung des eigenen Zugangs (`SaveSecretAsync`). In der
+  Verwaltung erscheint die Zeile im Reiter „Credentials“ bzw. „Zugangsdaten“ des Dienstes, in Blazor und Telerik.
+  Gespeicherte Werte werden dort nie wieder angezeigt.
+
+### Anmeldetypen für einen eigenen Zugang
+
+| Typ | Eigener Zugang | Was gespeichert wird |
+|---|---|---|
+| ApiKey | ja | Schlüssel (Header-Name an der Definition) |
+| BearerToken | ja | Token bzw. Schlüssel |
+| Basic | ja | Benutzer und Schlüssel |
+| OAuth Authorization-Code | ja | Token des Mandanten, nach der Anmeldung an der **App der Plattform** |
+| Client-Credentials, Basic-Client-Credentials, Password-Grant | **nein** | — |
+
+Die drei letzten gehören der Plattform bzw. einem technischen Konto und ergeben als Zugang eines Mandanten, der
+Geld empfängt, keinen Sinn. Der Speicher weist sie mit `OwnAccessUnavailable` ab.
+
+Je Anbieter heute: Payrexx `ApiKey` plus Signaturschlüssel für den Webhook als `BearerToken` (Dienst
+`…-webhook`), wallee `Basic` (Benutzer-Id und Schlüssel), SumUp `BearerToken` (API-Schlüssel) oder OAuth. Stripe
+läuft weiterhin über Connect (§57) und nicht über diese Zeilen.
+
+### Was für Zahlungen bewusst nicht gilt
+
+ExternalServices kann jetzt Zugangsdaten an Untermandanten weitergeben (`Inheritable`) und für globale Dienste auf
+ein Konto der Plattform zurückfallen (`AllowPlatformCredentials`). **Für Zahlungen gilt beides nicht.** Der
+Zahlungs-Speicher liest ausschliesslich die Zeile genau des kassierenden Mandanten (§78.4, §92). Fehlt sie, gibt es
+einen Fehler (`OwnAccessUnavailable`) und nie einen stillen Ausweich auf das Konto des Elternteils oder der
+Plattform. Wessen Konto Geld empfängt, folgt nie aus der Hierarchie.
+
+### Für MiniStore
+
+- Keine Zugangsdaten am Laden-PC ablegen. Der Agent bekommt nur die Geräte-Einstellungen.
+- Bestehende eigene Zugänge, deren Geheimnis noch an der Dienst-Definition stand, zieht das Backend beim ersten
+  Start mit §93 selbst in die Zeile des Mandanten (§93.1). Es ist nichts neu einzugeben.
+- Damit ist E10 Teil 2 aus Sicht des Toolkits beantwortet. Offen bleibt nur der Test gegen echte Konten.
