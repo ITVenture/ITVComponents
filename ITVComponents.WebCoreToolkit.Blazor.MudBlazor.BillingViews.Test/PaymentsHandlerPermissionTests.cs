@@ -59,6 +59,9 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
                 "Konto einrichten");
             await AssertRefusedAsync(() => handler.GetSalesAsync(null, null, null), "Verkaeufe lesen");
             await AssertRefusedAsync(() => handler.RefundAsync(1, null, null, null), "erstatten");
+            await AssertRefusedAsync(() => handler.QueryTerminalSaleAsync(1), "Terminal nachfragen");
+            await AssertRefusedAsync(() => handler.SettleTerminalSaleAsync(new System.Security.Claims.ClaimsPrincipal(), 1,
+                true, "seen at the terminal", null), "von Hand abschliessen");
 
             Assert.AreEqual(0, env.AccountService.Calls.Count, "Die Dienstschicht wurde trotz fehlendem Recht angefasst.");
             Assert.AreEqual(0, env.SaleService.Calls.Count, "Die Dienstschicht wurde trotz fehlendem Recht angefasst.");

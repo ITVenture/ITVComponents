@@ -175,6 +175,54 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             Assert.AreEqual(7000, found.AmountMinor);
         }
 
+        [TestMethod]
+        public async Task MarkPaid_TwoDeliveriesAtOnce_ReleaseOnlyOnce()
+        {
+            // Eine Wiederholung des Anbieters ueberholt die erste Zustellung - beide haben Pending gelesen.
+            var (sink, factory, observer) = Build();
+            await using (var seed = await factory.CreateDbContextAsync())
+            {
+                await Seed(seed, amountMinor: 5000);
+            }
+
+            await using var first = await factory.CreateDbContextAsync();
+            await using var second = await factory.CreateDbContextAsync();
+            var a = await first.TenantSales.Include(s => s.Refunds).SingleAsync();
+            var b = await second.TenantSales.Include(s => s.Refunds).SingleAsync();
+
+            Assert.IsTrue(await sink.MarkPaidAsync(a, first, "charge-1", null, default));
+            Assert.IsFalse(await sink.MarkPaidAsync(b, second, "charge-1", "late@example.com", default));
+
+            Assert.AreEqual(1, observer.Completed);
+            await using var check = await factory.CreateDbContextAsync();
+            var stored = await check.TenantSales.SingleAsync();
+            Assert.AreEqual("late@example.com", stored.CustomerEmail,
+                "What the losing delivery carried must still land on the row.");
+        }
+
+        [TestMethod]
+        public async Task MoveTo_DoesNotOverwriteAPaymentBookedInTheMeantime()
+        {
+            // Die Absage hat die Zeile noch unbezahlt gelesen, der Webhook bucht dazwischen die Zahlung.
+            var (sink, factory, _) = Build();
+            await using (var seed = await factory.CreateDbContextAsync())
+            {
+                await Seed(seed, amountMinor: 5000);
+            }
+
+            await using var payDb = await factory.CreateDbContextAsync();
+            await using var cancelDb = await factory.CreateDbContextAsync();
+            var toPay = await payDb.TenantSales.Include(s => s.Refunds).SingleAsync();
+            var toCancel = await cancelDb.TenantSales.Include(s => s.Refunds).SingleAsync();
+
+            await sink.MarkPaidAsync(toPay, payDb, "charge-1", null, default);
+            await sink.MoveToAsync(toCancel, cancelDb, TenantSaleStatus.Canceled, default);
+
+            Assert.AreEqual(TenantSaleStatus.Paid, toCancel.Status, "The losing cancel sees the fresh state.");
+            await using var check = await factory.CreateDbContextAsync();
+            Assert.AreEqual(TenantSaleStatus.Paid, (await check.TenantSales.SingleAsync()).Status);
+        }
+
         private static (TenantSaleWebhookSink<PaymentsTestContext> Sink, IDbContextFactory<PaymentsTestContext> Factory,
             CountingObserver Observer) Build()
         {

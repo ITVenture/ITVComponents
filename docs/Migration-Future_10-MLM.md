@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 86 | **Achse C: verlässlich, auch wenn die Kasse weg ist** | Kein Schema-Change. `OnSaleCompletedAsync` jetzt wirklich genau einmal (`TenantSale.PaidUtc` ist Concurrency-Token); Stripe/wallee speichern ihre Kennung vor dem Gerätestart; neuer Abgleich offener Terminalverkäufe im Hintergrund (3 Optionen, Vorgabe an); Verkaufsübersicht mit Terminal und „offen seit“, offene Terminalverkäufe von Hand abschliessen (neues Recht `TenantPayments.Settle`); Stripe-Terminal erstattet über die Belastung. `IPaymentsHandler` erweitert (§86) |
 | 85 | **Eine Freigabe je Ort** | **Pflicht: 1 Spalte** `AssetTemplates.ReuseStoredShare` (manuelles SQL, Vorgabe aus). Mit Schalter zeigt `<ShareButton />` bzw. `CreateAsync` die bestehende anonyme Freigabe von Mandant + Vorlage + Pfad + Argumenten, statt eine zweite auszustellen; „Renew“ im Link-Dialog. **Behoben:** Besitzerrecht ohne Mandantengrenze, Vorlage bearbeiten löschte `ShareDialogConfig`. Nur bei eigener Implementierung: `ISharedAssetAdapter.FindReusableSharedAsset` (§85) |
 | 74 | **Terminal-Verwaltung über die WebParts** | Kein Schema-Change, nicht breaking. Neue Schalter `PaymentViews:ActivateTerminalViews` (BillingViews), `ActivateStripeTerminals` (Stripe), `ActivateAgentTerminals` + `TerminalsContextType` (Billing). Die Texte `Terminals_*` liefert das Toolkit jetzt mit. **Wer die Terminals bisher im Code registriert, nimmt das heraus, bevor er die Schalter setzt** (§74) |
 | 75 | **Terminal-Belege am Verkauf** | **Pflicht: 3 nullbare Spalten an `TenantSale`** (`TerminalReceiptJson`, `TipMinor`, `CompletionPendingSince`). Der Beobachter findet den Beleg jetzt am Verkauf vor; meldet ein Webhook vor dem Terminal, wird `OnSaleCompletedAsync` bis zum Beleg (höchstens `ReceiptWaitSeconds`) zurückgehalten. Neuer Hintergrunddienst, wallee Cloud mit Beleg, Schalter „Trinkgeld auf den Beleg“ (§75) |
@@ -8274,3 +8275,143 @@ Ohne die Spalte scheitert jede Abfrage auf `AssetTemplates`, also auch jedes Tei
 - [ ] Eigene Umgehungen entfernen (gemerkte Schlüssel, eigene Suche in `SharedAssets`) und über
       `CreateAsync` bzw. `<ShareButton QrFirst="true" />` gehen
 - [ ] `ShareDialogConfig` der Vorlagen prüfen, die in der Blazor-Maske bearbeitet wurden (§85.2)
+
+
+## 86. Achse C: verlässlich, auch wenn die Kasse weg ist — **kein Schema-Change; Fehlerbehebungen, neuer Hintergrund-Abgleich**
+
+Anlass: Anfrage von MiniStore (`docs/ISSUE-MiniStore-Terminal-PaymentCompletion.md`). Die Zahlung ist am Terminal
+gestartet, dann ist die Kasse weg (Browser zu, PC abgestürzt, Netz weg). Bis jetzt hing es vom Weg ab, ob der
+Verkauf je gebucht wurde, und „genau einmal“ galt nur zum Teil.
+
+### 86.1 Genau einmal melden, auch bei Gleichzeitigkeit
+
+§75.2 sagte „gemeldet wird genau einmal“. Das galt aber nur für die **zurückgehaltene** Meldung (Webhook vor
+Terminal). Der Übergang von unbezahlt auf `Paid` speicherte ohne Anspruch und meldete sofort. Zwei Wege, die den
+Verkauf beide noch als `Pending` gelesen hatten, meldeten **beide**: zwei Terminal-Nachfragen zur selben Zeit
+(Kasse und SumUp-Rückmeldung, zwei offene Fenster), zwei Zustellungen desselben Webhooks, Terminal-Antwort und
+Webhook (dabei setzte der Webhook zusätzlich `CompletionPendingSince`, und der Sweeper meldete später ein drittes
+Mal). Umgekehrt bekam die Kasse eine `DbUpdateConcurrencyException`, wenn der Webhook zuerst zurückgehalten hatte.
+Und `MoveToAsync` (Abbruch, Fehlschlag, Ablauf) konnte mit einem veralteten `Pending` eine gerade gebuchte
+Zahlung auf `Canceled` überschreiben.
+
+Jetzt:
+
+- `TenantSale.PaidUtc` ist ein **Concurrency-Token** (`[ConcurrencyCheck]`). Gesetzt wird es nur beim Übergang auf
+  bezahlt, also genau einmal. Wer die Zeile vorher gelesen hat, scheitert danach beim Speichern.
+- `MarkPaidAsync`, `MarkTerminalPaidAsync` und `MoveToAsync` laden nach einem verlorenen Wettlauf neu und
+  entscheiden auf dem Stand des Gewinners neu. Kennungen, E-Mail und Beleg des Verlierers landen trotzdem auf der
+  Zeile; eine zurückgehaltene Meldung gibt der Verlierer mit seinem Beleg frei; eine Absage auf einen inzwischen
+  bezahlten Verkauf entfällt.
+- Damit gilt „`OnSaleCompletedAsync` genau einmal“ für **jede** Reihenfolge von Webhook, Terminal-Antwort,
+  Nachfragen der Kasse und Hintergrund-Durchlauf, auch über mehrere Instanzen.
+
+### 86.2 Kennung des Anbieters vor dem Gerätestart
+
+Stripe (PaymentIntent) und wallee (Transaktion) legen den Vorgang beim Anbieter an und stossen das Gerät erst
+danach an. Die Kennung kam aber erst mit der **Antwort** des Geräts auf die Zeile. Blieb die aus, war der Verkauf
+nicht mehr nachzufragen (jede Nachfrage `Unknown`), der wallee-Webhook fand ihn nicht, und ein neuer Start legte
+einen **zweiten** Vorgang an.
+
+- Neu `TerminalPaymentServiceBase.RememberProviderPaymentIdAsync(sale, id, ct)`: schreibt die Kennung in einem
+  eigenen Kontext sofort auf die Zeile. Stripe und wallee rufen es zwischen Anlegen und Gerätestart. Gelingt es
+  nicht, wird das Gerät nicht angestossen.
+- Payrexx ECR legt an und stösst an in **einem** Aufruf; dort gibt es diesen Zwischenschritt nicht (siehe 86.6).
+  SumUp und der Agent fragen über unsere eigene Vorgangskennung nach und brauchen ihn nicht.
+- Stripe: Ein Fehler **ohne** Antwort von Stripe (Netz, Zeitüberschreitung) oder mit 5xx wird jetzt `Unknown`
+  statt `Failed`. Nur eine ausdrückliche Ablehnung ist ein Fehlschlag.
+
+### 86.3 Abgleich offener Terminalverkäufe im Hintergrund
+
+Der `TerminalCompletionSweeper` hat eine zweite Aufgabe: Terminalverkäufe, die `Pending` sind und nach denen
+niemand mehr fragt, fragt er über die Weiche nach, also genau wie die Kasse und für **jeden** Weg (Agent, Stripe,
+wallee, Payrexx, SumUp, künftige). Was das Gerät oder der Anbieter sagt, wird gebucht wie eine Antwort an der Kasse.
+
+| Option (`TenantPaymentsOptions`) | Vorgabe | Bedeutung |
+|---|---|---|
+| `TerminalReconcileAfterSeconds` | 120 | so lange ohne Nachfrage, bevor der Hintergrund fragt; `0` schaltet den Abgleich ab |
+| `TerminalReconcileIntervalSeconds` | 60 | Abstand zwischen zwei Fragen zum selben Verkauf |
+| `TerminalReconcileMaxAgeHours` | 24 | so lange ab Start wird gefragt |
+
+- „Ohne Nachfrage“ misst `TenantSale.Updated`: jede Nachfrage der Kasse frischt es auf. Solange die Kasse fragt,
+  bleibt der Hintergrund weg.
+- Antwortet das Gerät nicht (Agent getrennt), bleibt der Verkauf `Pending` und wird nach dem Abstand wieder
+  gefragt. Ist der Agent wieder verbunden, beantwortet er die nächste Frage.
+- Nach `TerminalReconcileMaxAgeHours` bleibt der Verkauf **`Pending`**. Er wird weder abgebrochen noch als
+  fehlgeschlagen gebucht, denn ob die Karte belastet wurde, ist weiterhin nicht bekannt. Es wird einmal ein
+  **Fehler** protokolliert, und der Verkauf bleibt in der Verkaufsübersicht sichtbar (86.4).
+- Ein inzwischen **abgeschaltetes** Gerät wird nach seinen laufenden Verkäufen weiterhin gefragt (Nachfragen und
+  Abbrechen). Neu kassiert wird an einem abgeschalteten Gerät nach wie vor nicht.
+
+### 86.4 Verkaufsübersicht
+
+`/Account/Manage/Payments/Sales`: neue Spalte „Terminal“, Filter „Nur Terminal“ und „Offen seit (Min.)“ (nur
+`Pending`, mindestens so lange gestartet). In der Detailansicht eines offenen Terminalverkaufs gibt es „Jetzt
+nachfragen“ (Recht `TenantPayments.Manage`, Mandant wird geprüft).
+
+**Von Hand abschliessen** (neu): Für offene Terminalverkäufe zeigt die Detailansicht „Als bezahlt abschliessen“
+und „Als nicht bezahlt abschliessen“. Das ist der letzte Ausweg, wenn weder Gerät noch Anbieter das Ergebnis
+liefern können (86.6), und erst nachdem jemand am Gerät oder beim Anbieter nachgesehen hat.
+
+| Permission | Zweck |
+|---|---|
+| `TenantPayments.Settle` | offene Terminalverkäufe von Hand als bezahlt / nicht bezahlt abschliessen |
+
+- **Eigenes Recht, bewusst nicht in `TenantAdmin` enthalten** (nur `Sysadmin` hat es implizit). Es bucht Geld oder
+  schreibt es ab, ohne dass der Anbieter es sagt. Wer das darf, wird ausdrücklich zugewiesen, z. B. nur der
+  Rolle des Mandanten-Administrators. Die Auto-Registrierung legt das Recht beim ersten Aufruf der Seite an.
+- **Begründung ist Pflicht**, die Kennung beim Anbieter ist optional. Ohne Kennung lässt sich ein von Hand
+  bezahlter Verkauf später nicht über den Anbieter erstatten.
+- **Bezahlt** geht durch denselben Übergang wie eine Terminal-Antwort: Die Beobachter werden genau einmal
+  benachrichtigt, ohne Beleg. **Nicht bezahlt** wird `Canceled`. Kommt die Zahlung danach doch an, wird sie gebucht
+  und als Fehler gemeldet, wie bei jedem abgebrochenen Verkauf.
+- Hat inzwischen ein anderer Weg entschieden (Abgleich, Kasse, Webhook), gilt dessen Ergebnis. Die Maske sagt es,
+  von Hand wird nichts geändert.
+- **Die Spur ist das Protokoll** (Warnung, Kontext `TenantPayments`): wer, welcher Verkauf, welches Ergebnis,
+  Begründung, Kennung. Am Verkauf selbst gibt es dafür keine Spalte.
+- API: `IPaymentsHandler.CanSettle()` / `SettleTerminalSaleAsync(user, …)`, darunter
+  `TenantSaleWebhookSink.SettleTerminalSaleByHandAsync(…)`. Neuer Fehlercode `PaymentErrorCodes.ReasonRequired`.
+
+### 86.5 Stripe Terminal: Erstattung über die Belastung
+
+Bei Stripe-Terminalverkäufen stand die Zahlungsabsicht (`pi_…`) als `ProviderChargeId` auf dem Verkauf. Die
+Erstattung schickte sie als Belastung, und `charge.refunded` fand den Verkauf nicht.
+
+- Neu `TerminalPaymentOutcome.ProviderChargeId` (optional). Stripe liefert dort `LatestChargeId`; die Basis
+  bucht sie als Belastung. Andere Anbieter lassen es leer, für sie gilt weiter `ProviderPaymentId`.
+- Steht auf einem bestehenden Verkauf noch eine `pi_…`, erstattet Stripe über die Zahlungsabsicht.
+- `charge.refunded` findet Terminalverkäufe auch über die Zahlungsabsicht.
+
+### 86.6 Was je Weg gilt
+
+| Weg | Ohne Kasse gebucht durch | Bemerkung |
+|---|---|---|
+| `stripe` | Hintergrund-Abgleich (86.3) | kein Terminal-Webhook nötig; das Stripe-Abonnement braucht dafür keine weiteren Ereignisse |
+| `wallee` (auch eigenes Konto) | Transaktions-Webhook, sonst Hintergrund-Abgleich | Webhook findet den Verkauf jetzt immer (86.2) |
+| `payrexx` (ECR) | Hintergrund-Abgleich | bleibt die Antwort schon auf den **Start** aus, gibt es keine Kennung und damit nichts nachzufragen: Verkauf bleibt `Pending`, wird nach 86.3 gemeldet |
+| `sumup` | `return_url`-Rückmeldung, sonst Hintergrund-Abgleich | |
+| `agent` | Hintergrund-Abgleich, sobald derselbe Agent wieder erreichbar ist | Route = `ClientKey`; wallee LTI kennt nur die **letzte** Transaktion des Geräts |
+
+### 86.7 Für eigenen Code
+
+- **Kein Schema-Change.** Das Token ändert nur die `WHERE`-Klausel der Updates; der Modell-Snapshot einer eigenen
+  Migration zeigt die Änderung, eine Migration ist dafür nicht nötig.
+- Wer selbst einen `TenantSale` lädt und speichert, während gleichzeitig eine Zahlung eingehen kann, sieht in
+  diesem Fall jetzt eine `DbUpdateConcurrencyException`, statt die Zahlung still zu überschreiben (etwa
+  `Status = Pending` beim Neuausstellen einer Zahlungsseite). Neu laden, auf dem frischen Stand entscheiden.
+- Zahlungen bucht eigener Code weiterhin nur über `TenantSaleWebhookSink`, nie durch Setzen von `Status`.
+- `IPaymentsHandler` (BillingViews): `GetSalesAsync` hat zwei neue optionale Parameter (`terminalOnly`,
+  `openForMinutes`) vor dem `CancellationToken`, neu `QueryTerminalSaleAsync`, `CanSettle` und
+  `SettleTerminalSaleAsync`. Eigene Implementierungen ziehen nach;
+  Aufrufer, die das Token **positionell** übergeben, nennen es jetzt beim Namen.
+- Eigene Terminal-Anbindungen auf `TerminalPaymentServiceBase`, die den Vorgang in einem eigenen Schritt anlegen,
+  rufen `RememberProviderPaymentIdAsync` vor dem Gerätestart.
+
+### 86.8 Checkliste
+
+- [ ] Eigene Stellen suchen, die `TenantSale` speichern, und prüfen, ob sie eine Concurrency-Ausnahme im Wettlauf
+      mit einer Zahlung vertragen
+- [ ] Abgleich-Optionen prüfen (Vorgabe: an, nach 120 s, alle 60 s, 24 h)
+- [ ] `TenantPayments.Settle` gezielt zuweisen (z. B. nur der Mandanten-Admin-Rolle); ohne Zuweisung sieht niemand
+      ausser `Sysadmin` die Knöpfe zum Abschliessen von Hand
+- [ ] Wer bisher selbst einen Abgleich offener Terminalverkäufe gebaut hat: entfernen oder abschalten, sonst wird
+      doppelt gefragt (gebucht wird trotzdem nur einmal)

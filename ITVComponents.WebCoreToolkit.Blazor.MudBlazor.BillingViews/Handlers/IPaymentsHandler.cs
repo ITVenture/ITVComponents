@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels;
@@ -32,6 +33,12 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
 
         /// <summary>May issue refunds.</summary>
         bool CanRefund();
+
+        /// <summary>
+        /// May settle an open terminal sale by hand (<c>TenantPayments.Settle</c>). Deliberately NOT implied by tenant
+        /// admin: booking money nobody confirmed is assigned on purpose.
+        /// </summary>
+        bool CanSettle();
 
         /// <summary>May see the platform-wide overview of all connected accounts.</summary>
         bool CanAdminister();
@@ -67,7 +74,28 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers
         Task<string?> OpenDashboardAsync(CancellationToken cancellationToken = default);
 
         /// <summary>The tenant's sales in a window, optionally filtered by status.</summary>
-        Task<SalesOverviewViewModel> GetSalesAsync(DateTime? fromUtc, DateTime? toUtc, TenantSaleStatus? status, CancellationToken cancellationToken = default);
+        /// <param name="terminalOnly">only sales made at a payment terminal</param>
+        /// <param name="openForMinutes">
+        /// only sales still <see cref="TenantSaleStatus.Pending"/> that were started at least this many minutes ago —
+        /// the ones nobody knows the outcome of yet
+        /// </param>
+        Task<SalesOverviewViewModel> GetSalesAsync(DateTime? fromUtc, DateTime? toUtc, TenantSaleStatus? status,
+            bool terminalOnly = false, int? openForMinutes = null, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Asks the terminal (or its provider) about an open terminal sale of the current tenant now, and books what
+        /// it says — the same as the till asking.
+        /// </summary>
+        /// <returns>the status of the sale afterwards</returns>
+        Task<TenantSaleStatus> QueryTerminalSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Settles an open terminal sale of the current tenant by hand, as paid or not paid, after somebody checked
+        /// the terminal or the provider. The reason is mandatory and, with the acting user, goes to the log.
+        /// </summary>
+        /// <returns>the status of the sale afterwards - another path may have decided first</returns>
+        Task<TenantSaleStatus> SettleTerminalSaleAsync(ClaimsPrincipal user, int tenantSaleId, bool paid, string reason,
+            string? providerReference, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Refunds a sale. <paramref name="amountMinor"/> null refunds the remainder,

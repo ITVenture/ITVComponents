@@ -101,6 +101,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Terminals.Abstractions
         /// </summary>
         public string? ProviderPaymentId { get; set; }
 
+        /// <summary>
+        /// Die Kennung der Belastung, wenn der Anbieter sie vom Vorgang unterscheidet, sonst null.
+        /// </summary>
+        /// <remarks>
+        /// Bei Stripe ist der Vorgang die Zahlungsabsicht (<c>pi_…</c>), erstattet und gemeldet wird aber die
+        /// Belastung (<c>ch_…</c>). Ohne dieses Feld landete die Absicht als Belastung auf dem Verkauf. Bei den
+        /// übrigen Anbietern ist beides dasselbe, dort bleibt es leer und <see cref="ProviderPaymentId"/> gilt.
+        /// </remarks>
+        public string? ProviderChargeId { get; set; }
+
         /// <summary>Was tatsächlich belastet wurde, in der kleinsten Einheit. Kann vom Auftrag abweichen (Trinkgeld).</summary>
         public long? AmountMinor { get; set; }
 

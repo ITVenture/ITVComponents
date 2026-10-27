@@ -105,6 +105,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options
         /// Default 5.
         /// </summary>
         public int ReceiptPollSeconds { get; set; } = 5;
+
+        /// <summary>
+        /// After how many seconds without anyone asking an open terminal sale is asked about in the background,
+        /// through the same router the till uses. Default 120; 0 or less switches the background reconciliation off.
+        /// </summary>
+        /// <remarks>
+        /// The case: the payment was started at the terminal and then the till was gone (browser closed, PC
+        /// crashed, network down). Paths without a back channel (agent, Stripe Terminal, Payrexx ECR) would
+        /// otherwise stay <c>Pending</c> for good, although the customer has paid. While the till keeps asking,
+        /// the sale's <c>Updated</c> stays fresh and the background leaves it alone.
+        /// </remarks>
+        public int TerminalReconcileAfterSeconds { get; set; } = 120;
+
+        /// <summary>How often the background asks about one open terminal sale, in seconds. Default 60.</summary>
+        public int TerminalReconcileIntervalSeconds { get; set; } = 60;
+
+        /// <summary>
+        /// How long the background keeps asking about an open terminal sale, in hours, counted from its start.
+        /// Default 24.
+        /// </summary>
+        /// <remarks>
+        /// Afterwards the sale stays <c>Pending</c> — it is still not known whether the card was charged, so it is
+        /// neither cancelled nor failed — and an error is logged once. It stays visible in the sales overview.
+        /// </remarks>
+        public int TerminalReconcileMaxAgeHours { get; set; } = 24;
     }
 
     /// <summary>

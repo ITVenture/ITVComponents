@@ -221,4 +221,24 @@
   <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>How you recognise this account, e.g. "Payrexx shop Bern".</value></data>
   <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Pairing code</value></data>
   <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>On the device: Connections → API → Connect. The code shown there is valid for five minutes.</value></data>
+  <data name="Sales_Filter_TerminalOnly" xml:space="preserve"><value>Terminal only</value></data>
+  <data name="Sales_Filter_OpenFor" xml:space="preserve"><value>Open for (min.)</value></data>
+  <data name="Sales_Filter_OpenForHint" xml:space="preserve"><value>Only open sales started at least this long ago</value></data>
+  <data name="Sales_Col_Terminal" xml:space="preserve"><value>Terminal</value></data>
+  <data name="Sales_Action_AskTerminal" xml:space="preserve"><value>Ask now</value></data>
+  <data name="Sales_AskTerminal_Result" xml:space="preserve"><value>Asked. The sale is now: {0}</value></data>
+  <data name="Sales_Detail_OpenTerminalHint" xml:space="preserve"><value>Started at the terminal, outcome not known yet. It is asked about in the background; if it stays open, check it at the terminal or with the provider.</value></data>
+  <data name="Sales_Action_SettlePaid" xml:space="preserve"><value>Settle as paid</value></data>
+  <data name="Sales_Action_SettleUnpaid" xml:space="preserve"><value>Settle as not paid</value></data>
+  <data name="Settle_Title_Paid" xml:space="preserve"><value>Settle as paid by hand</value></data>
+  <data name="Settle_Title_Unpaid" xml:space="preserve"><value>Settle as not paid by hand</value></data>
+  <data name="Settle_Intro_Paid" xml:space="preserve"><value>Sale {0} over {1} is booked as paid, although neither the terminal nor the provider confirmed it. Only do this after you have seen the payment at the terminal or with the provider. The order is released as paid.</value></data>
+  <data name="Settle_Intro_Unpaid" xml:space="preserve"><value>Sale {0} over {1} is closed as not paid. Only do this after you have checked at the terminal or with the provider that the card was not charged. Should the payment still arrive, it is booked and reported as an error.</value></data>
+  <data name="Settle_Reason" xml:space="preserve"><value>Reason (required)</value></data>
+  <data name="Settle_ProviderReference" xml:space="preserve"><value>Payment id at the provider</value></data>
+  <data name="Settle_ProviderReferenceHint" xml:space="preserve"><value>Optional. Without it the sale cannot be refunded through the provider later.</value></data>
+  <data name="Settle_Confirm" xml:space="preserve"><value>Settle</value></data>
+  <data name="Settle_Done" xml:space="preserve"><value>Settled. The sale is now: {0}</value></data>
+  <data name="Settle_DecidedElsewhere" xml:space="preserve"><value>Nothing changed by hand: the sale had already been decided in the meantime and is: {0}</value></data>
+  <data name="Payments_Error_ReasonRequired" xml:space="preserve"><value>Please give a reason.</value></data>
 </root>

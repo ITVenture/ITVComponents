@@ -151,6 +151,12 @@ namespace ITVComponents.WebCoreToolkit.Billing.Wallee.Impl
                         cancellationToken)
                     .ConfigureAwait(false);
 
+                // Die Transaktion steht jetzt bei wallee. Ihre Kennung muss auf die Zeile, BEVOR das Geraet sie
+                // bekommt: sonst findet der Webhook den Verkauf nicht, und nach einer ausbleibenden Antwort ist
+                // nichts mehr nachzufragen.
+                await RememberProviderPaymentIdAsync(sale, transaction.Id.ToString(), cancellationToken)
+                    .ConfigureAwait(false);
+
                 // Jetzt erst das Geraet. Reihenfolge der Parameter: Geraet, Transaktion, Raum.
                 var started = await Task.Run(
                         () => new PaymentTerminalsService(configuration)

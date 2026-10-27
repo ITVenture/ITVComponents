@@ -391,7 +391,11 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
             var sale = await db.TenantSales.Include(s => s.Refunds)
                 .FirstOrDefaultAsync(s => s.ProviderChargeId == charge.Id, cancellationToken);
-            sale ??= await ResolveSaleAsync(db, null, charge.PaymentIntentId, null, accountId, cancellationToken);
+            // Ein Terminal-Verkauf fuehrt die Zahlungsabsicht als Vorgangskennung (ProviderSessionId), nicht als
+            // ProviderPaymentIntentId - darum dieselbe Kennung auch dort suchen. Online-Verkaeufe haben dort eine
+            // Checkout-Session (cs_...), eine Verwechslung ist ausgeschlossen.
+            sale ??= await ResolveSaleAsync(db, null, charge.PaymentIntentId, charge.PaymentIntentId, accountId,
+                cancellationToken);
             if (sale == null)
             {
                 return;

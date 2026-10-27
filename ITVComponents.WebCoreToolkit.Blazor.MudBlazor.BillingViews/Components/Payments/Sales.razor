@@ -8,6 +8,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IStringLocalizer<PaymentMessages> L
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
 
 <PageTitle>@L["Sales_Title"]</PageTitle>
 
@@ -39,13 +40,22 @@
 }
 
 <MudGrid Class="mb-3">
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="6" md="3">
         <MudDatePicker Label="@L["Sales_Filter_From"]" @bind-Date="fromDate" Clearable="true" />
     </MudItem>
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="6" md="3">
         <MudDatePicker Label="@L["Sales_Filter_To"]" @bind-Date="toDate" Clearable="true" />
     </MudItem>
-    <MudItem xs="12" sm="4">
+    <MudItem xs="12" sm="6" md="2">
+        @* Ein offener Terminalverkauf ist der, bei dem niemand weiss, ob die Karte belastet wurde - der Filter
+           zeigt genau die, nach Alter. Er schliesst den Status-Filter ein (nur Pending). *@
+        <MudNumericField T="int?" Value="openForMinutes" ValueChanged="OnOpenForChanged" Label="@L["Sales_Filter_OpenFor"]"
+                         HelperText="@L["Sales_Filter_OpenForHint"]" Min="0" Clearable="true" DebounceInterval="500" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="1" Class="d-flex align-center">
+        <MudSwitch T="bool" Value="terminalOnly" ValueChanged="OnTerminalOnlyChanged" Label="@L["Sales_Filter_TerminalOnly"]" Color="Color.Primary" />
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
         <MudSelect T="TenantSaleStatus?" Value="statusFilter" ValueChanged="OnStatusChanged" Label="@L["Sales_Filter_Status"]" Clearable="true">
             @foreach (var value in Enum.GetValues<TenantSaleStatus>())
             {
@@ -66,6 +76,7 @@
         <MudTh>@L["Sales_Col_Date"]</MudTh>
         <MudTh>@L["Sales_Col_Reference"]</MudTh>
         <MudTh>@L["Sales_Col_Description"]</MudTh>
+        <MudTh>@L["Sales_Col_Terminal"]</MudTh>
         <MudTh>@L["Sales_Col_Amount"]</MudTh>
         <MudTh>@L["Sales_Col_Fee"]</MudTh>
         <MudTh>@L["Sales_Col_Net"]</MudTh>
@@ -76,6 +87,7 @@
         <MudTd DataLabel="@L["Sales_Col_Date"]">@((context.PaidUtc ?? context.Created).ToLocalTime().ToString("g"))</MudTd>
         <MudTd DataLabel="@L["Sales_Col_Reference"]">@context.ExternalReference</MudTd>
         <MudTd DataLabel="@L["Sales_Col_Description"]">@context.Description</MudTd>
+        <MudTd DataLabel="@L["Sales_Col_Terminal"]">@(context.TerminalName ?? "—")</MudTd>
         <MudTd DataLabel="@L["Sales_Col_Amount"]">@Money(context.AmountMinor, context.Currency)</MudTd>
         <MudTd DataLabel="@L["Sales_Col_Fee"]">@Money(context.ApplicationFeeMinor - context.ApplicationFeeRefundedMinor, context.Currency)</MudTd>
         <MudTd DataLabel="@L["Sales_Col_Net"]">@Money(context.NetMinor, context.Currency)</MudTd>
@@ -112,12 +124,59 @@
                     <tr><td>@L["Sales_Detail_Session"]</td><td>@(sale.ProviderSessionId ?? "—")</td></tr>
                     <tr><td>@L["Sales_Detail_PaymentIntent"]</td><td>@(sale.ProviderPaymentIntentId ?? "—")</td></tr>
                     <tr><td>@L["Sales_Detail_Charge"]</td><td>@(sale.ProviderChargeId ?? "—")</td></tr>
+                    @if (sale.IsTerminalSale)
+                    {
+                        <tr><td>@L["Sales_Col_Terminal"]</td><td>@(sale.TerminalName ?? "—")</td></tr>
+                    }
                 </tbody>
             </MudSimpleTable>
+            @if (sale.IsOpenTerminalSale)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">@L["Sales_Detail_OpenTerminalHint"]</MudAlert>
+            }
         }
     </DialogContent>
     <DialogActions>
+        @if (canManage && detail is { IsOpenTerminalSale: true })
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Sync" Disabled="@busy" OnClick="AskTerminal">@L["Sales_Action_AskTerminal"]</MudButton>
+        }
+        @if (canSettle && detail is { IsOpenTerminalSale: true } open)
+        {
+            @* Von Hand abschliessen ist der letzte Ausweg und hat ein eigenes Recht. Die Knoepfe oeffnen eine Rueckfrage
+               mit Pflicht-Begruendung - ein Klick allein bucht nichts. *@
+            <MudButton Color="Color.Success" Disabled="@busy" OnClick="@(() => OpenSettle(open, true))">@L["Sales_Action_SettlePaid"]</MudButton>
+            <MudButton Color="Color.Error" Disabled="@busy" OnClick="@(() => OpenSettle(open, false))">@L["Sales_Action_SettleUnpaid"]</MudButton>
+        }
         <MudButton OnClick="@(() => detailOpen = false)">@L["Common_Close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="settleOpen" Options="dialogOptions">
+    <TitleContent>@(settlePaid ? L["Settle_Title_Paid"] : L["Settle_Title_Unpaid"])</TitleContent>
+    <DialogContent>
+        @if (settleTarget is { } target)
+        {
+            <MudAlert Severity="@(settlePaid ? Severity.Warning : Severity.Error)" Dense="true" Class="mb-3">
+                @(settlePaid
+                    ? L["Settle_Intro_Paid", target.ExternalReference, Money(target.AmountMinor, target.Currency)]
+                    : L["Settle_Intro_Unpaid", target.ExternalReference, Money(target.AmountMinor, target.Currency)])
+            </MudAlert>
+            <MudTextField T="string" @bind-Value="settleReason" Label="@L["Settle_Reason"]" Required="true"
+                          Lines="2" Immediate="true" />
+            @if (settlePaid)
+            {
+                <MudTextField T="string" @bind-Value="settleReference" Label="@L["Settle_ProviderReference"]"
+                              HelperText="@L["Settle_ProviderReferenceHint"]" Class="mt-2" />
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => settleOpen = false)">@L["Common_Cancel"]</MudButton>
+        <MudButton Color="@(settlePaid ? Color.Success : Color.Error)" Variant="Variant.Filled"
+                   Disabled="@(busy || string.IsNullOrWhiteSpace(settleReason))" OnClick="ConfirmSettle">
+            @L["Settle_Confirm"]
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -158,6 +217,16 @@
     private bool loading = true;
     private bool busy;
     private bool canRefund;
+    private bool canManage;
+    private bool canSettle;
+
+    private bool settleOpen;
+    private bool settlePaid;
+    private SaleListItemViewModel? settleTarget;
+    private string? settleReason;
+    private string? settleReference;
+    private bool terminalOnly;
+    private int? openForMinutes;
 
     private DateTime? fromDate = DateTime.Today.AddMonths(-1);
     private DateTime? toDate;
@@ -177,6 +246,8 @@
     protected override async Task OnInitializedAsync()
     {
         canRefund = Handler.CanRefund();
+        canManage = Handler.CanManage();
+        canSettle = Handler.CanSettle();
         await Reload();
     }
 
@@ -190,7 +261,9 @@
             overview = await Handler.GetSalesAsync(
                 fromDate?.ToUniversalTime(),
                 toDate?.AddDays(1).ToUniversalTime(),
-                statusFilter);
+                statusFilter,
+                terminalOnly,
+                openForMinutes);
         }
         catch (TenantPaymentException ex)
         {
@@ -206,6 +279,91 @@
     {
         statusFilter = status;
         await Reload();
+    }
+
+    private async Task OnTerminalOnlyChanged(bool value)
+    {
+        terminalOnly = value;
+        await Reload();
+    }
+
+    private async Task OnOpenForChanged(int? minutes)
+    {
+        openForMinutes = minutes;
+        await Reload();
+    }
+
+    private async Task AskTerminal()
+    {
+        if (detail is not { } sale)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var status = await Handler.QueryTerminalSaleAsync(sale.TenantSaleId);
+            Snackbar.Add(L["Sales_AskTerminal_Result", StatusText(status)].Value,
+                status == TenantSaleStatus.Pending ? Severity.Info : Severity.Success);
+            detailOpen = false;
+            await Reload();
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(L["Payments_Error_Unexpected", ex.Message].Value, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OpenSettle(SaleListItemViewModel sale, bool paid)
+    {
+        settleTarget = sale;
+        settlePaid = paid;
+        settleReason = null;
+        settleReference = null;
+        detailOpen = false;
+        settleOpen = true;
+    }
+
+    private async Task ConfirmSettle()
+    {
+        if (settleTarget is not { } target || string.IsNullOrWhiteSpace(settleReason))
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var status = await Handler.SettleTerminalSaleAsync(auth.User, target.TenantSaleId, settlePaid,
+                settleReason, settlePaid ? settleReference : null);
+            settleOpen = false;
+            var wanted = settlePaid ? TenantSaleStatus.Paid : TenantSaleStatus.Canceled;
+            Snackbar.Add(L[status == wanted ? "Settle_Done" : "Settle_DecidedElsewhere", StatusText(status)].Value,
+                status == wanted ? Severity.Success : Severity.Warning);
+            await Reload();
+        }
+        catch (TenantPaymentException ex)
+        {
+            Snackbar.Add(Translate(ex), Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(L["Payments_Error_Unexpected", ex.Message].Value, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 
     private void ShowDetail(SaleListItemViewModel? sale)

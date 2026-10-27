@@ -221,4 +221,24 @@
   <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>Ce qui vous permet de reconnaître ce compte, p. ex. « Payrexx magasin Berne ».</value></data>
   <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Code d'appairage</value></data>
   <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>Sur l'appareil : Connections → API → Connect. Le code affiché est valable cinq minutes.</value></data>
+  <data name="Sales_Filter_TerminalOnly" xml:space="preserve"><value>Terminal uniquement</value></data>
+  <data name="Sales_Filter_OpenFor" xml:space="preserve"><value>Ouvert depuis (min)</value></data>
+  <data name="Sales_Filter_OpenForHint" xml:space="preserve"><value>Uniquement les ventes ouvertes depuis au moins cette durée</value></data>
+  <data name="Sales_Col_Terminal" xml:space="preserve"><value>Terminal</value></data>
+  <data name="Sales_Action_AskTerminal" xml:space="preserve"><value>Demander maintenant</value></data>
+  <data name="Sales_AskTerminal_Result" xml:space="preserve"><value>Demandé. La vente est maintenant : {0}</value></data>
+  <data name="Sales_Detail_OpenTerminalHint" xml:space="preserve"><value>Démarrée au terminal, résultat encore inconnu. Une vérification a lieu en arrière-plan ; si la vente reste ouverte, vérifiez-la au terminal ou auprès du prestataire.</value></data>
+  <data name="Sales_Action_SettlePaid" xml:space="preserve"><value>Clôturer comme payée</value></data>
+  <data name="Sales_Action_SettleUnpaid" xml:space="preserve"><value>Clôturer comme non payée</value></data>
+  <data name="Settle_Title_Paid" xml:space="preserve"><value>Clôturer manuellement comme payée</value></data>
+  <data name="Settle_Title_Unpaid" xml:space="preserve"><value>Clôturer manuellement comme non payée</value></data>
+  <data name="Settle_Intro_Paid" xml:space="preserve"><value>La vente {0} de {1} est comptabilisée comme payée, bien que ni le terminal ni le prestataire ne l'aient confirmé. Ne le faites que si vous avez vu le paiement au terminal ou chez le prestataire. La commande est libérée comme payée.</value></data>
+  <data name="Settle_Intro_Unpaid" xml:space="preserve"><value>La vente {0} de {1} est clôturée comme non payée. Ne le faites qu'après avoir vérifié au terminal ou chez le prestataire que la carte n'a pas été débitée. Si le paiement arrive malgré tout, il est comptabilisé et signalé comme erreur.</value></data>
+  <data name="Settle_Reason" xml:space="preserve"><value>Motif (obligatoire)</value></data>
+  <data name="Settle_ProviderReference" xml:space="preserve"><value>Identifiant du paiement chez le prestataire</value></data>
+  <data name="Settle_ProviderReferenceHint" xml:space="preserve"><value>Facultatif. Sans lui, la vente ne pourra pas être remboursée via le prestataire.</value></data>
+  <data name="Settle_Confirm" xml:space="preserve"><value>Clôturer</value></data>
+  <data name="Settle_Done" xml:space="preserve"><value>Clôturée. La vente est maintenant : {0}</value></data>
+  <data name="Settle_DecidedElsewhere" xml:space="preserve"><value>Rien n'a été modifié manuellement : la vente a entre-temps déjà été décidée et est : {0}</value></data>
+  <data name="Payments_Error_ReasonRequired" xml:space="preserve"><value>Veuillez indiquer un motif.</value></data>
 </root>

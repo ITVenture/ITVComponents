@@ -109,6 +109,21 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.ViewModels
 
         public string? ProviderChargeId { get; set; }
 
+        /// <summary>The terminal the sale was made at, or null for an online sale.</summary>
+        public int? TenantPaymentTerminalId { get; set; }
+
+        /// <summary>The display name of that terminal.</summary>
+        public string? TerminalName { get; set; }
+
+        /// <summary>Whether the sale was made at a payment terminal.</summary>
+        public bool IsTerminalSale => TenantPaymentTerminalId != null;
+
+        /// <summary>
+        /// An open terminal sale: started at the device, outcome not yet known. The background keeps asking; the
+        /// view offers to ask right away.
+        /// </summary>
+        public bool IsOpenTerminalSale => IsTerminalSale && Status == TenantSaleStatus.Pending;
+
         /// <summary>What is left of the sale after refunds — the amount an unqualified refund would return.</summary>
         public long RefundableMinor => Math.Max(0, AmountMinor - RefundedMinor);
 

@@ -2,6 +2,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
     /// <para>
     /// Er läuft in jeder Instanz. Doppelt gemeldet wird trotzdem nicht: das Leeren des Merkmals ist ein
     /// Nebenläufigkeits-geschützter Anspruch, den genau einer bekommt.
+    /// </para>
+    /// <para>
+    /// <b>Zweite Aufgabe: offene Terminal-Verkäufe abgleichen.</b> Ist eine Zahlung am Gerät gestartet und die
+    /// Kasse danach weg, fragt niemand mehr nach — und Wege ohne Rückkanal (Agent, Stripe Terminal, Payrexx ECR)
+    /// blieben für immer <c>Pending</c>, obwohl der Kunde bezahlt hat. Nach
+    /// <see cref="TenantPaymentsOptions.TerminalReconcileAfterSeconds"/> ohne Nachfrage fragt dieser Dienst über
+    /// dieselbe Weiche nach wie die Kasse, alle <see cref="TenantPaymentsOptions.TerminalReconcileIntervalSeconds"/>,
+    /// bis <see cref="TenantPaymentsOptions.TerminalReconcileMaxAgeHours"/>. Was das Gerät dann sagt, wird gebucht
+    /// wie eine Antwort an der Kasse, mit denselben Garantien.
     /// </para>
     /// </remarks>
     public sealed class TerminalCompletionSweeper<TContext> : BackgroundService
@@ -104,8 +114,105 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 await SweepSaleAsync(services, dbFactory, options, saleId, cancellationToken);
             }
 
+            if (options.TerminalReconcileAfterSeconds > 0)
+            {
+                await ReconcileOpenSalesAsync(services, dbFactory, options, cancellationToken);
+            }
+
             return options.ReceiptPollSeconds;
         }
+
+        /// <summary>Ein Durchlauf über die offenen Terminal-Verkäufe, nach denen niemand mehr fragt.</summary>
+        internal static async Task ReconcileOpenSalesAsync(IServiceProvider services,
+            IDbContextFactory<TContext> dbFactory, TenantPaymentsOptions options, CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            var startedBefore = now.AddSeconds(-options.TerminalReconcileAfterSeconds);
+            var askedBefore = now.AddSeconds(-ReconcileInterval(options));
+            var startedAfter = now.AddHours(-ReconcileMaxAgeHours(options));
+            List<int> open;
+            await using (var db = await dbFactory.CreateDbContextAsync(cancellationToken))
+            {
+                // Updated ist zugleich "zuletzt gefragt": jede Nachfrage der Kasse frischt es auf, und solange sie
+                // fragt, bleibt der Verkauf hier draussen. Ohne Mandantenfilter, aus demselben Grund wie oben.
+                open = await db.TenantSales.IgnoreQueryFilters().AsNoTracking()
+                    .Where(s => s.TenantPaymentTerminalId != null && s.Status == TenantSaleStatus.Pending
+                                && s.CompletionPendingSince == null
+                                && s.Created <= startedBefore && s.Created >= startedAfter
+                                && s.Updated <= askedBefore)
+                    .OrderBy(s => s.Updated)
+                    .Select(s => s.TenantSaleId)
+                    .Take(50)
+                    .ToListAsync(cancellationToken);
+            }
+
+            foreach (var saleId in open)
+            {
+                await ReconcileSaleAsync(services, dbFactory, options, saleId, cancellationToken);
+            }
+        }
+
+        private static async Task ReconcileSaleAsync(IServiceProvider services, IDbContextFactory<TContext> dbFactory,
+            TenantPaymentsOptions options, int saleId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await services.GetRequiredService<ITerminalPaymentService>()
+                    .GetPaymentAsync(saleId, cancellationToken);
+                if (result.SaleStatus != TenantSaleStatus.Pending)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Terminal sale {saleId} had been left open and was settled in the background as '{result.SaleStatus}'.",
+                        LogSeverity.Report, LogContext);
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogEnvironment.LogEvent(
+                    $"Could not ask about the open terminal sale {saleId}; it is asked again in {ReconcileInterval(options)} seconds: {ex.OutlineException()}",
+                    LogSeverity.Warning, LogContext);
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+            var sale = await db.TenantSales.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.TenantSaleId == saleId, cancellationToken);
+            if (sale == null)
+            {
+                LogEnvironment.LogEvent($"Terminal sale {saleId} vanished while it was being reconciled.",
+                    LogSeverity.Warning, LogContext);
+                return;
+            }
+
+            if (sale.Status != TenantSaleStatus.Pending)
+            {
+                return;
+            }
+
+            // Als gefragt markieren, auch wenn das Geraet nicht geantwortet hat - sonst kaeme derselbe Verkauf in
+            // jedem Durchlauf wieder dran, alle paar Sekunden an ein Geraet, das gerade nicht erreichbar ist.
+            sale.Updated = DateTime.UtcNow;
+            if (!await services.GetRequiredService<TenantSaleWebhookSink<TContext>>()
+                    .TrySaveAsync(sale, db, cancellationToken))
+            {
+                // Inzwischen entschieden - genau das, worauf dieser Durchgang wartet.
+                return;
+            }
+
+            if (sale.Created.AddHours(ReconcileMaxAgeHours(options)) < DateTime.UtcNow.AddSeconds(ReconcileInterval(options)))
+            {
+                // Der letzte Durchgang fuer diesen Verkauf: beim naechsten ist er zu alt.
+                LogEnvironment.LogEvent(
+                    $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}', terminal {sale.TenantPaymentTerminalId}) has been open since {sale.Created:u} and the background stops asking about it. It is NOT known whether the card was charged — check it at the provider or the terminal and settle it by hand.",
+                    LogSeverity.Error, LogContext);
+            }
+        }
+
+        private static int ReconcileInterval(TenantPaymentsOptions options)
+            => Math.Max(5, options.TerminalReconcileIntervalSeconds);
+
+        private static int ReconcileMaxAgeHours(TenantPaymentsOptions options)
+            => Math.Max(1, options.TerminalReconcileMaxAgeHours);
 
         private static async Task SweepSaleAsync(IServiceProvider services, IDbContextFactory<TContext> dbFactory,
             TenantPaymentsOptions options, int saleId, CancellationToken cancellationToken)

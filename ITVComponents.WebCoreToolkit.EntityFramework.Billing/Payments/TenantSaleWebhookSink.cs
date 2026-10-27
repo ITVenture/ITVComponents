@@ -136,44 +136,76 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// ist das die UUID der Transaktion, nicht ihre Nummer.
         /// </param>
         /// <param name="customerEmail">die vom Anbieter erfasste Adresse, oder null</param>
+        /// <remarks>
+        /// <b>Genau einmal</b>, auch wenn Webhook, Terminal-Antwort und Nachfragen der Kasse gleichzeitig
+        /// buchen: der Übergang auf bezahlt ist über <see cref="TenantSale.PaidUtc"/> abgesichert (siehe
+        /// <see cref="TrySaveAsync"/>). Wer ihn verliert, entscheidet auf dem Stand des Gewinners neu.
+        /// </remarks>
         /// <returns>true, wenn dieser Aufruf den Verkauf freigegeben hat — false bei einer Wiederholung</returns>
         public async Task<bool> MarkPaidAsync(TenantSale sale, TContext db, string? chargeId,
             string? customerEmail, CancellationToken cancellationToken)
         {
-            // Die Kennungen werden AUCH bei einer Wiederholung nachgetragen: die erste Meldung kennt sie
-            // manchmal noch nicht, und ohne sie laesst sich spaeter nicht erstatten.
-            sale.ProviderChargeId ??= chargeId;
-            if (string.IsNullOrWhiteSpace(sale.CustomerEmail) && !string.IsNullOrWhiteSpace(customerEmail))
+            for (var attempt = 1; ; attempt++)
             {
-                sale.CustomerEmail = customerEmail;
-            }
+                // Die Kennungen werden AUCH bei einer Wiederholung nachgetragen: die erste Meldung kennt sie
+                // manchmal noch nicht, und ohne sie laesst sich spaeter nicht erstatten.
+                sale.ProviderChargeId ??= chargeId;
+                if (string.IsNullOrWhiteSpace(sale.CustomerEmail) && !string.IsNullOrWhiteSpace(customerEmail))
+                {
+                    sale.CustomerEmail = customerEmail;
+                }
 
-            if (!IsUnpaid(sale.Status))
-            {
-                // Schon gebucht. Neue Kennungen sichern, aber die Ware nicht ein zweites Mal freigeben.
-                sale.Updated = DateTime.UtcNow;
-                await db.SaveChangesAsync(cancellationToken);
-                return false;
-            }
+                if (!IsUnpaid(sale.Status))
+                {
+                    // Schon gebucht. Neue Kennungen sichern, aber die Ware nicht ein zweites Mal freigeben.
+                    sale.Updated = DateTime.UtcNow;
+                    if (!await TrySaveAsync(sale, db, cancellationToken))
+                    {
+                        if (attempt < MaxBookingAttempts)
+                        {
+                            continue;
+                        }
 
-            WarnOnLatePayment(sale);
-            SetPaid(sale);
-            if (sale.TenantPaymentTerminalId != null && sale.TerminalReceiptJson == null)
-            {
-                // Ein Terminal-Verkauf, und der Anbieter war schneller als das Geraet. Bezahlt ist er - aber
-                // der Beobachter bucht beim Host den Beleg, und dem fehlten jetzt die Kartendaten. Die Meldung
-                // wartet auf die Antwort des Terminals oder, falls die ausbleibt, auf die Frist.
-                sale.CompletionPendingSince = DateTime.UtcNow;
-                await db.SaveChangesAsync(cancellationToken);
-                LogEnvironment.LogEvent(
-                    $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}) was reported paid before the terminal delivered the receipt. The observers are notified once the receipt arrives or the wait period ends.",
-                    LogSeverity.Report, LogContext);
+                        LogGivenUp(sale);
+                    }
+
+                    return false;
+                }
+
+                WarnOnLatePayment(sale);
+                SetPaid(sale);
+                // Ein Terminal-Verkauf, und der Anbieter war schneller als das Geraet. Bezahlt ist er - aber der
+                // Beobachter bucht beim Host den Beleg, und dem fehlten jetzt die Kartendaten. Die Meldung wartet
+                // auf die Antwort des Terminals oder, falls die ausbleibt, auf die Frist.
+                var holdBack = sale.TenantPaymentTerminalId != null && sale.TerminalReceiptJson == null;
+                if (holdBack)
+                {
+                    sale.CompletionPendingSince = DateTime.UtcNow;
+                }
+
+                if (!await TrySaveAsync(sale, db, cancellationToken))
+                {
+                    // Ein anderer Weg hat bezahlt. Auf seinem Stand neu entscheiden - dort ist es eine Wiederholung.
+                    if (attempt < MaxBookingAttempts)
+                    {
+                        continue;
+                    }
+
+                    LogGivenUp(sale);
+                    return false;
+                }
+
+                if (holdBack)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}) was reported paid before the terminal delivered the receipt. The observers are notified once the receipt arrives or the wait period ends.",
+                        LogSeverity.Report, LogContext);
+                    return true;
+                }
+
+                await notifier.NotifyCompletedAsync(sale, cancellationToken);
                 return true;
             }
-
-            await db.SaveChangesAsync(cancellationToken);
-            await notifier.NotifyCompletedAsync(sale, cancellationToken);
-            return true;
         }
 
         /// <summary>
@@ -189,36 +221,116 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// War der Webhook schneller, steht der Verkauf schon als bezahlt da und die Meldung aus. Dann wird sie
         /// hier nachgeholt, jetzt mit Beleg.
         /// </para>
+        /// <para>
+        /// Fragen zwei Wege gleichzeitig nach (Kasse und SumUp-Rückmeldung, zwei offene Fenster) oder bucht
+        /// ein Webhook zur selben Zeit, meldet nur, wer den Übergang auf bezahlt gewinnt (siehe
+        /// <see cref="TrySaveAsync"/>). Der Verlierer legt seinen Beleg auf den Stand des Gewinners - und gibt
+        /// dessen zurückgehaltene Meldung frei, falls der Gewinner ein Webhook ohne Beleg war.
+        /// </para>
         /// </remarks>
         /// <returns>true, wenn dieser Aufruf die Beobachter benachrichtigt hat</returns>
         public async Task<bool> MarkTerminalPaidAsync(TenantSale sale, TContext db, string? chargeId,
             string? customerEmail, TerminalReceipt? receipt, long? tipMinor, CancellationToken cancellationToken)
         {
-            TerminalReceiptStore.Store(sale, receipt, tipMinor);
-            sale.ProviderChargeId ??= chargeId;
-            if (string.IsNullOrWhiteSpace(sale.CustomerEmail) && !string.IsNullOrWhiteSpace(customerEmail))
+            for (var attempt = 1; ; attempt++)
             {
-                sale.CustomerEmail = customerEmail;
-            }
+                // Bei jedem Durchgang neu: ein verlorener Wettlauf laedt die Zeile neu und verwirft dabei, was
+                // dieser Weg schon daraufgelegt hatte.
+                TerminalReceiptStore.Store(sale, receipt, tipMinor);
+                sale.ProviderChargeId ??= chargeId;
+                if (string.IsNullOrWhiteSpace(sale.CustomerEmail) && !string.IsNullOrWhiteSpace(customerEmail))
+                {
+                    sale.CustomerEmail = customerEmail;
+                }
 
-            if (IsUnpaid(sale.Status))
+                if (IsUnpaid(sale.Status))
+                {
+                    WarnOnLatePayment(sale);
+                    SetPaid(sale);
+                    if (!await TrySaveAsync(sale, db, cancellationToken))
+                    {
+                        if (attempt < MaxBookingAttempts)
+                        {
+                            continue;
+                        }
+
+                        LogGivenUp(sale);
+                        return false;
+                    }
+
+                    await notifier.NotifyCompletedAsync(sale, cancellationToken);
+                    return true;
+                }
+
+                if (sale.CompletionPendingSince != null)
+                {
+                    return await ReleasePendingCompletionAsync(sale, db, cancellationToken);
+                }
+
+                sale.Updated = DateTime.UtcNow;
+                if (!await TrySaveAsync(sale, db, cancellationToken))
+                {
+                    if (attempt < MaxBookingAttempts)
+                    {
+                        continue;
+                    }
+
+                    LogGivenUp(sale);
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Speichert die Verkaufszeile — es sei denn, ein anderer Weg hat sie inzwischen bezahlt oder eine
+        /// zurückgehaltene Meldung übernommen.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="TenantSale.PaidUtc"/> und <see cref="TenantSale.CompletionPendingSince"/> sind
+        /// Nebenläufigkeits-Merkmale. Der Übergang auf bezahlt setzt <c>PaidUtc</c> genau einmal; wer die Zeile
+        /// vorher gelesen hat, scheitert danach beim Speichern. Ohne das meldeten zwei gleichzeitige Wege,
+        /// die beide noch <see cref="TenantSaleStatus.Pending"/> gesehen haben, beide.
+        /// </para>
+        /// <para>
+        /// Scheitert das Speichern daran, wird die Zeile neu geladen: der Aufrufer sieht den Stand des
+        /// Gewinners und entscheidet darauf neu, statt auf einem Stand weiterzubuchen, den es nicht mehr gibt.
+        /// Seine eigenen, noch nicht gespeicherten Änderungen sind dabei verworfen — er muss sie wiederholen.
+        /// </para>
+        /// </remarks>
+        /// <returns>true, wenn gespeichert wurde; false, wenn die Zeile stattdessen neu geladen wurde</returns>
+        internal async Task<bool> TrySaveAsync(TenantSale sale, TContext db, CancellationToken cancellationToken)
+        {
+            try
             {
-                WarnOnLatePayment(sale);
-                SetPaid(sale);
                 await db.SaveChangesAsync(cancellationToken);
-                await notifier.NotifyCompletedAsync(sale, cancellationToken);
                 return true;
             }
-
-            if (sale.CompletionPendingSince != null)
+            catch (DbUpdateConcurrencyException ex)
             {
-                return await ReleasePendingCompletionAsync(sale, db, cancellationToken);
+                // Der erwartete Ausgang eines Wettlaufs, kein Fehler - der Aufrufer entscheidet neu.
+                LogEnvironment.LogEvent(
+                    $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}) was changed by another path while this one was booking it, typically a payment notification and a terminal answer at the same time. It is re-read and decided again on the current state: {ex.Message}",
+                    LogSeverity.Report, LogContext);
+                await db.Entry(sale).ReloadAsync(cancellationToken);
+                return false;
             }
-
-            sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-            return false;
         }
+
+        /// <summary>
+        /// Wie oft ein Weg nach einem verlorenen Wettlauf auf dem frischen Stand neu entscheidet.
+        /// </summary>
+        /// <remarks>
+        /// Der Übergang auf bezahlt geschieht genau einmal, ein zweiter Durchgang sieht also einen bezahlten
+        /// Verkauf. Der dritte deckt ab, dass dazwischen noch eine zurückgehaltene Meldung freigegeben wurde.
+        /// </remarks>
+        private const int MaxBookingAttempts = 3;
+
+        private static void LogGivenUp(TenantSale sale)
+            => LogEnvironment.LogEvent(
+                $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}) kept changing under this booking for {MaxBookingAttempts} attempts; what this notification carried (charge id, e-mail, receipt) was NOT stored. The status itself is as the other paths left it. A repeated delivery of the notification stores it.",
+                LogSeverity.Error, LogContext);
 
         /// <summary>
         /// Holt eine zurückgehaltene Meldung nach — mit Beleg, falls er inzwischen da ist, sonst ohne.
@@ -330,24 +442,109 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         public async Task MoveToAsync(TenantSale sale, TContext db, TenantSaleStatus status,
             CancellationToken cancellationToken, string? providerSessionId = null)
         {
-            if (sale.Status != TenantSaleStatus.Pending)
+            for (var attempt = 1; ; attempt++)
             {
-                return;
+                if (sale.Status != TenantSaleStatus.Pending)
+                {
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(providerSessionId) && !string.IsNullOrEmpty(sale.ProviderSessionId)
+                    && !string.Equals(providerSessionId, sale.ProviderSessionId, StringComparison.Ordinal))
+                {
+                    LogEnvironment.LogEvent(
+                        $"A '{status}' notification for payment page {providerSessionId} reached sale {sale.TenantSaleId}, which has since been given page {sale.ProviderSessionId}. It is ignored — the current page is still valid.",
+                        LogSeverity.Report, LogContext);
+                    return;
+                }
+
+                sale.Status = status;
+                sale.CheckoutUrl = null;
+                sale.Updated = DateTime.UtcNow;
+                // Wurde der Verkauf inzwischen bezahlt, scheitert das Speichern, und der frische Stand ist nicht
+                // mehr Pending: die Absage hat dann nichts mehr zu sagen. Ohne diese Pruefung ueberschrieb eine
+                // gleichzeitige Absage eine gerade gebuchte Zahlung.
+                if (await TrySaveAsync(sale, db, cancellationToken))
+                {
+                    return;
+                }
+
+                if (attempt >= MaxBookingAttempts)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Sale {sale.TenantSaleId} (tenant {sale.TenantId}) could not be moved to '{status}': it kept changing under this booking for {MaxBookingAttempts} attempts. It stays '{sale.Status}'.",
+                        LogSeverity.Error, LogContext);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Schliesst einen offenen Terminal-Verkauf <b>von Hand</b> ab — als bezahlt oder als nicht bezahlt.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Der letzte Ausweg, wenn weder Gerät noch Anbieter das Ergebnis liefern können (Payrexx ohne Antwort auf den
+        /// Start, wallee LTI nach einer neueren Zahlung, Gerät inzwischen bei einem anderen Anbieter). Ein Mensch hat
+        /// am Gerät oder beim Anbieter nachgesehen und entscheidet.
+        /// </para>
+        /// <para>
+        /// Bezahlt geht durch denselben Übergang wie eine Terminal-Antwort: die Beobachter werden genau einmal
+        /// benachrichtigt (ohne Beleg). Nicht bezahlt wird <see cref="TenantSaleStatus.Canceled"/> - kommt danach doch
+        /// noch eine Zahlung herein, wird sie gebucht und als Fehler gemeldet, wie bei jedem abgebrochenen Verkauf.
+        /// Hat inzwischen ein anderer Weg entschieden, gilt dessen Entscheidung; der Aufrufer sieht sie am Ergebnis.
+        /// </para>
+        /// <para>
+        /// Es gibt dafür keine Spalte; die Spur ist das Protokoll - wer, wann, warum, mit welcher Kennung.
+        /// </para>
+        /// </remarks>
+        /// <param name="sale">der Verkauf, verfolgt in <paramref name="db"/></param>
+        /// <param name="db">der Kontext, in dem gebucht wird</param>
+        /// <param name="paid">true = als bezahlt abschliessen, false = als nicht bezahlt</param>
+        /// <param name="reason">warum - Pflicht</param>
+        /// <param name="actor">wer entschieden hat</param>
+        /// <param name="providerReference">
+        /// die Kennung der Zahlung beim Anbieter, falls bekannt. Wird bei bezahlt als Belastung gespeichert - ohne sie
+        /// lässt sich der Verkauf später nicht über den Anbieter erstatten.
+        /// </param>
+        /// <param name="cancellationToken">bricht die Verarbeitung ab</param>
+        /// <returns>der Zustand des Verkaufs danach</returns>
+        public async Task<TenantSaleStatus> SettleTerminalSaleByHandAsync(TenantSale sale, TContext db, bool paid,
+            string reason, string actor, string? providerReference, CancellationToken cancellationToken)
+        {
+            if (sale.TenantPaymentTerminalId == null)
+            {
+                throw new InvalidOperationException(
+                    $"Sale {sale.TenantSaleId} was not made at a terminal; only terminal sales are settled by hand.");
             }
 
-            if (!string.IsNullOrEmpty(providerSessionId) && !string.IsNullOrEmpty(sale.ProviderSessionId)
-                && !string.Equals(providerSessionId, sale.ProviderSessionId, StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(reason))
             {
-                LogEnvironment.LogEvent(
-                    $"A '{status}' notification for payment page {providerSessionId} reached sale {sale.TenantSaleId}, which has since been given page {sale.ProviderSessionId}. It is ignored — the current page is still valid.",
-                    LogSeverity.Report, LogContext);
-                return;
+                throw new TenantPaymentException(PaymentErrorCodes.ReasonRequired,
+                    $"Settling sale {sale.TenantSaleId} by hand needs a reason.");
             }
 
-            sale.Status = status;
-            sale.CheckoutUrl = null;
-            sale.Updated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
+            var before = sale.Status;
+            if (before == TenantSaleStatus.Pending)
+            {
+                var reference = string.IsNullOrWhiteSpace(providerReference) ? null : providerReference.Trim();
+                if (paid)
+                {
+                    await MarkTerminalPaidAsync(sale, db, reference, null, null, null, cancellationToken);
+                }
+                else
+                {
+                    await MoveToAsync(sale, db, TenantSaleStatus.Canceled, cancellationToken);
+                }
+            }
+
+            var wanted = paid ? TenantSaleStatus.Paid : TenantSaleStatus.Canceled;
+            LogEnvironment.LogEvent(
+                sale.Status == wanted && before == TenantSaleStatus.Pending
+                    ? $"Terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}, reference '{sale.ExternalReference}', {sale.AmountMinor} {sale.Currency}) was settled BY HAND as '{sale.Status}' by '{actor}'. Reason: {reason.Trim()}. Provider reference: {providerReference ?? "none"}."
+                    : $"'{actor}' tried to settle terminal sale {sale.TenantSaleId} (tenant {sale.TenantId}) by hand as '{wanted}', but it is '{sale.Status}' (was '{before}' when asked) - another path decided first. Nothing was changed by hand. Reason given: {reason.Trim()}.",
+                LogSeverity.Warning, LogContext);
+            return sale.Status;
         }
 
         /// <summary>

@@ -122,9 +122,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         {
             try
             {
+                // Terminal-Verkaeufe von vor dem Feld ProviderChargeId tragen hier die Zahlungsabsicht (pi_...).
+                // Stripe erstattet auch ueber sie - als Belastung geschickt, liefe die Erstattung ins Leere.
+                var byIntent = sale.ProviderChargeId?.StartsWith("pi_", StringComparison.Ordinal) == true;
                 var refund = await new RefundService(client).CreateAsync(new RefundCreateOptions
                 {
-                    Charge = sale.ProviderChargeId,
+                    Charge = byIntent ? null : sale.ProviderChargeId,
+                    PaymentIntent = byIntent ? sale.ProviderChargeId : null,
                     Amount = amountMinor,
                     // The provider only accepts its own three reasons; anything else would be rejected, so the
                     // tenant's own wording travels as metadata and is kept on the local row.

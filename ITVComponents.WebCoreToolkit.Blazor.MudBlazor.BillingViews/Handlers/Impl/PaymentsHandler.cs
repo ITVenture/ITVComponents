@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
@@ -34,6 +35,13 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         /// <summary>Issue refunds.</summary>
         public const string RefundPermission = "TenantPayments.Refund";
+
+        /// <summary>
+        /// Settle an open terminal sale by hand. Its own permission, and on purpose NOT implied by
+        /// <c>TenantAdmin</c>: it books money (or writes it off) without the provider saying so, and who may do that
+        /// is a decision of its own.
+        /// </summary>
+        public const string SettlePermission = "TenantPayments.Settle";
 
         /// <summary>Platform-wide overview of all connected accounts.</summary>
         public const string AdminPermission = "TenantPayments.Admin";
@@ -76,6 +84,9 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
 
         /// <inheritdoc />
         public bool CanRefund() => services.VerifyUserPermissions(new[] { RefundPermission, ToolkitPermission.Sysadmin, ToolkitPermission.TenantAdmin });
+
+        /// <inheritdoc />
+        public bool CanSettle() => services.VerifyUserPermissions(new[] { SettlePermission, ToolkitPermission.Sysadmin });
 
         /// <inheritdoc />
         public bool CanAdminister() => services.VerifyUserPermissions(new[] { AdminPermission, ToolkitPermission.Sysadmin });
@@ -136,7 +147,8 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
         }
 
         /// <inheritdoc />
-        public async Task<SalesOverviewViewModel> GetSalesAsync(DateTime? fromUtc, DateTime? toUtc, TenantSaleStatus? status, CancellationToken cancellationToken = default)
+        public async Task<SalesOverviewViewModel> GetSalesAsync(DateTime? fromUtc, DateTime? toUtc, TenantSaleStatus? status,
+            bool terminalOnly = false, int? openForMinutes = null, CancellationToken cancellationToken = default)
         {
             EnsurePermitted(CanView(), "see the sales of this tenant");
             runtime.EnsureEnabled();
@@ -166,7 +178,25 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 query = query.Where(s => s.Status == status.Value);
             }
 
+            if (terminalOnly)
+            {
+                query = query.Where(s => s.TenantPaymentTerminalId != null);
+            }
+
+            if (openForMinutes is { } minutes)
+            {
+                var startedBefore = DateTime.UtcNow.AddMinutes(-Math.Max(0, minutes));
+                query = query.Where(s => s.Status == TenantSaleStatus.Pending && s.Created <= startedBefore);
+            }
+
             var sales = await query.OrderByDescending(s => s.Created).ToListAsync(cancellationToken);
+            var terminalIds = sales.Where(s => s.TenantPaymentTerminalId != null)
+                .Select(s => s.TenantPaymentTerminalId!.Value).Distinct().ToList();
+            var terminalNames = terminalIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await db.TenantPaymentTerminals.AsNoTracking()
+                    .Where(t => t.TenantId == tenantId.Value && terminalIds.Contains(t.TenantPaymentTerminalId))
+                    .ToDictionaryAsync(t => t.TenantPaymentTerminalId, t => t.DisplayName, cancellationToken);
             var items = sales.Select(s => new SaleListItemViewModel
             {
                 TenantSaleId = s.TenantSaleId,
@@ -183,7 +213,11 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
                 CustomerEmail = s.CustomerEmail,
                 ProviderSessionId = s.ProviderSessionId,
                 ProviderPaymentIntentId = s.ProviderPaymentIntentId,
-                ProviderChargeId = s.ProviderChargeId
+                ProviderChargeId = s.ProviderChargeId,
+                TenantPaymentTerminalId = s.TenantPaymentTerminalId,
+                TerminalName = s.TenantPaymentTerminalId is { } terminalId && terminalNames.TryGetValue(terminalId, out var name)
+                    ? name
+                    : null
             }).ToList();
 
             overview.Items = items;
@@ -216,6 +250,71 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Handlers.Impl
             }
 
             await saleService.RefundSaleAsync(tenantSaleId, amountMinor, reason, refundApplicationFee, cancellationToken);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Asking is the same call the till makes: it can BOOK the sale (paid, failed) when the device has an answer.
+        /// That is why it needs the manage permission and not just the view, and why the sale is re-checked against
+        /// the ACTIVE tenant first — the terminal service addresses sales by their id and knows no scope.
+        /// </remarks>
+        public async Task<TenantSaleStatus> QueryTerminalSaleAsync(int tenantSaleId, CancellationToken cancellationToken = default)
+        {
+            var tenantId = await RequireTenantAsync(CanManage(), "ask a terminal about a sale of this tenant", cancellationToken);
+            await using (var db = await dbFactory.CreateDbContextAsync(cancellationToken))
+            {
+                var belongs = await db.TenantSales.AsNoTracking()
+                    .AnyAsync(s => s.TenantSaleId == tenantSaleId && s.TenantId == tenantId
+                                   && s.TenantPaymentTerminalId != null, cancellationToken);
+                if (!belongs)
+                {
+                    throw new TenantPaymentException(PaymentErrorCodes.SaleNotFound,
+                        $"Terminal sale {tenantSaleId} does not belong to tenant {tenantId}.");
+                }
+            }
+
+            if (services.GetService(typeof(ITerminalPaymentService)) is not ITerminalPaymentService terminals)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                    "No terminal payment service is registered, so the terminal cannot be asked.");
+            }
+
+            var result = await terminals.GetPaymentAsync(tenantSaleId, cancellationToken);
+            return result.SaleStatus;
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Same guards as everywhere else here - permission, feature, ACTIVE tenant - and the sale must be a terminal
+        /// sale of that tenant. The booking itself goes through the sink, so "notified exactly once" holds even when
+        /// the background or the till answers at the same moment.
+        /// </remarks>
+        public async Task<TenantSaleStatus> SettleTerminalSaleAsync(ClaimsPrincipal user, int tenantSaleId, bool paid,
+            string reason, string? providerReference, CancellationToken cancellationToken = default)
+        {
+            var tenantId = await RequireTenantAsync(CanSettle(), "settle a terminal sale of this tenant by hand", cancellationToken);
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.ReasonRequired,
+                    $"Settling sale {tenantSaleId} by hand needs a reason.");
+            }
+
+            if (services.GetService(typeof(TenantSaleWebhookSink<TContext>)) is not TenantSaleWebhookSink<TContext> sink)
+            {
+                throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
+                    "The payment booking (TenantSaleWebhookSink) is not registered, so the sale cannot be settled.");
+            }
+
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+            var sale = await db.TenantSales.Include(s => s.Refunds)
+                           .FirstOrDefaultAsync(s => s.TenantSaleId == tenantSaleId && s.TenantId == tenantId
+                                                     && s.TenantPaymentTerminalId != null, cancellationToken)
+                       ?? throw new TenantPaymentException(PaymentErrorCodes.SaleNotFound,
+                           $"Terminal sale {tenantSaleId} does not belong to tenant {tenantId}.");
+
+            var actor = user.Identity?.Name ?? "(unknown user)";
+            return await sink.SettleTerminalSaleByHandAsync(sale, db, paid, reason, actor, providerReference,
+                cancellationToken);
         }
 
         /// <inheritdoc />

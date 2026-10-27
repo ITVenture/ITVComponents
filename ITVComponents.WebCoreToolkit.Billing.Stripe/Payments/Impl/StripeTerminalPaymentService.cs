@@ -118,6 +118,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     // ergibt dieselbe Absicht statt einer zweiten.
                     $"terminal-intent:{sale.TenantSaleId}"), cancellationToken);
 
+                // Die Absicht steht jetzt bei Stripe. Ihre Kennung muss auf die Zeile, BEVOR das Geraet sie
+                // bekommt - sonst ist sie nach einer ausbleibenden Antwort nicht mehr nachzufragen.
+                await RememberProviderPaymentIdAsync(sale, intent.Id, cancellationToken);
+
                 var reader = await new Terminal.ReaderService(client).ProcessPaymentIntentAsync(
                     terminal.ProviderTerminalId,
                     new Terminal.ReaderProcessPaymentIntentOptions
@@ -258,6 +262,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             {
                 OperationId = operationId,
                 ProviderPaymentId = intent.Id,
+                // Erstattet und per charge.refunded gemeldet wird die BELASTUNG, nicht die Absicht.
+                ProviderChargeId = intent.LatestChargeId,
                 AmountMinor = intent.AmountReceived > 0 ? intent.AmountReceived : intent.Amount,
                 TipMinor = tip is > 0 ? tip : null,
                 State = intent.Status switch
@@ -315,12 +321,17 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         /// als möglicherweise falsch negativ: das Gerät hat den Befehl bekommen, nur die Bestätigung kam
         /// nicht zurück. Ihn als Fehlschlag zu buchen, hiesse die Kasse ein zweites Mal kassieren zu
         /// lassen — auf eine Karte, die schon belastet ist.
+        /// <para>
+        /// Dasselbe gilt, wenn gar keine Antwort von Stripe kam (Netz, Zeitüberschreitung: kein
+        /// <c>StripeError</c>) oder Stripe mit 5xx antwortet — dann ist nach Stripes eigener Aussage offen, ob
+        /// der Aufruf gewirkt hat. Nur eine ausdrückliche Ablehnung ist ein Fehlschlag.
+        /// </para>
         /// </remarks>
         private static TerminalPaymentOutcome TranslateFailure(StripeException ex, string operationId,
             TenantSale sale, TenantPaymentTerminal terminal)
         {
             var code = ex.StripeError?.Code;
-            var unclear = code is "terminal_reader_timeout";
+            var unclear = code is "terminal_reader_timeout" || ex.StripeError == null || (int)ex.HttpStatusCode >= 500;
 
             LogEnvironment.LogEvent(
                 $"Stripe refused a terminal operation for sale {sale.TenantSaleId} on reader {terminal.ProviderTerminalId} (code '{code}'). "

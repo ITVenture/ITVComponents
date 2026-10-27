@@ -127,6 +127,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments
         public DateTime Updated { get; set; }
 
         /// <summary>UTC moment the payment completed; null while unpaid.</summary>
+        /// <remarks>
+        /// Also the claim on the transition to paid: it is written exactly once, by whoever books the payment
+        /// first, and is a concurrency token. A webhook, a terminal answer or the till asking again that read the
+        /// row while it was still unpaid fails to save afterwards instead of notifying the observers a second
+        /// time — and a late cancel can no longer overwrite a payment booked in the meantime. Schema unchanged.
+        /// </remarks>
+        [ConcurrencyCheck]
         public DateTime? PaidUtc { get; set; }
 
         /// <summary>

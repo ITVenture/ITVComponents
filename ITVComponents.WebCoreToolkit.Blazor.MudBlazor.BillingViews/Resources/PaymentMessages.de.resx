@@ -221,4 +221,24 @@
   <data name="OwnAccess_Field_DisplayNameHint" xml:space="preserve"><value>Woran Sie dieses Konto erkennen, z. B. „Payrexx Laden Bern“.</value></data>
   <data name="Terminals_Field_PairingCode" xml:space="preserve"><value>Kopplungscode</value></data>
   <data name="Terminals_Field_PairingCodeHint" xml:space="preserve"><value>Am Gerät: Connections → API → Connect. Der dort angezeigte Code gilt fünf Minuten.</value></data>
+  <data name="Sales_Filter_TerminalOnly" xml:space="preserve"><value>Nur Terminal</value></data>
+  <data name="Sales_Filter_OpenFor" xml:space="preserve"><value>Offen seit (Min.)</value></data>
+  <data name="Sales_Filter_OpenForHint" xml:space="preserve"><value>Nur offene Verkäufe, die mindestens so lange laufen</value></data>
+  <data name="Sales_Col_Terminal" xml:space="preserve"><value>Terminal</value></data>
+  <data name="Sales_Action_AskTerminal" xml:space="preserve"><value>Jetzt nachfragen</value></data>
+  <data name="Sales_AskTerminal_Result" xml:space="preserve"><value>Nachgefragt. Der Verkauf ist jetzt: {0}</value></data>
+  <data name="Sales_Detail_OpenTerminalHint" xml:space="preserve"><value>Am Terminal gestartet, Ergebnis noch nicht bekannt. Es wird im Hintergrund nachgefragt; bleibt der Verkauf offen, prüfen Sie ihn am Terminal oder beim Anbieter.</value></data>
+  <data name="Sales_Action_SettlePaid" xml:space="preserve"><value>Als bezahlt abschliessen</value></data>
+  <data name="Sales_Action_SettleUnpaid" xml:space="preserve"><value>Als nicht bezahlt abschliessen</value></data>
+  <data name="Settle_Title_Paid" xml:space="preserve"><value>Von Hand als bezahlt abschliessen</value></data>
+  <data name="Settle_Title_Unpaid" xml:space="preserve"><value>Von Hand als nicht bezahlt abschliessen</value></data>
+  <data name="Settle_Intro_Paid" xml:space="preserve"><value>Der Verkauf {0} über {1} wird als bezahlt gebucht, obwohl weder Terminal noch Anbieter es bestätigt haben. Tun Sie das nur, wenn Sie die Zahlung am Terminal oder beim Anbieter gesehen haben. Die Bestellung wird als bezahlt freigegeben.</value></data>
+  <data name="Settle_Intro_Unpaid" xml:space="preserve"><value>Der Verkauf {0} über {1} wird als nicht bezahlt geschlossen. Tun Sie das nur, wenn Sie am Terminal oder beim Anbieter geprüft haben, dass die Karte nicht belastet wurde. Kommt die Zahlung doch noch an, wird sie gebucht und als Fehler gemeldet.</value></data>
+  <data name="Settle_Reason" xml:space="preserve"><value>Begründung (Pflicht)</value></data>
+  <data name="Settle_ProviderReference" xml:space="preserve"><value>Kennung der Zahlung beim Anbieter</value></data>
+  <data name="Settle_ProviderReferenceHint" xml:space="preserve"><value>Optional. Ohne sie lässt sich der Verkauf später nicht über den Anbieter erstatten.</value></data>
+  <data name="Settle_Confirm" xml:space="preserve"><value>Abschliessen</value></data>
+  <data name="Settle_Done" xml:space="preserve"><value>Abgeschlossen. Der Verkauf ist jetzt: {0}</value></data>
+  <data name="Settle_DecidedElsewhere" xml:space="preserve"><value>Nichts von Hand geändert: der Verkauf wurde inzwischen schon entschieden und ist: {0}</value></data>
+  <data name="Payments_Error_ReasonRequired" xml:space="preserve"><value>Bitte geben Sie eine Begründung an.</value></data>
 </root>

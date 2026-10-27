@@ -84,6 +84,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <summary>The provider refused the call. The provider's own message travels in the exception message.</summary>
         public const string ProviderError = "Payments_Error_ProviderError";
 
+        /// <summary>
+        /// A sale is settled by hand without a reason. The reason is the only record of why money was booked (or
+        /// written off) without the provider saying so - it is mandatory.
+        /// </summary>
+        public const string ReasonRequired = "Payments_Error_ReasonRequired";
+
         /// <summary>A configured charge type other than direct charges, which is not implemented.</summary>
         public const string UnsupportedChargeType = "Payments_Error_UnsupportedChargeType";
 

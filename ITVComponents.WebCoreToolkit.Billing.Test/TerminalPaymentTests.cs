@@ -11,6 +11,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.WebCoreToolkit.Billing.Test
@@ -96,6 +97,32 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
             await using var db = await factory.CreateDbContextAsync();
             Assert.AreEqual(TenantSaleStatus.Pending, (await db.TenantSales.SingleAsync()).Status,
                 "The sale must stay open — 'no answer' is not 'no payment'.");
+        }
+
+        [TestMethod]
+        public async Task Start_KeepsTheProviderIdEvenWhenTheDeviceDoesNotAnswer()
+        {
+            // Stripe/wallee legen den Vorgang beim Anbieter an und stossen das Geraet erst danach an. Bleibt die
+            // Antwort darauf aus, muss die Kennung trotzdem auf der Zeile stehen: sonst bleibt jedes Nachfragen
+            // Unknown, und ein zweiter Start legte einen zweiten Vorgang an.
+            var (service, factory, device, _) = Build();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            device.CreatedId = "pi_1";
+            device.Throw = new TerminalDeviceException("the line went down");
+
+            await service.StartPaymentAsync(Request());
+
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                Assert.AreEqual("pi_1", (await db.TenantSales.SingleAsync()).ProviderSessionId,
+                    "The id must be stored before the device is started.");
+            }
+
+            device.Throw = null;
+            await service.StartPaymentAsync(Request());
+
+            Assert.AreEqual(1, device.Starts, "With the id on record, a repeated start must not start again.");
+            Assert.AreEqual(1, device.Queries, "It must ask about the running one instead.");
         }
 
         [TestMethod]
@@ -322,6 +349,266 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         }
 
         [TestMethod]
+        public async Task TwoTerminalAnswersAtOnce_NotifyOnlyOnce()
+        {
+            // Die Kasse fragt nach, waehrend die SumUp-Rueckmeldung dasselbe tut - beide sehen noch Pending.
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory);
+
+            await using var first = await factory.CreateDbContextAsync();
+            await using var second = await factory.CreateDbContextAsync();
+            var a = await first.TenantSales.SingleAsync();
+            var b = await second.TenantSales.SingleAsync();
+
+            var one = await sink.MarkTerminalPaidAsync(a, first, "pay-1", null, new TerminalReceipt { Brand = "VISA" }, null, default);
+            var two = await sink.MarkTerminalPaidAsync(b, second, "pay-1", null, new TerminalReceipt { Brand = "VISA" }, null, default);
+
+            Assert.IsTrue(one);
+            Assert.IsFalse(two, "The second answer read the sale while it was unpaid and must not notify again.");
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public async Task TerminalFirst_ThenAStaleWebhook_DoesNotLeaveASecondNotificationBehind()
+        {
+            // Das Terminal bucht und meldet. Ein Webhook, der die Zeile noch unbezahlt gelesen hat, darf sie
+            // danach nicht als "bezahlt, Meldung ausstehend" markieren - der Sweeper meldete sonst ein zweites Mal.
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory);
+
+            await using var terminalDb = await factory.CreateDbContextAsync();
+            await using var webhookDb = await factory.CreateDbContextAsync();
+            var byTerminal = await terminalDb.TenantSales.SingleAsync();
+            var byWebhook = await webhookDb.TenantSales.SingleAsync();
+
+            Assert.IsTrue(await sink.MarkTerminalPaidAsync(byTerminal, terminalDb, "pay-1", null,
+                new TerminalReceipt { Brand = "VISA" }, null, default));
+            Assert.IsFalse(await sink.MarkPaidAsync(byWebhook, webhookDb, "pay-1", null, default));
+
+            await using var check = await factory.CreateDbContextAsync();
+            var stored = await check.TenantSales.SingleAsync();
+            Assert.IsNull(stored.CompletionPendingSince, "Nothing may be left for the sweeper to report again.");
+            Assert.IsNotNull(stored.TerminalReceiptJson);
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public async Task WebhookFirst_TheStaleTerminalAnswerReleasesWithItsReceipt()
+        {
+            // Der Webhook bucht ohne Beleg und haelt die Meldung zurueck. Die Antwort des Terminals hat die Zeile
+            // noch unbezahlt gelesen: sie darf weder werfen noch verloren gehen, sondern gibt mit Beleg frei.
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory);
+
+            await using var terminalDb = await factory.CreateDbContextAsync();
+            await using var webhookDb = await factory.CreateDbContextAsync();
+            var byTerminal = await terminalDb.TenantSales.SingleAsync();
+            var byWebhook = await webhookDb.TenantSales.SingleAsync();
+
+            Assert.IsTrue(await sink.MarkPaidAsync(byWebhook, webhookDb, "pay-1", null, default));
+            Assert.AreEqual(0, observer.Completed, "Without a receipt the webhook holds the notification back.");
+
+            var released = await sink.MarkTerminalPaidAsync(byTerminal, terminalDb, "pay-1", null,
+                new TerminalReceipt { Brand = "VISA" }, null, default);
+
+            Assert.IsTrue(released);
+            Assert.AreEqual(1, observer.Completed);
+            Assert.IsNotNull(observer.LastReceiptJson, "The observer must get the receipt the terminal delivered.");
+            await using var check = await factory.CreateDbContextAsync();
+            Assert.IsNull((await check.TenantSales.SingleAsync()).CompletionPendingSince);
+        }
+
+        [TestMethod]
+        public async Task Reconcile_SettlesAnOpenSaleNobodyAsksAboutAnymore()
+        {
+            // Die Kasse ist weg, der Kunde hat am Geraet bezahlt. Ohne Rueckkanal bliebe der Verkauf Pending.
+            var (service, factory, device, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 10);
+            device.Next = Paid(new TerminalReceipt { Brand = "VISA" });
+
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(
+                Services(service, sink), factory, Options(), default);
+
+            Assert.AreEqual(1, device.Queries);
+            Assert.AreEqual(1, observer.Completed);
+            await using var db = await factory.CreateDbContextAsync();
+            Assert.AreEqual(TenantSaleStatus.Paid, (await db.TenantSales.SingleAsync()).Status);
+        }
+
+        [TestMethod]
+        public async Task Reconcile_LeavesASaleAloneWhileTheTillStillAsks()
+        {
+            var (service, factory, device, _, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 10, askedMinutesAgo: 0);
+
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(
+                Services(service, sink), factory, Options(), default);
+
+            Assert.AreEqual(0, device.Queries, "A sale the till asked about a moment ago is the till's business.");
+        }
+
+        [TestMethod]
+        public async Task Reconcile_DoesNotHammerAnUnreachableDevice()
+        {
+            // Agent getrennt: die Frage scheitert. Der Verkauf bleibt offen, wird aber erst nach dem Abstand
+            // wieder gefragt - nicht in jedem Durchlauf.
+            var (service, factory, device, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 10);
+            device.Throw = new TerminalDeviceException("agent not connected");
+            var services = Services(service, sink);
+
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(services, factory, Options(), default);
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(services, factory, Options(), default);
+
+            Assert.AreEqual(1, device.Queries);
+            Assert.AreEqual(0, observer.Completed);
+            await using var db = await factory.CreateDbContextAsync();
+            Assert.AreEqual(TenantSaleStatus.Pending, (await db.TenantSales.SingleAsync()).Status,
+                "No answer is not 'not paid' - the sale stays open.");
+        }
+
+        [TestMethod]
+        public async Task Reconcile_StillAsksAboutASaleOnASwitchedOffTerminal()
+        {
+            // Abgeschaltet nach dem Start: die Frage, ob die Karte belastet wurde, bleibt zu beantworten.
+            var (service, factory, device, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1, enabled: false);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 10);
+            device.Next = Paid(new TerminalReceipt { Brand = "VISA" });
+
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(
+                Services(service, sink), factory, Options(), default);
+
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public async Task SettleByHand_AsPaid_NotifiesOnceAndStopsTheReconciliation()
+        {
+            var (service, factory, device, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 60);
+
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var sale = await db.TenantSales.SingleAsync();
+                var status = await sink.SettleTerminalSaleByHandAsync(sale, db, true, "seen at the terminal", "tester",
+                    "pay-77", default);
+                Assert.AreEqual(TenantSaleStatus.Paid, status);
+            }
+
+            Assert.AreEqual(1, observer.Completed);
+            await TerminalCompletionSweeper<PaymentsTestContext>.ReconcileOpenSalesAsync(
+                Services(service, sink), factory, Options(), default);
+            Assert.AreEqual(0, device.Queries, "A sale settled by hand is not asked about any more.");
+        }
+
+        [TestMethod]
+        public async Task SettleByHand_AsNotPaid_CancelsAndALatePaymentIsStillBooked()
+        {
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 60);
+
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var sale = await db.TenantSales.SingleAsync();
+                Assert.AreEqual(TenantSaleStatus.Canceled,
+                    await sink.SettleTerminalSaleByHandAsync(sale, db, false, "card not charged", "tester", null, default));
+            }
+
+            // Das Geraet meldet doch noch eine Zahlung: das Geld ist da und darf nicht verschluckt werden.
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var sale = await db.TenantSales.SingleAsync();
+                Assert.IsTrue(await sink.MarkTerminalPaidAsync(sale, db, "pay-1", null, null, null, default));
+            }
+
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public async Task SettleByHand_LeavesASaleAloneThatWasDecidedMeanwhile()
+        {
+            var (_, factory, _, observer, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 60);
+
+            await using var handDb = await factory.CreateDbContextAsync();
+            await using var terminalDb = await factory.CreateDbContextAsync();
+            var byHand = await handDb.TenantSales.SingleAsync();
+            var byTerminal = await terminalDb.TenantSales.SingleAsync();
+
+            await sink.MarkTerminalPaidAsync(byTerminal, terminalDb, "pay-1", null, null, null, default);
+            var status = await sink.SettleTerminalSaleByHandAsync(byHand, handDb, false, "looked unpaid", "tester", null, default);
+
+            Assert.AreEqual(TenantSaleStatus.Paid, status, "The terminal's answer wins over a stale manual decision.");
+            Assert.AreEqual(1, observer.Completed);
+        }
+
+        [TestMethod]
+        public async Task SettleByHand_NeedsAReason()
+        {
+            var (_, factory, _, _, sink) = BuildWithSink();
+            await Seed(factory, terminalId: 1, tenantId: 1);
+            await AddPendingTerminalSale(factory, startedMinutesAgo: 60);
+
+            await using var db = await factory.CreateDbContextAsync();
+            var sale = await db.TenantSales.SingleAsync();
+            var ex = await Assert.ThrowsExactlyAsync<TenantPaymentException>(
+                () => sink.SettleTerminalSaleByHandAsync(sale, db, true, "  ", "tester", null, default));
+            Assert.AreEqual(PaymentErrorCodes.ReasonRequired, ex.Code);
+        }
+
+        private static IServiceProvider Services(TestTerminalService service,
+            TenantSaleWebhookSink<PaymentsTestContext> sink)
+            => new ServiceCollection()
+                .AddSingleton<ITerminalPaymentService>(service)
+                .AddSingleton(sink)
+                .BuildServiceProvider();
+
+        private static TenantPaymentsOptions Options() => new()
+        {
+            Enabled = true,
+            TerminalReconcileAfterSeconds = 120,
+            TerminalReconcileIntervalSeconds = 60,
+            TerminalReconcileMaxAgeHours = 24
+        };
+
+        private static async Task AddPendingTerminalSale(IDbContextFactory<PaymentsTestContext> factory,
+            int startedMinutesAgo, int? askedMinutesAgo = null)
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            db.TenantSales.Add(new TenantSale
+            {
+                TenantId = 1, ExternalReference = "order-1", Description = "test", AmountMinor = 5000,
+                Currency = "CHF", Status = TenantSaleStatus.Pending, TenantPaymentTerminalId = 1,
+                ProviderSessionId = "pay-1",
+                Created = DateTime.UtcNow.AddMinutes(-startedMinutesAgo),
+                Updated = DateTime.UtcNow.AddMinutes(-(askedMinutesAgo ?? startedMinutesAgo))
+            });
+            await db.SaveChangesAsync();
+        }
+
+        private static async Task AddPendingTerminalSale(IDbContextFactory<PaymentsTestContext> factory)
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            db.TenantSales.Add(new TenantSale
+            {
+                TenantId = 1, ExternalReference = "order-1", Description = "test", AmountMinor = 5000,
+                Currency = "CHF", Status = TenantSaleStatus.Pending, TenantPaymentTerminalId = 1,
+                ProviderSessionId = "pay-1", Created = DateTime.UtcNow, Updated = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        [TestMethod]
         public void Store_DropsACardNumberThatIsNotMasked()
         {
             var sale = new TenantSale { TenantSaleId = 9, TenantId = 1 };
@@ -430,6 +717,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
 
             public Exception? Throw { get; set; }
 
+            /// <summary>Die Kennung, die der Anbieter VOR dem Anstoss des Geraets vergibt (Stripe, wallee), oder null.</summary>
+            public string? CreatedId { get; set; }
+
             public int Starts { get; private set; }
 
             public int Queries { get; private set; }
@@ -471,9 +761,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
 
             protected override string ProviderKey => "test";
 
-            protected override Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
+            protected override async Task<TerminalPaymentOutcome> StartAtDeviceAsync(TenantSale sale,
                 TenantPaymentTerminal terminal, TerminalPaymentCommand command, CancellationToken cancellationToken)
-                => Task.FromResult(device.Start());
+            {
+                if (device.CreatedId != null)
+                {
+                    await RememberProviderPaymentIdAsync(sale, device.CreatedId, cancellationToken);
+                }
+
+                return device.Start();
+            }
 
             protected override Task<TerminalPaymentOutcome> QueryDeviceAsync(TenantSale sale,
                 TenantPaymentTerminal terminal, string operationId, CancellationToken cancellationToken)

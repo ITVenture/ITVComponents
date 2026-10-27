@@ -80,6 +80,53 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
             => accessRouter.ForNewAsync(tenantId, ProviderKey, cancellationToken);
 
         /// <summary>
+        /// Schreibt die Kennung, die der Anbieter für diesen Vorgang vergeben hat, sofort auf die Verkaufszeile —
+        /// <b>bevor</b> das Gerät angestossen wird.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Für Anbindungen, die den Vorgang beim Anbieter in einem eigenen Schritt anlegen (Stripe: PaymentIntent,
+        /// wallee: Transaktion) und das Gerät erst danach anstossen. Bleibt die Antwort auf den Anstoss aus
+        /// (Zeitüberschreitung, Netz, Kasse abgestürzt), hätte die Zeile sonst keine Kennung: jedes Nachfragen
+        /// bliebe <see cref="TerminalPaymentState.Unknown"/>, ein Webhook fände den Verkauf nicht, und ein neuer
+        /// Start legte einen ZWEITEN Vorgang an — genau die doppelte Belastung, die §70.2 verhindern soll.
+        /// </para>
+        /// <para>
+        /// Gelingt das Speichern nicht, wird das Gerät nicht angestossen: die Ausnahme geht weiter, der Verkauf
+        /// bleibt offen, belastet ist niemand.
+        /// </para>
+        /// </remarks>
+        protected async Task RememberProviderPaymentIdAsync(TenantSale sale, string providerPaymentId,
+            CancellationToken cancellationToken)
+        {
+            if (sale.ProviderSessionId != null || string.IsNullOrWhiteSpace(providerPaymentId))
+            {
+                return;
+            }
+
+            try
+            {
+                // Ein eigener Kontext: der des Aufrufers speichert erst, wenn das Geraet geantwortet hat.
+                await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+                var row = await db.TenantSales.FirstOrDefaultAsync(s => s.TenantSaleId == sale.TenantSaleId,
+                              cancellationToken)
+                          ?? throw new InvalidOperationException($"Sale {sale.TenantSaleId} no longer exists.");
+                row.ProviderSessionId ??= providerPaymentId;
+                row.Updated = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogEnvironment.LogEvent(
+                    $"The {ProviderKey} payment id {providerPaymentId} of sale {sale.TenantSaleId} (tenant {sale.TenantId}) could not be stored. The terminal is NOT started — without the id the sale could not be asked about afterwards: {ex.OutlineException()}",
+                    LogSeverity.Error, LogContext);
+                throw;
+            }
+
+            sale.ProviderSessionId = providerPaymentId;
+        }
+
+        /// <summary>
         /// Der Name dieses Weges: <c>stripe</c>, <c>payrexx</c>, <c>wallee</c>, <c>agent</c>. Muss zu dem
         /// passen, was am Gerät steht — sonst wird das Gerät hier nicht bedient.
         /// </summary>
@@ -478,7 +525,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                 case TerminalPaymentState.Succeeded:
                     WarnOnAmountMismatch(sale, terminal, outcome);
                     ApplyTipOnReceipt(terminal, outcome);
-                    await sink.MarkTerminalPaidAsync(sale, db, outcome.ProviderPaymentId, sale.CustomerEmail,
+                    await sink.MarkTerminalPaidAsync(sale, db, outcome.ProviderChargeId ?? outcome.ProviderPaymentId,
+                        sale.CustomerEmail,
                         outcome.Receipt, outcome.TipMinor, cancellationToken);
                     break;
 
@@ -494,8 +542,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     // InProgress, Authorized, Unknown: nichts entscheiden. Bei Authorized ist der Betrag
                     // reserviert, aber nicht eingezogen - wer hier freigaebe, lieferte gegen ein Versprechen.
                     sale.Updated = DateTime.UtcNow;
-                    await db.SaveChangesAsync(cancellationToken);
+                    if (!await sink.TrySaveAsync(sale, db, cancellationToken)
+                        && sale.ProviderSessionId == null && !string.IsNullOrWhiteSpace(outcome.ProviderPaymentId))
+                    {
+                        // Neu geladen, weil ein anderer Weg den Verkauf inzwischen veraendert hat. Die Kennung des
+                        // Anbieters gehoert trotzdem auf die Zeile - ohne sie bleibt jedes Nachfragen Unknown.
+                        sale.ProviderSessionId = outcome.ProviderPaymentId;
+                        await sink.TrySaveAsync(sale, db, cancellationToken);
+                    }
+
                     break;
+            }
+
+            if (sale.Status is TenantSaleStatus.Paid or TenantSaleStatus.Refunded or TenantSaleStatus.PartiallyRefunded
+                && outcome.State != TerminalPaymentState.Succeeded)
+            {
+                // Waehrend das Geraet antwortete, hat ein anderer Weg entschieden (typisch: der Webhook hat
+                // bezahlt). Es gilt, was auf der Zeile steht, nicht die aeltere Antwort des Geraets.
+                return await DescribeAsync(sale, terminal, db, cancellationToken);
             }
 
             return Describe(sale, terminal, outcome);
@@ -598,9 +662,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
         /// <b>Die Mandantenprüfung ist der Grund, warum die Kasse unseren Schlüssel schickt und nicht die
         /// Kennung beim Anbieter.</b> Käme die aus der Anfrage, liesse sich auf einem fremden Gerät
         /// kassieren — das Geld landete auf dem Konto eines anderen Mandanten.
+        /// <para>
+        /// <paramref name="forRunningSale"/>: es geht um einen Verkauf, der an diesem Gerät schon läuft
+        /// (nachfragen, abbrechen). Dann darf das Gerät inzwischen abgeschaltet sein — die Frage, ob die Karte
+        /// belastet wurde, bleibt trotzdem zu beantworten. Neu kassiert wird an einem abgeschalteten Gerät nie.
+        /// </para>
         /// </remarks>
         private async Task<TenantPaymentTerminal> LoadTerminalAsync(TContext db, int tenantId, int terminalId,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, bool forRunningSale = false)
         {
             var terminal = await db.TenantPaymentTerminals
                                .FirstOrDefaultAsync(t => t.TenantPaymentTerminalId == terminalId, cancellationToken)
@@ -618,7 +687,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     $"Terminal {terminalId} does not belong to tenant {tenantId}.");
             }
 
-            if (!terminal.Enabled)
+            if (!terminal.Enabled && !forRunningSale)
             {
                 throw new TenantPaymentException(PaymentErrorCodes.ProviderError,
                     $"Terminal '{terminal.DisplayName}' is switched off and cannot be used.");
@@ -647,7 +716,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments
                     $"Sale {tenantSaleId} was not made at a terminal.");
             }
 
-            return (sale, await LoadTerminalAsync(db, sale.TenantId, terminalId, cancellationToken));
+            return (sale, await LoadTerminalAsync(db, sale.TenantId, terminalId, cancellationToken,
+                forRunningSale: true));
         }
 
         /// <summary>
