@@ -77,8 +77,12 @@ else
                                                        CanWrite="@(hasWrite && (isSysAdmin || context.Item.TenantId != null))"
                                                        SupportsParameters="@TokenRequestParameterRules.SupportsParameters(context.Item.AuthenticationType)" />
                     </MudTabPanel>
-                    <MudTabPanel Text="Tenant logins">
-                        <ExternalServiceLoginsGrid OAuthServiceId="@context.Item.OAuthServiceId" CanWrite="@hasWrite" />
+                    <MudTabPanel Text="Credentials">
+                        <ExternalServiceCredentialsGrid OAuthServiceId="@context.Item.OAuthServiceId"
+                                                        AuthenticationType="@context.Item.AuthenticationType"
+                                                        GlobalService="@(context.Item.TenantId == null)"
+                                                        IsSysAdmin="@isSysAdmin"
+                                                        CanWrite="@hasWrite" />
                     </MudTabPanel>
                 </MudTabs>
             </MudPaper>
@@ -156,7 +160,8 @@ else
             Scope = item.Scope,
             Global = item.Global,
             AuthenticationType = item.AuthenticationType,
-            TenantId = item.TenantId
+            TenantId = item.TenantId,
+            AllowPlatformCredentials = item.AllowPlatformCredentials
         };
         var parameters = new DialogParameters<ExternalServiceDialog>
         {

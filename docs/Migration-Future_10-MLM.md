@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 91 | **ExternalServices: Masken für Zugangsdaten** | Kein Schema-Change. Blazor: Reiter „Credentials“ (eigene/Plattform-Zugangsdaten, Weitergabe an Untermandanten, Widerruf auch beim Anbieter); Definition nur noch mit App/Header-Name. `IOAuthTokenService.RevokeAsync` neu, `IExternalServiceAdminHandler` erweitert. Telerik: Token-Endpunkt, Plattform-Schalter (§91) |
 | 90 | **ExternalServices: Zugangsdaten auflösen** | **Pflicht: Daten-Updates.** Zugangsdaten und Token aus der nächsten Zeile im Baum (`Inheritable` an der Zeile, wie Settings), Plattform-Zeile nur mit `AllowPlatformCredentials`; direkte Grants am `TokenEndpoint`. Baum: stille Mitbenutzung des Eltern-Logins nur noch mit `Inheritable` (§90) |
 | 89 | **ExternalServices: Zugangsdaten-Zeile (Schema)** | **Pflicht: Schema.** `ExternalOAuthServiceTenantLogins`: `TenantId` nullable, `CredentialJson`, `Inheritable`, zwei eindeutige Indizes (vorher Doppel bereinigen); `ExternalOAuthServices.AllowPlatformCredentials`. Noch ohne Verhaltensänderung (§89) |
 | 88 | **ExternalServices: globale Dienste im flachen Modell, Schreibrechte Telerik** | Kein Schema-Change. Globale Dienste sind im flachen Modell zur Laufzeit wieder auffindbar; der Baum wirft bei einem unbekannten Dienstnamen keine NullReferenceException mehr; die Telerik-Maske lässt Mandanten-Admins nur noch eigene Dienste ändern/löschen und schaltet `Global` nicht mehr um (§88) |
@@ -8716,3 +8717,53 @@ Update 1 betrifft nur Baum-Installationen, im flachen Modell gibt es keine Verer
 - [ ] Baum: prüfen, welche Logins durch Update 1 vererbbar wurden, und die Weitergabe verschärfen, wo sie nicht gewollt
       ist
 - [ ] Log nach „has no token endpoint“ durchsuchen: Diese Dienste noch auf den Token-Endpunkt umstellen
+
+
+## 91. ExternalServices: Masken für Zugangsdaten — **kein Schema-Change; Schnittstellen erweitert**
+
+Phase 4 von `docs/Plan-ExternalServices-Credentials.md`.
+
+### 91.1 Blazor
+
+- **Definition** (`ExternalServiceDialog`):
+  - Nur noch, was zur Definition gehört: Endpunkte, Scope, die **App** bei Authorization-Code (Client-ID und
+    -Secret) und der **Header-Name** bei ApiKey.
+  - Die Direkt-Grants (Client-Credentials, Basic-Client-Credentials, Password) zeigen nur „Token endpoint“. Steht
+    beim Öffnen nur der alte Authorization-Endpunkt, wird er übernommen.
+  - Neu „Tenants without own credentials use the platform's“ (`AllowPlatformCredentials`), nur für Sysadmins und
+    nur bei globalen Diensten.
+  - Beim Ändern bleiben `ClientId`/`ClientSecret` der übrigen Typen an der Definition unangetastet. Sie gelten bis
+    Phase 6 als Rückfall (§90).
+- **Reiter „Credentials“** (ersetzt „Tenant logins“, `ExternalServiceCredentialsGrid`):
+  - Je Zeile Besitzer (Mandant oder Plattform), ob Zugangsdaten gespeichert sind, ob ein Token da ist, ob die Zeile
+    an Untermandanten weitergegeben wird (nur im Baum) und ob sie widerrufen ist.
+  - „Set own credentials“ für den eigenen Mandanten, auch bei einem **globalen** Dienst; „Set platform credentials“
+    nur für Sysadmins bei globalen Diensten.
+  - Werte sind nur schreibbar: Leer lassen behält das Geheimnis. Geänderte Zugangsdaten verwerfen das
+    zwischengespeicherte Token.
+  - **Widerrufen** widerruft die eigene Zeile jetzt auch beim Anbieter (`IOAuthTokenService.RevokeAsync`). Die Zeile
+    eines anderen Mandanten setzt ein Sysadmin nur lokal auf widerrufen.
+  - Löschen entfernt Token und Zugangsdaten der Zeile.
+  - Authorization-Code-Dienste haben keine festen Zugangsdaten. Dort zeigt der Reiter nur Tokens.
+
+### 91.2 Telerik
+
+- Die Direkt-Grants zeigen den Token-Endpunkt statt des Authorization-Endpunkts. Beim Speichern wird eine alte URL
+  übernommen, wenn der Token-Endpunkt leer ist.
+- Schalter „Plattform-Zugangsdaten als Rückfall“ (Sysadmin).
+- **Kein Reiter für Zugangsdaten.** In Telerik bleiben `ClientId`/`ClientSecret` an der Definition pflegbar; die
+  Auflösung liest sie als Rückfall (§90). Eigene, Plattform- und vererbte Zugangsdaten pflegt man in der Blazor-Maske.
+
+### 91.3 Für eigenen Code
+
+- `IOAuthTokenService` hat neu `RevokeAsync(string connectionName)` (bisher nur an `OAuthTokenService`). Eigene
+  Implementierungen und Test-Attrappen ziehen nach.
+- `IExternalServiceAdminHandler`: neu `SupportsCredentialInheritance`, `SaveCredentialsAsync`, `DeleteCredentialsAsync`;
+  `ExternalOAuthServiceTenantLoginViewModel` mit `HasCredentials`, `HasToken`, `Inheritable`, `Editable`, `IsPlatform`;
+  `ExternalOAuthServiceViewModel.AllowPlatformCredentials`.
+- Die Komponente `ExternalServiceLoginsGrid` gibt es nicht mehr; an ihrer Stelle `ExternalServiceCredentialsGrid`.
+
+### 91.4 Checkliste
+
+- [ ] Eigene `IOAuthTokenService`-Implementierungen um `RevokeAsync` ergänzen
+- [ ] Wer `ExternalServiceLoginsGrid` direkt eingebunden hat: auf `ExternalServiceCredentialsGrid` umstellen

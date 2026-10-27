@@ -73,6 +73,8 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public string GetValidAccessToken(string connectionName) => tokens.Dequeue();
 
             public Task<string> GetValidAccessTokenAsync(string connectionName) => Task.FromResult(tokens.Dequeue());
+
+            public Task RevokeAsync(string connectionName) => Task.CompletedTask;
         }
 
         private sealed class RecordingHandler : HttpMessageHandler

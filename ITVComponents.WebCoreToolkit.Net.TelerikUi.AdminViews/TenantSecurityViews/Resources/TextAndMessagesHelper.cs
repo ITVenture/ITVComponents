@@ -199,6 +199,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string IWCN_ES_ParamDuplicate => GetString(nameof(IWCN_ES_ParamDuplicate));
 
+        public static string IWCN_ES_AllowPlatformCredentials => GetString(nameof(IWCN_ES_AllowPlatformCredentials));
+
         public static string IWCN_ES_ParamSecret => GetString(nameof(IWCN_ES_ParamSecret));
 
         public static string IWCN_ES_ParamSecretStored => GetString(nameof(IWCN_ES_ParamSecretStored));
@@ -597,6 +599,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string GetIWCN_ES_ParamDuplicate(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamDuplicate), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_AllowPlatformCredentials(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_AllowPlatformCredentials), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_ParamSecret(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamSecret), requestCulture.RequestCulture.UICulture);

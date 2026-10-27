@@ -438,4 +438,7 @@
   <data name="IWCN_ES_ParamSecretNotStored" xml:space="preserve">
     <value>La valeur n'a pas pu être chiffrée et n'a donc pas été enregistrée.</value>
   </data>
+  <data name="IWCN_ES_AllowPlatformCredentials" xml:space="preserve">
+    <value>Identifiants de la plateforme en repli</value>
+  </data>
 </root>

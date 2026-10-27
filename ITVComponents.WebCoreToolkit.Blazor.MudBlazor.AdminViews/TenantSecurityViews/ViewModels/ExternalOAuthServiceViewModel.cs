@@ -27,16 +27,67 @@ public class ExternalOAuthServiceViewModel
     public ExternalServiceAuthenticationType AuthenticationType { get; set; }
 
     public int? TenantId { get; set; }
+
+    /// <summary>
+    /// Tenants without own (or inherited) credentials fall back to the platform's credentials. Only meaningful for a global
+    /// service; only a sysadmin sets it.
+    /// </summary>
+    public bool AllowPlatformCredentials { get; set; }
 }
 
+/// <summary>One credentials row of a service (formerly "tenant login"): token and/or fixed credentials of one owner.</summary>
 public sealed class ExternalOAuthServiceTenantLoginViewModel
 {
     public int ExternalOAuthServiceTenantLoginId { get; set; }
+
+    /// <summary>The row of the platform (no tenant).</summary>
+    public bool IsPlatform => TenantId == null;
+
+    /// <summary>Whether fixed credentials (user/secret) are stored - never what they are.</summary>
+    public bool HasCredentials { get; set; }
+
+    /// <summary>Whether a token is stored.</summary>
+    public bool HasToken { get; set; }
+
+    /// <summary>Whether descendants in the tenant tree without an own row use this one.</summary>
+    public bool Inheritable { get; set; }
+
+    /// <summary>Whether the current user may change this row (the own tenant's row; a sysadmin every row).</summary>
+    public bool Editable { get; set; }
     /// <summary>Der Mandant der Zugangsdaten; null = die Plattform.</summary>
     public int? TenantId { get; set; }
     public string? TenantName { get; set; }
     public int OAuthServiceId { get; set; }
     public bool Revoked { get; set; }
+}
+
+/// <summary>What the credentials dialog sends: the fixed credentials of one owner for one service.</summary>
+public sealed class ExternalServiceCredentialInputViewModel
+{
+    public int OAuthServiceId { get; set; }
+
+    /// <summary>The platform row instead of the own tenant's (sysadmin, global service only).</summary>
+    public bool Platform { get; set; }
+
+    /// <summary>User or client of the account (Basic, password grant, client credentials); ignored for the other types.</summary>
+    public string? User { get; set; }
+
+    /// <summary>The secret; empty keeps the stored one.</summary>
+    public string? Secret { get; set; }
+
+    /// <summary>Pass on to descendants in the tenant tree.</summary>
+    public bool Inheritable { get; set; }
+}
+
+public sealed class ExternalServiceCredentialSaveResult
+{
+    public bool Success { get; private init; }
+
+    public string? Error { get; private init; }
+
+    public static ExternalServiceCredentialSaveResult Saved() => new() { Success = true };
+
+    public static ExternalServiceCredentialSaveResult Failed(string error) => new() { Error = error };
 }
 
 public sealed class ExternalServiceDetailsViewModel

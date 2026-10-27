@@ -8,6 +8,8 @@ using ITVComponents.WebCoreToolkit.Blazor.Paging;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
+using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Tenant = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Tenant;
@@ -306,6 +308,84 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
 
             using var db = world.Inspect();
             Assert.IsFalse(db.ExternalOAuthServiceTenantLogins.Single(n => n.ExternalOAuthServiceTenantLoginId == world.ForeignLoginId).Revoked);
+        }
+
+        // --- Zugangsdaten (Phase 4) -------------------------------------------------------------
+
+        [TestMethod]
+        public async Task ATenantAdmin_StoresOwnCredentialsForAGlobalService_WithTheTenantsKey()
+        {
+            var handler = world.Handler(Own, Write);
+
+            var result = await handler.SaveCredentialsAsync(Caller, new ExternalServiceCredentialInputViewModel
+            {
+                OAuthServiceId = world.GlobalServiceId, User = "client-1", Secret = "s3cret"
+            });
+
+            Assert.IsTrue(result.Success, result.Error);
+            using var db = world.Inspect();
+            var row = db.ExternalOAuthServiceTenantLogins.Single(n => n.OAuthServiceId == world.GlobalServiceId && n.TenantId == world.OwnTenantId);
+            StringAssert.StartsWith(row.CredentialJson, $"enc[{Own}]:", "Encrypted with the key of the row's owner.");
+            var stored = ExternalServiceCredentials.Unprotect(row.CredentialJson, v => v.Substring($"enc[{Own}]:".Length));
+            Assert.AreEqual("client-1", stored!.User);
+            Assert.AreEqual("s3cret", stored.Secret);
+            Assert.AreEqual("{}", row.Token, "A token fetched with other credentials does not belong to the new ones.");
+        }
+
+        [TestMethod]
+        public async Task SavingCredentialsWithoutASecret_KeepsTheStoredOne()
+        {
+            var handler = world.Handler(Own, Write);
+            await handler.SaveCredentialsAsync(Caller, new ExternalServiceCredentialInputViewModel
+            {
+                OAuthServiceId = world.GlobalServiceId, User = "client-1", Secret = "s3cret"
+            });
+
+            var result = await handler.SaveCredentialsAsync(Caller, new ExternalServiceCredentialInputViewModel
+            {
+                OAuthServiceId = world.GlobalServiceId, User = "client-2", Secret = null
+            });
+
+            Assert.IsTrue(result.Success, result.Error);
+            using var db = world.Inspect();
+            var row = db.ExternalOAuthServiceTenantLogins.Single(n => n.OAuthServiceId == world.GlobalServiceId && n.TenantId == world.OwnTenantId);
+            var stored = ExternalServiceCredentials.Unprotect(row.CredentialJson, v => v.Substring($"enc[{Own}]:".Length));
+            Assert.AreEqual("client-2", stored!.User);
+            Assert.AreEqual("s3cret", stored.Secret);
+        }
+
+        [TestMethod]
+        public async Task OnlyASysadmin_SetsPlatformCredentials()
+        {
+            var tenantAdmin = world.Handler(Own, Write);
+            Assert.IsFalse((await tenantAdmin.SaveCredentialsAsync(Caller, new ExternalServiceCredentialInputViewModel
+            {
+                OAuthServiceId = world.GlobalServiceId, Platform = true, User = "p", Secret = "p"
+            })).Success);
+
+            var sysadmin = world.Handler(Own, Write, "Sysadmin");
+            var result = await sysadmin.SaveCredentialsAsync(Caller, new ExternalServiceCredentialInputViewModel
+            {
+                OAuthServiceId = world.GlobalServiceId, Platform = true, User = "p", Secret = "platform-secret"
+            });
+
+            Assert.IsTrue(result.Success, result.Error);
+            using var db = world.Inspect();
+            var row = db.ExternalOAuthServiceTenantLogins.Single(n => n.OAuthServiceId == world.GlobalServiceId && n.TenantId == null);
+            Assert.AreEqual("platform-secret", ExternalServiceCredentials.Unprotect(row.CredentialJson, v => v.Decrypt())!.Secret,
+                "The platform row is encrypted with the system key.");
+        }
+
+        [TestMethod]
+        public async Task ATenantAdmin_CanNotDeleteForeignCredentials()
+        {
+            var handler = world.Handler(Own, Write);
+
+            Assert.IsFalse(await handler.DeleteCredentialsAsync(Caller, world.ForeignLoginId));
+            Assert.IsTrue(await handler.DeleteCredentialsAsync(Caller, world.OwnLoginId));
+
+            using var db = world.Inspect();
+            Assert.IsTrue(db.ExternalOAuthServiceTenantLogins.Any(n => n.ExternalOAuthServiceTenantLoginId == world.ForeignLoginId));
         }
 
         // --- Rechte ----------------------------------------------------------------------------

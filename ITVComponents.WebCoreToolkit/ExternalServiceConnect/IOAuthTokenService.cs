@@ -10,5 +10,11 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect
     {
         string GetValidAccessToken(string connectionName);
         Task<string> GetValidAccessTokenAsync(string connectionName);
+
+        /// <summary>
+        /// Revokes the stored token of the current tenant: marks it revoked locally and - where the service has a
+        /// revocation endpoint - revokes the refresh token at the provider.
+        /// </summary>
+        Task RevokeAsync(string connectionName);
     }
 }

@@ -21,6 +21,9 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         public string Scope { get; set; } = null!;
 
         public bool Global { get; set; }
+
+        /// <summary>Tenants without own credentials fall back to the platform's (global services only).</summary>
+        public bool AllowPlatformCredentials { get; set; }
         public bool Editable { get; set; }
         public bool IsConnected { get; set; }
 

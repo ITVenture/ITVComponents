@@ -14,27 +14,45 @@
     @if (AllowGlobal)
     {
         <MudCheckBox @bind-Value="Model.Global" Label="Global (shared across tenants)" />
-    }
-    @if (Is(OAuthAuthorizationFlow, OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow, OAuthPasswordFlow))
-    {
-        <MudTextField @bind-Value="Model.AuthorizationEndpoint"
-                      Label="@(Is(OAuthAuthorizationFlow) ? "Authorization endpoint" : "Token endpoint")"
-                      Required="true" RequiredError="Endpoint is required" />
+        @if (Model.Global && !Is(OAuthAuthorizationFlow))
+        {
+            <MudCheckBox @bind-Value="Model.AllowPlatformCredentials"
+                         Label="Tenants without own credentials use the platform's (set them under 'Credentials')" />
+        }
     }
     @if (Is(OAuthAuthorizationFlow))
     {
+        <MudTextField @bind-Value="Model.AuthorizationEndpoint" Label="Authorization endpoint" Required="true" RequiredError="Endpoint is required" />
+    }
+    @if (Is(OAuthAuthorizationFlow, OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow, OAuthPasswordFlow))
+    {
+        @* Die direkten Grants holen ihr Token am Token-Endpunkt (RFC 6749) - frueher stand die URL hier im Feld des
+           Authorization-Endpunkts; OnInitialized uebernimmt sie. *@
         <MudTextField @bind-Value="Model.TokenEndpoint" Label="Token endpoint" Required="true" RequiredError="Token endpoint is required" />
+    }
+    @if (Is(OAuthAuthorizationFlow))
+    {
         <MudTextField @bind-Value="Model.RevocationEndpoint" Label="Revocation endpoint" />
     }
-    @if (!Is(BearerToken))
+    @if (Is(OAuthAuthorizationFlow, ApiKey))
     {
         <MudTextField @bind-Value="Model.ClientId" Label="@ClientIdLabel" Required="true" RequiredError="@($"{ClientIdLabel} is required")" />
     }
-    <MudTextField @bind-Value="Model.ClientSecret"
-                  Label="@ClientSecretLabel"
-                  Placeholder="encrypt:..."
-                  HelperText="Stored encrypted and never displayed. Enter a new value with the prefix 'encrypt:' (e.g. encrypt:MyPassword) – input without the prefix is ignored. Leave empty to keep the current value."
-                  InputType="@(MudBlazor.InputType.Password)" />
+    @if (Is(OAuthAuthorizationFlow))
+    {
+        <MudTextField @bind-Value="Model.ClientSecret"
+                      Label="Client secret (app)"
+                      Placeholder="encrypt:..."
+                      HelperText="Stored encrypted and never displayed. Enter a new value with the prefix 'encrypt:' (e.g. encrypt:MyPassword) – input without the prefix is ignored. Leave empty to keep the current value."
+                      InputType="@(MudBlazor.InputType.Password)" />
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+            The account (@AccountLabel) is not part of the definition: each tenant stores its own under 'Credentials',
+            and can pass it on to its sub-tenants.
+        </MudAlert>
+    }
     @if (Is(OAuthAuthorizationFlow, OAuthPasswordFlow))
     {
         <MudTextField @bind-Value="Model.Scope" Label="Scope" Required="@Is(OAuthAuthorizationFlow)" RequiredError="Scope is required" />
@@ -52,20 +70,31 @@
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool AllowGlobal { get; set; }
 
+    private const ExternalServiceAuthenticationType ApiKey = ExternalServiceAuthenticationType.ApiKey;
+
+    protected override void OnInitialized()
+    {
+        if (Is(OAuthClientCredentialsFlow, OAuthBasicClientCredentialsFlow, OAuthPasswordFlow)
+            && string.IsNullOrWhiteSpace(Model.TokenEndpoint) && !string.IsNullOrWhiteSpace(Model.AuthorizationEndpoint))
+        {
+            // Bestand: die Token-URL stand im Feld des Authorization-Endpunkts.
+            Model.TokenEndpoint = Model.AuthorizationEndpoint;
+        }
+    }
+
     private bool Is(params ExternalServiceAuthenticationType[] types) => types.Contains(Model.AuthenticationType);
 
     private string ClientIdLabel => Model.AuthenticationType switch
     {
-        ExternalServiceAuthenticationType.Basic or ExternalServiceAuthenticationType.OAuthPasswordFlow => "Username",
         ExternalServiceAuthenticationType.ApiKey => "API key header",
-        _ => "Client ID"
+        _ => "Client ID (app)"
     };
 
-    private string ClientSecretLabel => Model.AuthenticationType switch
+    private string AccountLabel => Model.AuthenticationType switch
     {
-        ExternalServiceAuthenticationType.OAuthAuthorizationFlow => "Client secret",
-        ExternalServiceAuthenticationType.ApiKey => "API key",
-        ExternalServiceAuthenticationType.BearerToken => "Bearer token",
-        _ => "Password"
+        ExternalServiceAuthenticationType.Basic or ExternalServiceAuthenticationType.OAuthPasswordFlow => "user and password",
+        ExternalServiceAuthenticationType.ApiKey => "the API key",
+        ExternalServiceAuthenticationType.BearerToken => "the bearer token",
+        _ => "client id and secret"
     };
 }

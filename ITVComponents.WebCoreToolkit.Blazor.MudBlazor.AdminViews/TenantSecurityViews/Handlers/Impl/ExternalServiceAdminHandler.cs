@@ -4,6 +4,7 @@ using System.Text;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Base;
@@ -162,7 +163,8 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                 Scope = n.Scope,
                 Global = n.Global,
                 AuthenticationType = n.AuthenticationType,
-                TenantId = n.TenantId
+                TenantId = n.TenantId,
+                AllowPlatformCredentials = n.AllowPlatformCredentials
             }).ToListAsync();
         return new PagedResult<ExternalOAuthServiceViewModel> { Items = items, TotalCount = total };
     }
@@ -194,11 +196,12 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             AuthorizationEndpoint = input.AuthorizationEndpoint ?? string.Empty,
             TokenEndpoint = input.TokenEndpoint ?? string.Empty,
             RevocationEndpoint = input.RevocationEndpoint ?? string.Empty,
-            ClientId = input.ClientId ?? string.Empty,
+            ClientId = DefinitionCarriesClient(input.AuthenticationType) ? input.ClientId ?? string.Empty : string.Empty,
             Scope = input.Scope ?? string.Empty,
             Global = input.Global,
             AuthenticationType = input.AuthenticationType,
-            TenantId = input.Global ? null : input.TenantId
+            TenantId = input.Global ? null : input.TenantId,
+            AllowPlatformCredentials = sysAdmin && input.Global && input.AllowPlatformCredentials
         };
         EncryptSecret(db, entity, input.ClientSecret);
         db.ExternalOAuthServices.Add(entity);
@@ -223,9 +226,19 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.AuthorizationEndpoint = input.AuthorizationEndpoint ?? string.Empty;
         entity.TokenEndpoint = input.TokenEndpoint ?? string.Empty;
         entity.RevocationEndpoint = input.RevocationEndpoint ?? string.Empty;
-        entity.ClientId = input.ClientId ?? string.Empty;
+        if (DefinitionCarriesClient(input.AuthenticationType))
+        {
+            // Bei den uebrigen Typen ist ClientId der Benutzer des Kontos - er wird unter "Credentials" gepflegt. Was an
+            // der Definition noch steht, gilt bis Phase 6 als Rueckfall und darf hier nicht geleert werden.
+            entity.ClientId = input.ClientId ?? string.Empty;
+        }
+
         entity.Scope = input.Scope ?? string.Empty;
         entity.AuthenticationType = input.AuthenticationType;
+        if (IsSysAdmin())
+        {
+            entity.AllowPlatformCredentials = entity.TenantId == null && input.AllowPlatformCredentials;
+        }
 
         EncryptSecret(db, entity, input.ClientSecret);
         await db.SaveChangesAsync();
@@ -274,10 +287,14 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                     TenantId = l.TenantId,
                     TenantName = tn != null ? tn.DisplayName : null,
                     OAuthServiceId = l.OAuthServiceId,
-                    Revoked = l.Revoked
+                    Revoked = l.Revoked,
+                    HasCredentials = l.CredentialJson != null && l.CredentialJson != "",
+                    HasToken = l.Token != null && l.Token != "" && l.Token != "{}",
+                    Inheritable = l.Inheritable,
+                    Editable = sysAdmin || l.TenantId == currentTenantId
                 };
         var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.TenantName).Page(x => x.TenantId, query)
+        var items = await q.OrderBy(x => x.TenantName).Page(x => x.ExternalOAuthServiceTenantLoginId, query)
             .ToListAsync();
         return new PagedResult<ExternalOAuthServiceTenantLoginViewModel> { Items = items, TotalCount = total };
     }
@@ -288,18 +305,162 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         using var db = CreateDb();
         var sysAdmin = IsSysAdmin();
         var currentTenantId = db.CurrentTenantId;
-        var entity = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId
-                                                                                      && (sysAdmin || n.TenantId == currentTenantId));
+        var entity = await db.ExternalOAuthServiceTenantLogins.Include(n => n.OAuthService)
+            .FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId
+                                      && (sysAdmin || n.TenantId == currentTenantId));
         if (entity == null)
         {
             logger.LogWarning("Tenant login {LoginId} was not revoked: it does not exist or does not belong to the current tenant.", externalOAuthServiceTenantLoginId);
             return false;
         }
 
+        if (entity.TenantId != null && entity.TenantId == currentTenantId
+            && services.GetService(typeof(IOAuthTokenService)) is IOAuthTokenService tokens)
+        {
+            // Die eigene Zeile: auch beim Anbieter widerrufen. Das geht nur im Bereich des eigenen Mandanten - die Zeile
+            // eines anderen setzt ein Sysadmin nur lokal auf widerrufen.
+            try
+            {
+                await tokens.RevokeAsync(entity.OAuthService.CalculatedUniqueServiceName);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "The token of external service {OAuthServiceId} could not be revoked at the provider; it is revoked locally.", entity.OAuthServiceId);
+            }
+        }
+
         entity.Revoked = true;
+        entity.Token = "{}";
         await db.SaveChangesAsync();
         return true;
     }
+
+    /// <inheritdoc />
+    public bool SupportsCredentialInheritance { get; } = typeof(TContext).GetInterfaces()
+        .Any(i => i.IsGenericType && i.GetGenericTypeDefinition().Name.StartsWith("IHierarchyTenantContext", StringComparison.Ordinal));
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The service must be VISIBLE to the user (own or global) - setting own credentials for a global service is the point.
+    /// The row belongs to the current tenant; only a sysadmin writes the platform row, and only for a global service.
+    /// Encrypted with the key of the row's owner, as the resolution reads it.
+    /// </remarks>
+    public async Task<ExternalServiceCredentialSaveResult> SaveCredentialsAsync(ClaimsPrincipal user, ExternalServiceCredentialInputViewModel input)
+    {
+        if (!HasPermission("Services.Connections.Write"))
+            return ExternalServiceCredentialSaveResult.Failed("Insufficient permission.");
+
+        using var db = CreateDb();
+        var service = await AccessibleServices(db, false).FirstOrDefaultAsync(n => n.OAuthServiceId == input.OAuthServiceId);
+        if (service == null)
+        {
+            logger.LogWarning("Credentials of external service {OAuthServiceId} were not saved: it does not exist or is not visible for the current user.", input.OAuthServiceId);
+            return ExternalServiceCredentialSaveResult.Failed("The service does not exist or is not visible.");
+        }
+
+        if (service.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
+        {
+            return ExternalServiceCredentialSaveResult.Failed("This service connects through the OAuth login - there are no fixed credentials to store.");
+        }
+
+        int? ownerId;
+        string? ownerName;
+        if (input.Platform)
+        {
+            if (!IsSysAdmin() || service.TenantId != null)
+            {
+                logger.LogWarning("Platform credentials of external service {OAuthServiceId} were not saved: only a sysadmin sets them, and only for a global service.", input.OAuthServiceId);
+                return ExternalServiceCredentialSaveResult.Failed("Platform credentials are set by a sysadmin for a global service only.");
+            }
+
+            ownerId = null;
+            ownerName = null;
+        }
+        else
+        {
+            ownerId = db.CurrentTenantId;
+            var owner = ownerId == null ? null : await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == ownerId);
+            if (owner == null)
+            {
+                logger.LogWarning("Credentials of external service {OAuthServiceId} were not saved: there is no current tenant.", input.OAuthServiceId);
+                return ExternalServiceCredentialSaveResult.Failed("There is no current tenant.");
+            }
+
+            ownerName = owner.TenantName;
+        }
+
+        var row = await db.ExternalOAuthServiceTenantLogins
+            .FirstOrDefaultAsync(n => n.OAuthServiceId == service.OAuthServiceId && n.TenantId == ownerId);
+        var stored = row == null
+            ? null
+            : ExternalServiceCredentials.Unprotect(row.CredentialJson, v => ownerName == null ? v.Decrypt() : secRepo.Decrypt(v, ownerName));
+        var credential = new ExternalServiceCredential
+        {
+            User = AccountHasUser(service.AuthenticationType) ? input.User?.Trim() : null,
+            // leer = behalten, wie beim ClientSecret
+            Secret = string.IsNullOrEmpty(input.Secret) ? stored?.Secret : input.Secret
+        };
+        if (string.IsNullOrEmpty(credential.Secret))
+        {
+            return ExternalServiceCredentialSaveResult.Failed("A secret is required.");
+        }
+
+        var changed = stored == null || stored.User != credential.User || stored.Secret != credential.Secret;
+        if (row == null)
+        {
+            // Activator statt new(): die Einschraenkung muesste sonst bis in jede Registrierung des Handlers durchgereicht werden.
+            row = Activator.CreateInstance<TExternalOAuthServiceTenantLogin>();
+            row.OAuthServiceId = service.OAuthServiceId;
+            row.TenantId = ownerId;
+            row.Token = "{}";
+            db.ExternalOAuthServiceTenantLogins.Add(row);
+        }
+
+        row.CredentialJson = ExternalServiceCredentials.Protect(credential, v => ownerName == null ? v.Encrypt() : secRepo.Encrypt(v, ownerName));
+        row.Inheritable = SupportsCredentialInheritance && !input.Platform && input.Inheritable;
+        row.Revoked = false;
+        if (changed)
+        {
+            // Ein Token, das mit den alten Zugangsdaten geholt wurde, gehoert nicht zu den neuen.
+            row.Token = "{}";
+        }
+
+        await db.SaveChangesAsync();
+        return ExternalServiceCredentialSaveResult.Saved();
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteCredentialsAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId)
+    {
+        if (!HasPermission("Services.Connections.Write")) return false;
+        using var db = CreateDb();
+        var sysAdmin = IsSysAdmin();
+        var currentTenantId = db.CurrentTenantId;
+        var row = await db.ExternalOAuthServiceTenantLogins.FirstOrDefaultAsync(n => n.ExternalOAuthServiceTenantLoginId == externalOAuthServiceTenantLoginId
+                                                                                   && (sysAdmin || (n.TenantId != null && n.TenantId == currentTenantId)));
+        if (row == null)
+        {
+            logger.LogWarning("Credentials row {LoginId} was not deleted: it does not exist or does not belong to the current tenant.", externalOAuthServiceTenantLoginId);
+            return false;
+        }
+
+        db.ExternalOAuthServiceTenantLogins.Remove(row);
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Whether ClientId belongs to the DEFINITION for this type: the app's client (authorization code) or the header name
+    /// (api key). For the other types it is the account's user and belongs to the credentials.
+    /// </summary>
+    private static bool DefinitionCarriesClient(ExternalServiceAuthenticationType type)
+        => type is ExternalServiceAuthenticationType.OAuthAuthorizationFlow or ExternalServiceAuthenticationType.ApiKey;
+
+    /// <summary>Whether the account of this type has a user/client besides the secret.</summary>
+    private static bool AccountHasUser(ExternalServiceAuthenticationType type)
+        => type is ExternalServiceAuthenticationType.Basic or ExternalServiceAuthenticationType.OAuthPasswordFlow
+            or ExternalServiceAuthenticationType.OAuthClientCredentialsFlow
+            or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow;
 
     public async Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId)
     {

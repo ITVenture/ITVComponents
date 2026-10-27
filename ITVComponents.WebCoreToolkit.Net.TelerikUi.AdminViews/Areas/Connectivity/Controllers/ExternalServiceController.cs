@@ -239,6 +239,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                     model.TenantId = tenantId;
                 }
 
+                MoveGrantEndpoint(model);
+                model.AllowPlatformCredentials = isAdmin && model.TenantId == null && viewModel.AllowPlatformCredentials;
                 EncryptSecret(model, viewModel.ClientSecret);
                 db.ExternalOAuthServices.Add(model);
                 await db.SaveChangesAsync();
@@ -265,6 +267,8 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 // Global wird hier nicht umgeschaltet: es entscheidet, mit welchem Schluessel das Geheimnis liegt, und ein
                 // Umschalten ohne Neuverschluesselung machte es unlesbar. Wer es aendern will, legt den Dienst neu an.
                 await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model,"",n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName) && n.Name != nameof(model.Global) && n.Name != nameof(model.TenantId) && n.Name != nameof(model.OAuthServiceId));
+                MoveGrantEndpoint(model);
+                model.AllowPlatformCredentials = isAdmin && model.TenantId == null && viewModel.AllowPlatformCredentials;
                 EncryptSecret(model, viewModel.ClientSecret);
                 await db.SaveChangesAsync();
             }
@@ -379,6 +383,21 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             }
 
             return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        /// <summary>
+        /// Die direkten Grants (Client-Credentials, Basic-Client-Credentials, Password) holen ihr Token am Token-Endpunkt.
+        /// Stand die URL - wie frueher in dieser Maske - im Authorization-Endpunkt, wird sie uebernommen.
+        /// </summary>
+        private static void MoveGrantEndpoint(TExternalOAuthService model)
+        {
+            if (model.AuthenticationType is ExternalServiceAuthenticationType.OAuthClientCredentialsFlow
+                    or ExternalServiceAuthenticationType.OAuthBasicClientCredentialsFlow
+                    or ExternalServiceAuthenticationType.OAuthPasswordFlow
+                && string.IsNullOrWhiteSpace(model.TokenEndpoint) && !string.IsNullOrWhiteSpace(model.AuthorizationEndpoint))
+            {
+                model.TokenEndpoint = model.AuthorizationEndpoint;
+            }
         }
 
         private TExternalOAuthService FindServiceForParameterEdit(int oauthServiceId)

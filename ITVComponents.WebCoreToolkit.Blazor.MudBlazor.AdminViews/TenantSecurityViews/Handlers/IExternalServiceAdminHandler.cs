@@ -16,6 +16,17 @@ public interface IExternalServiceAdminHandler
     Task<PagedResult<ExternalOAuthServiceTenantLoginViewModel>> ListLoginsAsync(ClaimsPrincipal user, int oauthServiceId, ListQuery query);
     Task<bool> RevokeLoginAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId);
 
+    /// <summary>Whether the security model is a tenant tree - only then can credentials be passed on to descendants.</summary>
+    bool SupportsCredentialInheritance { get; }
+
+    /// <summary>
+    /// Stores the fixed credentials of the own tenant (or, sysadmin, of the platform) for a service the user can see.
+    /// </summary>
+    Task<ExternalServiceCredentialSaveResult> SaveCredentialsAsync(ClaimsPrincipal user, ExternalServiceCredentialInputViewModel input);
+
+    /// <summary>Removes a credentials row (token and fixed credentials) of the own tenant; a sysadmin any.</summary>
+    Task<bool> DeleteCredentialsAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId);
+
     Task<ExternalServiceDetailsViewModel?> GetDetailsAsync(ClaimsPrincipal user, int oauthServiceId);
     Task<ExternalServiceTestResultViewModel> PerformTestAsync(ClaimsPrincipal user, ExternalServiceTestRequestViewModel request);
 
