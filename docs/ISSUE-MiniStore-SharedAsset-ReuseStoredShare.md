@@ -1,7 +1,7 @@
 # ISSUE: Eine Freigabe je Ort — der Teilen-Knopf zeigt eine bestehende, statt eine zweite auszustellen
 
 **Status:** umgesetzt (Future_10, Leitfaden §85; `CreateAsync` wendet die Regel selbst an, `RootPath` gehört zum
-Ort) · **Datum:** 2026-10-25 · **Version:** 5.0.0-PRE261 · **Quelle:** MiniStore, Laden-QR an der Kasse
+Ort) · **Datum:** 2026-10-25 · **Version:** 5.0.0-PRE262 · **Quelle:** MiniStore, Laden-QR an der Kasse
 und Selbstbedienungs-Station
 
 ## Der Fall
