@@ -1547,14 +1547,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// <summary>Legt die festen Zugangsdaten einer Zeile (falls gespeichert) auf die Verbindung.</summary>
         private void ApplyCredentialRow(ExternalServiceConnection connection, TExternalOAuthServiceTenantLogin row, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
-            if (string.IsNullOrEmpty(row?.CredentialJson))
-            {
-                return;
-            }
-
-            var ownerName = row.TenantId == null ? null : securityContext.CurrentTenantName;
-            ExternalServiceCredentials.ApplyTo(connection,
-                ExternalServiceCredentials.Unprotect(row.CredentialJson, v => DecryptForOwner(v, ownerName)));
+            // Seit §93 nur noch die Zeile - was an der Definition stand, ist umgezogen (ExternalServiceCredentialMigration).
+            var ownerName = row?.TenantId == null ? null : securityContext.CurrentTenantName;
+            ExternalServiceCredentials.Assign(connection,
+                ExternalServiceCredentials.Unprotect(row?.CredentialJson, v => DecryptForOwner(v, ownerName)));
         }
 
         /// <summary>Verschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>

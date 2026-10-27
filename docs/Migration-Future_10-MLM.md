@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 93 | **ExternalServices: Zugangsdaten nur noch aus der Zeile** | **Verhaltensänderung.** Kein Schema-Change. Beim Start zieht `ExternalServiceCredentialMigrationService` Benutzer/Geheimnisse von den Definitionen in die Zeilen ihrer Besitzer; danach wirkt ein Geheimnis an der Definition nicht mehr (kein Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher). Direkt-Grants brauchen den `TokenEndpoint`. Telerik: Reiter „Zugangsdaten“ (§93) |
 | 92 | **Eigene Anbieter-Zugänge in der Zugangsdaten-Zeile** | Kein Schema-Change. `ExternalServiceProviderCredentialStore` schreibt Geheimnisse in die Zeile des Mandanten statt an die Definition; liest zuerst dort, sonst noch das alte Geheimnis der Definition (§92) |
 | 91 | **ExternalServices: Masken für Zugangsdaten** | Kein Schema-Change. Blazor: Reiter „Credentials“ (eigene/Plattform-Zugangsdaten, Weitergabe an Untermandanten, Widerruf auch beim Anbieter); Definition nur noch mit App/Header-Name. `IOAuthTokenService.RevokeAsync` neu, `IExternalServiceAdminHandler` erweitert. Telerik: Token-Endpunkt, Plattform-Schalter (§91) |
 | 90 | **ExternalServices: Zugangsdaten auflösen** | **Pflicht: Daten-Updates.** Zugangsdaten und Token aus der nächsten Zeile im Baum (`Inheritable` an der Zeile, wie Settings), Plattform-Zeile nur mit `AllowPlatformCredentials`; direkte Grants am `TokenEndpoint`. Baum: stille Mitbenutzung des Eltern-Logins nur noch mit `Inheritable` (§90) |
@@ -8779,8 +8780,8 @@ Zugänge bei Payrexx, wallee, SumUp; §78–§83).
   zu ihr gehört, nämlich den **Header-Namen** bei ApiKey. Benutzer (Basic) und Geheimnis gehen in die
   **Zugangsdaten-Zeile genau dieses Mandanten**, verschlüsselt mit seinem Schlüssel, `Inheritable = false`. Ein
   altes Geheimnis an der Definition wird dabei **geleert**, damit es nur eine Quelle gibt.
-- **Lesen** (`GetCredentialAsync`): zuerst diese Zeile, sonst (Übergang bis Phase 6) das Geheimnis an der
-  Definition.
+- **Lesen** (`GetCredentialAsync`): nur diese Zeile. Der Übergang über das Geheimnis an der Definition ist seit §93
+  entfernt; der Start-Umzug (§93) zieht alte Geheimnisse vorher in die Zeile.
 - **Unverändert:** nur genau der Mandant, nichts Geerbtes, keine Plattform-Zeile (§78.4). Eine OAuth-Anmeldung an der
   App der Plattform liest weiterhin das Token aus der Zeile des Mandanten.
 - Die neue Blazor-Maske (§91) zeigt diese Zeilen im Reiter „Credentials“ des jeweiligen Dienstes.
@@ -8788,3 +8789,71 @@ Zugänge bei Payrexx, wallee, SumUp; §78–§83).
 **Für eigenen Code:** Wer `IProviderCredentialStore` selbst implementiert, ändert nichts. Wer die Geheimnisse dieser
 Dienste selbst aus `ClientSecret` liest, liest künftig über den Speicher, denn nach einem erneuten Speichern ist
 `ClientSecret` leer.
+
+
+## 93. ExternalServices: Zugangsdaten nur noch aus der Zeile — Umzug beim Start, Telerik-Reiter — **Verhaltensänderung; kein Schema-Change**
+
+Phase 6 von `docs/Plan-ExternalServices-Credentials.md`. Voraussetzung sind die Migrationen und Daten-Updates aus
+§89/§90.
+
+### 93.1 Umzug beim Start
+
+`ExternalServiceCredentialMigrationService` (ein `BackgroundService`) läuft bei jedem Start einmal. Er wird mit jeder
+Ausprägung des Sicherheitskontexts (flach, Identity, Baum) automatisch registriert, zusammen mit der
+`IToolkitContextFactory`. Wer diese Factory selbst registriert, ruft `services.AddExternalServiceCredentialMigration()`.
+
+Für jeden Dienst, an dessen Definition noch ein Konto hängt:
+
+- **Besitzer:** Ein Dienst eines Mandanten zieht in die Zeile dieses Mandanten; ein globaler Dienst in die Zeile der
+  **Plattform**. Beim globalen Dienst wird `AllowPlatformCredentials = true` gesetzt, denn die Mandanten haben das
+  Geheimnis bisher mitbenutzt und tun es weiter.
+- **Was umzieht:** das Geheimnis (`ClientSecret`) und bei Basic, Password-Grant und Client-Credentials auch der
+  Benutzer bzw. Client (`ClientId`). Bei ApiKey bleibt `ClientId` als Header-Name an der Definition, bei
+  Authorization-Code bleibt alles (das ist die App).
+- **Schlüssel:** entschlüsselt wie bisher (global bzw. ohne Mandant mit dem Systemschlüssel, sonst mit dem des
+  Mandanten), verschlüsselt mit dem Schlüssel des Besitzers der Zeile.
+- **Baum:** Ein vererbbarer Dienst gibt sein Konto weiter; die neue Zeile bekommt dann `Inheritable = true`.
+- **Vorhandene Zugangsdaten** einer Zeile werden nie überschrieben. Das Feld an der Definition wird trotzdem geleert.
+- **Idempotent:** Was umgezogen ist, steht nicht mehr an der Definition. Ein Fehler wird geloggt (Error) und beim
+  nächsten Start wiederholt; ein Konflikt beim Speichern (z.B. zwei Instanzen gleichzeitig) als Warnung.
+
+### 93.2 Kein Rückfall mehr
+
+- Die Auflösung (`ExternalServiceCredentials.Assign`) **leert** die Konto-Felder der Verbindung und legt nur die
+  Zugangsdaten der Zeile darauf. Ein Rest an der Definition, etwa von einem älteren Import oder einer alten Maske,
+  wirkt nicht mehr.
+- `OAuthTokenService`: Direkt-Grants (Client-Credentials, Basic-Client-Credentials, Password) brauchen den
+  `TokenEndpoint`. Fehlt er, wird das als Fehler geloggt und eine `InvalidOperationException` geworfen; der alte
+  Rückfall auf den Authorization-Endpunkt ist weg. Die Daten-Updates aus §90 haben ihn bereits umgesetzt.
+- `ExternalServiceProviderCredentialStore` liest nur die Zeile des Mandanten (§92).
+
+### 93.3 Masken
+
+- **Gemeinsamer Baustein** `ExternalServiceCredentialAdministration` (TenantSecurity, `Shared.ExternalOAuthServices`):
+  Auflisten, Speichern und Finden einer Zeile nach denselben Regeln für Blazor und Telerik. Der Blazor-Handler nutzt
+  ihn; sein Verhalten ändert sich nicht.
+- **Telerik:**
+  - Das Detail eines Dienstes in der Verwaltung ist jetzt ein Reiter-Paar „Parameter“ / „Zugangsdaten“
+    (`ServiceAdminTabs`, `CredentialTable`).
+  - „Zugangsdaten“ zeigt die eigene Zeile (Sysadmin: alle, auch die der Plattform), legt eigene bzw. Plattform-Zugangsdaten
+    an (Plattform nur Sysadmin bei globalem Dienst), ändert, löscht und widerruft sie. Die eigene Zeile wird auch beim
+    Anbieter widerrufen. Gespeicherte Werte kommen nie zurück in die Maske; ein leeres Geheimnis behält das gespeicherte.
+  - Weitergabe an Untermandanten nur im Baum.
+  - Der Definitions-Editor zeigt `ClientId` nur noch bei Authorization-Code und ApiKey, `ClientSecret` nur bei
+    Authorization-Code, sonst einen Hinweis auf den Reiter.
+
+### 93.4 Für eigenen Code
+
+- Wer `ClientId`/`ClientSecret` eines Dienstes direkt aus der Tabelle liest (statt über `GetExternalService`), findet
+  dort nach dem Umzug nur noch App bzw. Header-Name.
+- Wer Dienste per Konfig-Export/-Import oder SQL anlegt, setzt das Konto nicht mehr an der Definition. Ein so
+  gesetztes Geheimnis zieht der nächste Start in die Zeile.
+
+### 93.5 Checkliste
+
+- [ ] §89/§90 (Migrationen, Daten-Updates) sind eingespielt
+- [ ] Nach dem ersten Start das Log auf Meldungen von `ExternalServiceCredentialMigrationService` prüfen
+- [ ] Stichprobe: ein Dienst je Anmeldetyp liefert weiterhin ein Token bzw. eine Antwort
+- [ ] Globale Dienste: prüfen, ob die Plattform-Zeile (und `AllowPlatformCredentials`) gewollt ist; sonst eigene
+      Zugangsdaten je Mandant setzen und den Schalter abstellen
+- [ ] Eigene Registrierung der `IToolkitContextFactory`: `AddExternalServiceCredentialMigration()` ergänzen

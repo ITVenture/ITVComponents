@@ -199,6 +199,30 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string IWCN_ES_ParamDuplicate => GetString(nameof(IWCN_ES_ParamDuplicate));
 
+        public static string IWCN_ES_DetailsTitle_Credentials => GetString(nameof(IWCN_ES_DetailsTitle_Credentials));
+
+        public static string IWCN_ES_CredOwner => GetString(nameof(IWCN_ES_CredOwner));
+
+        public static string IWCN_ES_CredPlatform => GetString(nameof(IWCN_ES_CredPlatform));
+
+        public static string IWCN_ES_CredUser => GetString(nameof(IWCN_ES_CredUser));
+
+        public static string IWCN_ES_CredSecret => GetString(nameof(IWCN_ES_CredSecret));
+
+        public static string IWCN_ES_CredToken => GetString(nameof(IWCN_ES_CredToken));
+
+        public static string IWCN_ES_CredInheritable => GetString(nameof(IWCN_ES_CredInheritable));
+
+        public static string IWCN_ES_CredRevoke => GetString(nameof(IWCN_ES_CredRevoke));
+
+        public static string IWCN_ES_CredRevokeConfirm => GetString(nameof(IWCN_ES_CredRevokeConfirm));
+
+        public static string IWCN_ES_CredHint => GetString(nameof(IWCN_ES_CredHint));
+
+        public static string IWCN_ES_CredNotEditable => GetString(nameof(IWCN_ES_CredNotEditable));
+
+        public static string IWCN_ES_CredPlatformOnly => GetString(nameof(IWCN_ES_CredPlatformOnly));
+
         public static string IWCN_ES_AllowPlatformCredentials => GetString(nameof(IWCN_ES_AllowPlatformCredentials));
 
         public static string IWCN_ES_ParamSecret => GetString(nameof(IWCN_ES_ParamSecret));
@@ -599,6 +623,42 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string GetIWCN_ES_ParamDuplicate(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamDuplicate), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_DetailsTitle_Credentials(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_DetailsTitle_Credentials), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredOwner(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredOwner), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredPlatform(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredPlatform), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredUser(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredUser), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredSecret(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredSecret), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredToken(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredToken), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredInheritable(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredInheritable), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredRevoke(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredRevoke), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredRevokeConfirm(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredRevokeConfirm), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredHint(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredHint), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredNotEditable(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredNotEditable), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_CredPlatformOnly(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_CredPlatformOnly), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_AllowPlatformCredentials(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_AllowPlatformCredentials), requestCulture.RequestCulture.UICulture);

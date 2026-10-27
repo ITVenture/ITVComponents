@@ -306,9 +306,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
         /// endpoint, as RFC 6749 has it.
         /// </summary>
         /// <remarks>
-        /// These grants used to post to the authorization endpoint, and the admin views only offered that field for
-        /// them - existing configurations carry the token url there. Until they are moved (Leitfaden §90), an empty
-        /// token endpoint falls back to it, with a warning.
+        /// These grants used to post to the authorization endpoint; the url was moved by the data update of Leitfaden §90,
+        /// and since §93 there is no fallback any more.
         /// </remarks>
         private static string GrantEndpoint(ExternalServiceConnection connection)
         {
@@ -317,8 +316,8 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 return connection.TokenEndpoint;
             }
 
-            LogEnvironment.LogEvent($"External service '{connection.UniqueConnectionName}' ({connection.AuthenticationType}) has no token endpoint; the authorization endpoint is used instead. Move the url to the token endpoint (Leitfaden §90) - this fallback will be removed.", LogSeverity.Warning);
-            return connection.AuthorizationEndpoint;
+            LogEnvironment.LogEvent($"External service '{connection.UniqueConnectionName}' ({connection.AuthenticationType}) has no token endpoint, so no token can be requested. Set the token endpoint (Leitfaden §90/§93).", LogSeverity.Error);
+            throw new InvalidOperationException($"External service '{connection.UniqueConnectionName}' has no token endpoint.");
         }
 
         /// <summary>

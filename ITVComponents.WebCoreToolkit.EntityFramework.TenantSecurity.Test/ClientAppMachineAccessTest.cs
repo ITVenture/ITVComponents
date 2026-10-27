@@ -227,14 +227,70 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         }
 
         [TestMethod]
-        public void FlatCredentials_WithoutARow_TheDefinitionStillAnswers()
+        public void FlatCredentials_ASecretLeftOnTheDefinition_NoLongerTakesEffect()
         {
-            // Uebergang: solange keine Zeile Zugangsdaten traegt, gilt, was an der Definition steht.
+            // Seit §93 gilt nur noch die Zeile; ein Rest an der Definition darf nicht still weiterwirken.
             var world = new World(dbName, TenantName);
             world.Seed(machine: true);
             world.SeedCredentials(own: null, platform: null, allowPlatform: false, definitionSecret: "legacy-key");
 
-            Assert.AreEqual("legacy-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+            Assert.IsTrue(string.IsNullOrEmpty(world.Repository.GetExternalService("svc", true).ClientSecret));
+        }
+
+        // --- Umzug beim Start (§93) ---------------------------------------------------------------
+
+        [TestMethod]
+        public void Migration_MovesAGlobalSecretIntoThePlatformRow()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            var serviceId = world.SeedLegacyService("svc", ExternalServiceAuthenticationType.ApiKey, global: true, clientId: "X-Key", secret: "legacy-key");
+
+            world.MigrateCredentials();
+
+            using var check = world.Inspect();
+            var service = check.ExternalOAuthServices.IgnoreQueryFilters().Single(n => n.OAuthServiceId == serviceId);
+            Assert.AreEqual(string.Empty, service.ClientSecret, "The secret must leave the definition.");
+            Assert.AreEqual("X-Key", service.ClientId, "The header name stays with the definition.");
+            Assert.IsTrue(service.AllowPlatformCredentials, "Tenants used the global secret before - they keep doing so.");
+            var row = check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Single(n => n.OAuthServiceId == serviceId);
+            Assert.IsNull(row.TenantId, "A global secret becomes the platform's.");
+            Assert.AreEqual("legacy-key", world.Repository.GetExternalService("svc", true).ClientSecret,
+                "The tenant still reaches the secret - now through the platform row.");
+        }
+
+        [TestMethod]
+        public void Migration_MovesATenantsUserAndSecretIntoItsRow_AndRunsOnlyOnce()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            var serviceId = world.SeedLegacyService("basic", ExternalServiceAuthenticationType.Basic, global: false, clientId: "user-7", secret: "pw");
+
+            world.MigrateCredentials();
+            world.MigrateCredentials();
+
+            using var check = world.Inspect();
+            var service = check.ExternalOAuthServices.IgnoreQueryFilters().Single(n => n.OAuthServiceId == serviceId);
+            Assert.AreEqual(string.Empty, service.ClientId, "For Basic the user belongs to the account.");
+            Assert.AreEqual(1, check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Count(n => n.OAuthServiceId == serviceId));
+            var connection = world.Repository.GetExternalService("basic", true);
+            Assert.AreEqual("user-7", connection.ClientId);
+            Assert.AreEqual("pw", connection.ClientSecret);
+        }
+
+        [TestMethod]
+        public void Migration_DoesNotOverwriteCredentialsAlreadySetInTheRow()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: "new-key", platform: null, allowPlatform: false, definitionSecret: "legacy-key");
+
+            world.MigrateCredentials();
+
+            Assert.AreEqual("new-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+            using var check = world.Inspect();
+            Assert.AreEqual(string.Empty, check.ExternalOAuthServices.IgnoreQueryFilters().Single().ClientSecret,
+                "The stale secret is cleared all the same.");
         }
 
         private sealed class World
@@ -317,6 +373,33 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                     AddAccess(ctx, machine, revoked, expiresUtc);
                 }
             }
+
+            /// <summary>Ein Dienst im alten Stil: das Geheimnis an der Definition (Systemschluessel - die Testmandanten haben kein eigenes Passwort).</summary>
+            public int SeedLegacyService(string name, ExternalServiceAuthenticationType type, bool global, string clientId, string secret)
+            {
+                using var ctx = New();
+                var tenant = ctx.Tenants.Single(n => n.TenantName == TenantName);
+                var service = new FlatExternalOAuthService
+                {
+                    UniqueConnectionName = name, CalculatedUniqueServiceName = global ? $"GLOBAL{name}" : $"T{tenant.TenantId}-{name}",
+                    AuthorizationEndpoint = string.Empty, TokenEndpoint = string.Empty, RevocationEndpoint = string.Empty,
+                    ClientId = clientId, ClientSecret = secret.Encrypt(), Scope = string.Empty,
+                    Global = global, TenantId = global ? null : tenant.TenantId, AuthenticationType = type
+                };
+                ctx.ExternalOAuthServices.Add(service);
+                ctx.SaveChanges();
+                return service.OAuthServiceId;
+            }
+
+            /// <summary>Der Umzug, wie ihn der Start-Dienst ausfuehrt.</summary>
+            public void MigrateCredentials()
+            {
+                using var ctx = New();
+                ExternalServiceCredentialMigrator.Run(ctx, Repository, NullLogger.Instance, default);
+            }
+
+            /// <summary>Ein Kontext zum Nachsehen.</summary>
+            public TestSecurityContext Inspect() => New();
 
             /// <summary>Der globale ApiKey-Dienst "svc" und die angegebenen Zugangsdaten-Zeilen (Systemschluessel).</summary>
             public void SeedCredentials(string own, string platform, bool allowPlatform, string definitionSecret = null)

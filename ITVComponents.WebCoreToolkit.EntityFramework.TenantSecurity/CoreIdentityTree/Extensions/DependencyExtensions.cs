@@ -26,6 +26,7 @@ using ITVComponents.WebCoreToolkit.Security.ClientApps;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Security.ClientApps;
 
 using ITVComponents.WebCoreToolkit.Security.DevicePairing;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Extensions
 {
@@ -44,6 +45,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 // Per-operation factory backing the (now factory-based) security repository.
                 .AddScoped<IDbContextFactory<AspNetTreeSecurityContext>, ToolkitDbContextFactory<AspNetTreeSecurityContext>>()
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<AspNetTreeSecurityContext>>()
+                // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
+                .AddExternalServiceCredentialMigration()
                 // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
@@ -86,6 +89,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     // Generische per-Operation-Factory: liefert den frischen Context als JEDES implementierte
                     // DbSet-Abstraktions-Interface (ICoreSystemContext/ISecurityContext/IBaseTenantContext/…).
                     .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
+                // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
+                .AddExternalServiceCredentialMigration()
                     // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                     // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                     // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
@@ -138,6 +143,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<IDbContextFactory<TImpl>, ToolkitDbContextFactory<TImpl>>()
                 .AddScoped<ICoreSystemContextFactory, CoreSystemContextFactory<TImpl>>()
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
+                // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
+                .AddExternalServiceCredentialMigration()
                 // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.

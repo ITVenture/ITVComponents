@@ -441,4 +441,40 @@
   <data name="IWCN_ES_AllowPlatformCredentials" xml:space="preserve">
     <value>Credenziali della piattaforma come ripiego</value>
   </data>
+  <data name="IWCN_ES_DetailsTitle_Credentials" xml:space="preserve">
+    <value>Credenziali</value>
+  </data>
+  <data name="IWCN_ES_CredOwner" xml:space="preserve">
+    <value>Proprietario</value>
+  </data>
+  <data name="IWCN_ES_CredPlatform" xml:space="preserve">
+    <value>Piattaforma</value>
+  </data>
+  <data name="IWCN_ES_CredUser" xml:space="preserve">
+    <value>Utente / client</value>
+  </data>
+  <data name="IWCN_ES_CredSecret" xml:space="preserve">
+    <value>Segreto</value>
+  </data>
+  <data name="IWCN_ES_CredToken" xml:space="preserve">
+    <value>Token</value>
+  </data>
+  <data name="IWCN_ES_CredInheritable" xml:space="preserve">
+    <value>Trasmesso ai sotto-tenant</value>
+  </data>
+  <data name="IWCN_ES_CredRevoke" xml:space="preserve">
+    <value>Revoca</value>
+  </data>
+  <data name="IWCN_ES_CredRevokeConfirm" xml:space="preserve">
+    <value>Revocare il token di questa riga?</value>
+  </data>
+  <data name="IWCN_ES_CredHint" xml:space="preserve">
+    <value>L'account (utente, segreto, chiave API) non fa parte della definizione: ogni tenant salva il proprio in «Credenziali» e può trasmetterlo ai sotto-tenant. I valori salvati non vengono più mostrati; un segreto vuoto viene mantenuto.</value>
+  </data>
+  <data name="IWCN_ES_CredNotEditable" xml:space="preserve">
+    <value>Queste credenziali non possono essere modificate.</value>
+  </data>
+  <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
+    <value>Solo un amministratore di sistema imposta le credenziali della piattaforma, e solo per un servizio globale.</value>
+  </data>
 </root>

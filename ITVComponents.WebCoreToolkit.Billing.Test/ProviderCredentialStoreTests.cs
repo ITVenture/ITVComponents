@@ -59,8 +59,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         }
 
         [TestMethod]
-        public async Task ASecretOnTheDefinition_StillAnswers_UntilItIsMoved()
+        public async Task ASecretOnTheDefinition_NoLongerAnswers()
         {
+            // Seit §93 gilt nur die Zeile; der Start-Umzug hat Geheimnisse von der Definition dorthin verschoben.
             var (store, factory, acme, _) = await Build();
             await using (var db = await factory.CreateDbContextAsync())
             {
@@ -68,7 +69,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
                 await db.SaveChangesAsync();
             }
 
-            Assert.AreEqual("legacy", (await store.GetCredentialAsync(acme, "sumup-acme")).Secret);
+            var ex = await Assert.ThrowsExactlyAsync<TenantPaymentException>(() => store.GetCredentialAsync(acme, "sumup-acme"));
+            Assert.AreEqual(PaymentErrorCodes.OwnAccessUnavailable, ex.Code);
         }
 
         [TestMethod]

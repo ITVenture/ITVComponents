@@ -1,0 +1,14 @@
+@using ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Resources
+@using Kendo.Mvc.UI
+@{
+    var id = ViewData["OAuthServiceId"];
+}
+@* Detail eines Dienstes in der Verwaltung: Token-Parameter und Zugangsdaten (Leitfaden §93). *@
+@(Html.Kendo().TabStrip()
+    .Name($"ServiceAdminTabs{id}")
+    .SelectedIndex(0)
+    .Items(item =>
+    {
+        item.Add().Text(TextsAndMessagesHelper.IWCN_ES_DetailsTitle_Params).LoadContentFrom("ParameterTable", "ExternalService", new { area = "Connectivity", oauthServiceId = id });
+        item.Add().Text(TextsAndMessagesHelper.IWCN_ES_DetailsTitle_Credentials).LoadContentFrom("CredentialTable", "ExternalService", new { area = "Connectivity", oauthServiceId = id });
+    }))

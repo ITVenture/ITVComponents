@@ -175,7 +175,7 @@ im **falschen Feld**.
 | **3** | *(Umgesetzt mit Phase 2 als reine Daten-Updates, Leitfaden §90: Die Auflösung liest die alten Felder als „virtuelle Zeile“, darum muss kein Geheimnis kopiert werden, bis Phase 6 die Spalten entfernt — dann erst der Code-Umzug unten.)* **Daten-Umzug im Code** (nicht SQL: neu verschlüsseln mit dem Besitzer-Schlüssel). Je Dienst die Zugangsdaten in die Zeile des Besitzers; bestehende globale Dienste mit Geheimnis → Plattform-Zeile + `AllowPlatformCredentials = 1`; im **Baum** bestehende Logins globaler und vererbbarer Dienste → `Inheritable = 1` (heute benutzen Kinder sie still mit; das Verhalten bleibt, Admins verschärfen). Token-Endpunkt der Typen 1, 2, 6 übernehmen (4.5). Idempotent, als Admin-Aktion oder Start-Schritt, mit Bericht. | nein |
 | **4** | Oberflächen (5), Export und Vorlagen (6) | nein |
 | **5** | Zahlungs-Speicher auf die Auflösung | nein |
-| **6** | Nächste Version: Rückfall und Zugangsdaten-Inhalt der alten Spalten entfernen | ggf. |
+| **6** | *(Umgesetzt, Leitfaden §93: im selben Release statt der nächsten Version.)* Umzug beim Start (`ExternalServiceCredentialMigrationService`, der Code-Umzug aus Phase 3), Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher entfernt; die Spalten bleiben für App/Header-Name. Telerik-Reiter „Zugangsdaten“ über den gemeinsamen Baustein `ExternalServiceCredentialAdministration`. | nein |
 
 Jede Phase ist für sich auslieferbar. Ab Phase 2 verhält sich ein unveränderter Bestand gleich wie vorher (der
 Rückfall), ab Phase 3 liegen die Daten neu.

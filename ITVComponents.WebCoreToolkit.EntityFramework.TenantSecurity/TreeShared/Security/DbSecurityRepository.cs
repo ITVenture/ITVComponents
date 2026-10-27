@@ -1850,14 +1850,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <summary>Legt die festen Zugangsdaten einer Zeile (falls gespeichert) auf die Verbindung.</summary>
         private void ApplyCredentialRow(ExternalServiceConnection connection, TExternalOAuthServiceTenantLogin row)
         {
-            if (string.IsNullOrEmpty(row?.CredentialJson))
-            {
-                return;
-            }
-
-            var ownerName = row.TenantId == null ? null : row.Tenant?.TenantName;
-            ExternalServiceCredentials.ApplyTo(connection,
-                ExternalServiceCredentials.Unprotect(row.CredentialJson, v => DecryptForOwner(v, ownerName)));
+            // Seit §93 nur noch die Zeile - was an der Definition stand, ist umgezogen (ExternalServiceCredentialMigration).
+            var ownerName = row?.TenantId == null ? null : row.Tenant?.TenantName;
+            ExternalServiceCredentials.Assign(connection,
+                ExternalServiceCredentials.Unprotect(row?.CredentialJson, v => DecryptForOwner(v, ownerName)));
         }
 
         /// <summary>Verschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>

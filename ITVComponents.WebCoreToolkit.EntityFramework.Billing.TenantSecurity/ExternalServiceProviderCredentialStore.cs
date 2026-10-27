@@ -92,8 +92,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 case ExternalServiceAuthenticationType.BearerToken:
                 case ExternalServiceAuthenticationType.Basic:
                 {
-                    // Die Zugangsdaten-Zeile GENAU dieses Mandanten - nichts Geerbtes, keine Plattform (§78.4). Bis die
-                    // Geheimnisse umgezogen sind (Phase 6), gilt ohne Zeile noch das Geheimnis an der Definition.
+                    // Die Zugangsdaten-Zeile GENAU dieses Mandanten - nichts Geerbtes, keine Plattform (§78.4). Seit §93
+                    // nur noch sie; was an der Definition stand, ist beim Start umgezogen.
                     var row = await db.Set<TExternalOAuthServiceTenantLogin>().AsNoTracking().IgnoreQueryFilters()
                         .FirstOrDefaultAsync(l => l.OAuthServiceId == service.OAuthServiceId && l.TenantId == tenantId, cancellationToken);
                     var credential = ExternalServiceCredentials.Unprotect(row?.CredentialJson,
@@ -105,14 +105,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                             credential.Secret);
                     }
 
-                    if (string.IsNullOrEmpty(service.ClientSecret))
-                    {
-                        logger.LogError("External service '{ConnectionName}' of tenant {TenantId} has no secret stored.", connectionName, tenantId);
-                        throw Unavailable($"'{connectionName}' has no secret stored.");
-                    }
-
-                    return new ProviderCredential(service.AuthenticationType, service.ClientId,
-                        securityRepository.Decrypt(service.ClientSecret, tenantName));
+                    logger.LogError("External service '{ConnectionName}' of tenant {TenantId} has no secret stored.", connectionName, tenantId);
+                    throw Unavailable($"'{connectionName}' has no secret stored.");
                 }
 
                 case ExternalServiceAuthenticationType.OAuthAuthorizationFlow:

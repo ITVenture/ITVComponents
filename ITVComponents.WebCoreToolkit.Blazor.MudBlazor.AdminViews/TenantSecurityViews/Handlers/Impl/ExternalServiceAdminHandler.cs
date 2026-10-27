@@ -276,27 +276,25 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             return new PagedResult<ExternalOAuthServiceTenantLoginViewModel>();
         }
 
-        // a global service is used by many tenants - a tenant-admin only sees the login of the own tenant
-        var q = from l in db.ExternalOAuthServiceTenantLogins.AsNoTracking()
-                where l.OAuthServiceId == oauthServiceId && (sysAdmin || l.TenantId == currentTenantId)
-                join t in db.Tenants.AsNoTracking() on l.TenantId equals (int?)t.TenantId into tj
-                from tn in tj.DefaultIfEmpty()
-                select new ExternalOAuthServiceTenantLoginViewModel
-                {
-                    ExternalOAuthServiceTenantLoginId = l.ExternalOAuthServiceTenantLoginId,
-                    TenantId = l.TenantId,
-                    TenantName = tn != null ? tn.DisplayName : null,
-                    OAuthServiceId = l.OAuthServiceId,
-                    Revoked = l.Revoked,
-                    HasCredentials = l.CredentialJson != null && l.CredentialJson != "",
-                    HasToken = l.Token != null && l.Token != "" && l.Token != "{}",
-                    Inheritable = l.Inheritable,
-                    Editable = sysAdmin || l.TenantId == currentTenantId
-                };
-        var total = await q.CountAsync();
-        var items = await q.OrderBy(x => x.TenantName).Page(x => x.ExternalOAuthServiceTenantLoginId, query)
-            .ToListAsync();
-        return new PagedResult<ExternalOAuthServiceTenantLoginViewModel> { Items = items, TotalCount = total };
+        // a global service is used by many tenants - a tenant-admin only sees the row of the own tenant (same rule as the
+        // Kendo view: ExternalServiceCredentialAdministration)
+        var rows = ExternalServiceCredentialAdministration.List<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+            db, oauthServiceId, currentTenantId, sysAdmin);
+        var page = Math.Max(0, query.Page);
+        var size = query.PageSize > 0 ? query.PageSize : rows.Count;
+        var items = rows.Skip(page * size).Take(size).Select(n => new ExternalOAuthServiceTenantLoginViewModel
+        {
+            ExternalOAuthServiceTenantLoginId = n.ExternalOAuthServiceTenantLoginId,
+            TenantId = n.TenantId,
+            TenantName = n.TenantName,
+            OAuthServiceId = n.OAuthServiceId,
+            Revoked = n.Revoked,
+            HasCredentials = n.HasCredentials,
+            HasToken = n.HasToken,
+            Inheritable = n.Inheritable,
+            Editable = n.Editable
+        }).ToList();
+        return new PagedResult<ExternalOAuthServiceTenantLoginViewModel> { Items = items, TotalCount = rows.Count };
     }
 
     public async Task<bool> RevokeLoginAsync(ClaimsPrincipal user, int externalOAuthServiceTenantLoginId)
@@ -336,8 +334,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     }
 
     /// <inheritdoc />
-    public bool SupportsCredentialInheritance { get; } = typeof(TContext).GetInterfaces()
-        .Any(i => i.IsGenericType && i.GetGenericTypeDefinition().Name.StartsWith("IHierarchyTenantContext", StringComparison.Ordinal));
+    public bool SupportsCredentialInheritance { get; } = ExternalServiceCredentialAdministration.SupportsInheritance(typeof(TContext));
 
     /// <inheritdoc />
     /// <remarks>
@@ -358,13 +355,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             return ExternalServiceCredentialSaveResult.Failed("The service does not exist or is not visible.");
         }
 
-        if (service.AuthenticationType == ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
-        {
-            return ExternalServiceCredentialSaveResult.Failed("This service connects through the OAuth login - there are no fixed credentials to store.");
-        }
-
         int? ownerId;
-        string? ownerName;
         if (input.Platform)
         {
             if (!IsSysAdmin() || service.TenantId != null)
@@ -374,58 +365,25 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             }
 
             ownerId = null;
-            ownerName = null;
         }
         else
         {
             ownerId = db.CurrentTenantId;
-            var owner = ownerId == null ? null : await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == ownerId);
-            if (owner == null)
+            if (ownerId == null)
             {
                 logger.LogWarning("Credentials of external service {OAuthServiceId} were not saved: there is no current tenant.", input.OAuthServiceId);
                 return ExternalServiceCredentialSaveResult.Failed("There is no current tenant.");
             }
-
-            ownerName = owner.TenantName;
         }
 
-        var row = await db.ExternalOAuthServiceTenantLogins
-            .FirstOrDefaultAsync(n => n.OAuthServiceId == service.OAuthServiceId && n.TenantId == ownerId);
-        var stored = row == null
-            ? null
-            : ExternalServiceCredentials.Unprotect(row.CredentialJson, v => ownerName == null ? v.Decrypt() : secRepo.Decrypt(v, ownerName));
-        var credential = new ExternalServiceCredential
+        var error = ExternalServiceCredentialAdministration.Save<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+            db, secRepo, service, ownerId, input.User, input.Secret, input.Inheritable && !input.Platform);
+        if (error != null)
         {
-            User = AccountHasUser(service.AuthenticationType) ? input.User?.Trim() : null,
-            // leer = behalten, wie beim ClientSecret
-            Secret = string.IsNullOrEmpty(input.Secret) ? stored?.Secret : input.Secret
-        };
-        if (string.IsNullOrEmpty(credential.Secret))
-        {
-            return ExternalServiceCredentialSaveResult.Failed("A secret is required.");
+            logger.LogWarning("Credentials of external service {OAuthServiceId} were not saved: {Reason}", input.OAuthServiceId, error);
+            return ExternalServiceCredentialSaveResult.Failed(error);
         }
 
-        var changed = stored == null || stored.User != credential.User || stored.Secret != credential.Secret;
-        if (row == null)
-        {
-            // Activator statt new(): die Einschraenkung muesste sonst bis in jede Registrierung des Handlers durchgereicht werden.
-            row = Activator.CreateInstance<TExternalOAuthServiceTenantLogin>();
-            row.OAuthServiceId = service.OAuthServiceId;
-            row.TenantId = ownerId;
-            row.Token = "{}";
-            db.ExternalOAuthServiceTenantLogins.Add(row);
-        }
-
-        row.CredentialJson = ExternalServiceCredentials.Protect(credential, v => ownerName == null ? v.Encrypt() : secRepo.Encrypt(v, ownerName));
-        row.Inheritable = SupportsCredentialInheritance && !input.Platform && input.Inheritable;
-        row.Revoked = false;
-        if (changed)
-        {
-            // Ein Token, das mit den alten Zugangsdaten geholt wurde, gehoert nicht zu den neuen.
-            row.Token = "{}";
-        }
-
-        await db.SaveChangesAsync();
         return ExternalServiceCredentialSaveResult.Saved();
     }
 

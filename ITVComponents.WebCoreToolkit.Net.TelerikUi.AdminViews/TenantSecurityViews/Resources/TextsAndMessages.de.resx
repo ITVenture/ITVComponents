@@ -441,4 +441,40 @@
   <data name="IWCN_ES_AllowPlatformCredentials" xml:space="preserve">
     <value>Plattform-Zugangsdaten als Rückfall</value>
   </data>
+  <data name="IWCN_ES_DetailsTitle_Credentials" xml:space="preserve">
+    <value>Zugangsdaten</value>
+  </data>
+  <data name="IWCN_ES_CredOwner" xml:space="preserve">
+    <value>Besitzer</value>
+  </data>
+  <data name="IWCN_ES_CredPlatform" xml:space="preserve">
+    <value>Plattform</value>
+  </data>
+  <data name="IWCN_ES_CredUser" xml:space="preserve">
+    <value>Benutzer / Client</value>
+  </data>
+  <data name="IWCN_ES_CredSecret" xml:space="preserve">
+    <value>Geheimnis</value>
+  </data>
+  <data name="IWCN_ES_CredToken" xml:space="preserve">
+    <value>Token</value>
+  </data>
+  <data name="IWCN_ES_CredInheritable" xml:space="preserve">
+    <value>An Untermandanten weitergegeben</value>
+  </data>
+  <data name="IWCN_ES_CredRevoke" xml:space="preserve">
+    <value>Widerrufen</value>
+  </data>
+  <data name="IWCN_ES_CredRevokeConfirm" xml:space="preserve">
+    <value>Das Token dieser Zeile widerrufen?</value>
+  </data>
+  <data name="IWCN_ES_CredHint" xml:space="preserve">
+    <value>Das Konto (Benutzer, Geheimnis, API-Schlüssel) gehört nicht zur Definition: jeder Mandant hinterlegt sein eigenes unter «Zugangsdaten» und kann es an Untermandanten weitergeben. Gespeicherte Werte werden nie wieder angezeigt; leeres Geheimnis = behalten.</value>
+  </data>
+  <data name="IWCN_ES_CredNotEditable" xml:space="preserve">
+    <value>Diese Zugangsdaten können nicht bearbeitet werden.</value>
+  </data>
+  <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
+    <value>Plattform-Zugangsdaten setzt nur ein Sysadmin, und nur für einen globalen Dienst.</value>
+  </data>
 </root>

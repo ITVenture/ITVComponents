@@ -11,6 +11,7 @@ using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -295,6 +296,166 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             return Json(await new[] { BuildViewModel(model, isAdmin, model.TenantId) }
                 .ToDataSourceResultAsync(request, ModelState));
         }
+
+        /// <summary>Die Detail-Reiter eines Dienstes in der Verwaltung: Token-Parameter und Zugangsdaten.</summary>
+        public IActionResult ServiceAdminTabs(int oauthServiceId)
+        {
+            ViewData["OAuthServiceId"] = oauthServiceId;
+            return PartialView();
+        }
+
+        /// <summary>Die Zugangsdaten-Zeilen eines Dienstes (Leitfaden §93) - dieselben Regeln wie in der Blazor-Maske.</summary>
+        public IActionResult CredentialTable(int oauthServiceId)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            ViewData["OAuthServiceId"] = oauthServiceId;
+            ViewData["HasFixedCredentials"] = service != null && ExternalServiceCredentialAdministration.HasFixedCredentials(service.AuthenticationType);
+            ViewData["HasUser"] = service != null && ExternalServiceCredentialAdministration.AccountHasUser(service.AuthenticationType);
+            ViewData["SupportsInheritance"] = ExternalServiceCredentialAdministration.SupportsInheritance(db.GetType());
+            ViewData["CanSetPlatform"] = isAdmin && service is { TenantId: null };
+            return PartialView();
+        }
+
+        [HttpPost]
+        public IActionResult ReadCredentials([DataSourceRequest] DataSourceRequest request, int oauthServiceId)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            // nur fuer einen sichtbaren Dienst (der Mandantenfilter des Kontexts entscheidet)
+            var rows = db.ExternalOAuthServices.Any(n => n.OAuthServiceId == oauthServiceId)
+                ? ExternalServiceCredentialAdministration.List<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                    (DbContext)db, oauthServiceId, db.CurrentTenantId, isAdmin)
+                : new List<ExternalServiceCredentialRowInfo>();
+            return Json(rows.Select(ToCredentialViewModel).ToDataSourceResult(request));
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> CreateCredential([DataSourceRequest] DataSourceRequest request, [FromQuery] int oauthServiceId, ExternalServiceCredentialViewModel viewModel)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            int? ownerId = viewModel.Platform ? null : db.CurrentTenantId;
+            string error = null;
+            if (service == null)
+            {
+                error = TextsAndMessagesHelper.IWCN_ES_CredNotEditable;
+            }
+            else if (viewModel.Platform && (!isAdmin || service.TenantId != null))
+            {
+                error = TextsAndMessagesHelper.IWCN_ES_CredPlatformOnly;
+            }
+            else if (!viewModel.Platform && ownerId == null)
+            {
+                error = TextsAndMessagesHelper.IWCN_ES_CredNotEditable;
+            }
+            else
+            {
+                error = ExternalServiceCredentialAdministration.Save<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                    (DbContext)db, secRepo, service, ownerId, viewModel.User, viewModel.Secret, viewModel.Inheritable && !viewModel.Platform);
+            }
+
+            return await CredentialResult(request, oauthServiceId, viewModel, error, isAdmin);
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> UpdateCredential([DataSourceRequest] DataSourceRequest request, ExternalServiceCredentialViewModel viewModel)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var row = ExternalServiceCredentialAdministration.FindEditable<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                (DbContext)db, viewModel.ExternalOAuthServiceTenantLoginId, db.CurrentTenantId, isAdmin);
+            var error = row == null
+                ? TextsAndMessagesHelper.IWCN_ES_CredNotEditable
+                : ExternalServiceCredentialAdministration.Save<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                    (DbContext)db, secRepo, row.OAuthService, row.TenantId, viewModel.User, viewModel.Secret, viewModel.Inheritable && row.TenantId != null);
+            return await CredentialResult(request, viewModel.OAuthServiceId, viewModel, error, isAdmin);
+        }
+
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> DestroyCredential([DataSourceRequest] DataSourceRequest request, ExternalServiceCredentialViewModel viewModel)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var row = ExternalServiceCredentialAdministration.FindEditable<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                (DbContext)db, viewModel.ExternalOAuthServiceTenantLoginId, db.CurrentTenantId, isAdmin);
+            if (row == null)
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent($"Credentials row {viewModel.ExternalOAuthServiceTenantLoginId} was not deleted: it does not exist or does not belong to the current tenant.", ITVComponents.Logging.LogSeverity.Warning);
+                ModelState.AddModelError(nameof(viewModel.OwnerName), TextsAndMessagesHelper.IWCN_ES_CredNotEditable);
+            }
+            else
+            {
+                ((DbContext)db).Remove(row);
+                await db.SaveChangesAsync();
+            }
+
+            return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        /// <summary>Widerruft das Token einer Zeile - die eigene auch beim Anbieter.</summary>
+        [HttpPost]
+        [Authorize("HasPermission(Services.Connections.Write)")]
+        public async Task<IActionResult> RevokeCredential(int id)
+        {
+            var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+            var row = ExternalServiceCredentialAdministration.FindEditable<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                (DbContext)db, id, db.CurrentTenantId, isAdmin);
+            if (row == null)
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent($"The token of credentials row {id} was not revoked: it does not exist or does not belong to the current tenant.", ITVComponents.Logging.LogSeverity.Warning);
+                return Json(new { success = false, message = TextsAndMessagesHelper.IWCN_ES_CredNotEditable });
+            }
+
+            if (row.TenantId != null && row.TenantId == db.CurrentTenantId
+                && HttpContext.RequestServices.GetService(typeof(IOAuthTokenService)) is IOAuthTokenService tokens)
+            {
+                try
+                {
+                    await tokens.RevokeAsync(row.OAuthService.CalculatedUniqueServiceName);
+                }
+                catch (Exception ex)
+                {
+                    ITVComponents.Logging.LogEnvironment.LogEvent($"The token of external service {row.OAuthServiceId} could not be revoked at the provider; it is revoked locally: {ex.OutlineException()}", ITVComponents.Logging.LogSeverity.Error);
+                }
+            }
+
+            row.Revoked = true;
+            row.Token = "{}";
+            await db.SaveChangesAsync();
+            return Json(new { success = true });
+        }
+
+        private async Task<IActionResult> CredentialResult(DataSourceRequest request, int oauthServiceId,
+            ExternalServiceCredentialViewModel viewModel, string error, bool isAdmin)
+        {
+            if (error != null)
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent($"Credentials of external service {oauthServiceId} were not saved: {error}", ITVComponents.Logging.LogSeverity.Warning);
+                ModelState.AddModelError(nameof(viewModel.Secret), error);
+                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+            }
+
+            var ownerId = viewModel.Platform ? (int?)null : db.CurrentTenantId;
+            var saved = ExternalServiceCredentialAdministration.List<TTenant, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin>(
+                    (DbContext)db, oauthServiceId, db.CurrentTenantId, isAdmin)
+                .FirstOrDefault(n => n.ExternalOAuthServiceTenantLoginId == viewModel.ExternalOAuthServiceTenantLoginId
+                                     || (viewModel.ExternalOAuthServiceTenantLoginId == 0 && n.TenantId == ownerId));
+            return Json(await new[] { saved != null ? ToCredentialViewModel(saved) : viewModel }.ToDataSourceResultAsync(request, ModelState));
+        }
+
+        private static ExternalServiceCredentialViewModel ToCredentialViewModel(ExternalServiceCredentialRowInfo row) => new()
+        {
+            ExternalOAuthServiceTenantLoginId = row.ExternalOAuthServiceTenantLoginId,
+            OAuthServiceId = row.OAuthServiceId,
+            Platform = row.TenantId == null,
+            OwnerName = row.TenantId == null ? TextsAndMessagesHelper.IWCN_ES_CredPlatform : row.TenantName,
+            HasCredentials = row.HasCredentials,
+            HasToken = row.HasToken,
+            Revoked = row.Revoked,
+            Inheritable = row.Inheritable,
+            Editable = row.Editable
+        };
 
         public IActionResult ParameterTable(int oauthServiceId)
         {

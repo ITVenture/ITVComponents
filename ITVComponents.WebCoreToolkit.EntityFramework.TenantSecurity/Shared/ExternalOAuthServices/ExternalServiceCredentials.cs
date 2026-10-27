@@ -36,6 +36,35 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             => string.IsNullOrEmpty(stored) ? null : JsonSerializer.Deserialize<ExternalServiceCredential>(decrypt(stored));
 
         /// <summary>
+        /// Leert, was an der Verbindung zum KONTO gehoert, und legt dann die Zugangsdaten der Zeile darauf (falls es eine
+        /// gibt). Seit §93 gilt nur noch die Zeile - ein Rest an der Definition (etwa von einer aelteren Maske gesetzt)
+        /// darf nicht still weiterwirken.
+        /// </summary>
+        public static void Assign(ExternalServiceConnection connection, ExternalServiceCredential credential)
+        {
+            if (connection == null)
+            {
+                return;
+            }
+
+            switch (connection.AuthenticationType)
+            {
+                case ExternalServiceAuthenticationType.OAuthAuthorizationFlow:
+                    return;
+                case ExternalServiceAuthenticationType.ApiKey:
+                case ExternalServiceAuthenticationType.BearerToken:
+                    connection.ClientSecret = null;
+                    break;
+                default:
+                    connection.ClientId = null;
+                    connection.ClientSecret = null;
+                    break;
+            }
+
+            ApplyTo(connection, credential);
+        }
+
+        /// <summary>
         /// Legt die Zugangsdaten auf die Verbindung - nur dorthin, wo der Typ das Konto erwartet.
         /// </summary>
         /// <remarks>
