@@ -3,6 +3,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
 
 @inject ISharedAssetAdminHandler Handler
@@ -10,10 +11,11 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject IStringLocalizer<ShareMessages> L
 
-<PageTitle>Shares</PageTitle>
+<PageTitle>@L["Shares_PageTitle"]</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">Shares</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@L["Shares_PageTitle"]</MudText>
 
 @if (currentUser is null)
 {
@@ -29,18 +31,18 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Shares" @bind-Search="search" OnSearch="ReloadGrid" />
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="@L["Shares_PageTitle"]" @bind-Search="search" OnSearch="ReloadGrid" />
         </ToolBarContent>
         <Columns>
-            <PropertyColumn Property="x => x.AssetTitle" Title="Title" />
-            <PropertyColumn Property="x => x.TemplateTitle" Title="Template" />
-            <TemplateColumn T="SharedAssetListItem" Title="Points at" Sortable="false">
+            <PropertyColumn Property="x => x.AssetTitle" Title="@L["Shares_ColTitle"]" />
+            <PropertyColumn Property="x => x.TemplateTitle" Title="@L["Shares_ColTemplate"]" />
+            <TemplateColumn T="SharedAssetListItem" Title="@L["Shares_ColPointsAt"]" Sortable="false">
                 <CellTemplate>
                     @if (string.IsNullOrEmpty(context.Item.ArgumentSummary))
                     {
                         @* Ohne Argumente gilt die Freigabe fuer alles, was die Pfadmuster der Vorlage
                            zulassen - das muss man sehen koennen. *@
-                        <MudTooltip Text="No object binding - this share covers everything its template's paths allow">
+                        <MudTooltip Text="@L["Shares_NoBinding"]">
                             <MudText Typo="Typo.body2" Color="Color.Warning">@context.Item.RootPath</MudText>
                         </MudTooltip>
                     }
@@ -50,16 +52,16 @@ else
                     }
                 </CellTemplate>
             </TemplateColumn>
-            <TemplateColumn T="SharedAssetListItem" Title="Reach" Sortable="false">
+            <TemplateColumn T="SharedAssetListItem" Title="@L["Shares_ColReach"]" Sortable="false">
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
                         @if (context.Item.IsAnonymous)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">no sign-in</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">@L["Shares_ChipAnonymous"]</MudChip>
                         }
                         @if (context.Item.IsPublic)
                         {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Error">everyone</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Error">@L["Shares_ChipEveryone"]</MudChip>
                         }
                         @if (!string.IsNullOrEmpty(context.Item.RecipientLabel))
                         {
@@ -68,23 +70,23 @@ else
                     </MudStack>
                 </CellTemplate>
             </TemplateColumn>
-            <TemplateColumn T="SharedAssetListItem" Title="Valid" Sortable="false">
+            <TemplateColumn T="SharedAssetListItem" Title="@L["Shares_ColValid"]" Sortable="false">
                 <CellTemplate>@Validity(context.Item)</CellTemplate>
             </TemplateColumn>
             <TemplateColumn T="SharedAssetListItem" Title="" Sortable="false">
                 <CellTemplate>
                     <MudStack Row="true" Spacing="1">
-                        <MudTooltip Text="Show link">
+                        <MudTooltip Text="@L["Shares_ShowLink"]">
                             <MudIconButton Icon="@Icons.Material.Filled.Link" Size="Size.Small"
                                            OnClick="@(() => ShowLink(context.Item))" />
                         </MudTooltip>
-                        <MudTooltip Text="Edit">
+                        <MudTooltip Text="@L["Share_Edit"]">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                            OnClick="@(() => Edit(context.Item))" />
                         </MudTooltip>
                         @if (context.Item.IsAnonymous)
                         {
-                            <MudTooltip Text="Invalidate every link sent so far">
+                            <MudTooltip Text="@L["Shares_InvalidateTooltip"]">
                                 <MudIconButton Icon="@Icons.Material.Filled.Autorenew" Size="Size.Small"
                                                OnClick="@(() => Rotate(context.Item))" />
                             </MudTooltip>
@@ -126,9 +128,9 @@ else
         if (grid is not null) await grid.ReloadServerData();
     }
 
-    private static string Validity(SharedAssetListItem item)
+    private string Validity(SharedAssetListItem item)
     {
-        if (item.NotBefore == null && item.NotAfter == null) return "unlimited";
+        if (item.NotBefore == null && item.NotAfter == null) return L["Shares_Unlimited"];
         var from = item.NotBefore?.ToString("d") ?? "…";
         var to = item.NotAfter?.ToString("d") ?? "…";
         return $"{from} – {to}";
@@ -139,7 +141,7 @@ else
         var link = await Handler.GetLinkAsync(currentUser!, item.AssetKey, item.IsAnonymous, Origin);
         if (string.IsNullOrEmpty(link))
         {
-            Snackbar.Add("The link could not be built.", Severity.Warning);
+            Snackbar.Add(L["Shares_LinkNotBuilt"], Severity.Warning);
             return;
         }
 
@@ -148,7 +150,7 @@ else
             { d => d.Link, link },
             { d => d.Title, item.AssetTitle }
         };
-        await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+        await DialogService.ShowAsync<ShareLinkDialog>(L["Share_LinkDialogTitle"], parameters, EditDialogDefaults.Edit);
     }
 
     private async Task Edit(SharedAssetListItem item)
@@ -158,57 +160,57 @@ else
         {
             // Die vollen Angaben gibt es nur mit den Rechten der Vorlage - wer sie nicht hat, sieht die
             // Zeile zwar, darf sie aber nicht aendern.
-            Snackbar.Add("You may not edit this share.", Severity.Warning);
+            Snackbar.Add(L["Shares_NotEditable"], Severity.Warning);
             return;
         }
 
         var parameters = new DialogParameters<SharedAssetEditDialog> { { d => d.Model, model } };
-        var dlg = await DialogService.ShowAsync<SharedAssetEditDialog>("Edit share", parameters, EditDialogDefaults.Edit);
+        var dlg = await DialogService.ShowAsync<SharedAssetEditDialog>(L["Shares_EditTitle"], parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: SharedAssetEditViewModel input })
         {
             if (await Handler.UpdateAsync(currentUser!, input))
             {
-                Snackbar.Add("Share updated", Severity.Success);
+                Snackbar.Add(L["Shares_Updated"], Severity.Success);
                 await ReloadGrid();
             }
             else
             {
-                Snackbar.Add("Failed to update", Severity.Error);
+                Snackbar.Add(L["Shares_UpdateFailed"], Severity.Error);
             }
         }
     }
 
     private async Task Rotate(SharedAssetListItem item)
     {
-        var ok = await DialogService.ShowMessageBoxAsync("Invalidate links",
-            $"Every link to '{item.AssetTitle}' sent so far stops working. The share itself stays. Continue?",
-            yesText: "Invalidate", cancelText: "Cancel");
+        var ok = await DialogService.ShowMessageBoxAsync(L["Shares_InvalidateTitle"],
+            L["Shares_InvalidateConfirm", item.AssetTitle],
+            yesText: L["Shares_Invalidate"], cancelText: L["Share_Cancel"]);
         if (ok != true) return;
         if (await Handler.RotateAsync(currentUser!, item.AssetKey))
         {
-            Snackbar.Add("Links invalidated - hand out the new one", Severity.Success);
+            Snackbar.Add(L["Shares_Invalidated"], Severity.Success);
             await ReloadGrid();
         }
         else
         {
-            Snackbar.Add("Failed to invalidate", Severity.Error);
+            Snackbar.Add(L["Shares_InvalidateFailed"], Severity.Error);
         }
     }
 
     private async Task Delete(SharedAssetListItem item)
     {
-        var ok = await DialogService.ShowMessageBoxAsync("Delete share",
-            $"Really delete '{item.AssetTitle}'?", yesText: "Delete", cancelText: "Cancel");
+        var ok = await DialogService.ShowMessageBoxAsync(L["Shares_DeleteTitle"],
+            L["Shares_DeleteConfirm", item.AssetTitle], yesText: L["Share_Delete"], cancelText: L["Share_Cancel"]);
         if (ok != true) return;
         if (await Handler.DeleteAsync(currentUser!, item.AssetKey))
         {
-            Snackbar.Add("Share deleted", Severity.Success);
+            Snackbar.Add(L["Shares_Deleted"], Severity.Success);
             await ReloadGrid();
         }
         else
         {
-            Snackbar.Add("Failed to delete", Severity.Error);
+            Snackbar.Add(L["Shares_DeleteFailed"], Severity.Error);
         }
     }
 }

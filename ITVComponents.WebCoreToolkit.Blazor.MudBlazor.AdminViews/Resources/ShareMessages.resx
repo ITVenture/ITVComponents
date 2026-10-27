@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Share_Tooltip" xml:space="preserve"><value>Share this</value></data>
+  <data name="Share_DialogTitle" xml:space="preserve"><value>Share</value></data>
+  <data name="Share_LinkDialogTitle" xml:space="preserve"><value>Link</value></data>
+  <data name="Share_QrTooltip" xml:space="preserve"><value>Show this link as a QR code</value></data>
+  <data name="Share_CreateLink" xml:space="preserve"><value>Create link</value></data>
+  <data name="Share_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Share_NothingToShare" xml:space="preserve"><value>There is nothing to share here.</value></data>
+  <data name="Share_WhatToShare" xml:space="preserve"><value>What to share</value></data>
+  <data name="Share_WhatToShareRequired" xml:space="preserve"><value>Pick what to share</value></data>
+  <data name="Share_Title" xml:space="preserve"><value>Title</value></data>
+  <data name="Share_TitleRequired" xml:space="preserve"><value>A title is required</value></data>
+  <data name="Share_TitleHelp" xml:space="preserve"><value>What the recipient sees, and what you will recognise it by later.</value></data>
+  <data name="Share_ArgumentKnownHelp" xml:space="preserve"><value>Taken from the page you are sharing.</value></data>
+  <data name="Share_ArgumentRequired" xml:space="preserve"><value>{0} is required</value></data>
+  <data name="Share_Recipient" xml:space="preserve"><value>Recipient</value></data>
+  <data name="Share_RecipientHelp" xml:space="preserve"><value>Optional, for your own records. It is a note, not a proof of identity.</value></data>
+  <data name="Share_AdHoc" xml:space="preserve"><value>Temporary - store nothing</value></data>
+  <data name="Share_Lifetime" xml:space="preserve"><value>Valid for (minutes)</value></data>
+  <data name="Share_LifetimeHelp" xml:space="preserve"><value>Empty uses the template's maximum, which is also the upper limit.</value></data>
+  <data name="Share_AdHocInfo" xml:space="preserve"><value>Nothing is stored: the whole share travels encrypted inside the link. It can not be taken back one by one - it ends on its own.</value></data>
+  <data name="Share_Anonymous" xml:space="preserve"><value>Works without signing in</value></data>
+  <data name="Share_AnonymousWarning" xml:space="preserve"><value>Everyone holding this link gets in. Give it a validity window and treat it like a password.</value></data>
+  <data name="Share_Reach" xml:space="preserve"><value>Who can use this</value></data>
+  <data name="Share_ReachRequired" xml:space="preserve"><value>Pick who can use this</value></data>
+  <data name="Share_ReachAnyone" xml:space="preserve"><value>Anyone signed in who has the link</value></data>
+  <data name="Share_ReachRecipients" xml:space="preserve"><value>Only these users</value></data>
+  <data name="Share_ReachTenants" xml:space="preserve"><value>Only members of these tenants</value></data>
+  <data name="Share_ReachAnyoneWarning" xml:space="preserve"><value>Anyone with an account gets in, no matter which tenant they belong to. They work inside this tenant while they are here.</value></data>
+  <data name="Share_UserPlaceholder" xml:space="preserve"><value>User identification</value></data>
+  <data name="Share_TenantPlaceholder" xml:space="preserve"><value>Tenant</value></data>
+  <data name="Share_ReachMissing" xml:space="preserve"><value>Pick who can use this.</value></data>
+  <data name="Share_ReachNoUsers" xml:space="preserve"><value>Name at least one user, or pick another reach.</value></data>
+  <data name="Share_ReachNoTenants" xml:space="preserve"><value>Name at least one tenant, or pick another reach.</value></data>
+  <data name="Share_AlreadyShared" xml:space="preserve"><value>This place already has a share - showing it instead of issuing a second one.</value></data>
+  <data name="Share_LinkNotBuilt" xml:space="preserve"><value>Shared, but the link could not be built.</value></data>
+  <data name="Share_LinkLabel" xml:space="preserve"><value>Link</value></data>
+  <data name="Share_LinkHint" xml:space="preserve"><value>Anyone holding this link uses the share. Send it the way you would send a password.</value></data>
+  <data name="Share_ShowLink" xml:space="preserve"><value>Show link</value></data>
+  <data name="Share_ShowQr" xml:space="preserve"><value>Show QR code</value></data>
+  <data name="Share_QrAlt" xml:space="preserve"><value>QR code for this link</value></data>
+  <data name="Share_SavePng" xml:space="preserve"><value>Save as PNG</value></data>
+  <data name="Share_Print" xml:space="preserve"><value>Print</value></data>
+  <data name="Share_Hide" xml:space="preserve"><value>Hide</value></data>
+  <data name="Share_Renew" xml:space="preserve"><value>Renew</value></data>
+  <data name="Share_Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="Share_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Share_RenewTitle" xml:space="preserve"><value>Renew link</value></data>
+  <data name="Share_RenewConfirm" xml:space="preserve"><value>The current link and every printed QR code of it stop working. The share itself stays. Continue?</value></data>
+  <data name="Share_RenewFailed" xml:space="preserve"><value>Renewing the link failed - check the share under My shares.</value></data>
+  <data name="Share_Renewed" xml:space="preserve"><value>Link renewed - print or hand out the new one.</value></data>
+  <data name="Share_Copied" xml:space="preserve"><value>Link copied</value></data>
+  <data name="Share_CopyFailed" xml:space="preserve"><value>Could not copy - select the link and copy it yourself.</value></data>
+  <data name="Share_SaveFailed" xml:space="preserve"><value>Could not save the picture - use your browser to save it instead.</value></data>
+  <data name="Share_PrintFailed" xml:space="preserve"><value>Could not open the print dialog - save the picture and print it from there.</value></data>
+  <data name="Share_Expired" xml:space="preserve"><value>This link has expired.</value></data>
+  <data name="Share_ExpiresSoon" xml:space="preserve"><value>This link expires in less than a minute.</value></data>
+  <data name="Share_RemainingMinutes" xml:space="preserve"><value>This link works for another {0} minutes.</value></data>
+  <data name="Share_RemainingHours" xml:space="preserve"><value>This link works for another {0} hours.</value></data>
+  <data name="Share_RemainingDays" xml:space="preserve"><value>This link works for another {0} days.</value></data>
+  <data name="Share_QrNoLink" xml:space="preserve"><value>There is no link to turn into a QR code.</value></data>
+  <data name="Share_QrTooLong" xml:space="preserve"><value>This link is too long for a QR code. Temporary shares carry everything inside the link - hand this one over as a link, or create a stored share instead.</value></data>
+  <data name="Share_QrFailed" xml:space="preserve"><value>The QR code could not be built.</value></data>
+  <data name="Share_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Share_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Share_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Shares_PageTitle" xml:space="preserve"><value>Shares</value></data>
+  <data name="Shares_ColTitle" xml:space="preserve"><value>Title</value></data>
+  <data name="Shares_ColTemplate" xml:space="preserve"><value>Template</value></data>
+  <data name="Shares_ColPointsAt" xml:space="preserve"><value>Points at</value></data>
+  <data name="Shares_ColReach" xml:space="preserve"><value>Reach</value></data>
+  <data name="Shares_ColValid" xml:space="preserve"><value>Valid</value></data>
+  <data name="Shares_NoBinding" xml:space="preserve"><value>No object binding - this share covers everything its template's paths allow</value></data>
+  <data name="Shares_ChipAnonymous" xml:space="preserve"><value>no sign-in</value></data>
+  <data name="Shares_ChipEveryone" xml:space="preserve"><value>everyone</value></data>
+  <data name="Shares_Unlimited" xml:space="preserve"><value>unlimited</value></data>
+  <data name="Shares_ShowLink" xml:space="preserve"><value>Show link</value></data>
+  <data name="Shares_InvalidateTooltip" xml:space="preserve"><value>Invalidate every link sent so far</value></data>
+  <data name="Shares_LinkNotBuilt" xml:space="preserve"><value>The link could not be built.</value></data>
+  <data name="Shares_NotEditable" xml:space="preserve"><value>You may not edit this share.</value></data>
+  <data name="Shares_EditTitle" xml:space="preserve"><value>Edit share</value></data>
+  <data name="Shares_Updated" xml:space="preserve"><value>Share updated</value></data>
+  <data name="Shares_UpdateFailed" xml:space="preserve"><value>Failed to update</value></data>
+  <data name="Shares_InvalidateTitle" xml:space="preserve"><value>Invalidate links</value></data>
+  <data name="Shares_InvalidateConfirm" xml:space="preserve"><value>Every link to '{0}' sent so far stops working. The share itself stays. Continue?</value></data>
+  <data name="Shares_Invalidate" xml:space="preserve"><value>Invalidate</value></data>
+  <data name="Shares_Invalidated" xml:space="preserve"><value>Links invalidated - hand out the new one</value></data>
+  <data name="Shares_InvalidateFailed" xml:space="preserve"><value>Failed to invalidate</value></data>
+  <data name="Shares_DeleteTitle" xml:space="preserve"><value>Delete share</value></data>
+  <data name="Shares_DeleteConfirm" xml:space="preserve"><value>Really delete '{0}'?</value></data>
+  <data name="Shares_Deleted" xml:space="preserve"><value>Share deleted</value></data>
+  <data name="Shares_DeleteFailed" xml:space="preserve"><value>Failed to delete</value></data>
+  <data name="ShareEdit_PointsAtHelp" xml:space="preserve"><value>Fixed since the share was created - a link already handed out must not silently point somewhere else.</value></data>
+  <data name="ShareEdit_ValidFrom" xml:space="preserve"><value>Valid from</value></data>
+  <data name="ShareEdit_ValidUntil" xml:space="preserve"><value>Valid until</value></data>
+  <data name="ShareEdit_RecipientHelp" xml:space="preserve"><value>A note for your own records. It is not a proof of identity.</value></data>
+  <data name="ShareEdit_WhoMayUse" xml:space="preserve"><value>Who may use it</value></data>
+  <data name="ShareEdit_WhichTenants" xml:space="preserve"><value>Which tenants may use it</value></data>
+  <data name="ShareEdit_UserLabel" xml:space="preserve"><value>User label</value></data>
+  <data name="ShareEdit_TenantName" xml:space="preserve"><value>Tenant name</value></data>
+  <data name="ShareEdit_PublicWarning" xml:space="preserve"><value>With &lt;b&gt;%&lt;/b&gt; in a filter this share is open to everyone it can reach. Remove it unless that is exactly what you mean.</value></data>
+  <data name="ShareEdit_AnonymousWarning" xml:space="preserve"><value>Everyone holding the link gets in, without signing in. Give it an end date.</value></data>
+  <data name="ShareFilter_Value" xml:space="preserve"><value>Value</value></data>
+  <data name="ShareFilter_Everyone" xml:space="preserve"><value>everyone (%)</value></data>
+  <data name="ShareFilter_Anonymous" xml:space="preserve"><value>without signing in (##ANONYMOUS)</value></data>
+  <data name="ShareFilter_Empty" xml:space="preserve"><value>Nobody yet - a share without any filter can not be used by anyone.</value></data>
+  <data name="ShareFilter_ChipEveryone" xml:space="preserve"><value>everyone</value></data>
+  <data name="ShareFilter_ChipAnonymous" xml:space="preserve"><value>without signing in</value></data>
+  <data name="ShareLog_PageTitle" xml:space="preserve"><value>Share access</value></data>
+  <data name="ShareLog_DeniedOnly" xml:space="preserve"><value>Refusals only</value></data>
+  <data name="ShareLog_ColWhen" xml:space="preserve"><value>When</value></data>
+  <data name="ShareLog_ColResult" xml:space="preserve"><value>Result</value></data>
+  <data name="ShareLog_ColBy" xml:space="preserve"><value>By</value></data>
+  <data name="ShareLog_ColPath" xml:space="preserve"><value>Path</value></data>
+  <data name="ShareLog_ColShare" xml:space="preserve"><value>Share</value></data>
+  <data name="ShareLog_ColRecipient" xml:space="preserve"><value>Recipient</value></data>
+  <data name="ShareLog_TicketTooltip" xml:space="preserve"><value>An ad-hoc ticket - it is stored nowhere; this is the only trace</value></data>
+  <data name="ShareLog_Ticket" xml:space="preserve"><value>ticket</value></data>
+  <data name="ShareLog_Deny_Denied" xml:space="preserve"><value>Denied</value></data>
+  <data name="ShareLog_Deny_NotConfirmed" xml:space="preserve"><value>Not confirmed</value></data>
+</root>

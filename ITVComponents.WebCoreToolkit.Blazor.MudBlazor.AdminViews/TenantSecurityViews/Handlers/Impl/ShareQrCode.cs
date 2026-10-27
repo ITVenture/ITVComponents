@@ -37,7 +37,7 @@ internal static class ShareQrCode
         if (string.IsNullOrWhiteSpace(link))
         {
             logger.LogError("No QR code was built: the share link is empty.");
-            return ShareQrResult.Failed("There is no link to turn into a QR code.");
+            return ShareQrResult.Failed("Share_QrNoLink");
         }
 
         try
@@ -57,14 +57,12 @@ internal static class ShareQrCode
             // sehr langen Argumentwerten kommt ueberhaupt in die Naehe. Das ist dann eine Eigenschaft
             // dieser Freigabe und kein Fehlgriff des Benutzers - nachvollziehbar bleiben muss es trotzdem.
             logger.LogWarning(ex, "A share link of {Length} characters does not fit into a QR code.", link.Length);
-            return ShareQrResult.Failed(
-                "This link is too long for a QR code. Temporary shares carry everything inside the link - "
-                + "hand this one over as a link, or create a stored share instead.");
+            return ShareQrResult.Failed("Share_QrTooLong");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Could not build the QR code for a share link of {Length} characters.", link.Length);
-            return ShareQrResult.Failed("The QR code could not be built.");
+            return ShareQrResult.Failed("Share_QrFailed");
         }
     }
 
@@ -100,7 +98,7 @@ internal static class ShareQrCode
 }
 
 /// <summary>
-/// The outcome of building a QR code: a picture, or a sentence saying why there is none.
+/// The outcome of building a QR code: a picture, or the reason why there is none.
 /// </summary>
 internal sealed class ShareQrResult
 {
@@ -113,7 +111,10 @@ internal sealed class ShareQrResult
     /// <summary>Gets the PNG, Base64-encoded, or null when none was built.</summary>
     internal string? PngBase64 { get; }
 
-    /// <summary>Gets the reason why no picture was built, or null when one was.</summary>
+    /// <summary>
+    /// Gets the reason why no picture was built, as a key of <see cref="ShareMessages"/>, or null when one was.
+    /// The dialog translates it - this class runs without a request culture at hand.
+    /// </summary>
     internal string? Error { get; }
 
     /// <summary>Gets a value indicating whether there is a picture.</summary>

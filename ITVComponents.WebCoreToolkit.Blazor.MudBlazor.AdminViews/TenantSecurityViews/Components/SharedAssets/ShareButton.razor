@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
 
@@ -10,6 +11,7 @@
 @inject NavigationManager Navigation
 @inject IServiceProvider Services
 @inject ILogger<ShareButton> Logger
+@inject IStringLocalizer<ShareMessages> L
 
 @* "Hier teilen" - auf der Seite, auf der geteilt wird, und nicht in der Administration.
 
@@ -18,7 +20,7 @@
 
 @if (templates.Length != 0)
 {
-    <MudTooltip Text="Share this">
+    <MudTooltip Text="@L["Share_Tooltip"]">
         <MudIconButton Icon="@Icons.Material.Filled.Share" Size="@Size" OnClick="Open" />
     </MudTooltip>
 }
@@ -66,7 +68,7 @@
         catch (Exception ex)
         {
             // Wurde der Knopf waehrend des Wechsels abgeraeumt, ist das der Normalfall und kein Fehler.
-            Logger.LogDebug(ex, "Der Teilen-Knopf konnte nach dem Wechsel auf {Path} nicht neu gezeichnet werden.",
+            Logger.LogDebug(ex, "The share button could not be redrawn after navigating to {Path}.",
                 EffectivePath);
         }
     }
@@ -97,7 +99,7 @@
                 templates = Array.Empty<AssetTemplateInfo>();
             }
 
-            Logger.LogError(ex, "Konnte die teilbaren Vorlagen fuer {Path} nicht ermitteln.", EffectivePath);
+            Logger.LogError(ex, "Could not determine the shareable templates for {Path}.", EffectivePath);
         }
     }
 
@@ -152,13 +154,13 @@
             { d => d.Templates, templates },
             { d => d.OnShare, request => Handler.CreateAsync(currentUser!, request, Origin) }
         };
-        var dlg = await DialogService.ShowAsync<ShareDialog>("Share", parameters, EditDialogDefaults.Edit);
+        var dlg = await DialogService.ShowAsync<ShareDialog>(L["Share_DialogTitle"], parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
         if (result is { Canceled: false, Data: ShareResultViewModel created })
         {
             if (created is { Success: true, Created: false })
             {
-                Snackbar.Add("This place already has a share - showing it instead of issuing a second one.", Severity.Info);
+                Snackbar.Add(L["Share_AlreadyShared"], Severity.Info);
             }
 
             // Der Link kommt aus dem Ergebnis und wird nicht neu geholt - und er gehoert dorthin, wo man
@@ -200,7 +202,7 @@
         var link = result.Link;
         if (string.IsNullOrEmpty(link))
         {
-            Snackbar.Add("Shared, but the link could not be built.", Severity.Warning);
+            Snackbar.Add(L["Share_LinkNotBuilt"], Severity.Warning);
             return;
         }
 
@@ -220,7 +222,7 @@
             { d => d.QrFirst, QrFirst },
             { d => d.Renew, renew }
         };
-        await DialogService.ShowAsync<ShareLinkDialog>("Link", parameters, EditDialogDefaults.Edit);
+        await DialogService.ShowAsync<ShareLinkDialog>(L["Share_LinkDialogTitle"], parameters, EditDialogDefaults.Edit);
     }
 
     private async Task<string?> RenewAsync(string assetKey)

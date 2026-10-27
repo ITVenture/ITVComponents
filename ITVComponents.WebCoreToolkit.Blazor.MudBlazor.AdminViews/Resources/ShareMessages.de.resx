@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Share_Tooltip" xml:space="preserve"><value>Hier teilen</value></data>
+  <data name="Share_DialogTitle" xml:space="preserve"><value>Teilen</value></data>
+  <data name="Share_LinkDialogTitle" xml:space="preserve"><value>Link</value></data>
+  <data name="Share_QrTooltip" xml:space="preserve"><value>Diesen Link als QR-Code zeigen</value></data>
+  <data name="Share_CreateLink" xml:space="preserve"><value>Link erstellen</value></data>
+  <data name="Share_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="Share_NothingToShare" xml:space="preserve"><value>Hier gibt es nichts zu teilen.</value></data>
+  <data name="Share_WhatToShare" xml:space="preserve"><value>Was teilen</value></data>
+  <data name="Share_WhatToShareRequired" xml:space="preserve"><value>Wählen Sie, was geteilt werden soll</value></data>
+  <data name="Share_Title" xml:space="preserve"><value>Titel</value></data>
+  <data name="Share_TitleRequired" xml:space="preserve"><value>Ein Titel ist erforderlich</value></data>
+  <data name="Share_TitleHelp" xml:space="preserve"><value>Das sieht der Empfänger, und daran erkennen Sie die Freigabe später wieder.</value></data>
+  <data name="Share_ArgumentKnownHelp" xml:space="preserve"><value>Von der Seite übernommen, die Sie teilen.</value></data>
+  <data name="Share_ArgumentRequired" xml:space="preserve"><value>{0} ist erforderlich</value></data>
+  <data name="Share_Recipient" xml:space="preserve"><value>Empfänger</value></data>
+  <data name="Share_RecipientHelp" xml:space="preserve"><value>Optional, für Ihre eigenen Unterlagen. Eine Notiz, kein Identitätsnachweis.</value></data>
+  <data name="Share_AdHoc" xml:space="preserve"><value>Temporär – nichts speichern</value></data>
+  <data name="Share_Lifetime" xml:space="preserve"><value>Gültig für (Minuten)</value></data>
+  <data name="Share_LifetimeHelp" xml:space="preserve"><value>Leer gilt das Maximum der Vorlage, das zugleich die Obergrenze ist.</value></data>
+  <data name="Share_AdHocInfo" xml:space="preserve"><value>Es wird nichts gespeichert: die ganze Freigabe steckt verschlüsselt im Link. Sie lässt sich nicht einzeln zurückziehen – sie endet von selbst.</value></data>
+  <data name="Share_Anonymous" xml:space="preserve"><value>Ohne Anmeldung nutzbar</value></data>
+  <data name="Share_AnonymousWarning" xml:space="preserve"><value>Wer diesen Link hat, kommt hinein. Begrenzen Sie seine Gültigkeit und behandeln Sie ihn wie ein Passwort.</value></data>
+  <data name="Share_Reach" xml:space="preserve"><value>Wer darf das nutzen</value></data>
+  <data name="Share_ReachRequired" xml:space="preserve"><value>Wählen Sie, wer das nutzen darf</value></data>
+  <data name="Share_ReachAnyone" xml:space="preserve"><value>Alle Angemeldeten, die den Link haben</value></data>
+  <data name="Share_ReachRecipients" xml:space="preserve"><value>Nur diese Benutzer</value></data>
+  <data name="Share_ReachTenants" xml:space="preserve"><value>Nur Mitglieder dieser Mandanten</value></data>
+  <data name="Share_ReachAnyoneWarning" xml:space="preserve"><value>Jede Person mit einem Konto kommt hinein, egal zu welchem Mandanten sie gehört. Solange sie hier ist, arbeitet sie in diesem Mandanten.</value></data>
+  <data name="Share_UserPlaceholder" xml:space="preserve"><value>Benutzerkennung</value></data>
+  <data name="Share_TenantPlaceholder" xml:space="preserve"><value>Mandant</value></data>
+  <data name="Share_ReachMissing" xml:space="preserve"><value>Wählen Sie, wer das nutzen darf.</value></data>
+  <data name="Share_ReachNoUsers" xml:space="preserve"><value>Geben Sie mindestens einen Benutzer an oder wählen Sie eine andere Reichweite.</value></data>
+  <data name="Share_ReachNoTenants" xml:space="preserve"><value>Geben Sie mindestens einen Mandanten an oder wählen Sie eine andere Reichweite.</value></data>
+  <data name="Share_AlreadyShared" xml:space="preserve"><value>Für diese Stelle besteht bereits eine Freigabe – sie wird angezeigt, statt eine zweite auszustellen.</value></data>
+  <data name="Share_LinkNotBuilt" xml:space="preserve"><value>Geteilt, aber der Link konnte nicht erstellt werden.</value></data>
+  <data name="Share_LinkLabel" xml:space="preserve"><value>Link</value></data>
+  <data name="Share_LinkHint" xml:space="preserve"><value>Wer diesen Link hat, nutzt die Freigabe. Verschicken Sie ihn so, wie Sie ein Passwort verschicken würden.</value></data>
+  <data name="Share_ShowLink" xml:space="preserve"><value>Link anzeigen</value></data>
+  <data name="Share_ShowQr" xml:space="preserve"><value>QR-Code anzeigen</value></data>
+  <data name="Share_QrAlt" xml:space="preserve"><value>QR-Code für diesen Link</value></data>
+  <data name="Share_SavePng" xml:space="preserve"><value>Als PNG speichern</value></data>
+  <data name="Share_Print" xml:space="preserve"><value>Drucken</value></data>
+  <data name="Share_Hide" xml:space="preserve"><value>Ausblenden</value></data>
+  <data name="Share_Renew" xml:space="preserve"><value>Erneuern</value></data>
+  <data name="Share_Copy" xml:space="preserve"><value>Kopieren</value></data>
+  <data name="Share_Close" xml:space="preserve"><value>Schliessen</value></data>
+  <data name="Share_RenewTitle" xml:space="preserve"><value>Link erneuern</value></data>
+  <data name="Share_RenewConfirm" xml:space="preserve"><value>Der aktuelle Link und jeder ausgedruckte QR-Code davon funktionieren danach nicht mehr. Die Freigabe selbst bleibt bestehen. Fortfahren?</value></data>
+  <data name="Share_RenewFailed" xml:space="preserve"><value>Der Link konnte nicht erneuert werden – prüfen Sie die Freigabe unter «Meine Freigaben».</value></data>
+  <data name="Share_Renewed" xml:space="preserve"><value>Link erneuert – drucken oder verteilen Sie den neuen.</value></data>
+  <data name="Share_Copied" xml:space="preserve"><value>Link kopiert</value></data>
+  <data name="Share_CopyFailed" xml:space="preserve"><value>Kopieren nicht möglich – markieren Sie den Link und kopieren Sie ihn selbst.</value></data>
+  <data name="Share_SaveFailed" xml:space="preserve"><value>Das Bild konnte nicht gespeichert werden – speichern Sie es stattdessen über den Browser.</value></data>
+  <data name="Share_PrintFailed" xml:space="preserve"><value>Der Druckdialog konnte nicht geöffnet werden – speichern Sie das Bild und drucken Sie es von dort.</value></data>
+  <data name="Share_Expired" xml:space="preserve"><value>Dieser Link ist abgelaufen.</value></data>
+  <data name="Share_ExpiresSoon" xml:space="preserve"><value>Dieser Link läuft in weniger als einer Minute ab.</value></data>
+  <data name="Share_RemainingMinutes" xml:space="preserve"><value>Dieser Link gilt noch {0} Minuten.</value></data>
+  <data name="Share_RemainingHours" xml:space="preserve"><value>Dieser Link gilt noch {0} Stunden.</value></data>
+  <data name="Share_RemainingDays" xml:space="preserve"><value>Dieser Link gilt noch {0} Tage.</value></data>
+  <data name="Share_QrNoLink" xml:space="preserve"><value>Es gibt keinen Link, aus dem ein QR-Code entstehen könnte.</value></data>
+  <data name="Share_QrTooLong" xml:space="preserve"><value>Dieser Link ist zu lang für einen QR-Code. Temporäre Freigaben tragen alles im Link – geben Sie ihn als Link weiter oder erstellen Sie stattdessen eine gespeicherte Freigabe.</value></data>
+  <data name="Share_QrFailed" xml:space="preserve"><value>Der QR-Code konnte nicht erstellt werden.</value></data>
+  <data name="Share_Save" xml:space="preserve"><value>Speichern</value></data>
+  <data name="Share_Delete" xml:space="preserve"><value>Löschen</value></data>
+  <data name="Share_Edit" xml:space="preserve"><value>Bearbeiten</value></data>
+  <data name="Shares_PageTitle" xml:space="preserve"><value>Freigaben</value></data>
+  <data name="Shares_ColTitle" xml:space="preserve"><value>Titel</value></data>
+  <data name="Shares_ColTemplate" xml:space="preserve"><value>Vorlage</value></data>
+  <data name="Shares_ColPointsAt" xml:space="preserve"><value>Zeigt auf</value></data>
+  <data name="Shares_ColReach" xml:space="preserve"><value>Reichweite</value></data>
+  <data name="Shares_ColValid" xml:space="preserve"><value>Gültig</value></data>
+  <data name="Shares_NoBinding" xml:space="preserve"><value>Keine Objektbindung – diese Freigabe deckt alles ab, was die Pfade ihrer Vorlage zulassen</value></data>
+  <data name="Shares_ChipAnonymous" xml:space="preserve"><value>ohne Anmeldung</value></data>
+  <data name="Shares_ChipEveryone" xml:space="preserve"><value>alle</value></data>
+  <data name="Shares_Unlimited" xml:space="preserve"><value>unbefristet</value></data>
+  <data name="Shares_ShowLink" xml:space="preserve"><value>Link anzeigen</value></data>
+  <data name="Shares_InvalidateTooltip" xml:space="preserve"><value>Alle bisher verschickten Links ungültig machen</value></data>
+  <data name="Shares_LinkNotBuilt" xml:space="preserve"><value>Der Link konnte nicht erstellt werden.</value></data>
+  <data name="Shares_NotEditable" xml:space="preserve"><value>Sie dürfen diese Freigabe nicht bearbeiten.</value></data>
+  <data name="Shares_EditTitle" xml:space="preserve"><value>Freigabe bearbeiten</value></data>
+  <data name="Shares_Updated" xml:space="preserve"><value>Freigabe aktualisiert</value></data>
+  <data name="Shares_UpdateFailed" xml:space="preserve"><value>Aktualisieren fehlgeschlagen</value></data>
+  <data name="Shares_InvalidateTitle" xml:space="preserve"><value>Links ungültig machen</value></data>
+  <data name="Shares_InvalidateConfirm" xml:space="preserve"><value>Jeder bisher verschickte Link auf «{0}» funktioniert danach nicht mehr. Die Freigabe selbst bleibt bestehen. Fortfahren?</value></data>
+  <data name="Shares_Invalidate" xml:space="preserve"><value>Ungültig machen</value></data>
+  <data name="Shares_Invalidated" xml:space="preserve"><value>Links ungültig gemacht – geben Sie den neuen weiter</value></data>
+  <data name="Shares_InvalidateFailed" xml:space="preserve"><value>Ungültig machen fehlgeschlagen</value></data>
+  <data name="Shares_DeleteTitle" xml:space="preserve"><value>Freigabe löschen</value></data>
+  <data name="Shares_DeleteConfirm" xml:space="preserve"><value>«{0}» wirklich löschen?</value></data>
+  <data name="Shares_Deleted" xml:space="preserve"><value>Freigabe gelöscht</value></data>
+  <data name="Shares_DeleteFailed" xml:space="preserve"><value>Löschen fehlgeschlagen</value></data>
+  <data name="ShareEdit_PointsAtHelp" xml:space="preserve"><value>Seit dem Anlegen fest – ein bereits verteilter Link darf nicht stillschweigend auf etwas anderes zeigen.</value></data>
+  <data name="ShareEdit_ValidFrom" xml:space="preserve"><value>Gültig ab</value></data>
+  <data name="ShareEdit_ValidUntil" xml:space="preserve"><value>Gültig bis</value></data>
+  <data name="ShareEdit_RecipientHelp" xml:space="preserve"><value>Eine Notiz für Ihre eigenen Unterlagen. Kein Identitätsnachweis.</value></data>
+  <data name="ShareEdit_WhoMayUse" xml:space="preserve"><value>Wer darf sie nutzen</value></data>
+  <data name="ShareEdit_WhichTenants" xml:space="preserve"><value>Welche Mandanten dürfen sie nutzen</value></data>
+  <data name="ShareEdit_UserLabel" xml:space="preserve"><value>Benutzerkennung</value></data>
+  <data name="ShareEdit_TenantName" xml:space="preserve"><value>Mandantenname</value></data>
+  <data name="ShareEdit_PublicWarning" xml:space="preserve"><value>Mit &lt;b&gt;%&lt;/b&gt; in einem Filter steht diese Freigabe allen offen, die sie erreichen kann. Entfernen Sie es, ausser genau das ist gewollt.</value></data>
+  <data name="ShareEdit_AnonymousWarning" xml:space="preserve"><value>Wer den Link hat, kommt ohne Anmeldung hinein. Geben Sie ihm ein Enddatum.</value></data>
+  <data name="ShareFilter_Value" xml:space="preserve"><value>Wert</value></data>
+  <data name="ShareFilter_Everyone" xml:space="preserve"><value>alle (%)</value></data>
+  <data name="ShareFilter_Anonymous" xml:space="preserve"><value>ohne Anmeldung (##ANONYMOUS)</value></data>
+  <data name="ShareFilter_Empty" xml:space="preserve"><value>Noch niemand – eine Freigabe ohne Filter kann niemand nutzen.</value></data>
+  <data name="ShareFilter_ChipEveryone" xml:space="preserve"><value>alle</value></data>
+  <data name="ShareFilter_ChipAnonymous" xml:space="preserve"><value>ohne Anmeldung</value></data>
+  <data name="ShareLog_PageTitle" xml:space="preserve"><value>Zugriffe auf Freigaben</value></data>
+  <data name="ShareLog_DeniedOnly" xml:space="preserve"><value>Nur Abweisungen</value></data>
+  <data name="ShareLog_ColWhen" xml:space="preserve"><value>Wann</value></data>
+  <data name="ShareLog_ColResult" xml:space="preserve"><value>Ergebnis</value></data>
+  <data name="ShareLog_ColBy" xml:space="preserve"><value>Von</value></data>
+  <data name="ShareLog_ColPath" xml:space="preserve"><value>Pfad</value></data>
+  <data name="ShareLog_ColShare" xml:space="preserve"><value>Freigabe</value></data>
+  <data name="ShareLog_ColRecipient" xml:space="preserve"><value>Empfänger</value></data>
+  <data name="ShareLog_TicketTooltip" xml:space="preserve"><value>Ein Ad-hoc-Ticket – es ist nirgends gespeichert; dies ist die einzige Spur</value></data>
+  <data name="ShareLog_Ticket" xml:space="preserve"><value>Ticket</value></data>
+  <data name="ShareLog_Deny_Denied" xml:space="preserve"><value>Abgewiesen</value></data>
+  <data name="ShareLog_Deny_NotConfirmed" xml:space="preserve"><value>Nicht bestätigt</value></data>
+</root>

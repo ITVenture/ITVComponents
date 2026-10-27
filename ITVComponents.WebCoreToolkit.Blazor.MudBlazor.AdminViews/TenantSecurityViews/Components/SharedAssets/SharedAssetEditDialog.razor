@@ -5,41 +5,43 @@
    umbiegen zu koennen hiesse, einen verschickten Link stillschweigend auf ein anderes Objekt zu
    richten. *@
 
-<EditDialogShell Model="Model" IsCreate="false">
-    <MudTextField @bind-Value="Model.AssetTitle" Label="Title" Required="true" RequiredError="A title is required"
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<ShareMessages> L
+
+<EditDialogShell Model="Model" IsCreate="false" SaveLabel="@L["Share_Save"]" CancelLabel="@L["Share_Cancel"]">
+    <MudTextField @bind-Value="Model.AssetTitle" Label="@L["Share_Title"]" Required="true" RequiredError="@L["Share_TitleRequired"]"
                   MaxLength="512" />
 
     @if (!string.IsNullOrEmpty(Model.ArgumentSummary))
     {
-        <MudTextField T="string" Value="@Model.ArgumentSummary" Label="Points at" ReadOnly="true" Class="mt-2"
-                      HelperText="Fixed since the share was created - a link already handed out must not silently point somewhere else." />
+        <MudTextField T="string" Value="@Model.ArgumentSummary" Label="@L["Shares_ColPointsAt"]" ReadOnly="true" Class="mt-2"
+                      HelperText="@L["ShareEdit_PointsAtHelp"]" />
     }
 
-    <MudDatePicker @bind-Date="Model.NotBefore" Label="Valid from" Clearable="true" Class="mt-2" />
-    <MudDatePicker @bind-Date="Model.NotAfter" Label="Valid until" Clearable="true" />
+    <MudDatePicker @bind-Date="Model.NotBefore" Label="@L["ShareEdit_ValidFrom"]" Clearable="true" Class="mt-2" />
+    <MudDatePicker @bind-Date="Model.NotAfter" Label="@L["ShareEdit_ValidUntil"]" Clearable="true" />
 
-    <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
-                  HelperText="A note for your own records. It is not a proof of identity." />
+    <MudTextField @bind-Value="Model.RecipientLabel" Label="@L["Share_Recipient"]" MaxLength="256" Class="mt-2"
+                  HelperText="@L["ShareEdit_RecipientHelp"]" />
 
-    <MudText Typo="Typo.subtitle2" Class="mt-4">Who may use it</MudText>
-    <FilterList Values="Model.UserFilters" Placeholder="User label"
+    <MudText Typo="Typo.subtitle2" Class="mt-4">@L["ShareEdit_WhoMayUse"]</MudText>
+    <FilterList Values="Model.UserFilters" Placeholder="@L["ShareEdit_UserLabel"]"
                 AllowAnonymous="true" />
 
-    <MudText Typo="Typo.subtitle2" Class="mt-4">Which tenants may use it</MudText>
-    <FilterList Values="Model.TenantFilters" Placeholder="Tenant name"
+    <MudText Typo="Typo.subtitle2" Class="mt-4">@L["ShareEdit_WhichTenants"]</MudText>
+    <FilterList Values="Model.TenantFilters" Placeholder="@L["ShareEdit_TenantName"]"
                 AllowAnonymous="false" />
 
     @if (IsPublic)
     {
         <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
-            With <b>%</b> in a filter this share is open to everyone it can reach. Remove it unless that
-            is exactly what you mean.
+            @((MarkupString)L["ShareEdit_PublicWarning"].Value)
         </MudAlert>
     }
     else if (IsAnonymous)
     {
         <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
-            Everyone holding the link gets in, without signing in. Give it an end date.
+            @L["ShareEdit_AnonymousWarning"]
         </MudAlert>
     }
 </EditDialogShell>

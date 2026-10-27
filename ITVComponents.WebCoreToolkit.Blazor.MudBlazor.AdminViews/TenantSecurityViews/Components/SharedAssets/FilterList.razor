@@ -5,8 +5,11 @@
    darin ergibt einen Filter, der auf niemanden passt - also eine Freigabe, die stillschweigend
    niemanden hereinlaesst. *@
 
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<ShareMessages> L
+
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-1">
-    <MudTextField T="string" @bind-Value="entry" Label="@Placeholder" Immediate="true"
+    <MudTextField T="string" @bind-Value="entry" Label="@(Placeholder ?? L["ShareFilter_Value"])" Immediate="true"
                   OnKeyDown="@(e => { if (e.Key == "Enter") Add(); })" />
     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="Add" />
 </MudStack>
@@ -14,13 +17,13 @@
 <MudStack Row="true" Spacing="1" Class="mb-1" Wrap="Wrap.Wrap">
     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
                OnClick="@(() => AddValue(EveryonePlaceholder))">
-        everyone (%)
+        @L["ShareFilter_Everyone"]
     </MudButton>
     @if (AllowAnonymous)
     {
         <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
                    OnClick="@(() => AddValue(AnonymousPlaceholder))">
-            without signing in (##ANONYMOUS)
+            @L["ShareFilter_Anonymous"]
         </MudButton>
     }
 </MudStack>
@@ -28,7 +31,7 @@
 @if (Values.Count == 0)
 {
     <MudText Typo="Typo.body2">
-        Nobody yet - a share without any filter can not be used by anyone.
+        @L["ShareFilter_Empty"]
     </MudText>
 }
 else
@@ -55,7 +58,8 @@ else
     public const string EveryonePlaceholder = "%";
 
     [Parameter, EditorRequired] public List<string> Values { get; set; } = default!;
-    [Parameter] public string Placeholder { get; set; } = "Value";
+    /// <summary>Die Beschriftung des Eingabefelds. Leer = der uebersetzte Standardtext.</summary>
+    [Parameter] public string? Placeholder { get; set; }
 
     /// <summary>Ob der anonyme Platzhalter hier ueberhaupt sinnvoll ist (nur bei Benutzerfiltern).</summary>
     [Parameter] public bool AllowAnonymous { get; set; }
@@ -88,10 +92,10 @@ else
         _ => Color.Default
     };
 
-    private static string Label(string value) => value switch
+    private string Label(string value) => value switch
     {
-        EveryonePlaceholder => "everyone",
-        AnonymousPlaceholder => "without signing in",
+        EveryonePlaceholder => L["ShareFilter_ChipEveryone"],
+        AnonymousPlaceholder => L["ShareFilter_ChipAnonymous"],
         _ => value
     };
 }

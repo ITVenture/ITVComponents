@@ -1,19 +1,21 @@
-﻿@using Microsoft.Extensions.Logging
+﻿@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.Security.SharedAssets
 
 @inject ILogger<ShareDialog> Logger
+@inject IStringLocalizer<ShareMessages> L
 
-<EditDialogShell Model="Model" IsCreate="true" CreateLabel="Create link" OnValidated="Share" Result="@(() => created)" Busy="@busy">
+<EditDialogShell Model="Model" IsCreate="true" CreateLabel="@L["Share_CreateLink"]" CancelLabel="@L["Share_Cancel"]" OnValidated="Share" Result="@(() => created)" Busy="@busy">
     @if (Templates.Length == 0)
     {
-        <MudAlert Severity="Severity.Info">There is nothing to share here.</MudAlert>
+        <MudAlert Severity="Severity.Info">@L["Share_NothingToShare"]</MudAlert>
     }
     else
     {
         @* Value/ValueChanged statt @bind-Value: die Auswahl loescht zusaetzlich die Fehlermeldung, und
            @bind-Value erzeugt selbst ein ValueChanged - beides zusammen ist ein Doppelparameter. *@
-        <MudSelect T="string" Value="@Model.TemplateKey" ValueChanged="TemplateChanged" Label="What to share"
-                   Required="true" RequiredError="Pick what to share">
+        <MudSelect T="string" Value="@Model.TemplateKey" ValueChanged="TemplateChanged" Label="@L["Share_WhatToShare"]"
+                   Required="true" RequiredError="@L["Share_WhatToShareRequired"]">
             @foreach (var template in Templates)
             {
                 <MudSelectItem T="string" Value="@template.TemplateKey">@template.AssetTemplateTitle</MudSelectItem>
@@ -29,9 +31,9 @@
 
         @if (Options.Title.Shown)
         {
-            <MudTextField @bind-Value="Model.Title" Label="Title" Required="true" RequiredError="A title is required"
+            <MudTextField @bind-Value="Model.Title" Label="@L["Share_Title"]" Required="true" RequiredError="@L["Share_TitleRequired"]"
                           MaxLength="512" Class="mt-2"
-                          HelperText="What the recipient sees, and what you will recognise it by later." />
+                          HelperText="@L["Share_TitleHelp"]" />
         }
 
         @* Die Felder kommen aus der Vorlage, in IHRER Reihenfolge. Was die Stelle ueber sich selbst
@@ -48,49 +50,48 @@
                 <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
                               Value="@GetArgument(name)" ReadOnly="true" Variant="Variant.Filled"
                               Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Link"
-                              HelperText="Taken from the page you are sharing." />
+                              HelperText="@L["Share_ArgumentKnownHelp"]" />
             }
             else
             {
                 <MudTextField T="string" Label="@($"{name} ({argument.Type})")" Class="mt-2"
-                              Required="@argument.Required" RequiredError="@($"{name} is required")"
+                              Required="@argument.Required" RequiredError="@L["Share_ArgumentRequired", name]"
                               Value="@GetArgument(name)" ValueChanged="@(v => SetArgument(name, v))" />
             }
         }
 
         @if (Options.Recipient.Shown)
         {
-            <MudTextField @bind-Value="Model.RecipientLabel" Label="Recipient" MaxLength="256" Class="mt-2"
-                          HelperText="Optional, for your own records. It is a note, not a proof of identity." />
+            <MudTextField @bind-Value="Model.RecipientLabel" Label="@L["Share_Recipient"]" MaxLength="256" Class="mt-2"
+                          HelperText="@L["Share_RecipientHelp"]" />
         }
 
         @if (Options.AdHoc.Shown)
         {
-            <MudSwitch T="bool" @bind-Value="Model.AdHoc" Label="Temporary - store nothing" Color="Color.Warning"
+            <MudSwitch T="bool" @bind-Value="Model.AdHoc" Label="@L["Share_AdHoc"]" Color="Color.Warning"
                        Class="mt-2" />
         }
         @if (Model.AdHoc)
         {
             @if (Options.Lifetime.Shown)
             {
-                <MudNumericField T="int?" @bind-Value="Model.LifetimeMinutes" Label="Valid for (minutes)" Min="1"
-                                 HelperText="Empty uses the template's maximum, which is also the upper limit." />
+                <MudNumericField T="int?" @bind-Value="Model.LifetimeMinutes" Label="@L["Share_Lifetime"]" Min="1"
+                                 HelperText="@L["Share_LifetimeHelp"]" />
             }
             <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">
-                Nothing is stored: the whole share travels encrypted inside the link. It can not be taken
-                back one by one - it ends on its own.
+                @L["Share_AdHocInfo"]
             </MudAlert>
         }
 
         @if (Options.Anonymous.Shown)
         {
-            <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="Works without signing in" Color="Color.Warning"
+            <MudSwitch T="bool" @bind-Value="Model.Anonymous" Label="@L["Share_Anonymous"]" Color="Color.Warning"
                        Class="mt-2" />
         }
         @if (Model.Anonymous)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
-                Everyone holding this link gets in. Give it a validity window and treat it like a password.
+                @L["Share_AnonymousWarning"]
             </MudAlert>
         }
 
@@ -99,27 +100,26 @@
            nicht: es wird nirgends gespeichert, seine Rechte kommen aus der Vorlage. *@
         @if (!Model.Anonymous && !Model.AdHoc && Options.Reach.Shown)
         {
-            <MudSelect T="ShareReach?" Value="@Model.Reach" ValueChanged="ReachChanged" Label="Who can use this"
-                       Required="true" RequiredError="Pick who can use this" Class="mt-2">
-                <MudSelectItem T="ShareReach?" Value="@(ShareReach.AnyoneSignedIn)">Anyone signed in who has the link</MudSelectItem>
-                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Recipients)">Only these users</MudSelectItem>
-                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Tenants)">Only members of these tenants</MudSelectItem>
+            <MudSelect T="ShareReach?" Value="@Model.Reach" ValueChanged="ReachChanged" Label="@L["Share_Reach"]"
+                       Required="true" RequiredError="@L["Share_ReachRequired"]" Class="mt-2">
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.AnyoneSignedIn)">@L["Share_ReachAnyone"]</MudSelectItem>
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Recipients)">@L["Share_ReachRecipients"]</MudSelectItem>
+                <MudSelectItem T="ShareReach?" Value="@(ShareReach.Tenants)">@L["Share_ReachTenants"]</MudSelectItem>
             </MudSelect>
 
             @if (Model.Reach == ShareReach.AnyoneSignedIn)
             {
                 <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
-                    Anyone with an account gets in, no matter which tenant they belong to. They work inside
-                    this tenant while they are here.
+                    @L["Share_ReachAnyoneWarning"]
                 </MudAlert>
             }
             else if (Model.Reach == ShareReach.Recipients)
             {
-                <FilterList Values="Model.UserFilters" Placeholder="User identification" />
+                <FilterList Values="Model.UserFilters" Placeholder="@L["Share_UserPlaceholder"]" />
             }
             else if (Model.Reach == ShareReach.Tenants)
             {
-                <FilterList Values="Model.TenantFilters" Placeholder="Tenant" />
+                <FilterList Values="Model.TenantFilters" Placeholder="@L["Share_TenantPlaceholder"]" />
             }
         }
 
@@ -316,9 +316,9 @@
 
         return Model.Reach switch
         {
-            null => "Pick who can use this.",
-            ShareReach.Recipients when Model.UserFilters.Count == 0 => "Name at least one user, or pick another reach.",
-            ShareReach.Tenants when Model.TenantFilters.Count == 0 => "Name at least one tenant, or pick another reach.",
+            null => L["Share_ReachMissing"].Value,
+            ShareReach.Recipients when Model.UserFilters.Count == 0 => L["Share_ReachNoUsers"].Value,
+            ShareReach.Tenants when Model.TenantFilters.Count == 0 => L["Share_ReachNoTenants"].Value,
             _ => null
         };
     }

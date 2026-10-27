@@ -3,13 +3,15 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
 
 @inject IAssetAccessLogAdminHandler Handler
 @inject AuthenticationStateProvider AuthState
+@inject IStringLocalizer<ShareMessages> L
 
-<PageTitle>Share access</PageTitle>
+<PageTitle>@L["ShareLog_PageTitle"]</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">Share access</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@L["ShareLog_PageTitle"]</MudText>
 
 @if (currentUser is null)
 {
@@ -25,17 +27,17 @@ else
                  Hover="true"
                  Dense="true">
         <ToolBarContent>
-            <CrudGridToolbar OnRefresh="ReloadGrid" Title="Share access" @bind-Search="search" OnSearch="ReloadGrid">
+            <CrudGridToolbar OnRefresh="ReloadGrid" Title="@L["ShareLog_PageTitle"]" @bind-Search="search" OnSearch="ReloadGrid">
                 @* Der Filter, den man in einem Zugriffsprotokoll fast immer zuerst will. *@
-                <MudSwitch T="bool" Value="@deniedOnly" ValueChanged="ToggleDenied" Label="Refusals only"
+                <MudSwitch T="bool" Value="@deniedOnly" ValueChanged="ToggleDenied" Label="@L["ShareLog_DeniedOnly"]"
                            Color="Color.Error" Class="ml-4" />
             </CrudGridToolbar>
         </ToolBarContent>
         <Columns>
-            <TemplateColumn T="AssetAccessViewModel" Title="When" Sortable="false">
+            <TemplateColumn T="AssetAccessViewModel" Title="@L["ShareLog_ColWhen"]" Sortable="false">
                 <CellTemplate>@context.Item.Created.ToLocalTime().ToString("g")</CellTemplate>
             </TemplateColumn>
-            <TemplateColumn T="AssetAccessViewModel" Title="Result" Sortable="false">
+            <TemplateColumn T="AssetAccessViewModel" Title="@L["ShareLog_ColResult"]" Sortable="false">
                 <CellTemplate>
                     @if (context.Item.Granted)
                     {
@@ -47,20 +49,20 @@ else
                            etwas Fremdes gezeigt" - nur das zweite ist ein Alarmzeichen. *@
                         <MudChip T="string" Size="Size.Small"
                                  Color="@(context.Item.DenyReason == "Denied" ? Color.Error : Color.Warning)">
-                            @context.Item.DenyReason
+                            @DenyLabel(context.Item.DenyReason)
                         </MudChip>
                     }
                 </CellTemplate>
             </TemplateColumn>
-            <PropertyColumn Property="x => x.AccessedBy" Title="By" />
-            <PropertyColumn Property="x => x.RequestPath" Title="Path" />
-            <PropertyColumn Property="x => x.ArgumentSummary" Title="Points at" />
-            <TemplateColumn T="AssetAccessViewModel" Title="Share" Sortable="false">
+            <PropertyColumn Property="x => x.AccessedBy" Title="@L["ShareLog_ColBy"]" />
+            <PropertyColumn Property="x => x.RequestPath" Title="@L["ShareLog_ColPath"]" />
+            <PropertyColumn Property="x => x.ArgumentSummary" Title="@L["Shares_ColPointsAt"]" />
+            <TemplateColumn T="AssetAccessViewModel" Title="@L["ShareLog_ColShare"]" Sortable="false">
                 <CellTemplate>
                     @if (!string.IsNullOrEmpty(context.Item.TicketNonce))
                     {
-                        <MudTooltip Text="An ad-hoc ticket - it is stored nowhere; this is the only trace">
-                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">ticket</MudChip>
+                        <MudTooltip Text="@L["ShareLog_TicketTooltip"]">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">@L["ShareLog_Ticket"]</MudChip>
                         </MudTooltip>
                     }
                     else
@@ -69,7 +71,7 @@ else
                     }
                 </CellTemplate>
             </TemplateColumn>
-            <PropertyColumn Property="x => x.RecipientLabel" Title="Recipient" />
+            <PropertyColumn Property="x => x.RecipientLabel" Title="@L["ShareLog_ColRecipient"]" />
         </Columns>
         <PagerContent>
             <MudDataGridPager T="AssetAccessViewModel" />
@@ -102,6 +104,21 @@ else
     private async Task ReloadGrid()
     {
         if (grid is not null) await grid.ReloadServerData();
+    }
+
+    /// <summary>
+    /// Der Ablehnungsgrund, so wie ihn der Benutzer lesen kann. Die Spalte haelt den rohen Wert - ein Grund,
+    /// den spaeter jemand hinzufuegt und hier noch nicht uebersetzt ist, erscheint roh statt als Schluessel.
+    /// </summary>
+    private string? DenyLabel(string? reason)
+    {
+        if (string.IsNullOrEmpty(reason))
+        {
+            return reason;
+        }
+
+        var text = L[$"ShareLog_Deny_{reason}"];
+        return text.ResourceNotFound ? reason : text.Value;
     }
 
     private async Task ToggleDenied(bool value)
