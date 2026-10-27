@@ -1623,7 +1623,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             string tenantName;
             using (var lease = LeaseContext())
             {
-                tmp = GetExternalOAuthService(name, out _, out _, out tenantName, true, lease.Context).Copy();
+                // Unbekannter Name: null, wie im flachen Repository - nicht eine NullReferenceException aus Copy().
+                tmp = GetExternalOAuthService(name, out _, out _, out tenantName, true, lease.Context)?.Copy();
+            }
+
+            if (tmp == null)
+            {
+                return null;
             }
             if (decryptSecret && !string.IsNullOrEmpty(tmp.ClientSecret))
             {
@@ -1765,7 +1771,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var securityContext = lease.Context;
             using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
                 new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-            var svc = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, false, securityContext).Copy();
+            var found = GetExternalOAuthService(connectionName, out var serviceId, out var tenantId, out var tenantName, false, securityContext);
+            if (found == null)
+            {
+                // Wie im flachen Repository: ein unbekannter Dienst hat kein Token - unabhaengig von throwIfNull.
+                throw new InvalidOperationException($"No appropriate Token found for {connectionName}: the external service is not known in the current tenant.");
+            }
+
+            var svc = found.Copy();
             if (!string.IsNullOrEmpty(svc.ClientSecret))
             {
                 if (svc.Global)
@@ -2082,6 +2095,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private ExternalServiceConnection TryRegisterService(string uniqueName, TExternalOAuthService serviceData, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
+            if (serviceData == null)
+            {
+                // Nichts gefunden: nichts puffern. Ein Puffereintrag ohne Dienst warf beim Ablegen (svc.Service ist null)
+                // und haette, abgelegt, den Namen bis zum Ende des Bereichs als "unbekannt" festgehalten.
+                return null;
+            }
+
             var dc = bufferedServices.GetOrAdd(securityContext.CurrentTenantName,
                 n => new ConcurrentDictionary<string, ExternalOAuthServiceBufferInfo/*<TTenant, TWebPlugin, TWebPluginGenericParameter>*/>());
             var svcData = serviceData != null

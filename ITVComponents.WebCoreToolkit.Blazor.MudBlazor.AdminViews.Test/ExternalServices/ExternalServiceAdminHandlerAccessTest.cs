@@ -121,6 +121,19 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
         }
 
         [TestMethod]
+        public void TheTenantFilter_LetsGlobalServicesThrough_ButNoForeignOnes()
+        {
+            // Der Laufzeitweg (GetExternalService, GetBufferedToken) liest ohne Trust-Override - der Filter allein
+            // entscheidet, ob ein Mandant einen globalen Dienst (die App der Plattform) findet.
+            using var db = world.SignedInContext(Own);
+            Assert.IsTrue(db.FilterAvailable, "Without a signed-in user the filter does not apply - the test would prove nothing.");
+
+            var visible = db.ExternalOAuthServices.Select(n => n.UniqueConnectionName).OrderBy(n => n).ToArray();
+
+            Assert.AreEqual("global,own", string.Join(",", visible));
+        }
+
+        [TestMethod]
         public async Task ASecretParameter_IsStoredEncryptedAndNeverReadBack()
         {
             var handler = world.Handler(Own, Write);
@@ -336,6 +349,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
             public int ForeignLoginId { get; private set; }
 
             public ExternalServiceTestContext Context(string? tenant) => ExternalServiceTestContext.Build(databaseName, tenant);
+
+            /// <summary>Ein Kontext mit den Filtern der Anwendung und angemeldetem Benutzer - so liest die Laufzeit.</summary>
+            public ExternalServiceTestContext SignedInContext(string tenant) => ExternalServiceTestContext.BuildFiltered(databaseName, tenant);
 
             /// <summary>Ein Kontext ohne Mandantenfilter - zum Anlegen und Nachsehen, nicht fuer den Handler.</summary>
             public ExternalServiceTestContext Inspect()

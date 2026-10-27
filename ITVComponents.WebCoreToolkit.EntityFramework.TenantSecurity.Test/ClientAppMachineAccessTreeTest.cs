@@ -77,6 +77,29 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             CollectionAssert.Contains(perms, ServicePermission);
         }
 
+        // --- Externe Dienste: unbekannter Name -----------------------------------------------------
+
+        [TestMethod]
+        public void AnUnknownExternalService_IsNull_NotANullReference()
+        {
+            using var world = new World(dbName, TenantName, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+
+            Assert.IsNull(world.Repository.GetExternalService("does-not-exist"));
+            // Ein zweites Mal: ein unbekannter Name darf auch nicht als kaputter Puffereintrag liegen bleiben.
+            Assert.IsNull(world.Repository.GetExternalService("does-not-exist"));
+        }
+
+        [TestMethod]
+        public void AnUnknownExternalService_HasNoToken()
+        {
+            using var world = new World(dbName, TenantName, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                world.Repository.GetBufferedToken("does-not-exist", false, false, out _, out _));
+        }
+
         // --- Die Falle -------------------------------------------------------------------------
 
         [TestMethod]
@@ -131,7 +154,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             private readonly ServiceProvider services;
             private readonly TrustTarget trustTarget;
 
-            public World(string dbName, string currentTenant, TrustTarget trustTarget)
+            /// <param name="signedIn">
+            /// ob ein angemeldeter Benutzer da ist. Die Maschinen-Tests laufen ohne; die Pfade, die den Mandantenfilter
+            /// brauchen (<c>FilterAvailable</c>, etwa die externen Dienste), nur mit.
+            /// </param>
+            public World(string dbName, string currentTenant, TrustTarget trustTarget, bool signedIn = false)
             {
                 this.trustTarget = trustTarget;
                 var options = new DbContextOptionsBuilder<TreeTestContext>()
@@ -142,7 +169,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 // also alle Konstruktor-Abhaengigkeiten aufloesbar sein.
                 var sc = new ServiceCollection();
                 sc.AddSingleton<IPermissionScope>(new FixedScope(currentTenant));
-                sc.AddSingleton<IContextUserProvider>(new NoUser());
+                sc.AddSingleton<IContextUserProvider>(new NoUser(signedIn));
                 sc.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
                 sc.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
                 sc.AddSingleton(Microsoft.Extensions.Options.Options.Create(
@@ -301,7 +328,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
         private sealed class NoUser : IContextUserProvider
         {
-            public ClaimsPrincipal User { get; } = new(new ClaimsIdentity());
+            public NoUser(bool signedIn)
+                => User = new ClaimsPrincipal(signedIn
+                    ? new ClaimsIdentity(new[] { new Claim(System.Security.Claims.ClaimTypes.Name, "tester") }, "Test")
+                    : new ClaimsIdentity());
+
+            public ClaimsPrincipal User { get; }
 
             public IDictionary<string, object> RouteData { get; } = new Dictionary<string, object>();
 

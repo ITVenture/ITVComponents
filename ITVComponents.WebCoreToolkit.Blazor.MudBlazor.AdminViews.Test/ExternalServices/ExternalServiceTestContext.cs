@@ -12,7 +12,9 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
 using ITVComponents.WebCoreToolkit.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -39,6 +41,22 @@ using ClientAppAccess = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecur
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.ExternalServices
 {
+    /// <summary>
+    /// Der Testkontext mit den globalen Filtern der Anwendung - ein EIGENER Typ, weil EF das Modell je Kontexttyp puffert:
+    /// teilten sich gefilterte und ungefilterte Kontexte einen Typ, entschiede die Reihenfolge der Tests, welches Modell
+    /// gilt.
+    /// </summary>
+    public sealed class FilteredExternalServiceTestContext : ExternalServiceTestContext
+    {
+        public FilteredExternalServiceTestContext(IPermissionScope tenantProvider, IContextUserProvider userProvider,
+            ILogger<ExternalServiceTestContext> logger,
+            IOptions<DbContextModelBuilderOptions<ExternalServiceTestContext>> modelBuilderOptions,
+            DbContextOptions<ExternalServiceTestContext> options)
+            : base(tenantProvider, userProvider, logger, modelBuilderOptions, options)
+        {
+        }
+    }
+
     /// <summary>
     /// Der echte Basic-Sicherheitskontext, nur mit den beiden berechneten Spalten als gewoehnliche gefuehrt: der
     /// InMemory-Provider rechnet weder <c>lower(TenantName)</c> noch den eindeutigen Dienstnamen aus, und beide sind
@@ -90,10 +108,29 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
         }
 
         /// <summary>Ein frischer Kontext auf der benannten InMemory-Ablage, mit festem Mandanten (null = keiner).</summary>
+        /// <remarks>
+        /// <b>Ohne die globalen Filter der Anwendung</b> (leere Modell-Optionen). Die Mandantengrenze der Handler-Tests
+        /// liegt im Handler selbst; wer den Datenbankfilter pruefen will, nimmt <see cref="BuildFiltered"/>.
+        /// </remarks>
         public static ExternalServiceTestContext Build(string databaseName, string? currentTenant)
-            => new(new FixedScope(currentTenant), new AnonymousUser(), NullLogger<ExternalServiceTestContext>.Instance,
+            => new(new FixedScope(currentTenant), new AnonymousUser(false), NullLogger<ExternalServiceTestContext>.Instance,
                 Microsoft.Extensions.Options.Options.Create(new DbContextModelBuilderOptions<ExternalServiceTestContext>()),
                 new DbContextOptionsBuilder<ExternalServiceTestContext>().UseInMemoryDatabase(databaseName).Options);
+
+        /// <summary>
+        /// Derselbe Kontext MIT den globalen Filtern, wie die Anwendung sie registriert
+        /// (<c>ConfigureGlobalFilters</c>), und mit angemeldetem Benutzer - erst dann greifen sie (<c>FilterAvailable</c>).
+        /// </summary>
+        public static FilteredExternalServiceTestContext BuildFiltered(string databaseName, string currentTenant)
+        {
+            var services = new ServiceCollection();
+            services.ConfigureGlobalFilters<ExternalServiceTestContext>();
+            var modelOptions = services.BuildServiceProvider()
+                .GetRequiredService<IOptions<DbContextModelBuilderOptions<ExternalServiceTestContext>>>();
+            return new FilteredExternalServiceTestContext(new FixedScope(currentTenant), new AnonymousUser(true),
+                NullLogger<ExternalServiceTestContext>.Instance, modelOptions,
+                new DbContextOptionsBuilder<ExternalServiceTestContext>().UseInMemoryDatabase(databaseName).Options);
+        }
 
         private sealed class FixedScope : PermissionScopeBase
         {
@@ -110,7 +147,12 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
         /// <summary>Der Kontext selbst braucht keinen Benutzer - die Rechte prueft der Handler ueber den Dienstanbieter.</summary>
         private sealed class AnonymousUser : IContextUserProvider
         {
-            public ClaimsPrincipal User { get; } = new(new ClaimsIdentity());
+            public AnonymousUser(bool signedIn)
+                => User = new ClaimsPrincipal(signedIn
+                    ? new ClaimsIdentity(new[] { new Claim(System.Security.Claims.ClaimTypes.Name, "tester") }, "Test")
+                    : new ClaimsIdentity());
+
+            public ClaimsPrincipal User { get; }
 
             public IDictionary<string, object> RouteData { get; } = new Dictionary<string, object>();
 

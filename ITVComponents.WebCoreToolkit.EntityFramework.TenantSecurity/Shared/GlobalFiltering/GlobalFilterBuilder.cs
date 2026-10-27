@@ -90,7 +90,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Glo
                 o.ConfigureGlobalFilter<TClientApp>(ca => ShowAllTenants || !FilterAvailable || ca.Tenant.TenantNameLower == CurrentTenant);
                 o.ConfigureGlobalFilter<TClientAppAccess>(ca => ShowAllTenants || !FilterAvailable || ca.ClientApp.Tenant.TenantNameLower == CurrentTenant);
                 o.ConfigureGlobalFilter<TSequence>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
-                o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
+                // Globale Dienste (TenantId null) wie bei Plugins und Konstanten: ohne diesen Zweig fiel jeder globale
+                // Dienst heraus (sq.Tenant ist null), und GetExternalService/GetBufferedToken - ohne Trust-Override -
+                // fanden ihn nie. Damit war ein Mandant nicht an einen globalen Dienst (die App der Plattform) anschliessbar.
+                o.ConfigureGlobalFilter<TExternalOAuthService>(sq => ShowAllTenants || !FilterAvailable || sq.TenantId == null && !HideGlobals || sq.TenantId != null && sq.Tenant.TenantNameLower == CurrentTenant);
                 o.ConfigureGlobalFilter<TExternalOAuthServiceState>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant && sq.ExpiresAt > DateTimeOffset.UtcNow && !sq.Used);
                 o.ConfigureGlobalFilter<TExternalOAuthServiceTenantLogin>(sq => ShowAllTenants || !FilterAvailable || sq.Tenant.TenantNameLower == CurrentTenant);
                 o.ConfigureGlobalFilter<TAppPermission>(ap => ShowAllTenants || !FilterAvailable || ap.Permission.TenantId == null && !HideGlobals || ap.Permission.TenantId != null && ap.Permission.Tenant.TenantNameLower == CurrentTenant);

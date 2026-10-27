@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 88 | **ExternalServices: globale Dienste im flachen Modell, Schreibrechte Telerik** | Kein Schema-Change. Globale Dienste sind im flachen Modell zur Laufzeit wieder auffindbar; der Baum wirft bei einem unbekannten Dienstnamen keine NullReferenceException mehr; die Telerik-Maske lässt Mandanten-Admins nur noch eigene Dienste ändern/löschen und schaltet `Global` nicht mehr um (§88) |
 | 87 | **Geheime Token-Parameter** | **Pflicht: 1 Spalte** `ExternalOAuthServiceParameters.IsSecret` (manuelles SQL, Vorgabe aus). Markierte Parameter werden wie das `ClientSecret` verschlüsselt, nicht mehr angezeigt, nicht exportiert und erst vor der Token-Anfrage entschlüsselt. Bestehende geheime Werte (z. B. `client_secret`) markieren (§87) |
 | 86 | **Achse C: verlässlich, auch wenn die Kasse weg ist** | Kein Schema-Change. `OnSaleCompletedAsync` jetzt wirklich genau einmal (`TenantSale.PaidUtc` ist Concurrency-Token); Stripe/wallee speichern ihre Kennung vor dem Gerätestart; neuer Abgleich offener Terminalverkäufe im Hintergrund (3 Optionen, Vorgabe an); Verkaufsübersicht mit Terminal und „offen seit“, offene Terminalverkäufe von Hand abschliessen (neues Recht `TenantPayments.Settle`); Stripe-Terminal erstattet über die Belastung. `IPaymentsHandler` erweitert (§86) |
 | 85 | **Eine Freigabe je Ort** | **Pflicht: 1 Spalte** `AssetTemplates.ReuseStoredShare` (manuelles SQL, Vorgabe aus). Mit Schalter zeigt `<ShareButton />` bzw. `CreateAsync` die bestehende anonyme Freigabe von Mandant + Vorlage + Pfad + Argumenten, statt eine zweite auszustellen; „Renew“ im Link-Dialog. **Behoben:** Besitzerrecht ohne Mandantengrenze, Vorlage bearbeiten löschte `ShareDialogConfig`. Nur bei eigener Implementierung: `ISharedAssetAdapter.FindReusableSharedAsset` (§85) |
@@ -8474,3 +8475,47 @@ Parametern.
 - [ ] Bei einem Wechsel eines Dienstes zwischen global und Mandant: geheime Parameter neu eingeben (wie das
       `ClientSecret`, der Schlüssel wechselt mit)
 - [ ] Nach einem Konfigurations-Import: neu angelegte geheime Parameter am Ziel setzen (Warnung im Log)
+
+
+## 88. ExternalServices: globale Dienste im flachen Modell, Schreibrechte der Telerik-Maske — **kein Schema-Change; Fehlerbehebungen**
+
+Phase 0 von `docs/Plan-ExternalServices-Credentials.md`.
+
+### 88.1 Flaches Modell: globale Dienste waren zur Laufzeit unsichtbar
+
+Der Mandantenfilter für `ExternalOAuthService` im flachen Modell lautete nur `Tenant.TenantNameLower ==
+CurrentTenant`. Ein globaler Dienst (`TenantId` null) fiel damit heraus. `GetExternalService` und
+`GetBufferedToken` lesen ohne Trust-Override und fanden ihn nie. Ein Mandant konnte sich so nicht an die App der
+Plattform anschliessen (§78.4 setzt genau das voraus).
+
+Jetzt hat der Filter denselben Zweig wie Plugins und Konstanten: `TenantId == null && !HideGlobals`. Ein eigener
+Dienst gleichen Namens verdeckt den globalen weiterhin (`GetExternalServiceInternal`).
+
+**Wirkung über die Laufzeit hinaus:** In der **Telerik**-Maske sehen Mandanten-Admins globale Dienste jetzt auch
+im flachen Modell (im Baum taten sie das schon). Ändern dürfen sie sie nicht (88.3).
+
+### 88.2 Baum: unbekannter Dienstname
+
+`GetExternalService` und `GetBufferedToken` warfen bei einem unbekannten Namen eine `NullReferenceException`: Der
+Puffer legte einen Eintrag ohne Dienst ab und griff auf dessen Namen zu. Jetzt wie im flachen Modell:
+`GetExternalService` liefert `null`, `GetBufferedToken` wirft eine `InvalidOperationException` („No appropriate
+Token found …“). Ein unbekannter Name wird nicht gepuffert.
+
+### 88.3 Telerik-Maske: wer welchen Dienst ändern darf
+
+- **Ändern, Löschen, Parameter:** nur ein Sysadmin jeden Dienst, ein Mandanten-Admin nur Dienste des **eigenen**
+  Mandanten. Vorher entschied allein der Datenbankfilter. Im Baum lässt der globale Dienste immer durch, ein
+  Mandanten-Admin konnte dort also **globale Dienste ändern und löschen**.
+- **Ändern schaltet `Global` (und `TenantId`) nicht mehr um.** `Global` bestimmt den Schlüssel des Geheimnisses. Ein
+  Umschalten ohne Neuverschlüsselung machte es unlesbar. Wer es ändern will, legt den Dienst neu an.
+- **Anlegen:** Ein Mandanten-Admin legt immer für den eigenen Mandanten an, ein mitgeschickter `tenantId` zählt
+  nicht. Ein globaler Dienst hat nie eine `TenantId`.
+
+Die Blazor-Maske hielt das schon so (§84).
+
+### 88.4 Checkliste
+
+- [ ] Im **Baum-Modell**: prüfen, ob globale Dienste von Mandanten-Admins verändert wurden (Telerik), und ggf.
+      zurücksetzen
+- [ ] Dienste mit `Global = 1` **und** gesetzter `TenantId` suchen (`SELECT … WHERE Global = 1 AND TenantId IS NOT
+      NULL`) und bereinigen: Das Geheimnis liegt mit dem Systemschlüssel, gelesen wird es als Mandantendienst

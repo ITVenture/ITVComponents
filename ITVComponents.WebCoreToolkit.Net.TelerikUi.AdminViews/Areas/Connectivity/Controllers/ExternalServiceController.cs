@@ -213,10 +213,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             var model = new TExternalOAuthService();
             if (!isAdmin)
             {
+                // Ein Mandanten-Admin legt nur fuer den EIGENEN Mandanten an - was die Anfrage als tenantId mitbringt,
+                // zaehlt nicht.
                 viewModel.Global = false;
+                tenantId = db.CurrentTenantId;
             }
 
-            if (!viewModel.Global)
+            if (viewModel.Global)
+            {
+                // Global und TenantId gehoeren zusammen: Global entscheidet den Schluessel des Geheimnisses, TenantId die
+                // Sichtbarkeit. Beides gesetzt ergaebe einen Dienst, der mit dem Systemschluessel verschluesselt, aber
+                // als Mandantendienst gelesen wird.
+                tenantId = null;
+            }
+            else
             {
                 tenantId ??= db.CurrentTenantId;
             }
@@ -244,11 +254,17 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             ExternalOAuthServiceViewModel viewModel)
         {
             var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
-            //var model = new TExternalOAuthService();
-            var model = db.ExternalOAuthServices.First(n => n.OAuthServiceId == viewModel.OAuthServiceId);
+            var model = FindEditableService(viewModel.OAuthServiceId, isAdmin);
+            if (model == null)
+            {
+                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+            }
+
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model,"",n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName));
+                // Global wird hier nicht umgeschaltet: es entscheidet, mit welchem Schluessel das Geheimnis liegt, und ein
+                // Umschalten ohne Neuverschluesselung machte es unlesbar. Wer es aendern will, legt den Dienst neu an.
+                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model,"",n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName) && n.Name != nameof(model.Global) && n.Name != nameof(model.TenantId) && n.Name != nameof(model.OAuthServiceId));
                 EncryptSecret(model, viewModel.ClientSecret);
                 await db.SaveChangesAsync();
             }
@@ -263,8 +279,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             ExternalOAuthServiceViewModel viewModel)
         {
             var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
-            //var model = new TExternalOAuthService();
-            var model = db.ExternalOAuthServices.First(n => n.OAuthServiceId == viewModel.OAuthServiceId);
+            var model = FindEditableService(viewModel.OAuthServiceId, isAdmin);
+            if (model == null)
+            {
+                return Json(await new[] { viewModel }.ToDataSourceResultAsync(request, ModelState));
+            }
+
             db.ExternalOAuthServices.Remove(model);
             await db.SaveChangesAsync();
 
@@ -364,10 +384,33 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         private TExternalOAuthService FindServiceForParameterEdit(int oauthServiceId)
         {
             var isAdmin = HttpContext.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
-            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
-            if (service == null || (!isAdmin && service.TenantId == null))
+            var service = FindEditableService(oauthServiceId, isAdmin);
+            if (service == null)
             {
                 ModelState.AddModelError(nameof(ExternalOAuthServiceParameterViewModel.ParameterName), TextsAndMessagesHelper.IWCN_ES_ParamNotEditable);
+            }
+
+            return service;
+        }
+
+        /// <summary>
+        /// Der Dienst, wenn der Aufrufer ihn aendern darf: ein Sysadmin jeden, den er sieht, ein Mandanten-Admin nur einen
+        /// des EIGENEN Mandanten.
+        /// </summary>
+        /// <remarks>
+        /// Der Datenbankfilter allein reicht dafuer nicht: er laesst globale Dienste durch (im Baum-Modell schon immer,
+        /// im flachen seit §88), und lesen duerfen Mandanten sie ja - aendern und loeschen nicht.
+        /// </remarks>
+        /// <returns>der Dienst, oder null (dann steht der Grund im ModelState)</returns>
+        private TExternalOAuthService FindEditableService(int oauthServiceId, bool isAdmin)
+        {
+            var service = db.ExternalOAuthServices.FirstOrDefault(n => n.OAuthServiceId == oauthServiceId);
+            if (service == null || (!isAdmin && (service.TenantId == null || service.TenantId != db.CurrentTenantId)))
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent(
+                    $"External service {oauthServiceId} was not changed: it does not exist or is not editable for the current user.",
+                    ITVComponents.Logging.LogSeverity.Warning);
+                ModelState.AddModelError(nameof(ExternalOAuthServiceViewModel.UniqueConnectionName), TextsAndMessagesHelper.IWCN_ES_ParamNotEditable);
                 return null;
             }
 

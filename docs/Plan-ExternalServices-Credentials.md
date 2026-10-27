@@ -100,6 +100,12 @@ Repository und Zahlungs-Speicher benutzen sie. Für Dienst *S* und Mandant *T*:
 5. **Übergang (eine Version):** keine Zeile gefunden → Rückfall auf `ClientId`/`ClientSecret` der Definition, mit
    Warnung im Log.
 
+**Ohne angemeldeten Benutzer** (Hintergrunddienste, Webhooks) ist `FilterAvailable` falsch. Das Baum-Repository
+wirft dann heute „Invalid DB-Access mode“; der Zahlungs-Speicher umgeht das, indem er die Tabellen selbst liest. Die
+Auflösung nimmt deshalb den Mandanten als **Parameter** und arbeitet ohne Abfragefilter, mit dem Baum aus
+`UpwardsTenantTreeView` für genau diesen Mandanten. Der Bereich (Scope) liefert ihn nur, wenn ein Aufrufer keinen
+nennt. *(Befund aus Phase 0, 2026-10-27.)*
+
 Der Zahlungs-Speicher ruft die Auflösung mit der Regel **„nur genau dieser Mandant“** auf: in Schritt 1 nur
 `ParentLevel == 1`, Schritte 3 und 5 abgeschaltet — unabhängig davon, was an einer Zeile steht. Das ist §78.4, jetzt an einer Stelle statt nachgebaut.
 
