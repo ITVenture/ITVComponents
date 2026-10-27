@@ -8,6 +8,7 @@ using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Options;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
@@ -1621,10 +1622,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             ExternalServiceConnection tmp;
             string tenantName;
+            TExternalOAuthServiceTenantLogin credentialRow = null;
             using (var lease = LeaseContext())
             {
                 // Unbekannter Name: null, wie im flachen Repository - nicht eine NullReferenceException aus Copy().
-                tmp = GetExternalOAuthService(name, out _, out _, out tenantName, true, lease.Context)?.Copy();
+                tmp = GetExternalOAuthService(name, out var serviceId, out _, out tenantName, true, lease.Context)?.Copy();
+                if (tmp != null && decryptSecret && serviceId != null)
+                {
+                    credentialRow = GetExternalOAuthServiceLogin(serviceId.Value, true, lease.Context);
+                }
             }
 
             if (tmp == null)
@@ -1648,6 +1654,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 // Geheime Token-Parameter mit demselben Schluessel wie das ClientSecret. Copy() ist flach - die
                 // Methode baut ein neues Feld und laesst das gepufferte unangetastet.
                 tmp.DecryptTokenRequestParameters(v => tmp.Global ? v.Decrypt() : Decrypt(v, tenantName));
+                ApplyCredentialRow(tmp, credentialRow);
             }
 
             return tmp;
@@ -1795,24 +1802,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             connectionInfo = svc;
             if (serviceId != null)
             {
+                // Token und Zugangsdaten kommen aus derselben Zeile (eigene, geerbte, Plattform). Der Schluessel ist der
+                // ihres Besitzers; eine neue Zeile gehoert dem anfragenden Mandanten.
                 var login = GetExternalOAuthServiceLogin(serviceId.Value,false, securityContext);
-                var targetTenant = login?.Tenant.TenantName ?? tenantName;
+                ApplyCredentialRow(svc, login);
+                var ownerId = login != null ? login.TenantId : securityContext.CurrentTenantId;
+                var targetTenant = login != null ? login.Tenant?.TenantName : securityContext.CurrentTenantName;
                 if (login is { Revoked: false } && (!forRevoke || login.TenantId == securityContext.CurrentTenantId))
                 {
                     var tmp = JsonHelper.FromJsonString<TranslatedTokenResponse>(login.Token,
                         SerializationTypingMode.StaticTyping);
                     var token = new TranslatedTokenResponse
                     {
-                        AccessToken = Decrypt(tmp.AccessToken, targetTenant),
+                        AccessToken = DecryptForOwner(tmp.AccessToken, targetTenant),
                         ExpiresAt = tmp.ExpiresAt,
-                        RefreshToken = Decrypt(tmp.RefreshToken, targetTenant),
+                        RefreshToken = DecryptForOwner(tmp.RefreshToken, targetTenant),
                         Scope = tmp.Scope,
                         TokenType = tmp.TokenType
                     };
 
                     if (!forRevoke)
                     {
-                        updateToken = newToken => PersistToken(serviceId.Value, tenantId, targetTenant, newToken);
+                        updateToken = newToken => PersistToken(serviceId.Value, ownerId, targetTenant, newToken);
                     }
                     else
                     {
@@ -1827,7 +1838,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 if (!throwIfNull)
                 {
-                    updateToken = newToken => PersistToken(serviceId.Value, tenantId, targetTenant, newToken);
+                    updateToken = newToken => PersistToken(serviceId.Value, ownerId, targetTenant, newToken);
 
                     return null;
                 }
@@ -1836,28 +1847,52 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             throw new InvalidOperationException($"No appropriate Token found for {connectionName}");
         }
 
+        /// <summary>Legt die festen Zugangsdaten einer Zeile (falls gespeichert) auf die Verbindung.</summary>
+        private void ApplyCredentialRow(ExternalServiceConnection connection, TExternalOAuthServiceTenantLogin row)
+        {
+            if (string.IsNullOrEmpty(row?.CredentialJson))
+            {
+                return;
+            }
+
+            var ownerName = row.TenantId == null ? null : row.Tenant?.TenantName;
+            ExternalServiceCredentials.ApplyTo(connection,
+                ExternalServiceCredentials.Unprotect(row.CredentialJson, v => DecryptForOwner(v, ownerName)));
+        }
+
+        /// <summary>Verschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>
+        private string EncryptForOwner(string value, string ownerName)
+            => string.IsNullOrEmpty(value) ? value : ownerName == null ? value.Encrypt() : Encrypt(value, ownerName);
+
+        /// <summary>Entschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>
+        private string DecryptForOwner(string value, string ownerName)
+            => string.IsNullOrEmpty(value) ? value : ownerName == null ? value.Decrypt() : Decrypt(value, ownerName);
+
         /// <summary>
         /// Persists (creates or updates) the OAuth tenant-login token on its OWN fresh per-operation context.
         /// Called by the deferred <c>updateToken</c> delegate returned from <see cref="GetBufferedToken"/>; it
         /// captures only ids/values (no tracked entity or shared context), re-resolves the login by service
         /// (across the tenant tree, same trust as the read) and saves atomically.
         /// </summary>
-        private void PersistToken(int serviceId, int? tenantId, string targetTenant, TranslatedTokenResponse newToken)
+        /// <param name="ownerTenantId">der Besitzer der Zeile, aus der das Token kam bzw. in die es gehoert; null = Plattform</param>
+        /// <param name="targetTenant">der Name des Besitzers fuer den Schluessel; null = Systemschluessel</param>
+        private void PersistToken(int serviceId, int? ownerTenantId, string targetTenant, TranslatedTokenResponse newToken)
         {
             var encToken = new TranslatedTokenResponse
             {
                 Scope = newToken.Scope,
-                AccessToken = Encrypt(newToken.AccessToken, targetTenant),
+                AccessToken = EncryptForOwner(newToken.AccessToken, targetTenant),
                 ExpiresAt = newToken.ExpiresAt,
-                RefreshToken = Encrypt(newToken.RefreshToken, targetTenant),
+                RefreshToken = EncryptForOwner(newToken.RefreshToken, targetTenant),
                 TokenType = newToken.TokenType
             };
 
             using var lease = LeaseContext();
             var securityContext = lease.Context;
-            using var tmpSecurity = securityAccessProvider.CreateForCaller(securityContext,
-                new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
-            var login = GetExternalOAuthServiceLogin(serviceId, false, securityContext);
+            // Ohne Filter, mit ausdruecklichem Besitzer: dieselbe Zeile, aus der gelesen wurde - eine geerbte oder die der
+            // Plattform eingeschlossen. Fehlt sie, entsteht eine neue fuer den anfragenden Mandanten.
+            var login = securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().FirstOrDefault(n =>
+                n.OAuthServiceId == serviceId && n.TenantId == ownerTenantId);
             if (login != null)
             {
                 login.Revoked = false;
@@ -1865,9 +1900,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             }
             else
             {
+                if (ownerTenantId == null)
+                {
+                    // Eine Plattform-Zeile entsteht nur durch einen Admin, nie nebenbei aus einer Token-Anfrage ohne Mandant.
+                    LogEnvironment.LogEvent($"The token of external service {serviceId} was not stored: there is no current tenant and no existing row to store it in.", LogSeverity.Error);
+                    return;
+                }
+
                 login = new TExternalOAuthServiceTenantLogin
                 {
-                    TenantId = tenantId ?? securityContext.CurrentTenantId.Value,
+                    TenantId = ownerTenantId,
                     Revoked = false,
                     OAuthServiceId = serviceId,
                     Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
@@ -1984,31 +2026,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 try
                 {
-                    var phase1 = from p in securityContext.UpwardsTenantTreeView
-                        join pin in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.OAuthService) on
+                    // Derselbe Mechanismus wie Settings und Plugins: den Baum bis zur Wurzel hinauf, die naechste Zeile
+                    // gewinnt, die dem Mandanten selbst gehoert oder vererbbar ist. Damit gilt eine vererbbare Zeile beim
+                    // obersten Mandanten fuer alle Nachkommen; eine eigene vererbbare bricht sie fuer den Teilbaum, eine
+                    // eigene nicht vererbbare gilt nur fuer den Mandanten selbst.
+                    // Ohne Mandantenfilter (der Baum IST die Eingrenzung), damit die Abfrage nicht vom Trust abhaengt.
+                    var currentTenantId = securityContext.CurrentTenantId.Value;
+                    var inTree = (from p in securityContext.UpwardsTenantTreeView
+                        join pin in securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Include(n => n.Tenant) on
                             (int?)p.ParentTenantId equals pin.TenantId
-                        where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 ||
-                            pin.OAuthService.Inheritable || pin.OAuthService.TenantId == null)
-                        select new { pin.OAuthServiceId, p.OutermostLeafTenantId, p.ParentLevel };
-                    var phase2 = from gj in phase1
-                        group gj by new { gj.OAuthServiceId, gj.OutermostLeafTenantId }
-                        into g
-                        select new
-                        {
-                            TenantId = g.Key.OutermostLeafTenantId,
-                            OAuthServiceId = g.Key.OAuthServiceId,
-                            Level = g.Min(n => n.ParentLevel)
-                        };
-                    var phase3 = from p in phase2
-                        join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
-                            new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
-                        join pg in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.Tenant) on new
-                                { p.OAuthServiceId, TenantId = (int?)t.ParentTenantId }
-                            equals new { pg.OAuthServiceId, TenantId = pg.TenantId }
-                        where pg.OAuthServiceId == oauthServiceId
-                        select pg;
-                    var pi = phase3.FirstOrDefault();
-                    return pi;
+                        where p.OutermostLeafTenantId == currentTenantId && pin.OAuthServiceId == oauthServiceId
+                              && (p.ParentLevel == 1 || pin.Inheritable)
+                        orderby p.ParentLevel
+                        select pin).FirstOrDefault();
+                    if (inTree != null)
+                    {
+                        return inTree;
+                    }
+
+                    var allowsPlatform = securityContext.ExternalOAuthServices.IgnoreQueryFilters()
+                        .Where(n => n.OAuthServiceId == oauthServiceId).Select(n => n.AllowPlatformCredentials)
+                        .FirstOrDefault();
+                    return allowsPlatform
+                        ? securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
+                            .FirstOrDefault(n => n.OAuthServiceId == oauthServiceId && n.TenantId == null)
+                        : null;
                 }
                 finally
                 {

@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 90 | **ExternalServices: Zugangsdaten auflösen** | **Pflicht: Daten-Updates.** Zugangsdaten und Token aus der nächsten Zeile im Baum (`Inheritable` an der Zeile, wie Settings), Plattform-Zeile nur mit `AllowPlatformCredentials`; direkte Grants am `TokenEndpoint`. Baum: stille Mitbenutzung des Eltern-Logins nur noch mit `Inheritable` (§90) |
 | 89 | **ExternalServices: Zugangsdaten-Zeile (Schema)** | **Pflicht: Schema.** `ExternalOAuthServiceTenantLogins`: `TenantId` nullable, `CredentialJson`, `Inheritable`, zwei eindeutige Indizes (vorher Doppel bereinigen); `ExternalOAuthServices.AllowPlatformCredentials`. Noch ohne Verhaltensänderung (§89) |
 | 88 | **ExternalServices: globale Dienste im flachen Modell, Schreibrechte Telerik** | Kein Schema-Change. Globale Dienste sind im flachen Modell zur Laufzeit wieder auffindbar; der Baum wirft bei einem unbekannten Dienstnamen keine NullReferenceException mehr; die Telerik-Maske lässt Mandanten-Admins nur noch eigene Dienste ändern/löschen und schaltet `Global` nicht mehr um (§88) |
 | 87 | **Geheime Token-Parameter** | **Pflicht: 1 Spalte** `ExternalOAuthServiceParameters.IsSecret` (manuelles SQL, Vorgabe aus). Markierte Parameter werden wie das `ClientSecret` verschlüsselt, nicht mehr angezeigt, nicht exportiert und erst vor der Token-Anfrage entschlüsselt. Bestehende geheime Werte (z. B. `client_secret`) markieren (§87) |
@@ -8623,3 +8624,95 @@ neue zusammengesetzte Index ihn abdeckt. Das ist harmlos.
 - [ ] Doppelte Logins finden und bereinigen (89.2), **vor** der Migration
 - [ ] Migration erzeugen bzw. SQL einspielen (89.3)
 - [ ] Eigenen Code mit `ExternalOAuthServiceTenantLogin.TenantId` auf `int?` anpassen
+
+
+## 90. ExternalServices: Zugangsdaten werden aufgelöst — Vererbung an der Zeile, Plattform-Rückfall, Token-Endpunkt — **Verhaltensänderung im Baum; Pflicht: Daten-Updates**
+
+Phase 2 und 3 von `docs/Plan-ExternalServices-Credentials.md`, zusammen ausgeliefert.
+
+### 90.1 Wie Zugangsdaten jetzt gefunden werden
+
+Für einen Dienst und den aktuellen Mandanten (Token und feste Zugangsdaten kommen aus **derselben** Zeile):
+
+1. **Baum:** über `UpwardsTenantTreeView` bis zur Wurzel die **nächste** Zeile mit `ParentLevel == 1 || Inheritable`.
+   Das ist derselbe Mechanismus wie bei Settings und Plugins:
+   - Eine vererbbare Zeile beim obersten Mandanten gilt für alle Nachkommen.
+   - Eine eigene vererbbare Zeile bricht die Vererbung für den Teilbaum.
+   - Eine eigene **nicht** vererbbare Zeile gilt nur für diesen Mandanten; seine Kinder erben weiter von oben.
+
+   **Flach:** nur die eigene Zeile.
+2. Sonst, wenn die Definition `AllowPlatformCredentials` hat: die Plattform-Zeile (`TenantId` null).
+3. Trägt die gefundene Zeile `CredentialJson`, legt sie Benutzer/Client und Geheimnis auf die Verbindung, je nach
+   Anmeldetyp:
+   - Authorization-Code: nichts, die App steht an der Definition.
+   - ApiKey: nur der Schlüssel, der Header-Name bleibt an der Definition.
+   - Bearer: nur das Token.
+   - Basic, Password-Grant, Client-Credentials: Benutzer bzw. Client und Geheimnis.
+4. **Übergang:** Ohne solche Zeile gelten `ClientId`/`ClientSecret` der Definition wie bisher. Echte
+   Zugangsdaten-Zeilen entstehen erst durch die neue Maske (Phase 4) bzw. den Zahlungs-Speicher (Phase 5).
+
+Entschlüsselt wird mit dem Schlüssel des **Besitzers** der Zeile, bei der Plattform mit dem Systemschlüssel. Ein
+neues Token gehört dem anfragenden Mandanten. Eine geerbte oder die Plattform-Zeile wird beim Erneuern **an Ort und
+Stelle** aktualisiert: Wer dieselben Zugangsdaten benutzt, teilt sich das Token. Widerrufen kann ein Mandant nur
+seine eigene Zeile. Eine Plattform-Zeile entsteht nie nebenbei aus einer Token-Anfrage.
+
+### 90.2 Was sich ändert — Baum-Modell
+
+**Bisher** benutzte ein Kind bei einem **globalen** oder vererbbaren Dienst still das Token (den Login) des nächsten
+Elternteils. **Jetzt** nur noch, wenn dessen Zeile `Inheritable = 1` ist. Damit der Bestand gleich weiterläuft, setzt
+das Update unten das Flag für die heutigen Fälle. Danach lässt sich die Weitergabe je Zeile verschärfen.
+
+### 90.3 Token-Endpunkt
+
+Client-Credentials (1), Basic-Client-Credentials (2) und Password-Grant (6) holen ihr Token jetzt am
+**`TokenEndpoint`** (RFC 6749), nicht mehr am `AuthorizationEndpoint`. Die Telerik-Maske bot für diese Typen nur
+das Feld `AuthorizationEndpoint` an, bestehende Daten tragen die Token-URL also dort. Übergang: Ist der
+`TokenEndpoint` leer, gilt der `AuthorizationEndpoint`, mit einer Warnung im Log. Das Update unten verschiebt die URL.
+
+### 90.4 Daten-Updates (Pflicht, einmalig, nach §89)
+
+```sql
+-- 1) Baum: heutige stille Mitbenutzung beibehalten (Logins globaler oder vererbbarer Dienste)
+UPDATE l SET Inheritable = 1
+FROM ExternalOAuthServiceTenantLogins l
+JOIN ExternalOAuthServices s ON s.OAuthServiceId = l.OAuthServiceId
+WHERE s.TenantId IS NULL OR s.Inheritable = 1;
+
+-- 2) Globale Dienste mit Geheimnis: Plattform-Rückfall erlauben (vorbereitend; gilt für Plattform-Zeilen)
+UPDATE ExternalOAuthServices SET AllowPlatformCredentials = 1
+WHERE TenantId IS NULL AND ISNULL(ClientSecret, '') <> '' AND AuthenticationType <> 0;
+
+-- 3) Token-URL der direkten Grants in den Token-Endpunkt
+UPDATE ExternalOAuthServices SET TokenEndpoint = AuthorizationEndpoint
+WHERE AuthenticationType IN (1, 2, 6) AND ISNULL(TokenEndpoint, '') = '';
+```
+
+```sql
+-- PostgreSQL
+UPDATE "ExternalOAuthServiceTenantLogins" l SET "Inheritable" = TRUE
+FROM "ExternalOAuthServices" s
+WHERE s."OAuthServiceId" = l."OAuthServiceId" AND (s."TenantId" IS NULL OR s."Inheritable" = TRUE);
+
+UPDATE "ExternalOAuthServices" SET "AllowPlatformCredentials" = TRUE
+WHERE "TenantId" IS NULL AND COALESCE("ClientSecret", '') <> '' AND "AuthenticationType" <> 0;
+
+UPDATE "ExternalOAuthServices" SET "TokenEndpoint" = "AuthorizationEndpoint"
+WHERE "AuthenticationType" IN (1, 2, 6) AND COALESCE("TokenEndpoint", '') = '';
+```
+
+Update 1 betrifft nur Baum-Installationen, im flachen Modell gibt es keine Vererbung (und `Inheritable` an
+`ExternalOAuthServices` existiert dort nicht: dann nur `WHERE s.TenantId IS NULL`).
+
+### 90.5 Für eigenen Code
+
+- Wer `GetExternalOAuthServiceLogin` (Baum, `protected virtual`) überschreibt: Es liefert jetzt die Zeile nach
+  90.1, gegebenenfalls die Plattform-Zeile, und liest ohne Mandantenfilter.
+- Eigene Abfragen auf `ExternalOAuthServiceTenantLogins` ohne Filter müssen Plattform-Zeilen (`TenantId` null)
+  bewusst behandeln (§89).
+
+### 90.6 Checkliste
+
+- [ ] Daten-Updates 90.4 einspielen (nach dem Schema aus §89)
+- [ ] Baum: prüfen, welche Logins durch Update 1 vererbbar wurden, und die Weitergabe verschärfen, wo sie nicht gewollt
+      ist
+- [ ] Log nach „has no token endpoint“ durchsuchen: Diese Dienste noch auf den Token-Endpunkt umstellen

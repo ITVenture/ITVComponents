@@ -16,6 +16,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using Tree = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model;
 using TreeModels = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models;
 using Vm = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.VirtualModels;
@@ -98,6 +101,84 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
             Assert.ThrowsExactly<InvalidOperationException>(() =>
                 world.Repository.GetBufferedToken("does-not-exist", false, false, out _, out _));
+        }
+
+        // --- Externe Dienste: Zugangsdaten im Baum (Mechanismus der Settings) ----------------------
+        // Baum: acme (Wurzel) > acme-a > acme-a1. Der Dienst ist global; die Zugangsdaten haengen an den Zeilen.
+
+        private const string Child = "acme-a";
+        private const string GrandChild = "acme-a1";
+
+        [TestMethod]
+        public void Credentials_OfTheRoot_ReachEveryDescendant_WhenInheritable()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(root: ("root-key", true));
+
+            Assert.AreEqual("root-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void Credentials_OfTheRoot_StayWithTheRoot_WhenNotInheritable()
+        {
+            using var world = new World(dbName, Child, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(root: ("root-key", false));
+
+            Assert.AreNotEqual("root-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void AnExclusiveException_HoldsOnlyForItsTenant()
+        {
+            // acme-a hat eigene, NICHT vererbbare Zugangsdaten: es selbst nimmt sie, sein Kind erbt weiter von der Wurzel.
+            using (var child = new World(dbName, Child, TrustTarget.ConcreteContext, signedIn: true))
+            {
+                child.Seed();
+                child.SeedCredentialTree(root: ("root-key", true), child: ("child-key", false));
+                Assert.AreEqual("child-key", child.Repository.GetExternalService("svc", true).ClientSecret);
+            }
+
+            using var grandChild = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            Assert.AreEqual("root-key", grandChild.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void ABreakingException_HoldsForItsSubtree()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(root: ("root-key", true), child: ("child-key", true));
+
+            Assert.AreEqual("child-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void ThePlatformRow_IsUsedOnlyWhenTheDefinitionAllowsIt()
+        {
+            using (var allowed = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true))
+            {
+                allowed.Seed();
+                allowed.SeedCredentialTree(platform: "platform-key", allowPlatform: true);
+                Assert.AreEqual("platform-key", allowed.Repository.GetExternalService("svc", true).ClientSecret);
+            }
+
+            var other = $"{dbName}_noPlatform";
+            using var refused = new World(other, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            refused.Seed();
+            refused.SeedCredentialTree(platform: "platform-key", allowPlatform: false);
+            Assert.AreNotEqual("platform-key", refused.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void AnInheritedRow_BeatsThePlatformRow()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(root: ("root-key", true), platform: "platform-key", allowPlatform: true);
+
+            Assert.AreEqual("root-key", world.Repository.GetExternalService("svc", true).ClientSecret);
         }
 
         // --- Die Falle -------------------------------------------------------------------------
@@ -277,6 +358,51 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 ctx.SaveChanges();
             }
 
+            /// <summary>
+            /// Legt unter der Wurzel (<see cref="TenantName"/>) acme-a und acme-a1 an, dazu den globalen ApiKey-Dienst "svc"
+            /// und die angegebenen Zugangsdaten-Zeilen. Verschluesselt wird mit dem Systemschluessel - die Testmandanten
+            /// haben kein eigenes Passwort, und dann faellt auch der Mandantenschluessel darauf zurueck.
+            /// </summary>
+            public void SeedCredentialTree((string Key, bool Inheritable)? root = null,
+                (string Key, bool Inheritable)? child = null, string platform = null, bool allowPlatform = false)
+            {
+                using var ctx = New();
+                var rootTenant = ctx.Tenants.Single(n => n.TenantName == TenantName);
+                var childTenant = new TreeModels.HierarchyTenant
+                {
+                    TenantName = Child, DisplayName = Child, TenantNameLower = Child, ParentTenantId = rootTenant.TenantId
+                };
+                ctx.Tenants.Add(childTenant);
+                ctx.SaveChanges();
+                ctx.Tenants.Add(new TreeModels.HierarchyTenant
+                {
+                    TenantName = GrandChild, DisplayName = GrandChild, TenantNameLower = GrandChild,
+                    ParentTenantId = childTenant.TenantId
+                });
+
+                var service = new TreeModels.TreeModels.HierarchyExternalOAuthService
+                {
+                    UniqueConnectionName = "svc", CalculatedUniqueServiceName = "GLOBALsvc",
+                    AuthorizationEndpoint = string.Empty, TokenEndpoint = string.Empty, RevocationEndpoint = string.Empty,
+                    ClientId = "X-Key", ClientSecret = string.Empty, Scope = string.Empty, Global = true, TenantId = null,
+                    AuthenticationType = ExternalServiceAuthenticationType.ApiKey, AllowPlatformCredentials = allowPlatform
+                };
+                ctx.ExternalOAuthServices.Add(service);
+                ctx.SaveChanges();
+
+                void Row(int? tenantId, string key, bool inheritable)
+                    => ctx.ExternalOAuthServiceTenantLogins.Add(new TreeModels.TreeModels.HierarchyExternalOAuthServiceTenantLogin
+                    {
+                        OAuthServiceId = service.OAuthServiceId, TenantId = tenantId, Token = "{}", Inheritable = inheritable,
+                        CredentialJson = ExternalServiceCredentials.Protect(new ExternalServiceCredential { Secret = key }, v => v.Encrypt())
+                    });
+
+                if (root is { } r) Row(rootTenant.TenantId, r.Key, r.Inheritable);
+                if (child is { } c) Row(childTenant.TenantId, c.Key, c.Inheritable);
+                if (platform != null) Row(null, platform, false);
+                ctx.SaveChanges();
+            }
+
             private TreeTestContext New()
                 => ActivatorUtilities.CreateInstance<TreeTestContext>(services);
 
@@ -377,6 +503,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 {
                     modelBuilder.Entity(keyless.ClrType).HasNoKey();
                 }
+
+                // Ausnahme: die Sicht "den Baum hinauf" wird aus der Mandantentabelle nachgebaut (bis drei Ebenen) - die
+                // Zugangsdaten-Aufloesung geht ueber sie, wie Settings und Plugins.
+                modelBuilder.Entity<Vm.UpwardsTenantView>().ToInMemoryQuery(() =>
+                    Set<TreeModels.HierarchyTenant>().Select(t => new Vm.UpwardsTenantView
+                        {
+                            OutermostLeafTenantId = t.TenantId, OutermostLeafTenantName = t.TenantName,
+                            ParentTenantId = t.TenantId, ParentTenantName = t.TenantName, ParentLevel = 1
+                        })
+                        .Concat(Set<TreeModels.HierarchyTenant>().Where(t => t.ParentTenantId != null)
+                            .Select(t => new Vm.UpwardsTenantView
+                            {
+                                OutermostLeafTenantId = t.TenantId, OutermostLeafTenantName = t.TenantName,
+                                ParentTenantId = t.ParentTenantId.Value, ParentTenantName = t.ParentTenant.TenantName,
+                                ParentLevel = 2
+                            }))
+                        .Concat(Set<TreeModels.HierarchyTenant>()
+                            .Where(t => t.ParentTenant != null && t.ParentTenant.ParentTenantId != null)
+                            .Select(t => new Vm.UpwardsTenantView
+                            {
+                                OutermostLeafTenantId = t.TenantId, OutermostLeafTenantName = t.TenantName,
+                                ParentTenantId = t.ParentTenant.ParentTenantId.Value,
+                                ParentTenantName = t.ParentTenant.ParentTenant.TenantName, ParentLevel = 3
+                            })));
+
+                // Berechnete Spalte wie oben: der Test setzt den eindeutigen Dienstnamen selbst.
+                modelBuilder.Entity<TreeModels.TreeModels.HierarchyExternalOAuthService>()
+                    .Property(s => s.CalculatedUniqueServiceName).ValueGeneratedNever();
             }
         }
     }

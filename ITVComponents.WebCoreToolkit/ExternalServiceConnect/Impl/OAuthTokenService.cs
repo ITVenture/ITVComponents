@@ -170,7 +170,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 };
 
                 AppendTokenRequestParameters(formRaw, c);
-                endpoint = c.AuthorizationEndpoint;
+                endpoint = GrantEndpoint(c);
                 sentForm = formRaw;
                 response = await client.PostAsync(endpoint, new FormUrlEncodedContent(formRaw));
             }
@@ -188,7 +188,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 var authHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes(authHeaderRaw));
                 //content.Headers.Add(new AuthenticationHeaderValue("Basic", authHeaderValue));
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeaderValue);
-                endpoint = c.AuthorizationEndpoint;
+                endpoint = GrantEndpoint(c);
                 sentForm = formRaw;
                 response = await client.PostAsync(endpoint, content);
                 client.DefaultRequestHeaders.Authorization = null;
@@ -209,7 +209,7 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 }
 
                 AppendTokenRequestParameters(formRaw, c);
-                endpoint = c.AuthorizationEndpoint;
+                endpoint = GrantEndpoint(c);
                 sentForm = formRaw;
                 response = await client.PostAsync(endpoint, new FormUrlEncodedContent(formRaw));
             }
@@ -299,6 +299,26 @@ namespace ITVComponents.WebCoreToolkit.ExternalServiceConnect.Impl
                 LogEnvironment.LogEvent($"Unable to read the error response of the token request of external service '{connectionName}': {ex.OutlineException()}", LogSeverity.Warning);
                 return "(unreadable)";
             }
+        }
+
+        /// <summary>
+        /// The endpoint a direct grant (client credentials, basic client credentials, password) posts to: the token
+        /// endpoint, as RFC 6749 has it.
+        /// </summary>
+        /// <remarks>
+        /// These grants used to post to the authorization endpoint, and the admin views only offered that field for
+        /// them - existing configurations carry the token url there. Until they are moved (Leitfaden §90), an empty
+        /// token endpoint falls back to it, with a warning.
+        /// </remarks>
+        private static string GrantEndpoint(ExternalServiceConnection connection)
+        {
+            if (!string.IsNullOrWhiteSpace(connection.TokenEndpoint))
+            {
+                return connection.TokenEndpoint;
+            }
+
+            LogEnvironment.LogEvent($"External service '{connection.UniqueConnectionName}' ({connection.AuthenticationType}) has no token endpoint; the authorization endpoint is used instead. Move the url to the token endpoint (Leitfaden §90) - this fallback will be removed.", LogSeverity.Warning);
+            return connection.AuthorizationEndpoint;
         }
 
         /// <summary>

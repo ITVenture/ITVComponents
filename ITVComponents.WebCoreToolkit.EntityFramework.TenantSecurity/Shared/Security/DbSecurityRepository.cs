@@ -18,6 +18,7 @@ using ITVComponents.Security;
 using ITVComponents.TypeConversion;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices.Model;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers.Models;
@@ -1237,6 +1238,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             if (svc!= null)
             {
                 var retVal = ToExternalDefinition(svc, decryptSecret, securityContext);
+                if (decryptSecret)
+                {
+                    ApplyCredentialRow(retVal, ResolveCredentialRow(securityContext, svc), securityContext);
+                }
+
                 /*if (decryptSecret && !string.IsNullOrEmpty(retVal.ClientSecret))
                 {
                     if (retVal.Global)
@@ -1365,26 +1371,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 connectionInfo = ToExternalDefinition(connection, true, securityContext);
                 var oauthServiceId = connection.OAuthServiceId;
-                var tenantId = securityContext.CurrentTenantId;
-                var tenantName = securityContext.CurrentTenantName;
-                var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
-                    n.OAuthServiceId == oauthServiceId && n.TenantId == tenantId);
-                if (login is { Revoked: false })
+                // Token und Zugangsdaten kommen aus derselben Zeile: die eigene, sonst (wenn erlaubt) die der Plattform.
+                var login = ResolveCredentialRow(securityContext, connection);
+                ApplyCredentialRow(connectionInfo, login, securityContext);
+                var ownerId = login != null ? login.TenantId : securityContext.CurrentTenantId;
+                var ownerName = ownerId == null ? null : securityContext.CurrentTenantName;
+                // Eine Plattform-Zeile widerruft ein Mandant nicht - sie gehoert ihm nicht.
+                if (login is { Revoked: false } && (!forRevoke || login.TenantId == securityContext.CurrentTenantId))
                 {
                     var tmp = JsonHelper.FromJsonString<TranslatedTokenResponse>(login.Token,
                         SerializationTypingMode.StaticTyping);
                     var token = new TranslatedTokenResponse
                     {
-                        AccessToken = Decrypt(tmp.AccessToken, securityContext.CurrentTenantName),
+                        AccessToken = DecryptForOwner(tmp.AccessToken, ownerName),
                         ExpiresAt = tmp.ExpiresAt,
-                        RefreshToken = Decrypt(tmp.RefreshToken, securityContext.CurrentTenantName),
+                        RefreshToken = DecryptForOwner(tmp.RefreshToken, ownerName),
                         Scope = tmp.Scope,
                         TokenType = tmp.TokenType
                     };
 
                     if (!forRevoke)
                     {
-                        updateToken = newToken => PersistToken(oauthServiceId, tenantId, tenantName, newToken);
+                        updateToken = newToken => PersistToken(oauthServiceId, ownerId, ownerName, newToken);
                     }
                     else
                     {
@@ -1399,7 +1407,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
                 if (!throwIfNull)
                 {
-                    updateToken = newToken => PersistToken(oauthServiceId, tenantId, tenantName, newToken);
+                    updateToken = newToken => PersistToken(oauthServiceId, ownerId, ownerName, newToken);
 
                     return null;
                 }
@@ -1412,23 +1420,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// Persists (creates or updates) the OAuth tenant-login token on its OWN fresh per-operation context.
         /// Called by the deferred <c>updateToken</c> delegate returned from <see cref="GetBufferedToken"/>; it
         /// captures only ids/values (no tracked entity or shared context), re-resolves the login by
-        /// service+tenant and saves atomically.
+        /// service+owner and saves atomically.
         /// </summary>
-        private void PersistToken(int oauthServiceId, int? tenantId, string tenantName, TranslatedTokenResponse newToken)
+        /// <param name="ownerTenantId">the owner of the row; null = the platform row</param>
+        /// <param name="ownerName">the owner's name for the key; null = the system key</param>
+        private void PersistToken(int oauthServiceId, int? ownerTenantId, string ownerName, TranslatedTokenResponse newToken)
         {
             var encToken = new TranslatedTokenResponse
             {
                 Scope = newToken.Scope,
-                AccessToken = Encrypt(newToken.AccessToken, tenantName),
+                AccessToken = EncryptForOwner(newToken.AccessToken, ownerName),
                 ExpiresAt = newToken.ExpiresAt,
-                RefreshToken = Encrypt(newToken.RefreshToken, tenantName),
+                RefreshToken = EncryptForOwner(newToken.RefreshToken, ownerName),
                 TokenType = newToken.TokenType
             };
 
             using var lease = LeaseContext();
             var securityContext = lease.Context;
-            var login = securityContext.ExternalOAuthServiceTenantLogins.FirstOrDefault(n =>
-                n.OAuthServiceId == oauthServiceId && n.TenantId == tenantId);
+            // Ohne Filter, mit ausdruecklichem Besitzer: eine Plattform-Zeile ist fuer den Mandantenfilter unsichtbar.
+            var login = securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().FirstOrDefault(n =>
+                n.OAuthServiceId == oauthServiceId && n.TenantId == ownerTenantId);
             if (login != null)
             {
                 login.Revoked = false;
@@ -1436,9 +1447,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             }
             else
             {
+                if (ownerTenantId == null)
+                {
+                    // Eine Plattform-Zeile entsteht nur durch einen Admin, nie nebenbei aus einer Token-Anfrage ohne Mandant.
+                    LogEnvironment.LogEvent($"The token of external service {oauthServiceId} was not stored: there is no current tenant and no existing row to store it in.", LogSeverity.Error);
+                    return;
+                }
+
                 login = new TExternalOAuthServiceTenantLogin
                 {
-                    TenantId = tenantId.Value,
+                    TenantId = ownerTenantId,
                     Revoked = false,
                     OAuthServiceId = oauthServiceId,
                     Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
@@ -1502,6 +1520,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
 
             return retVal;
         }
+
+        /// <summary>
+        /// Die Zugangsdaten-Zeile fuer einen Dienst im aktuellen Mandanten: die eigene, sonst - wenn die Definition es
+        /// erlaubt - die der Plattform. Flach gibt es keine Vererbung.
+        /// </summary>
+        /// <returns>die Zeile, oder null (dann gelten ClientId/ClientSecret der Definition als Uebergang)</returns>
+        private TExternalOAuthServiceTenantLogin ResolveCredentialRow(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, TExternalOAuthService service)
+        {
+            var tenantId = securityContext.CurrentTenantId;
+            var serviceId = service.OAuthServiceId;
+            // Ohne Filter, mit ausdruecklichem Mandanten: die Plattform-Zeile blendet der Mandantenfilter aus.
+            var own = tenantId == null
+                ? null
+                : securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
+                    .FirstOrDefault(n => n.OAuthServiceId == serviceId && n.TenantId == tenantId);
+            if (own != null || !service.AllowPlatformCredentials)
+            {
+                return own;
+            }
+
+            return securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
+                .FirstOrDefault(n => n.OAuthServiceId == serviceId && n.TenantId == null);
+        }
+
+        /// <summary>Legt die festen Zugangsdaten einer Zeile (falls gespeichert) auf die Verbindung.</summary>
+        private void ApplyCredentialRow(ExternalServiceConnection connection, TExternalOAuthServiceTenantLogin row, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
+        {
+            if (string.IsNullOrEmpty(row?.CredentialJson))
+            {
+                return;
+            }
+
+            var ownerName = row.TenantId == null ? null : securityContext.CurrentTenantName;
+            ExternalServiceCredentials.ApplyTo(connection,
+                ExternalServiceCredentials.Unprotect(row.CredentialJson, v => DecryptForOwner(v, ownerName)));
+        }
+
+        /// <summary>Verschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>
+        private string EncryptForOwner(string value, string ownerName)
+            => string.IsNullOrEmpty(value) ? value : ownerName == null ? value.Encrypt() : Encrypt(value, ownerName);
+
+        /// <summary>Entschluesselt mit dem Schluessel des Besitzers einer Zeile; null = die Plattform (Systemschluessel).</summary>
+        private string DecryptForOwner(string value, string ownerName)
+            => string.IsNullOrEmpty(value) ? value : ownerName == null ? value.Decrypt() : Decrypt(value, ownerName);
 
         private TimeZoneInfo GetTimeZone(string permissionScopeName, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {

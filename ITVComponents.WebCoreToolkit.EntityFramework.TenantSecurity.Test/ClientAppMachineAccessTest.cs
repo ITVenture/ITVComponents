@@ -9,6 +9,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ITVComponents.Security;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.FlatTenantModels;
+using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using Sec = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Models;
 using Tenant = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.Tenant;
 
@@ -196,6 +200,43 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         /// Mandant, Anwendung, Rechte-Buendel und Zugang - der kleinste Aufbau, in dem ein Maschinenzugang
         /// ueberhaupt etwas duerfen kann.
         /// </summary>
+        // --- Externe Dienste: Zugangsdaten, flach ------------------------------------------------
+
+        [TestMethod]
+        public void FlatCredentials_TheOwnRowBeatsThePlatform()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: "own-key", platform: "platform-key", allowPlatform: true);
+
+            Assert.AreEqual("own-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void FlatCredentials_ThePlatformRowNeedsTheDefinitionsConsent()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: null, platform: "platform-key", allowPlatform: false);
+            Assert.AreNotEqual("platform-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+
+            var other = new World($"{dbName}_allowed", TenantName);
+            other.Seed(machine: true);
+            other.SeedCredentials(own: null, platform: "platform-key", allowPlatform: true);
+            Assert.AreEqual("platform-key", other.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void FlatCredentials_WithoutARow_TheDefinitionStillAnswers()
+        {
+            // Uebergang: solange keine Zeile Zugangsdaten traegt, gilt, was an der Definition steht.
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: null, platform: null, allowPlatform: false, definitionSecret: "legacy-key");
+
+            Assert.AreEqual("legacy-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
         private sealed class World
         {
             private readonly DbContextOptions<TestSecurityContext> options;
@@ -275,6 +316,34 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 {
                     AddAccess(ctx, machine, revoked, expiresUtc);
                 }
+            }
+
+            /// <summary>Der globale ApiKey-Dienst "svc" und die angegebenen Zugangsdaten-Zeilen (Systemschluessel).</summary>
+            public void SeedCredentials(string own, string platform, bool allowPlatform, string definitionSecret = null)
+            {
+                using var ctx = New();
+                var tenant = ctx.Tenants.Single(n => n.TenantName == TenantName);
+                var service = new FlatExternalOAuthService
+                {
+                    UniqueConnectionName = "svc", CalculatedUniqueServiceName = "GLOBALsvc",
+                    AuthorizationEndpoint = string.Empty, TokenEndpoint = string.Empty, RevocationEndpoint = string.Empty,
+                    ClientId = "X-Key", ClientSecret = definitionSecret?.Encrypt() ?? string.Empty, Scope = string.Empty,
+                    Global = true, TenantId = null,
+                    AuthenticationType = ExternalServiceAuthenticationType.ApiKey, AllowPlatformCredentials = allowPlatform
+                };
+                ctx.ExternalOAuthServices.Add(service);
+                ctx.SaveChanges();
+
+                void Row(int? tenantId, string key)
+                    => ctx.ExternalOAuthServiceTenantLogins.Add(new FlatExternalOAuthServiceTenantLogin
+                    {
+                        OAuthServiceId = service.OAuthServiceId, TenantId = tenantId, Token = "{}",
+                        CredentialJson = ExternalServiceCredentials.Protect(new ExternalServiceCredential { Secret = key }, v => v.Encrypt())
+                    });
+
+                if (own != null) Row(tenant.TenantId, own);
+                if (platform != null) Row(null, platform);
+                ctx.SaveChanges();
             }
 
             /// <summary>Haengt den Zugang nachtraeglich an - fuer die Reihenfolge "erst fragen, dann koppeln".</summary>
@@ -431,6 +500,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             {
                 base.OnModelCreating(modelBuilder);
                 modelBuilder.Entity<Tenant>().Property(t => t.TenantNameLower).ValueGeneratedNever();
+                // Berechnete Spalte: der Test setzt den eindeutigen Dienstnamen selbst.
+                modelBuilder.Entity<FlatExternalOAuthService>().Property(s => s.CalculatedUniqueServiceName).ValueGeneratedNever();
             }
         }
     }
