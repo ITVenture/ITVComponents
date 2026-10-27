@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 92 | **Eigene Anbieter-Zugänge in der Zugangsdaten-Zeile** | Kein Schema-Change. `ExternalServiceProviderCredentialStore` schreibt Geheimnisse in die Zeile des Mandanten statt an die Definition; liest zuerst dort, sonst noch das alte Geheimnis der Definition (§92) |
 | 91 | **ExternalServices: Masken für Zugangsdaten** | Kein Schema-Change. Blazor: Reiter „Credentials“ (eigene/Plattform-Zugangsdaten, Weitergabe an Untermandanten, Widerruf auch beim Anbieter); Definition nur noch mit App/Header-Name. `IOAuthTokenService.RevokeAsync` neu, `IExternalServiceAdminHandler` erweitert. Telerik: Token-Endpunkt, Plattform-Schalter (§91) |
 | 90 | **ExternalServices: Zugangsdaten auflösen** | **Pflicht: Daten-Updates.** Zugangsdaten und Token aus der nächsten Zeile im Baum (`Inheritable` an der Zeile, wie Settings), Plattform-Zeile nur mit `AllowPlatformCredentials`; direkte Grants am `TokenEndpoint`. Baum: stille Mitbenutzung des Eltern-Logins nur noch mit `Inheritable` (§90) |
 | 89 | **ExternalServices: Zugangsdaten-Zeile (Schema)** | **Pflicht: Schema.** `ExternalOAuthServiceTenantLogins`: `TenantId` nullable, `CredentialJson`, `Inheritable`, zwei eindeutige Indizes (vorher Doppel bereinigen); `ExternalOAuthServices.AllowPlatformCredentials`. Noch ohne Verhaltensänderung (§89) |
@@ -8767,3 +8768,23 @@ Phase 4 von `docs/Plan-ExternalServices-Credentials.md`.
 
 - [ ] Eigene `IOAuthTokenService`-Implementierungen um `RevokeAsync` ergänzen
 - [ ] Wer `ExternalServiceLoginsGrid` direkt eingebunden hat: auf `ExternalServiceCredentialsGrid` umstellen
+
+
+## 92. Eigene Anbieter-Zugänge: Geheimnisse in der Zugangsdaten-Zeile — **kein Schema-Change**
+
+Phase 5 von `docs/Plan-ExternalServices-Credentials.md`. Betrifft `ExternalServiceProviderCredentialStore` (eigene
+Zugänge bei Payrexx, wallee, SumUp; §78–§83).
+
+- **Speichern** (`SaveSecretAsync`): Der Dienst des Mandanten bleibt als Definition bestehen, trägt aber nur noch, was
+  zu ihr gehört, nämlich den **Header-Namen** bei ApiKey. Benutzer (Basic) und Geheimnis gehen in die
+  **Zugangsdaten-Zeile genau dieses Mandanten**, verschlüsselt mit seinem Schlüssel, `Inheritable = false`. Ein
+  altes Geheimnis an der Definition wird dabei **geleert**, damit es nur eine Quelle gibt.
+- **Lesen** (`GetCredentialAsync`): zuerst diese Zeile, sonst (Übergang bis Phase 6) das Geheimnis an der
+  Definition.
+- **Unverändert:** nur genau der Mandant, nichts Geerbtes, keine Plattform-Zeile (§78.4). Eine OAuth-Anmeldung an der
+  App der Plattform liest weiterhin das Token aus der Zeile des Mandanten.
+- Die neue Blazor-Maske (§91) zeigt diese Zeilen im Reiter „Credentials“ des jeweiligen Dienstes.
+
+**Für eigenen Code:** Wer `IProviderCredentialStore` selbst implementiert, ändert nichts. Wer die Geheimnisse dieser
+Dienste selbst aus `ClientSecret` liest, liest künftig über den Speicher, denn nach einem erneuten Speichern ist
+`ClientSecret` leer.

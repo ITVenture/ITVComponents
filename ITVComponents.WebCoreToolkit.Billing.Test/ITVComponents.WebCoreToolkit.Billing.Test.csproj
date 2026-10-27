@@ -30,5 +30,7 @@
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Payrexx\ITVComponents.WebCoreToolkit.Billing.Payrexx.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.Wallee\ITVComponents.WebCoreToolkit.Billing.Wallee.csproj" />
     <ProjectReference Include="..\ITVComponents.WebCoreToolkit.Billing.SumUp\ITVComponents.WebCoreToolkit.Billing.SumUp.csproj" />
+    <!-- Der Zugangsdaten-Speicher der eigenen Anbieter-Zugaenge (Leitfaden §92). -->
+    <ProjectReference Include="..\ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity\ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.csproj" />
   </ItemGroup>
 </Project>

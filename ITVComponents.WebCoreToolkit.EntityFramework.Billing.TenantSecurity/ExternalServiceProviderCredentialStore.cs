@@ -4,6 +4,7 @@ using ITVComponents.Json;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Payments;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.ExternalOAuthServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
 using ITVComponents.WebCoreToolkit.Security;
@@ -90,6 +91,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 case ExternalServiceAuthenticationType.ApiKey:
                 case ExternalServiceAuthenticationType.BearerToken:
                 case ExternalServiceAuthenticationType.Basic:
+                {
+                    // Die Zugangsdaten-Zeile GENAU dieses Mandanten - nichts Geerbtes, keine Plattform (§78.4). Bis die
+                    // Geheimnisse umgezogen sind (Phase 6), gilt ohne Zeile noch das Geheimnis an der Definition.
+                    var row = await db.Set<TExternalOAuthServiceTenantLogin>().AsNoTracking().IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(l => l.OAuthServiceId == service.OAuthServiceId && l.TenantId == tenantId, cancellationToken);
+                    var credential = ExternalServiceCredentials.Unprotect(row?.CredentialJson,
+                        v => securityRepository.Decrypt(v, tenantName));
+                    if (credential != null && !string.IsNullOrEmpty(credential.Secret))
+                    {
+                        return new ProviderCredential(service.AuthenticationType,
+                            service.AuthenticationType == ExternalServiceAuthenticationType.Basic ? credential.User : service.ClientId,
+                            credential.Secret);
+                    }
+
                     if (string.IsNullOrEmpty(service.ClientSecret))
                     {
                         logger.LogError("External service '{ConnectionName}' of tenant {TenantId} has no secret stored.", connectionName, tenantId);
@@ -98,6 +113,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
 
                     return new ProviderCredential(service.AuthenticationType, service.ClientId,
                         securityRepository.Decrypt(service.ClientSecret, tenantName));
+                }
 
                 case ExternalServiceAuthenticationType.OAuthAuthorizationFlow:
                     return new ProviderCredential(service.AuthenticationType, service.ClientId,
@@ -147,9 +163,36 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 db.Set<TExternalOAuthService>().Add(service);
             }
 
+            // Die Definition traegt nur noch, was zu ihr gehoert: den Header-Namen bei ApiKey. Benutzer und Geheimnis
+            // liegen in der Zugangsdaten-Zeile des Mandanten (Leitfaden §92) - nie vererbbar, Zahlungen erben nicht.
             service.AuthenticationType = authenticationType;
-            service.ClientId = clientId ?? string.Empty;
-            service.ClientSecret = securityRepository.Encrypt(secret, tenantName);
+            service.ClientId = authenticationType == ExternalServiceAuthenticationType.ApiKey ? clientId ?? string.Empty : string.Empty;
+            // Ein altes Geheimnis an der Definition wird geleert, damit es nur EINE Quelle gibt.
+            service.ClientSecret = string.Empty;
+            if (service.OAuthServiceId == 0)
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            var row = await db.Set<TExternalOAuthServiceTenantLogin>().IgnoreQueryFilters()
+                .FirstOrDefaultAsync(l => l.OAuthServiceId == service.OAuthServiceId && l.TenantId == tenantId, cancellationToken);
+            if (row == null)
+            {
+                // Activator statt new(): die Einschraenkung muesste sonst bis in jede Registrierung durchgereicht werden.
+                row = Activator.CreateInstance<TExternalOAuthServiceTenantLogin>();
+                row.OAuthServiceId = service.OAuthServiceId;
+                row.TenantId = tenantId;
+                db.Set<TExternalOAuthServiceTenantLogin>().Add(row);
+            }
+
+            row.CredentialJson = ExternalServiceCredentials.Protect(new ExternalServiceCredential
+            {
+                User = authenticationType == ExternalServiceAuthenticationType.Basic ? clientId : null,
+                Secret = secret
+            }, v => securityRepository.Encrypt(v, tenantName));
+            row.Inheritable = false;
+            row.Revoked = false;
+            row.Token = "{}";
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Stored the {AuthenticationType} secret of external service '{ConnectionName}' for tenant {TenantId}.",
                 authenticationType, connectionName, tenantId);
