@@ -297,14 +297,20 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             ExternalOAuthServiceParameter model = null;
             if (service != null && ValidateParameter(service, viewModel) && ModelState.IsValid)
             {
+                // Die Wertregel (geheim / Klartext) steht in ApplyParameterValue, fuer beide Wege gleich.
                 model = new ExternalOAuthServiceParameter
                 {
-                    ParameterName = viewModel.ParameterName.Trim(),
-                    ParameterValue = viewModel.ParameterValue
+                    ParameterName = viewModel.ParameterName.Trim()
                 };
-
-                service.TokenParameters.Add(model);
-                await db.SaveChangesAsync();
+                if (ApplyParameterValue(service, model, viewModel))
+                {
+                    service.TokenParameters.Add(model);
+                    await db.SaveChangesAsync();
+                }
+                else
+                {
+                    model = null;
+                }
             }
 
             return Json(await new[] { model != null ? ToParameterViewModel(model) : viewModel }.ToDataSourceResultAsync(request, ModelState));
@@ -323,9 +329,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
             if (model != null && ValidateParameter(service, viewModel) && ModelState.IsValid)
             {
-                model.ParameterName = viewModel.ParameterName.Trim();
-                model.ParameterValue = viewModel.ParameterValue;
-                await db.SaveChangesAsync();
+                // Erst der Wert: lehnt die Regel ab, aendert sie nichts - und dann bleibt auch der Name, wie er war.
+                if (ApplyParameterValue(service, model, viewModel))
+                {
+                    model.ParameterName = viewModel.ParameterName.Trim();
+                    await db.SaveChangesAsync();
+                }
             }
 
             return Json(await new[] { model != null ? ToParameterViewModel(model) : viewModel }.ToDataSourceResultAsync(request, ModelState));
@@ -389,6 +398,51 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             return true;
         }
 
+        /// <summary>
+        /// Wendet Wert und Geheim-Flag an (Regel: <c>OAuthExtensions.ApplyValue</c>) und meldet eine Ablehnung
+        /// im ModelState.
+        /// </summary>
+        /// <returns>true, wenn angewendet</returns>
+        private bool ApplyParameterValue(TExternalOAuthService service, ExternalOAuthServiceParameter model,
+            ExternalOAuthServiceParameterViewModel viewModel)
+        {
+            switch (model.ApplyValue(viewModel.IsSecret, viewModel.ParameterValue, plain => EncryptFor(service, plain)))
+            {
+                case TokenParameterValueResult.SecretMustBeEnteredAgain:
+                    ModelState.AddModelError(nameof(viewModel.ParameterValue), TextsAndMessagesHelper.IWCN_ES_ParamSecretEnterAgain);
+                    return false;
+                case TokenParameterValueResult.EncryptionFailed:
+                    ModelState.AddModelError(nameof(viewModel.ParameterValue), TextsAndMessagesHelper.IWCN_ES_ParamSecretNotStored);
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// Verschluesselt mit dem Schluessel des Dienstes - global mit dem Systemschluessel, sonst mit dem des Mandanten.
+        /// Gleich fuer ClientSecret und geheime Token-Parameter, weil beide an derselben Stelle entschluesselt werden.
+        /// </summary>
+        /// <returns>der verschluesselte Wert, oder null, wenn der Mandant nicht gefunden wurde (protokolliert)</returns>
+        private string EncryptFor(TExternalOAuthService model, string plain)
+        {
+            if (model.Global)
+            {
+                return plain.Encrypt();
+            }
+
+            var t = db.Tenants.FirstOrDefault(n => n.TenantId == model.TenantId);
+            if (t == null)
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent(
+                    $"A secret of external service '{model.UniqueConnectionName}' was not stored: tenant {model.TenantId} was not found.",
+                    ITVComponents.Logging.LogSeverity.Error);
+                return null;
+            }
+
+            return secRepo.Encrypt(plain, t.TenantName);
+        }
+
         private static ExternalOAuthServiceParameterViewModel ToParameterViewModel(ExternalOAuthServiceParameter model)
         {
             return new ExternalOAuthServiceParameterViewModel
@@ -396,7 +450,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 OAuthServiceParameterId = model.OAuthServiceParameterId,
                 OAuthServiceId = model.OAuthServiceId,
                 ParameterName = model.ParameterName,
-                ParameterValue = model.ParameterValue
+                // Ein Geheimnis verlaesst die Datenbank nicht wieder - auch nicht verschluesselt.
+                ParameterValue = model.IsSecret ? null : model.ParameterValue,
+                IsSecret = model.IsSecret,
+                HasValue = !string.IsNullOrEmpty(model.ParameterValue)
             };
         }
 

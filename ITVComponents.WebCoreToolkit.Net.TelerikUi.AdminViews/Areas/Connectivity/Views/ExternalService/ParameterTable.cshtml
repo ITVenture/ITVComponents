@@ -8,6 +8,7 @@
     var canWrite = Context.RequestServices.VerifyUserPermissions(new[] { "Services.Connections.Write" });
 }
 <small class="form-text text-muted">@TextsAndMessagesHelper.IWCN_ES_ParamHint</small>
+<small class="form-text text-muted">@TextsAndMessagesHelper.IWCN_ES_ParamSecretHint</small>
 @if (ViewData["SupportsParameters"] is not true)
 {
     <small class="form-text text-warning">@TextsAndMessagesHelper.IWCN_ES_ParamNotSupported</small>
@@ -16,7 +17,9 @@
     .Columns(columns =>
     {
         columns.Bound(c => c.ParameterName).Title(TextsAndMessagesHelper.IWCN_General_ParameterName);
-        columns.Bound(c => c.ParameterValue).Title(TextsAndMessagesHelper.IWCN_General_Value);
+        columns.Bound(c => c.ParameterValue).Title(TextsAndMessagesHelper.IWCN_General_Value)
+            .ClientTemplate($"# if (IsSecret) {{ #<span class='text-warning'>{TextsAndMessagesHelper.IWCN_ES_ParamSecretStored}</span># }} else {{ ##: ParameterValue || '' ## }} #");
+        columns.Bound(c => c.IsSecret).Title(TextsAndMessagesHelper.IWCN_ES_ParamSecret).Width(110);
         if (canWrite)
         {
             columns.Command(ga =>
@@ -50,6 +53,7 @@
         {
             m.Id(t => t.OAuthServiceParameterId);
             m.Field(t => t.OAuthServiceId).DefaultValue(oauthServiceId is int i ? i : 0);
+            m.Field(t => t.HasValue).Editable(false);
         });
     })
     .Scrollable(s => s.Height("auto"))

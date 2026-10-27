@@ -11,7 +11,18 @@
         <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@error</MudAlert>
     }
     <MudTextField @bind-Value="Model.ParameterName" Label="Parameter name" Required="true" RequiredError="A parameter name is required." MaxLength="255" />
-    <MudTextField @bind-Value="Model.ParameterValue" Label="Value" />
+    <MudSwitch T="bool" @bind-Value="Model.IsSecret" Label="Secret (stored encrypted)" Color="Color.Warning" Class="mt-2" />
+    @if (Model.IsSecret)
+    {
+        @* Ein gespeichertes Geheimnis kommt nicht zurueck in die Maske. Leer lassen heisst behalten. *@
+        <MudTextField @bind-Value="Model.ParameterValue" Label="Value" InputType="InputType.Password"
+                      HelperText="@(Model.HasValue ? "Stored encrypted. Leave empty to keep the current value." : "Stored encrypted; it will not be shown again.")" />
+    }
+    else
+    {
+        <MudTextField @bind-Value="Model.ParameterValue" Label="Value"
+                      HelperText="@(wasSecret ? "This value was secret - enter it again to store it as plain text." : null)" />
+    }
 </EditDialogShell>
 
 @code {
@@ -19,6 +30,11 @@
     [Parameter] public bool IsCreate { get; set; }
 
     private ExternalOAuthServiceParameterViewModel? saved;
+
+    /// <summary>Ob der Parameter beim Oeffnen geheim war - dann muss der Wert fuer Klartext neu eingegeben werden.</summary>
+    private bool wasSecret;
+
+    protected override void OnInitialized() => wasSecret = Model.IsSecret && Model.HasValue;
     private string? error;
     private bool busy;
 

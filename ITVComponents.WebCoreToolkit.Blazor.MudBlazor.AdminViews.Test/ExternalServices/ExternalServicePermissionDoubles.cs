@@ -103,12 +103,16 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
         public IEnumerable<Permission> GetPermissions(Role role) => throw new NotImplementedException();
         public bool PermissionScopeExists(string permissionScopeName) => throw new NotImplementedException();
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) => throw new NotImplementedException();
-        public string Decrypt(string encryptedValue, string permissionScopeName) => throw new NotImplementedException();
+        // Umkehrbar und am Mandanten erkennbar: die Tests pruefen, dass mit dem Schluessel des Dienstes verschluesselt wird.
+        public string Decrypt(string encryptedValue, string permissionScopeName)
+            => encryptedValue.StartsWith($"enc[{permissionScopeName}]:", StringComparison.Ordinal)
+                ? encryptedValue.Substring($"enc[{permissionScopeName}]:".Length)
+                : throw new InvalidOperationException($"'{encryptedValue}' was not encrypted for '{permissionScopeName}'.");
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt) => throw new NotImplementedException();
         public Stream GetDecryptStream(Stream baseStream, string permissionScopeName, byte[] initializationVector, byte[] salt) => throw new NotImplementedException();
         public Stream GetDecryptStream(Stream baseStream, string permissionScopeName) => throw new NotImplementedException();
-        public string Encrypt(string value, string permissionScopeName) => throw new NotImplementedException();
+        public string Encrypt(string value, string permissionScopeName) => $"enc[{permissionScopeName}]:{value}";
         public byte[] Encrypt(byte[] value, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Encrypt(byte[] value, string permissionScopeName, out byte[] initializationVector, out byte[] salt) => throw new NotImplementedException();
         public Stream GetEncryptStream(Stream baseStream, string permissionScopeName, out byte[] initializationVector, out byte[] salt) => throw new NotImplementedException();

@@ -199,6 +199,16 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string IWCN_ES_ParamDuplicate => GetString(nameof(IWCN_ES_ParamDuplicate));
 
+        public static string IWCN_ES_ParamSecret => GetString(nameof(IWCN_ES_ParamSecret));
+
+        public static string IWCN_ES_ParamSecretStored => GetString(nameof(IWCN_ES_ParamSecretStored));
+
+        public static string IWCN_ES_ParamSecretHint => GetString(nameof(IWCN_ES_ParamSecretHint));
+
+        public static string IWCN_ES_ParamSecretEnterAgain => GetString(nameof(IWCN_ES_ParamSecretEnterAgain));
+
+        public static string IWCN_ES_ParamSecretNotStored => GetString(nameof(IWCN_ES_ParamSecretNotStored));
+
         public static string IWCN_ES_ParamHint => GetString(nameof(IWCN_ES_ParamHint));
 
         public static string IWCN_ES_ParamNotSupported => GetString(nameof(IWCN_ES_ParamNotSupported));
@@ -587,6 +597,21 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string GetIWCN_ES_ParamDuplicate(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamDuplicate), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamSecret(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamSecret), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamSecretStored(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamSecretStored), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamSecretHint(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamSecretHint), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamSecretEnterAgain(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamSecretEnterAgain), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_ParamSecretNotStored(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_ParamSecretNotStored), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_ParamHint(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamHint), requestCulture.RequestCulture.UICulture);

@@ -606,7 +606,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
             // aufsetzen koennen - umgekehrt gilt das nicht.
             using (var h = new FullSecurityAccessHelper<TTrustConfig>(DbContext, new(){ShowAllTenants = true,HideGlobals = false}))
             {
-                DbContext.ApplyData(hostChanges.ToArray(), messages, extendQuery, null);
+                DbContext.ApplyData(hostChanges.ToArray(), messages, extendQuery, ExtendApplyVariables);
             }
 
             foreach (var section in foreignChanges.OrderBy(n => n.Key, StringComparer.OrdinalIgnoreCase))
@@ -743,7 +743,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     .Include(n => n.PathTemplates)
                     .Include(n => n.RequiredFeature)
                     .Include(n => n.RequiredPermission).ToList().Select(n => SelectAssetTemplateMarkup(n)).ToArray(),
-                ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).ToList()
+                ExternalOAuthServices = DbContext.ExternalOAuthServices.Where(n => n.TenantId == null).Include(n => n.TokenParameters).ToList()
                     .Select(n => SelectExternalOAuthServiceTemplateMarkup(n)).ToArray(),
                 TemplateModules = DbContext.TemplateModules.Include(n => n.RequiredFeature)
                     .Include(n => n.Configurators).ThenInclude(c => c.ViewComponentParameters)
@@ -804,8 +804,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                 ClientId = serviceInst.ClientId,
                 Scope = serviceInst.Scope,
                 Global = serviceInst.Global,
-                AuthenticationType = serviceInst.AuthenticationType
+                AuthenticationType = serviceInst.AuthenticationType,
                 // NOTE: ClientSecret is deliberately NOT extracted — secrets must not travel with the system config.
+                // The same holds for the value of a secret token parameter: name and flag travel, the value does not.
+                TokenParameters = (serviceInst.TokenParameters ?? new List<ExternalOAuthServiceParameter>())
+                    .OrderBy(n => n.ParameterName, StringComparer.OrdinalIgnoreCase)
+                    .Select(n => new ExternalOAuthServiceParameterTemplateMarkup
+                    {
+                        ParameterName = n.ParameterName,
+                        ParameterValue = n.IsSecret ? null : n.ParameterValue,
+                        IsSecret = n.IsSecret
+                    }).ToArray()
             };
         }
 
@@ -2592,6 +2601,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     change.Details.Add(MakeDetail("AuthenticationType", c.New.AuthenticationType.ToString()));
                     // ClientSecret is required by the schema but must not be cloned -> create empty; target-admin sets it later.
                     change.Details.Add(MakeDetail("ClientSecret", string.Empty));
+                    if (c.New.TokenParameters is { Length: > 0 })
+                    {
+                        change.Details.Add(MakeDetail("TokenParameters", ExternalServiceTokenParameterSync.Describe(c.New.TokenParameters),
+                            ExternalServiceTokenParameterSync.ValueExpression, multiline: true));
+                    }
+
                     RegisterChange(change);
                 }
                 else if (c.Original != null)
@@ -2633,6 +2648,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
                     }
 
                     // ClientSecret is intentionally never updated here.
+                    // Token parameters: a configuration from before the parameters were exported carries none (null) -
+                    // that means "unknown", not "remove all", so it is left alone.
+                    if (c.New.TokenParameters != null)
+                    {
+                        var newParameters = ExternalServiceTokenParameterSync.Describe(c.New.TokenParameters);
+                        var currentParameters = ExternalServiceTokenParameterSync.Describe(c.Original.TokenParameters);
+                        if (newParameters != currentParameters)
+                        {
+                            change.Details.Add(MakeDetail("TokenParameters", newParameters,
+                                ExternalServiceTokenParameterSync.ValueExpression, currentParameters, multiline: true));
+                        }
+                    }
+
                     if (change.Details.Count != 0)
                     {
                         RegisterChange(change);
@@ -2982,6 +3010,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Con
 
         protected virtual void PostProcessExternalOAuthServiceChange(Change change, ExternalOAuthServiceTemplateMarkup @new, ExternalOAuthServiceTemplateMarkup original)
         {
+        }
+
+        /// <summary>
+        /// Offers additional variables to the value expressions of the host's data-apply. The base offers the
+        /// token-parameter sync of the external services; an override calls the base.
+        /// </summary>
+        /// <param name="variables">the variables of one value expression</param>
+        protected virtual void ExtendApplyVariables(Dictionary<string, object> variables)
+        {
+            variables[ExternalServiceTokenParameterSync.VariableName] = new ExternalServiceTokenParameterSync();
         }
 
         protected virtual void PostProcessTemplateModuleChange(Change change, TemplateModuleTemplateMarkup @new, TemplateModuleTemplateMarkup original)

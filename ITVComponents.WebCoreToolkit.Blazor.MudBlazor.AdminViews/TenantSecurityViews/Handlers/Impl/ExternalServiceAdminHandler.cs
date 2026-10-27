@@ -406,7 +406,10 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                 OAuthServiceParameterId = n.OAuthServiceParameterId,
                 OAuthServiceId = n.OAuthServiceId,
                 ParameterName = n.ParameterName,
-                ParameterValue = n.ParameterValue
+                // Ein Geheimnis verlaesst die Datenbank nicht wieder - auch nicht verschluesselt.
+                ParameterValue = n.IsSecret ? null : n.ParameterValue,
+                IsSecret = n.IsSecret,
+                HasValue = !string.IsNullOrEmpty(n.ParameterValue)
             }).ToListAsync();
         return new PagedResult<ExternalOAuthServiceParameterViewModel> { Items = items, TotalCount = total };
     }
@@ -458,14 +461,24 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         }
 
         model.ParameterName = name;
-        model.ParameterValue = input.ParameterValue;
+        switch (model.ApplyValue(input.IsSecret, input.ParameterValue!, plain => EncryptFor(db, service, plain)))
+        {
+            case TokenParameterValueResult.SecretMustBeEnteredAgain:
+                return ExternalOAuthServiceParameterSaveResult.Failed("Enter the value again: a secret is not turned back into plain text.");
+            case TokenParameterValueResult.EncryptionFailed:
+                // EncryptFor hat den Grund schon protokolliert.
+                return ExternalOAuthServiceParameterSaveResult.Failed("The value could not be encrypted, so it was not stored.");
+        }
+
         await db.SaveChangesAsync();
         return ExternalOAuthServiceParameterSaveResult.Saved(new ExternalOAuthServiceParameterViewModel
         {
             OAuthServiceParameterId = model.OAuthServiceParameterId,
             OAuthServiceId = service.OAuthServiceId,
             ParameterName = model.ParameterName,
-            ParameterValue = model.ParameterValue
+            ParameterValue = model.IsSecret ? null : model.ParameterValue,
+            IsSecret = model.IsSecret,
+            HasValue = !string.IsNullOrEmpty(model.ParameterValue)
         });
     }
 
@@ -491,22 +504,32 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     private void EncryptSecret(TContext db, TExternalOAuthService entity, string? secret)
     {
         if (string.IsNullOrEmpty(secret) || !secret.StartsWith("encrypt:")) return;
-        var plain = secret.Substring(8);
+        var encrypted = EncryptFor(db, entity, secret.Substring(8));
+        if (encrypted != null)
+        {
+            entity.ClientSecret = encrypted;
+        }
+    }
+
+    /// <summary>
+    /// Verschluesselt mit dem Schluessel des Dienstes: global mit dem Systemschluessel, sonst mit dem des Mandanten -
+    /// fuer ClientSecret und geheime Token-Parameter gleich, weil beide an derselben Stelle entschluesselt werden.
+    /// </summary>
+    /// <returns>der verschluesselte Wert, oder null, wenn der Mandant nicht gefunden wurde (protokolliert)</returns>
+    private string? EncryptFor(TContext db, TExternalOAuthService entity, string plain)
+    {
         if (entity.Global)
         {
-            entity.ClientSecret = plain.Encrypt();
+            return plain.Encrypt();
         }
-        else
+
+        var t = db.Tenants.FirstOrDefault(n => n.TenantId == entity.TenantId);
+        if (t == null)
         {
-            var t = db.Tenants.FirstOrDefault(n => n.TenantId == entity.TenantId);
-            if (t != null)
-            {
-                entity.ClientSecret = secRepo.Encrypt(plain, t.TenantName);
-            }
-            else
-            {
-                logger.LogError("The secret of external service '{ConnectionName}' was not stored: tenant {TenantId} was not found.", entity.UniqueConnectionName, entity.TenantId);
-            }
+            logger.LogError("A secret of external service '{ConnectionName}' was not stored: tenant {TenantId} was not found.", entity.UniqueConnectionName, entity.TenantId);
+            return null;
         }
+
+        return secRepo.Encrypt(plain, t.TenantName);
     }
 }

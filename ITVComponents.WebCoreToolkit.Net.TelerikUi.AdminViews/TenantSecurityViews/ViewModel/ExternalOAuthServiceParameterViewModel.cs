@@ -14,6 +14,13 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public string ParameterName { get; set; }
 
+        /// <summary>The value; for a secret parameter always null when read, and empty on save means "keep".</summary>
         public string ParameterValue { get; set; }
+
+        /// <summary>Whether the value is stored encrypted.</summary>
+        public bool IsSecret { get; set; }
+
+        /// <summary>Whether a value is stored - the only thing the view learns about a secret.</summary>
+        public bool HasValue { get; set; }
     }
 }

@@ -423,4 +423,19 @@
   <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
     <value>Der aktuelle Authentifizierungstyp schickt keine zusätzlichen Parameter mit – sie bleiben erhalten, werden aber ignoriert.</value>
   </data>
+  <data name="IWCN_ES_ParamSecret" xml:space="preserve">
+    <value>Geheim</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretStored" xml:space="preserve">
+    <value>(verschlüsselt gespeichert)</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretHint" xml:space="preserve">
+    <value>Geheime Werte werden verschlüsselt gespeichert und nicht wieder angezeigt. Beim Bearbeiten eines Geheimnisses den Wert leer lassen, um ihn zu behalten.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretEnterAgain" xml:space="preserve">
+    <value>Bitte den Wert neu eingeben: ein Geheimnis wird nicht in Klartext zurückverwandelt.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretNotStored" xml:space="preserve">
+    <value>Der Wert konnte nicht verschlüsselt werden und wurde deshalb nicht gespeichert.</value>
+  </data>
 </root>

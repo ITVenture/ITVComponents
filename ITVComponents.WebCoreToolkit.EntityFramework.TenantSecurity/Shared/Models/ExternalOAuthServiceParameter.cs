@@ -30,6 +30,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [Required, MaxLength(255)]
         public string ParameterName { get; set; }
 
+        /// <summary>
+        /// The value. Encrypted when <see cref="IsSecret"/> is set - with the same key as the service's ClientSecret
+        /// (the system key for a global service, the tenant's key otherwise).
+        /// </summary>
         public string ParameterValue { get; set; }
+
+        /// <summary>
+        /// Whether <see cref="ParameterValue"/> is a secret (e.g. a client_secret for the password grant). Secret values
+        /// are stored encrypted, never shown again in the admin views, and decrypted only right before the token request.
+        /// Not every parameter is a secret (audience, resource, organization), hence a flag and not blanket encryption.
+        /// </summary>
+        public bool IsSecret { get; set; }
     }
 }

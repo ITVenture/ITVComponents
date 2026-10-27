@@ -1637,6 +1637,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 }
             }
 
+            if (decryptSecret)
+            {
+                // Geheime Token-Parameter mit demselben Schluessel wie das ClientSecret. Copy() ist flach - die
+                // Methode baut ein neues Feld und laesst das gepufferte unangetastet.
+                tmp.DecryptTokenRequestParameters(v => tmp.Global ? v.Decrypt() : Decrypt(v, tenantName));
+            }
+
             return tmp;
         }
 
@@ -1771,6 +1778,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 }
             }
 
+            svc.DecryptTokenRequestParameters(v => svc.Global ? v.Decrypt() : Decrypt(v, tenantName));
             connectionInfo = svc;
             if (serviceId != null)
             {

@@ -64,7 +64,14 @@ public sealed class ExternalOAuthServiceParameterViewModel
     [Required, MaxLength(255)]
     public string ParameterName { get; set; } = string.Empty;
 
+    /// <summary>The value; for a secret parameter always null when read (it is never shown again), and empty on save means "keep".</summary>
     public string? ParameterValue { get; set; }
+
+    /// <summary>Whether the value is stored encrypted.</summary>
+    public bool IsSecret { get; set; }
+
+    /// <summary>Whether a value is stored - the only thing the view learns about a secret.</summary>
+    public bool HasValue { get; set; }
 }
 
 public sealed class ExternalOAuthServiceParameterSaveResult

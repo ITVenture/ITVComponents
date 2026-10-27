@@ -31,7 +31,18 @@
     </ToolBarContent>
     <Columns>
         <PropertyColumn Property="x => x.ParameterName" Title="Name" />
-        <PropertyColumn Property="x => x.ParameterValue" Title="Value" />
+        <TemplateColumn T="ExternalOAuthServiceParameterViewModel" Title="Value" Sortable="false">
+            <CellTemplate>
+                @if (context.Item.IsSecret)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Filled.Lock">@(context.Item.HasValue ? "encrypted" : "empty")</MudChip>
+                }
+                else
+                {
+                    @context.Item.ParameterValue
+                }
+            </CellTemplate>
+        </TemplateColumn>
         <TemplateColumn T="ExternalOAuthServiceParameterViewModel" Title="" Sortable="false">
             <CellTemplate>
                 @if (CanWrite)
@@ -87,7 +98,9 @@
             OAuthServiceParameterId = item.OAuthServiceParameterId,
             OAuthServiceId = item.OAuthServiceId,
             ParameterName = item.ParameterName,
-            ParameterValue = item.ParameterValue
+            ParameterValue = item.ParameterValue,
+            IsSecret = item.IsSecret,
+            HasValue = item.HasValue
         }, false);
 
     private async Task OpenDialog(ExternalOAuthServiceParameterViewModel model, bool isCreate)

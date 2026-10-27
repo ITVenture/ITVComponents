@@ -1492,6 +1492,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                     : Decrypt(svc.ClientSecret, securityContext.CurrentTenantName);
             }
 
+            if (decryptSecret)
+            {
+                // Geheime Token-Parameter mit demselben Schluessel wie das ClientSecret.
+                retVal.DecryptTokenRequestParameters(v => retVal.Global
+                    ? v.Decrypt()
+                    : Decrypt(v, securityContext.CurrentTenantName));
+            }
+
             return retVal;
         }
 

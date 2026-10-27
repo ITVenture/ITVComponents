@@ -22,6 +22,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Hel
 
         public ExternalServiceAuthenticationType AuthenticationType { get; set; }
 
+        /// <summary>
+        /// The additional token-request parameters. A secret parameter travels with its name and flag only - its value
+        /// stays on the system it was entered on, like the ClientSecret.
+        /// </summary>
+        public ExternalOAuthServiceParameterTemplateMarkup[] TokenParameters { get; set; }
+
         // NOTE: ClientSecret is deliberately NOT part of the template — secrets must not travel with a tenant
         // template (which may be serialized/stored). On apply the service is created with an empty secret; the
         // tenant admin sets it afterwards.

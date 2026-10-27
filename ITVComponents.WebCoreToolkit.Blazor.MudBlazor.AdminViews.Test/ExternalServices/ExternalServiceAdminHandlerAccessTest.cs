@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -117,6 +118,110 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
             }
 
             Assert.IsTrue(await handler.DeleteAsync(Caller, world.OwnServiceId));
+        }
+
+        [TestMethod]
+        public async Task ASecretParameter_IsStoredEncryptedAndNeverReadBack()
+        {
+            var handler = world.Handler(Own, Write);
+
+            var result = await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceId = world.OwnServiceId, ParameterName = "api_key", ParameterValue = "s3cret", IsSecret = true
+            });
+
+            Assert.IsTrue(result.Success, result.Error);
+            Assert.IsNull(result.Parameter!.ParameterValue, "A secret must not come back to the view.");
+            Assert.IsTrue(result.Parameter.HasValue);
+            using (var db = world.Inspect())
+            {
+                var stored = db.ExternalOAuthServices.Include(n => n.TokenParameters)
+                    .Single(n => n.OAuthServiceId == world.OwnServiceId).TokenParameters.Single(n => n.ParameterName == "api_key");
+                Assert.IsTrue(stored.IsSecret);
+                Assert.AreEqual($"enc[{Own}]:s3cret", stored.ParameterValue, "Encrypted with the key of the service's tenant.");
+            }
+
+            var listed = await handler.ListParametersAsync(Caller, world.OwnServiceId, All);
+            var secret = listed.Items.Single(n => n.ParameterName == "api_key");
+            Assert.IsNull(secret.ParameterValue);
+            Assert.AreEqual("a", listed.Items.Single(n => n.ParameterName == "client_id").ParameterValue,
+                "A parameter that is not secret stays readable.");
+        }
+
+        [TestMethod]
+        public async Task ASecretParameter_KeepsItsValueWhenSavedEmpty_AndIsNotSilentlyMadePlain()
+        {
+            var handler = world.Handler(Own, Write);
+            var saved = (await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceId = world.OwnServiceId, ParameterName = "password", ParameterValue = "pw", IsSecret = true
+            })).Parameter!;
+
+            // Name aendern, Wert leer: das Geheimnis bleibt.
+            var renamed = await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceParameterId = saved.OAuthServiceParameterId, OAuthServiceId = world.OwnServiceId,
+                ParameterName = "pass", ParameterValue = null, IsSecret = true
+            });
+            Assert.IsTrue(renamed.Success, renamed.Error);
+
+            // Auf Klartext ohne neuen Wert: abgelehnt.
+            var plain = await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceParameterId = saved.OAuthServiceParameterId, OAuthServiceId = world.OwnServiceId,
+                ParameterName = "pass", ParameterValue = null, IsSecret = false
+            });
+            Assert.IsFalse(plain.Success);
+
+            using var db = world.Inspect();
+            var stored = db.ExternalOAuthServices.Include(n => n.TokenParameters)
+                .Single(n => n.OAuthServiceId == world.OwnServiceId).TokenParameters.Single(n => n.ParameterName == "pass");
+            Assert.IsTrue(stored.IsSecret);
+            Assert.AreEqual($"enc[{Own}]:pw", stored.ParameterValue);
+        }
+
+        [TestMethod]
+        public async Task MarkingAPlainParameterSecret_EncryptsTheExistingValue()
+        {
+            var handler = world.Handler(Own, Write);
+            var existing = (await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceId = world.OwnServiceId, ParameterName = "organization", ParameterValue = "acme"
+            })).Parameter!;
+            Assert.AreEqual("acme", existing.ParameterValue);
+
+            var result = await handler.SaveParameterAsync(Caller, new ExternalOAuthServiceParameterViewModel
+            {
+                OAuthServiceParameterId = existing.OAuthServiceParameterId, OAuthServiceId = world.OwnServiceId,
+                ParameterName = "organization", ParameterValue = null, IsSecret = true
+            });
+
+            Assert.IsTrue(result.Success, result.Error);
+            using var db = world.Inspect();
+            Assert.AreEqual($"enc[{Own}]:acme", db.ExternalOAuthServices.Include(n => n.TokenParameters)
+                .Single(n => n.OAuthServiceId == world.OwnServiceId).TokenParameters
+                .Single(n => n.ParameterName == "organization").ParameterValue);
+        }
+
+        [TestMethod]
+        public void DecryptingTheConnection_LeavesTheBufferedArrayAlone()
+        {
+            var shared = new[]
+            {
+                new KeyValuePair<string, string>("audience", "api"),
+                new KeyValuePair<string, string>("client_secret", "cipher")
+            };
+            var connection = new ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect.ExternalServiceConnection
+            {
+                TokenRequestParameters = shared,
+                SecretTokenRequestParameters = new[] { "client_secret" }
+            };
+
+            connection.DecryptTokenRequestParameters(v => v == "cipher" ? "plain" : throw new InvalidOperationException(v));
+
+            Assert.AreEqual("plain", connection.TokenRequestParameters.Single(n => n.Key == "client_secret").Value);
+            Assert.AreEqual("api", connection.TokenRequestParameters.Single(n => n.Key == "audience").Value);
+            Assert.AreEqual("cipher", shared[1].Value, "The shared (buffered) array must not receive plain text.");
         }
 
         [TestMethod]

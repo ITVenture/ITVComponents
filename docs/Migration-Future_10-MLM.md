@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 87 | **Geheime Token-Parameter** | **Pflicht: 1 Spalte** `ExternalOAuthServiceParameters.IsSecret` (manuelles SQL, Vorgabe aus). Markierte Parameter werden wie das `ClientSecret` verschlüsselt, nicht mehr angezeigt, nicht exportiert und erst vor der Token-Anfrage entschlüsselt. Bestehende geheime Werte (z. B. `client_secret`) markieren (§87) |
 | 86 | **Achse C: verlässlich, auch wenn die Kasse weg ist** | Kein Schema-Change. `OnSaleCompletedAsync` jetzt wirklich genau einmal (`TenantSale.PaidUtc` ist Concurrency-Token); Stripe/wallee speichern ihre Kennung vor dem Gerätestart; neuer Abgleich offener Terminalverkäufe im Hintergrund (3 Optionen, Vorgabe an); Verkaufsübersicht mit Terminal und „offen seit“, offene Terminalverkäufe von Hand abschliessen (neues Recht `TenantPayments.Settle`); Stripe-Terminal erstattet über die Belastung. `IPaymentsHandler` erweitert (§86) |
 | 85 | **Eine Freigabe je Ort** | **Pflicht: 1 Spalte** `AssetTemplates.ReuseStoredShare` (manuelles SQL, Vorgabe aus). Mit Schalter zeigt `<ShareButton />` bzw. `CreateAsync` die bestehende anonyme Freigabe von Mandant + Vorlage + Pfad + Argumenten, statt eine zweite auszustellen; „Renew“ im Link-Dialog. **Behoben:** Besitzerrecht ohne Mandantengrenze, Vorlage bearbeiten löschte `ShareDialogConfig`. Nur bei eigener Implementierung: `ISharedAssetAdapter.FindReusableSharedAsset` (§85) |
 | 74 | **Terminal-Verwaltung über die WebParts** | Kein Schema-Change, nicht breaking. Neue Schalter `PaymentViews:ActivateTerminalViews` (BillingViews), `ActivateStripeTerminals` (Stripe), `ActivateAgentTerminals` + `TerminalsContextType` (Billing). Die Texte `Terminals_*` liefert das Toolkit jetzt mit. **Wer die Terminals bisher im Code registriert, nimmt das heraus, bevor er die Schalter setzt** (§74) |
@@ -8415,3 +8416,61 @@ Erstattung schickte sie als Belastung, und `charge.refunded` fand den Verkauf ni
       ausser `Sysadmin` die Knöpfe zum Abschliessen von Hand
 - [ ] Wer bisher selbst einen Abgleich offener Terminalverkäufe gebaut hat: entfernen oder abschalten, sonst wird
       doppelt gefragt (gebucht wird trotzdem nur einmal)
+
+
+## 87. Geheime Token-Parameter (`ExternalOAuthServiceParameter.IsSecret`), Token-Parameter im Konfigurations-Export — **Schema-Change (1 Spalte), nicht breaking**
+
+Anlass: Die zusätzlichen Token-Parameter aus §84 lagen ausnahmslos im **Klartext** in der Datenbank. Bei einem
+Password-Grant stehen dort typischerweise `client_id` und `client_secret` der App. Nicht jeder Parameter ist geheim
+(`audience`, `resource`, `organization`), darum ein Flag je Parameter statt pauschaler Verschlüsselung.
+
+### 87.1 Verhalten
+
+- Neue Spalte `IsSecret`. Ein geheimer Wert wird **verschlüsselt wie das `ClientSecret`**: bei einem globalen Dienst
+  mit dem Systemschlüssel, sonst mit dem des Mandanten.
+- **Entschlüsselt wird erst unmittelbar vor der Token-Anfrage**, an denselben Stellen wie das `ClientSecret` (flaches
+  und Baum-Repository). Neu dafür `ExternalServiceConnection.SecretTokenRequestParameters` (Namen) und
+  `DecryptTokenRequestParameters(…)`. Diese baut ein **neues** Feld, damit der Puffer der Verbindungen nie Klartext
+  enthält.
+- **Masken** (Blazor und Telerik): Schalter „Geheim“. Ein geheimer Wert wird nie wieder angezeigt, auch nicht
+  verschlüsselt. Die Detailansicht zeigt `--ENCRYPTED` bzw. `--EMPTY--` wie beim `ClientSecret`.
+  - **Leer speichern behält** den gespeicherten Wert.
+  - **Klartext auf geheim:** Ohne neuen Wert wird der bestehende Klartext verschlüsselt.
+  - **Geheim auf Klartext:** Nur mit neu eingegebenem Wert. Ein Geheimnis wird nie still in Klartext zurückverwandelt.
+- Die Regel steht an **einer** Stelle (`OAuthExtensions.ApplyValue`), beide Masken rufen sie.
+- **Konfigurations-Export:** Die Token-Parameter globaler Dienste reisen jetzt mit (`ExternalOAuthServiceTemplateMarkup.TokenParameters`).
+  Offene Parameter mit Wert, **geheime nur mit Name und Flag**, wie das `ClientSecret`. Beim Abgleich am Ziel:
+  - fehlende Parameter werden angelegt (geheime **leer**, sie sind am Ziel zu setzen; das Log meldet es als Warnung),
+  - überzählige werden entfernt,
+  - offene Werte werden übernommen,
+  - ein geheimer Wert am Ziel wird **nie** überschrieben,
+  - hat die Quelle einen am Ziel offenen Parameter als geheim markiert, wird der Wert am Ziel mit dem Systemschlüssel
+    verschlüsselt.
+  Eine ältere Konfiguration ohne Parameter-Angabe lässt die Parameter am Ziel unverändert. Technisch reisen die
+  Parameter als ein Detail des Dienstes (sie haben kein eigenes DbSet). Dafür bietet der Abgleich die Variable
+  `TokenParameterSync` an, neu überschreibbar über `SysConfigurationHandler.ExtendApplyVariables`.
+
+### 87.2 Schema
+
+```sql
+-- SQL Server
+ALTER TABLE [ExternalOAuthServiceParameters] ADD [IsSecret] bit NOT NULL
+    CONSTRAINT [DF_ExternalOAuthServiceParameters_IsSecret] DEFAULT CAST(0 AS bit);
+```
+
+```sql
+-- PostgreSQL
+ALTER TABLE "ExternalOAuthServiceParameters" ADD "IsSecret" boolean NOT NULL DEFAULT FALSE;
+```
+
+Ohne die Spalte scheitert jede Abfrage auf die Token-Parameter, also auch jede Token-Anfrage eines Dienstes mit
+Parametern.
+
+### 87.3 Checkliste
+
+- [ ] Spalte `ExternalOAuthServiceParameters.IsSecret` anlegen (SQL oben)
+- [ ] Bestehende geheime Parameter (`client_secret`, API-Schlüssel, Passwörter) in der Maske auf „Geheim“ stellen.
+      Der bestehende Wert wird dabei verschlüsselt, neu eingeben ist nicht nötig.
+- [ ] Bei einem Wechsel eines Dienstes zwischen global und Mandant: geheime Parameter neu eingeben (wie das
+      `ClientSecret`, der Schlüssel wechselt mit)
+- [ ] Nach einem Konfigurations-Import: neu angelegte geheime Parameter am Ziel setzen (Warnung im Log)

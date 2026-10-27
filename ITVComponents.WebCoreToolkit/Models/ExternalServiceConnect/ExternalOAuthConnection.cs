@@ -28,6 +28,36 @@ namespace ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect
         /// buffered instances, so the array may be shared.
         /// </summary>
         public KeyValuePair<string, string>[] TokenRequestParameters { get; set; } = Array.Empty<KeyValuePair<string, string>>();
+
+        /// <summary>
+        /// The names of the <see cref="TokenRequestParameters"/> whose values are stored encrypted. Until
+        /// <see cref="DecryptTokenRequestParameters"/> ran, those values are the cipher text.
+        /// </summary>
+        public string[] SecretTokenRequestParameters { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Replaces the encrypted values in <see cref="TokenRequestParameters"/> by their plain text - with the same
+        /// decryption as the ClientSecret of this connection.
+        /// </summary>
+        /// <remarks>
+        /// Builds a NEW array: connection objects are flat-copied from buffered instances, and decrypting the shared
+        /// array in place would put plain text into the buffer.
+        /// </remarks>
+        /// <param name="decrypt">decrypts one value</param>
+        public void DecryptTokenRequestParameters(Func<string, string> decrypt)
+        {
+            if (SecretTokenRequestParameters == null || SecretTokenRequestParameters.Length == 0 || TokenRequestParameters == null)
+            {
+                return;
+            }
+
+            var secrets = new HashSet<string>(SecretTokenRequestParameters, StringComparer.OrdinalIgnoreCase);
+            TokenRequestParameters = TokenRequestParameters
+                .Select(n => secrets.Contains(n.Key) && !string.IsNullOrEmpty(n.Value)
+                    ? new KeyValuePair<string, string>(n.Key, decrypt(n.Value))
+                    : n)
+                .ToArray();
+        }
     }
 
     public enum ExternalServiceAuthenticationType

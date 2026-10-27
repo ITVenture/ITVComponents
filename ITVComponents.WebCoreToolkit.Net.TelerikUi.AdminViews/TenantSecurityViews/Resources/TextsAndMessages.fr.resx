@@ -423,4 +423,19 @@
   <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
     <value>Le type d'authentification actuel n'envoie pas de paramètres supplémentaires – ils sont conservés mais ignorés.</value>
   </data>
+  <data name="IWCN_ES_ParamSecret" xml:space="preserve">
+    <value>Secret</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretStored" xml:space="preserve">
+    <value>(enregistré chiffré)</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretHint" xml:space="preserve">
+    <value>Les valeurs secrètes sont enregistrées chiffrées et ne sont plus affichées. Lors de la modification d'un secret, laissez la valeur vide pour la conserver.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretEnterAgain" xml:space="preserve">
+    <value>Veuillez saisir à nouveau la valeur : un secret n'est pas reconverti en texte clair.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretNotStored" xml:space="preserve">
+    <value>La valeur n'a pas pu être chiffrée et n'a donc pas été enregistrée.</value>
+  </data>
 </root>

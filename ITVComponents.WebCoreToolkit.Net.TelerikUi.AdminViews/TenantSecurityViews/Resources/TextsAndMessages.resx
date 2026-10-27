@@ -423,4 +423,19 @@
   <data name="IWCN_ES_ParamNotSupported" xml:space="preserve">
     <value>The current authentication type does not send additional parameters - they are kept but ignored.</value>
   </data>
+  <data name="IWCN_ES_ParamSecret" xml:space="preserve">
+    <value>Secret</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretStored" xml:space="preserve">
+    <value>(stored encrypted)</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretHint" xml:space="preserve">
+    <value>Secret values are stored encrypted and are not shown again. When editing a secret, leave the value empty to keep it.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretEnterAgain" xml:space="preserve">
+    <value>Enter the value again: a secret is not turned back into plain text.</value>
+  </data>
+  <data name="IWCN_ES_ParamSecretNotStored" xml:space="preserve">
+    <value>The value could not be encrypted, so it was not stored.</value>
+  </data>
 </root>
