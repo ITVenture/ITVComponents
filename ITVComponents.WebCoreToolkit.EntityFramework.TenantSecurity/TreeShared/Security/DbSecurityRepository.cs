@@ -1985,8 +1985,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 try
                 {
                     var phase1 = from p in securityContext.UpwardsTenantTreeView
-                        join pin in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.OAuthService) on p
-                            .ParentTenantId equals pin.TenantId
+                        join pin in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.OAuthService) on
+                            (int?)p.ParentTenantId equals pin.TenantId
                         where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 ||
                             pin.OAuthService.Inheritable || pin.OAuthService.TenantId == null)
                         select new { pin.OAuthServiceId, p.OutermostLeafTenantId, p.ParentLevel };
@@ -2003,7 +2003,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                         join t in securityContext.UpwardsTenantTreeView on new { p.TenantId, p.Level } equals
                             new { TenantId = t.OutermostLeafTenantId, Level = t.ParentLevel }
                         join pg in securityContext.ExternalOAuthServiceTenantLogins.Include(n => n.Tenant) on new
-                                { p.OAuthServiceId, TenantId = t.ParentTenantId }
+                                { p.OAuthServiceId, TenantId = (int?)t.ParentTenantId }
                             equals new { pg.OAuthServiceId, TenantId = pg.TenantId }
                         where pg.OAuthServiceId == oauthServiceId
                         select pg;

@@ -35,6 +35,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.SqlS
             builderOptions.ConfigureComputedColumn<FlatWebPlugin, string>(w => w.PluginNameUniqueness, "case when TenantId is null then UniqueName else '__T'+convert(varchar(10),TenantId)+'##'+UniqueName end persisted");
             builderOptions.ConfigureComputedColumn<FlatWebPluginConstant, string>(c => c.NameUniqueness, "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
             builderOptions.ConfigureComputedColumn<FlatExternalOAuthService, string>(s => s.CalculatedUniqueServiceName, "case when TenantId is null then 'GLOBAL'+UniqueConnectionName else 'T'+convert(varchar(10),TenantId)+'-'+UniqueConnectionName end persisted");
+            // Hoechstens EINE Plattform-Zeile (TenantId null) je Dienst. Der eindeutige Index ueber (OAuthServiceId,
+            // TenantId) deckt das nicht ab: NULL gilt dort als verschieden (SQL Server filtert ihn sogar selbst auf
+            // "TenantId IS NOT NULL"). Gefiltert und darum providerabhaengig - hier und nicht als Attribut.
+            builderOptions.ConfigureEntity<FlatExternalOAuthServiceTenantLogin>(l => l.HasIndex(n => n.OAuthServiceId, "UQ_ExternalOAuthServicePlatformLogin")
+                .IsUnique().HasFilter("[TenantId] IS NULL"));
         }
 
         public static void ConfigureMethods(IContextModelBuilderOptions bld)

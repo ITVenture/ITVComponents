@@ -33,6 +33,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
 
         public bool Global { get; set; }
 
+        /// <summary>
+        /// Ob Mandanten ohne eigene (und ohne geerbte) Zugangsdaten auf die der Plattform zurueckfallen (Zugangsdaten-Zeile
+        /// ohne Mandant). Vorgabe <c>false</c>. Zahlungsdienste fallen nie zurueck, unabhaengig von diesem Schalter.
+        /// </summary>
+        public bool AllowPlatformCredentials { get; set; }
+
         public ExternalServiceAuthenticationType AuthenticationType { get; set; }
 
         [DatabaseGenerated(DatabaseGeneratedOption.Computed), MaxLength(1024), Required]

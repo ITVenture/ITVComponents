@@ -266,7 +266,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         // a global service is used by many tenants - a tenant-admin only sees the login of the own tenant
         var q = from l in db.ExternalOAuthServiceTenantLogins.AsNoTracking()
                 where l.OAuthServiceId == oauthServiceId && (sysAdmin || l.TenantId == currentTenantId)
-                join t in db.Tenants.AsNoTracking() on l.TenantId equals t.TenantId into tj
+                join t in db.Tenants.AsNoTracking() on l.TenantId equals (int?)t.TenantId into tj
                 from tn in tj.DefaultIfEmpty()
                 select new ExternalOAuthServiceTenantLoginViewModel
                 {

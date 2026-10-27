@@ -165,7 +165,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 return retVal;
             });
             
-            return Json((from s in db.ExternalOAuthServices join c in db.ExternalOAuthServiceTenantLogins on new { s.OAuthServiceId, TenantId=db.CurrentTenantId.Value } equals new { c.OAuthServiceId, TenantId=c.TenantId }
+            return Json((from s in db.ExternalOAuthServices join c in db.ExternalOAuthServiceTenantLogins on new { s.OAuthServiceId, TenantId=(int?)db.CurrentTenantId.Value } equals new { c.OAuthServiceId, TenantId=c.TenantId }
                 into lj
                 from j in lj.DefaultIfEmpty()
                          where s.TenantId == db.CurrentTenantId || s.TenantId == null

@@ -51,6 +51,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             builderOptions.ConfigureComputedColumn<HierarchyWebPluginConstant, string>(c => c.NameUniqueness,
                 "case when TenantId is null then Name else '__T'+convert(varchar(10),TenantId)+'##'+Name end persisted");
             builderOptions.ConfigureComputedColumn<HierarchyExternalOAuthService, string>(s => s.CalculatedUniqueServiceName, "case when TenantId is null then 'GLOBAL'+UniqueConnectionName else 'T'+convert(varchar(10),TenantId)+'-'+UniqueConnectionName end persisted");
+            // Hoechstens EINE Plattform-Zeile (TenantId null) je Dienst. Der eindeutige Index ueber (OAuthServiceId,
+            // TenantId) deckt das nicht ab: NULL gilt dort als verschieden (SQL Server filtert ihn sogar selbst auf
+            // "TenantId IS NOT NULL"). Gefiltert und darum providerabhaengig - hier und nicht als Attribut.
+            builderOptions.ConfigureEntity<HierarchyExternalOAuthServiceTenantLogin>(l => l.HasIndex(n => n.OAuthServiceId, "UQ_ExternalOAuthServicePlatformLogin")
+                .IsUnique().HasFilter("[TenantId] IS NULL"));
             ConfigureVirtualTables(builderOptions);
         }
 

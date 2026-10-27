@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 89 | **ExternalServices: Zugangsdaten-Zeile (Schema)** | **Pflicht: Schema.** `ExternalOAuthServiceTenantLogins`: `TenantId` nullable, `CredentialJson`, `Inheritable`, zwei eindeutige Indizes (vorher Doppel bereinigen); `ExternalOAuthServices.AllowPlatformCredentials`. Noch ohne Verhaltensänderung (§89) |
 | 88 | **ExternalServices: globale Dienste im flachen Modell, Schreibrechte Telerik** | Kein Schema-Change. Globale Dienste sind im flachen Modell zur Laufzeit wieder auffindbar; der Baum wirft bei einem unbekannten Dienstnamen keine NullReferenceException mehr; die Telerik-Maske lässt Mandanten-Admins nur noch eigene Dienste ändern/löschen und schaltet `Global` nicht mehr um (§88) |
 | 87 | **Geheime Token-Parameter** | **Pflicht: 1 Spalte** `ExternalOAuthServiceParameters.IsSecret` (manuelles SQL, Vorgabe aus). Markierte Parameter werden wie das `ClientSecret` verschlüsselt, nicht mehr angezeigt, nicht exportiert und erst vor der Token-Anfrage entschlüsselt. Bestehende geheime Werte (z. B. `client_secret`) markieren (§87) |
 | 86 | **Achse C: verlässlich, auch wenn die Kasse weg ist** | Kein Schema-Change. `OnSaleCompletedAsync` jetzt wirklich genau einmal (`TenantSale.PaidUtc` ist Concurrency-Token); Stripe/wallee speichern ihre Kennung vor dem Gerätestart; neuer Abgleich offener Terminalverkäufe im Hintergrund (3 Optionen, Vorgabe an); Verkaufsübersicht mit Terminal und „offen seit“, offene Terminalverkäufe von Hand abschliessen (neues Recht `TenantPayments.Settle`); Stripe-Terminal erstattet über die Belastung. `IPaymentsHandler` erweitert (§86) |
@@ -8519,3 +8520,106 @@ Die Blazor-Maske hielt das schon so (§84).
       zurücksetzen
 - [ ] Dienste mit `Global = 1` **und** gesetzter `TenantId` suchen (`SELECT … WHERE Global = 1 AND TenantId IS NOT
       NULL`) und bereinigen: Das Geheimnis liegt mit dem Systemschlüssel, gelesen wird es als Mandantendienst
+
+
+## 89. ExternalServices: die Login-Zeile wird zur Zugangsdaten-Zeile (Schema) — **Schema-Change; noch keine Verhaltensänderung**
+
+Phase 1 von `docs/Plan-ExternalServices-Credentials.md`. Diese Phase legt nur das Schema an. **Gelesen werden die neuen
+Spalten noch nicht**, das Verhalten bleibt wie unter §88. Erst Phase 2 (Auflösung) benutzt sie.
+
+### 89.1 Modell
+
+`ExternalOAuthServiceTenantLogin` (Tabelle `ExternalOAuthServiceTenantLogins`):
+
+| Spalte | Änderung | Bedeutung |
+|---|---|---|
+| `TenantId` | **nullable** | `null` = Zugangsdaten der Plattform |
+| `CredentialJson` | neu, nullable | feste Zugangsdaten (Benutzer/Client, Geheimnis), verschlüsselt mit dem Schlüssel des Besitzers der Zeile |
+| `Inheritable` | neu, `bit`/`boolean`, Vorgabe `false` | Nachkommen im Mandantenbaum ohne eigene Zeile benutzen diese (Mechanismus der Settings/Plugins) |
+
+`ExternalOAuthService`: neu `AllowPlatformCredentials` (`bit`/`boolean`, Vorgabe `false`).
+
+Neue Indizes:
+
+- `UQ_ExternalOAuthServiceTenantLogin`: eindeutig (`OAuthServiceId`, `TenantId`). Als Attribut am Modell, SQL Server
+  filtert ihn selbst auf `TenantId IS NOT NULL`.
+- `UQ_ExternalOAuthServicePlatformLogin`: eindeutig (`OAuthServiceId`) **gefiltert** auf `TenantId IS NULL`, also
+  höchstens eine Plattform-Zeile je Dienst. Providerabhängig, darum in den `SyntaxHelper` von SqlServer und PostgreSql
+  (Basic, CoreIdentity, CoreIdentityTree).
+
+**Eigene Migrationen** (`dotnet ef migrations add` auf eurem Kontext) erzeugen das alles, sofern die SyntaxHelper wie
+üblich registriert sind. Das SQL unten ist Referenz bzw. für Installationen ohne eigene Migrationen. Die
+Repo-Snapshots des Sicherheitskontexts sind veraltet, darum hier keine Migration.
+
+### 89.2 Vorher: doppelte Logins bereinigen (Pflicht)
+
+Bisher gab es keinen eindeutigen Index. Doppelte Zeilen je Dienst und Mandant lassen das Anlegen von
+`UQ_ExternalOAuthServiceTenantLogin` scheitern, **auch in einer generierten Migration**:
+
+```sql
+-- finden
+SELECT OAuthServiceId, TenantId, COUNT(*) AS Anzahl
+FROM ExternalOAuthServiceTenantLogins
+GROUP BY OAuthServiceId, TenantId
+HAVING COUNT(*) > 1;
+```
+
+Die gültige Zeile behalten (nicht widerrufen, sonst die jüngste) und die übrigen löschen. Die Spaltennamen sind
+auf SQL Server und PostgreSQL gleich, unter PostgreSQL in doppelte Anführungszeichen setzen:
+
+```sql
+-- SQL Server: je Dienst und Mandant nur die beste Zeile behalten
+WITH r AS (
+    SELECT ExternalOAuthServiceTenantLoginId,
+           ROW_NUMBER() OVER (PARTITION BY OAuthServiceId, TenantId
+                              ORDER BY Revoked, ExternalOAuthServiceTenantLoginId DESC) AS n
+    FROM ExternalOAuthServiceTenantLogins)
+DELETE FROM ExternalOAuthServiceTenantLogins
+WHERE ExternalOAuthServiceTenantLoginId IN (SELECT ExternalOAuthServiceTenantLoginId FROM r WHERE n > 1);
+```
+
+### 89.3 Schema
+
+```sql
+-- SQL Server
+-- Ein Index auf TenantId blockiert ALTER COLUMN; der Name folgt der EF-Konvention, vorher pruefen.
+DROP INDEX [IX_ExternalOAuthServiceTenantLogins_TenantId] ON [ExternalOAuthServiceTenantLogins];
+ALTER TABLE [ExternalOAuthServiceTenantLogins] ALTER COLUMN [TenantId] int NULL;
+CREATE INDEX [IX_ExternalOAuthServiceTenantLogins_TenantId] ON [ExternalOAuthServiceTenantLogins] ([TenantId]);
+ALTER TABLE [ExternalOAuthServiceTenantLogins] ADD [CredentialJson] nvarchar(max) NULL;
+ALTER TABLE [ExternalOAuthServiceTenantLogins] ADD [Inheritable] bit NOT NULL
+    CONSTRAINT [DF_ExternalOAuthServiceTenantLogins_Inheritable] DEFAULT CAST(0 AS bit);
+ALTER TABLE [ExternalOAuthServices] ADD [AllowPlatformCredentials] bit NOT NULL
+    CONSTRAINT [DF_ExternalOAuthServices_AllowPlatformCredentials] DEFAULT CAST(0 AS bit);
+CREATE UNIQUE INDEX [UQ_ExternalOAuthServiceTenantLogin] ON [ExternalOAuthServiceTenantLogins] ([OAuthServiceId], [TenantId])
+    WHERE [TenantId] IS NOT NULL;
+CREATE UNIQUE INDEX [UQ_ExternalOAuthServicePlatformLogin] ON [ExternalOAuthServiceTenantLogins] ([OAuthServiceId])
+    WHERE [TenantId] IS NULL;
+```
+
+```sql
+-- PostgreSQL
+ALTER TABLE "ExternalOAuthServiceTenantLogins" ALTER COLUMN "TenantId" DROP NOT NULL;
+ALTER TABLE "ExternalOAuthServiceTenantLogins" ADD "CredentialJson" text NULL;
+ALTER TABLE "ExternalOAuthServiceTenantLogins" ADD "Inheritable" boolean NOT NULL DEFAULT FALSE;
+ALTER TABLE "ExternalOAuthServices" ADD "AllowPlatformCredentials" boolean NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX "UQ_ExternalOAuthServiceTenantLogin" ON "ExternalOAuthServiceTenantLogins" ("OAuthServiceId", "TenantId");
+CREATE UNIQUE INDEX "UQ_ExternalOAuthServicePlatformLogin" ON "ExternalOAuthServiceTenantLogins" ("OAuthServiceId")
+    WHERE "TenantId" IS NULL;
+```
+
+Ein generierter Migrationsschritt kann zusätzlich den bisherigen Index auf `OAuthServiceId` allein entfernen, weil der
+neue zusammengesetzte Index ihn abdeckt. Das ist harmlos.
+
+### 89.4 Für eigenen Code
+
+- `ExternalOAuthServiceTenantLogin.TenantId` ist jetzt `int?`. Vergleiche und Joins gegen `int` brauchen einen Cast
+  (`(int?)tenant.TenantId`). Eine Zeile mit `null` ist eine Plattform-Zeile: Die Mandantenfilter blenden sie aus, wer
+  ohne Filter liest, muss sie bewusst behandeln.
+- Login-Liste (Blazor, `ExternalOAuthServiceTenantLoginViewModel.TenantId`) ebenfalls `int?`.
+
+### 89.5 Checkliste
+
+- [ ] Doppelte Logins finden und bereinigen (89.2), **vor** der Migration
+- [ ] Migration erzeugen bzw. SQL einspielen (89.3)
+- [ ] Eigenen Code mit `ExternalOAuthServiceTenantLogin.TenantId` auf `int?` anpassen

@@ -32,7 +32,8 @@ public class ExternalOAuthServiceViewModel
 public sealed class ExternalOAuthServiceTenantLoginViewModel
 {
     public int ExternalOAuthServiceTenantLoginId { get; set; }
-    public int TenantId { get; set; }
+    /// <summary>Der Mandant der Zugangsdaten; null = die Plattform.</summary>
+    public int? TenantId { get; set; }
     public string? TenantName { get; set; }
     public int OAuthServiceId { get; set; }
     public bool Revoked { get; set; }
