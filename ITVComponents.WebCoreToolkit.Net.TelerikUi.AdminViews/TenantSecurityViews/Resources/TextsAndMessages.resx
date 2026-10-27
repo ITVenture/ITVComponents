@@ -477,4 +477,10 @@
   <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
     <value>Platform credentials are set by a sysadmin for a global service only.</value>
   </data>
+  <data name="IWCN_ES_DefinitionInheritable" xml:space="preserve">
+    <value>Visible to sub-tenants</value>
+  </data>
+  <data name="IWCN_ES_DefinitionInheritableHint" xml:space="preserve">
+    <value>Sub-tenants see this service. Whether they also use its credentials is set per row under 'Credentials'. Has no effect on a global service.</value>
+  </data>
 </root>

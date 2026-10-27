@@ -477,4 +477,10 @@
   <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
     <value>Solo un amministratore di sistema imposta le credenziali della piattaforma, e solo per un servizio globale.</value>
   </data>
+  <data name="IWCN_ES_DefinitionInheritable" xml:space="preserve">
+    <value>Visibile ai sotto-tenant</value>
+  </data>
+  <data name="IWCN_ES_DefinitionInheritableHint" xml:space="preserve">
+    <value>I sotto-tenant vedono questo servizio. Se usano anche le sue credenziali si definisce per riga in «Credenziali». Nessun effetto per un servizio globale.</value>
+  </data>
 </root>

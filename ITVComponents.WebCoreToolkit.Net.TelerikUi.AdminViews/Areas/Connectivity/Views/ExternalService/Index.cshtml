@@ -14,4 +14,4 @@
     Layout = viewOptions.Value.LayoutPage;
 }
 <script src="@("/_content/ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews/js/viewScripts.min.js".ExtendUrlWithVersion())"></script>
-@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", null},{"useConnect",false} } })
+@await Component.InvokeAsync(typeof(ShowTable), new { customViewData = new Dictionary<string, object> { { "tenantId", null},{"useConnect",false},{"DefinitionInheritance", ViewData["DefinitionInheritance"]} } })

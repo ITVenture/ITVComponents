@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 94 | **Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels ohne Konfiguration** | Kein Schema-Change. `Inheritable` an der Dienst-Definition (Baum) in Blazor und Telerik pflegbar. Telerik: ViewModel-Typargumente folgen dem Entitätstyp (`[ViewModelForEntity]`, `CustomGenericTypeArg.EntityParameter`); `ViewConfig:CustomViewGenericArgs` für die Baum-Masken nicht mehr nötig. **Verhaltensänderung im Telerik-Baum:** `Inheritable`/`ParentTenantId` werden jetzt gebunden (§94) |
 | 93 | **ExternalServices: Zugangsdaten nur noch aus der Zeile** | **Verhaltensänderung.** Kein Schema-Change. Beim Start zieht `ExternalServiceCredentialMigrationService` Benutzer/Geheimnisse von den Definitionen in die Zeilen ihrer Besitzer; danach wirkt ein Geheimnis an der Definition nicht mehr (kein Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher). Direkt-Grants brauchen den `TokenEndpoint`. Telerik: Reiter „Zugangsdaten“ (§93) |
 | 92 | **Eigene Anbieter-Zugänge in der Zugangsdaten-Zeile** | Kein Schema-Change. `ExternalServiceProviderCredentialStore` schreibt Geheimnisse in die Zeile des Mandanten statt an die Definition; liest zuerst dort, sonst noch das alte Geheimnis der Definition (§92) |
 | 91 | **ExternalServices: Masken für Zugangsdaten** | Kein Schema-Change. Blazor: Reiter „Credentials“ (eigene/Plattform-Zugangsdaten, Weitergabe an Untermandanten, Widerruf auch beim Anbieter); Definition nur noch mit App/Header-Name. `IOAuthTokenService.RevokeAsync` neu, `IExternalServiceAdminHandler` erweitert. Telerik: Token-Endpunkt, Plattform-Schalter (§91) |
@@ -8857,3 +8858,64 @@ Für jeden Dienst, an dessen Definition noch ein Konto hängt:
 - [ ] Globale Dienste: prüfen, ob die Plattform-Zeile (und `AllowPlatformCredentials`) gewollt ist; sonst eigene
       Zugangsdaten je Mandant setzen und den Schalter abstellen
 - [ ] Eigene Registrierung der `IToolkitContextFactory`: `AddExternalServiceCredentialMigration()` ergänzen
+
+
+## 94. Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels in Telerik ohne Konfiguration — **kein Schema-Change; Verhaltensänderung im Telerik-Baum**
+
+### 94.1 `Inheritable` an der Dienst-Definition
+
+Im Baum gibt `HierarchyExternalOAuthService.Inheritable` eine Definition an Untermandanten weiter: sie **sehen den
+Dienst**. Bisher war das Flag nur über Tenant-Templates setzbar. Jetzt ist es in beiden Masken pflegbar:
+
+- **Blazor:** Schalter im Dienst-Dialog („Sub-tenants see this service …“), nur im Baum und nur bei Diensten eines
+  Mandanten. `IExternalServiceAdminHandler.SupportsDefinitionInheritance` ist neu, `ExternalOAuthServiceViewModel.Inheritable`
+  ebenfalls.
+- **Telerik:** Schalter „Für Untermandanten sichtbar“ im Definitions-Editor (`ExOsvcEdit`), gesteuert über
+  `ViewData["DefinitionInheritance"]`, das `Index` und `ServicesTable` setzen.
+- Ein globaler Dienst ist ohnehin für alle da; dort wird das Flag beim Speichern auf `false` gesetzt.
+- **Zwei Schalter, zwei Bedeutungen:** Das Flag an der **Definition** entscheidet, ob Untermandanten den Dienst sehen.
+  Das Flag an der **Zugangsdaten-Zeile** (§90) entscheidet, ob sie auch das Konto mitbenutzen.
+
+Erkannt wird der Baum jetzt am Typ der Definition (`ExternalServiceCredentialAdministration.SupportsInheritance<TService>()`:
+trägt sie eine Eigenschaft `Inheritable`?) und nicht mehr am Namen des Kontext-Interfaces. Das gilt für jede eigene
+Ableitung der Baum-Entitäten. Die Methode `SupportsInheritance(Type contextType)` ist dadurch ersetzt.
+
+### 94.2 Telerik: ViewModel-Typargumente folgen dem Entitätstyp
+
+Die generischen Telerik-Controller (Plugins, Plugin-Konstanten, Mandanten, Mandanten-Settings) haben neben den
+Entitätstypen ein ViewModel-Typargument. Die Entitätstypen kommen aus dem Sicherheitskontext. Das ViewModel kam bisher
+nur aus `ViewConfig:CustomViewGenericArgs`, sonst galt die flache Vorgabe. Die Baum-Ansichten (`ANCTTUserView`)
+erwarten aber die Baum-ViewModels. Ohne diesen Konfigurationseintrag wurden `Inheritable` bzw. `ParentTenantId` darum
+weder angezeigt noch gespeichert.
+
+Neu:
+
+- `CustomGenericTypeArg(..., EntityParameter = "TWebPlugin")` bindet das ViewModel-Argument an den Typparameter der
+  Entität.
+- Ein ViewModel bekennt sich mit `[ViewModelForEntity(typeof(HierarchyWebPlugin<,,>))]` zu seiner Entität. Ein offener
+  generischer Typ passt auf jede Schliessung, und es zählen auch Ableitungen der Entität.
+- Reihenfolge der Auflösung (`AssemblyPartWithGenerics`): Kontext-Argumente, dann `CustomViewGenericArgs`, dann das
+  nächstgelegene bekennende ViewModel, zuletzt die Vorgabe.
+  - Gesucht wird in den geladenen Assemblies, die die Assembly der Vorgabe referenzieren.
+  - Bekennen sich zwei ViewModels gleich nah zur selben Entität, wird ein Fehler geloggt und die Vorgabe genommen.
+- Die vier Baum-ViewModels in `ANCTTUserView` tragen die Erklärung: `HierarchyWebPluginViewModel`,
+  `HierarchyWebPluginConstantViewModel`, `HierarchyTenantSettingViewModel`, `HierarchyTenantViewModel`.
+
+**Verhaltensänderung:** Wer die Telerik-Baum-Ansichten ohne `CustomViewGenericArgs` betreibt, bekommt jetzt die
+Baum-ViewModels. `Inheritable` (Plugins, Konstanten, Settings) und `ParentTenantId` werden damit gelesen und beim
+Speichern gebunden. Vorher blieben sie unverändert.
+
+### 94.3 Für eigenen Code
+
+- Eigene `IExternalServiceAdminHandler`-Implementierungen und Test-Attrappen ergänzen `SupportsDefinitionInheritance`.
+- Wer `ExternalServiceCredentialAdministration.SupportsInheritance(Type)` aufgerufen hat, nimmt
+  `SupportsInheritance<TService>()` mit dem Typ der Dienst-Definition.
+- Eigene ViewModels für eigene Entitäten lassen sich mit `[ViewModelForEntity]` ebenso ohne Konfiguration einhängen.
+
+### 94.4 Checkliste
+
+- [ ] Telerik-Baum: einen vorhandenen Eintrag in `ViewConfig:CustomViewGenericArgs` prüfen. Er hat Vorrang und kann
+      entfallen.
+- [ ] Telerik-Baum: beim Bearbeiten eines Plugins, einer Konstante oder eines Settings bleibt `Inheritable` erhalten.
+      Beim Mandanten bleibt der Eltern-Mandant erhalten.
+- [ ] Baum: Dienste, die Untermandanten sehen sollen, auf „weitergegeben“ stellen. Die Vorgabe ist `false`.

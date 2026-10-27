@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.Models.ExternalServiceConnect;
@@ -59,10 +60,44 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         public static bool DefinitionCarriesClient(ExternalServiceAuthenticationType type)
             => type is ExternalServiceAuthenticationType.OAuthAuthorizationFlow or ExternalServiceAuthenticationType.ApiKey;
 
-        /// <summary>Ob der Kontext ein Mandantenbaum ist - nur dann lassen sich Zugangsdaten weitergeben.</summary>
-        public static bool SupportsInheritance(Type contextType)
-            => contextType.GetInterfaces()
-                .Any(i => i.IsGenericType && i.GetGenericTypeDefinition().Name.StartsWith("IHierarchyTenantContext", StringComparison.Ordinal));
+        /// <summary>
+        /// Der Name der Eigenschaft, die eine Dienst-Definition an Untermandanten weitergibt. Nur die Definitionen des Baums
+        /// tragen sie (<c>HierarchyExternalOAuthService</c>); fuer Abfragen ueber <c>EF.Property</c>.
+        /// </summary>
+        public const string InheritablePropertyName = "Inheritable";
+
+        /// <summary>
+        /// Ob das Modell ein Mandantenbaum ist: nur dann lassen sich Definitionen und Zugangsdaten an Untermandanten
+        /// weitergeben. Erkannt am Typ der Definition selbst (traegt sie <see cref="InheritablePropertyName"/>), nicht am
+        /// Namen eines Kontext-Interfaces - so gilt es fuer jede eigene Ableitung der Baum-Entitaeten.
+        /// </summary>
+        public static bool SupportsInheritance<TService>() => InheritableOf(typeof(TService)) != null;
+
+        /// <summary>Ob die Definition an Untermandanten weitergegeben wird; null, wenn das Modell keinen Baum kennt.</summary>
+        public static bool? GetDefinitionInheritable<TService>(TService service)
+            => service != null && InheritableOf(service.GetType()) is { } p ? (bool)p.GetValue(service)! : null;
+
+        /// <summary>
+        /// Setzt, ob die Definition an Untermandanten weitergegeben wird. Ein globaler Dienst ist ohnehin fuer alle da und
+        /// wird nie weitergegeben.
+        /// </summary>
+        /// <returns>false, wenn das Modell keinen Baum kennt - dann ist nichts gesetzt.</returns>
+        public static bool SetDefinitionInheritable<TService>(TService service, bool inheritable, int? ownerTenantId)
+        {
+            if (service == null || InheritableOf(service.GetType()) is not { } p)
+            {
+                return false;
+            }
+
+            p.SetValue(service, inheritable && ownerTenantId != null);
+            return true;
+        }
+
+        private static PropertyInfo InheritableOf(Type serviceType)
+            => serviceType.GetProperty(InheritablePropertyName, BindingFlags.Public | BindingFlags.Instance) is { CanRead: true, CanWrite: true } p
+               && p.PropertyType == typeof(bool)
+                ? p
+                : null;
 
         /// <summary>
         /// Die Zeilen eines Dienstes: fuer einen Sysadmin alle (auch die der Plattform), sonst nur die des aktuellen Mandanten.
@@ -146,7 +181,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             }
 
             row.CredentialJson = ExternalServiceCredentials.Protect(credential, encrypt);
-            row.Inheritable = ownerTenantId != null && inheritable && SupportsInheritance(db.GetType());
+            row.Inheritable = ownerTenantId != null && inheritable && SupportsInheritance<TService>();
             row.Revoked = false;
             if (changed)
             {

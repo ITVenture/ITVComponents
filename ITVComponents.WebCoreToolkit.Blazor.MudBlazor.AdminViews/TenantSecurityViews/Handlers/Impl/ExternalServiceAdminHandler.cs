@@ -166,6 +166,21 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
                 TenantId = n.TenantId,
                 AllowPlatformCredentials = n.AllowPlatformCredentials
             }).ToListAsync();
+        if (SupportsDefinitionInheritance && items.Count != 0)
+        {
+            // Nur der Baum kennt die Spalte - darum eine eigene Abfrage statt einer Projektion, die im flachen Modell
+            // nicht uebersetzbar waere.
+            var ids = items.Select(n => n.OAuthServiceId).ToList();
+            var flags = await AccessibleServices(db, false).AsNoTracking()
+                .Where(n => ids.Contains(n.OAuthServiceId))
+                .Select(n => new { n.OAuthServiceId, Inheritable = EF.Property<bool>(n, ExternalServiceCredentialAdministration.InheritablePropertyName) })
+                .ToDictionaryAsync(n => n.OAuthServiceId, n => n.Inheritable);
+            foreach (var item in items)
+            {
+                item.Inheritable = flags.TryGetValue(item.OAuthServiceId, out var inheritable) && inheritable;
+            }
+        }
+
         return new PagedResult<ExternalOAuthServiceViewModel> { Items = items, TotalCount = total };
     }
 
@@ -203,6 +218,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             TenantId = input.Global ? null : input.TenantId,
             AllowPlatformCredentials = sysAdmin && input.Global && input.AllowPlatformCredentials
         };
+        ExternalServiceCredentialAdministration.SetDefinitionInheritable(entity, input.Inheritable, entity.TenantId);
         EncryptSecret(db, entity, input.ClientSecret);
         db.ExternalOAuthServices.Add(entity);
         await db.SaveChangesAsync();
@@ -228,8 +244,8 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
         entity.RevocationEndpoint = input.RevocationEndpoint ?? string.Empty;
         if (DefinitionCarriesClient(input.AuthenticationType))
         {
-            // Bei den uebrigen Typen ist ClientId der Benutzer des Kontos - er wird unter "Credentials" gepflegt. Was an
-            // der Definition noch steht, gilt bis Phase 6 als Rueckfall und darf hier nicht geleert werden.
+            // Bei den uebrigen Typen ist ClientId der Benutzer des Kontos - er wird unter "Credentials" gepflegt. Ein Rest
+            // an der Definition wirkt seit §93 nicht mehr; der Start-Umzug leert ihn.
             entity.ClientId = input.ClientId ?? string.Empty;
         }
 
@@ -240,6 +256,7 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
             entity.AllowPlatformCredentials = entity.TenantId == null && input.AllowPlatformCredentials;
         }
 
+        ExternalServiceCredentialAdministration.SetDefinitionInheritable(entity, input.Inheritable, entity.TenantId);
         EncryptSecret(db, entity, input.ClientSecret);
         await db.SaveChangesAsync();
         input.ClientSecret = null;
@@ -334,7 +351,10 @@ public class ExternalServiceAdminHandler<TContext, TTenant, TUserId, TUser, TRol
     }
 
     /// <inheritdoc />
-    public bool SupportsCredentialInheritance { get; } = ExternalServiceCredentialAdministration.SupportsInheritance(typeof(TContext));
+    public bool SupportsCredentialInheritance { get; } = ExternalServiceCredentialAdministration.SupportsInheritance<TExternalOAuthService>();
+
+    /// <inheritdoc />
+    public bool SupportsDefinitionInheritance => SupportsCredentialInheritance;
 
     /// <inheritdoc />
     /// <remarks>

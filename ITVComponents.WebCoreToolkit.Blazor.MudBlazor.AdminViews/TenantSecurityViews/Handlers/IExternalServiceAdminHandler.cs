@@ -20,6 +20,12 @@ public interface IExternalServiceAdminHandler
     bool SupportsCredentialInheritance { get; }
 
     /// <summary>
+    /// Whether a service definition can be passed on to sub-tenants (<see cref="ExternalOAuthServiceViewModel.Inheritable"/>) -
+    /// tenant tree only.
+    /// </summary>
+    bool SupportsDefinitionInheritance { get; }
+
+    /// <summary>
     /// Stores the fixed credentials of the own tenant (or, sysadmin, of the platform) for a service the user can see.
     /// </summary>
     Task<ExternalServiceCredentialSaveResult> SaveCredentialsAsync(ClaimsPrincipal user, ExternalServiceCredentialInputViewModel input);

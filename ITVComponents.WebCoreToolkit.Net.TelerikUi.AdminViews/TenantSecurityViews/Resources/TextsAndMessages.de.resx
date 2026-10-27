@@ -477,4 +477,10 @@
   <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
     <value>Plattform-Zugangsdaten setzt nur ein Sysadmin, und nur für einen globalen Dienst.</value>
   </data>
+  <data name="IWCN_ES_DefinitionInheritable" xml:space="preserve">
+    <value>Für Untermandanten sichtbar</value>
+  </data>
+  <data name="IWCN_ES_DefinitionInheritableHint" xml:space="preserve">
+    <value>Untermandanten sehen diesen Dienst. Ob sie auch seine Zugangsdaten mitbenutzen, wird je Zeile unter «Zugangsdaten» festgelegt. Bei einem globalen Dienst ohne Wirkung.</value>
+  </data>
 </root>

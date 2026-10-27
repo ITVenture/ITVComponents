@@ -33,6 +33,12 @@ public class ExternalOAuthServiceViewModel
     /// service; only a sysadmin sets it.
     /// </summary>
     public bool AllowPlatformCredentials { get; set; }
+
+    /// <summary>
+    /// Sub-tenants see this service (tenant tree only, never for a global service). Only the definition - whether they use
+    /// the account as well is decided on the credentials row.
+    /// </summary>
+    public bool Inheritable { get; set; }
 }
 
 /// <summary>One credentials row of a service (formerly "tenant login"): token and/or fixed credentials of one owner.</summary>

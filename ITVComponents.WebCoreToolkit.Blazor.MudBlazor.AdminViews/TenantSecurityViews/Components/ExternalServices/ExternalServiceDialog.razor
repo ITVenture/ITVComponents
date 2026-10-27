@@ -20,6 +20,12 @@
                          Label="Tenants without own credentials use the platform's (set them under 'Credentials')" />
         }
     }
+    @if (SupportsInheritance && !Model.Global)
+    {
+        @* Nur die Definition: ob Untermandanten auch das Konto mitbenutzen, steht an der Zugangsdaten-Zeile (§93). *@
+        <MudCheckBox @bind-Value="Model.Inheritable"
+                     Label="Sub-tenants see this service (whether they also use its credentials is set under 'Credentials')" />
+    }
     @if (Is(OAuthAuthorizationFlow))
     {
         <MudTextField @bind-Value="Model.AuthorizationEndpoint" Label="Authorization endpoint" Required="true" RequiredError="Endpoint is required" />
@@ -69,6 +75,8 @@
     [Parameter, EditorRequired] public ExternalOAuthServiceViewModel Model { get; set; } = default!;
     [Parameter] public bool IsCreate { get; set; }
     [Parameter] public bool AllowGlobal { get; set; }
+    /// <summary>Tenant tree: the definition can be passed on to sub-tenants.</summary>
+    [Parameter] public bool SupportsInheritance { get; set; }
 
     private const ExternalServiceAuthenticationType ApiKey = ExternalServiceAuthenticationType.ApiKey;
 

@@ -63,6 +63,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         }
         public IActionResult Index()
         {
+            ViewData["DefinitionInheritance"] = ExternalServiceCredentialAdministration.SupportsInheritance<TExternalOAuthService>();
             return View();
         }
 
@@ -112,6 +113,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
         public IActionResult ServicesTable(int tenantId)
         {
             ViewData["TenantId"] = tenantId;
+            ViewData["DefinitionInheritance"] = ExternalServiceCredentialAdministration.SupportsInheritance<TExternalOAuthService>();
             return PartialView();
         }
 
@@ -234,7 +236,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
             if (ModelState.IsValid)
             {
-                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model, "", n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName));
+                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model, "", n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName) && n.Name != ExternalServiceCredentialAdministration.InheritablePropertyName);
                 if (tenantId != null && tenantId != 0)
                 {
                     model.TenantId = tenantId;
@@ -242,6 +244,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
                 MoveGrantEndpoint(model);
                 model.AllowPlatformCredentials = isAdmin && model.TenantId == null && viewModel.AllowPlatformCredentials;
+                ExternalServiceCredentialAdministration.SetDefinitionInheritable(model, viewModel.Inheritable, model.TenantId);
                 EncryptSecret(model, viewModel.ClientSecret);
                 db.ExternalOAuthServices.Add(model);
                 await db.SaveChangesAsync();
@@ -267,9 +270,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             {
                 // Global wird hier nicht umgeschaltet: es entscheidet, mit welchem Schluessel das Geheimnis liegt, und ein
                 // Umschalten ohne Neuverschluesselung machte es unlesbar. Wer es aendern will, legt den Dienst neu an.
-                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model,"",n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName) && n.Name != nameof(model.Global) && n.Name != nameof(model.TenantId) && n.Name != nameof(model.OAuthServiceId));
+                await this.TryUpdateModelAsync<ExternalOAuthServiceViewModel, TExternalOAuthService>(model,"",n => n.ElementType == null && n.Name != nameof(model.ClientSecret) && n.Name != nameof(model.CalculatedUniqueServiceName) && n.Name != nameof(model.Global) && n.Name != nameof(model.TenantId) && n.Name != nameof(model.OAuthServiceId) && n.Name != ExternalServiceCredentialAdministration.InheritablePropertyName);
                 MoveGrantEndpoint(model);
                 model.AllowPlatformCredentials = isAdmin && model.TenantId == null && viewModel.AllowPlatformCredentials;
+                ExternalServiceCredentialAdministration.SetDefinitionInheritable(model, viewModel.Inheritable, model.TenantId);
                 EncryptSecret(model, viewModel.ClientSecret);
                 await db.SaveChangesAsync();
             }
@@ -312,7 +316,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
             ViewData["OAuthServiceId"] = oauthServiceId;
             ViewData["HasFixedCredentials"] = service != null && ExternalServiceCredentialAdministration.HasFixedCredentials(service.AuthenticationType);
             ViewData["HasUser"] = service != null && ExternalServiceCredentialAdministration.AccountHasUser(service.AuthenticationType);
-            ViewData["SupportsInheritance"] = ExternalServiceCredentialAdministration.SupportsInheritance(db.GetType());
+            ViewData["SupportsInheritance"] = ExternalServiceCredentialAdministration.SupportsInheritance<TExternalOAuthService>();
             ViewData["CanSetPlatform"] = isAdmin && service is { TenantId: null };
             return PartialView();
         }
@@ -700,6 +704,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 tmp.Editable = (isAdmin && n.TenantId == null && tenantId == null) ||
                                (!isAdmin && n.TenantId != null);
                 tmp.ClientSecret = string.Empty;//TextsAndMessagesHelper.IWCN_ES_UseEncryptPrefix;
+                tmp.Inheritable = ExternalServiceCredentialAdministration.GetDefinitionInheritable(n) ?? false;
                 return tmp;
             }
         }

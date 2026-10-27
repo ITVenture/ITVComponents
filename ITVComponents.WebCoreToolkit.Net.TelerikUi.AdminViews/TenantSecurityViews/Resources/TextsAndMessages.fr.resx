@@ -477,4 +477,10 @@
   <data name="IWCN_ES_CredPlatformOnly" xml:space="preserve">
     <value>Seul un administrateur système définit les identifiants de plateforme, et uniquement pour un service global.</value>
   </data>
+  <data name="IWCN_ES_DefinitionInheritable" xml:space="preserve">
+    <value>Visible pour les sous-locataires</value>
+  </data>
+  <data name="IWCN_ES_DefinitionInheritableHint" xml:space="preserve">
+    <value>Les sous-locataires voient ce service. S'ils utilisent aussi ses identifiants se définit par ligne sous « Identifiants ». Sans effet pour un service global.</value>
+  </data>
 </root>

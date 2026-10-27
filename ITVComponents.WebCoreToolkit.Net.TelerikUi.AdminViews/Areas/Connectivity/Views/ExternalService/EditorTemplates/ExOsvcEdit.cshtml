@@ -10,6 +10,8 @@
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.ViewModel.ExternalOAuthServiceViewModel
 @{
     var isAdmin = Context.RequestServices.VerifyUserPermissions(new[] { ToolkitPermission.Sysadmin });
+    // Baum: die Definition laesst sich an Untermandanten weitergeben (kommt von der Dienstliste, Leitfaden §94)
+    var definitionInheritance = ViewData["DefinitionInheritance"] is true;
     // data-auth-type lists the (two-digit) ExternalServiceAuthenticationType values for which a field is visible:
     // 00 AuthorizationFlow, 01 ClientCredentials, 02 BasicClientCredentials, 03 Basic, 04 ApiKey, 05 BearerToken, 06 PasswordFlow
 }
@@ -43,6 +45,19 @@
             @Html.LabelFor(model => model.AllowPlatformCredentials, TextsAndMessagesHelper.IWCN_ES_AllowPlatformCredentials, htmlAttributes: new { @class = "col-sm-4 col-form-label" })
             <div class="col-sm-8">
                 @Html.Kendo().SwitchFor(model => model.AllowPlatformCredentials)
+            </div>
+        </div>
+    }
+
+    @if (definitionInheritance)
+    {
+        @* Nur die Definition - ob Untermandanten auch das Konto mitbenutzen, steht im Reiter "Zugangsdaten". Bei einem
+           globalen Dienst wirkungslos (er ist fuer alle da) und beim Speichern ignoriert. *@
+        <div class="form-group row">
+            @Html.LabelFor(model => model.Inheritable, TextsAndMessagesHelper.IWCN_ES_DefinitionInheritable, htmlAttributes: new { @class = "col-sm-4 col-form-label" })
+            <div class="col-sm-8">
+                @Html.Kendo().SwitchFor(model => model.Inheritable)
+                <small class="form-text text-muted">@TextsAndMessagesHelper.IWCN_ES_DefinitionInheritableHint</small>
             </div>
         </div>
     }

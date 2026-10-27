@@ -134,7 +134,8 @@ else
         {
             { d => d.Model, new ExternalOAuthServiceViewModel() },
             { d => d.IsCreate, true },
-            { d => d.AllowGlobal, isSysAdmin }
+            { d => d.AllowGlobal, isSysAdmin },
+            { d => d.SupportsInheritance, Handler.SupportsDefinitionInheritance }
         };
         var dlg = await DialogService.ShowAsync<ExternalServiceDialog>("Create service", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;
@@ -161,13 +162,15 @@ else
             Global = item.Global,
             AuthenticationType = item.AuthenticationType,
             TenantId = item.TenantId,
-            AllowPlatformCredentials = item.AllowPlatformCredentials
+            AllowPlatformCredentials = item.AllowPlatformCredentials,
+            Inheritable = item.Inheritable
         };
         var parameters = new DialogParameters<ExternalServiceDialog>
         {
             { d => d.Model, copy },
             { d => d.IsCreate, false },
-            { d => d.AllowGlobal, isSysAdmin }
+            { d => d.AllowGlobal, isSysAdmin },
+            { d => d.SupportsInheritance, Handler.SupportsDefinitionInheritance }
         };
         var dlg = await DialogService.ShowAsync<ExternalServiceDialog>("Edit service", parameters, EditDialogDefaults.Edit);
         var result = await dlg.Result;

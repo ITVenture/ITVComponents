@@ -199,6 +199,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string IWCN_ES_ParamDuplicate => GetString(nameof(IWCN_ES_ParamDuplicate));
 
+        public static string IWCN_ES_DefinitionInheritable => GetString(nameof(IWCN_ES_DefinitionInheritable));
+
+        public static string IWCN_ES_DefinitionInheritableHint => GetString(nameof(IWCN_ES_DefinitionInheritableHint));
+
         public static string IWCN_ES_DetailsTitle_Credentials => GetString(nameof(IWCN_ES_DetailsTitle_Credentials));
 
         public static string IWCN_ES_CredOwner => GetString(nameof(IWCN_ES_CredOwner));
@@ -623,6 +627,12 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
 
         public static string GetIWCN_ES_ParamDuplicate(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_ParamDuplicate), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_DefinitionInheritable(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_DefinitionInheritable), requestCulture.RequestCulture.UICulture);
+
+        public static string GetIWCN_ES_DefinitionInheritableHint(this IRequestCultureFeature requestCulture) =>
+            GetString(nameof(IWCN_ES_DefinitionInheritableHint), requestCulture.RequestCulture.UICulture);
 
         public static string GetIWCN_ES_DetailsTitle_Credentials(this IRequestCultureFeature requestCulture) =>
             GetString(nameof(IWCN_ES_DetailsTitle_Credentials), requestCulture.RequestCulture.UICulture);

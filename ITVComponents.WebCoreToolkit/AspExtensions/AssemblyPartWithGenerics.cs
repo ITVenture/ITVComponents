@@ -121,9 +121,9 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
                 {
                     nt[index] = customTypeArguments[t.Name];
                 }
-                else if (defaultArgs.Any(n => n.Name == t.Name))
+                else if (defaultArgs.FirstOrDefault(n => n.Name == t.Name) is { } defaultArg)
                 {
-                    nt[index] = defaultArgs.First(n => n.Name == t.Name).Type;
+                    nt[index] = EntityBound(type, defaultArg) ?? defaultArg.Type;
                 }
                 else
                 {
@@ -147,6 +147,27 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Das ViewModel, das sich zum Entitaetstyp hinter <see cref="CustomGenericTypeArgAttribute.EntityParameter"/>
+        /// bekennt - so braucht etwa der Baum keinen Eintrag in <c>ViewConfig:CustomViewGenericArgs</c>.
+        /// </summary>
+        private Type EntityBound(TypeInfo controllerType, CustomGenericTypeArgAttribute defaultArg)
+        {
+            if (string.IsNullOrEmpty(defaultArg.EntityParameter))
+            {
+                return null;
+            }
+
+            if (!typeArguments.TryGetValue(defaultArg.EntityParameter, out var entityType)
+                && (customTypeArguments == null || !customTypeArguments.TryGetValue(defaultArg.EntityParameter, out entityType)))
+            {
+                LogEnvironment.LogEvent($"{controllerType.Name}: the entity parameter {defaultArg.EntityParameter} of {defaultArg.Name} has no type; {defaultArg.Type.Name} is used.", LogSeverity.Warning);
+                return null;
+            }
+
+            return EntityBoundTypeArguments.Find(defaultArg.Type, entityType);
         }
     }
 }

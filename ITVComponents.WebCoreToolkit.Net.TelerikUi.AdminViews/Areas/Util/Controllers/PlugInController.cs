@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityViews.Areas.Util.Controllers
 {
-    [Authorize("HasPermission(PlugIns.Write,PlugIns.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention, CustomGenericTypeArg("TWebPluginViewModel", typeof(WebPluginViewModel))]
+    [Authorize("HasPermission(PlugIns.Write,PlugIns.View),HasFeature(ITVAdminViews)"), Area("Util"), ConstructedGenericControllerConvention, CustomGenericTypeArg("TWebPluginViewModel", typeof(WebPluginViewModel), EntityParameter = "TWebPlugin")]
     public class PlugInController<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TWebPluginViewModel, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> : Controller 
         where TTenant : Tenant 
         where TWebPlugin : WebPlugin<TTenant, TWebPlugin, TWebPluginGenericParameter>, new()
