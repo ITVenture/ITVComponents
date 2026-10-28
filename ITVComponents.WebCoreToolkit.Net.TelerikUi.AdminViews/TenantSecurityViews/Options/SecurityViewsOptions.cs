@@ -10,7 +10,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
     {
         public LinkMode TenantLinkMode { get; set; } = LinkMode.MultiSelect;
 
-        public bool UseExplicitTenantPasswords { get; set; } = false;
+        public bool UseExplicitTenantPasswords { get; set; } = true;
 
         public string TenantParam { get; set; }
         public bool UseModuleTemplates { get; set; } = false;

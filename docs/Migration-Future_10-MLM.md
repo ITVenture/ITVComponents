@@ -5679,7 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
-| 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen (§95) |
+| 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen. Blazor-Plugin-Konstanten mit `encrypt:` jetzt mit dem Mandantenschlüssel. **Telerik: `UseExplicitTenantPasswords` Vorgabe jetzt `true`** (§95) |
 | 94 | **Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels ohne Konfiguration** | Kein Schema-Change. `Inheritable` an der Dienst-Definition (Baum) in Blazor und Telerik pflegbar. Telerik: ViewModel-Typargumente folgen dem Entitätstyp (`[ViewModelForEntity]`, `CustomGenericTypeArg.EntityParameter`); `ViewConfig:CustomViewGenericArgs` für die Baum-Masken nicht mehr nötig. **Verhaltensänderung im Telerik-Baum:** `Inheritable`/`ParentTenantId` werden jetzt gebunden (§94) |
 | 93 | **ExternalServices: Zugangsdaten nur noch aus der Zeile** | **Verhaltensänderung.** Kein Schema-Change. Beim Start zieht `ExternalServiceCredentialMigrationService` Benutzer/Geheimnisse von den Definitionen in die Zeilen ihrer Besitzer; danach wirkt ein Geheimnis an der Definition nicht mehr (kein Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher). Direkt-Grants brauchen den `TokenEndpoint`. Telerik: Reiter „Zugangsdaten“ (§93) |
 | 92 | **Eigene Anbieter-Zugänge in der Zugangsdaten-Zeile** | Kein Schema-Change. `ExternalServiceProviderCredentialStore` schreibt Geheimnisse in die Zeile des Mandanten statt an die Definition; liest zuerst dort, sonst noch das alte Geheimnis der Definition (§92) |
@@ -8940,14 +8940,32 @@ Die Onboarding-Handler und die Telerik-Onboarding-Seiten setzen den Schlüssel i
   Tickets und verschlüsselte Werte unlesbar machen.
 - Bestehende Mandanten ohne Schlüssel bleiben, wie sie sind.
 
-### 95.2 Telerik
+### 95.2 Plugin-Konstanten mit `encrypt:` (Blazor)
 
-`TenantControllerStruct`/`TenantControllerClass` setzen den Schlüssel weiterhin nur mit
-`SecurityViewsOptions.UseExplicitTenantPasswords`, Vorgabe `false`. Daran ändert §95 nichts.
+`DbPluginFormatter` entschlüsselt die Konstante eines Mandanten mit eigenem Schlüssel zur Laufzeit mit diesem
+Schlüssel. Die Blazor-Maske (`PlugInAdminHandler`) hat `encrypt:`-Werte aber immer mit dem anwendungsweiten
+Schlüssel verschlüsselt. Bei einem Mandanten mit Schlüssel (Onboarding, jetzt auch Admin-Maske) war ein so
+gespeicherter Wert zur Laufzeit nicht lesbar. Jetzt verschlüsselt die Maske wie Telerik: Mandant mit Schlüssel →
+Mandantenschlüssel, global oder Mandant ohne Schlüssel → anwendungsweit. Der Handler bekommt dafür einen
+`ILogger<IPlugInAdminHandler>` (per DI, nichts zu tun).
 
-### 95.3 Checkliste
+### 95.3 Telerik: `UseExplicitTenantPasswords` Vorgabe `true`
+
+`SecurityViewsOptions.UseExplicitTenantPasswords` (`ViewConfig`) steht jetzt auf `true`. Damit:
+
+- bekommt ein in der Telerik-Admin-Maske angelegter Mandant einen eigenen Schlüssel;
+- verschlüsselt `PlugInConstController` `encrypt:`-Werte eines Mandanten mit Schlüssel mit diesem Schlüssel. Mit
+  `false` wurden sie bisher anwendungsweit verschlüsselt und waren bei einem Mandanten mit Schlüssel (z.B. aus
+  dem Onboarding) zur Laufzeit nicht lesbar.
+
+Wer das alte Verhalten bewusst will, setzt `"UseExplicitTenantPasswords": false` in `ViewConfig`.
+
+### 95.4 Checkliste
 
 - [ ] Wer in `UpdateTenant` selbst einen Schlüssel setzt: er bleibt erhalten, nichts zu tun.
-- [ ] Wer den gemeinsamen Schlüssel für neue Mandanten will: `GenerateTenantPassword = false`.
+- [ ] Wer den gemeinsamen Schlüssel für neue Mandanten will: `GenerateTenantPassword = false` (Blazor) bzw.
+      `UseExplicitTenantPasswords: false` (Telerik).
+- [ ] Verschlüsselte Plugin-Konstanten von Mandanten mit Schlüssel, die bisher über die Blazor-Maske oder Telerik
+      mit `false` gespeichert wurden, sind zur Laufzeit nicht lesbar gewesen. Einmal neu mit `encrypt:` eingeben.
 - [ ] Altbestand: Mandanten ohne `TenantPassword` (ausser bewusst wie ADM) prüfen. Ein Nachtragen ist eine bewusste
       Entscheidung, weil alles bisher Verschlüsselte dann neu verschlüsselt werden muss.

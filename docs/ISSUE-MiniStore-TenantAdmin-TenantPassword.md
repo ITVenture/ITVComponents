@@ -1,6 +1,6 @@
 # ISSUE: Ein Mandant aus der Admin-Maske bekommt keinen eigenen Schlüssel (`TenantPassword`)
 
-**Status:** offen · **Datum:** 2026-10-28 · **Version:** 5.0.0-PRE264 · **Quelle:** MiniStore, Prüfung vor dem
+**Status:** erledigt (Leitfaden §95, ab PRE265) · **Datum:** 2026-10-28 · **Version:** 5.0.0-PRE264 · **Quelle:** MiniStore, Prüfung vor dem
 ersten echten Laden
 
 ## Der Fall
@@ -48,3 +48,19 @@ unlesbar), und ob ein leerer Schlüssel beim Ändern nachgetragen werden soll, i
 
 Optional: `ValidateTrustEntries` oder ein vergleichbarer Start-Report könnte Mandanten ohne Schlüssel (ausser
 dem Wurzelmandanten) als Warnung melden. Dann fällt ein Altbestand auf.
+
+
+---
+
+## Erledigt (2026-10-28, ab 5.0.0-PRE265, Leitfaden §95)
+
+- **Vorschlag 1 umgesetzt:** `TenantAdminHandler.CreateTenantAsync` setzt beim Anlegen `TenantPassword`
+  (`AesEncryptor.CreateKey()`), nach `UpdateTenant` und nur, wenn er dann noch leer ist.
+- **Vorschlag 2 umgesetzt:** Schalter `TenantOptions<TTenant>.GenerateTenantPassword`, Vorgabe `true`.
+- **Vorschlag 3:** `UpdateTenantAsync` fasst den Schlüssel weiterhin nicht an.
+- **Telerik:** `SecurityViewsOptions.UseExplicitTenantPasswords` steht jetzt ebenfalls auf `true`.
+- **Folgefehler mit behoben:** Die Blazor-Plugin-Maske hat `encrypt:`-Konstanten immer mit dem anwendungsweiten
+  Schlüssel verschlüsselt, zur Laufzeit wird bei einem Mandanten mit Schlüssel aber mit dessen Schlüssel
+  entschlüsselt. Jetzt nimmt die Maske den Mandantenschlüssel (wie Telerik). Für MiniStore: verschlüsselte
+  Konstanten des Ladens, die über die Blazor-Plugin-Maske gespeichert wurden, einmal neu mit `encrypt:` eingeben.
+- **Nicht umgesetzt:** Start-Report für Mandanten ohne Schlüssel (optional). Altbestand wird nicht nachgetragen.

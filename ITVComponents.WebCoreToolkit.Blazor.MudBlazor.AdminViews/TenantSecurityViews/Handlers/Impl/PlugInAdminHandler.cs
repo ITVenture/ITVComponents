@@ -8,6 +8,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.
 using ITVComponents.WebCoreToolkit.Extensions;
 using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ITVComponents.WebCoreToolkit.Blazor.Paging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurityViews.Handlers.Impl;
@@ -75,9 +76,11 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 {
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly IServiceProvider services;
+    private readonly ILogger<IPlugInAdminHandler> logger;
 
-    public PlugInAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services)
+    public PlugInAdminHandler(IDbContextFactory<TContext> dbFactory, IServiceProvider services, ILogger<IPlugInAdminHandler> logger)
     {
+        this.logger = logger;
         this.dbFactory = dbFactory;
         this.services = services;
     }
@@ -284,7 +287,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         ApplyScope(db);
         var effective = ResolveTenant(db, tenantId);
 
-        var value = MaybeEncrypt(input.Value);
+        var value = await MaybeEncryptAsync(db, effective, input.Value);
         var entity = new TWebPluginConstant
         {
             TenantId = effective,
@@ -307,7 +310,7 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         var entity = await db.WebPluginConstants.FirstOrDefaultAsync(n => n.WebPluginConstantId == input.WebPluginConstantId);
         if (entity == null) return null;
         entity.Name = input.Name;
-        entity.Value = MaybeEncrypt(input.Value);
+        entity.Value = await MaybeEncryptAsync(db, entity.TenantId, input.Value);
         await db.SaveChangesAsync();
         input.Value = entity.Value;
         return input;
@@ -325,12 +328,36 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
         return true;
     }
 
-    private static string MaybeEncrypt(string raw)
+    /// <summary>
+    /// Verschluesselt einen mit <c>encrypt:</c> markierten Wert so, wie <c>DbPluginFormatter</c> ihn zur Laufzeit wieder
+    /// entschluesselt: eine Konstante eines Mandanten mit eigenem Schluessel mit diesem Schluessel, sonst (global oder
+    /// Mandant ohne Schluessel) mit dem anwendungsweiten.
+    /// </summary>
+    private async Task<string> MaybeEncryptAsync(TContext db, int? tenantId, string raw)
     {
-        if (!string.IsNullOrEmpty(raw) && raw.StartsWith("encrypt:"))
+        if (string.IsNullOrEmpty(raw) || !raw.StartsWith("encrypt:"))
         {
-            return PasswordSecurity.Encrypt(raw.Substring(8));
+            return raw;
         }
-        return raw;
+
+        var plain = raw.Substring(8);
+        if (tenantId == null)
+        {
+            return PasswordSecurity.Encrypt(plain);
+        }
+
+        var tenant = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == tenantId)
+            .Select(t => new { t.TenantPassword })
+            .FirstOrDefaultAsync();
+        if (tenant == null)
+        {
+            logger.LogError("Tenant {TenantId} of a plugin constant was not found; the value is encrypted with the application key and may not be readable at runtime.", tenantId);
+            return PasswordSecurity.Encrypt(plain);
+        }
+
+        return string.IsNullOrEmpty(tenant.TenantPassword)
+            ? PasswordSecurity.Encrypt(plain)
+            : AesEncryptor.Encrypt(plain, Convert.FromBase64String(tenant.TenantPassword));
     }
 }
