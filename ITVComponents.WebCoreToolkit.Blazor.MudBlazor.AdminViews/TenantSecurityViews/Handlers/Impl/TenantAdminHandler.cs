@@ -178,6 +178,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             tenantAssign(entity, input);
         }
 
+        TenantPasswordAssignment.EnsureForNewTenant(entity, tenantOptions.Value.GenerateTenantPassword);
         db.Tenants.Add(entity);
         await db.SaveChangesAsync();
         input.TenantId = entity.TenantId;

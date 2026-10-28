@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen (§95) |
 | 94 | **Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels ohne Konfiguration** | Kein Schema-Change. `Inheritable` an der Dienst-Definition (Baum) in Blazor und Telerik pflegbar. Telerik: ViewModel-Typargumente folgen dem Entitätstyp (`[ViewModelForEntity]`, `CustomGenericTypeArg.EntityParameter`); `ViewConfig:CustomViewGenericArgs` für die Baum-Masken nicht mehr nötig. **Verhaltensänderung im Telerik-Baum:** `Inheritable`/`ParentTenantId` werden jetzt gebunden (§94) |
 | 93 | **ExternalServices: Zugangsdaten nur noch aus der Zeile** | **Verhaltensänderung.** Kein Schema-Change. Beim Start zieht `ExternalServiceCredentialMigrationService` Benutzer/Geheimnisse von den Definitionen in die Zeilen ihrer Besitzer; danach wirkt ein Geheimnis an der Definition nicht mehr (kein Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher). Direkt-Grants brauchen den `TokenEndpoint`. Telerik: Reiter „Zugangsdaten“ (§93) |
 | 92 | **Eigene Anbieter-Zugänge in der Zugangsdaten-Zeile** | Kein Schema-Change. `ExternalServiceProviderCredentialStore` schreibt Geheimnisse in die Zeile des Mandanten statt an die Definition; liest zuerst dort, sonst noch das alte Geheimnis der Definition (§92) |
@@ -8919,3 +8920,34 @@ Speichern gebunden. Vorher blieben sie unverändert.
 - [ ] Telerik-Baum: beim Bearbeiten eines Plugins, einer Konstante oder eines Settings bleibt `Inheritable` erhalten.
       Beim Mandanten bleibt der Eltern-Mandant erhalten.
 - [ ] Baum: Dienste, die Untermandanten sehen sollen, auf „weitergegeben“ stellen. Die Vorgabe ist `false`.
+
+
+## 95. MudBlazor-Admin-Maske: neuer Mandant bekommt einen eigenen Schlüssel — **kein Schema-Change**
+
+### 95.1 Was sich ändert
+
+`CipherExtensions.GetEncryptionKey` nimmt `Tenants.TenantPassword` als Schlüssel des Mandanten und fällt ohne ihn
+auf den anwendungsweiten Schlüssel zurück. Ein Mandant ohne eigenen Schlüssel teilt ihn darum mit allen anderen
+solchen Mandanten (anonyme Freigabe-Tickets, Plugin-Konstanten, verschlüsselte JSON-Settings).
+
+Die Onboarding-Handler und die Telerik-Onboarding-Seiten setzen den Schlüssel immer. Die MudBlazor-Admin-Maske
+(`/Security/Tenants`, `TenantAdminHandler.CreateTenantAsync`) hat ihn bisher nie gesetzt. Jetzt setzt sie ihn beim
+**Anlegen** (`AesEncryptor.CreateKey()`, Base64), falls `TenantOptions.UpdateTenant` keinen gesetzt hat.
+
+- Neuer Schalter `TenantOptions<TTenant>.GenerateTenantPassword`, Vorgabe `true`. Ein Host, der bewusst den
+  gemeinsamen Schlüssel will, setzt ihn auf `false`.
+- `UpdateTenantAsync` fasst den Schlüssel weiterhin nie an. Ein nachträglich gesetzter Schlüssel würde ausgegebene
+  Tickets und verschlüsselte Werte unlesbar machen.
+- Bestehende Mandanten ohne Schlüssel bleiben, wie sie sind.
+
+### 95.2 Telerik
+
+`TenantControllerStruct`/`TenantControllerClass` setzen den Schlüssel weiterhin nur mit
+`SecurityViewsOptions.UseExplicitTenantPasswords`, Vorgabe `false`. Daran ändert §95 nichts.
+
+### 95.3 Checkliste
+
+- [ ] Wer in `UpdateTenant` selbst einen Schlüssel setzt: er bleibt erhalten, nichts zu tun.
+- [ ] Wer den gemeinsamen Schlüssel für neue Mandanten will: `GenerateTenantPassword = false`.
+- [ ] Altbestand: Mandanten ohne `TenantPassword` (ausser bewusst wie ADM) prüfen. Ein Nachtragen ist eine bewusste
+      Entscheidung, weil alles bisher Verschlüsselte dann neu verschlüsselt werden muss.

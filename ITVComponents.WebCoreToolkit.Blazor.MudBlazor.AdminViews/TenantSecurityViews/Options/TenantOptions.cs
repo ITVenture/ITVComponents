@@ -16,6 +16,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.TenantSecurit
         public Expression<Func<TTenant, TenantViewModel>> SelectTenant { get; set; }
         
         public Action<TTenant, TenantViewModel> UpdateTenant { get; set; }
+
+        /// <summary>
+        /// Gibt einem neu angelegten Mandanten einen eigenen Schluessel (<c>TenantPassword</c>), falls <see cref="UpdateTenant"/>
+        /// keinen gesetzt hat. Ohne eigenen Schluessel verschluesselt der Mandant mit dem anwendungsweiten Schluessel, den er
+        /// mit allen anderen solchen Mandanten teilt. Beim Aendern wird der Schluessel nie angefasst.
+        /// </summary>
+        public bool GenerateTenantPassword { get; set; } = true;
         public Func<DbContext, ISecurityAccessProvider, IDisposable?> ConfigureTree { get; set; }
         public Func<DbContext, int[], int[]> AddDirectParent { get; set; }
     }
