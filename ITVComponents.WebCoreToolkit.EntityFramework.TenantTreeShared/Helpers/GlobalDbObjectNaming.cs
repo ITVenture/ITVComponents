@@ -15,5 +15,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Helpers
         public const string DownwardsRoleTreeView = "DownwardsRoleTree";*/
         //public const string Get
         public const string ChildTenantsWithProc = "ChildTenantsWith";
+        public const string ChildTenantsWithPermsProc = "GetChildTenantsWithPermsProc";
+        public const string ChildTenantsWithPermsByVpIdProc = "GetChildTenantsWithPermsByVpIdProc";
+        public const string DownwardsRoleTreeProc = "GetDownwardsRoleTreeProc";
     }
 }

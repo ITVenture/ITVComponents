@@ -9,6 +9,27 @@ namespace ITVComponents.EFRepo.PostgreSql
 {
     public class PostgreSqlQuerySyntaxProvider : IQuerySyntaxProvider
     {
+        /// <summary>
+        /// Initializes a new instance of the PostgreSqlQuerySyntaxProvider class that uses the search-path of the connection
+        /// </summary>
+        public PostgreSqlQuerySyntaxProvider() : this(null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the PostgreSqlQuerySyntaxProvider class
+        /// </summary>
+        /// <param name="schema">the schema in which unqualified tables are located. null or empty means the current schema of the connection</param>
+        public PostgreSqlQuerySyntaxProvider(string schema)
+        {
+            Schema = string.IsNullOrEmpty(schema) ? null : schema;
+        }
+
+        /// <summary>
+        /// Gets the schema in which unqualified tables are located. null means the current schema of the connection
+        /// </summary>
+        public string Schema { get; }
+
         private static readonly DynamicDataColumnType[] EligibleDbTypes =
         {
             new()
@@ -336,7 +357,30 @@ namespace ITVComponents.EFRepo.PostgreSql
 
         public virtual string FormatTableName(string tableName, bool autoResolve = true)
         {
-            return FormatObjectName(autoResolve ? ResolveTableName(tableName) : tableName);
+            SplitTableName(autoResolve ? ResolveTableName(tableName) : tableName, out var schema, out var name);
+            return schema != null ? $"{FormatObjectName(schema)}.{FormatObjectName(name)}" : FormatObjectName(name);
+        }
+
+        /// <summary>
+        /// Splits a table-name into schema and name. A name without schema (no dot) is located in the configured schema
+        /// </summary>
+        /// <param name="tableName">the table-name, optionally qualified (schema.name)</param>
+        /// <param name="schema">the schema of the table, null for the current schema of the connection</param>
+        /// <param name="name">the unqualified name of the table</param>
+        public virtual void SplitTableName(string tableName, out string schema, out string name)
+        {
+            var raw = tableName ?? "";
+            var dot = raw.IndexOf('.');
+            if (dot > 0 && dot < raw.Length - 1)
+            {
+                schema = raw.Substring(0, dot).Trim('"');
+                name = raw.Substring(dot + 1).Trim('"');
+            }
+            else
+            {
+                schema = Schema;
+                name = raw.Trim('"');
+            }
         }
 
         public virtual string ResolveTableName(string tableName)

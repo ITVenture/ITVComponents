@@ -36,8 +36,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityContext.Sql
         {
             bld.ConfigureMethod("SequenceNextVal", (DbContext c, string name, int tenantId) =>
             {
-                var tmp = c.Database.SqlQuery<ValueTableModel<int>>(@"declare @vld table (Value int)
-update Sequences set CurrentValue = case when CurrentValue+StepSize<=MaxValue then CurrentValue+StepSize when CurrentValue+StepSize > MaxValue and Cycle=1 then MinValue else -1 end 
+                var tmp = c.Database.SqlQuery<ValueTableModel<int>>($@"declare @vld table (Value int)
+update {c.QualifiedObjectName("Sequences")} set CurrentValue = case when CurrentValue+StepSize<=MaxValue then CurrentValue+StepSize when CurrentValue+StepSize > MaxValue and Cycle=1 then MinValue else -1 end 
 output inserted.CurrentValue Value
 into @vld
 where SequenceName = @name and TenantId = @tenantId

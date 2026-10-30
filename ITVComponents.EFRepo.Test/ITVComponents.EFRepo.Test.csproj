@@ -9,5 +9,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
+    <ProjectReference Include="..\ITVComponents.EFRepo.SqlServer\ITVComponents.EFRepo.SqlServer.csproj" />
   </ItemGroup>
 </Project>

@@ -18,13 +18,35 @@ namespace ITVComponents.EFRepo.PostgreSql
 {
     public class PostgreSqlDynamicDataAdapter : DynamicDataAdapter
     {
-        public PostgreSqlDynamicDataAdapter(DbContext parentContext) : this(parentContext, new PostgreSqlQuerySyntaxProvider())
+        public PostgreSqlDynamicDataAdapter(DbContext parentContext) : this(parentContext, new PostgreSqlQuerySyntaxProvider(parentContext.Model.GetDefaultSchema()))
         {
         }
 
         public PostgreSqlDynamicDataAdapter(DbContext parentContext, IQuerySyntaxProvider syntaxProvider):base(parentContext)
         {
             SyntaxProvider = syntaxProvider;
+            defaultSchema = syntaxProvider is PostgreSqlQuerySyntaxProvider pgSyntax ? pgSyntax.Schema : parentContext.Model.GetDefaultSchema();
+        }
+
+        private readonly string defaultSchema;
+
+        /// <summary>
+        /// Splits the given table-name into schema and name, using the schema of the syntax-provider for unqualified names
+        /// </summary>
+        /// <param name="tableName">the (resolved) table-name</param>
+        /// <param name="schema">the schema of the table. null means the current schema of the connection</param>
+        /// <param name="name">the unqualified name of the table</param>
+        protected void SplitTableName(string tableName, out string schema, out string name)
+        {
+            if (SyntaxProvider is PostgreSqlQuerySyntaxProvider pgSyntax)
+            {
+                pgSyntax.SplitTableName(tableName, out schema, out name);
+            }
+            else
+            {
+                schema = defaultSchema;
+                name = tableName;
+            }
         }
 
         public override List<IDictionary<string, object>> QueryDynamicTable(string tableName, DynamicTableFilter filter, ICollection<DynamicTableSort> sorts, out int totalCount, string tableAlias = null, DynamicQueryCallbackProvider queryCallbacks = null, int? hitsPerPage = null, int? page = null)
@@ -708,12 +730,14 @@ references {SyntaxProvider.FormatTableName(item.RefTable, false)} ({SyntaxProvid
         protected virtual bool TableExists(string tableName, bool resolveTable)
         {
             tableName = resolveTable ? SyntaxProvider.ResolveTableName(tableName) : tableName;
-            return SqlQuery<(string tabletype,string name)>("select table_type tableType, table_name name from information_schema.tables where table_type = 'BASE TABLE' and table_name = @p0", tableName).Count != 0;
+            SplitTableName(tableName, out var schema, out var name);
+            return SqlQuery<(string tabletype,string name)>("select table_type tableType, table_name name from information_schema.tables where table_type = 'BASE TABLE' and table_name = @p0 and table_schema = coalesce(nullif(@p1, ''), current_schema())", name, schema ?? "").Count != 0;
         }
 
         protected virtual List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes, out bool definitionEditable, bool resolveTableName)
         {
             tableName = resolveTableName ? SyntaxProvider.ResolveTableName(tableName) : tableName;
+            SplitTableName(tableName, out var schema, out var name);
             var tmp = SqlQuery<TableColumnDefinition>(@"select distinct * from
 (SELECT
    c.column_name ""ColumnName"", 
@@ -731,7 +755,7 @@ references {SyntaxProvider.FormatTableName(item.RefTable, false)} ({SyntaxProvid
    case when count(pcu.column_name) > 0 then true else false end ""HasReferences""
 FROM 
    INFORMATION_SCHEMA.COLUMNS c
-left outer join information_schema.KEY_COLUMN_USAGE k on k.COLUMN_NAME = c.column_name and k.table_name = c.TABLE_NAME
+left outer join information_schema.KEY_COLUMN_USAGE k on k.COLUMN_NAME = c.column_name and k.table_name = c.TABLE_NAME and k.table_schema = c.table_schema
 left outer join information_schema.table_constraints AS tc 
       ON tc.constraint_name = k.constraint_name
       AND tc.table_schema = k.table_schema
@@ -755,7 +779,7 @@ left outer join (pg_class it
 																	and pcu.column_name = k.column_name
 																	and pc.constraint_type is not null
 	  WHERE 
-   c.table_name = @p0
+   c.table_name = @p0 and c.table_schema = coalesce(nullif(@p1, ''), current_schema())
 group by c.column_name
 ,   c.data_type
 ,   c.character_maximum_length
@@ -771,7 +795,7 @@ group by c.column_name
 ,   iix.indisunique 
 ,   pc.constraint_type
  ) c
-order by c.""Position""", tableName);
+order by c.""Position""", name, schema ?? "");
             var tmp2 = (from t in tmp group t by new { t.ColumnName, t.DataLength, t.DataType, t.Nullable, t.Position, t.RefTable, t.RefColumn, t.HasReferences })
                 .ToList();
             tmp.Clear();

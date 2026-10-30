@@ -56,5 +56,6 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Opti
 
         public int CookieLengthThreshold { get; set; } = 2048;
         public bool UseDefaultSecurityAccessProvider { get; set; } = true;
+        public string CustomSchema { get; set; } = null;
     }
 }

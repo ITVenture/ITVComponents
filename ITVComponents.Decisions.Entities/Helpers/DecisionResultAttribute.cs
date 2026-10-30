@@ -74,7 +74,7 @@ namespace ITVComponents.Decisions.Entities.Helpers
                 if (string.IsNullOrEmpty(deciderName) && src != null)
                 {
                     table = dbContext.GetTableName(src.GetType(), out entityType, out schema);
-                    string fqName = $"[{schema}].[{table}]";
+                    string fqName = $"[{(string.IsNullOrEmpty(schema) ? MigrationSchema.DefaultSchema : schema)}].[{table}]";
                     var td = dbContext.Set<TableDecider>().FirstOrDefault(n => n.TableName == fqName);
                     deciderId = td?.DeciderId??-1;
                 }

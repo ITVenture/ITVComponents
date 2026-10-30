@@ -859,10 +859,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
 
         public IEnumerable<DownwardsUserRoleView<string>> GetDownwardsTenantUserRoles(string userId, bool userIdIsLabels, string viewpointTenant)
         {
+            var sql = $"EXEC {this.QualifiedObjectName(TenantTreeShared.Helpers.GlobalDbObjectNaming.DownwardsRoleTreeProc)} {{0}}, {{1}}, {{2}}";
             return
                 Set<DownwardsUserRoleView<string>>()
-                    .FromSqlInterpolated(
-                        $"EXEC [GetDownwardsRoleTreeProc] {userId}, {userIdIsLabels}, {viewpointTenant}").ToList(); //sql(() => GetDownwardsTenantUserRoles(userId, userIdIsLabels, viewpointTenant));
+                    .FromSqlRaw(sql, userId, userIdIsLabels, viewpointTenant).ToList(); //sql(() => GetDownwardsTenantUserRoles(userId, userIdIsLabels, viewpointTenant));
         }
 
         [ExpressionPropertyRedirect("CurrentTenantTree")]

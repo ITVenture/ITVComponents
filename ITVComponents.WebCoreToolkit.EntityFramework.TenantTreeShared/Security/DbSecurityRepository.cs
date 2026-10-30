@@ -27,6 +27,7 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
+using ITVComponents.EFRepo.Extensions;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -1219,15 +1220,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Security
             // and the memory grant. Verified against the previous two-pass query: identical rows for every
             // user/tenant. The projection/return shape is unchanged, so callers compose exactly as before.
             var labelsJson = JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping);
-            var closest = ((DbContext)securityContext).Set<UpwardsRoleUserView<TUserId>>().FromSqlInterpolated(
-                $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
+            // The function lives in the schema of the context - identifiers can not be parameterized, so the qualified
+            // name goes into the statement as literal while the values stay parameters.
+            var dbContext = (DbContext)securityContext;
+            var treeFunction = dbContext.QualifiedObjectName("GetUpwardsRoleTreeForLabels");
+            var sql = $@"SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId]
 FROM (
     SELECT [UserId],[ParentTenantId],[ParentTenantName],[TenantUserId],[OutermostLeafTenantId],[OutermostLeafTenantName],[ParentLevel],[OutermostRoleId],
            RANK() OVER (PARTITION BY [UserId] ORDER BY [ParentLevel]) AS [__rnk]
-    FROM [dbo].[GetUpwardsRoleTreeForLabels]({labelsJson}, {forTenant})
-    WHERE [OutermostLeafTenantId] = {currentTenant}
+    FROM {treeFunction}({{0}}, {{1}})
+    WHERE [OutermostLeafTenantId] = {{2}}
 ) AS [x]
-WHERE [x].[__rnk] = 1");
+WHERE [x].[__rnk] = 1";
+            var closest = dbContext.Set<UpwardsRoleUserView<TUserId>>().FromSqlRaw(sql, labelsJson, forTenant, currentTenant);
 
             return from t in closest
                 join tn in securityContext.TenantUsers on t.TenantUserId equals tn.TenantUserId

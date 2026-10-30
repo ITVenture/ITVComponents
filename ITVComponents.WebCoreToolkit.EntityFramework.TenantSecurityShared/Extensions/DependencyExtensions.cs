@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.DbContextConfig.Impl;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
@@ -105,7 +106,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
             });
         }
 
+        public static IServiceCollection ConfigureCustomTenantSecuritySchema<TContext>(this IServiceCollection services, string customSchema) where TContext : DbContext
+        {
+            //var contextArguments = typeof(TContext).GetSecurityContextArguments();
+            //var mth = GlobalFilterBuilder.(contextArguments);
+            //mth.Invoke(null, new[] { services });
+            services.Configure<DbContextModelBuilderOptions<TContext>>(o =>
+            {
+                o.AddCustomConfigurator(new SchemaRedirect(customSchema));
+            });
 
+            return services;
+        }
         public static IServiceCollection ConfigureGlobalFilters<TContext>(this IServiceCollection services)
         {
             var contextArguments = typeof(TContext).GetSecurityContextArguments();
@@ -119,6 +131,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
         {
             services.AddScoped<ICurrentUserProvider<TContext>, UserAwareContextUserProvider<TContext>>();
             return services;
+        }
+
+        public static IServiceCollection ConfigureCustomTenantSecuritySchema(this IServiceCollection services, Type contextType, string customSchema)
+        {
+            var method = LambdaHelper.GetMethodInfo(() => ConfigureCustomTenantSecuritySchema<DbContext>(services, ""))
+                .GetGenericMethodDefinition();
+            method = method.MakeGenericMethod(contextType);
+            return (IServiceCollection)method.Invoke(null, new object[] { services, customSchema });
         }
 
         public static IServiceCollection ConfigureGlobalFilters(this IServiceCollection services, Type contextType)

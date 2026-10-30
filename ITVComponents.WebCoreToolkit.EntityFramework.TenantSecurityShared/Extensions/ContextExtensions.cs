@@ -19,6 +19,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Models.Base;
 using ITVComponents.WebCoreToolkit.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
@@ -316,7 +318,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
 
         public static async Task CleanupSystemLog(this ICoreSystemContext context, DateTime minLogTime)
         {
-            context.Database.ExecuteSqlInterpolated($"delete from Systemlog where EventTime < {minLogTime}");
+            // Table and schema come from the model, so the statement hits the log of THIS context even when a table with
+            // the same name exists in another schema of a shared database.
+            var logEntity = context.SystemLog.EntityType;
+            var logTable = context.Database.GetService<ISqlGenerationHelper>().DelimitIdentifier(logEntity.GetTableName(), logEntity.GetSchema());
+            var sql = $"delete from {logTable} where EventTime < {{0}}";
+            context.Database.ExecuteSqlRaw(sql, minLogTime);
         }
 
         public static async Task CleanupOutdatedCookies(this ICoreSystemContext context)

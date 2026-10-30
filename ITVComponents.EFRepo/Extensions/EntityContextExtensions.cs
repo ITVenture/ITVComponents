@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using ITVComponents.EFRepo.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace ITVComponents.EFRepo.Extensions
@@ -20,8 +21,33 @@ namespace ITVComponents.EFRepo.Extensions
 
         public static Type GetEntityType(this DbContext context, string schema, string tableName)
         {
-            var t = context.Model.GetEntityTypes().FirstOrDefault(n => n.GetTableName().Equals(tableName, StringComparison.OrdinalIgnoreCase) && n.GetSchema().Equals(schema, StringComparison.OrdinalIgnoreCase));
+            var effectiveSchema = string.IsNullOrEmpty(schema) ? MigrationSchema.DefaultSchema : schema;
+            var t = context.Model.GetEntityTypes().FirstOrDefault(n =>
+                (string.Equals(n.GetTableName(), tableName, StringComparison.OrdinalIgnoreCase) && string.Equals(n.GetSchema() ?? MigrationSchema.DefaultSchema, effectiveSchema, StringComparison.OrdinalIgnoreCase))
+                || (n.GetTableName() == null && string.Equals(n.GetViewName(), tableName, StringComparison.OrdinalIgnoreCase) && string.Equals(n.GetViewSchema() ?? MigrationSchema.DefaultSchema, effectiveSchema, StringComparison.OrdinalIgnoreCase)));
             return t?.ClrType;
+        }
+
+        /// <summary>
+        /// Gets the effective database-schema of the given context (the default schema of its model, or dbo when the model has none)
+        /// </summary>
+        /// <param name="context">the context for which to get the schema</param>
+        /// <returns>the schema that is used for unqualified objects of this context</returns>
+        public static string GetDbSchema(this DbContext context)
+        {
+            return context.Model.GetDefaultSchema() ?? MigrationSchema.DefaultSchema;
+        }
+
+        /// <summary>
+        /// Qualifies a database-object (table, view, function, procedure) with the effective schema of the given context in SqlServer-notation.
+        /// Identifiers can not be passed as sql-parameters, so the result is meant to be put into the statement as literal.
+        /// </summary>
+        /// <param name="context">the context that provides the schema</param>
+        /// <param name="objectName">the unqualified name of the object</param>
+        /// <returns>the qualified object-name, e.g. [dbo].[Tenants]</returns>
+        public static string QualifiedObjectName(this DbContext context, string objectName)
+        {
+            return $"[{context.GetDbSchema().Replace("]", "]]")}].[{objectName.Replace("]", "]]")}]";
         }
 
         /// <summary>
