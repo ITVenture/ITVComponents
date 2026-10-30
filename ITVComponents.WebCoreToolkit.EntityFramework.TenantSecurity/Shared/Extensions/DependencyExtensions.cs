@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.EFRepo.DbContextConfig.Impl;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Helpers;
@@ -160,6 +161,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             });
         }
 
+        public static IServiceCollection ConfigureCustomTenantSecuritySchema<TContext>(this IServiceCollection services, string customSchema) where TContext : DbContext
+        {
+            services.Configure<DbContextModelBuilderOptions<TContext>>(o =>
+            {
+                o.AddCustomConfigurator(new SchemaRedirect(customSchema));
+            });
+
+            return services;
+        }
 
         public static IServiceCollection ConfigureGlobalFilters<TContext>(this IServiceCollection services)
         {
@@ -174,6 +184,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
         {
             services.AddScoped<ICurrentUserProvider<TContext>, UserAwareContextUserProvider<TContext>>();
             return services;
+        }
+
+        public static IServiceCollection ConfigureCustomTenantSecuritySchema(this IServiceCollection services, Type contextType, string customSchema)
+        {
+            var method = LambdaHelper.GetMethodInfo(() => ConfigureCustomTenantSecuritySchema<DbContext>(services, ""))
+                .GetGenericMethodDefinition();
+            method = method.MakeGenericMethod(contextType);
+            return (IServiceCollection)method.Invoke(null, new object[] { services, customSchema });
         }
 
         public static IServiceCollection ConfigureGlobalFilters(this IServiceCollection services, Type contextType)

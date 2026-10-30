@@ -9,7 +9,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
     /// Redeploys all tree security views/procedures/functions (AP2): the four <c>GetUpwardsRoleTree*</c>
     /// functions now anchor-parametrize their recursive <c>r</c> CTE (a <c>WHERE</c> on the leaf tenant in the
     /// anchor), so viewpoint-scoped role resolution stops materializing the whole role graph. No table-schema
-    /// change — <see cref="SqlColumnsSyntaxHelper.ConfigureViews"/> drops-if-exists and recreates every object, so
+    /// change — <see cref="SqlColumnsSyntaxHelper.ConfigureViews(MigrationBuilder)"/> drops-if-exists and recreates every object, so
     /// this is idempotent and picks up the new function bodies on an already-migrated database.
     /// </summary>
     public partial class RedeployAnchoredUpwardsRoleTree : Migration

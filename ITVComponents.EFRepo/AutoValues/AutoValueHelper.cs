@@ -42,7 +42,7 @@ namespace ITVComponents.EFRepo.AutoValues
                 string existingValue = (string) prop.Proprety.GetValue(entry.Entity);
                 if (string.IsNullOrEmpty(prop.Attribute.TriggerValue) || prop.Attribute.TriggerValue == existingValue)
                 {
-                    string propertyName = $"[{schema}].[{tableName}].[{prop.Proprety.Name}]";
+                    string propertyName = $"[{(string.IsNullOrEmpty(schema) ? MigrationSchema.DefaultSchema : schema)}].[{tableName}].[{prop.Proprety.Name}]";
                     string value = getSequenceValue(propertyName);
                     if (!string.IsNullOrEmpty(value))
                     {

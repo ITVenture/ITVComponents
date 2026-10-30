@@ -4,6 +4,7 @@ using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.Helpers;
 using ITVComponents.Json;
+using ITVComponents.Logging;
 using ITVComponents.Scripting.CScript.Core;
 using ITVComponents.Settings.Native;
 using ITVComponents.SettingsExtensions;
@@ -63,7 +64,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
             if (settingsKey == "ActivationSettings")
             {
                 var retVal = config.GetSection<ActivationOptions>(path);
+                var rawSchema = retVal.CustomSchema;
                 config.RefResolve(retVal);
+                // RefResolve handles :--> itself, but silently leaves an unresolvable reference empty. The ->-notation
+                // (as used by the plugin-side CustomSchemaOptionsLoader) is unknown to RefResolve and goes through the shared helper.
+                if (!string.IsNullOrEmpty(rawSchema) && rawSchema.StartsWith("->"))
+                {
+                    retVal.CustomSchema = SchemaConfiguration.Resolve(rawSchema, config);
+                }
+                else if (!string.IsNullOrEmpty(rawSchema) && rawSchema.StartsWith(":-->") && string.IsNullOrEmpty(retVal.CustomSchema))
+                {
+                    LogEnvironment.LogEvent($"The schema-reference '{rawSchema}' in the ActivationSettings did not resolve to a value. The default schema of the model is used.", LogSeverity.Warning);
+                }
+
                 if (retVal.ActivateDbContext)
                 {
                     retVal.ConnectionStringName = config.GetConnectionString(retVal.ConnectionStringName);
@@ -131,6 +144,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity
                 if (partActivation.ActivateFilters && t != null)
                 {
                     if (tree) TreeExt.ConfigureGlobalFilters(services, t); else SharedExt.ConfigureGlobalFilters(services, t);
+                }
+
+                if (!string.IsNullOrEmpty(partActivation.CustomSchema) && t != null)
+                {
+                    SharedExt.ConfigureCustomTenantSecuritySchema(services, t, partActivation.CustomSchema);
                 }
 
                 if (partActivation.ActivateDefaultContextUserProvider && t != null)

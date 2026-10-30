@@ -1,4 +1,5 @@
 ﻿using ITVComponents.EFRepo.DynamicData;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Expressions.Models;
 using ITVComponents.Logging;
 using System;
@@ -11,6 +12,27 @@ namespace ITVComponents.EFRepo.SqlServer
 {
     public class SqlQuerySyntaxProvider : IQuerySyntaxProvider
     {
+        /// <summary>
+        /// Initializes a new instance of the SqlQuerySyntaxProvider class for the dbo-schema
+        /// </summary>
+        public SqlQuerySyntaxProvider() : this(null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the SqlQuerySyntaxProvider class
+        /// </summary>
+        /// <param name="schema">the schema in which unqualified tables are located. null or empty means dbo</param>
+        public SqlQuerySyntaxProvider(string schema)
+        {
+            Schema = string.IsNullOrEmpty(schema) ? MigrationSchema.DefaultSchema : schema;
+        }
+
+        /// <summary>
+        /// Gets the schema in which unqualified tables are located
+        /// </summary>
+        public string Schema { get; }
+
         private static readonly DynamicDataColumnType[] EligibleDbTypes =
         {
             new()
@@ -404,7 +426,30 @@ namespace ITVComponents.EFRepo.SqlServer
 
         public virtual string FormatTableName(string tableName, bool autoResolve = true)
         {
-            return FormatObjectName(autoResolve ? ResolveTableName(tableName) : tableName);
+            SplitTableName(autoResolve ? ResolveTableName(tableName) : tableName, out var schema, out var name);
+            return $"{FormatObjectName(schema)}.{FormatObjectName(name)}";
+        }
+
+        /// <summary>
+        /// Splits a table-name into schema and name. A name without schema (no dot) is located in the configured schema
+        /// </summary>
+        /// <param name="tableName">the table-name, optionally qualified (schema.name)</param>
+        /// <param name="schema">the schema of the table</param>
+        /// <param name="name">the unqualified name of the table</param>
+        public virtual void SplitTableName(string tableName, out string schema, out string name)
+        {
+            var raw = tableName ?? "";
+            var dot = raw.IndexOf('.');
+            if (dot > 0 && dot < raw.Length - 1)
+            {
+                schema = raw.Substring(0, dot).Trim('[', ']');
+                name = raw.Substring(dot + 1).Trim('[', ']');
+            }
+            else
+            {
+                schema = Schema;
+                name = raw.Trim('[', ']');
+            }
         }
 
         public virtual string ResolveTableName(string tableName)
@@ -429,7 +474,7 @@ namespace ITVComponents.EFRepo.SqlServer
 
         protected virtual string FormatObjectName(string objectName)
         {
-            return $"[{objectName}]";
+            return $"[{objectName?.Replace("]", "]]")}]";
         }
 
         public virtual DynamicDataColumnType GetAppropriateType(TableColumnDefinition definition, bool throwOnError)

@@ -22,13 +22,35 @@ namespace ITVComponents.EFRepo.SqlServer
 {
     public class SqlDynamicDataAdapter : DynamicDataAdapter
     {
-        public SqlDynamicDataAdapter(DbContext parentContext) : this(parentContext, new SqlQuerySyntaxProvider())
+        public SqlDynamicDataAdapter(DbContext parentContext) : this(parentContext, new SqlQuerySyntaxProvider(parentContext.GetDbSchema()))
         {
         }
 
         public SqlDynamicDataAdapter(DbContext parentContext, IQuerySyntaxProvider syntaxProvider):base(parentContext)
         {
             SyntaxProvider = syntaxProvider;
+            defaultSchema = (syntaxProvider as SqlQuerySyntaxProvider)?.Schema ?? parentContext.GetDbSchema();
+        }
+
+        private readonly string defaultSchema;
+
+        /// <summary>
+        /// Splits the given table-name into schema and name, using the schema of the syntax-provider for unqualified names
+        /// </summary>
+        /// <param name="tableName">the (resolved) table-name</param>
+        /// <param name="schema">the schema of the table</param>
+        /// <param name="name">the unqualified name of the table</param>
+        protected void SplitTableName(string tableName, out string schema, out string name)
+        {
+            if (SyntaxProvider is SqlQuerySyntaxProvider sqlSyntax)
+            {
+                sqlSyntax.SplitTableName(tableName, out schema, out name);
+            }
+            else
+            {
+                schema = defaultSchema;
+                name = tableName;
+            }
         }
 
         public override List<IDictionary<string, object>> QueryDynamicTable(string tableName, DynamicTableFilter filter, ICollection<DynamicTableSort> sorts, out int totalCount, string tableAlias = null, DynamicQueryCallbackProvider queryCallbacks = null, int? hitsPerPage = null, int? page = null)
@@ -712,43 +734,49 @@ references {SyntaxProvider.FormatTableName(item.RefTable, false)} ({SyntaxProvid
         protected virtual bool TableExists(string tableName, bool resolveTable)
         {
             tableName = resolveTable ? SyntaxProvider.ResolveTableName(tableName) : tableName;
-            return SqlQuery<(string object_Id, string name)>("select object_id, name from sys.objects where object_id = object_ID(@p0) and type = N'U'", tableName).Count != 0;
+            SplitTableName(tableName, out var schema, out var name);
+            return SqlQuery<(string object_Id, string name)>("select object_id, name from sys.objects where object_id = object_ID(quotename(@p0)+'.'+quotename(@p1)) and type = N'U'", schema, name).Count != 0;
         }
 
         protected virtual List<TableColumnDefinition> DescribeTable(string tableName, bool ignoreUnknownTypes, out bool definitionEditable, bool resolveTableName)
         {
             tableName = resolveTableName ? SyntaxProvider.ResolveTableName(tableName) : tableName;
+            SplitTableName(tableName, out var schema, out var name);
+            // Everything is matched by object-id (schema + name) instead of the bare name, so a same-named table in another
+            // schema of a shared database does not mix into the description. A FK-target outside the own schema is returned
+            // qualified (schema.name).
             var tmp = SqlQuery<TableColumnDefinition>(@"SELECT c.COLUMN_NAME ColumnName, c.DATA_TYPE DataType, c.CHARACTER_MAXIMUM_LENGTH DataLength, convert(bit,case c.IS_NULLABLE when 'Yes' then 1 else 0 end) Nullable,
 c.ordinal_position Position,
 convert(bit, case when ic.object_id is not null then 1 else 0 end) IsIdentity,
 convert(bit, case when rc.column_name is not null then 1 else 0 end) IsForeignKey,
-rc.table_name RefTable,
+case when rc.TABLE_SCHEMA = c.TABLE_SCHEMA then rc.TABLE_NAME else rc.TABLE_SCHEMA+'.'+rc.TABLE_NAME end RefTable,
 rc.column_name RefColumn,
 convert(bit, case when k.column_name is not null or i.object_id is not null then 1 else 0 end) HasIndex,
 convert(bit, case when pk.type='PK' then 1 else 0 end) IsPrimaryKey,
 convert(bit, case when pk.type='UQ' or (isnull(pk.type,'') !='PK' and u.object_id is not null) then 1 else 0 end) IsUniqueKey,
 convert(bit, case when count(cc.referenced_column_id) > 0 then 1 else 0 end) HasReferences
 FROM INFORMATION_SCHEMA.COLUMNS c
-left outer join information_schema.KEY_COLUMN_USAGE k on k.COLUMN_NAME = c.column_name and k.table_name = c.TABLE_NAME
-left outer join sys.identity_columns ic on object_Name(ic.object_id) = c.table_name and ic.name = c.COLUMN_NAME
-left outer join sys.foreign_key_columns fc on object_name(fc.parent_object_id) = c.table_name and fc.parent_column_id = c.ORDINAL_POSITION
-left outer join sys.key_constraints pk on object_name(pk.object_id) = k.CONSTRAINT_NAME and object_name(pk.parent_object_id) = c.table_name
-left outer join information_schema.COLUMNS rc on rc.table_name = object_name(fc.referenced_object_id) and rc.ORDINAL_POSITION = fc.referenced_column_id
-left outer join sys.foreign_key_columns cc on object_name(cc.referenced_object_id) = c.table_name and cc.referenced_column_id = c.ORDINAL_POSITION
-left outer join sys.index_Columns i on i.object_id = object_id(c.table_name) and i.column_id = c.ordinal_position
-left outer join (sys.index_columns u inner join sys.indexes x on x.index_id = u.index_id and x.object_id = u.object_id and x.is_unique = 1) on u.object_id = object_id(c.table_name) and u.column_id = c.ordinal_position
-WHERE c.TABLE_NAME = @p0
+cross apply (select object_id(quotename(c.TABLE_SCHEMA)+'.'+quotename(c.TABLE_NAME)) as oid) o
+left outer join information_schema.KEY_COLUMN_USAGE k on k.COLUMN_NAME = c.column_name and k.table_name = c.TABLE_NAME and k.TABLE_SCHEMA = c.TABLE_SCHEMA
+left outer join sys.identity_columns ic on ic.object_id = o.oid and ic.name = c.COLUMN_NAME
+left outer join sys.foreign_key_columns fc on fc.parent_object_id = o.oid and fc.parent_column_id = c.ORDINAL_POSITION
+left outer join sys.key_constraints pk on pk.name = k.CONSTRAINT_NAME and pk.parent_object_id = o.oid
+left outer join information_schema.COLUMNS rc on rc.table_name = object_name(fc.referenced_object_id) and rc.TABLE_SCHEMA = object_schema_name(fc.referenced_object_id) and rc.ORDINAL_POSITION = fc.referenced_column_id
+left outer join sys.foreign_key_columns cc on cc.referenced_object_id = o.oid and cc.referenced_column_id = c.ORDINAL_POSITION
+left outer join sys.index_Columns i on i.object_id = o.oid and i.column_id = c.ordinal_position
+left outer join (sys.index_columns u inner join sys.indexes x on x.index_id = u.index_id and x.object_id = u.object_id and x.is_unique = 1) on u.object_id = o.oid and u.column_id = c.ordinal_position
+WHERE c.TABLE_NAME = @p0 and c.TABLE_SCHEMA = @p1
 group by c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, convert(bit,case c.IS_NULLABLE when 'Yes' then 1 else 0 end) ,
 c.ordinal_position,
 convert(bit, case when ic.object_id is not null then 1 else 0 end),
 convert(bit, case when rc.column_name is not null then 1 else 0 end),
-rc.table_name,
+case when rc.TABLE_SCHEMA = c.TABLE_SCHEMA then rc.TABLE_NAME else rc.TABLE_SCHEMA+'.'+rc.TABLE_NAME end,
 rc.column_name,
 convert(bit, case when k.column_name is not null or i.object_id is not null then 1 else 0 end),
 convert(bit, case when pk.type='PK' then 1 else 0 end),
 convert(bit, case when pk.type='UQ' or (isnull(pk.type,'') !='PK' and u.object_id is not null) then 1 else 0 end),
 pk.type
-ORDER BY c.ORDINAL_POSITION", tableName);
+ORDER BY c.ORDINAL_POSITION", name, schema);
             var tmp2 = (from t in tmp group t by new { t.ColumnName, t.DataLength, t.DataType, t.Nullable, t.Position, t.RefTable, t.RefColumn, t.HasReferences })
                 .ToList();
             tmp.Clear();

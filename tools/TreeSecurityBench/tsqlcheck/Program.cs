@@ -7,7 +7,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTr
 // Gegenstueck zum PostgreSQL-Auszieher: holt die Anweisungen aus dem ECHTEN T-SQL-Code, damit der
 // Vergleich beide Seiten aus der Quelle nimmt und nicht aus einer Abschrift.
 var builder = new MigrationBuilder("Microsoft.EntityFrameworkCore.SqlServer");
-SqlColumnsSyntaxHelper.ConfigureViews(builder);
+// Explizites Schema: ohne den schema-bewussten Migrations-Generator bliebe sonst der Platzhalter stehen.
+SqlColumnsSyntaxHelper.ConfigureViews(builder, "dbo");
 
 var target = args.Length > 0 ? args[0] : "objects.sql";
 using var writer = new StreamWriter(target, false, new System.Text.UTF8Encoding(false));
