@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.EFRepo.DbContextConfig.Impl;
+using ITVComponents.EFRepo.DIIntegration.Impl;
+using ITVComponents.Settings.Native;
 using ITVComponents.EFRepo.Extensions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.SqlServer;
@@ -67,6 +69,21 @@ namespace ITVComponents.EFRepo.Test
             Assert.IsNull(SchemaConfiguration.Resolve("->Database:Missing", config));
             Assert.AreEqual("direct", SchemaConfiguration.Resolve("direct", config));
             Assert.IsNull(SchemaConfiguration.Resolve(null, config));
+        }
+
+        [TestMethod]
+        public void SchemaReferenceIsResolvedFromAttachedHostConfiguration()
+        {
+            // the key is unique to this test, because the NativeSettings are process-wide
+            const string path = "SchemaSupportTest:AttachedHostSchema";
+            Assert.IsNull(SchemaConfiguration.Resolve($"->{path}"));
+            var hostConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string> { { path, "partner" } }).Build();
+            NativeSettings.AttachConfiguration(hostConfig);
+            NativeSettings.AttachConfiguration(hostConfig);
+            Assert.AreEqual("partner", SchemaConfiguration.Resolve($"->{path}"));
+            var modelBuilder = new ModelBuilder();
+            new CustomSchemaOptionsLoader<DbContext>($"->{path}").Value.ConfigureModelBuilder(modelBuilder);
+            Assert.AreEqual("partner", modelBuilder.Model.GetDefaultSchema());
         }
 
         [TestMethod]

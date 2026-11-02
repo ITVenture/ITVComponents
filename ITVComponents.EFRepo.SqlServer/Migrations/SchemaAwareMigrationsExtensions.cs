@@ -14,7 +14,10 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
         /// Also moves the migrations-history table into that schema. Call it after UseSqlServer.
         /// </summary>
         /// <param name="builder">the options-builder of the context</param>
-        /// <param name="schema">the target schema, or a reference to it (-&gt;Path or :--&gt;Path). null or empty means dbo (behavior as before)</param>
+        /// <param name="schema">the target schema, or a reference to it (-&gt;Path or :--&gt;Path). null or empty means dbo (behavior as before).
+        /// References are resolved against the NativeSettings-configuration (see <see cref="SchemaConfiguration.Resolve"/>). In an
+        /// IDesignTimeDbContextFactory the entry-assembly is the ef-tooling, so a reference is usually not resolvable there: read the
+        /// schema from the configuration the factory builds itself and pass the resolved value.</param>
         /// <param name="ensureSchema">indicates whether to create the schema when it does not exist. By default, the schema is expected to be created by the dba</param>
         /// <returns>the provided builder</returns>
         public static DbContextOptionsBuilder UseSchemaAwareMigrations(this DbContextOptionsBuilder builder, string schema, bool ensureSchema = false)

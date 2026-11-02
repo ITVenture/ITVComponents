@@ -14,7 +14,9 @@ namespace ITVComponents.EFRepo.Helpers
         /// schema can be maintained at a single location.
         /// </summary>
         /// <param name="configuredValue">the configured value</param>
-        /// <param name="configuration">the configuration to resolve references against. When omitted, the NativeSettings-configuration is used</param>
+        /// <param name="configuration">the configuration to resolve references against. When omitted, the NativeSettings-configuration is used.
+        /// It contains the &lt;EntryAssembly&gt;.appsettings.json and - in a WebCoreToolkit-application, once the WebPartManager was created - the
+        /// application-configuration. At design-time (ef-tooling) the entry-assembly is the tooling, so references are usually not resolvable there.</param>
         /// <returns>the resolved schema or null, when no schema is configured or a reference could not be resolved</returns>
         public static string Resolve(string configuredValue, IConfiguration configuration = null)
         {
