@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.AspExtensions.SharedData;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -37,8 +38,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.PostgreSql
 
             if (settingsKey == "ActivationSettings")
             {
-                var retVal = config.GetSection<ActivationOptions>(path);
-                config.RefResolve(retVal);
+                var retVal = config.ResolveActivationOptions(path);
                 if (retVal.ActivateDbContext)
                 {
                     retVal.ConnectionStringName = config.GetConnectionString(retVal.ConnectionStringName);
