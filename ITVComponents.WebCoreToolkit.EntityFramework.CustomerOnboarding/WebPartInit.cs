@@ -1,6 +1,7 @@
 ﻿using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Options;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.CustomerOnboarding
 
             if (settingsKey == "ActivationSettings")
             {
-                return config.GetSection<ActivationOptions>(path);
+                return config.ResolveActivationOptions(path);
             }
 
             return null;

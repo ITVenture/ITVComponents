@@ -4,6 +4,7 @@ using ITVComponents.Settings.Native;
 using ITVComponents.WebCoreToolkit.AspExtensions;
 using ITVComponents.WebCoreToolkit.AspExtensions.Impl;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Localization;
 //using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions;
@@ -43,7 +44,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
 
             if (settingsKey == "ActivationSettings")
             {
-                return config.GetSection<ActivationOptions>(path);
+                return config.ResolveActivationOptions(path);
             }
 
             return null;
@@ -80,6 +81,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared
                     services.ConfigureDefaultContextUserProvider(t);
                 }
             }
+
+            services.ApplyCustomSchema(t, partOptions);
 
             if (partOptions.UseContextLocalizationServices)
             {
