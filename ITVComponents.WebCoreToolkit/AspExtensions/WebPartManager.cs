@@ -68,6 +68,8 @@ namespace ITVComponents.WebCoreToolkit.AspExtensions
         {
             sharedHeap.Property<WebPartManager>("WebPartManager").Value = this;
             this.config = config;
+            // NativeSettings-based components (e.g. plugin-side schema-references) must resolve against the same configuration as the web-parts.
+            NativeSettings.AttachConfiguration(config);
             var options = config.GetSection<WebPartOptions>("ITVenture:WebParts");
             var webPartTypes = (from t in options.Assemblies
                 select new {Types = GetAssembly(t.AssemblyName).GetTypes()
