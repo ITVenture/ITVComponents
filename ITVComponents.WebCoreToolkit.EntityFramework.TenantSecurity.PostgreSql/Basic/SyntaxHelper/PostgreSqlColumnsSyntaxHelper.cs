@@ -42,7 +42,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Basic.Post
         {
             bld.ConfigureMethod("SequenceNextVal", (DbContext c, string name, int tenantId) =>
             {
-                var tmp = c.Database.SqlQuery<ValueTableModel<int>>(@"UPDATE ""Sequences""
+                var tmp = c.Database.SqlQuery<ValueTableModel<int>>($@"UPDATE {c.DelimitedObjectName("Sequences")}
     SET ""CurrentValue"" = case when ""CurrentValue""+""StepSize""<=""MaxValue"" then ""CurrentValue""+""StepSize"" when ""CurrentValue""+""StepSize"" > ""MaxValue"" and ""Cycle""=true then ""MinValue"" else -1 end
     WHERE ""SequenceName""= @name and ""TenantId"" = @tenantId
     RETURNING ""CurrentValue"" ""Value""", new NpgsqlParameter("name", name),

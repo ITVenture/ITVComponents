@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using ITVComponents.EFRepo.Helpers;
+using ITVComponents.EFRepo.Migrations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;

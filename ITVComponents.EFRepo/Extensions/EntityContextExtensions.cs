@@ -2,6 +2,8 @@
 using System.Linq;
 using ITVComponents.EFRepo.Helpers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ITVComponents.EFRepo.Extensions
 {
@@ -48,6 +50,20 @@ namespace ITVComponents.EFRepo.Extensions
         public static string QualifiedObjectName(this DbContext context, string objectName)
         {
             return $"[{context.GetDbSchema().Replace("]", "]]")}].[{objectName.Replace("]", "]]")}]";
+        }
+
+        /// <summary>
+        /// Qualifies a database-object (table, view, function, procedure) with the default schema of the given context's model in the
+        /// notation of the context's database-provider. When the model has no default schema, the name stays unqualified, so the
+        /// database resolves it as before (dbo on SqlServer, search_path on PostgreSql).
+        /// Identifiers can not be passed as sql-parameters, so the result is meant to be put into the statement as literal.
+        /// </summary>
+        /// <param name="context">the context that provides the schema and the provider</param>
+        /// <param name="objectName">the unqualified name of the object</param>
+        /// <returns>the delimited (and qualified) object-name, e.g. "partner"."Tenants" on PostgreSql</returns>
+        public static string DelimitedObjectName(this DbContext context, string objectName)
+        {
+            return context.GetService<ISqlGenerationHelper>().DelimitIdentifier(objectName, context.Model.GetDefaultSchema());
         }
 
         /// <summary>

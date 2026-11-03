@@ -17,5 +17,10 @@
         /// The schema that is used when nothing is configured
         /// </summary>
         public const string DefaultSchema = "dbo";
+
+        /// <summary>
+        /// The schema that is used on PostgreSql when nothing is configured
+        /// </summary>
+        public const string PostgreSqlDefaultSchema = "public";
     }
 }

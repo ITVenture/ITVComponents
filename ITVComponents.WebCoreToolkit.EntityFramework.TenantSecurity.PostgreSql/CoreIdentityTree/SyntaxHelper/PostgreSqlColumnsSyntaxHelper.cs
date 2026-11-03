@@ -1,4 +1,5 @@
 using ITVComponents.EFRepo.Extensions;
+using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Options;
 using ITVComponents.Json;
 using ITVComponents.WebCoreToolkit.EntityFramework.Helpers.Model;
@@ -196,7 +197,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
         {
             bld.ConfigureMethod("SequenceNextVal", (DbContext c, string name, int tenantId) =>
             {
-                var tmp = c.Database.SqlQuery<ValueTableModel<int>>(@"UPDATE ""Sequences""
+                var tmp = c.Database.SqlQuery<ValueTableModel<int>>($@"UPDATE {c.DelimitedObjectName("Sequences")}
     SET ""CurrentValue"" = case when ""CurrentValue""+""StepSize""<=""MaxValue"" then ""CurrentValue""+""StepSize"" when ""CurrentValue""+""StepSize"" > ""MaxValue"" and ""Cycle""=true then ""MinValue"" else -1 end
     WHERE ""SequenceName""= @name and ""TenantId"" = @tenantId
     RETURNING ""CurrentValue"" ""Value""", new NpgsqlParameter("name", name),
@@ -218,10 +219,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             bld.ConfigureMethod<Func<DbContext, string, bool, string, IEnumerable<DownwardsUserRoleView<string>>>>(
                 GlobalDbObjectNaming.DownwardsTenantUserRolesMethod,
                 (c, userId, userIdIsLabels, viewpointTenant) =>
-                    c.Set<DownwardsUserRoleView<string>>()
-                        .FromSqlInterpolated(
-                            $@"select * from ""GetDownwardsRoleTreeProc""({userId}, {userIdIsLabels}, {viewpointTenant})")
-                        .ToList());
+                {
+                    // The function lives in the schema of the context - identifiers can not be parameterized, so the qualified
+                    // name goes into the statement as literal while the values stay parameters.
+                    var sql = $"select * from {c.DelimitedObjectName(GlobalDbObjectNaming.DownwardsRoleTreeProcName)}({{0}}, {{1}}, {{2}})";
+                    return c.Set<DownwardsUserRoleView<string>>()
+                        .FromSqlRaw(sql, userId, userIdIsLabels, viewpointTenant)
+                        .ToList();
+                });
 
             // Je Benutzer die naechstgelegenen Zeilen des Baums nach oben. RANK() und nicht ROW_NUMBER,
             // damit alle Gleichstaende auf der kleinsten Ebene erhalten bleiben - genau wie in der
@@ -232,15 +237,17 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             bld.ConfigureMethod<Func<DbContext, string, string, int, IQueryable<UpwardsRoleUserView<string>>>>(
                 GlobalDbObjectNaming.ClosestUpwardsRoleTreeByLabelsMethod,
                 (c, labelsJson, forTenant, currentTenant) =>
-                    c.Set<UpwardsRoleUserView<string>>().FromSqlInterpolated(
-                        $@"SELECT ""UserId"",""ParentTenantId"",""ParentTenantName"",""TenantUserId"",""OutermostLeafTenantId"",""OutermostLeafTenantName"",""ParentLevel"",""OutermostRoleId""
+                {
+                    var sql = $@"SELECT ""UserId"",""ParentTenantId"",""ParentTenantName"",""TenantUserId"",""OutermostLeafTenantId"",""OutermostLeafTenantName"",""ParentLevel"",""OutermostRoleId""
 FROM (
     SELECT f.""UserId"", f.""ParentTenantId"", f.""ParentTenantName"", f.""TenantUserId"", f.""OutermostLeafTenantId"", f.""OutermostLeafTenantName"", f.""ParentLevel"", f.""OutermostRoleId"",
            RANK() OVER (PARTITION BY f.""UserId"" ORDER BY f.""ParentLevel"") AS ""__rnk""
-    FROM ""GetUpwardsRoleTreeForLabels""({labelsJson}, {forTenant}) f
-    WHERE f.""OutermostLeafTenantId"" = {currentTenant}
+    FROM {c.DelimitedObjectName(GlobalDbObjectNaming.UpwardsRoleTreeForLabelsFunction)}({{0}}, {{1}}) f
+    WHERE f.""OutermostLeafTenantId"" = {{2}}
 ) AS x
-WHERE x.""__rnk"" = 1"));
+WHERE x.""__rnk"" = 1";
+                    return c.Set<UpwardsRoleUserView<string>>().FromSqlRaw(sql, labelsJson, forTenant, currentTenant);
+                });
         }
 
         public static void ConfigureChildTenantPermissionMethod(IContextModelBuilderOptions bld)
@@ -250,9 +257,11 @@ WHERE x.""__rnk"" = 1"));
                 (c, userId, currentTenant, requiredPermissions) =>
                 {
                     var ctx = (TargetInterface)c;
+                    var sql = $"select * from {c.DelimitedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsProcName)}({{0}}, false, {{1}}, {{2}})";
                     return ctx.Tenants
-                        .FromSql(
-                            $@"select * from ""GetChildTenantsWithPermsProc""({userId}, false, {currentTenant}, {JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)})")
+                        .FromSqlRaw(
+                            sql,
+                            userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
                         .ToArray();
                 });
 
@@ -261,9 +270,11 @@ WHERE x.""__rnk"" = 1"));
                 (c, userLabels, currentTenant, requiredPermissions) =>
                 {
                     var ctx = (TargetInterface)c;
+                    var sql = $"select * from {c.DelimitedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsProcName)}({{0}}, true, {{1}}, {{2}})";
                     return ctx.Tenants
-                        .FromSql(
-                            $@"select * from ""GetChildTenantsWithPermsProc""({JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping)}, true, {currentTenant}, {JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)})")
+                        .FromSqlRaw(
+                            sql,
+                            JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
                         .ToArray();
                 });
 
@@ -274,9 +285,11 @@ WHERE x.""__rnk"" = 1"));
                 (c, userId, currentTenant, requiredPermissions) =>
                 {
                     var ctx = (TargetInterface)c;
+                    var sql = $"select * from {c.DelimitedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsByVpIdProcName)}({{0}}, false, {{1}}, {{2}})";
                     return ctx.Tenants
-                        .FromSql(
-                            $@"select * from ""GetChildTenantsWithPermsByVpIdProc""({userId}, false, {currentTenant}, {JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)})")
+                        .FromSqlRaw(
+                            sql,
+                            userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
                         .ToArray();
                 });
 
@@ -285,9 +298,11 @@ WHERE x.""__rnk"" = 1"));
                 (c, userLabels, currentTenant, requiredPermissions) =>
                 {
                     var ctx = (TargetInterface)c;
+                    var sql = $"select * from {c.DelimitedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsByVpIdProcName)}({{0}}, true, {{1}}, {{2}})";
                     return ctx.Tenants
-                        .FromSql(
-                            $@"select * from ""GetChildTenantsWithPermsByVpIdProc""({JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping)}, true, {currentTenant}, {JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping)})")
+                        .FromSqlRaw(
+                            sql,
+                            JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
                         .ToArray();
                 });
         }
@@ -296,7 +311,24 @@ WHERE x.""__rnk"" = 1"));
         // Die Datenbank-Objekte.
         // -------------------------------------------------------------------------------------------
 
-        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema = "public")
+        /// <summary>
+        /// Creates the views and functions of the tree-security model in the schema that the migration is applied to.
+        /// The objects reference the schema-placeholder (<see cref="MigrationSchema.Placeholder"/>), that the schema-aware
+        /// migrations sql-generator (ITVComponents.EFRepo.PostgreSql) replaces with the configured schema (or public), when the migration is applied.
+        /// </summary>
+        /// <param name="migrationBuilder">the migration-builder of the current migration</param>
+        public static void ConfigureViews(MigrationBuilder migrationBuilder)
+        {
+            ConfigureViews(migrationBuilder, MigrationSchema.Placeholder);
+        }
+
+        /// <summary>
+        /// Creates the views and functions of the tree-security model in an explicit schema. Every object that is
+        /// referenced inside the bodies is qualified with this schema.
+        /// </summary>
+        /// <param name="migrationBuilder">the migration-builder of the current migration</param>
+        /// <param name="schema">the target schema</param>
+        public static void ConfigureViews(MigrationBuilder migrationBuilder, string schema)
         {
             DropExistingObjects(migrationBuilder, schema);
 
@@ -340,7 +372,15 @@ WHERE x.""__rnk"" = 1"));
         /// bevor es an die Tabellen geht: PostgreSQL verweigert das Loeschen einer Tabelle, solange eine
         /// Sicht darauf steht.
         /// </summary>
-        public static void DropViews(MigrationBuilder migrationBuilder, string schema = "public")
+        public static void DropViews(MigrationBuilder migrationBuilder)
+        {
+            DropViews(migrationBuilder, MigrationSchema.Placeholder);
+        }
+
+        /// <summary>
+        /// Raeumt die Baum-Objekte in einem ausdruecklich genannten Schema weg.
+        /// </summary>
+        public static void DropViews(MigrationBuilder migrationBuilder, string schema)
         {
             DropExistingObjects(migrationBuilder, schema);
         }

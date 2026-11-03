@@ -7,7 +7,8 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTr
 // Zieht die Anweisungen heraus, die ConfigureViews erzeugt - damit gegen den echten Code
 // getestet wird und nicht gegen eine Abschrift davon.
 var builder = new MigrationBuilder("Npgsql.EntityFrameworkCore.PostgreSQL");
-PostgreSqlColumnsSyntaxHelper.ConfigureViews(builder);
+// Explizites Schema: ohne den schema-bewussten Migrations-Generator bliebe sonst der Platzhalter stehen.
+PostgreSqlColumnsSyntaxHelper.ConfigureViews(builder, "public");
 
 var target = args.Length > 0 ? args[0] : "objects.sql";
 using var writer = new StreamWriter(target, false, new System.Text.UTF8Encoding(false));

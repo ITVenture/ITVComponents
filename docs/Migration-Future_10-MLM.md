@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 96 | **Konfigurierbares DB-Schema (Security- und Plugin-Kontexte)** | Kein Schema-Change. `ActivationSettings.CustomSchema` bzw. `CustomSchemaOptionsLoader`; Laufzeit-SQL schema-qualifiziert (SQL Server und PostgreSQL). **BREAKING:** Baum-Migrationen mit `ConfigureViews(mb)` schreiben `__SCHEMA__`. Wer sie auf eine neue DB anwendet oder skriptet, braucht `UseSchemaAwareMigrations(...)` (`EFRepo.SqlServer`/`EFRepo.PostgreSql`), auch ohne eigenes Schema. `SchemaAwareMigrationsOptionsExtension` → `ITVComponents.EFRepo.Migrations` (§96) |
 | 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen. Blazor-Plugin-Konstanten mit `encrypt:` jetzt mit dem Mandantenschlüssel. **Telerik: `UseExplicitTenantPasswords` Vorgabe jetzt `true`** (§95) |
 | 94 | **Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels ohne Konfiguration** | Kein Schema-Change. `Inheritable` an der Dienst-Definition (Baum) in Blazor und Telerik pflegbar. Telerik: ViewModel-Typargumente folgen dem Entitätstyp (`[ViewModelForEntity]`, `CustomGenericTypeArg.EntityParameter`); `ViewConfig:CustomViewGenericArgs` für die Baum-Masken nicht mehr nötig. **Verhaltensänderung im Telerik-Baum:** `Inheritable`/`ParentTenantId` werden jetzt gebunden (§94) |
 | 93 | **ExternalServices: Zugangsdaten nur noch aus der Zeile** | **Verhaltensänderung.** Kein Schema-Change. Beim Start zieht `ExternalServiceCredentialMigrationService` Benutzer/Geheimnisse von den Definitionen in die Zeilen ihrer Besitzer; danach wirkt ein Geheimnis an der Definition nicht mehr (kein Rückfall in Auflösung, Token-Dienst und Zahlungs-Speicher). Direkt-Grants brauchen den `TokenEndpoint`. Telerik: Reiter „Zugangsdaten“ (§93) |
@@ -8969,3 +8970,86 @@ Wer das alte Verhalten bewusst will, setzt `"UseExplicitTenantPasswords": false`
       mit `false` gespeichert wurden, sind zur Laufzeit nicht lesbar gewesen. Einmal neu mit `encrypt:` eingeben.
 - [ ] Altbestand: Mandanten ohne `TenantPassword` (ausser bewusst wie ADM) prüfen. Ein Nachtragen ist eine bewusste
       Entscheidung, weil alles bisher Verschlüsselte dann neu verschlüsselt werden muss.
+
+
+## 96. Konfigurierbares DB-Schema für Security- und Plugin-Kontexte — **kein Schema-Change; BREAKING beim Anwenden der Baum-Migrationen**
+
+Übernommen aus DEV (Schema-Support 01–12, `docs/issue-schema-*.md`), für Future_10 auf die konsolidierten Projekte
+angepasst und um PostgreSQL ergänzt.
+
+### 96.1 Was sich ändert
+
+- Die Migrationen bleiben **schemalos**. Das Schema wird erst beim Anwenden bzw. zur Laufzeit gesetzt, so passt
+  dieselbe Migration auf `dbo`/`public` und auf jedes pro Installation konfigurierte Schema.
+- Handgeschriebenes SQL in Migrationen (Sichten, Funktionen, Prozeduren des Baum-Modells) verweist auf den
+  Platzhalter `MigrationSchema.Placeholder` (`__SCHEMA__`). Ersetzt wird er vom schema-bewussten
+  Migrations-Generator: `UseSchemaAwareMigrations(...)` aus `ITVComponents.EFRepo.SqlServer.Migrations` bzw.
+  `ITVComponents.EFRepo.PostgreSql.Migrations`. Ohne konfiguriertes Schema ersetzt er durch `dbo` bzw. `public`.
+- Laufzeit-SQL (Rollenbaum, Kind-Mandanten, Sequenzen) wird mit dem Schema des Kontexts qualifiziert, auf SQL Server
+  wie auf PostgreSQL.
+- Die Schema-Optionsklasse `SchemaAwareMigrationsOptionsExtension` liegt jetzt in `ITVComponents.EFRepo.Migrations`
+  (statt `ITVComponents.EFRepo.SqlServer.Migrations`), weil beide Anbieter sie teilen.
+
+### 96.2 Wer `UseSchemaAwareMigrations` braucht
+
+| Fall | Nötig? |
+|---|---|
+| Host wendet die Migrationen des **Baum**-Security-Kontexts (`CoreIdentityTree`) auf eine Datenbank an, die sie noch nicht hat (neue DB, oder ein Stand vor `SetViewCode`/`RedeployAnchoredUpwardsRoleTree` bzw. PG `InitialTreeTenantBuild`) | **Ja, auch ohne eigenes Schema.** Diese Migrationen rufen `ConfigureViews(mb)` auf; ohne Generator bleibt `[__SCHEMA__]` bzw. `"__SCHEMA__"` im SQL und das Anwenden scheitert. |
+| Bestehende DB, auf der diese Migrationen schon gelaufen sind | Nein. Bereits angewendete Migrationen laufen nicht erneut. |
+| `dotnet ef migrations script` ab 0 für den Baum-Kontext | Ja, die Design-Time-Factory des Hosts muss den Generator einhängen. |
+| Flacher Security-Kontext (`CoreIdentity`, `Basic`) ohne eigenes Schema | Nein, dort gibt es keinen Platzhalter. |
+| **Eigenes Schema** für einen Security- oder Plugin-Kontext | Ja, sonst legen die Migrationen Tabellen und History-Tabelle in `dbo`/`public` an, während der Kontext im eigenen Schema sucht. |
+| Eigene Kontexte/Datenbanken des Clients ohne eigenes Schema und ohne `__SCHEMA__` im eigenen Migrations-SQL | Nein, für sie ändert sich nichts. |
+
+Eingehängt wird er überall, wo der Host Migrationen anwendet oder skriptet: im eigenen `Migrate()`-Pfad und in der
+`IDesignTimeDbContextFactory`. Die Library wendet selbst keine Migrationen an.
+
+```csharp
+options.UseSqlServer(connectionString)
+       .UseSchemaAwareMigrations(schema);          // ITVComponents.EFRepo.SqlServer.Migrations
+
+options.UseNpgsql(connectionString)
+       .UseSchemaAwareMigrations(schema);          // ITVComponents.EFRepo.PostgreSql.Migrations
+```
+
+- `schema`: `null`/leer = `dbo` bzw. `public`. Erlaubt ist ein Name oder ein Verweis (`->Pfad`, `:-->Pfad`).
+- `ensureSchema: true` legt das Schema an, falls es fehlt. Vorgabe ist `false`, das Schema legt also der DBA an.
+- Die History-Tabelle wandert ins konfigurierte Schema. Eine bestehende Installation, die auf ein eigenes Schema
+  umzieht, muss `__EFMigrationsHistory` mitnehmen.
+- In der Design-Time-Factory ist die Entry-Assembly das EF-Tooling. Verweise lösen dort in der Regel nicht auf:
+  den Wert selbst aus der Konfiguration lesen und aufgelöst übergeben.
+- Beide `UseSchemaAwareMigrations` haben dieselbe Signatur. In einer Datei nur den Namespace des jeweiligen Anbieters
+  importieren.
+
+### 96.3 Konfiguration zur Laufzeit
+
+- **Security-Kontext:** `ActivationSettings.CustomSchema` (`"partner"`, `"->Database:Schema"` oder
+  `":-->Database:Schema"`). Angewendet wird es im TenantSecurity-WebPart. Die Provider-WebParts und Onboarding lösen
+  den Wert nur gleich auf. Ein Verweis ohne Wert wird als Warnung protokolliert, der Kontext läuft dann im
+  Standard-Schema. Ohne `ContextSettings.ContextType` wird ein konfiguriertes Schema nicht angewendet (Warnung).
+- **Plugin-Kontexte:** `CustomSchemaOptionsLoader<TContext>` in die `DbModelBuilderOptionsProvider`-Kette hängen.
+  Verweise lösen über `NativeSettings` auf. Der `WebPartManager` hängt die App-Konfiguration dort an
+  (`NativeSettings.AttachConfiguration`), so sehen beide Seiten dieselben Werte. Die App-Konfiguration hat dabei
+  Vorrang vor `<EntryAssembly>.appsettings.json`.
+- PostgreSQL: Der Schemaname wird im SQL in Anführungszeichen gesetzt und ist damit gross-/kleinschreibungsgenau.
+  Am einfachsten Kleinbuchstaben verwenden.
+
+### 96.4 Für eigenen Code
+
+- Raw-SQL gegen einen Kontext mit eigenem Schema: `context.QualifiedObjectName(name)` (T-SQL-Schreibweise) oder
+  anbieterneutral `context.DelimitedObjectName(name)` verwenden, nicht den nackten Namen.
+- Eigenes Migrations-SQL mit Objektverweisen: `[__SCHEMA__].[Objekt]` (SQL Server) bzw. `"__SCHEMA__"."Objekt"`
+  (PostgreSQL) schreiben. Dann braucht auch dieser Kontext den Generator.
+- `SqlColumnsSyntaxHelper.ConfigureViews(mb)` / `PostgreSqlColumnsSyntaxHelper.ConfigureViews(mb)` / `DropViews(mb)`
+  schreiben den Platzhalter. Ausserhalb einer Migration (Skript-Erzeugung, Tools) die Überladung mit
+  ausdrücklichem Schema verwenden.
+
+### 96.5 Checkliste
+
+- [ ] Jeden `Migrate()`-Pfad und jede Design-Time-Factory des Baum-Security-Kontexts mit `UseSchemaAwareMigrations(...)`
+      versehen, auch ohne eigenes Schema.
+- [ ] Eigenes Schema gewünscht: `ActivationSettings.CustomSchema` setzen, Plugin-Kontexte mit
+      `CustomSchemaOptionsLoader`, Migrationen mit demselben (aufgelösten) Schema anwenden.
+- [ ] Schema existiert in der DB (oder `ensureSchema: true`).
+- [ ] Umzug einer bestehenden Installation in ein anderes Schema: Objekte samt `__EFMigrationsHistory` verschieben,
+      Baum-Sichten/-Funktionen per `ConfigureViews` im Zielschema neu anlegen.

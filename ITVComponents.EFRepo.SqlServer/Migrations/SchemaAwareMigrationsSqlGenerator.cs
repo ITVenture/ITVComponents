@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using ITVComponents.EFRepo.Helpers;
-using ITVComponents.Logging;
+using ITVComponents.EFRepo.Migrations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -46,7 +45,7 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
             {
                 if (schemaConfigured)
                 {
-                    RedirectSchema(operation, operation);
+                    MigrationSchemaRedirect.RedirectSchema(operation, targetSchema);
                 }
 
                 if (operation is SqlOperation sqlOperation && !string.IsNullOrEmpty(sqlOperation.Sql))
@@ -58,60 +57,6 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
             }
 
             return base.Generate(redirected, model, options);
-        }
-
-        /// <summary>
-        /// Sets the target schema on all schema-properties of the given operation and its nested operations (columns,
-        /// keys and constraints of a CreateTable, old definitions of Alter-operations). NewSchema of a rename is left untouched,
-        /// because null means "schema stays".
-        /// </summary>
-        /// <param name="target">the object to redirect</param>
-        /// <param name="rootOperation">the top-level operation for the log-message</param>
-        private void RedirectSchema(object target, MigrationOperation rootOperation)
-        {
-            foreach (var property in target.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (property.GetIndexParameters().Length != 0)
-                {
-                    continue;
-                }
-
-                if (property.PropertyType == typeof(string) && property.CanWrite && (property.Name == "Schema" || property.Name == "PrincipalSchema"))
-                {
-                    var current = (string)property.GetValue(target);
-                    if (current == null)
-                    {
-                        property.SetValue(target, targetSchema);
-                    }
-                    else if (!current.Equals(targetSchema, StringComparison.OrdinalIgnoreCase))
-                    {
-                        LogEnvironment.LogEvent($"The migration-operation {rootOperation.GetType().Name} ({DescribeOperation(rootOperation)}) uses the explicit schema '{current}', but the schema '{targetSchema}' is configured. The migration was probably generated with a schema by mistake.", LogSeverity.Warning);
-                    }
-                }
-                else if (typeof(MigrationOperation).IsAssignableFrom(property.PropertyType))
-                {
-                    var nested = property.GetValue(target);
-                    if (nested != null)
-                    {
-                        RedirectSchema(nested, rootOperation);
-                    }
-                }
-                else if (typeof(IEnumerable<MigrationOperation>).IsAssignableFrom(property.PropertyType))
-                {
-                    if (property.GetValue(target) is IEnumerable<MigrationOperation> nestedList)
-                    {
-                        foreach (var nested in nestedList.ToArray())
-                        {
-                            RedirectSchema(nested, rootOperation);
-                        }
-                    }
-                }
-            }
-        }
-
-        private static string DescribeOperation(MigrationOperation operation)
-        {
-            return operation is ITableMigrationOperation tableOperation ? tableOperation.Table : "-";
         }
     }
 }

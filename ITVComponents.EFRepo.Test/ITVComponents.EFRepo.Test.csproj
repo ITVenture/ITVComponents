@@ -10,5 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents.EFRepo\ITVComponents.EFRepo.csproj" />
     <ProjectReference Include="..\ITVComponents.EFRepo.SqlServer\ITVComponents.EFRepo.SqlServer.csproj" />
+    <ProjectReference Include="..\ITVComponents.EFRepo.PostgreSql\ITVComponents.EFRepo.PostgreSql.csproj" />
   </ItemGroup>
 </Project>

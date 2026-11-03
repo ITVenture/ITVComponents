@@ -2,10 +2,10 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ITVComponents.EFRepo.SqlServer.Migrations
+namespace ITVComponents.EFRepo.Migrations
 {
     /// <summary>
-    /// Carries the schema that the SchemaAwareMigrationsSqlGenerator applies to the migration-operations. The schema is part of
+    /// Carries the schema that the provider-specific SchemaAwareMigrationsSqlGenerator (SqlServer, PostgreSql) applies to the migration-operations. The schema is part of
     /// the service-provider identity, so two contexts with different schemas never share a cached generator.
     /// </summary>
     public class SchemaAwareMigrationsOptionsExtension : IDbContextOptionsExtension
@@ -19,7 +19,7 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
         }
 
         /// <summary>
-        /// The configured target schema. null means dbo
+        /// The configured target schema. null means the default schema of the provider (dbo, public)
         /// </summary>
         public string Schema { get; }
 
@@ -48,7 +48,7 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
 
             public override bool IsDatabaseProvider => false;
 
-            public override string LogFragment => $"SchemaAwareMigrations={Extension.Schema ?? "dbo"} ";
+            public override string LogFragment => $"SchemaAwareMigrations={Extension.Schema ?? "(default)"} ";
 
             public override int GetServiceProviderHashCode()
             {
@@ -62,7 +62,7 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
 
             public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
             {
-                debugInfo["SchemaAwareMigrations:Schema"] = Extension.Schema ?? "dbo";
+                debugInfo["SchemaAwareMigrations:Schema"] = Extension.Schema ?? "(default)";
                 debugInfo["SchemaAwareMigrations:EnsureSchema"] = Extension.EnsureSchema.ToString();
             }
         }
