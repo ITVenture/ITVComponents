@@ -6023,8 +6023,20 @@ keinen Setter, `RequestOptions.StripeVersion` ist `internal`, und weder `StripeC
 |---|---|
 | `Stripe.net 52.4.x` (stabil) | `2026-08-26.dahlia` |
 | `Stripe.net 52.5.0-beta.1` | `2026-08-26.preview` |
+| `Stripe.net 53.1.0` (stabil, seit 2026-11-04 im Toolkit) | `2026-10-28.endive` |
 
-Dasselbe Datum, zwei Kanäle. Das Toolkit auf die Beta zu ziehen würde die Vorschau **allen** Installationen
+Dasselbe Datum, zwei Kanäle. Auch die Endive-Linie (`2026-09-30`, `2026-10-28`) führt die Kombination
+nur im Vorschau-Kanal; die Sperre bleibt also nötig.
+
+**Umstieg auf `Stripe.net 53.1.0` (2026-11-04)** — nur innerhalb von `Billing.Stripe`, kein Schema-Change,
+für Hosts ohne eigenen Stripe-Code nichts zu tun:
+- v2-Adressen haben je Operation einen eigenen Typ (`V2.Core.AccountCreateIdentityBusinessDetailsAddressOptions`,
+  `…IndividualAddressOptions`) statt des gemeinsamen `AddressJapanOptions`.
+- Der Onboarding-Link nennt keine `Configurations` mehr; er gilt für die Konfigurationen, die das Konto trägt.
+- `PaymentIntentCreateOptions.PaymentMethodTypes` heisst jetzt `AllowedPaymentMethodTypes` (Terminal-Zahlung).
+- Wer im Host selbst gegen Stripe.net programmiert, beachtet das vollständige Breaking-Change-Verzeichnis von
+  53.0.0 im [Changelog](https://github.com/stripe/stripe-dotnet/blob/master/CHANGELOG.md); `Stripe.net` setzt jetzt
+  .NET 8 oder neuer voraus. Das Toolkit auf die Beta zu ziehen würde die Vorschau **allen** Installationen
 aufzwingen — eine Vorschau-API auf dem Geldpfad jeder Installation, damit eine sie nutzen kann. Deshalb gibt
 es hier bewusst keinen Schalter: es gäbe nichts zu schalten.
 

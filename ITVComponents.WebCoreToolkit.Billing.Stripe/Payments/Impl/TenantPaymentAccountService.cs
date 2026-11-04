@@ -101,8 +101,9 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
             try
             {
                 // v2 states the purpose of the link instead of typing it: the use case carries the return and
-                // refresh addresses and names the configurations the tenant is being onboarded FOR - the same two
-                // this platform asked for when the account was created.
+                // refresh addresses. Which configurations the tenant is onboarded for is no longer named here
+                // (removed with API 2026-09-30.endive) - the link covers the configurations the account carries,
+                // i.e. the two this platform asked for when the account was created.
                 var link = await client.V2.Core.AccountLinks.CreateAsync(new V2.Core.AccountLinkCreateOptions
                 {
                     Account = account.ProviderAccountId,
@@ -111,7 +112,6 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                         Type = "account_onboarding",
                         AccountOnboarding = new V2.Core.AccountLinkCreateUseCaseAccountOnboardingOptions
                         {
-                            Configurations = new List<string> { "merchant", "recipient" },
                             ReturnUrl = returnUrl,
                             RefreshUrl = refreshUrl
                         }
@@ -362,14 +362,13 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
         }
 
         /// <summary>
-        /// Die Adresse fuer den Anbieter. Der Typ heisst <c>AddressJapanOptions</c> und traegt deshalb neben den
-        /// ueblichen Feldern auch <c>Town</c> - er ist der gemeinsame Adresstyp der v2-Identitaet, nicht etwa auf
-        /// Japan beschraenkt. Nicht daran stoeren, und vor allem nicht "korrigieren".
+        /// Die Adresse fuer den Anbieter. Seit Stripe.net 53 hat jede v2-Operation ihren eigenen Adresstyp (vorher
+        /// der gemeinsame <c>AddressJapanOptions</c>); Firma und Person sind deshalb zwei Typen mit denselben Feldern.
         /// </summary>
-        private static AddressJapanOptions? BusinessAddress(PostalAddress? address, string? country)
+        private static V2.Core.AccountCreateIdentityBusinessDetailsAddressOptions? BusinessAddress(PostalAddress? address, string? country)
             => address == null
                 ? null
-                : new AddressJapanOptions
+                : new V2.Core.AccountCreateIdentityBusinessDetailsAddressOptions
                 {
                     Line1 = StreetLine(address),
                     Line2 = address.Addition,
@@ -379,10 +378,10 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 };
 
         /// <summary>Dieselbe Adresse fuer die Person - siehe <see cref="BusinessAddress"/>.</summary>
-        private static AddressJapanOptions? IndividualAddress(PostalAddress? address, string? country)
+        private static V2.Core.AccountCreateIdentityIndividualAddressOptions? IndividualAddress(PostalAddress? address, string? country)
             => address == null
                 ? null
-                : new AddressJapanOptions
+                : new V2.Core.AccountCreateIdentityIndividualAddressOptions
                 {
                     Line1 = StreetLine(address),
                     Line2 = address.Addition,

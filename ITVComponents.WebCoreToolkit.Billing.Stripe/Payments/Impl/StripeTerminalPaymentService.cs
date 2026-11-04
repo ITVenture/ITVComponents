@@ -99,8 +99,8 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                     Amount = sale.AmountMinor,
                     Currency = sale.Currency.ToLowerInvariant(),
                     // Ohne diesen Eintrag erwartet Stripe eine Online-Zahlungsart, und das Geraet wird die
-                    // Absicht nicht annehmen.
-                    PaymentMethodTypes = ["card_present"],
+                    // Absicht nicht annehmen. (Seit API 2026-09-30.endive heisst das Feld AllowedPaymentMethodTypes.)
+                    AllowedPaymentMethodTypes = ["card_present"],
                     // Einstufig: autorisieren und einziehen. Zweistufig waere ein eigener Ablauf mit einer
                     // Frist von zwei Tagen und einem Einzugsschritt, den an einer Ladenkasse niemand macht.
                     CaptureMethod = "automatic",
