@@ -163,7 +163,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                 values[entry.Key] = entry.Value;
             }
 
+            int errorsBeforeType = errors.Count;
             ChartType type = ReadType(values, errors);
+            bool typeIsKnown = errors.Count == errorsBeforeType;
             IReadOnlyList<ChartWidgetLabel> labels = ReadLabels(values, errors);
             List<ChartSeries<double>> series = ReadSeries(values, errors);
 
@@ -176,6 +178,13 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                     // aller Auskuenfte - die Zahlen sehen dann richtig aus und sind es nicht.
                     errors.Add(
                         $"Series '{s.Name}' has {count} value(s) but there are {labels.Count} label(s).");
+                }
+
+                // Bei unbekanntem Typ steht ReadType auf der Vorgabe Pie - die Meldung waere dann falsch.
+                if (typeIsKnown && s.TooltipYValueFormat != null && TypesIgnoringYValueFormat.Contains(type))
+                {
+                    errors.Add($"Series '{s.Name}': 'tooltipYValueFormat' has no effect on a {type} chart "
+                               + "- MudBlazor formats the value there itself.");
                 }
             }
 
@@ -213,6 +222,27 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
         public static IReadOnlyList<string> PreparedFields { get; } = new[]
         {
             "type", "labels", "series", "title", "minWidth", "action", "overlay"
+        };
+
+        /// <summary>
+        /// The fields a single entry of <c>series</c> may carry. Anything else is reported.
+        /// </summary>
+        /// <remarks>
+        /// Oeffentlich aus demselben Grund wie <see cref="PreparedFields"/>: die Uebersicht des Knopfes
+        /// "Parameter einfuegen" nennt sie.
+        /// </remarks>
+        public static IReadOnlyList<string> SeriesFields { get; } = new[]
+        {
+            "name", "data", "visible", "tooltipTitleFormat", "tooltipSubtitleFormat", "tooltipYValueFormat"
+        };
+
+        /// <summary>
+        /// Die Diagrammarten, deren Hover den Wert fest formatiert (MudBlazor 9.9.0) - dort bliebe das Feld
+        /// ohne jede Wirkung.
+        /// </summary>
+        private static readonly ChartType[] TypesIgnoringYValueFormat =
+        {
+            ChartType.Pie, ChartType.Donut, ChartType.Rose, ChartType.Radar
         };
 
         private static bool IsPreparedField(string name)
@@ -432,10 +462,25 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
                     .Select(v => ToDouble(v, errors))
                     .ToArray();
 
+                string seriesName = Convert.ToString(name, CultureInfo.InvariantCulture) ?? string.Empty;
+
+                foreach (string field in entry.Keys)
+                {
+                    if (!SeriesFields.Contains(field, StringComparer.OrdinalIgnoreCase))
+                    {
+                        errors.Add($"Series '{seriesName}' has an unknown field '{field}'. "
+                                   + $"Known: {string.Join(", ", SeriesFields)}.");
+                    }
+                }
+
                 series.Add(new ChartSeries<double>
                 {
-                    Name = Convert.ToString(name, CultureInfo.InvariantCulture) ?? string.Empty,
-                    Data = numbers
+                    Name = seriesName,
+                    Data = numbers,
+                    Visible = ReadVisible(entry, seriesName, errors),
+                    TooltipTitleFormat = ReadSeriesText(entry, "tooltipTitleFormat", seriesName, errors),
+                    TooltipSubtitleFormat = ReadSeriesText(entry, "tooltipSubtitleFormat", seriesName, errors),
+                    TooltipYValueFormat = ReadYValueFormat(entry, seriesName, errors)
                 });
             }
 
@@ -445,6 +490,76 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
             }
 
             return series;
+        }
+
+        private static bool ReadVisible(IDictionary<string, object?> entry, string seriesName, List<string> errors)
+        {
+            if (!entry.TryGetValue("visible", out object? raw) || raw == null)
+            {
+                return true;
+            }
+
+            if (raw is bool visible)
+            {
+                return visible;
+            }
+
+            if (raw is string text && bool.TryParse(text, out bool parsed))
+            {
+                return parsed;
+            }
+
+            errors.Add($"Series '{seriesName}': 'visible' must be true or false, not '{raw}'.");
+            return true;
+        }
+
+        /// <summary>
+        /// Reads an optional text field of a series. Missing or blank stays null.
+        /// </summary>
+        /// <remarks>
+        /// <b>Null ist hier Pflicht:</b> <c>Convert.ToString(null, …)</c> liefert einen Leerstring, und
+        /// MudBlazor rechnet <c>series.TooltipTitleFormat ?? options.TooltipTitleFormat</c>. Ein Leerstring
+        /// verdraengt also die Vorgabe aus <c>chartOptions</c> - und ein leerer Titel blendet den ganzen
+        /// Hover-Text aus, auf jedem Diagramm ohne dieses Feld.
+        /// </remarks>
+        private static string? ReadSeriesText(IDictionary<string, object?> entry, string field, string seriesName,
+            List<string> errors)
+        {
+            if (!entry.TryGetValue(field, out object? raw) || raw == null)
+            {
+                return null;
+            }
+
+            if (raw is not string text)
+            {
+                errors.Add($"Series '{seriesName}': '{field}' must be text, not '{raw}'.");
+                return null;
+            }
+
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private static string? ReadYValueFormat(IDictionary<string, object?> entry, string seriesName,
+            List<string> errors)
+        {
+            string? format = ReadSeriesText(entry, "tooltipYValueFormat", seriesName, errors);
+            if (format == null)
+            {
+                return null;
+            }
+
+            // MudBlazor formatiert erst beim Rendern - dort waere ein ungueltiges Format eine Ausnahme
+            // mitten im Aufbau der Seite statt einer Meldung in der Kachel. Darum hier die Probe.
+            try
+            {
+                _ = 0d.ToString(format, CultureInfo.InvariantCulture);
+                return format;
+            }
+            catch (FormatException ex)
+            {
+                errors.Add($"Series '{seriesName}': '{format}' is not a valid number format ({ex.Message}).");
+                return null;
+            }
         }
 
         /// <summary>Reads a value as a list. A single value counts as a list of one.</summary>

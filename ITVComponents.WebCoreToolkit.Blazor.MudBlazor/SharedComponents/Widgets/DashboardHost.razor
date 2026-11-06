@@ -1,5 +1,6 @@
 @namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
 
+@using System.Diagnostics
 @using System.Globalization
 @using System.Text.Json
 @using Microsoft.AspNetCore.Components.Authorization
@@ -17,9 +18,11 @@
 @inject IDialogService DialogService
 @inject ILogger<DashboardHost> Logger
 
+@implements IDisposable
+
 @*
     Die Dashboard-Fläche: lädt die Widgets des Benutzers, führt je Widget seine Diagnostics-Query aus und
-    rendert sie über WidgetRenderer.
+    rendert sie über WidgetRenderer. Das Raster steht sofort, die Kacheln füllen sich einzeln.
 
     Wer noch keine eigenen Widgets hat, sieht die Standard-Sammlung (die Widgets mit InitiallyActive) -
     ohne dass dafür etwas gespeichert wird. Erst wenn er die Bearbeitung einschaltet, wird die Sammlung
@@ -145,6 +148,9 @@
 
     [Parameter] public string AvailableRenderersText { get; set; } = "Available";
 
+    /// <summary>The height of the placeholder of a tile whose data is still loading, as a CSS length.</summary>
+    [Parameter] public string PlaceholderHeight { get; set; } = "160px";
+
     /// <summary>One tile of the dashboard: its definition, its data and its current arrangement.</summary>
     private sealed class WidgetTile
     {
@@ -198,6 +204,12 @@
     private bool saving;
 
     /// <summary>
+    /// Der aktuelle Ladedurchlauf. Wer die Kachelliste neu aufbaut oder die Flaeche verlaesst, erhoeht den
+    /// Wert - ein laufender Durchlauf merkt das an der naechsten Kachel und hoert auf.
+    /// </summary>
+    private int loadGeneration;
+
+    /// <summary>
     /// True solange die Standard-Sammlung nur ANGEZEIGT wird - es gibt dazu noch keine eigenen Widgets.
     /// Beim Einschalten der Bearbeitung wird sie kopiert und dieser Zustand endet.
     /// </summary>
@@ -229,7 +241,10 @@
         // Durchlauf ein zweites Mal benutzt.
         await LoadAsync();
         StateHasChanged();
+        StartLoadingTileData();
     }
+
+    public void Dispose() => loadGeneration++;
 
     private async Task LoadAsync()
     {
@@ -246,8 +261,10 @@
                 return;
             }
 
+            long start = Stopwatch.GetTimestamp();
             BuildTiles(store, StoreCulture);
-            LoadTileData();
+            Logger.LogInformation("Dashboard: read {Count} widget definition(s) in {ElapsedMs} ms.",
+                tiles.Count, ElapsedMs(start));
         }
         catch (Exception ex)
         {
@@ -354,11 +371,73 @@
         return Services.VerifyUserPermissions(new[] { permission });
     }
 
-    private void LoadTileData()
+    /// <summary>
+    /// Laedt alle Kacheln, denen noch Daten fehlen. Ein schon laufender Durchlauf endet damit.
+    /// </summary>
+    private void StartLoadingTileData()
+        => _ = LoadMissingTileDataAsync(++loadGeneration);
+
+    /// <summary>
+    /// Laedt die Kacheln nacheinander und zeichnet nach jeder einzelnen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Bewusst NICHT parallel und nicht auf einem anderen Thread: eine Query ist beliebiger C#-Code und
+    /// bekommt die Dienste des Circuits. Liefe sie neben der Oberflaeche oder einer anderen Query, teilten
+    /// sich beide denselben Scope - das ist die "second operation"-Falle bei jedem Dienst, der einen
+    /// DbContext haelt.
+    /// </para>
+    /// <para>
+    /// Das <c>Yield</c> gibt die Warteschlange des Circuits zwischen zwei Kacheln frei: dazwischen werden
+    /// Klicks bearbeitet. Waehrend einer einzelnen Query bleibt der Circuit belegt. Ein solcher Klick kann
+    /// die Kachelliste aendern - deshalb die Pruefungen nach dem <c>Yield</c>.
+    /// </para>
+    /// </remarks>
+    private async Task LoadMissingTileDataAsync(int generation)
     {
-        foreach (WidgetTile tile in tiles)
+        try
         {
-            LoadTileData(tile);
+            WidgetTile[] pending = tiles.Where(t => t.Data is null && !t.Failed).ToArray();
+            if (pending.Length == 0)
+            {
+                return;
+            }
+
+            long start = Stopwatch.GetTimestamp();
+            foreach (WidgetTile tile in pending)
+            {
+                await Task.Yield();
+                if (generation != loadGeneration)
+                {
+                    return;
+                }
+
+                if (!tiles.Contains(tile))
+                {
+                    continue;
+                }
+
+                LoadTileData(tile);
+
+                long renderStart = Stopwatch.GetTimestamp();
+                if (editMode)
+                {
+                    // Ausserhalb des Bearbeiten-Modus zeigt die Referenz auf einen entsorgten Container.
+                    dropContainer?.Refresh();
+                }
+
+                StateHasChanged();
+                Logger.LogInformation("Dashboard widget {Widget}: rendered in {ElapsedMs} ms.",
+                    tile.Definition.SystemName, ElapsedMs(renderStart));
+            }
+
+            Logger.LogInformation("Dashboard: loaded {Count} widget(s) in {ElapsedMs} ms.",
+                pending.Length, ElapsedMs(start));
+        }
+        catch (Exception ex)
+        {
+            // Der Aufrufer wartet nicht auf diese Aufgabe - ohne das Log verschwaende der Fehler spurlos.
+            Logger.LogError(ex, "Loading the dashboard widgets failed.");
         }
     }
 
@@ -366,13 +445,57 @@
     {
         if (queryService is null)
         {
+            Logger.LogError("Widget {Widget} cannot be loaded: there is no query service.",
+                tile.Definition.SystemName);
+            tile.Failed = true;
             return;
         }
 
-        var context = new DiagnosticsQueryContext(user, Services);
-        tile.Data = DashboardWidgetRunner.Load(tile.Definition, tile.ParamValues, queryService, context, Logger);
-        tile.Failed = tile.Data is null;
+        long start = Stopwatch.GetTimestamp();
+        try
+        {
+            var context = new DiagnosticsQueryContext(user, Services);
+            tile.Data = DashboardWidgetRunner.Load(tile.Definition, tile.ParamValues, queryService, context, Logger);
+            tile.Failed = tile.Data is null;
+        }
+        catch (Exception ex)
+        {
+            // Eine Kachel darf die uebrigen nicht mitnehmen.
+            Logger.LogError(ex, "Widget {Widget} could not be loaded.", tile.Definition.SystemName);
+            tile.Data = null;
+            tile.Failed = true;
+        }
+
+        Logger.LogInformation("Dashboard widget {Widget}: query took {ElapsedMs} ms ({Rows} row(s), failed: {Failed}).",
+            tile.Definition.SystemName, ElapsedMs(start), tile.Data?.Count ?? 0, tile.Failed);
     }
+
+    private static long ElapsedMs(long start)
+        => (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+
+    /// <summary>
+    /// Uebernimmt die schon geladenen Daten in die neu aufgebauten Kacheln.
+    /// </summary>
+    /// <remarks>
+    /// Nach dem Speichern entsteht die Kachelliste neu. Beim Umsortieren aendert sich an den Daten aber
+    /// nichts: sie neu zu holen kostete die volle Wartezeit und liesse jede Kachel kurz als Platzhalter
+    /// aufblitzen. Nur gleiche Parameter zaehlen, sonst stuenden alte Zahlen unter neuen Einstellungen.
+    /// </remarks>
+    private void AdoptLoadedData(IReadOnlyList<WidgetTile> previous)
+    {
+        foreach (WidgetTile tile in tiles)
+        {
+            WidgetTile? match = previous.FirstOrDefault(p =>
+                p.Data is not null
+                && p.Definition.DashboardWidgetId == tile.Definition.DashboardWidgetId
+                && SameParameters(p.ParamValues, tile.ParamValues));
+            tile.Data = match?.Data;
+        }
+    }
+
+    private static bool SameParameters(Dictionary<string, string?> left, Dictionary<string, string?> right)
+        => left.Count == right.Count
+           && left.All(p => right.TryGetValue(p.Key, out string? value) && value == p.Value);
 
     private async Task EnterEditMode()
     {
@@ -407,6 +530,8 @@
             return false;
         }
 
+        // Waehrend des Speicherns laeuft keine Kachel mehr an; das finally setzt das Laden wieder in Gang.
+        loadGeneration++;
         saving = true;
         StateHasChanged();
         try
@@ -440,8 +565,9 @@
             }
 
             showingDefaults = false;
+            WidgetTile[] previous = tiles.ToArray();
             BuildTiles(store, StoreCulture);
-            LoadTileData();
+            AdoptLoadedData(previous);
             return true;
         }
         catch (Exception ex)
@@ -453,6 +579,7 @@
         {
             saving = false;
             StateHasChanged();
+            StartLoadingTileData();
         }
     }
 
@@ -523,7 +650,6 @@
         }
 
         tiles.Add(tile);
-        LoadTileData(tile);
         dropContainer?.Refresh();
         await SaveAsync();
     }
@@ -532,7 +658,10 @@
     {
         if (await AskForParameters(tile))
         {
-            LoadTileData(tile);
+            // Die alten Zahlen gehoeren zu den alten Parametern. SaveAsync laedt sie neu.
+            tile.Data = null;
+            tile.Failed = false;
+            dropContainer?.Refresh();
             await SaveAsync();
         }
     }
@@ -721,7 +850,9 @@
                 }
                 else if (tile.Data is null)
                 {
-                    <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                    <div aria-busy="true">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="@PlaceholderHeight" />
+                    </div>
                 }
                 else if (RendererFor(tile) is null)
                 {

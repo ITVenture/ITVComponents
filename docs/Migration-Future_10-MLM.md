@@ -9065,3 +9065,91 @@ options.UseNpgsql(connectionString)
 - [ ] Schema existiert in der DB (oder `ensureSchema: true`).
 - [ ] Umzug einer bestehenden Installation in ein anderes Schema: Objekte samt `__EFMigrationsHistory` verschieben,
       Baum-Sichten/-Funktionen per `ConfigureViews` im Zielschema neu anlegen.
+
+## 97. Diagramm-Kacheln: Felder an der Serie — **kein Schema-Change; Verhaltensänderung bei unbekannten Serienfeldern**
+
+Herkunft: `docs/ISSUE-MiniStore-ChartSeries-TooltipYValueFormat.md`.
+
+### 97.1 Was sich ändert
+
+Ein Eintrag in `series` darf neben `name` und `data` jetzt auch diese Felder tragen. Sie gelten für `chart.scriban`
+und `chart.cscript`:
+
+| Feld | Wirkung |
+|---|---|
+| `visible` | `false` blendet die Serie zu Beginn aus. |
+| `tooltipYValueFormat` | Zahlenformat des Werts beim Überfahren, z. B. `N2`. Folgt der aktuellen Kultur. |
+| `tooltipTitleFormat` | Titel beim Überfahren. Fehlt das Feld, gilt der Wert aus `chartOptions`. |
+| `tooltipSubtitleFormat` | Untertitel beim Überfahren. Fehlt das Feld, gilt der Wert aus `chartOptions`. |
+
+### 97.2 Verhaltensänderung
+
+Diese Fälle ergeben jetzt eine Fehlermeldung in der Kachel. Das betroffene Diagramm wird dann **nicht** gezeichnet:
+
+- Ein unbekanntes Feld in einer Serie. Bisher wurde es ohne Meldung ignoriert.
+- Ein ungültiges Zahlenformat in `tooltipYValueFormat`, z. B. `X`.
+- `tooltipYValueFormat` auf `pie`, `donut`, `rose` oder `radar`. MudBlazor 9.9.0 formatiert den Wert dort selbst, das
+  Feld hätte keine Wirkung.
+- Ein Formatfeld, das kein Text ist, oder ein `visible`, das weder `true` noch `false` ist.
+
+### 97.3 Checkliste
+
+- [ ] Bestehende Diagramm-Kacheln öffnen und prüfen, ob eine Serie andere Felder trägt als die oben genannten. Solche
+      Felder hatten bisher keine Wirkung und können entfernt werden.
+- [ ] Beträge in `bar`, `stackedBar` und `line`: je Serie `"tooltipYValueFormat": "N2"` ergänzen.
+
+## 98. Dashboard: Kacheln laden einzeln — **kein Schema-Change; Verhaltensänderung in `DashboardHost`**
+
+### 98.1 Was sich ändert
+
+- Das Raster erscheint, sobald die Widget-Definitionen gelesen sind. Jede Kachel zeigt bis zu ihren Daten einen
+  Platzhalter und wird einzeln gezeichnet, sobald ihre Abfrage fertig ist.
+- Die Abfragen laufen weiterhin **nacheinander**. Zwischen zwei Kacheln werden Klicks bearbeitet, während einer
+  einzelnen Abfrage bleibt der Circuit belegt.
+- Eine Kachel mit fehlgeschlagener Abfrage hält die übrigen nicht auf.
+- Speichern der Anordnung (Umsortieren, Breite, Entfernen) führt die Abfragen nicht mehr neu aus. Kacheln mit
+  unveränderten Parametern behalten ihre Daten bis zum nächsten Laden der Seite.
+- Neuer Parameter `PlaceholderHeight` (Vorgabe `160px`).
+
+### 98.2 Zeitmessung im Log
+
+`DashboardHost` schreibt auf Stufe `Information`:
+
+- die Dauer für das Lesen der Widget-Definitionen,
+- je Kachel die Dauer der Abfrage und des Zeichnens,
+- die Gesamtdauer aller Kacheln.
+
+### 98.3 Für eigenen Code
+
+Keine Anpassung nötig. Eine Anwendung, die sich darauf verlassen hat, dass nach dem Speichern neue Zahlen dastehen,
+muss die Seite neu laden.
+
+## 99. Kompilierte Skripte bleiben gepuffert — **kein Schema-Change; Verhaltensänderung in `NativeConfiguration`**
+
+### 99.1 Was falsch war
+
+`NativeConfiguration` wertete jeden wiederholten Aufruf mit demselben Label als Änderung und leerte den Puffer der
+ganzen Konfiguration. Diagnose-Abfragen wurden dadurch (etwa beim Dashboard und im Datei-Handler) fast bei jedem
+Aufruf neu kompiliert. Jede Kompilierung kostet Zeit und lässt eine Assembly bis zum Prozessende im Speicher.
+
+### 99.2 Was jetzt gilt
+
+- Gleicher Text unter gleichem Label bleibt gepuffert.
+- Ändert sich der Text unter einem Label, fällt nur die alte Fassung dieses Labels aus dem Puffer. Die Änderung wirkt
+  beim nächsten Lauf.
+- `CompileExpression` (`LinqFilter`) setzt bei einem wiederholten oder geänderten Label Usings und Referenzen nicht
+  mehr zurück.
+- Eine neue Referenz oder ein neues Using leert den Puffer weiterhin.
+- Eine fehlgeschlagene Kompilierung wird beim nächsten Aufruf wiederholt. Das frühere Leeren hat das nebenbei bewirkt,
+  jetzt ist es ausdrücklich so gebaut.
+
+### 99.3 Weiterhin so
+
+Kompilierte Skripte lassen sich nicht aus dem Speicher entfernen: `InteractiveAssemblyLoader.Dispose()` gibt in Roslyn
+Scripting 5.9.0 nichts frei, und sein `AssemblyLoadContext` ist nicht entladbar. Der Speicher wächst jetzt nur noch mit
+jeder geänderten Fassung einer Abfrage.
+
+### 99.4 Für eigenen Code
+
+Wer sich darauf verlassen hat, dass ein wiederholtes Label bei `CompileExpression` Usings oder Referenzen verwirft, muss
+`NativeScriptHelper.ResetNativeScripts(configuration)` aufrufen. Sonst ist nichts anzupassen.

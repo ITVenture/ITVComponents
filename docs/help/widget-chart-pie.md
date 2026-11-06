@@ -58,6 +58,18 @@ Statt der reinen Beschriftungsliste ein Objekt je Kategorie. In Scriban baut man
 In CScript geht dasselbe über die native Einbettung (siehe `widget-chart-cscript.md`); solange kein Sprung
 nötig ist, reicht `column(…)`.
 
+## Zahlenformat beim Überfahren
+
+`tooltipYValueFormat` wirkt hier nicht: MudBlazor formatiert den Wert bei Torte und Ring selbst und ohne
+Kultur. Steht das Feld trotzdem an der Serie, meldet die Kachel einen Fehler und zeichnet nichts.
+
+Wenn der Betrag genau so erscheinen soll, muss er in die Beschriftung, z. B. `Karte 9.20`. Mit
+`"chartOptions": { "tooltipTitleFormat": "{{Y_VALUE}}" }` zeigt der Hover dann nur diesen Text, denn bei Torte
+und Ring trägt `{{Y_VALUE}}` die Beschriftung. Der Betrag steht damit auch in der Legende.
+
+`tooltipTitleFormat` und `tooltipSubtitleFormat` an der **Serie** wirken hier nur mit
+`AggregationOption.GroupByDataSet`. Sonst gelten die Werte aus `chartOptions`.
+
 ## Wenn nichts erscheint
 
 - **Alle Werte 0** — die Wertespalte ist Text statt Zahl. Die Kachel sagt das („is not a number").

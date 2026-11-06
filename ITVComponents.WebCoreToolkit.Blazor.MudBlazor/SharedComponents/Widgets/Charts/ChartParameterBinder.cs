@@ -122,6 +122,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets.Charts
             text.AppendLine(
                 $"// Sie stehen neben {string.Join("/", ChartWidgetDeclaration.PreparedFields)} und werden auf Namen und Typ geprueft.");
             text.AppendLine("// Mehrere Diagramme aus denselben Daten: eine LISTE solcher Deklarationen.");
+            text.AppendLine($"// Felder je Serie: {string.Join(", ", ChartWidgetDeclaration.SeriesFields)}.");
 
             IEnumerable<PropertyInfo> parameters = componentType
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)

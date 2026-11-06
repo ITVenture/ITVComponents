@@ -18,6 +18,19 @@ SELECT Tag, SUM(Menge) AS Menge FROM Bewegungen GROUP BY Tag ORDER BY Tag
 
 Mehrere Linien = mehrere Einträge in `series`, wie beim Balkendiagramm.
 
+## Geldbeträge beim Überfahren
+
+Ohne Format zeigt der Hover `9.2` statt `9.20`. Das Format gehört an die Serie und folgt der aktuellen
+Kultur:
+
+```jsonc
+{
+  "type": "line",
+  "labels": {{ json (column Rows "Tag") }},
+  "series": [ { "name": "Umsatz CHF", "data": {{ json (column Rows "Umsatz") }}, "tooltipYValueFormat": "N2" } ]
+}
+```
+
 ## Datum als Beschriftung
 
 Die Beschriftungen sind **Text** — wie ein Datum aussieht, entscheidet also die Abfrage. Das ist Absicht:

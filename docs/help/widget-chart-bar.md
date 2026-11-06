@@ -58,6 +58,22 @@ In CScript dasselbe:
 `"type": "stackedBar"` — dieselbe Deklaration, die Serien werden übereinander statt nebeneinander gezeichnet.
 Sinnvoll, wenn die Summe eine Bedeutung hat; sonst bleibt `bar` besser lesbar.
 
+## Geldbeträge beim Überfahren
+
+Ohne Format zeigt der Hover `9.2` statt `9.20`. Runden in der Abfrage hilft nicht, weil `9.2` und `9.20`
+als Zahl derselbe Wert sind. Das Format gehört deshalb an die Serie:
+
+```jsonc
+{
+  "type": "bar",
+  "labels": {{ json (column Rows "Monat") }},
+  "series": [ { "name": "Umsatz CHF", "data": {{ json (column Rows "Umsatz") }}, "tooltipYValueFormat": "N2" } ]
+}
+```
+
+In CScript heisst das Feld genauso: `tooltipYValueFormat: "N2"`. Das Format folgt der aktuellen Kultur, unter
+`de-CH` ergibt `N2` also `1’234.50`.
+
 ## Achsen und Zwischenwerte
 
 Feineinstellungen wie Achsenbeschriftung oder Gitterlinien liegen in `chartOptions`. Welche es in der

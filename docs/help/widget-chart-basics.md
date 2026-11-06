@@ -22,7 +22,17 @@ Drei Felder werden aus den Daten gebaut:
 |---|---|---|
 | `type` | ja | `pie`, `donut`, `bar`, `stackedBar`, `line`, … |
 | `labels` | ausser bei `line` | die Kategorien — Text oder `{ "text": …, "navigateTo": … }` |
-| `series` | ja | Liste aus `{ "name": …, "data": [ … ] }` |
+| `series` | ja | Liste aus `{ "name": …, "data": [ … ] }`, optional mit den Feldern unten |
+
+Eine Serie kann ausserdem diese Felder tragen. Jedes andere Feld meldet die Kachel als Fehler und zeichnet
+das Diagramm nicht.
+
+| Feld | Vorgabe | Bedeutung |
+|---|---|---|
+| `visible` | `true` | `false` blendet die Serie zu Beginn aus. |
+| `tooltipYValueFormat` | — | Zahlenformat des Werts beim Überfahren, z. B. `N2`. Wirkt bei `bar`, `stackedBar` und `line`. Bei `pie`, `donut`, `rose` und `radar` meldet die Kachel einen Fehler, weil das Feld dort keine Wirkung hat. |
+| `tooltipTitleFormat` | aus `chartOptions` | Titel beim Überfahren, mit den Marken `{{SERIES_NAME}}`, `{{X_VALUE}}` und `{{Y_VALUE}}`. |
+| `tooltipSubtitleFormat` | aus `chartOptions` | Untertitel beim Überfahren, mit denselben Marken. |
 
 Drei weitere Felder gehören dem Rahmen und werden **nicht** an die Diagramm-Komponente durchgereicht:
 
@@ -62,8 +72,8 @@ Sind die Diagramme einer Zeile **unterschiedlich hoch**, richten sich ihre Unter
 zugleich geht nicht.
 
 `labels` und die Werte einer Serie müssen **gleich lang** sein. Passt etwas nicht — ein unbekannter Typ,
-ein Wert, der keine Zahl ist, ein Parameter, den es nicht gibt —, sagt die Kachel es und zeichnet nicht
-irgendetwas Halbes.
+ein Wert, der keine Zahl ist, ein Parameter oder Serienfeld, den oder das es nicht gibt —, sagt die Kachel
+es und zeichnet nicht irgendetwas Halbes.
 
 **Beim Speichern wird nur die Syntax geprüft.** Ob die Konfiguration die richtigen Zahlen liefert, zeigt
 sich erst mit echten Daten — deshalb blockiert der Editor nichts, was er nicht sicher beurteilen kann.

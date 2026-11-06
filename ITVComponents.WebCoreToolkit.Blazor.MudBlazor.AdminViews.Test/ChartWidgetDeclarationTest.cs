@@ -144,6 +144,168 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             Assert.IsTrue(declaration!.Extra.ContainsKey("width"));
         }
 
+        // ---- Felder einer Serie --------------------------------------------------------------------
+
+        private static (ChartWidgetDeclaration? Declaration, List<string> Errors) ReadWithSeries(string type,
+            params (string Key, object? Value)[] fields)
+        {
+            var errors = new List<string>();
+            var entry = new List<(string Key, object? Value)>
+            {
+                ("name", "x"),
+                ("data", new object?[] { 1 })
+            };
+            entry.AddRange(fields);
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(Map(
+                ("type", type),
+                ("series", new object?[] { Map(entry.ToArray()) })), errors);
+            return (declaration, errors);
+        }
+
+        [TestMethod]
+        public void SeriesFields_AreRead()
+        {
+            var (declaration, errors) = ReadWithSeries("bar",
+                ("TooltipYValueFormat", "N2"),
+                ("tooltipTitleFormat", "{{Y_VALUE}} CHF"),
+                ("tooltipSubtitleFormat", "{{X_VALUE}}"),
+                ("visible", false));
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors, string.Join(" | ", errors));
+            ChartSeries<double> series = declaration!.Series[0];
+            Assert.AreEqual("N2", series.TooltipYValueFormat);
+            Assert.AreEqual("{{Y_VALUE}} CHF", series.TooltipTitleFormat);
+            Assert.AreEqual("{{X_VALUE}}", series.TooltipSubtitleFormat);
+            Assert.IsFalse(series.Visible);
+        }
+
+        /// <summary>
+        /// MudBlazor rechnet <c>series.TooltipTitleFormat ?? options.TooltipTitleFormat</c>: ein Leerstring
+        /// statt null nimmt jedem Diagramm ohne dieses Feld den Hover-Text.
+        /// </summary>
+        [TestMethod]
+        public void MissingSeriesFields_StayNull()
+        {
+            var (declaration, errors) = ReadWithSeries("bar");
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors, string.Join(" | ", errors));
+            ChartSeries<double> series = declaration!.Series[0];
+            Assert.IsNull(series.TooltipYValueFormat);
+            Assert.IsNull(series.TooltipTitleFormat);
+            Assert.IsNull(series.TooltipSubtitleFormat);
+            Assert.IsTrue(series.Visible);
+        }
+
+        [TestMethod]
+        public void BlankSeriesFormat_StaysNull()
+        {
+            var (declaration, _) = ReadWithSeries("bar", ("tooltipTitleFormat", " "));
+
+            Assert.IsNull(declaration!.Series[0].TooltipTitleFormat);
+        }
+
+        [TestMethod]
+        public void UnknownSeriesField_IsReportedWithTheKnownOnes()
+        {
+            var (_, errors) = ReadWithSeries("bar", ("tooltipYValueFormatt", "N2"));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "tooltipYValueFormatt");
+            StringAssert.Contains(errors[0], "visible");
+        }
+
+        /// <summary>Ein ungueltiges Format wuerde sonst erst beim Rendern als Ausnahme auffallen.</summary>
+        [TestMethod]
+        public void InvalidYValueFormat_IsReportedAndNotPassedOn()
+        {
+            var (declaration, errors) = ReadWithSeries("bar", ("tooltipYValueFormat", "X"));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "not a valid number format");
+            Assert.IsNull(declaration!.Series[0].TooltipYValueFormat);
+        }
+
+        [TestMethod]
+        public void SeriesFormatThatIsNoText_IsReported()
+        {
+            var (_, errors) = ReadWithSeries("bar", ("tooltipTitleFormat", 5));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "must be text");
+        }
+
+        [TestMethod]
+        public void VisibleThatIsNoBoolean_IsReported()
+        {
+            var (_, errors) = ReadWithSeries("bar", ("visible", "vielleicht"));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "'visible'");
+        }
+
+        [TestMethod]
+        [DataRow("pie")]
+        [DataRow("donut")]
+        [DataRow("rose")]
+        [DataRow("radar")]
+        public void YValueFormat_OnATypeThatIgnoresIt_IsReported(string type)
+        {
+            var (_, errors) = ReadWithSeries(type, ("tooltipYValueFormat", "N2"));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "no effect");
+        }
+
+        [TestMethod]
+        [DataRow("bar")]
+        [DataRow("stackedBar")]
+        [DataRow("line")]
+        public void YValueFormat_OnATypeThatHonoursIt_IsAccepted(string type)
+        {
+            var (_, errors) = ReadWithSeries(type, ("tooltipYValueFormat", "N2"));
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors, string.Join(" | ", errors));
+        }
+
+        /// <summary>Der Titel wirkt bei Ring und Kreis durchaus (GroupByDataSet) - keine Meldung.</summary>
+        [TestMethod]
+        public void TitleFormat_OnADonut_IsAccepted()
+        {
+            var (declaration, errors) = ReadWithSeries("donut", ("tooltipTitleFormat", "{{Y_VALUE}}"));
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors, string.Join(" | ", errors));
+            Assert.AreEqual("{{Y_VALUE}}", declaration!.Series[0].TooltipTitleFormat);
+        }
+
+        /// <summary>
+        /// Ein unbekannter Typ faellt intern auf Pie zurueck - das darf keine zweite, irrefuehrende
+        /// Meldung ueber Pie nach sich ziehen.
+        /// </summary>
+        [TestMethod]
+        public void YValueFormat_OnAnUnknownType_ReportsOnlyTheType()
+        {
+            var (_, errors) = ReadWithSeries("kuchen", ("tooltipYValueFormat", "N2"));
+
+            Assert.AreEqual(1, errors.Count, string.Join(" | ", errors));
+            StringAssert.Contains(errors[0], "not a chart type");
+        }
+
+        [TestMethod]
+        public void SeriesFields_ArriveFromRenderedJson()
+        {
+            var errors = new List<string>();
+            IReadOnlyList<object?>? entries = ChartJson.ToEntries(
+                "{ \"type\": \"bar\", \"series\": [ { \"name\": \"x\", \"data\": [1], "
+                + "\"tooltipYValueFormat\": \"N2\", \"visible\": false } ] }", errors);
+
+            ChartWidgetDeclaration? declaration = ChartWidgetDeclaration.FromMap(
+                (IDictionary<string, object?>)entries![0]!, errors);
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), errors, string.Join(" | ", errors));
+            Assert.AreEqual("N2", declaration!.Series[0].TooltipYValueFormat);
+            Assert.IsFalse(declaration.Series[0].Visible);
+        }
+
         // ---- Durchreiche-Bindung ------------------------------------------------------------------
 
         [TestMethod]
