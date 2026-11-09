@@ -138,6 +138,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Extensio
         public static IServiceCollection UseServerCookies(this IServiceCollection services,
             Action<ServerCookieOptions> configure)
         {
+            // Server-Cookie-Inhalte je Container puffern; der Dienst selbst ist scoped.
+            services.TryAddSingleton<ServerCookieBuffer>();
             services.AddScoped<ICookieService, DbCookieService>();
             if (configure != null)
             {
