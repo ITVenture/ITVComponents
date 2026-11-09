@@ -44,7 +44,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Impl
 
         public async Task HandleAsync(string payload, string signatureHeader, CancellationToken cancellationToken = default)
         {
-            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, options.WebhookSecret);
+            var stripeEvent = StripeWebhookEvents.Construct(payload, signatureHeader, options.WebhookSecret);
 
             switch (stripeEvent.Type)
             {

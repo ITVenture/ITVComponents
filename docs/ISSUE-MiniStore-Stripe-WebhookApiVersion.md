@@ -1,6 +1,6 @@
 # Issue: Stripe.net 53.1.0 weist Webhooks der bisherigen API-Linie zurück
 
-**Status:** OFFEN
+**Status:** umgesetzt — `StripeWebhookEvents.Construct` prüft zuerst die Signatur, dann die Version; `StripeWebhookApiVersionException` steht als Fehler im Log, mit beiden Versionen. Keine Option zum Abschalten (Vorschlag 2 bewusst nicht). Leitfaden §64.9 mit Reihenfolge und `stripe listen --latest`
 **Datum:** 2026-11-06
 **Quelle:** MiniStore-Session (Konsument), beim Bump auf `5.0.0-PRE267`.
 **Toolkit-Stand:** `5.0.0-PRE267`, `Stripe.net 53.1.0` (vorher `52.4.0`).

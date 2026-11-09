@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.Billing.Stripe.Impl;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
 using ITVComponents.WebCoreToolkit.Configuration;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
@@ -88,7 +89,7 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Impl
                 return;
             }
 
-            var stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, options.Stripe.ConnectWebhookSecret);
+            var stripeEvent = StripeWebhookEvents.Construct(payload, signatureHeader, options.Stripe.ConnectWebhookSecret);
             var accountId = stripeEvent.Account;
 
             switch (stripeEvent.Type)

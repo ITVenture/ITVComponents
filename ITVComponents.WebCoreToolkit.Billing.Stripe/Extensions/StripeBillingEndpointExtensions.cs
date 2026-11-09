@@ -1,8 +1,10 @@
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using System.IO;
 using System.Threading;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Abstractions;
+using ITVComponents.WebCoreToolkit.Billing.Stripe.Impl;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -30,9 +32,18 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Extensions
                     await handler.HandleAsync(payload, signature, cancellationToken);
                     return Results.Ok();
                 }
+                catch (StripeWebhookApiVersionException ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Stripe webhook rejected (HTTP 400): {ex.OutlineException()}",
+                        LogSeverity.Error, "StripeWebhook");
+
+                    // Stripe retries, so the event still arrives once the endpoint delivers the right version.
+                    return Results.BadRequest();
+                }
                 catch (StripeException ex)
                 {
-                    // Almost always a signature-verification failure in EventUtility.ConstructEvent: the
+                    // Almost always a signature-verification failure in EventUtility.ValidateSignature: the
                     // configured Billing:Stripe:WebhookSecret (whsec_...) does not match the secret of the
                     // endpoint that produced the event (a Stripe-CLI `stripe listen` secret differs from the
                     // dashboard endpoint secret), or a proxy stripped/rewrote the body or the Stripe-Signature

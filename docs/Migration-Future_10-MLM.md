@@ -6029,7 +6029,7 @@ Dasselbe Datum, zwei Kanäle. Auch die Endive-Linie (`2026-09-30`, `2026-10-28`)
 nur im Vorschau-Kanal; die Sperre bleibt also nötig.
 
 **Umstieg auf `Stripe.net 53.1.0` (2026-11-04)** — nur innerhalb von `Billing.Stripe`, kein Schema-Change,
-für Hosts ohne eigenen Stripe-Code nichts zu tun:
+kein Code für Hosts ohne eigenen Stripe-Code. **Die Webhook-Endpunkte müssen aber umgestellt werden, siehe 64.9:**
 - v2-Adressen haben je Operation einen eigenen Typ (`V2.Core.AccountCreateIdentityBusinessDetailsAddressOptions`,
   `…IndividualAddressOptions`) statt des gemeinsamen `AddressJapanOptions`.
 - Der Onboarding-Link nennt keine `Configurations` mehr; er gilt für die Konfigurationen, die das Konto trägt.
@@ -6127,6 +6127,36 @@ gesendet: ein Datensatz ohne Namen erzeugt drüben sofort eine Rückfrage.
 > gesendet wird — hat sich als **falsch** herausgestellt; was daraus folgt, steht in 64.6.
 
 ---
+
+### 64.9 Webhooks beim Wechsel der Stripe-Linie: neue Endpunkte, feste Reihenfolge
+
+`Stripe.net` liest nur Ereignisse seiner eigenen Linie. `53.1.0` nimmt `*.endive` an und weist `*.dahlia` ab. Innerhalb
+einer Linie spielt das Datum keine Rolle. Das gilt für den Plattform- und den Connect-Endpunkt. Die v2-Benachrichtigungen
+der Konten sind nicht betroffen, sie tragen keine Version.
+
+Eine Option zum Abschalten der Prüfung gibt es bewusst nicht: `Stripe.net` würde das Ereignis trotzdem lesen und könnte
+es falsch lesen. Auf diesem Weg hiesse das ein falsch gebuchter Verkauf.
+
+**Lokal mit der Stripe-CLI:** `stripe listen --latest` statt `stripe listen`. Ohne `--latest` kommen die Ereignisse in der
+Standard-Version des Kontos. Die CLI signiert weiter mit ihrem eigenen Secret, es ändert sich also nichts daran.
+
+**Mit eingerichteten Endpunkten:** Stripes Anleitung sieht für den Versionswechsel einen neuen Endpunkt vor, und der hat
+ein eigenes `whsec_`. Je Endpunkt:
+
+1. Neuen Endpunkt anlegen: gleiche Ereignisse, die Version aus der Tabelle in 64.7, gleiche URL mit `?version=endive`,
+   und aktiviert lassen. Der laufende Host weist dessen Ereignisse mit 400 ab (falsches Secret), Stripe wiederholt sie.
+2. Toolkit mit dem neuen Secret einspielen. Neue Ereignisse und die offenen Wiederholungen laufen jetzt durch.
+3. Alten Endpunkt deaktivieren, sobald der neue sauber läuft. Bis dahin bleibt der Rückweg offen: alter Stand und altes
+   Secret. Nach dem Deaktivieren wiederholt Stripe dessen abgewiesene Ereignisse nicht mehr.
+
+- **Zeitfenster:** Zwischen Schritt 1 und 2 dürfen im Livebetrieb höchstens 3 Tage liegen, in einer Sandbox nur wenige
+  Stunden. So lange wiederholt Stripe die Zustellung.
+- **Doppelte Zustellung:** Was der alte Stand vor dem Einspielen verarbeitet hat, kommt über den neuen Endpunkt noch
+  einmal. Das Toolkit bucht es nicht doppelt und löst die Freigabe nur einmal aus.
+
+**Im Log:** Eine falsche Version steht als `Error` im Log, mit der gelieferten und der erwarteten Version und mit dem
+Hinweis, dass das Secret stimmt. Die Antwort bleibt 400, damit Stripe wiederholt. Eine falsche Signatur bleibt eine
+`Warning` und wird zuerst geprüft.
 
 ## 65. ClientApps werden eine tragfähige Funktion — **Pflicht-Migration (1 Tabelle neu, 1 umbenannt, 1 gelöscht), wenn ihr ClientApps nutzt**
 

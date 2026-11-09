@@ -1,6 +1,8 @@
 using System.IO;
 using System.Threading;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
+using ITVComponents.WebCoreToolkit.Billing.Stripe.Impl;
 using ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Abstractions;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Abstractions;
 using Microsoft.AspNetCore.Builder;
@@ -44,6 +46,15 @@ namespace ITVComponents.WebCoreToolkit.Billing.Stripe.Payments.Extensions
                 {
                     await handler.HandleAsync(payload, signature, cancellationToken);
                     return Results.Ok();
+                }
+                catch (StripeWebhookApiVersionException ex)
+                {
+                    LogEnvironment.LogEvent(
+                        $"Stripe connect webhook rejected (HTTP 400): {ex.OutlineException()}",
+                        LogSeverity.Error, "StripeConnect");
+
+                    // The provider retries, so the event still arrives once the endpoint delivers the right version.
+                    return Results.BadRequest();
                 }
                 catch (StripeException ex)
                 {
