@@ -87,7 +87,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
         {
             using var lease = LeaseDb();
             var securityContext = lease.Context;
-            /*if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            /*if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 return from p in securityContext.WebPlugins
                     where !string.IsNullOrEmpty(p.StartupRegistrationConstructor)
@@ -124,13 +124,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
 
         private WebPlugin GetPlugin(IBaseTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, BaseTenantContextSecurityTrustConfig> securityContext, string uniqueName, out int? webPluginId)
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
             {
                 webPluginId = bufferInfo.WebPluginId;
                 return bufferInfo.Plugin;
             }
 
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 var pi = securityContext.WebPlugins.FirstOrDefault(
                              n => n.UniqueName == uniqueName && n.TenantId != null) ??
@@ -198,7 +198,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
         {
             using var lease = LeaseDb();
             var securityContext = lease.Context;
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 // AllowAnonymous nur aus den globalen Zeilen: eine Projektion liest die SPALTE, nicht den
                 // Getter der Entitaet - die Mandanten-Regel muss hier also von Hand stehen.

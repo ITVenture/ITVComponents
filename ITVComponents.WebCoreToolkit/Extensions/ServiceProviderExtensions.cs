@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DIServices;
+using ITVComponents.WebCoreToolkit.Caching;
 using ITVComponents.WebCoreToolkit.Logging;
 using ITVComponents.WebCoreToolkit.Models;
 using ITVComponents.WebCoreToolkit.Models.RequestConservation;
@@ -715,34 +717,97 @@ namespace ITVComponents.WebCoreToolkit.Extensions
             }
         }
 
+        /// <summary>
+        /// Gets the named object buffer from the host's <see cref="IMemoryCache"/>. Without a memory cache, the
+        /// result of <paramref name="defaultProvider"/> is returned (which may be null to say "no buffer").
+        /// </summary>
+        /// <param name="serviceProvider">the service-provider of the current scope</param>
+        /// <param name="objectName">the name of the buffer</param>
+        /// <param name="defaultProvider">supplies the provider to use when no memory cache is registered</param>
+        /// <returns>the buffer, or what <paramref name="defaultProvider"/> returns</returns>
         public static IObjectProvider GetObjectProvider(this IServiceProvider serviceProvider, string objectName,
             Func<IObjectProvider> defaultProvider)
         {
-            IObjectProvider retVal;
-            var mc = serviceProvider.GetService<IMemoryCache>();
-            if (!(mc?.TryGetValue<IObjectProvider>(objectName, out retVal) ?? false))
+            return GetObjectProvider(serviceProvider, objectName, defaultProvider, () => new TimedObjectProvider());
+        }
+
+        /// <summary>
+        /// Gets the buffer of the plugin factory for the given permission scope (tenant). It holds settings,
+        /// plugin rows, generic parameters and constants. It lives in the container's
+        /// <see cref="PluginObjectBuffers"/> (registered by <c>InitializePluginSystem</c>), so MVC and Blazor hosts
+        /// behave the same; the <see cref="IMemoryCache"/> is only the fallback for factories built by hand.
+        /// When an <see cref="IEntityChangeSignal"/> is registered, an entry read before the last change of the
+        /// <see cref="EntityChangeTopics.PluginConfiguration"/> topic is read again; otherwise only the
+        /// time-to-live of 30 minutes applies.
+        /// </summary>
+        /// <param name="serviceProvider">the service-provider of the current scope</param>
+        /// <param name="scopeName">the permission scope the buffer belongs to</param>
+        /// <returns>the buffer of the given scope</returns>
+        public static IObjectProvider GetObjectProvider(this IServiceProvider serviceProvider, string scopeName)
+        {
+            var objectName = $"{scopeName}_WPHObjects";
+            var signal = serviceProvider.GetService<IEntityChangeSignal>();
+            Func<TimedObjectProvider> create = signal != null
+                ? () => new TimedObjectProvider(() => signal.GetLastChange(EntityChangeTopics.PluginConfiguration))
+                : () => new TimedObjectProvider();
+
+            // The container's own store comes first. The buffer used to live only in the IMemoryCache, and whether a
+            // host has one is an accident of its setup (MVC brings one, a plain Blazor host does not); without it,
+            // every plugin resolution read its settings, rows and parameters from the database. A memory cache is
+            // also the wrong home for a long-lived store: it may evict it, an absolute expiry throws it away at a
+            // random moment, and with a SizeLimit configured an entry without size makes Set throw.
+            // Per container, not static: two containers in one process must not share plugin definitions under
+            // the same scope name.
+            var buffers = serviceProvider.GetService<PluginObjectBuffers>();
+            if (buffers != null)
             {
-                if (mc == null)
+                return buffers.GetOrAdd(objectName, create);
+            }
+
+            return GetObjectProvider(serviceProvider, objectName, () =>
+            {
+                ReportBufferOff();
+                return new DummyObjectProvider();
+            }, create);
+        }
+
+        private static IObjectProvider GetObjectProvider(IServiceProvider serviceProvider, string objectName,
+            Func<IObjectProvider> defaultProvider, Func<TimedObjectProvider> create)
+        {
+            var mc = serviceProvider.GetService<IMemoryCache>();
+            if (mc == null)
+            {
+                return defaultProvider?.Invoke();
+            }
+
+            if (mc.TryGetValue<IObjectProvider>(objectName, out var retVal))
+            {
+                return retVal;
+            }
+
+            lock (mc)
+            {
+                // Checked again: a second caller that waited for the lock must not replace the buffer the first
+                // one has just created (and possibly already filled).
+                if (!mc.TryGetValue(objectName, out retVal))
                 {
-                    retVal = defaultProvider?.Invoke();
-                }
-                else
-                {
-                    lock (mc)
-                    {
-                        mc.Set(objectName, retVal = new TimedObjectProvider(),
-                            DateTimeOffset.Now.AddDays(1));
-                    }
+                    mc.Set(objectName, retVal = create(), DateTimeOffset.Now.AddDays(1));
                 }
             }
 
             return retVal;
         }
 
-        public static IObjectProvider GetObjectProvider(this IServiceProvider serviceProvider, string scopeName)
+        private static void ReportBufferOff()
         {
-            var objectName = $"{scopeName}_WPHObjects";
-            return serviceProvider.GetObjectProvider(objectName, () => new DummyObjectProvider());
+            if (Interlocked.Exchange(ref bufferOffReported, 1) == 0)
+            {
+                ITVComponents.Logging.LogEnvironment.LogEvent(
+                    "The plugin buffers are off: neither an IMemoryCache nor the buffer store of InitializePluginSystem is registered. Every plugin resolution reads its settings, plugin rows and parameters from the database.",
+                    ITVComponents.Logging.LogSeverity.Warning);
+            }
         }
+
+        private static int bufferOffReported;
     }
 }

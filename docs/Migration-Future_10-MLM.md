@@ -9183,3 +9183,65 @@ jeder geänderten Fassung einer Abfrage.
 
 Wer sich darauf verlassen hat, dass ein wiederholtes Label bei `CompileExpression` Usings oder Referenzen verwirft, muss
 `NativeScriptHelper.ResetNativeScripts(configuration)` aufrufen. Sonst ist nichts anzupassen.
+
+## 100. Der Plugin-Puffer wirkt auch ohne `IMemoryCache` — **kein Schema-Change; Verhaltensänderung in der Plugin-Fabrik**
+
+### 100.1 Was falsch war
+
+Die Plugin-Fabrik puffert je Mandant, was sie beim Auflösen eines Plugins liest: Init-Sequenzen aus `GlobalSettings`
+und `TenantSettings`, die `WebPlugins`-Zeile, die generischen Parameter und die Konstanten. Dieser Puffer lag
+ausschliesslich im `IMemoryCache` des Hosts. Ohne `IMemoryCache` war er abgeschaltet, und es gab dazu keine Meldung.
+
+Ob ein Host einen `IMemoryCache` hat, hängt von seiner Einrichtung ab: `AddControllersWithViews`/`AddRazorPages` bringen
+einen mit, `AddRazorComponents` nicht. In einem reinen Blazor-Host kostete deshalb jede Auflösung eines Fachkontexts
+über die Plugin-Fabrik weit über hundert Datenbank-Abfragen. Beim Dashboard fiel das auf (je Kachel rund 130 ms), es
+traf aber jede Maske und jeden Dienst, der einen Fachkontext least.
+
+### 100.2 Was jetzt gilt
+
+- Der Puffer liegt je Mandant in einem Singleton, das `InitializePluginSystem` registriert, in MVC- und Blazor-Hosts
+  gleich. Er lebt so lange wie der DI-Container, nicht statisch im Prozess: Zwei Container in einem Prozess
+  (Integrationstests, mehrere Hosts) teilen sich keine Plugin-Definitionen.
+- Der `IMemoryCache` ist nur noch der Rückfall für Fabriken, die ohne `InitializePluginSystem` gebaut werden. Ein Host
+  mit `IMemoryCache` puffert also nicht mehr dort. Damit fällt auch weg, dass der Puffer einmal am Tag verworfen wurde,
+  und `Set` wirft nicht mehr, wenn der Host am Memory-Cache ein `SizeLimit` gesetzt hat.
+- Ohne beides puffert die Fabrik wie bisher nicht. Das steht jetzt einmal je Prozess als `Warning` im Log.
+- Ein Eintrag gilt weiterhin 30 Minuten, auch „gibt es nicht“ wird gepuffert.
+- **Neu:** Ist der Schreib-Verfolger aktiv (`UseEntityTracker`, damit `IEntityChangeSignal`), wird ein Eintrag neu
+  gelesen, sobald sich seit dem Lesen etwas am neuen Thema `EntityChangeTopics.PluginConfiguration` geändert hat:
+  `WebPlugins`, generische Parameter, Konstanten, `GlobalSettings`, `TenantSettings` und `Tenants` (wegen der Vererbung
+  im Mandantenbaum). Eine Änderung über die Masken wirkt dann beim nächsten Auflösen.
+- Ohne Schreib-Verfolger wirkt eine solche Änderung erst nach Ablauf der 30 Minuten oder nach einem Neustart.
+
+Die Ablage für serverseitige Cookies (`DefaultCookieService`) ist nicht betroffen. Sie braucht weiterhin einen
+`IMemoryCache` und meldet ohne ihn `ServerCookiesSupported = false`.
+
+### 100.3 Fabriken mit ausdrücklichem Mandanten
+
+Eine Fabrik aus `GetFactory(explicitScope)` (z.B. in `ScriptedHealthCheck`) liest jetzt durchgehend mit dem genannten
+Mandanten:
+
+- `DbPluginsSelector` (flach und Baum) und `DbPluginFormatter` fragen den ausdrücklichen Mandanten **vor** dem Filter
+  des Kontexts ab. Bisher gewann der Filter, sobald ein Benutzer angemeldet war, und die Fabrik las die Plugins und
+  Konstanten des Benutzer-Mandanten statt des genannten. `GetFactory(explicitScope)` lehnt einen angemeldeten Benutzer
+  schon ab (`ExplicitScopeSupported`); die Reihenfolge hängt jetzt aber nicht mehr an dieser Prüfung.
+- Eine solche Fabrik hat ihren eigenen Puffer (`explicit:{Mandant}`) und teilt ihn nicht mit den normalen Anfragen
+  dieses Mandanten. So kann eine abweichend gelesene Zeile nie bei Anfragen eines anderen Mandanten landen.
+
+### 100.4 Für den Host
+
+Nichts zwingend. Wer bisher `AddMemoryCache()` nur als Umgehung für diesen Fehler aufgerufen hat, kann den Aufruf
+behalten oder entfernen.
+
+Wer ohne Schreib-Verfolger arbeitet und bisher keinen `IMemoryCache` hatte, sieht eine neue Wirkung: Änderungen an
+Plugins und Settings über die Masken greifen nicht mehr sofort, sondern spätestens nach 30 Minuten. Wer sofortige
+Wirkung braucht, schaltet `UseEntityTracker` ein.
+
+### 100.5 Für eigenen Code
+
+Wer eigene Tabellen hat, deren Änderung die Plugin-Auflösung beeinflusst, hängt sie an das Thema:
+
+```csharp
+services.Configure<EntitySignalOptions<MySecurityContext>>(o =>
+    o.Add(EntityChangeTopics.PluginConfiguration, typeof(MyPluginSetting)));
+```

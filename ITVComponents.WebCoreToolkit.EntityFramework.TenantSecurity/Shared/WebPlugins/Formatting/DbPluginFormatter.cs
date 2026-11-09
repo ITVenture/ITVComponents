@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
             {
                 var dic = new Dictionary<string, WebPluginConstant>();
                 int? tenantId = null;
-                if (context.FilterAvailable && !context.ShowAllTenants)
+                if (string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope) && context.FilterAvailable && !context.ShowAllTenants)
                 {
                     string encryptedPassword = null;
                     if ((tenantId = context.CurrentTenantId) != null)

@@ -119,7 +119,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var fx = (string k) =>
             {
                 var dic = new Dictionary<string, WebPluginConstant>();
-                if (context.FilterAvailable && !context.ShowAllTenants)
+                if (string.IsNullOrEmpty(plugInSelector.ExplicitPluginPermissionScope) && context.FilterAvailable && !context.ShowAllTenants)
                 {
                     using var tmp = securityAccessProvider.CreateForCaller(context,
                         new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });

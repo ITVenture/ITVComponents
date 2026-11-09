@@ -1,22 +1,36 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ITVComponents.DIServices;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels
 {
+    /// <summary>
+    /// Buffers values per key with a time-to-live (30 minutes unless the caller says otherwise). <c>null</c> is
+    /// buffered as well, so "does not exist" costs one read per key and period, too.
+    /// </summary>
     internal class TimedObjectProvider:IObjectProvider
     {
-        private ConcurrentDictionary<string, BufferedObject> objectBuffer =
+        private readonly ConcurrentDictionary<string, BufferedObject> objectBuffer =
             new ConcurrentDictionary<string, BufferedObject>();
+
+        private readonly Func<DateTime> lastSourceChangeUtc;
+
+        /// <summary>
+        /// Initializes a new instance of the TimedObjectProvider class
+        /// </summary>
+        /// <param name="lastSourceChangeUtc">
+        /// Optional: tells when the data behind the buffered values last changed (UTC). An entry whose reading
+        /// began before that point is read again, regardless of its time-to-live. Without it, only the
+        /// time-to-live applies.
+        /// </param>
+        public TimedObjectProvider(Func<DateTime> lastSourceChangeUtc = null)
+        {
+            this.lastSourceChangeUtc = lastSourceChangeUtc;
+        }
 
         public T GetBufferedValue<T>(string key, out DateTime validThrough)
         {
-            if (objectBuffer.TryGetValue(key, out var v))
+            if (objectBuffer.TryGetValue(key, out var v) && !IsOutdated(v, LastSourceChange()))
             {
                 validThrough = v.ValidThrough;
                 return (T)v.Value;
@@ -28,27 +42,36 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels
 
         public T GetBufferedValue<T>(string key, Func<string, T> defaultValue, Func<DateTime> validUntil)
         {
+            var lastChange = LastSourceChange();
             var buffer = objectBuffer.AddOrUpdate(key,
-                k => new BufferedObject(defaultValue(k),  validUntil?.Invoke()??DateTime.Now.AddMinutes(30)),
-                (k, x) =>
-                {
-                    if (x.ValidThrough < DateTime.Now)
-                    {
-                        var nx = validUntil?.Invoke() ?? DateTime.Now.AddMinutes(30);
-                        return new BufferedObject(defaultValue(k), nx);
-                    }
-
-                    return x;
-                });
+                k => Load(k, defaultValue, validUntil),
+                (k, x) => x.ValidThrough < DateTime.Now || IsOutdated(x, lastChange)
+                    ? Load(k, defaultValue, validUntil)
+                    : x);
 
             return (T)buffer.Value;
         }
 
         public T UpdateBufferedValue<T>(string key, T value, DateTime? validThrough = null)
         {
+            var now = DateTime.UtcNow;
             return (T)objectBuffer.AddOrUpdate(key,
-                k => new BufferedObject(value, validThrough ?? DateTime.Now.AddMinutes(30)),
-                (k, x) => new BufferedObject(value, validThrough ?? DateTime.Now.AddMinutes(30))).Value;
+                k => new BufferedObject(value, validThrough ?? DateTime.Now.AddMinutes(30), now),
+                (k, x) => new BufferedObject(value, validThrough ?? DateTime.Now.AddMinutes(30), now)).Value;
         }
+
+        private static BufferedObject Load<T>(string key, Func<string, T> defaultValue, Func<DateTime> validUntil)
+        {
+            // Taken BEFORE reading: a change written while the value is being read must make it stale.
+            var started = DateTime.UtcNow;
+            var value = defaultValue(key);
+            return new BufferedObject(value, validUntil?.Invoke() ?? DateTime.Now.AddMinutes(30), started);
+        }
+
+        private static bool IsOutdated(BufferedObject entry, DateTime lastChangeUtc)
+            => entry.LoadStartedUtc < lastChangeUtc;
+
+        private DateTime LastSourceChange()
+            => lastSourceChangeUtc?.Invoke() ?? DateTime.MinValue;
     }
 }

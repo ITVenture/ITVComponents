@@ -18,6 +18,13 @@ namespace ITVComponents.WebCoreToolkit.Caching
         /// because menu visibility derives from permissions/features.
         /// </summary>
         public const string Navigation = "Navigation";
+
+        /// <summary>
+        /// The configuration the plugin factory reads while resolving a plugin: plugin rows, generic parameters,
+        /// constants, global and tenant settings (init sequences) and the tenants themselves (settings are
+        /// inherited along the tenant tree). A change here makes the plugin buffers stale.
+        /// </summary>
+        public const string PluginConfiguration = "PluginConfiguration";
     }
 
     /// <summary>

@@ -104,6 +104,8 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 services.ConfigureOptions<NoPluginsInit>();
             }
 
+            // Puffer der Plugin-Fabrik fuer Hosts ohne IMemoryCache (reine Blazor-Hosts), siehe GetObjectProvider.
+            services.TryAddSingleton<ITVComponents.WebCoreToolkit.WebPlugins.ServiceModels.PluginObjectBuffers>();
             return services.UseContextUserAccessor().AddScoped<IWebPluginHelper, WebPluginHelper>();
         }
 

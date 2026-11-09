@@ -99,7 +99,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 select p).ToList();
 
 
-            /*if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            /*if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 var tmp = 
                     (from rprot in (from t in securityContext.UpwardsTenantTreeView join p in securityContext.WebPlugins on t.ParentTenantId equals p.TenantId
@@ -153,13 +153,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         private WebPlugin GetPlugin(IHierarchyTenantContext<TTenant, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, string uniqueName, out int? webPluginId)
         {
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants && PluginBuffered(uniqueName, out var bufferInfo))
             {
                 webPluginId = bufferInfo.WebPluginId;
                 return bufferInfo.Plugin;
             }
 
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
@@ -268,7 +268,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         {
             using var lease = LeaseDb();
             var securityContext = lease.Context;
-            if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+            if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
             {
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
@@ -403,7 +403,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             var plug = GetPlugin(securityContext, uniqueName, out var webPluginId);
             if (plug != null)
             {
-                if (securityContext.FilterAvailable && !securityContext.ShowAllTenants)
+                if (string.IsNullOrEmpty(ExplicitPluginPermissionScope) && securityContext.FilterAvailable && !securityContext.ShowAllTenants)
                 {
                     using var tmp = securityAccessProvider.CreateForCaller(
                         securityContext,

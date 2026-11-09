@@ -187,7 +187,13 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 explicitUserScope = pluginProvider.ExplicitPluginPermissionScope;
             }
 
-            var activeUserScope = explicitUserScope ?? scopeProvider.PermissionPrefix;
+            // Eine Fabrik mit ausdruecklich genanntem Mandanten puffert getrennt von den Anfragen dieses Mandanten.
+            // Sie liest an anderen Stellen nach (Selector und Formatter fragen den ausdruecklichen Mandanten statt
+            // des Kontext-Filters ab); haetten beide einen Puffer, entschiede die Reihenfolge der Zugriffe darueber,
+            // wessen Plugin-Zeilen und Konstanten der andere zu sehen bekommt.
+            var activeUserScope = !string.IsNullOrEmpty(explicitUserScope)
+                ? $"explicit:{explicitUserScope}"
+                : scopeProvider.PermissionPrefix;
             objectProvider = serviceProvider.GetObjectProvider(activeUserScope);
 
             retVal.RegisterObject(Global.TenantObjectCacheName, objectProvider);
@@ -468,7 +474,7 @@ namespace ITVComponents.WebCoreToolkit.WebPlugins
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent(
-                        $"Failed to deserialize Init-Sequence as string[] for {jsonSerializedArray}",
+                        $"Failed to deserialize Init-Sequence as string[] for {jsonSerializedArray}: {ex.OutlineException()}",
                         LogSeverity.Error);
                 }
             }

@@ -90,6 +90,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             typeof(Shared.Models.Base.TenantNavigationMenu<,,,,,,,,,,,,,>),
         };
 
+        // Everything the plugin factory reads while resolving a plugin (see WebPluginHelper). The tenant is part of
+        // it because settings are inherited along the tenant tree.
+        private static readonly Type[] DefaultPluginConfigurationEntities =
+        {
+            typeof(ITVComponents.WebCoreToolkit.Models.WebPlugin),
+            typeof(ITVComponents.WebCoreToolkit.Models.WebPluginGenericParam),
+            typeof(Shared.Models.WebPluginConstant<>),
+            typeof(Shared.Models.GlobalSetting),
+            typeof(Shared.Models.TenantSetting<>),
+            typeof(Shared.Models.Tenant),
+        };
+
         /// <summary>
         /// Registers the EF-backed <see cref="IEntityChangeSignal"/> for the given context and seeds the
         /// built-in Security/Navigation topics in <see cref="EntitySignalOptions"/>. The signal turns the
@@ -108,6 +120,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 // Navigation reacts to its own entities AND to security changes (menu visibility depends on them).
                 o.Add(EntityChangeTopics.Navigation, DefaultNavigationEntities);
                 o.Add(EntityChangeTopics.Navigation, DefaultSecurityEntities);
+                // Plugin buffers (ServiceProviderExtensions.GetObjectProvider) read again after such a change.
+                o.Add(EntityChangeTopics.PluginConfiguration, DefaultPluginConfigurationEntities);
             });
 
             // Die Registrierung selbst ist nicht security-spezifisch und liegt deshalb im
