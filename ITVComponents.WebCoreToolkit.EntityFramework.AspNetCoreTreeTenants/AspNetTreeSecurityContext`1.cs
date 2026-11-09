@@ -32,6 +32,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
+using System.Threading;
+using System.Threading.Tasks;
 using Dynamitey;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using IHierarchySecurityContext = ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantTreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants.Model.RolePermission,
@@ -865,13 +867,56 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AspNetCoreTreeTenants
                     .FromSqlRaw(sql, userId, userIdIsLabels, viewpointTenant).ToList(); //sql(() => GetDownwardsTenantUserRoles(userId, userIdIsLabels, viewpointTenant));
         }
 
+        /// <summary>
+        /// The ids of the current tenant and its parents, nearest first.
+        /// </summary>
+        /// <remarks>
+        /// The global filters pass this value as a parameter, and EF enumerates a parameter collection on every
+        /// execution. As a database query it therefore cost one extra round trip for EVERY filtered query. It is now
+        /// read once per context instance and per combination of the values the tree view's own filter depends on
+        /// (tenant, FilterAvailable, ShowAllTenants); the generated SQL does not change.
+        /// </remarks>
         [ExpressionPropertyRedirect("CurrentTenantTree")]
-        public IQueryable<int> CurrentTenantTree => IncludeParentTree
-            ? (from t in UpwardsTenantTreeView
-                where t.OutermostLeafTenantName == CurrentTenant
-                orderby t.ParentLevel
-                select t.ParentTenantId)
-            : Array.Empty<int>().AsQueryable();
+        public IQueryable<int> CurrentTenantTree
+        {
+            get
+            {
+                if (!IncludeParentTree)
+                {
+                    return Array.Empty<int>().AsQueryable();
+                }
+
+                var key = (CurrentTenant, FilterAvailable, ShowAllTenants);
+                var buffered = currentTenantTreeBuffer;
+                if (buffered == null || buffered.Value.Key != key)
+                {
+                    var ids = (from t in UpwardsTenantTreeView
+                        where t.OutermostLeafTenantName == CurrentTenant
+                        orderby t.ParentLevel
+                        select t.ParentTenantId).ToArray();
+                    currentTenantTreeBuffer = buffered = (key, ids);
+                }
+
+                return buffered.Value.Ids.AsQueryable();
+            }
+        }
+
+        private ((string Tenant, bool FilterAvailable, bool ShowAllTenants) Key, int[] Ids)? currentTenantTreeBuffer;
+
+        /// <inheritdoc />
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            // A write may have created or moved a tenant: read the tree again on next use.
+            currentTenantTreeBuffer = null;
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        /// <inheritdoc />
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            currentTenantTreeBuffer = null;
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
 
         public DbSet<DownwardsTenantView> DownwardsTenantTreeView { get; set; }
 

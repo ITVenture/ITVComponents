@@ -48,24 +48,43 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Secu
         private FullSecurityAccessHelper<TTrustConfig> CreateForCallerInternal<TTrustConfig,T>(ICoreSystemContext securityDb, T trustingObject, Type trustingType, Type trustedType, TTrustConfig desiredTrust)
             where T : ITrustfulComponent<TTrustConfig> where TTrustConfig : class, ITrustConfig<TTrustConfig>, new()
         {
-            var cmp = securityDb.TrustedFullAccessComponents.Local.FirstOrDefault(n =>
-                n.FullQualifiedTypeName == trustedType.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
-            if (cmp == null)
+            (bool Found, string Config) Read()
             {
-                cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
+                var cmp = securityDb.TrustedFullAccessComponents.Local.FirstOrDefault(n =>
                     n.FullQualifiedTypeName == trustedType.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
+                if (cmp == null)
+                {
+                    cmp = securityDb.TrustedFullAccessComponents.FirstOrDefault(n =>
+                        n.FullQualifiedTypeName == trustedType.AssemblyQualifiedName && n.TargetQualifiedTypeName == trustingType.AssemblyQualifiedName);
+                }
+
+                if (cmp == null)
+                {
+                    // Logged when read, i.e. once per buffer lifetime instead of on every request.
+                    LogEnvironment.LogEvent($"No Trust Configuration found for the caller ({trustedType.AssemblyQualifiedName}). No special permissions will be granted.", LogSeverity.Warning, "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.FullSecurityAccessHelper");
+                    return (false, null);
+                }
+
+                return (true, cmp.TrustLevelConfig);
             }
 
-            var configuredTrust = new TTrustConfig();
-            if (cmp != null)
+            bool found;
+            string config;
+            var buffer = services.GetService<TrustConfigurationBuffer>();
+            if (buffer != null)
             {
-                configuredTrust =
-                    JsonHelper.FromJsonString<TTrustConfig>(cmp.TrustLevelConfig, SerializationTypingMode.StaticTyping);
-
+                config = buffer.GetTrustConfig(trustedType.AssemblyQualifiedName, trustingType.AssemblyQualifiedName, Read, out found);
             }
             else
             {
-                LogEnvironment.LogEvent($"No Trust Configuration found for the caller ({trustedType.AssemblyQualifiedName}). No special permissions will be granted.", LogSeverity.Warning, "ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Helpers.FullSecurityAccessHelper");
+                (found, config) = Read();
+            }
+
+            var configuredTrust = new TTrustConfig();
+            if (found)
+            {
+                configuredTrust =
+                    JsonHelper.FromJsonString<TTrustConfig>(config, SerializationTypingMode.StaticTyping);
             }
             //throw new InvalidOperationException($"The caller ({type.AssemblyQualifiedName}) is not trusted for {trustingType.AssemblyQualifiedName}!");
             TTrustConfig trustConfig =

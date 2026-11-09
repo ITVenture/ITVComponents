@@ -25,6 +25,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SkiaSharp;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Extensions
@@ -172,6 +173,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Exte
 
         public static IServiceCollection UseDefaultSecurityAccessProvider(this IServiceCollection services)
         {
+            // Trust-Konfiguration je Container puffern; der Provider selbst ist scoped.
+            services.TryAddSingleton<TrustConfigurationBuffer>();
             return services.AddScoped<ISecurityAccessProvider, DbSecurityAccessProvider>();
         }
     }
