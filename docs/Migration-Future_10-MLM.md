@@ -9245,3 +9245,27 @@ Wer eigene Tabellen hat, deren Änderung die Plugin-Auflösung beeinflusst, hän
 services.Configure<EntitySignalOptions<MySecurityContext>>(o =>
     o.Add(EntityChangeTopics.PluginConfiguration, typeof(MyPluginSetting)));
 ```
+
+## 101. Server-Cookies werden je Container gepuffert — **kein Schema-Change; Verhaltensänderung in `DbCookieService`**
+
+### 101.1 Was falsch war
+
+Mit `UseServerCookies` legt `DbCookieService` lange Cookie-Werte in der Tabelle `ServerCookies` ab und schickt dem
+Browser nur einen Verweis. Bei jeder Anfrage, die das Cookie liest, holte der Dienst die Zeile erneut aus der
+Datenbank. Auf einem Dashboard waren das rund 20 gleiche Abfragen je Aufruf.
+
+### 101.2 Was jetzt gilt
+
+- Eine Server-Cookie-Zeile wird einmal geschrieben und nie geändert; ein neuer Wert bekommt einen neuen Schlüssel.
+  Der Inhalt wird deshalb im neuen Singleton `ServerCookieBuffer` je (`Key`, `ValidThrough`) gepuffert. Er kann nicht
+  veralten.
+- `UseServerCookies` (flach und Baum) registriert den Puffer. Er lebt je DI-Container, nicht statisch im Prozess.
+- Ein Eintrag fällt heraus, wenn das Cookie abläuft oder 30 Minuten nicht benutzt wurde. Ein nicht gefundenes Cookie
+  wird nicht gepuffert.
+- Ersetzt der Dienst ein Cookie, löscht er die alte Zeile per `ExecuteDelete` und nimmt sie aus dem Puffer.
+- Ohne registrierten Puffer arbeitet `DbCookieService` wie bisher.
+
+### 101.3 Für den Host
+
+Nichts. Mehrere Instanzen eines Hosts sind unkritisch: Eine Instanz, die ein Cookie noch im Puffer hat, das eine
+andere gelöscht hat, liefert nur einen Wert, auf den der Browser nicht mehr verweist.

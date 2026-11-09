@@ -13,6 +13,7 @@ using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Options;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -89,9 +90,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
             var retVal = IsServerCookie(cookieKey, out var serverCookie, out _, out _, out _);
             if (retVal)
             {
-
-                SystemContext.ServerCookies.Remove(serverCookie);
-                SystemContext.SaveChanges();
+                var buffer = services.GetService<ServerCookieBuffer>();
+                if (buffer == null)
+                {
+                    SystemContext.ServerCookies.Remove(serverCookie);
+                    SystemContext.SaveChanges();
+                }
+                else
+                {
+                    // The cookie may come from the buffer and is then not tracked by the context.
+                    var key = serverCookie.Key;
+                    var vd = serverCookie.ValidThrough;
+                    SystemContext.ServerCookies.Where(n => n.Key == key && n.ValidThrough == vd).ExecuteDelete();
+                    buffer.Remove(key, vd);
+                }
             }
 
 
@@ -108,8 +120,25 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
                 if (CookieBufferHelper.IsBufferCookie(cookieValue, "SC", out var guid, out validUntil))
                 {
                     var vd = validUntil;
-                    cookie = SystemContext.ServerCookies.FirstOrDefault(n => n.Key == guid && n.ValidThrough == vd);
-                    return cookie != null;
+                    var buffer = services.GetService<ServerCookieBuffer>();
+                    if (buffer == null)
+                    {
+                        cookie = SystemContext.ServerCookies.FirstOrDefault(n => n.Key == guid && n.ValidThrough == vd);
+                        return cookie != null;
+                    }
+
+                    if (buffer.TryGetContent(guid, vd, () =>
+                        {
+                            var row = SystemContext.ServerCookies.AsNoTracking().FirstOrDefault(n => n.Key == guid && n.ValidThrough == vd);
+                            return (row != null, row?.Content);
+                        }, out var content))
+                    {
+                        cookie = new ServerCookie { Key = guid, ValidThrough = vd, Content = content };
+                        return true;
+                    }
+
+                    cookie = null;
+                    return false;
                 }
             }
 

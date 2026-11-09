@@ -18,6 +18,7 @@ using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using ITVComponents.WebCoreToolkit.WebPlugins;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.ComponentTrust;
 
@@ -137,6 +138,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         public static IServiceCollection UseServerCookies(this IServiceCollection services,
             Action<ServerCookieOptions> configure)
         {
+            // Server-Cookie-Inhalte je Container puffern; der Dienst selbst ist scoped.
+            services.TryAddSingleton<ServerCookieBuffer>();
             services.AddScoped<ICookieService, DbCookieService>();
             if (configure != null)
             {
