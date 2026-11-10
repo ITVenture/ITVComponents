@@ -1,9 +1,12 @@
 using ITVComponents.WebCoreToolkit.AspExtensions.PageHandler;
+using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Helpers;
 using ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.PageHandlers.Identity.Account;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Localization;
@@ -33,26 +36,51 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AspNetCoreIdentityPages.Are
         [TempData]
         public string ErrorMessage { get; set; }
 
-        public IActionResult OnGet()
+        public async Task<IActionResult> OnGetAsync(string provider = null, string returnUrl = null)
         {
             if (handlerImpl.Handler.UsePage)
             {
-                return RedirectToPage("./Login");
+                // Direct start by link (/Identity/Account/ExternalLogin?provider=X), e.g. for providers that are
+                // not listed on the login page. Without a provider the login page is the right place.
+                if (string.IsNullOrEmpty(provider))
+                {
+                    return RedirectToPage("./Login");
+                }
+
+                return await ChallengeProvider(provider, returnUrl);
             }
 
             return NotFound();
         }
 
-        public IActionResult OnPost(string provider, string returnUrl = null)
+        public async Task<IActionResult> OnPostAsync(string provider, string returnUrl = null)
         {
             if (handlerImpl.Handler.UsePage)
             {
-                var redirectUrl = Url.Page("./ExternalLogin", pageHandler: "Callback", values: new { returnUrl });
-                var properties = handlerImpl.Handler.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
-                return new ChallengeResult(provider, properties);
+                return await ChallengeProvider(provider, returnUrl);
             }
 
             return NotFound();
+        }
+
+        private async Task<IActionResult> ChallengeProvider(string provider, string returnUrl)
+        {
+            var schemes = HttpContext.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>();
+            if (!await ExternalLoginGuard.IsRemoteSchemeAsync(schemes, provider))
+            {
+                logger.LogWarning("External login requested for '{Provider}', which is not a registered remote authentication scheme.", provider);
+                return RedirectToPage("./Login");
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && !Url.IsLocalUrl(returnUrl))
+            {
+                logger.LogWarning("Rejected non-local return url '{ReturnUrl}'; redirecting to the start page instead.", returnUrl);
+                returnUrl = null;
+            }
+
+            var redirectUrl = Url.Page("./ExternalLogin", pageHandler: "Callback", values: new { returnUrl });
+            var properties = handlerImpl.Handler.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+            return new ChallengeResult(provider, properties);
         }
 
         public async Task<IActionResult> OnGetCallbackAsync(string returnUrl = null, string remoteError = null)
