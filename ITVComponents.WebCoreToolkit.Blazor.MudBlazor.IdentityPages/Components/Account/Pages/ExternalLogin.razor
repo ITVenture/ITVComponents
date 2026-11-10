@@ -4,22 +4,34 @@
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Http
 @using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity
 @using ITVComponents.WebCoreToolkit.IdentityShared.Areas.Identity.Pages.Account
+@using ITVComponents.WebCoreToolkit.IdentityShared.Helpers
 
 @inject IPageHandlerProvider<ExternalLoginModel, IExternalLoginHandler> HandlerProvider
 @inject IStringLocalizer<IdentityMessages> L
+@inject IAuthenticationSchemeProvider Schemes
+@inject ILogger<ExternalLogin> Logger
 @inject NavigationManager Nav
 
 @code {
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
+    // Normal case: the login page posts the provider of the clicked button.
     [SupplyParameterFromForm]
     private string? Provider { get; set; }
 
     [SupplyParameterFromForm]
     private string? ReturnUrl { get; set; }
+
+    // Direct start by link (/Account/ExternalLogin?provider=X), e.g. for providers that are not listed on the login page.
+    [SupplyParameterFromQuery(Name = "provider")]
+    private string? QueryProvider { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? QueryReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -28,21 +40,25 @@
             return;
         }
 
-        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        var isGet = HttpMethods.IsGet(HttpContext.Request.Method);
+        var provider = isGet ? QueryProvider : Provider;
+        var returnUrl = isGet ? QueryReturnUrl : ReturnUrl;
+        if (string.IsNullOrEmpty(provider))
         {
             Nav.NavigateTo("Account/Login", forceLoad: true);
             return;
         }
 
-        if (string.IsNullOrEmpty(Provider))
+        if (!await ExternalLoginGuard.IsRemoteSchemeAsync(Schemes, provider))
         {
+            Logger.LogWarning("External login requested for '{Provider}', which is not a registered remote authentication scheme.", provider);
             Nav.NavigateTo("Account/Login", forceLoad: true);
             return;
         }
 
         var redirectUrl = Nav.GetUriWithQueryParameters("Account/ExternalLoginCallback",
-            new Dictionary<string, object?> { ["returnUrl"] = ReturnUrl });
-        var properties = HandlerProvider.Handler.ConfigureExternalAuthenticationProperties(Provider, redirectUrl);
-        await HttpContext.ChallengeAsync(Provider, properties);
+            new Dictionary<string, object?> { ["returnUrl"] = LocalReturnUrl.Sanitize(returnUrl, Nav, Logger) });
+        var properties = HandlerProvider.Handler.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+        await HttpContext.ChallengeAsync(provider, properties);
     }
 }

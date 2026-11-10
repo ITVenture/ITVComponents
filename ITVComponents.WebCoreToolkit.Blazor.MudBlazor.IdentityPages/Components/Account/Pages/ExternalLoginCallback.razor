@@ -28,7 +28,7 @@
             return;
         }
 
-        var returnUrl = ReturnUrl ?? "/";
+        var returnUrl = LocalReturnUrl.Sanitize(ReturnUrl, Nav, Logger);
 
         if (RemoteError is not null)
         {

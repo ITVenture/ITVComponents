@@ -107,7 +107,7 @@
                 Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
                 // Force the tenant-scope cookie write before the Blazor circuit takes over (see Login.razor).
                 _ = Services.GetService<IPermissionScope>()?.PermissionPrefix;
-                Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+                Nav.NavigateTo(LocalReturnUrl.Sanitize(ReturnUrl, Nav, Logger), forceLoad: true);
                 return;
             }
 

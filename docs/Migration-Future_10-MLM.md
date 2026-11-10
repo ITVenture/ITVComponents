@@ -9269,3 +9269,39 @@ Datenbank. Auf einem Dashboard waren das rund 20 gleiche Abfragen je Aufruf.
 
 Nichts. Mehrere Instanzen eines Hosts sind unkritisch: Eine Instanz, die ein Cookie noch im Puffer hat, das eine
 andere gelöscht hat, liefert nur einen Wert, auf den der Browser nicht mehr verweist.
+
+## 102. Externe Anmeldung per Link; Rücksprungadressen nur noch innerhalb der Anwendung — **kein Schema-Change; Verhaltensänderung in den Identity-Seiten**
+
+### 102.1 Start per Link
+
+`Account/ExternalLogin` (Blazor) und `Identity/Account/ExternalLogin` (MVC) starten eine externe Anmeldung jetzt auch
+per GET:
+
+```
+/Account/ExternalLogin?provider=MySecretProvider&returnUrl=/Kunden
+```
+
+Das ist für Anbieter gedacht, die nicht auf der Login-Seite aufgelistet sind, aber trotzdem funktionieren müssen.
+Der Form-Post der Login-Seite funktioniert unverändert. Ein GET ohne `provider` führt wie bisher auf die Login-Seite.
+
+Für beide Wege gilt jetzt dieselbe Prüfung (`ExternalLoginGuard.IsRemoteSchemeAsync` in IdentityShared): Der Anbieter
+muss ein registriertes Remote-Schema sein (OpenId Connect, OAuth, WS-Federation usw.). Ob er auf der Login-Seite
+erscheint, spielt keine Rolle. Lokale Schemata wie die Identity-Cookies werden abgelehnt. Ein unbekannter Anbieter
+führt mit einer `Warning` im Log auf die Login-Seite.
+
+### 102.2 Rücksprungadressen
+
+Über einen Link kann jeder eine beliebige `returnUrl` mitgeben. Deshalb gelten jetzt nur noch Adressen innerhalb der
+Anwendung: app-relative Pfade (`/x`, `~/x`) und absolute Adressen unterhalb der Basisadresse. Alles andere,
+auch `//fremder-host`, führt mit einer `Warning` im Log auf die Startseite.
+
+- **MVC:** `ExternalLogin` prüft per `Url.IsLocalUrl`, bevor es zum Anbieter geht. Der Rückweg nutzte schon
+  `LocalRedirect`.
+- **Blazor:** Die Seiten leiteten bisher ungeprüft weiter, auch ohne den neuen Link-Start. Das war eine offene
+  Weiterleitung. Jetzt prüfen `Login`, `LoginWith2fa`, `LoginWithRecoveryCode`, `Logout`, `ExternalLogin` und
+  `ExternalLoginCallback` die Adresse. `Logout` ohne `returnUrl` führt wie bisher auf `Account/Logout`.
+
+### 102.3 Für den Host
+
+Nichts. Wer Rücksprungadressen auf eine andere Anwendung oder Domäne gesetzt hat, landet jetzt auf der Startseite.
+Das Log zeigt dann die abgelehnte Adresse.

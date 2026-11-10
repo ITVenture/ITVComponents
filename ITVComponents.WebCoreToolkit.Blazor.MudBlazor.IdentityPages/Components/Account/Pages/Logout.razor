@@ -49,6 +49,6 @@
     {
         await HandlerProvider.Handler.SignOut();
         Logger.LogInformation("User logged out.");
-        Nav.NavigateTo(ReturnUrl ?? "Account/Logout", forceLoad: true);
+        Nav.NavigateTo(string.IsNullOrEmpty(ReturnUrl) ? "Account/Logout" : LocalReturnUrl.Sanitize(ReturnUrl, Nav, Logger), forceLoad: true);
     }
 }

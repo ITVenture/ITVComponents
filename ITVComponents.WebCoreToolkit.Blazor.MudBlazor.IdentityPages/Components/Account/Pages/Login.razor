@@ -195,7 +195,7 @@
             // the cookie write would be silently skipped. Optional: no-op if the host
             // does not register IPermissionScope.
             _ = Services.GetService<IPermissionScope>()?.PermissionPrefix;
-            Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: true);
+            Nav.NavigateTo(LocalReturnUrl.Sanitize(ReturnUrl, Nav, Logger), forceLoad: true);
             return;
         }
 
