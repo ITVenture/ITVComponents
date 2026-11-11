@@ -9305,3 +9305,31 @@ auch `//fremder-host`, führt mit einer `Warning` im Log auf die Startseite.
 
 Nichts. Wer Rücksprungadressen auf eine andere Anwendung oder Domäne gesetzt hat, landet jetzt auf der Startseite.
 Das Log zeigt dann die abgelehnte Adresse.
+
+## 103. `SecurityModificationInterceptor` löscht nichts doppelt und räumt nach Fehlschlägen auf — **kein Schema-Change; Fehlerbehebung**
+
+### 103.1 Was falsch war
+
+Der Interceptor merkt sich beim Speichern die Abhängigen gelöschter Rollen, Vererbungen, Rechte und TenantUser und
+löscht sie in einem zweiten `SaveChanges`. Er löschte dabei auch Zeilen, die schon weg waren:
+
+- Löschte der Aufrufer die Abhängigen selbst im selben Speichern (z.B. `TenantUserRoles` und `TenantUsers` beim
+  Abgleich eines externen Logins), hängte das Nach-Speichern die bereits gelöschten Zeilen wieder an.
+- Bei mehrstufiger Vererbung (A → B → C) erfasste das Nach-Speichern die Kinder ein zweites Mal.
+
+In beiden Fällen endete das Nach-Speichern mit einer `DbUpdateConcurrencyException`, obwohl das eigentliche
+Speichern schon durch war. Der Aufrufer bekam trotzdem den Fehler. Ausserdem blieben nach einem gescheiterten
+`SaveChanges` die gesammelten Aktionen liegen und liefen beim nächsten, unabhängigen Speichern mit.
+
+### 103.2 Was jetzt gilt
+
+- Lösch-Aktionen überspringen Einträge, die schon `Detached` (im vorigen Speichern gelöscht) oder `Deleted` sind.
+- Scheitert ein `SaveChanges` oder wird es abgebrochen, verwirft der Interceptor alles Gesammelte. Wurde dabei etwas
+  verworfen, steht eine `Warning` im Log.
+- Nachgespeichert wird nur noch, wenn die Aktionen tatsächlich etwas geändert haben.
+- Das verschachtelte Nach-Speichern bleibt: Erst darüber wandern neue Ableitungen über mehrere Stufen weiter.
+
+### 103.3 Für den Host
+
+Nichts. Wer als Umgehung nur noch den Principal gelöscht und die Abhängigen dem Interceptor überlassen hat, kann
+das so lassen oder wieder selbst löschen; beides funktioniert.
