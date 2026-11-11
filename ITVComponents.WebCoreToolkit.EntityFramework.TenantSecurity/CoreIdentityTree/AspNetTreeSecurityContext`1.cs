@@ -39,6 +39,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Security.Principal;
+using System.Threading;
+using System.Threading.Tasks;
 using Dynamitey;
 using ITVComponents.WebCoreToolkit.Security.ComponentTrust;
 using IHierarchySecurityContext = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.IHierarchySecurityContext<ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared.Models.HierarchyTenant, string, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.User, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.Role, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.Permission, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.UserRole, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Model.RolePermission,
@@ -999,13 +1001,73 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
             return mth(this, userId, userIdIsLabels, viewpointTenant);
         }
 
+        /// <summary>
+        /// The ids of the current tenant and its parents, nearest first.
+        /// </summary>
+        /// <remarks>
+        /// The global filters pass this value as a parameter, and EF enumerates a parameter collection on every
+        /// execution. As a database query it therefore cost one extra round trip for EVERY filtered query. It is now
+        /// read once per context instance and per combination of the values the tree view's own filter depends on
+        /// (tenant, FilterAvailable, ShowAllTenants) and read again after SaveChanges; the generated SQL does not
+        /// change. Contexts are short-lived (one lease per operation), so the buffer never outlives an operation.
+        /// </remarks>
         [ExpressionPropertyRedirect("CurrentTenantTree")]
-        public IQueryable<int> CurrentTenantTree => IncludeParentTree
-            ? (from t in UpwardsTenantTreeView
-                where t.OutermostLeafTenantName.ToLower() == CurrentTenant
-                orderby t.ParentLevel
-                select t.ParentTenantId)
-            : Array.Empty<int>().AsQueryable();
+        public IQueryable<int> CurrentTenantTree
+        {
+            get
+            {
+                if (!IncludeParentTree)
+                {
+                    return Array.Empty<int>().AsQueryable();
+                }
+
+                var query = from t in UpwardsTenantTreeView
+                    where t.OutermostLeafTenantName.ToLower() == CurrentTenant
+                    orderby t.ParentLevel
+                    select t.ParentTenantId;
+                if (resolvingCurrentTenantTree)
+                {
+                    // Re-entry while the tree is being read: answer as before instead of starting a second read.
+                    return query;
+                }
+
+                var key = (CurrentTenant, FilterAvailable, ShowAllTenants);
+                var buffered = currentTenantTreeBuffer;
+                if (buffered == null || buffered.Value.Key != key)
+                {
+                    resolvingCurrentTenantTree = true;
+                    try
+                    {
+                        currentTenantTreeBuffer = buffered = (key, query.ToArray());
+                    }
+                    finally
+                    {
+                        resolvingCurrentTenantTree = false;
+                    }
+                }
+
+                return buffered.Value.Ids.AsQueryable();
+            }
+        }
+
+        private ((string Tenant, bool FilterAvailable, bool ShowAllTenants) Key, int[] Ids)? currentTenantTreeBuffer;
+
+        private bool resolvingCurrentTenantTree;
+
+        /// <inheritdoc />
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            // A write may have created or moved a tenant: read the tree again on next use.
+            currentTenantTreeBuffer = null;
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        /// <inheritdoc />
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            currentTenantTreeBuffer = null;
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
 
         public DbSet<DownwardsTenantView> DownwardsTenantTreeView { get; set; }
 

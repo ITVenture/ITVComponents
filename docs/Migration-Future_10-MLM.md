@@ -9333,3 +9333,27 @@ Speichern schon durch war. Der Aufrufer bekam trotzdem den Fehler. Ausserdem bli
 
 Nichts. Wer als Umgehung nur noch den Principal gelöscht und die Abhängigen dem Interceptor überlassen hat, kann
 das so lassen oder wieder selbst löschen; beides funktioniert.
+
+## 104. Der Mandantenbaum wird je Kontext einmal gelesen — **kein Schema-Change; Performance**
+
+### 104.1 Was falsch war
+
+Die globalen Filter des Baum-Kontexts bekommen `CurrentTenantTree` (Mandant und übergeordnete Mandanten) als
+Parameter. Die Eigenschaft war eine Abfrage auf `UpwardsTenantTree`, und EF zählt eine Parameter-Sammlung bei jeder
+Ausführung neu auf. Jede gefilterte Abfrage kostete dadurch eine zusätzliche Rundreise zur Datenbank. Im
+MiniStore-Log waren das 115 `ParentTenantId`-Abfragen für einen Seitenaufruf.
+
+### 104.2 Was jetzt gilt
+
+- Der Kontext liest die Ids einmal und merkt sie sich, getrennt nach Mandant, `FilterAvailable` und `ShowAllTenants`.
+  Davon hängt der Filter der Baum-Sicht ab.
+- `SaveChanges` und `SaveChangesAsync` verwerfen den Merker, weil ein Schreibvorgang einen Mandanten angelegt oder
+  verschoben haben kann.
+- Das erzeugte SQL bleibt gleich. Der Merker lebt so lange wie der Kontext, also einen Vorgang lang (Lease aus der
+  Context-Factory).
+- Liest ein anderer Kontext den Baum um, sieht ein bereits laufender Kontext das erst nach seinem nächsten
+  `SaveChanges` oder als neuer Kontext.
+
+### 104.3 Für den Host
+
+Nichts.
