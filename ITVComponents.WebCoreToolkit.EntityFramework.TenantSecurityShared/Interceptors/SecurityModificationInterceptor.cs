@@ -68,8 +68,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                 }
                 finally
                 {
-                    callSave = contextActions.Count != 0;
+                    // Only save again when the actions actually changed something. Checking HasChanges alone would
+                    // re-save the caller's own entries after SaveChanges(acceptAllChangesOnSuccess: false).
+                    callSave = contextActions.Count != 0 && eventData.Context.ChangeTracker.HasChanges();
                     contextActions.Clear();
+                    // New GRoleLRole links are collected but not propagated on this branch; drop them so the list
+                    // does not grow over the lifetime of the interceptor.
+                    gloros.Clear();
                 }
 
                 if (callSave)
@@ -79,6 +84,66 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             return base.SavedChangesAsync(eventData, result, cancellationToken);
+        }
+
+        public override void SaveChangesFailed(DbContextErrorEventData eventData)
+        {
+            ResetPendingChanges();
+            base.SaveChangesFailed(eventData);
+        }
+
+        public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            ResetPendingChanges();
+            return base.SaveChangesFailedAsync(eventData, cancellationToken);
+        }
+
+        public override void SaveChangesCanceled(DbContextEventData eventData)
+        {
+            ResetPendingChanges();
+            base.SaveChangesCanceled(eventData);
+        }
+
+        public override Task SaveChangesCanceledAsync(DbContextEventData eventData,
+            CancellationToken cancellationToken = new CancellationToken())
+        {
+            ResetPendingChanges();
+            return base.SaveChangesCanceledAsync(eventData, cancellationToken);
+        }
+
+        /// <summary>
+        /// Drops everything collected for a SaveChanges that did not complete, so it is not applied by the next,
+        /// unrelated SaveChanges of the same context.
+        /// </summary>
+        private void ResetPendingChanges()
+        {
+            var pending = contextActions.Count + roros.Count + ropes.Count + gloros.Count;
+            contextActions.Clear();
+            roros.Clear();
+            ropes.Clear();
+            gloros.Clear();
+            if (pending != 0)
+            {
+                LogEnvironment.LogEvent($"SaveChanges did not complete; discarded {pending} pending security post-processing item(s).",
+                    LogSeverity.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Removes the given cascade entities, skipping those that are already gone: Detached means deleted by a
+        /// previous SaveChanges (e.g. the caller removed them itself, or a nested post-processing already did),
+        /// Deleted means already marked by the caller or another action. Removing them again would produce a DELETE
+        /// without a row and end in a DbUpdateConcurrencyException.
+        /// </summary>
+        protected static void RemoveStillTracked<TEntity>(DbContext db, IEnumerable<TEntity> entities)
+            where TEntity : class
+        {
+            var remaining = entities.Where(e => db.Entry(e).State is not (EntityState.Detached or EntityState.Deleted)).ToList();
+            if (remaining.Count != 0)
+            {
+                db.Set<TEntity>().RemoveRange(remaining);
+            }
         }
 
         public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -196,8 +261,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             {
                 roro.ResultingGlobalLinks = tmpGlo;
             }
-            modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmp));
-            modifyActions.Add(db => db.Set<TGRoleLRole>().RemoveRange(tmpGlo));
+            modifyActions.Add(db => RemoveStillTracked(db, tmp));
+            modifyActions.Add(db => RemoveStillTracked(db, tmpGlo));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TRolePermission rope,
@@ -210,7 +275,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmp));
+            modifyActions.Add(db => RemoveStillTracked(db, tmp));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TGRoleLRole gloro,
@@ -223,7 +288,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmp.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            modifyActions.Add(db => db.Set<TGRoleLRole>().RemoveRange(tmp));
+            modifyActions.Add(db => RemoveStillTracked(db, tmp));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TRole ro, List<Action<DbContext>> modifyActions,
@@ -236,7 +301,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmprr1.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            modifyActions.Add(db => db.Set<TRoleRole>().RemoveRange(tmprr1));
+            modifyActions.Add(db => RemoveStillTracked(db, tmprr1));
 
             var tmprp1 = context.Set<TRolePermission>().Where(n => n.RoleId == ro.RoleId).ToList();
             if (addToEntity && ro.RolePermissions is not List<TRolePermission>)
@@ -245,7 +310,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmprp1.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            modifyActions.Add(db => db.Set<TRolePermission>().RemoveRange(tmprp1));
+            modifyActions.Add(db => RemoveStillTracked(db, tmprp1));
 
             var tmprr2 = context.Set<TRoleRole>().Where(n => n.PermittedRoleId == ro.RoleId).ToList();
             if (addToEntity && ro.PermissiveRoles is not List<TRolePermission>)
@@ -254,7 +319,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
             }
 
             tmprr2.ForEach(n => LoadCascadeProxies(context, n, modifyActions, false));
-            modifyActions.Add(db => db.Set<TRoleRole>().RemoveRange(tmprr2));
+            modifyActions.Add(db => RemoveStillTracked(db, tmprr2));
 
             var tmpur = context.Set<TUserRole>().Where(n => n.RoleId == ro.RoleId).ToList();
             if (addToEntity && ro.UserRoles is not List<TUserRole>)
@@ -262,7 +327,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                 ro.UserRoles = tmpur;
             }
 
-            modifyActions.Add(db => db.Set<TUserRole>().RemoveRange(tmpur));
+            modifyActions.Add(db => RemoveStillTracked(db, tmpur));
         }
 
         protected virtual void LoadCascadeProxies(DbContext context, TTenantUser tu,
@@ -274,7 +339,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurityShared.Inte
                 tu.Roles = tmp;
             }
 
-            modifyActions.Add(db => db.Set<TUserRole>().RemoveRange(tmp));
+            modifyActions.Add(db => RemoveStillTracked(db, tmp));
         }
 
         private void ProcessPermissionInheritanceChanges(List<Action<DbContext>> modifyActions)
