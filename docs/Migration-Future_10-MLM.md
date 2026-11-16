@@ -5572,6 +5572,14 @@ das MLM ist das **bewusst nicht vorgesehen**.
 * **Schreibweise:** `PathBase` trägt das Präfix so, wie es in der URL stand (`/c/DE-ch`), nicht in der
   kanonischen Form — sonst wäre der `<base href>` kein Präfix der Browser-Adresse mehr. An die
   Lokalisierung geht die konfigurierte Schreibweise.
+* **Unterkultur einer angebotenen Sprache** (`/c/fr-ch/…`, angeboten ist `fr`): gilt als abgedeckt, wenn
+  `FallBackToParentUICultures` gesetzt ist (Vorgabe von ASP.NET) — wie bei `Accept-Language`. Weitergereicht wird
+  `fr-CH`; den Rückfall macht `UseRequestLocalization()`, getrennt für Format und Texte (§107).
+* **`?culture=` wirkt bei interaktivem Blazor nicht auf den Circuit.** Die Sprache eines Circuits entsteht bei
+  der Anfrage an `…/_blazor`; dorthin reisen Pfad-Präfix (über den `<base href>`), Cookie und
+  `Accept-Language`, der Query-Parameter der ersten Seitenanfrage nicht. Ohne Prerendering bewirkt er nichts,
+  mit Prerendering nur die vorgerenderte Fassung. Für einen Sprachwechsel das Präfix oder das Sprach-Cookie
+  benutzen.
 * **Fehlt `AddCulturePath()`**, während `UseCulturePath()` läuft, sieht die URL richtig aus und die Seite
   bleibt hartnäckig in der falschen Sprache. Genau dafür schreibt die Middleware einmal pro Prozess eine
   `LogError`-Zeile — die erste Stelle, an der man nachsieht.
@@ -5679,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 107 | **Kultur-Präfix fällt auf die Elternsprache zurück** | Kein Schema-Change, nichts zu tun. `/c/fr-ch/…` ergibt bei angebotenem `fr` jetzt Französisch statt der Vorgabe, sofern `FallBackToParentUICultures` gesetzt ist (Vorgabe). **Verhaltensänderung:** die Warnung „not among the supported ones“ fällt für solche Adressen weg (§107). |
 | 106 | **Sprache je Mandant (`Tenants.Culture`), Zeitzone wird im Baum vererbt** | **Pflicht: Schema-Change** (Spalte `Tenants.Culture`, manuelles SQL §106.4) und beim **Baum**-Kontext Neuausrollen der Prozeduren/Funktionen (`ConfigureViews`). **Breaking:** `ISecurityRepository.GetTenantLocale(scope)` ohne Default-Umsetzung — eigene Repositories und Testattrappen müssen sie umsetzen. **Verhaltensänderung:** `GetTimeZoneHelper` vererbt im Baum. |
 | 96 | **Konfigurierbares DB-Schema (Security- und Plugin-Kontexte)** | Kein Schema-Change. `ActivationSettings.CustomSchema` bzw. `CustomSchemaOptionsLoader`; Laufzeit-SQL schema-qualifiziert (SQL Server und PostgreSQL). **BREAKING:** Baum-Migrationen mit `ConfigureViews(mb)` schreiben `__SCHEMA__`. Wer sie auf eine neue DB anwendet oder skriptet, braucht `UseSchemaAwareMigrations(...)` (`EFRepo.SqlServer`/`EFRepo.PostgreSql`), auch ohne eigenes Schema. `SchemaAwareMigrationsOptionsExtension` → `ITVComponents.EFRepo.Migrations` (§96) |
 | 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen. Blazor-Plugin-Konstanten mit `encrypt:` jetzt mit dem Mandantenschlüssel. **Telerik: `UseExplicitTenantPasswords` Vorgabe jetzt `true`** (§95) |
@@ -9441,3 +9450,34 @@ var culture = localeResolver.GetUICulture(tenantScope);      // Texte/Ressourcen
 var format  = localeResolver.GetCulture(tenantScope);        // Zahlen/Datum
 var zone    = localeResolver.GetTimeZone(tenantScope);
 ```
+
+## 107. Kultur-Präfix fällt auf die Elternsprache zurück — **kein Schema-Change; Verhaltensänderung**
+
+### 107.1 Der Fall
+
+Ein Host mit den Sprachen `de`, `fr`, `it`, `en` brachte `Accept-Language: fr-FR` richtig nach `fr`, die
+Adresse `/c/fr-ch/…` aber nicht: `CulturePathMiddleware` verglich das Segment nur genau mit den unterstützten
+Kulturen, verwarf `fr-ch` und schrieb eine Warnung; die Seite kam in der Sprache von Cookie,
+`Accept-Language` oder Vorgabe. Den Rückfall auf die Elternkultur macht ASP.NET erst in
+`RequestLocalizationMiddleware`, und dort kam der Kandidat nie an.
+
+### 107.2 Was jetzt gilt
+
+- Ein genauer Treffer (ohne Rücksicht auf Gross-/Kleinschreibung) gilt wie bisher, in der konfigurierten
+  Schreibweise.
+- Sonst gilt eine Kultur als **abgedeckt**, wenn `RequestLocalizationOptions.FallBackToParentUICultures`
+  gesetzt ist (Vorgabe von ASP.NET: `true`) und ein Glied ihrer Elternkette (`fr-CH` → `fr`) in der Liste
+  steht. Derselbe Schalter, dem `Accept-Language` folgt — wer ihn abschaltet, bekommt den Rückfall auch über
+  den Pfad nicht.
+- Weitergereicht wird die **angefragte** Kultur in üblicher Schreibweise (`fr-CH`), nicht die Elternsprache.
+  Den Rückfall macht `UseRequestLocalization()`, und zwar für Format (`Culture` gegen `SupportedCultures`)
+  und Texte (`UICulture` gegen `SupportedUICultures`) getrennt. Ein Host, der `fr-CH` als Format führt und
+  für Texte nur `fr`, bekommt damit Schweizer Zahlen mit französischen Texten — bei einem Kürzen auf `fr`
+  in der Middleware ginge das Format verloren.
+- `PathBase` trägt das Präfix weiterhin, wie es geschrieben war (`/c/fr-ch`).
+- Gewarnt wird nur noch, wenn auch die Elternkette nichts trifft (`/c/es-ES/…` bei `de, fr`).
+
+### 107.3 Für den Host
+
+Nichts zu tun. Wer `FallBackToParentUICultures`/`FallBackToParentCultures` ausdrücklich auf `true` setzt,
+kann das lassen oder streichen — es ist die Vorgabe.

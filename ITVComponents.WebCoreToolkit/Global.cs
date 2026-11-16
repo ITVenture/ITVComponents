@@ -77,7 +77,9 @@
 
         /// <summary>
         /// Key under which the culture read from the URL prefix (<c>/c/{culture}/…</c>) is stored in
-        /// <c>HttpContext.Items</c>, in the spelling the localization is configured with.
+        /// <c>HttpContext.Items</c>: in the spelling the localization is configured with, or - for a culture
+        /// that is covered only through a parent (<c>fr-CH</c> with <c>fr</c> supported) - the requested
+        /// culture in its canonical spelling, whose parent fallback <c>RequestLocalizationMiddleware</c> does.
         /// <c>CulturePathRequestCultureProvider</c> is what turns it into the request's culture.
         /// </summary>
         public const string CulturePathCultureItemKey = "ITVComponents.WebCoreToolkit.CulturePathCulture";

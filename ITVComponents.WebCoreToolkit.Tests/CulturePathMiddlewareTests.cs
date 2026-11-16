@@ -7,6 +7,8 @@ using ITVComponents.WebCoreToolkit.Options;
 using ITVComponents.WebCoreToolkit.Security.SharedAssets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -190,6 +192,123 @@ namespace ITVComponents.WebCoreToolkit.Tests
             Assert.IsFalse(CulturePath.LooksLikeCulture("orders"));
         }
 
+        [TestMethod]
+        public async Task Sub_Culture_Of_A_Supported_Language_Is_Covered_And_Handed_On_As_Requested()
+        {
+            // fr-CH with only fr supported: covered through the parent, like Accept-Language. Handed on as
+            // requested - the parent fallback is the RequestLocalizationMiddleware's, which resolves format
+            // and texts separately.
+            var logger = new CapturingLogger();
+            var (mw, _) = NewMiddleware(Localization("de", "fr"), logger);
+            var ctx = NewContext("/c/fr-ch/orders");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.AreEqual("fr-CH", ctx.Items[Global.CulturePathCultureItemKey]);
+            Assert.AreEqual("/c/fr-ch", ctx.Request.PathBase.Value, "the prefix stays as written - the base href has to match the browser's address");
+            Assert.AreEqual("/orders", ctx.Request.Path.Value);
+            Assert.AreEqual(0, logger.Count(LogLevel.Warning), "a covered culture is the normal case and must not warn on every request");
+        }
+
+        [TestMethod]
+        public async Task Culture_Of_An_Unsupported_Language_Still_Warns()
+        {
+            var logger = new CapturingLogger();
+            var (mw, _) = NewMiddleware(Localization("de", "fr"), logger);
+            var ctx = NewContext("/c/es-ES/orders");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsFalse(ctx.Items.ContainsKey(Global.CulturePathCultureItemKey));
+            Assert.AreEqual("/c/es-ES", ctx.Request.PathBase.Value);
+            Assert.AreEqual(1, logger.Count(LogLevel.Warning));
+        }
+
+        [TestMethod]
+        public async Task Exact_Hit_Wins_Over_The_Parent()
+        {
+            var logger = new CapturingLogger();
+            var (mw, _) = NewMiddleware(Localization("fr", "fr-CH"), logger);
+            var ctx = NewContext("/c/fr-ch/orders");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.AreEqual("fr-CH", ctx.Items[Global.CulturePathCultureItemKey]);
+            Assert.AreEqual(0, logger.Count(LogLevel.Warning));
+        }
+
+        [TestMethod]
+        public async Task Without_Parent_Fallback_A_Sub_Culture_Is_Not_Covered()
+        {
+            // The host switched the fallback off: then Accept-Language does not fall back either, and the
+            // path must not behave differently.
+            var localization = Localization("de", "fr");
+            localization.FallBackToParentUICultures = false;
+            var logger = new CapturingLogger();
+            var (mw, _) = NewMiddleware(localization, logger);
+            var ctx = NewContext("/c/fr-CH/orders");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsFalse(ctx.Items.ContainsKey(Global.CulturePathCultureItemKey));
+            Assert.AreEqual(1, logger.Count(LogLevel.Warning));
+        }
+
+        [TestMethod]
+        public async Task Request_Localization_Resolves_Format_And_Texts_Separately()
+        {
+            // The reason the culture is handed on as requested: a host with fr-CH as a format but only fr for
+            // texts gets Swiss numbers with French texts. Cut down to fr in the middleware, the format would be lost.
+            var localization = Localization("de", "fr");
+            localization.SupportedCultures = new List<CultureInfo> { new CultureInfo("de-CH"), new CultureInfo("fr-CH") };
+            IRequestCultureFeature feature = null;
+            var requestLocalization = new RequestLocalizationMiddleware(c =>
+                {
+                    feature = c.Features.Get<IRequestCultureFeature>();
+                    return Task.CompletedTask;
+                },
+                Microsoft.Extensions.Options.Options.Create(localization), NullLoggerFactory.Instance);
+            var (mw, _) = NewMiddleware(localization, new CapturingLogger(), requestLocalization.Invoke);
+            var ctx = NewContext("/c/fr-ch/orders");
+
+            await mw.InvokeAsync(ctx);
+
+            Assert.IsNotNull(feature);
+            Assert.IsInstanceOfType(feature.Provider, typeof(CulturePathRequestCultureProvider));
+            Assert.AreEqual("fr-CH", feature.RequestCulture.Culture.Name);
+            Assert.AreEqual("fr", feature.RequestCulture.UICulture.Name);
+        }
+
+        private static RequestLocalizationOptions Localization(params string[] uiCultures)
+        {
+            var localization = new RequestLocalizationOptions
+            {
+                SupportedUICultures = new List<CultureInfo>()
+            };
+            foreach (var culture in uiCultures)
+            {
+                localization.SupportedUICultures.Add(new CultureInfo(culture));
+            }
+
+            localization.RequestCultureProviders.Insert(0, new CulturePathRequestCultureProvider());
+            return localization;
+        }
+
+        private static (CulturePathMiddleware Middleware, Ref<bool> NextRan) NewMiddleware(RequestLocalizationOptions localization,
+            ILogger<CulturePathMiddleware> logger, RequestDelegate next = null)
+        {
+            var ran = new Ref<bool>();
+            var mw = new CulturePathMiddleware(c =>
+                {
+                    ran.Value = true;
+                    return next != null ? next(c) : Task.CompletedTask;
+                },
+                Microsoft.Extensions.Options.Options.Create(new CulturePathOptions()),
+                Microsoft.Extensions.Options.Options.Create(localization),
+                logger);
+            return (mw, ran);
+        }
+
         private static (CulturePathMiddleware Middleware, Ref<bool> NextRan) NewMiddleware()
         {
             var ran = new Ref<bool>();
@@ -222,6 +341,20 @@ namespace ITVComponents.WebCoreToolkit.Tests
         private sealed class Ref<T>
         {
             public T Value { get; set; }
+        }
+
+        private sealed class CapturingLogger : ILogger<CulturePathMiddleware>
+        {
+            public List<(LogLevel Level, string Message)> Entries { get; } = new();
+
+            public int Count(LogLevel level) => Entries.FindAll(e => e.Level == level).Count;
+
+            public System.IDisposable BeginScope<TState>(TState state) => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, System.Exception exception, System.Func<TState, System.Exception, string> formatter)
+                => Entries.Add((logLevel, formatter(state, exception)));
         }
     }
 }

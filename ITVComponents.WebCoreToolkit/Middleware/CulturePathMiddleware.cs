@@ -112,7 +112,7 @@ namespace ITVComponents.WebCoreToolkit.Middleware
                 // should degrade to the default language, not to a 404. Which is exactly why it must not
                 // be silent - from the outside the page simply appears in the wrong language.
                 logger.LogWarning(
-                    "CulturePath: {Path} asks for the culture '{Culture}', which is not among the supported ones ({Supported}). The prefix is stripped, but the language falls back to cookie/Accept-Language/default.",
+                    "CulturePath: {Path} asks for the culture '{Culture}', which is not covered by the supported ones ({Supported}), neither directly nor through a parent culture. The prefix is stripped, but the language falls back to cookie/Accept-Language/default.",
                     path, requested, string.Join(", ", SupportedCultures().Values));
             }
 
@@ -139,13 +139,62 @@ namespace ITVComponents.WebCoreToolkit.Middleware
             => context?.Items.ContainsKey(Global.CulturePathPrefixItemKey) == true;
 
         /// <summary>
-        /// Maps the culture as it was written in the URL onto the spelling the localization is configured
-        /// with, or null when it is not supported.
+        /// Decides whether the culture written in the URL is covered by the supported ones and returns the
+        /// name to hand to the localization, or null when it is not covered.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// An exact hit (ignoring case) yields the configured spelling.
+        /// </para>
+        /// <para>
+        /// Otherwise - when <see cref="RequestLocalizationOptions.FallBackToParentUICultures"/> is set, the
+        /// same switch <c>Accept-Language</c> obeys - a culture whose parent chain reaches a supported one
+        /// counts as covered: <c>fr-CH</c> with <c>fr</c> supported. It is handed on AS REQUESTED (in its
+        /// canonical spelling), not cut down to the parent: the parent fallback is left to
+        /// <c>RequestLocalizationMiddleware</c>, which resolves the format (<c>Culture</c> against
+        /// <c>SupportedCultures</c>) and the texts (<c>UICulture</c> against <c>SupportedUICultures</c>)
+        /// separately. A host that offers <c>fr-CH</c> as a format but only <c>fr</c> for texts thereby gets
+        /// both - which cutting it down here would have thrown away.
+        /// </para>
+        /// </remarks>
         /// <param name="requested">the culture as it appeared in the URL</param>
-        /// <returns>the supported culture name, or null</returns>
+        /// <returns>the culture name to apply, or null</returns>
         private string Resolve(string requested)
-            => SupportedCultures().TryGetValue(requested, out var canonical) ? canonical : null;
+        {
+            var supported = SupportedCultures();
+            if (supported.TryGetValue(requested, out var canonical))
+            {
+                return canonical;
+            }
+
+            if (!localizationOptions.Value.FallBackToParentUICultures)
+            {
+                return null;
+            }
+
+            CultureInfo culture;
+            try
+            {
+                culture = CultureInfo.GetCultureInfo(requested);
+            }
+            catch (CultureNotFoundException ex)
+            {
+                // Has the shape of a culture, but is none. The caller warns about the unsupported culture;
+                // this only adds why the parent chain could not be consulted.
+                logger.LogDebug(ex, "CulturePath: '{Culture}' is not a known culture, so it has no parent cultures to fall back to.", requested);
+                return null;
+            }
+
+            for (var parent = culture.Parent; parent != null && !string.IsNullOrEmpty(parent.Name); parent = parent.Parent)
+            {
+                if (supported.ContainsKey(parent.Name))
+                {
+                    return culture.Name;
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// The supported cultures, from <see cref="CulturePathOptions.SupportedCultures"/> when the host
