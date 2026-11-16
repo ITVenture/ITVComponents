@@ -69,6 +69,9 @@
   <data name="Dev_Close" xml:space="preserve"><value>Fermer</value></data>
   <data name="Dev_Sent" xml:space="preserve"><value>Les paramètres ont été enregistrés sur l'agent.</value></data>
   <data name="Dev_Refused" xml:space="preserve"><value>L'agent a refusé les paramètres :</value></data>
+  <data name="Dev_SettingRequired" xml:space="preserve"><value>{0} : une valeur est requise.</value></data>
+  <data name="Dev_SettingInvalid" xml:space="preserve"><value>{0} : la valeur n'est pas valide ({1}).</value></data>
+  <data name="Dev_SettingUnknown" xml:space="preserve"><value>« {0} » n'est pas un paramètre de cet appareil.</value></data>
   <data name="Dev_LoadFailed" xml:space="preserve"><value>Les appareils n'ont pas pu être chargés - voir le journal.</value></data>
   <data name="Dev_SaveFailed" xml:space="preserve"><value>L'appareil n'a pas pu être attribué - voir le journal.</value></data>
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Le rôle n'a pas pu être libéré - voir le journal.</value></data>

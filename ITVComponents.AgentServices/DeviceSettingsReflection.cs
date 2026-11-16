@@ -112,7 +112,7 @@ namespace ITVComponents.AgentServices
             {
                 if (!fields.ContainsKey(key))
                 {
-                    errors.Add(new SettingError { SettingName = key, Message = $"'{key}' is not a setting of this device." });
+                    errors.Add(new SettingError { SettingName = key, Kind = SettingErrorKind.Unknown, Message = $"'{key}' is not a setting of this device." });
                 }
             }
 
@@ -127,7 +127,9 @@ namespace ITVComponents.AgentServices
                     // dass er auf der Leitung stand - eine Maske laesst unveraenderte Vorschlaege weg.
                     if (field.Attribute.Required && IsEmpty(field.Property.GetValue(retVal)))
                     {
-                        errors.Add(new SettingError { SettingName = name, Message = $"'{field.Attribute.Label}' is required." });
+                        // Der NAME, nicht die Beschriftung: die kann eine JSON-Uebersetzung sein, und aufgeloest
+                        // wird sie im Web in der Sprache des Benutzers, nicht hier in der des Agenten-Rechners.
+                        errors.Add(new SettingError { SettingName = name, Kind = SettingErrorKind.Required, Message = $"'{name}' is required." });
                     }
 
                     continue;
@@ -142,7 +144,9 @@ namespace ITVComponents.AgentServices
                     errors.Add(new SettingError
                     {
                         SettingName = name,
-                        Message = $"'{field.Attribute.Label}' has an invalid value: {ex.Message}"
+                        Kind = SettingErrorKind.Invalid,
+                        Detail = ex.Message,
+                        Message = $"'{name}' has an invalid value: {ex.Message}"
                     });
                 }
             }

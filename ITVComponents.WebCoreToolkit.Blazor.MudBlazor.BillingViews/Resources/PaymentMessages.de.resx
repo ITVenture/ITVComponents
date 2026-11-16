@@ -186,6 +186,9 @@
   <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>Dieses Gerät braucht keine weiteren Einstellungen.</value></data>
   <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>Die Kasse war nicht erreichbar ({0}). Das Terminal lässt sich trotzdem speichern; seine Geräte-Einstellungen lassen sich erst setzen, wenn die Kasse wieder erreichbar ist.</value></data>
   <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Bitte füllen Sie alle Pflichtfelder aus.</value></data>
+  <data name="Terminals_SettingRequired" xml:space="preserve"><value>{0}: ein Wert ist erforderlich.</value></data>
+  <data name="Terminals_SettingInvalid" xml:space="preserve"><value>{0}: der Wert ist ungültig ({1}).</value></data>
+  <data name="Terminals_SettingUnknown" xml:space="preserve"><value>'{0}' ist keine Einstellung dieses Geräts.</value></data>
   <data name="Terminals_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
   <data name="Terminals_Next" xml:space="preserve"><value>Weiter</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Zurück</value></data>

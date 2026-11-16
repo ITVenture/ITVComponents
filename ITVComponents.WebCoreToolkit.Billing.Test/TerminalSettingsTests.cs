@@ -99,6 +99,24 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
         }
 
         [TestMethod]
+        public void Validate_NamesTheFieldAndItsKind_NeverTheLabel()
+        {
+            // Die Pruefung laeuft am Agenten, angezeigt wird im Web. Eine Beschriftung kann eine
+            // JSON-Uebersetzung sein - sie in die Meldung zu setzen, ergaebe dort das ganze JSON. Der Agent
+            // nennt darum nur Name und Art; formuliert wird in der Maske, in der Sprache des Benutzers.
+            var errors = new List<SettingError>();
+            DeviceSettingsReflection.Validate(typeof(LabelledSettings), """{"port":"abc","bogus":"1"}""", errors);
+
+            var required = errors.Single(e => e.SettingName == "host");
+            Assert.AreEqual(SettingErrorKind.Required, required.Kind);
+            var invalid = errors.Single(e => e.SettingName == "port");
+            Assert.AreEqual(SettingErrorKind.Invalid, invalid.Kind);
+            Assert.IsFalse(string.IsNullOrEmpty(invalid.Detail), "The reason travels separately so the web can phrase it.");
+            Assert.AreEqual(SettingErrorKind.Unknown, errors.Single(e => e.SettingName == "bogus").Kind);
+            Assert.IsFalse(errors.Any(e => e.Message.Contains('{')), "No label (and so no JSON record) in a message.");
+        }
+
+        [TestMethod]
         public void SettingKinds_StayAlignedWithTheFormTheyAreRenderedWith()
         {
             // Die Maske im Blazor-Toolkit rendert gegen DeclaredFieldKind, und die Werte werden
@@ -204,6 +222,16 @@ namespace ITVComponents.WebCoreToolkit.Billing.Test
                 // ohne Geraetekennung
                 DisplayName = "Kasse 1"
             }));
+        }
+
+        /// <summary>Einstellungen mit übersetzten Beschriftungen, wie sie ein mehrsprachiger Agent deklariert.</summary>
+        private sealed class LabelledSettings
+        {
+            [DeviceSetting("""{"de":"Adresse","fr":"Adresse IP","Default":"Host"}""", Required = true)]
+            public string? Host { get; set; }
+
+            [DeviceSetting("""{"de":"Port","fr":"Port réseau","Default":"Port"}""")]
+            public int Port { get; set; } = 9100;
         }
 
         /// <summary>Ein kleiner Satz Felder, der für die reinen Umwandlungs-Tests genügt.</summary>

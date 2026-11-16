@@ -69,6 +69,9 @@
   <data name="Dev_Close" xml:space="preserve"><value>Schliessen</value></data>
   <data name="Dev_Sent" xml:space="preserve"><value>Die Einstellungen wurden beim Agenten abgelegt.</value></data>
   <data name="Dev_Refused" xml:space="preserve"><value>Der Agent hat die Einstellungen abgelehnt:</value></data>
+  <data name="Dev_SettingRequired" xml:space="preserve"><value>{0}: ein Wert ist erforderlich.</value></data>
+  <data name="Dev_SettingInvalid" xml:space="preserve"><value>{0}: der Wert ist ungültig ({1}).</value></data>
+  <data name="Dev_SettingUnknown" xml:space="preserve"><value>'{0}' ist keine Einstellung dieses Geräts.</value></data>
   <data name="Dev_LoadFailed" xml:space="preserve"><value>Die Geräte konnten nicht geladen werden - siehe Protokoll.</value></data>
   <data name="Dev_SaveFailed" xml:space="preserve"><value>Das Gerät konnte nicht zugewiesen werden - siehe Protokoll.</value></data>
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Die Rolle konnte nicht freigegeben werden - siehe Protokoll.</value></data>

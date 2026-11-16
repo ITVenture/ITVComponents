@@ -71,6 +71,7 @@
                                             PrefillIsInvariant="true"
                                             ResetKey="@($"server:{provider}")"
                                             AllowReadOnly="false"
+                                            TranslateText="SettingFieldProjection.Translate"
                                             RequiredFieldMessage="@(L["Terminals_RequiredMissing"].Value)" />
                     }
                 </MudStep>
@@ -97,6 +98,7 @@
                                                 PrefillIsInvariant="true"
                                                 ResetKey="@($"device:{provider}:{routeValue}")"
                                                 AllowReadOnly="false"
+                                                TranslateText="SettingFieldProjection.Translate"
                                                 RequiredFieldMessage="@(L["Terminals_RequiredMissing"].Value)" />
                         }
                     </MudStep>
@@ -409,7 +411,8 @@
                 if (!applied.Success)
                 {
                     error = string.Join(" ", new[] { applied.Message }
-                        .Concat(applied.Errors.Select(e => e.Message))
+                        .Concat(applied.Errors.Select(e => SettingFieldProjection.DescribeError(e, deviceFields,
+                            L["Terminals_SettingRequired"].Value, L["Terminals_SettingInvalid"].Value, L["Terminals_SettingUnknown"].Value)))
                         .Where(m => !string.IsNullOrWhiteSpace(m)));
                     return;
                 }

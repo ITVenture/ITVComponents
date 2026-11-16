@@ -186,6 +186,9 @@
   <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>Cet appareil ne nécessite aucun autre réglage.</value></data>
   <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>La caisse n'a pas pu être jointe ({0}). Le terminal peut tout de même être enregistré ; ses réglages ne pourront être effectués qu'une fois la caisse de nouveau joignable.</value></data>
   <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Veuillez remplir tous les champs obligatoires.</value></data>
+  <data name="Terminals_SettingRequired" xml:space="preserve"><value>{0} : une valeur est requise.</value></data>
+  <data name="Terminals_SettingInvalid" xml:space="preserve"><value>{0} : la valeur n'est pas valide ({1}).</value></data>
+  <data name="Terminals_SettingUnknown" xml:space="preserve"><value>« {0} » n'est pas un paramètre de cet appareil.</value></data>
   <data name="Terminals_Cancel" xml:space="preserve"><value>Annuler</value></data>
   <data name="Terminals_Next" xml:space="preserve"><value>Suivant</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Précédent</value></data>

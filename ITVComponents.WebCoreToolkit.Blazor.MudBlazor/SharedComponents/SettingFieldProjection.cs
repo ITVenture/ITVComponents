@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using ITVComponents.AgentServices.Abstractions;
+using ITVComponents.WebCoreToolkit.Extensions;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
 {
@@ -68,6 +71,52 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Löst eine Beschriftung in der Sprache des Benutzers auf — für <see cref="DeclaredFieldsForm.TranslateText"/>.
+        /// </summary>
+        /// <remarks>
+        /// Dieselbe Konvention wie bei der Navigation: <c>{"de":"…","fr":"…","Default":"…"}</c> wird nach
+        /// <see cref="CultureInfo.CurrentUICulture"/> aufgelöst, jeder andere Text bleibt, wie er ist. Ein
+        /// Agent mit einfachen Beschriftungen merkt davon nichts; die Übersetzung reist mit dem Text und braucht
+        /// auf keiner Seite eine Ressourcendatei.
+        /// </remarks>
+        public static string? Translate(string? value)
+            => string.IsNullOrEmpty(value) ? value : value.Translate(CultureInfo.CurrentUICulture.Name);
+
+        /// <summary>
+        /// Formuliert einen Fehler des Agenten in der Sprache des Benutzers.
+        /// </summary>
+        /// <param name="error">der Fehler, wie er vom Agenten kam</param>
+        /// <param name="fields">die Selbstbeschreibung, aus der die Beschriftung des Felds stammt</param>
+        /// <param name="requiredFormat">Vorlage für <see cref="SettingErrorKind.Required"/>; <c>{0}</c> = Beschriftung</param>
+        /// <param name="invalidFormat">Vorlage für <see cref="SettingErrorKind.Invalid"/>; <c>{0}</c> = Beschriftung, <c>{1}</c> = Grund</param>
+        /// <param name="unknownFormat">Vorlage für <see cref="SettingErrorKind.Unknown"/>; <c>{0}</c> = Feldname</param>
+        /// <remarks>
+        /// Ein Fehler ohne Art (älterer Agent, oder einer, der das Ganze betrifft) bleibt bei
+        /// <see cref="SettingError.Message"/> — lieber englisch als gar nicht.
+        /// </remarks>
+        public static string DescribeError(SettingError error, IReadOnlyList<SettingDescriptor> fields,
+            string requiredFormat, string invalidFormat, string unknownFormat)
+        {
+            if (error.Kind == SettingErrorKind.Unspecified || string.IsNullOrEmpty(error.SettingName))
+            {
+                return error.Message;
+            }
+
+            var field = fields.FirstOrDefault(f => string.Equals(f.Name, error.SettingName, StringComparison.OrdinalIgnoreCase));
+            var label = field == null || string.IsNullOrWhiteSpace(field.Label)
+                ? error.SettingName
+                : Translate(field.Label) ?? field.Label;
+            return error.Kind switch
+            {
+                SettingErrorKind.Required => string.Format(requiredFormat, label),
+                SettingErrorKind.Invalid => string.Format(invalidFormat, label, error.Detail),
+                SettingErrorKind.Unknown => string.Format(unknownFormat, error.SettingName),
+                // Eine Art, die dieses Web noch nicht kennt (neuerer Agent): dann eben der Text des Agenten.
+                _ => error.Message
+            };
         }
 
         /// <summary>

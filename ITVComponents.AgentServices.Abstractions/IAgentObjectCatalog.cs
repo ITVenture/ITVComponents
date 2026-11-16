@@ -92,12 +92,42 @@ namespace ITVComponents.AgentServices.Abstractions
     }
 
     /// <summary>Ein Fehler an einem Feld.</summary>
+    /// <remarks>
+    /// Die Prüfung läuft auf dem <b>Agenten</b>, angezeigt wird im Web. Die Sprache des Agenten-Rechners ist
+    /// nicht die des Benutzers — darum nennt <see cref="Message"/> das Feld nur beim <b>Namen</b> (nie bei der
+    /// Beschriftung, die eine JSON-Übersetzung sein kann), und die Maske formuliert anhand von
+    /// <see cref="Kind"/> selbst. <see cref="Message"/> bleibt der Rückfall für Agenten, die
+    /// <see cref="Kind"/> noch nicht setzen.
+    /// </remarks>
     public class SettingError
     {
         /// <summary>Das Feld; leer = das Ganze.</summary>
         public string? SettingName { get; set; }
 
-        /// <summary>Was nicht stimmt.</summary>
+        /// <summary>Was nicht stimmt, technisch und englisch; nennt das Feld beim Namen.</summary>
         public string Message { get; set; } = string.Empty;
+
+        /// <summary>Die Art des Fehlers; <see cref="SettingErrorKind.Unspecified"/> = nur <see cref="Message"/> zählt.</summary>
+        public SettingErrorKind Kind { get; set; }
+
+        /// <summary>Bei <see cref="SettingErrorKind.Invalid"/>: warum der Wert nicht gelesen werden konnte.</summary>
+        public string? Detail { get; set; }
+    }
+
+    /// <summary>Die Art eines <see cref="SettingError"/>.</summary>
+    /// <remarks>Nur anhängen: der Wert reist als Zahl zwischen Agent und Web, die beide verschieden alt sein können.</remarks>
+    public enum SettingErrorKind
+    {
+        /// <summary>Nicht eingeordnet (älterer Agent, oder ein Fehler, der das Ganze betrifft).</summary>
+        Unspecified = 0,
+
+        /// <summary>Ein Pflichtfeld hat keinen Wert.</summary>
+        Required = 1,
+
+        /// <summary>Der Wert lässt sich nicht in den Typ des Felds lesen.</summary>
+        Invalid = 2,
+
+        /// <summary>Der Schlüssel ist kein Feld dieses Geräts.</summary>
+        Unknown = 3
     }
 }

@@ -186,6 +186,9 @@
   <data name="Terminals_NoDeviceSettings" xml:space="preserve"><value>Questo dispositivo non richiede altre impostazioni.</value></data>
   <data name="Terminals_DeviceUnreachable" xml:space="preserve"><value>La cassa non era raggiungibile ({0}). Il terminale può comunque essere salvato; le sue impostazioni potranno essere definite solo quando la cassa sarà di nuovo raggiungibile.</value></data>
   <data name="Terminals_RequiredMissing" xml:space="preserve"><value>Compili tutti i campi obbligatori.</value></data>
+  <data name="Terminals_SettingRequired" xml:space="preserve"><value>{0}: è richiesto un valore.</value></data>
+  <data name="Terminals_SettingInvalid" xml:space="preserve"><value>{0}: il valore non è valido ({1}).</value></data>
+  <data name="Terminals_SettingUnknown" xml:space="preserve"><value>'{0}' non è un'impostazione di questo dispositivo.</value></data>
   <data name="Terminals_Cancel" xml:space="preserve"><value>Annulla</value></data>
   <data name="Terminals_Next" xml:space="preserve"><value>Avanti</value></data>
   <data name="Terminals_Back" xml:space="preserve"><value>Indietro</value></data>

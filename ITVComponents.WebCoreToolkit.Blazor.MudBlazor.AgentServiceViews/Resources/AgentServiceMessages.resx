@@ -69,6 +69,9 @@
   <data name="Dev_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Dev_Sent" xml:space="preserve"><value>The settings were stored on the agent.</value></data>
   <data name="Dev_Refused" xml:space="preserve"><value>The agent refused the settings:</value></data>
+  <data name="Dev_SettingRequired" xml:space="preserve"><value>{0}: a value is required.</value></data>
+  <data name="Dev_SettingInvalid" xml:space="preserve"><value>{0}: the value is invalid ({1}).</value></data>
+  <data name="Dev_SettingUnknown" xml:space="preserve"><value>'{0}' is not a setting of this device.</value></data>
   <data name="Dev_LoadFailed" xml:space="preserve"><value>The devices could not be loaded - see the log.</value></data>
   <data name="Dev_SaveFailed" xml:space="preserve"><value>The device could not be assigned - see the log.</value></data>
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>The role could not be released - see the log.</value></data>

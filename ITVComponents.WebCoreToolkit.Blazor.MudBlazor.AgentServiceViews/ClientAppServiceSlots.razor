@@ -106,6 +106,7 @@ else
                                             PrefillIsInvariant="true"
                                             ResetKey="@($"{ClientAppId}:{row.ObjectName}")"
                                             AllowReadOnly="false"
+                                            TranslateText="SettingFieldProjection.Translate"
                                             RequiredFieldMessage="@L["Dev_RequiredMissing"]" />
                         <MudStack Row="true" Spacing="2" Class="mt-2">
                             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy"
@@ -257,8 +258,11 @@ else
             }
             else
             {
-                // Die Einzelmeldungen kommen vom Agenten und nennen die Felder mit den Beschriftungen des Geraets.
-                error = string.Join(" ", new[] { L["Dev_Refused"].Value, result.Message }.Concat(result.Errors.Select(e => e.Message))
+                // Die Einzelmeldungen formuliert die Maske selbst, in der Sprache des Benutzers und mit der
+                // uebersetzten Beschriftung - der Agent liefert nur Feldname und Art.
+                error = string.Join(" ", new[] { L["Dev_Refused"].Value, result.Message }
+                    .Concat(result.Errors.Select(e => SettingFieldProjection.DescribeError(e, settingsFields,
+                        L["Dev_SettingRequired"].Value, L["Dev_SettingInvalid"].Value, L["Dev_SettingUnknown"].Value)))
                     .Where(m => !string.IsNullOrWhiteSpace(m)));
             }
         }, "send the settings", "Dev_ApplyFailed");

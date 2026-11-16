@@ -69,6 +69,9 @@
   <data name="Dev_Close" xml:space="preserve"><value>Chiudi</value></data>
   <data name="Dev_Sent" xml:space="preserve"><value>Le impostazioni sono state salvate sull'agente.</value></data>
   <data name="Dev_Refused" xml:space="preserve"><value>L'agente ha rifiutato le impostazioni:</value></data>
+  <data name="Dev_SettingRequired" xml:space="preserve"><value>{0}: è richiesto un valore.</value></data>
+  <data name="Dev_SettingInvalid" xml:space="preserve"><value>{0}: il valore non è valido ({1}).</value></data>
+  <data name="Dev_SettingUnknown" xml:space="preserve"><value>'{0}' non è un'impostazione di questo dispositivo.</value></data>
   <data name="Dev_LoadFailed" xml:space="preserve"><value>Non è stato possibile caricare i dispositivi - vedere il registro.</value></data>
   <data name="Dev_SaveFailed" xml:space="preserve"><value>Non è stato possibile assegnare il dispositivo - vedere il registro.</value></data>
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Non è stato possibile rilasciare il ruolo - vedere il registro.</value></data>
