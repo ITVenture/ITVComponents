@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payout_Title" xml:space="preserve"><value>Payouts</value></data>
+  <data name="Payout_Country_Label" xml:space="preserve"><value>Country of the business</value></data>
+  <data name="Payout_Country_Help" xml:space="preserve"><value>ISO country code, e.g. CH. The provider fixes this when the account is created and never lets it change – a wrong value means starting over with a new account.</value></data>
+  <data name="Payout_EntityType_Label" xml:space="preserve"><value>Legal form</value></data>
+  <data name="Payout_EntityType_Help" xml:space="preserve"><value>Decides which documents the provider asks for.</value></data>
+  <data name="Payout_EntityType_Individual" xml:space="preserve"><value>Sole trader / individual</value></data>
+  <data name="Payout_EntityType_Company" xml:space="preserve"><value>Company</value></data>
+  <data name="Payout_ContactEmail_Label" xml:space="preserve"><value>Contact address for payout matters</value></data>
+  <data name="Payout_ContactEmail_Help" xml:space="preserve"><value>Where the provider writes about THIS account. Empty: the billing profile's address is used.</value></data>
+  <data name="Payout_DisplayName_Label" xml:space="preserve"><value>Name on the payment page</value></data>
+  <data name="Payout_DisplayName_Help" xml:space="preserve"><value>What the end customer sees, on the payment page and on their statement. Empty: the name from the billing profile.</value></data>
+  <data name="Payout_BusinessUrl_Label" xml:space="preserve"><value>Web address of the shop</value></data>
+  <data name="Payout_BusinessUrl_Help" xml:space="preserve"><value>Part of what the provider verifies the business against.</value></data>
+  <data name="Payout_Country_Invalid" xml:space="preserve"><value>The country is an ISO code of two letters, e.g. CH.</value></data>
+  <data name="Payout_BusinessUrl_Invalid" xml:space="preserve"><value>The web address needs its scheme, e.g. https://shop.example.com.</value></data>
+</root>

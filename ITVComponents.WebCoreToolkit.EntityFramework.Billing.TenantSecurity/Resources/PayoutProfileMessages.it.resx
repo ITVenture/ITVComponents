@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payout_Title" xml:space="preserve"><value>Bonifici</value></data>
+  <data name="Payout_Country_Label" xml:space="preserve"><value>Paese dell'azienda</value></data>
+  <data name="Payout_Country_Help" xml:space="preserve"><value>Codice paese ISO, ad es. CH. Il fornitore lo fissa alla creazione del conto e non ne consente più la modifica – un valore errato significa ricominciare da capo con un nuovo conto.</value></data>
+  <data name="Payout_EntityType_Label" xml:space="preserve"><value>Forma giuridica</value></data>
+  <data name="Payout_EntityType_Help" xml:space="preserve"><value>Determina quali documenti richiede il fornitore.</value></data>
+  <data name="Payout_EntityType_Individual" xml:space="preserve"><value>Persona fisica / ditta individuale</value></data>
+  <data name="Payout_EntityType_Company" xml:space="preserve"><value>Società</value></data>
+  <data name="Payout_ContactEmail_Label" xml:space="preserve"><value>Indirizzo di contatto per questioni relative ai bonifici</value></data>
+  <data name="Payout_ContactEmail_Help" xml:space="preserve"><value>Dove il fornitore scrive riguardo a QUESTO conto. Vuoto: vale l'indirizzo del profilo aziendale.</value></data>
+  <data name="Payout_DisplayName_Label" xml:space="preserve"><value>Nome sulla pagina di pagamento</value></data>
+  <data name="Payout_DisplayName_Help" xml:space="preserve"><value>Ciò che vede il cliente finale, sulla pagina di pagamento e sul suo estratto conto. Vuoto: il nome del profilo aziendale.</value></data>
+  <data name="Payout_BusinessUrl_Label" xml:space="preserve"><value>Indirizzo web del negozio</value></data>
+  <data name="Payout_BusinessUrl_Help" xml:space="preserve"><value>Fa parte degli elementi con cui il fornitore verifica l'azienda.</value></data>
+  <data name="Payout_Country_Invalid" xml:space="preserve"><value>Il paese è un codice ISO di due lettere, ad es. CH.</value></data>
+  <data name="Payout_BusinessUrl_Invalid" xml:space="preserve"><value>L'indirizzo web deve includere lo schema, ad es. https://shop.example.com.</value></data>
+</root>

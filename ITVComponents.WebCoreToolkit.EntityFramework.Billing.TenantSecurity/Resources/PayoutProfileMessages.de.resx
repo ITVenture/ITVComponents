@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Payout_Title" xml:space="preserve"><value>Auszahlungen</value></data>
+  <data name="Payout_Country_Label" xml:space="preserve"><value>Land des Unternehmens</value></data>
+  <data name="Payout_Country_Help" xml:space="preserve"><value>ISO-Ländercode, z.B. CH. Der Anbieter legt das Land bei der Kontoanlage fest und lässt es nie mehr ändern – ein falscher Wert heisst: neues Konto, von vorn.</value></data>
+  <data name="Payout_EntityType_Label" xml:space="preserve"><value>Rechtsform</value></data>
+  <data name="Payout_EntityType_Help" xml:space="preserve"><value>Entscheidet, welche Nachweise der Anbieter verlangt.</value></data>
+  <data name="Payout_EntityType_Individual" xml:space="preserve"><value>Einzelperson / Einzelfirma</value></data>
+  <data name="Payout_EntityType_Company" xml:space="preserve"><value>Gesellschaft</value></data>
+  <data name="Payout_ContactEmail_Label" xml:space="preserve"><value>Kontaktadresse für Auszahlungsfragen</value></data>
+  <data name="Payout_ContactEmail_Help" xml:space="preserve"><value>Wohin der Anbieter zu DIESEM Konto schreibt. Leer: die Adresse des Firmenprofils gilt.</value></data>
+  <data name="Payout_DisplayName_Label" xml:space="preserve"><value>Name auf der Zahlungsseite</value></data>
+  <data name="Payout_DisplayName_Help" xml:space="preserve"><value>Was der Endkunde sieht – auf der Zahlungsseite und auf seiner Abrechnung. Leer: der Name aus dem Firmenprofil.</value></data>
+  <data name="Payout_BusinessUrl_Label" xml:space="preserve"><value>Web-Adresse des Ladens</value></data>
+  <data name="Payout_BusinessUrl_Help" xml:space="preserve"><value>Teil dessen, woran der Anbieter das Unternehmen prüft.</value></data>
+  <data name="Payout_Country_Invalid" xml:space="preserve"><value>Das Land ist ein ISO-Code aus zwei Buchstaben, z.B. CH.</value></data>
+  <data name="Payout_BusinessUrl_Invalid" xml:space="preserve"><value>Die Web-Adresse braucht ihr Schema, z.B. https://shop.example.com.</value></data>
+</root>

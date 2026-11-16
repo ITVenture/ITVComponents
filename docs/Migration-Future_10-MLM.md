@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 108 | **Sprach-JSON zeigt nie mehr den Rohwert; Auszahlungs-Reiter in vier Sprachen** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** fehlt einem `{"de":…}`-Datensatz die Sprache und ein `Default`, erscheint `en` bzw. der erste Eintrag statt des JSON (einmal je Datensatz als Warnung im Log); bei invarianter Kultur gilt `Default` (§108). |
 | 107 | **Kultur-Präfix fällt auf die Elternsprache zurück** | Kein Schema-Change, nichts zu tun. `/c/fr-ch/…` ergibt bei angebotenem `fr` jetzt Französisch statt der Vorgabe, sofern `FallBackToParentUICultures` gesetzt ist (Vorgabe). **Verhaltensänderung:** die Warnung „not among the supported ones“ fällt für solche Adressen weg (§107). |
 | 106 | **Sprache je Mandant (`Tenants.Culture`), Zeitzone wird im Baum vererbt** | **Pflicht: Schema-Change** (Spalte `Tenants.Culture`, manuelles SQL §106.4) und beim **Baum**-Kontext Neuausrollen der Prozeduren/Funktionen (`ConfigureViews`). **Breaking:** `ISecurityRepository.GetTenantLocale(scope)` ohne Default-Umsetzung — eigene Repositories und Testattrappen müssen sie umsetzen. **Verhaltensänderung:** `GetTimeZoneHelper` vererbt im Baum. |
 | 96 | **Konfigurierbares DB-Schema (Security- und Plugin-Kontexte)** | Kein Schema-Change. `ActivationSettings.CustomSchema` bzw. `CustomSchemaOptionsLoader`; Laufzeit-SQL schema-qualifiziert (SQL Server und PostgreSQL). **BREAKING:** Baum-Migrationen mit `ConfigureViews(mb)` schreiben `__SCHEMA__`. Wer sie auf eine neue DB anwendet oder skriptet, braucht `UseSchemaAwareMigrations(...)` (`EFRepo.SqlServer`/`EFRepo.PostgreSql`), auch ohne eigenes Schema. `SchemaAwareMigrationsOptionsExtension` → `ITVComponents.EFRepo.Migrations` (§96) |
@@ -9481,3 +9482,33 @@ Kulturen, verwarf `fr-ch` und schrieb eine Warnung; die Seite kam in der Sprache
 
 Nichts zu tun. Wer `FallBackToParentUICultures`/`FallBackToParentCultures` ausdrücklich auf `true` setzt,
 kann das lassen oder streichen — es ist die Vorgabe.
+
+## 108. Sprach-JSON zeigt nie mehr den Rohwert; Auszahlungs-Reiter in vier Sprachen — **kein Schema-Change; Verhaltensänderung**
+
+### 108.1 Der Fall
+
+Der Auszahlungs-Reiter im Firmenprofil (`TenantPayoutProfileModule`) führte seine Texte als Sprach-JSON mit
+`en` und `de`, ohne `Default`. Wer die Seite auf Französisch oder Italienisch öffnete, sah statt der Texte das
+JSON: `StringExtensions.Translate` gab den Rohwert zurück, wenn weder die Sprache noch `Default` im Datensatz
+stand.
+
+### 108.2 Was jetzt gilt
+
+- **`Translate` (Sprach-JSON):** genaue Kultur → Sprache (`de-CH` → `de`) → `Default` → **`en` → erster
+  Eintrag**. Der Rohwert erscheint nur noch bei einem Datensatz, der sich nicht lesen lässt oder leer ist. Der
+  Rückfall über `en`/den ersten Eintrag steht einmal je Datensatz und Prozess als Warnung im Log — der
+  Datensatz braucht dann ein `Default` oder die fehlende Sprache.
+- **Invariante Kultur** (leerer Kulturname): gilt jetzt als `Default`, statt den Übersetzungspfad zu
+  überspringen.
+- **`DictionaryExtensions.TryTranslate`** (neu) unterscheidet einen Treffer (Kultur, Sprache, `Default`) vom
+  Rückfall; `Translate<T>` nimmt den Rückfall dazu und gibt den mitgegebenen Vorgabewert nur noch für ein leeres
+  Dictionary zurück.
+- **`TenantPayoutProfileModule`** liest seine Texte aus Ressourcen (`Resources/PayoutProfileMessages`, en
+  neutral, de, fr, it) und gibt sie fertig übersetzt heraus. Das Sprach-JSON bleibt die Konvention für Texte
+  aus der Konfiguration (Navigation, Aufgaben-Masken, Module eines Hosts); Code in einer Assembly nimmt
+  gewöhnliche Ressourcen und bekommt deren Rückfall `fr-CH` → `fr` → neutral mit.
+
+### 108.3 Für den Host
+
+Nichts zu tun. Wer eigene Module mit Sprach-JSON führt, gibt ihnen am besten ein `Default` mit — oder, wenn das
+Modul Code in einer eigenen Assembly ist, gleich Ressourcen.

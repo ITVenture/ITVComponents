@@ -9,6 +9,7 @@ using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing;
 using ITVComponents.WebCoreToolkit.EntityFramework.Billing.Models.Payments;
+using ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity.Resources;
 using ITVComponents.WebCoreToolkit.EntityFramework.Onboarding.Shared.Extensibility;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,6 +29,11 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
     /// The tenant's name, e-mail, phone, address and VAT number are NOT asked for again: they are on the billing
     /// profile this tab sits in, and the account service reads them from there. Only what the provider needs on
     /// top of that lives here.
+    /// </para>
+    /// <para>
+    /// The texts come from <c>Resources/PayoutProfileMessages</c> (en neutral, de, fr, it) and are handed out
+    /// already translated. The JSON convention of the contract is meant for texts that live in configuration;
+    /// code in an assembly uses ordinary resources and gets their fallback chain with them.
     /// </para>
     /// </summary>
     /// <typeparam name="TContext">the host context carrying the payments tables</typeparam>
@@ -58,7 +64,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
         public string Key => "billing.payoutprofile";
 
         /// <inheritdoc />
-        public string Title => "{\"en\":\"Payouts\",\"de\":\"Auszahlungen\"}";
+        public string Title => PayoutProfileMessages.Text("Payout_Title");
 
         /// <inheritdoc />
         public string Icon => "Icons.Material.Filled.AccountBalance";
@@ -84,38 +90,38 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
                 new()
                 {
                     Name = nameof(TenantPaymentProfile.Country),
-                    Label = "{\"en\":\"Country of the business\",\"de\":\"Land des Unternehmens\"}",
-                    HelpText = "{\"en\":\"ISO country code, e.g. CH. The provider fixes this when the account is created and never lets it change - a wrong value means starting over with a new account.\",\"de\":\"ISO-Laendercode, z.B. CH. Der Anbieter legt das Land bei der Kontoanlage fest und laesst es nie mehr aendern - ein falscher Wert heisst: neues Konto, von vorn.\"}"
+                    Label = PayoutProfileMessages.Text("Payout_Country_Label"),
+                    HelpText = PayoutProfileMessages.Text("Payout_Country_Help")
                 },
                 new()
                 {
                     Name = nameof(TenantPaymentProfile.EntityType),
                     Kind = CustomInfoFieldKind.Choice,
-                    Label = "{\"en\":\"Legal form\",\"de\":\"Rechtsform\"}",
-                    HelpText = "{\"en\":\"Decides which documents the provider asks for.\",\"de\":\"Entscheidet, welche Nachweise der Anbieter verlangt.\"}",
+                    Label = PayoutProfileMessages.Text("Payout_EntityType_Label"),
+                    HelpText = PayoutProfileMessages.Text("Payout_EntityType_Help"),
                     Choices = new List<CustomInfoChoice>
                     {
-                        new() { Value = "individual", Label = "{\"en\":\"Sole trader / individual\",\"de\":\"Einzelperson / Einzelfirma\"}" },
-                        new() { Value = "company", Label = "{\"en\":\"Company\",\"de\":\"Gesellschaft\"}" }
+                        new() { Value = "individual", Label = PayoutProfileMessages.Text("Payout_EntityType_Individual") },
+                        new() { Value = "company", Label = PayoutProfileMessages.Text("Payout_EntityType_Company") }
                     }
                 },
                 new()
                 {
                     Name = nameof(TenantPaymentProfile.ContactEmail),
-                    Label = "{\"en\":\"Contact address for payout matters\",\"de\":\"Kontaktadresse fuer Auszahlungsfragen\"}",
-                    HelpText = "{\"en\":\"Where the provider writes about THIS account. Empty: the billing profile's address is used.\",\"de\":\"Wohin der Anbieter zu DIESEM Konto schreibt. Leer: die Adresse des Firmenprofils gilt.\"}"
+                    Label = PayoutProfileMessages.Text("Payout_ContactEmail_Label"),
+                    HelpText = PayoutProfileMessages.Text("Payout_ContactEmail_Help")
                 },
                 new()
                 {
                     Name = nameof(TenantPaymentProfile.DisplayName),
-                    Label = "{\"en\":\"Name on the payment page\",\"de\":\"Name auf der Zahlungsseite\"}",
-                    HelpText = "{\"en\":\"What the end customer sees, on the payment page and on their statement. Empty: the name from the billing profile.\",\"de\":\"Was der Endkunde sieht - auf der Zahlungsseite und auf seiner Abrechnung. Leer: der Name aus dem Firmenprofil.\"}"
+                    Label = PayoutProfileMessages.Text("Payout_DisplayName_Label"),
+                    HelpText = PayoutProfileMessages.Text("Payout_DisplayName_Help")
                 },
                 new()
                 {
                     Name = nameof(TenantPaymentProfile.BusinessUrl),
-                    Label = "{\"en\":\"Web address of the shop\",\"de\":\"Web-Adresse des Ladens\"}",
-                    HelpText = "{\"en\":\"Part of what the provider verifies the business against.\",\"de\":\"Teil dessen, woran der Anbieter das Unternehmen prueft.\"}"
+                    Label = PayoutProfileMessages.Text("Payout_BusinessUrl_Label"),
+                    HelpText = PayoutProfileMessages.Text("Payout_BusinessUrl_Help")
                 }
             };
         }
@@ -133,7 +139,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             if (country.Length is not (0 or 2))
             {
                 return Task.FromResult(CustomInfoValidation.Failed(
-                    "{\"en\":\"The country is an ISO code of two letters, e.g. CH.\",\"de\":\"Das Land ist ein ISO-Code aus zwei Buchstaben, z.B. CH.\"}",
+                    PayoutProfileMessages.Text("Payout_Country_Invalid"),
                     nameof(TenantPaymentProfile.Country)));
             }
 
@@ -141,7 +147,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.Billing.TenantSecurity
             if (url.Length != 0 && !Uri.TryCreate(url, UriKind.Absolute, out _))
             {
                 return Task.FromResult(CustomInfoValidation.Failed(
-                    "{\"en\":\"The web address needs its scheme, e.g. https://shop.example.com.\",\"de\":\"Die Web-Adresse braucht ihr Schema, z.B. https://shop.example.com.\"}",
+                    PayoutProfileMessages.Text("Payout_BusinessUrl_Invalid"),
                     nameof(TenantPaymentProfile.BusinessUrl)));
             }
 
