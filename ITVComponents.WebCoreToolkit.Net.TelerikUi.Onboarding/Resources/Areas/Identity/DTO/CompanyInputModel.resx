@@ -162,6 +162,9 @@
   <data name="TimeZone" xml:space="preserve">
     <value>TimeZone</value>
   </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
   <data name="UseInvoiceAddr" xml:space="preserve">
     <value>Use separate invoice address</value>
   </data>

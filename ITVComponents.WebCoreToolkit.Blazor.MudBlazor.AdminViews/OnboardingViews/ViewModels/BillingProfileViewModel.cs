@@ -39,6 +39,20 @@ public class BillingProfileViewModel
     [MaxLength(100), Phone]
     public string? PhoneNumber { get; set; }
 
+    /// <summary>
+    /// Die Sprache des neuen Mandanten, neutral (<c>de</c>) - die Sprache seiner Belege und Mails. Landet am
+    /// Tenant, nicht am Profil. Leer = geerbt (übergeordneter Mandant bzw. Vorgabe des Hosts).
+    /// </summary>
+    [MaxLength(16)]
+    public string? Culture { get; set; }
+
+    /// <summary>
+    /// Die Zeitzone des neuen Mandanten (<see cref="TimeZoneInfo.Id"/>). Landet am Tenant, nicht am Profil.
+    /// Leer = geerbt (übergeordneter Mandant bzw. die des Servers).
+    /// </summary>
+    [MaxLength(1024)]
+    public string? TimeZone { get; set; }
+
     public AddressInput DefaultAddress { get; set; } = new();
 
     public bool UseInvoiceAddr { get; set; }

@@ -64,6 +64,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [MaxLength(1024)]
         public string TimeZone { get; set; }
 
+        /// <summary>
+        /// Die Kultur des Mandanten, wie gewählt (<c>de-CH</c>, oder nur die Sprache <c>de</c>) - Sprache und
+        /// Format der Belege und Mails, die er ausgibt. Leer = vom übergeordneten Mandanten bzw. die Vorgabe des
+        /// Hosts.
+        /// </summary>
+        [MaxLength(16)]
+        public string Culture { get; set; }
+
         public int? TenantTypeId { get; set; }
 
         public bool? TenantDirty { get; set; }

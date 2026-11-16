@@ -905,7 +905,7 @@ WHERE x.""__rnk"" = 1";
             return $$"""
                      CREATE FUNCTION "{{schema}}"."{{functionName}}"(p_user_id text, p_user_is_labels boolean, p_view_point {{leafType}}, p_required_permissions text)
                      RETURNS TABLE("TenantId" integer, "ParentTenantId" integer, "TenantName" text,
-                                   "DisplayName" text, "TenantPassword" text, "TimeZone" text,
+                                   "DisplayName" text, "TenantPassword" text, "TimeZone" text, "Culture" text,
                                    "TenantTypeId" integer, "TenantDirty" boolean)
                      LANGUAGE sql
                      STABLE
@@ -931,11 +931,11 @@ WHERE x.""__rnk"" = 1";
                              INNER JOIN "permRaw" rqr ON p."PermissionName" = rqr.value
                          )
                          SELECT t."TenantId", t."ParentTenantId", t."TenantName", t."DisplayName",
-                                NULL::text, t."TimeZone", t."TenantTypeId", t."TenantDirty"
+                                NULL::text, t."TimeZone", t."Culture", t."TenantTypeId", t."TenantDirty"
                          FROM "perm2T" x
                          INNER JOIN "{{schema}}"."Tenants" t ON t."TenantId" = x."ChildTenantId"
                          GROUP BY t."TenantId", t."ParentTenantId", t."TenantName", t."DisplayName",
-                                  t."TimeZone", t."TenantTypeId", t."TenantDirty"
+                                  t."TimeZone", t."Culture", t."TenantTypeId", t."TenantDirty"
                      $fn$
                      """;
         }

@@ -44,6 +44,7 @@ else
             <PropertyColumn Property="x => x.TenantName" Title="Name" />
             <PropertyColumn Property="x => x.DisplayName" Title="Display name" />
             <PropertyColumn Property="x => x.TimeZone" Title="Time zone" />
+            <PropertyColumn Property="x => x.Culture" Title="Language" />
             @if (Handler.UseHierarchy)
             {
                 <ForeignKeyColumn TItem="TenantViewModel" TProperty="int?"
@@ -139,6 +140,7 @@ else
             TenantName = tenant.TenantName,
             DisplayName = tenant.DisplayName,
             TimeZone = tenant.TimeZone,
+            Culture = tenant.Culture,
             TenantTypeId = tenant.TenantTypeId,
             ParentTenantId = tenant.ParentTenantId
         };

@@ -15,6 +15,8 @@ public class TenantViewModel
 
     public string? TimeZone { get; set; }
 
+    public string? Culture { get; set; }
+
     public int? TenantTypeId { get; set; }
 
     public int? ParentTenantId { get; set; }

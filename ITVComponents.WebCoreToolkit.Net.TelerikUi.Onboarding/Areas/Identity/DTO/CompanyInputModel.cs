@@ -48,6 +48,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.D
         [MaxLength(1024), Display(Name = "TimeZone")]
         public string TimeZone { get; set; }
 
+        /// <summary>Die Kultur des Mandanten, wie gewählt (de-CH, oder nur de); leer = Vorgabe des Systems.</summary>
+        [MaxLength(16), Display(Name = "Language")]
+        public string Culture { get; set; }
+
         [Display(Name = "UseInvoiceAddr")]
         public bool UseInvoiceAddr { get; set; }
 

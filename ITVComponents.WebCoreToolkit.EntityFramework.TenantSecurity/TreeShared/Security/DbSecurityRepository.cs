@@ -1523,10 +1523,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
         {
+            // Seit GetTenantLocale auch hier vererbt: eine Filiale ohne eigene Zeitzone bekommt die des
+            // uebergeordneten Mandanten, nicht mehr die des Servers.
+            return new TimeZoneHelper(GetTenantLocale(permissionScopeName).ResolveTimeZone());
+        }
+
+        /// <inheritdoc />
+        public TenantLocale GetTenantLocale(string permissionScopeName)
+        {
             using var lease = LeaseContext();
-            var securityContext = lease.Context;
-            var timezone = GetTimeZone(permissionScopeName, securityContext);
-            return new TimeZoneHelper(timezone);
+            return ReadTenantLocale(permissionScopeName, lease.Context);
         }
 
         public string Decrypt(string encryptedValue, string permissionScopeName)
@@ -2083,18 +2089,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             return null;
         }
 
-        private TimeZoneInfo GetTimeZone(string permissionScopeName, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
+        private TenantLocale ReadTenantLocale(string permissionScopeName, IHierarchySecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
+            // EINE Abfrage fuer die ganze Kette, Mandant selbst zuerst (ParentLevel 1). Jeder Wert wird fuer sich
+            // vererbt: die Zeitzone darf von ganz oben kommen und die Sprache von der Filiale - das kostet keine
+            // zweite Rundreise, ausgewaehlt wird im Speicher. Die Kette ist so tief wie der Baum, also kurz.
             using (securityAccessProvider.CreateForCaller(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true })))
             {
-                var t = securityContext.Tenants.First(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
-                if (!string.IsNullOrEmpty(t.TimeZone))
+                var scope = (permissionScopeName ?? "").ToLower();
+                var chain = (from u in securityContext.UpwardsTenantTreeView
+                    join t in securityContext.Tenants on u.ParentTenantId equals t.TenantId
+                    where u.OutermostLeafTenantName.ToLower() == scope
+                    orderby u.ParentLevel
+                    select new { t.TimeZone, t.Culture }).ToList();
+                if (chain.Count == 0)
                 {
-                    return TimeZoneInfo.FindSystemTimeZoneById(t.TimeZone);
+                    // Wie bisher bei der Zeitzone: ein unbekannter Mandant ist ein Fehler des Aufrufers, kein
+                    // "nichts gesetzt".
+                    throw new InvalidOperationException($"The tenant '{permissionScopeName}' does not exist.");
                 }
-            }
 
-            return TimeZoneInfo.Local;
+                return new TenantLocale
+                {
+                    TimeZone = chain.Select(n => n.TimeZone).FirstOrDefault(n => !string.IsNullOrEmpty(n)),
+                    Culture = chain.Select(n => n.Culture).FirstOrDefault(n => !string.IsNullOrEmpty(n))
+                };
+            }
         }
 
         private IQueryable<UserTenantLevel<TUser>> GetRawUserQuery(out int currentTenantId, string[] userLabels, string forTenant = null,

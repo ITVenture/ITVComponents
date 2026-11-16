@@ -284,7 +284,10 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.C
                     var tenant = new Tenant
                     {
                         DisplayName = companyInput.Name, TenantName = Guid.NewGuid().ToString("N"),
-                        TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey())
+                        TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey()),
+                        // Die Zeitzone wurde hier schon immer abgefragt, aber nie gespeichert.
+                        TimeZone = string.IsNullOrWhiteSpace(companyInput.TimeZone) ? null : companyInput.TimeZone.Trim(),
+                        Culture = string.IsNullOrWhiteSpace(companyInput.Culture) ? null : companyInput.Culture.Trim()
                     };
                     dbContext.Tenants.Add(tenant);
                     var admin = new TenantUser { Enabled = true, Tenant = tenant, UserId = user.Id };

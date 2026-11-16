@@ -177,6 +177,9 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) =>
             parentRepo.GetTimeZoneHelper(permissionScopeName);
 
+        public TenantLocale GetTenantLocale(string permissionScopeName) =>
+            parentRepo.GetTenantLocale(permissionScopeName);
+
         public string Decrypt(string encryptedValue, string permissionScopeName) =>
             parentRepo.Decrypt(encryptedValue, permissionScopeName);
 

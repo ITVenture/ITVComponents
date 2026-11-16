@@ -403,6 +403,16 @@ namespace ITVComponents.WebCoreToolkit.Extras.DbLessConfig.Security
         }
 
         /// <summary>
+        /// Gets the effective locale settings stored for a tenant. This repository stores none: both values are
+        /// <c>null</c>, and the host defaults apply (see ITenantLocaleResolver).
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        public TenantLocale GetTenantLocale(string permissionScopeName)
+        {
+            return new TenantLocale();
+        }
+
+        /// <summary>
         /// Gets a list of eligible scopes for the extracted user-labels of the current user
         /// </summary>
         /// <param name="userLabels">the extracted user-labels for the user that is logged on the system</param>

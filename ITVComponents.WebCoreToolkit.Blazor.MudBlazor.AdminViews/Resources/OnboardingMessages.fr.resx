@@ -28,6 +28,9 @@
   <data name="Onb_VatNumber" xml:space="preserve"><value>N° de TVA</value></data>
   <data name="Onb_ContactEmail" xml:space="preserve"><value>E-mail de contact</value></data>
   <data name="Onb_Phone" xml:space="preserve"><value>Téléphone</value></data>
+  <data name="Onb_Language" xml:space="preserve"><value>Langue</value></data>
+  <data name="Onb_TimeZone" xml:space="preserve"><value>Fuseau horaire</value></data>
+  <data name="Onb_LocaleHint" xml:space="preserve"><value>Langue et fuseau horaire des documents émis par ce locataire (tickets, factures, e-mails). Vide = hérité du locataire parent ou de la valeur par défaut du système.</value></data>
   <data name="Onb_ParentTenant" xml:space="preserve"><value>Locataire parent</value></data>
   <data name="Onb_ParentHint" xml:space="preserve"><value>Laisser vide pour créer un locataire de premier niveau.</value></data>
   <data name="Onb_DefaultAddress" xml:space="preserve"><value>Adresse par défaut</value></data>

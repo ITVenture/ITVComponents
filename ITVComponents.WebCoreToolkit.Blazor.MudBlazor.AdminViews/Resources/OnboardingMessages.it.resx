@@ -28,6 +28,9 @@
   <data name="Onb_VatNumber" xml:space="preserve"><value>Partita IVA</value></data>
   <data name="Onb_ContactEmail" xml:space="preserve"><value>E-mail di contatto</value></data>
   <data name="Onb_Phone" xml:space="preserve"><value>Telefono</value></data>
+  <data name="Onb_Language" xml:space="preserve"><value>Lingua</value></data>
+  <data name="Onb_TimeZone" xml:space="preserve"><value>Fuso orario</value></data>
+  <data name="Onb_LocaleHint" xml:space="preserve"><value>Lingua e fuso orario dei documenti emessi da questo tenant (scontrini, fatture, e-mail). Vuoto = ereditato dal tenant superiore o dall'impostazione predefinita del sistema.</value></data>
   <data name="Onb_ParentTenant" xml:space="preserve"><value>Tenant principale</value></data>
   <data name="Onb_ParentHint" xml:space="preserve"><value>Lasciare vuoto per creare un tenant di primo livello.</value></data>
   <data name="Onb_DefaultAddress" xml:space="preserve"><value>Indirizzo predefinito</value></data>

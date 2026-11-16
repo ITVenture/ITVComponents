@@ -153,6 +153,17 @@ namespace ITVComponents.WebCoreToolkit.Tests
         public IEnumerable<Permission> GetPermissions(Role role) => throw new NotImplementedException();
         public bool PermissionScopeExists(string permissionScopeName) => throw new NotImplementedException();
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) => throw new NotImplementedException();
+        /// <summary>Die Ortseinstellungen je Mandant, die dieses Repository meldet; fehlt einer, ist nichts gesetzt.</summary>
+        public Dictionary<string, TenantLocale> Locales { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Wie oft nach Ortseinstellungen gefragt wurde.</summary>
+        public int LocaleQueries { get; private set; }
+
+        public TenantLocale GetTenantLocale(string permissionScopeName)
+        {
+            LocaleQueries++;
+            return Locales.TryGetValue(permissionScopeName, out var locale) ? locale : new TenantLocale();
+        }
         public string Decrypt(string encryptedValue, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt) => throw new NotImplementedException();

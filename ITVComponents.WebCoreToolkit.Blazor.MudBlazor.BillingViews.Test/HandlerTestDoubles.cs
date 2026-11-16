@@ -371,6 +371,7 @@ namespace ITVComponents.WebCoreToolkit.BillingViews.Blazor.Test
         public IEnumerable<Permission> GetPermissions(Role role) => throw new NotImplementedException();
         public bool PermissionScopeExists(string permissionScopeName) => throw new NotImplementedException();
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) => throw new NotImplementedException();
+        public TenantLocale GetTenantLocale(string permissionScopeName) => throw new NotImplementedException();
         public string Decrypt(string encryptedValue, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName) => throw new NotImplementedException();
         public byte[] Decrypt(byte[] encryptedValue, string permissionScopeName, byte[] initializationVector, byte[] salt) => throw new NotImplementedException();

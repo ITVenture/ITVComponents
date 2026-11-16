@@ -5679,6 +5679,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 106 | **Sprache je Mandant (`Tenants.Culture`), Zeitzone wird im Baum vererbt** | **Pflicht: Schema-Change** (Spalte `Tenants.Culture`, manuelles SQL §106.4) und beim **Baum**-Kontext Neuausrollen der Prozeduren/Funktionen (`ConfigureViews`). **Breaking:** `ISecurityRepository.GetTenantLocale(scope)` ohne Default-Umsetzung — eigene Repositories und Testattrappen müssen sie umsetzen. **Verhaltensänderung:** `GetTimeZoneHelper` vererbt im Baum. |
 | 96 | **Konfigurierbares DB-Schema (Security- und Plugin-Kontexte)** | Kein Schema-Change. `ActivationSettings.CustomSchema` bzw. `CustomSchemaOptionsLoader`; Laufzeit-SQL schema-qualifiziert (SQL Server und PostgreSQL). **BREAKING:** Baum-Migrationen mit `ConfigureViews(mb)` schreiben `__SCHEMA__`. Wer sie auf eine neue DB anwendet oder skriptet, braucht `UseSchemaAwareMigrations(...)` (`EFRepo.SqlServer`/`EFRepo.PostgreSql`), auch ohne eigenes Schema. `SchemaAwareMigrationsOptionsExtension` → `ITVComponents.EFRepo.Migrations` (§96) |
 | 95 | **MudBlazor-Admin-Maske: neuer Mandant bekommt eigenen Schlüssel** | Kein Schema-Change. `TenantAdminHandler.CreateTenantAsync` setzt `TenantPassword` wie die Onboarding-Handler. Abschaltbar über `TenantOptions.GenerateTenantPassword` (Vorgabe `true`). Ändern fasst den Schlüssel nie an; Altbestand wird nicht nachgetragen. Blazor-Plugin-Konstanten mit `encrypt:` jetzt mit dem Mandantenschlüssel. **Telerik: `UseExplicitTenantPasswords` Vorgabe jetzt `true`** (§95) |
 | 94 | **Weitergabe von Dienst-Definitionen pflegbar; Baum-ViewModels ohne Konfiguration** | Kein Schema-Change. `Inheritable` an der Dienst-Definition (Baum) in Blazor und Telerik pflegbar. Telerik: ViewModel-Typargumente folgen dem Entitätstyp (`[ViewModelForEntity]`, `CustomGenericTypeArg.EntityParameter`); `ViewConfig:CustomViewGenericArgs` für die Baum-Masken nicht mehr nötig. **Verhaltensänderung im Telerik-Baum:** `Inheritable`/`ParentTenantId` werden jetzt gebunden (§94) |
@@ -9357,3 +9358,86 @@ MiniStore-Log waren das 115 `ParentTenantId`-Abfragen für einen Seitenaufruf.
 ### 104.3 Für den Host
 
 Nichts.
+
+## 106. Sprache je Mandant; Zeitzone und Sprache werden im Baum vererbt — **Schema-Change; Breaking; Verhaltensänderung**
+
+### 106.1 Was neu ist
+
+- **`Tenants.Culture`** (`nvarchar(16)`, nullbar): die Kultur, in der ein Mandant Dokumente ausgibt (Belege,
+  Abschlüsse, Mails, Rechnungen). Gespeichert wird sie, **wie gewählt**: spezifisch (`de-CH`, `de-DE`) oder nur als
+  Sprache (`de`). Zur Ortseinstellung eines Mandanten gehört auch sein Format — ein Laden in Zürich und einer in
+  München auf demselben Host unterscheiden sich darin, und das kann `CultureOptions.MapCulture` als Zuordnung des
+  ganzen Hosts nicht leisten. Leer heisst: geerbt. Eine Datenmigration ist nicht nötig.
+- **`ISecurityRepository.GetTenantLocale(scope)`** liefert die *gespeicherten* Werte `TimeZone` und `Culture`.
+  Ist ein Wert am Mandanten leer, gilt der des nächsten übergeordneten Mandanten, der einen hat; jeder Wert wird
+  für sich vererbt. `null` heisst: nirgends gesetzt.
+  - Baum (`TreeShared`): **eine** Abfrage über `UpwardsTenantTreeView` ⨝ `Tenants`, sortiert nach `ParentLevel`,
+    die Auswahl je Wert im Speicher. Ob die Zeitzone von ganz oben und die Sprache von der Filiale kommt, kostet
+    nichts zusätzlich.
+  - Flach (`Shared`): nur der Mandant selbst.
+  - DB-los (`SettingsSecurityRepository`, `JsonSettingsSecurityRepository`): nichts gespeichert, beide `null`.
+  - Ein unbekannter Mandant wirft, wie bisher `GetTimeZoneHelper`.
+- **`ITenantLocaleResolver`** (neu, `ITVComponents.WebCoreToolkit.Localization`, scoped, registriert über
+  `WebPartInit` bzw. `services.AddTenantLocaleResolver()`): ergänzt die Vorgaben des Hosts.
+  - `GetTimeZone(scope)` — gespeichert/geerbt, sonst `TimeZoneInfo.Local`.
+  - `GetUICulture(scope)` — gespeichert/geerbt, **wie gespeichert**, sofern der Host ihre *Sprache* unter den
+    `SupportedUICultures` der `RequestLocalizationOptions` führt. Auch eine Ausprägung, die er nicht eigens führt,
+    gilt (`de-AT` bei `de-CH`/`de-DE`): die Texte findet der Localizer über seinen Rückfall `de-AT` → `de` →
+    neutrale Ressource → Schlüssel, das Format bleibt das des Mandanten. Sonst `DefaultRequestCulture`, sonst die
+    erste unterstützte. Eine gespeicherte Sprache, die der Host gar nicht anbietet, oder ein ungültiger Wert wird
+    geloggt.
+  - `GetCulture(scope)` — `GetUICulture` durch `CultureOptions.MapCulture`, für Zahlen und Datum. Nur als Sprache
+    gespeichert bekommt so sein Format (`de` → `de-CH`); eine spezifische Kultur ohne Zuordnung bleibt, wie sie
+    ist (die Anpassungen aus `ConfigureCulture` greifen trotzdem).
+  - `SupportedCultures` — die wählbaren Kulturen: die `SupportedUICultures` des Hosts, wie konfiguriert, ohne
+    Doppelte. Wer `de-CH` und `de-DE` anbietet, lässt beide wählen; wer nur `de` anbietet, nur `de`.
+  - `FindSupportedCulture(culture)` — der passende Eintrag daraus (gleichnamig, sonst gleiche Sprache), zum
+    Vorbelegen einer Auswahl mit der UI-Kultur.
+  - Braucht keinen angemeldeten Benutzer: tauglich für Webhooks, anonyme Freigaben, Hintergrunddienste.
+- **Erfassung:** MudBlazor-Onboarding (`BillingProfileForm`: Sprache, vorbelegt mit der passenden UI-Kultur, und Zeitzone),
+  Telerik-Onboarding (`_RegisterCompany`: Sprache neu; die Zeitzone wurde dort schon abgefragt, aber **nie
+  gespeichert** — behoben). Nachträglich in der MudBlazor-Mandantenverwaltung (`TenantDialog`). Beide Werte landen
+  am **Tenant**, nicht am Firmenprofil.
+
+### 106.2 Breaking
+
+`ISecurityRepository.GetTenantLocale` hat **bewusst keine Default-Umsetzung**: ein Repository, das sie vergisst,
+soll nicht übersetzen, statt still „nichts gesetzt“ zu melden. Wer ein eigenes `ISecurityRepository` (oder einen
+Decorator, eine Testattrappe) hat, setzt sie um — ein Decorator reicht durch.
+
+### 106.3 Verhaltensänderung
+
+`GetTimeZoneHelper` im **Baum**-Kontext vererbt jetzt: eine Filiale ohne eigene Zeitzone bekam bisher die des
+Servers, jetzt die des nächsten übergeordneten Mandanten mit Zeitzone.
+
+### 106.4 Für den Host — manuelles SQL
+
+Die Security-Snapshots im Repo hinken hinterher; deshalb SQL statt generierter Migration.
+Die Spalte gehört in **jeden** Security-Kontext (Basic, CoreIdentity, CoreIdentityTree).
+
+```sql
+-- SQL Server
+ALTER TABLE [Tenants] ADD [Culture] nvarchar(16) NULL;
+```
+
+```sql
+-- PostgreSQL
+ALTER TABLE "Tenants" ADD "Culture" character varying(16) NULL;
+```
+
+**Nur Baum-Kontext (`CoreIdentityTree`), Pflicht:** `GetChildTenantsWithPermsProc` und
+`GetChildTenantsWithPermsByVpIdProc` (PostgreSQL: die gleichnamigen Funktionen) lesen `Tenants` mit fester
+Spaltenliste und werden über `Tenants.FromSqlRaw(…)` materialisiert. Ohne Neuausrollen fehlt `Culture` im Ergebnis
+und die Abfrage scheitert. Neu ausrollen mit einer eigenen, leeren Migration, die
+`SqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)` bzw. `PostgreSqlColumnsSyntaxHelper.ConfigureViews(migrationBuilder)`
+aufruft (wiederholbar; mit eigenem Schema wie in §96 über `UseSchemaAwareMigrations`). Die Reihenfolge ist egal,
+solange beides vor dem ersten Start mit dem neuen Paket passiert.
+
+### 106.5 Verwenden
+
+```csharp
+// z.B. beim Erzeugen eines Belegs, ohne angemeldeten Benutzer
+var culture = localeResolver.GetUICulture(tenantScope);      // Texte/Ressourcen
+var format  = localeResolver.GetCulture(tenantScope);        // Zahlen/Datum
+var zone    = localeResolver.GetTimeZone(tenantScope);
+```

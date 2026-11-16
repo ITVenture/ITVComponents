@@ -547,10 +547,10 @@ inner join [{schema}].[Users] u on u.id = tu.UserId");
                            inner join [{{schema}}].[Permissions] p on p.PermissionId = grp.PermissionId
                            inner join @permRaw rqr on p.PermissionName = rqr.value
                            
-                           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.TenantTypeId, t.TenantDirty 
+                           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.Culture, t.TenantTypeId, t.TenantDirty 
                            from @perm2T r
                            inner join [{{schema}}].[Tenants] t on t.TenantId = r.tenantId
-                           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.TenantTypeId, t.TenantDirty
+                           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.Culture, t.TenantTypeId, t.TenantDirty
                            END
                            """;
                 var urtIdFunc = $$"""
@@ -704,10 +704,10 @@ inner join [{schema}].[Users] u on u.id = tu.UserId");
            inner join [{{schema}}].[Permissions] p on p.PermissionId = grp.PermissionId
            inner join @permRaw rqr on p.PermissionName = rqr.value
            
-           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.TenantTypeId, t.TenantDirty 
+           select t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, null TenantPassword, t.TimeZone, t.Culture, t.TenantTypeId, t.TenantDirty 
            from @perm2T r
            inner join [{{schema}}].[Tenants] t on t.TenantId = r.tenantId
-           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.TenantTypeId, t.TenantDirty
+           group by t.TenantId, t.ParentTenantId, t.TenantName, t.DisplayName, t.TimeZone, t.Culture, t.TenantTypeId, t.TenantDirty
            END
            """;
 

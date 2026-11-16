@@ -258,6 +258,21 @@ namespace ITVComponents.WebCoreToolkit.Security
         TimeZoneHelper GetTimeZoneHelper(string permissionScopeName);
 
         /// <summary>
+        /// Gets the effective locale settings (time zone and language) stored for a tenant.
+        /// </summary>
+        /// <param name="permissionScopeName">the target permission scope</param>
+        /// <returns>
+        /// the stored values; a value that is empty on the tenant itself is taken from the nearest parent that has
+        /// one (where the implementation knows a tenant tree). <c>null</c> means: set nowhere. Host defaults are
+        /// NOT applied here - use <see cref="ITVComponents.WebCoreToolkit.Localization.ITenantLocaleResolver"/> for that.
+        /// </returns>
+        /// <remarks>
+        /// Deliberately without a default implementation: an implementation that forgets it must not compile,
+        /// instead of silently answering "nothing set".
+        /// </remarks>
+        TenantLocale GetTenantLocale(string permissionScopeName);
+
+        /// <summary>
         /// Decrypts a value with the appropriate settings
         /// </summary>
         /// <param name="encryptedValue">the encrypted value</param>

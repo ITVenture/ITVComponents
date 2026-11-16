@@ -96,7 +96,8 @@ public static class DependencyInjectionExtensions
                     ParentTenantId = tenant.ParentTenantId,
                     TenantId = tenant.TenantId,
                     TenantName = tenant.TenantName,
-                    TimeZone = tenant.TimeZone
+                    TimeZone = tenant.TimeZone,
+                    Culture = tenant.Culture
                 };
 
                 o.UpdateTenant = (tenant, model) =>
@@ -106,6 +107,7 @@ public static class DependencyInjectionExtensions
                     tenant.DisplayName = model.DisplayName;
                     tenant.TenantName = model.TenantName;
                     tenant.TimeZone = model.TimeZone;
+                    tenant.Culture = string.IsNullOrWhiteSpace(model.Culture) ? null : model.Culture.Trim();
                 };
                 o.ConfigureTree = (ctx, acs) =>
                 {

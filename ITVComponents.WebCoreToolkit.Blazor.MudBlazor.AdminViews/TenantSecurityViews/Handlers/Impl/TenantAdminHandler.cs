@@ -136,6 +136,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
                 TenantName = t.TenantName,
                 DisplayName = t.DisplayName,
                 TimeZone = t.TimeZone,
+                Culture = t.Culture,
                 TenantTypeId = t.TenantTypeId
             };
         }
@@ -171,6 +172,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             entity.TenantName = input.TenantName;
             entity.DisplayName = input.DisplayName;
             entity.TimeZone = input.TimeZone;
+            entity.Culture = string.IsNullOrWhiteSpace(input.Culture) ? null : input.Culture.Trim();
             entity.TenantTypeId = input.TenantTypeId;
         }
         else
@@ -200,6 +202,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
                 e.TenantName = i.TenantName;
                 e.DisplayName = i.DisplayName;
                 e.TimeZone = i.TimeZone;
+                e.Culture = string.IsNullOrWhiteSpace(i.Culture) ? null : i.Culture.Trim();
                 e.TenantTypeId = i.TenantTypeId;
             };
         }

@@ -59,6 +59,9 @@ namespace ITVComponents.WebCoreToolkit
         [ServiceRegistrationMethod]
         public static void RegisterServices(IServiceCollection services, WebPartInitOptions options)
         {
+            // Ohne Schalter: wird nur aufgeloest, wenn jemand ihn braucht, und braucht selbst nur das Repository.
+            services.AddTenantLocaleResolver();
+
             if (options.UseSimpleUserNameMapping)
             {
                 services.UseSimpleUserNameMapping();

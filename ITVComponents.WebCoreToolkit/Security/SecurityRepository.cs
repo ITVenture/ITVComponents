@@ -168,6 +168,8 @@ namespace ITVComponents.WebCoreToolkit.Security
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) =>
             Current.GetTimeZoneHelper(permissionScopeName);
 
+        public TenantLocale GetTenantLocale(string permissionScopeName) => Current.GetTenantLocale(permissionScopeName);
+
         public IEnumerable<ScopeInfo> GetEligibleScopes(string[] userLabels, string userAuthenticationType) => Current.GetEligibleScopes(userLabels,userAuthenticationType);
 
         public IReadOnlyList<TenantTreeNode> GetRootTenants(string[] userLabels, string userAuthenticationType) => Current.GetRootTenants(userLabels, userAuthenticationType);

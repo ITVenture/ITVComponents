@@ -226,6 +226,11 @@ namespace ITVComponents.WebCoreToolkit.Security.SharedAssets
             return decoratedRepo.GetTimeZoneHelper(permissionScopeName);
         }
 
+        public TenantLocale GetTenantLocale(string permissionScopeName)
+        {
+            return decoratedRepo.GetTenantLocale(permissionScopeName);
+        }
+
         public IEnumerable<Feature> GetFeatures(string permissionScopeName)
         {
             if (string.IsNullOrEmpty(permissionScopeName) || permissionScopeName.Equals(assignedUserScope,StringComparison.OrdinalIgnoreCase))

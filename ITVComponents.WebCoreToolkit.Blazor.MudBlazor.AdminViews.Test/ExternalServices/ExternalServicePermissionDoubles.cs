@@ -103,6 +103,7 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test.External
         public IEnumerable<Permission> GetPermissions(Role role) => throw new NotImplementedException();
         public bool PermissionScopeExists(string permissionScopeName) => throw new NotImplementedException();
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName) => throw new NotImplementedException();
+        public TenantLocale GetTenantLocale(string permissionScopeName) => throw new NotImplementedException();
         // Umkehrbar und am Mandanten erkennbar: die Tests pruefen, dass mit dem Schluessel des Dienstes verschluesselt wird.
         public string Decrypt(string encryptedValue, string permissionScopeName)
             => encryptedValue.StartsWith($"enc[{permissionScopeName}]:", StringComparison.Ordinal)

@@ -9,10 +9,17 @@
 @using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Resources
 @model ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.DTO.CompanyInputModel
 @inject IStringLocalizer<IdentityMessages> localizer
-@inject IWebHostEnvironment hostingEnvironment 
+@inject IWebHostEnvironment hostingEnvironment
+@inject ITVComponents.WebCoreToolkit.Localization.ITenantLocaleResolver tenantLocales
 @{
     var listOfTerms = localizer.FromJson<List<PrePostValLocalizationBlock>>("ListOfTerms");
     var listOfZones = TimeZoneTranslationHelper.GetTranslatedTimeZoneList();
+    // Nur die Sprachen, die der Host anbietet; vorbelegt mit der aktuellen UI-Sprache.
+    var listOfLanguages = tenantLocales.SupportedCultures.Select(c => new { Key = c.Name, Label = c.NativeName }).ToList();
+    if (Model != null && string.IsNullOrEmpty(Model.Culture))
+    {
+        Model.Culture = tenantLocales.FindSupportedCulture(System.Globalization.CultureInfo.CurrentUICulture)?.Name;
+    }
 }
 
 
@@ -90,6 +97,16 @@
                         <span asp-validation-for="TimeZone" class="text-danger"></span>
                     </div>
                 </div>
+                @if (listOfLanguages.Count != 0)
+                {
+                    <div class="row">
+                        <div class="form-group col-10">
+                            <label asp-for="Culture"></label>
+                            <kendo-dropdownlist for="Culture" bind-to="listOfLanguages" datavaluefield="Key" datatextfield="Label"></kendo-dropdownlist>
+                            <span asp-validation-for="Culture" class="text-danger"></span>
+                        </div>
+                    </div>
+                }
             </div>
             <div class="col-md-6 offset-md-1">
                 <div class="form-group">

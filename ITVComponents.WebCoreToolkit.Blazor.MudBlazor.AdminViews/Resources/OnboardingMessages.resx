@@ -74,6 +74,9 @@
   <data name="Onb_VatNumber" xml:space="preserve"><value>VAT number</value></data>
   <data name="Onb_ContactEmail" xml:space="preserve"><value>Contact e-mail</value></data>
   <data name="Onb_Phone" xml:space="preserve"><value>Phone</value></data>
+  <data name="Onb_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Onb_TimeZone" xml:space="preserve"><value>Time zone</value></data>
+  <data name="Onb_LocaleHint" xml:space="preserve"><value>Language and time zone of the documents this tenant issues (receipts, invoices, e-mails). Empty = inherited from the parent tenant or the system default.</value></data>
   <data name="Onb_ParentTenant" xml:space="preserve"><value>Parent tenant</value></data>
   <data name="Onb_ParentHint" xml:space="preserve"><value>Leave empty to create a top-level tenant.</value></data>
   <data name="Onb_DefaultAddress" xml:space="preserve"><value>Default address</value></data>

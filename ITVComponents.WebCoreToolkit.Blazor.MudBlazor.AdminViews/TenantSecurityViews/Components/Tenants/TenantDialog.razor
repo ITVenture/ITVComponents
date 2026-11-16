@@ -1,7 +1,26 @@
+@using ITVComponents.WebCoreToolkit.Localization
+@inject ITenantLocaleResolver Locales
+
 <EditDialogShell Model="Model" IsCreate="IsCreate">
     <MudTextField @bind-Value="Model.TenantName" Label="Tenant name" Required="true" RequiredError="Tenant name is required" />
     <MudTextField @bind-Value="Model.DisplayName" Label="Display name" />
     <MudTextField @bind-Value="Model.TimeZone" Label="Time zone" Placeholder="e.g. Europe/Zurich" />
+    @* Leer = geerbt (uebergeordneter Mandant bzw. Vorgabe des Hosts). Gewaehlt wird nur aus den Sprachen des
+       Hosts; fuehrt er keine Liste, bleibt es ein Textfeld. *@
+    @if (Locales.SupportedCultures.Count != 0)
+    {
+        <MudSelect T="string" @bind-Value="Model.Culture" Label="Language" Clearable="true"
+                   HelperText="Empty = inherited">
+            @foreach (var culture in Locales.SupportedCultures)
+            {
+                <MudSelectItem T="string" Value="@culture.Name">@culture.NativeName</MudSelectItem>
+            }
+        </MudSelect>
+    }
+    else
+    {
+        <MudTextField @bind-Value="Model.Culture" Label="Language" Placeholder="e.g. de-CH" HelperText="Empty = inherited" />
+    }
     <ForeignKeySelect T="int?" @bind-Value="Model.TenantTypeId" Table="TenantTypes" Label="Tenant type" />
     @if (UseHierarchy)
     {

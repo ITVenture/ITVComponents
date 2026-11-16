@@ -44,6 +44,18 @@ namespace ITVComponents.WebCoreToolkit.Extensions
     public static class DependencyExtensions
     {
         /// <summary>
+        /// Registers <see cref="ITenantLocaleResolver"/> (time zone and language of a tenant, with tree and host
+        /// fallback). Registered once; a host may replace it by registering its own implementation first.
+        /// </summary>
+        /// <param name="services">the service collection</param>
+        /// <returns>the service collection</returns>
+        public static IServiceCollection AddTenantLocaleResolver(this IServiceCollection services)
+        {
+            services.TryAddScoped<ITenantLocaleResolver, TenantLocaleResolver>();
+            return services;
+        }
+
+        /// <summary>
         /// Enables the culture prefix <c>/c/{culture}/…</c>: configures it and puts
         /// <see cref="CulturePathRequestCultureProvider"/> in FRONT of the other request-culture providers,
         /// so a language chosen in a URL beats the cookie and <c>Accept-Language</c>.

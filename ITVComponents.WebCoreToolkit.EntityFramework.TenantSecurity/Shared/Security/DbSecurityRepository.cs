@@ -1082,10 +1082,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// <returns>a helper object that performs datetime calculations</returns>
         public TimeZoneHelper GetTimeZoneHelper(string permissionScopeName)
         {
+            return new TimeZoneHelper(GetTenantLocale(permissionScopeName).ResolveTimeZone());
+        }
+
+        /// <inheritdoc />
+        public TenantLocale GetTenantLocale(string permissionScopeName)
+        {
             using var lease = LeaseContext();
-            var securityContext = lease.Context;
-            var timezone = GetTimeZone(permissionScopeName, securityContext);
-            return new TimeZoneHelper(timezone);
+            return ReadTenantLocale(permissionScopeName, lease.Context);
         }
 
         /// <summary>
@@ -1561,18 +1565,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         private string DecryptForOwner(string value, string ownerName)
             => string.IsNullOrEmpty(value) ? value : ownerName == null ? value.Decrypt() : Decrypt(value, ownerName);
 
-        private TimeZoneInfo GetTimeZone(string permissionScopeName, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
+        private TenantLocale ReadTenantLocale(string permissionScopeName, ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext)
         {
+            // Ohne Baum: nur der Mandant selbst. Ein unbekannter Mandant wirft (First), wie bisher bei der Zeitzone.
             using (new FullSecurityAccessHelper<TTrustConfig>(securityContext, ConfigureTrustConfig(new() { ShowAllTenants = true, HideGlobals = true})))
             {
-                var t = securityContext.Tenants.First(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
-                if (!string.IsNullOrEmpty(t.TimeZone))
-                {
-                    return TimeZoneInfo.FindSystemTimeZoneById(t.TimeZone);
-                }
+                var scope = (permissionScopeName ?? "").ToLower();
+                return securityContext.Tenants.Where(n => n.TenantNameLower == scope)
+                    .Select(n => new TenantLocale
+                    {
+                        TimeZone = n.TimeZone == "" ? null : n.TimeZone,
+                        Culture = n.Culture == "" ? null : n.Culture
+                    })
+                    .First();
             }
-
-            return TimeZoneInfo.Local;
         }
 
         /// <summary>

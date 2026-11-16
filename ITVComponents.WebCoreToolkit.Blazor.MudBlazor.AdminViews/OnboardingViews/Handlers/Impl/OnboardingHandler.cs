@@ -144,7 +144,9 @@ public class OnboardingHandler<TContext> : IOnboardingHandler
         {
             DisplayName = displayName,
             TenantName = Guid.NewGuid().ToString("N"),
-            TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey())
+            TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey()),
+            TimeZone = TenantLocaleInput.TimeZone(input.TimeZone, logger),
+            Culture = TenantLocaleInput.Culture(input.Culture, logger)
         };
         db.Tenants.Add(tenant);
 
