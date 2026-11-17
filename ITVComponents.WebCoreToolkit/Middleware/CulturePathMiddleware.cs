@@ -117,6 +117,7 @@ namespace ITVComponents.WebCoreToolkit.Middleware
             }
 
             context.Items[Global.CulturePathPrefixItemKey] = prefix;
+            context.Items[Global.CulturePathOuterPathBaseItemKey] = context.Request.PathBase.Value ?? string.Empty;
 
             // The prefix goes into PathBase exactly as it was written in the URL - not in the resolved
             // spelling. A Blazor base href is built from it, and the browser's URI has to start with it

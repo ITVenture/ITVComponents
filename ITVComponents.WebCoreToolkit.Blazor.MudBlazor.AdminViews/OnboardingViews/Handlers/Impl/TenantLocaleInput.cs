@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
 /// <summary>
-/// Bereitet Sprache und Zeitzone aus der Profil-Erfassung für den Tenant auf.
+/// Bereitet Sprache und Zeitzone aus der Profil-Erfassung (Onboarding und Firmenprofil) für den Tenant auf.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,7 +33,7 @@ internal static class TenantLocaleInput
             return id;
         }
 
-        logger.LogWarning("Onboarding: the time zone '{TimeZone}' is unknown on this server; the new tenant inherits its time zone instead.", id);
+        logger.LogWarning("Tenant locale: the time zone '{TimeZone}' is unknown on this server; the tenant inherits its time zone instead.", id);
         return null;
     }
 
@@ -52,7 +52,7 @@ internal static class TenantLocaleInput
             var culture = CultureInfo.GetCultureInfo(input.Trim());
             if (string.IsNullOrEmpty(culture.Name))
             {
-                logger.LogWarning("Onboarding: the invariant culture is not a tenant language; the new tenant inherits its language instead.");
+                logger.LogWarning("Tenant locale: the invariant culture is not a tenant language; the tenant inherits its language instead.");
                 return null;
             }
 
@@ -60,7 +60,7 @@ internal static class TenantLocaleInput
         }
         catch (CultureNotFoundException ex)
         {
-            logger.LogWarning(ex, "Onboarding: the language '{Culture}' is not a valid culture; the new tenant inherits its language instead.", input);
+            logger.LogWarning(ex, "Tenant locale: the language '{Culture}' is not a valid culture; the tenant inherits its language instead.", input);
             return null;
         }
     }

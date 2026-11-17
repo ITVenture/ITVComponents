@@ -1,0 +1,67 @@
+@namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Components.Shared
+@using ITVComponents.WebCoreToolkit.Localization
+@inject IStringLocalizer<OnboardingMessages> L
+@inject ITenantLocaleResolver Locales
+
+@* Sprache und Zeitzone des Mandanten - bei der Erfassung (Onboarding) und beim Nachtragen (Firmenprofil).
+   Sie landen am Tenant, nicht am Profil, und gelten fuer das, was er ausgibt (Belege, Mails). Leer = geerbt. *@
+<MudGrid Spacing="2">
+    <MudItem xs="12" sm="6">
+        @if (Locales.SupportedCultures.Count != 0)
+        {
+            <MudSelect T="string" Value="Culture" ValueChanged="CultureChanged" Label="@(L["Onb_Language"])" Clearable="true">
+                @foreach (var culture in Locales.SupportedCultures)
+                {
+                    <MudSelectItem T="string" Value="@culture.Name">@culture.NativeName</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        else
+        {
+            <MudTextField T="string" Value="Culture" ValueChanged="CultureChanged" Label="@(L["Onb_Language"])" Placeholder="de-CH" />
+        }
+    </MudItem>
+    <MudItem xs="12" sm="6">
+        <MudAutocomplete T="string" Value="TimeZone" ValueChanged="TimeZoneChanged" Label="@(L["Onb_TimeZone"])"
+                         SearchFunc="SearchTimeZones" ToStringFunc="TimeZoneText"
+                         CoerceValue="false" Clearable="true" ResetValueOnEmptyText="true" MaxItems="50" />
+    </MudItem>
+</MudGrid>
+<MudText Typo="Typo.caption">@L["Onb_LocaleHint"]</MudText>
+
+@code {
+    /// <summary>Die Kultur, wie gewaehlt (<c>de-CH</c>); leer = geerbt.</summary>
+    [Parameter] public string? Culture { get; set; }
+
+    [Parameter] public EventCallback<string?> CultureChanged { get; set; }
+
+    /// <summary>Die Zeitzone (<see cref="TimeZoneInfo.Id"/>); leer = geerbt.</summary>
+    [Parameter] public string? TimeZone { get; set; }
+
+    [Parameter] public EventCallback<string?> TimeZoneChanged { get; set; }
+
+    private static readonly IReadOnlyList<TimeZoneInfo> TimeZones = TimeZoneInfo.GetSystemTimeZones();
+
+    private Task<IEnumerable<string>> SearchTimeZones(string? text, CancellationToken token)
+    {
+        IEnumerable<TimeZoneInfo> result = TimeZones;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            result = result.Where(z => z.Id.Contains(text, StringComparison.OrdinalIgnoreCase)
+                                       || z.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult(result.Select(z => z.Id));
+    }
+
+    private static string TimeZoneText(string? id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return string.Empty;
+        }
+
+        var zone = TimeZones.FirstOrDefault(z => z.Id == id);
+        return zone == null ? id : $"{zone.DisplayName} ({zone.Id})";
+    }
+}

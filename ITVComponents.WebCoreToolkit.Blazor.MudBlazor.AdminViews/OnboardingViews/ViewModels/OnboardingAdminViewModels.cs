@@ -70,6 +70,19 @@ public class BillingProfileAdminViewModel
 
     public AddressInput InvoiceAddress { get; set; } = new();
 
+    /// <summary>
+    /// Die Sprache des Mandanten (<c>de-CH</c>, wie gewaehlt). Steht am Tenant, nicht am Profil; leer = geerbt.
+    /// Nur in der Detail-Projektion gefuellt.
+    /// </summary>
+    [MaxLength(16)]
+    public string? Culture { get; set; }
+
+    /// <summary>
+    /// Die Zeitzone des Mandanten (<see cref="TimeZoneInfo.Id"/>). Steht am Tenant, nicht am Profil; leer = geerbt.
+    /// Nur in der Detail-Projektion gefuellt.
+    /// </summary>
+    public string? TimeZone { get; set; }
+
     /// <summary>Number of employee rows on the profile (list display only).</summary>
     public int EmployeeCount { get; set; }
 

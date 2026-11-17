@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 109 | **Abmelden unter `/c/{sprache}`; Sprache und Zeitzone im Firmenprofil** | Kein Schema-Change. **Verhaltensänderung:** mit `AddCulturePath()` lässt der Pfad der Anmelde-Cookies das Kultur-Präfix weg (§109). **BREAKING (nur eigene Implementierungen):** `IOnboardingAdminHandler.NewBillingProfileAsync` ist neu. |
 | 108 | **Sprach-JSON zeigt nie mehr den Rohwert; Auszahlungs-Reiter in vier Sprachen** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** fehlt einem `{"de":…}`-Datensatz die Sprache und ein `Default`, erscheint `en` bzw. der erste Eintrag statt des JSON (einmal je Datensatz als Warnung im Log); bei invarianter Kultur gilt `Default` (§108). |
 | 107 | **Kultur-Präfix fällt auf die Elternsprache zurück** | Kein Schema-Change, nichts zu tun. `/c/fr-ch/…` ergibt bei angebotenem `fr` jetzt Französisch statt der Vorgabe, sofern `FallBackToParentUICultures` gesetzt ist (Vorgabe). **Verhaltensänderung:** die Warnung „not among the supported ones“ fällt für solche Adressen weg (§107). |
 | 106 | **Sprache je Mandant (`Tenants.Culture`), Zeitzone wird im Baum vererbt** | **Pflicht: Schema-Change** (Spalte `Tenants.Culture`, manuelles SQL §106.4) und beim **Baum**-Kontext Neuausrollen der Prozeduren/Funktionen (`ConfigureViews`). **Breaking:** `ISecurityRepository.GetTenantLocale(scope)` ohne Default-Umsetzung — eigene Repositories und Testattrappen müssen sie umsetzen. **Verhaltensänderung:** `GetTimeZoneHelper` vererbt im Baum. |
@@ -9512,3 +9513,45 @@ stand.
 
 Nichts zu tun. Wer eigene Module mit Sprach-JSON führt, gibt ihnen am besten ein `Default` mit — oder, wenn das
 Modul Code in einer eigenen Assembly ist, gleich Ressourcen.
+
+## 109. Abmelden unter `/c/{sprache}`; Sprache und Zeitzone im Firmenprofil — **kein Schema-Change; Verhaltensänderung**
+
+### 109.1 Abmelden unter einem Kultur-Präfix
+
+**Der Fall:** Wer unter `/c/de/…` unterwegs war, blieb nach `/Account/Logout` angemeldet.
+
+**Ursache:** `UseCulturePath()` läuft vor `UseAuthentication()` und schiebt das Präfix nach `PathBase`. Der
+Pfad eines Anmelde-Cookies richtet sich nach `PathBase`: Das Abmelden unter `/c/de` löschte das Cookie mit
+`Path=/c/de`, während das bei einer Anmeldung ohne Präfix geschriebene Cookie unter `/` stehen blieb. Umgekehrt
+galt eine Anmeldung unter `/c/de` nur unter diesem Präfix.
+
+**Was jetzt gilt:** `AddCulturePath()` gibt jedem Cookie-Anmeldeschema (auch Identitys Application-,
+External- und 2FA-Cookies) einen `CulturePathCookieBuilder`. Der Cookie-Pfad folgt weiter `PathBase`,
+nur ohne das Kultur-Präfix (`/c/de` → `/`, `/app/c/de-CH` → `/app`). Beim Abmelden unter einem Präfix wird
+zusätzlich ein früher dort geschriebenes Cookie gelöscht. So bleibt niemand an einem Altbestand angemeldet.
+
+- Ein ausdrücklich gesetzter `Cookie.Path` bleibt unangetastet (Debug-Meldung).
+- Ein eigener Cookie-Builder bleibt ebenfalls unangetastet. Dazu steht eine Warnung im Log: Unter einem Präfix
+  kann sein Pfad das Präfix enthalten. Abhilfe ist ein ausdrücklicher `Cookie.Path`.
+- Mit `EventsType` (Ereignisse aus DI) entfällt nur das Aufräumen alter Cookies beim Abmelden (Debug-Meldung).
+  Der Pfad stimmt trotzdem.
+- Das Antiforgery-Cookie ist nicht betroffen. Es bleibt je Präfix, und das stört nicht, weil Formular und
+  Cookie immer unter demselben Präfix entstehen.
+
+### 109.2 Sprache und Zeitzone im Firmenprofil
+
+`/Onboarding/BillingProfile` zeigt jetzt dieselben Felder für Sprache und Zeitzone wie die Erfassung beim
+Onboarding (gemeinsame Komponente `TenantLocaleFields`). Gespeichert werden sie am **Mandanten**, mit dem
+Speichern des Profils und unter derselben Berechtigung (`Onboarding.Admin.BillingProfile.Write`). Gezeigt
+wird der gespeicherte Wert, nicht der aufgelöste: Leer heisst geerbt.
+
+- `BillingProfileAdminViewModel.Culture` / `.TimeZone` sind neu und nur in der Detail-Projektion gefüllt.
+- `IOnboardingAdminHandler.NewBillingProfileAsync` (neu) liefert das leere Profil eines Mandanten ohne
+  Profil, samt seiner Sprache und Zeitzone. Sonst würde das erste Speichern sie leeren.
+- Ungültige Werte werden wie beim Onboarding nicht gespeichert (Warnung im Log, der Mandant erbt).
+
+### 109.3 Für den Host
+
+Nichts zu tun. Wer `IOnboardingAdminHandler` selbst implementiert, ergänzt `NewBillingProfileAsync`. Nach dem
+Update meldet man sich am besten einmal ab und wieder an. Ein unter einem Präfix gespeichertes Alt-Cookie
+verschwindet beim nächsten Abmelden unter diesem Präfix.

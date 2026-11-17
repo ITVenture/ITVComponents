@@ -88,6 +88,10 @@ namespace ITVComponents.WebCoreToolkit.Extensions
                 }
             });
 
+            // The prefix sits in PathBase by the time UseAuthentication() runs - without this, the sign-in
+            // cookie would be scoped to the language and a sign-out under a prefix would miss it.
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Options.IPostConfigureOptions<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>, CulturePathCookieSetup>());
+
             return services;
         }
 

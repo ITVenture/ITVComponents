@@ -49,31 +49,7 @@
             </MudItem>
         </MudGrid>
 
-        @* Sprache und Zeitzone des Mandanten: sie landen am Tenant, nicht am Profil, und gelten fuer das, was
-           er ausgibt (Belege, Mails). Leer = geerbt. *@
-        <MudGrid Spacing="2">
-            <MudItem xs="12" sm="6">
-                @if (Locales.SupportedCultures.Count != 0)
-                {
-                    <MudSelect T="string" @bind-Value="Model.Culture" Label="@(L["Onb_Language"])" Clearable="true">
-                        @foreach (var culture in Locales.SupportedCultures)
-                        {
-                            <MudSelectItem T="string" Value="@culture.Name">@culture.NativeName</MudSelectItem>
-                        }
-                    </MudSelect>
-                }
-                else
-                {
-                    <MudTextField @bind-Value="Model.Culture" Label="@(L["Onb_Language"])" Placeholder="de-CH" For="@(() => Model.Culture)" />
-                }
-            </MudItem>
-            <MudItem xs="12" sm="6">
-                <MudAutocomplete T="string" @bind-Value="Model.TimeZone" Label="@(L["Onb_TimeZone"])"
-                                 SearchFunc="SearchTimeZones" ToStringFunc="TimeZoneText"
-                                 CoerceValue="false" Clearable="true" ResetValueOnEmptyText="true" MaxItems="50" />
-            </MudItem>
-        </MudGrid>
-        <MudText Typo="Typo.caption">@L["Onb_LocaleHint"]</MudText>
+        <TenantLocaleFields @bind-Culture="Model.Culture" @bind-TimeZone="Model.TimeZone" />
     </MudStack>
 </MudPaper>
 
@@ -158,8 +134,6 @@
     private bool narrow;
     private BillingProfileViewModel? localePrefilledFor;
 
-    private static readonly IReadOnlyList<TimeZoneInfo> TimeZones = TimeZoneInfo.GetSystemTimeZones();
-
     protected override void OnParametersSet()
     {
         // Vorbelegung der Sprache mit der aktuellen UI-Sprache - einmal je Modell und nur, wenn noch nichts
@@ -176,29 +150,6 @@
 
     /// <summary>Der angebotene Eintrag, der zur aktuellen UI-Kultur passt (gleichnamig, sonst gleiche Sprache).</summary>
     private string? CurrentLanguage() => Locales.FindSupportedCulture(CultureInfo.CurrentUICulture)?.Name;
-
-    private Task<IEnumerable<string>> SearchTimeZones(string? text, CancellationToken token)
-    {
-        IEnumerable<TimeZoneInfo> result = TimeZones;
-        if (!string.IsNullOrWhiteSpace(text))
-        {
-            result = result.Where(z => z.Id.Contains(text, StringComparison.OrdinalIgnoreCase)
-                                       || z.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return Task.FromResult(result.Select(z => z.Id));
-    }
-
-    private static string TimeZoneText(string? id)
-    {
-        if (string.IsNullOrEmpty(id))
-        {
-            return string.Empty;
-        }
-
-        var zone = TimeZones.FirstOrDefault(z => z.Id == id);
-        return zone == null ? id : $"{zone.DisplayName} ({zone.Id})";
-    }
 
     /// <summary>
     /// Hebt die Zustimmung hervor, die beim Abschicken gefehlt hat; ein Schluessel aus einem anderen Feld

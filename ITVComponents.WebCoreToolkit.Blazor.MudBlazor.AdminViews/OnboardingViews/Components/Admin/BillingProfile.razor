@@ -96,6 +96,8 @@ else
                                 </MudItem>
                             </MudGrid>
 
+                            <TenantLocaleFields @bind-Culture="model.Culture" @bind-TimeZone="model.TimeZone" />
+
                             <MudText Typo="Typo.subtitle1" Class="mt-3 mb-1">@L["Onb_DefaultAddress"]</MudText>
                             <AddressEditor Title="@L["Onb_DefaultAddress"]" Address="model.DefaultAddress" />
 
@@ -217,13 +219,16 @@ else
 
     // A tenant has at most one billing profile: take the first if present, otherwise start an empty model
     // (an implicit create on first save). The list projection has no addresses, so re-load the full profile.
+    // The empty model comes from the handler too: it carries the tenant's language and time zone, which the
+    // first save would otherwise wipe.
     private async Task LoadProfile()
     {
         var profiles = await Handler.ListBillingProfilesAsync(currentUser!);
         var first = profiles.FirstOrDefault();
         model = first is not null
-            ? await Handler.GetBillingProfileAsync(currentUser!, first.BillingProfileId) ?? new BillingProfileAdminViewModel()
-            : new BillingProfileAdminViewModel();
+            ? await Handler.GetBillingProfileAsync(currentUser!, first.BillingProfileId)
+            : await Handler.NewBillingProfileAsync(currentUser!);
+        model ??= new BillingProfileAdminViewModel();
 
         await DescribeCustomAsync();
     }

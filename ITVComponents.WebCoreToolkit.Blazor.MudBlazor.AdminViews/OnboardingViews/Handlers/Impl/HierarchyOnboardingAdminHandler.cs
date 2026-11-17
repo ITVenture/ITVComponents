@@ -7,6 +7,7 @@ using ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.V
 using ITVComponents.WebCoreToolkit.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.OnboardingViews.Handlers.Impl;
 
@@ -22,12 +23,15 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
     private readonly IDbContextFactory<TContext> dbFactory;
     private readonly UserManager<User> userManager;
     private readonly IServiceProvider services;
+    private readonly ILogger logger;
 
-    public HierarchyOnboardingAdminHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager, IServiceProvider services)
+    public HierarchyOnboardingAdminHandler(IDbContextFactory<TContext> dbFactory, UserManager<User> userManager, IServiceProvider services,
+        ILogger<HierarchyOnboardingAdminHandler<TContext>> logger)
     {
         this.dbFactory = dbFactory;
         this.userManager = userManager;
         this.services = services;
+        this.logger = logger;
     }
 
     public bool HasPermission(params string[] permissions) => services.VerifyUserPermissions(permissions);
@@ -121,7 +125,7 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             return null;
         }
 
-        return new BillingProfileAdminViewModel
+        var model = new BillingProfileAdminViewModel
         {
             BillingProfileId = p.BillingProfileId,
             TenantId = p.TenantId,
@@ -136,6 +140,43 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
             DefaultAddress = OnboardingAdminHelper.ToInput(p.DefaultAddress),
             InvoiceAddress = OnboardingAdminHelper.ToInput(p.InvoiceAddress)
         };
+
+        await FillTenantLocaleAsync(db, current, model, ct);
+        return model;
+    }
+
+    public async Task<BillingProfileAdminViewModel?> NewBillingProfileAsync(ClaimsPrincipal admin, CancellationToken ct = default)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var (ok, current) = Authorize(db, OnboardingAdminPermissions.BillingProfileRead);
+        if (!ok)
+        {
+            return null;
+        }
+
+        var model = new BillingProfileAdminViewModel { TenantId = current };
+        await FillTenantLocaleAsync(db, current, model, ct);
+        return model;
+    }
+
+    /// <summary>
+    /// Sprache und Zeitzone stehen am Mandanten, nicht am Profil - so, wie sie gespeichert sind (leer = geerbt),
+    /// nicht der aufgeloeste Wert.
+    /// </summary>
+    private async Task FillTenantLocaleAsync(TContext db, int tenantId, BillingProfileAdminViewModel model, CancellationToken ct)
+    {
+        var locale = await db.Tenants.AsNoTracking()
+            .Where(t => t.TenantId == tenantId)
+            .Select(t => new { t.Culture, t.TimeZone })
+            .FirstOrDefaultAsync(ct);
+        if (locale == null)
+        {
+            logger.LogWarning("Billing profile: tenant {TenantId} was not found; language and time zone are shown empty.", tenantId);
+            return;
+        }
+
+        model.Culture = locale.Culture;
+        model.TimeZone = locale.TimeZone;
     }
 
     public async Task<int?> SaveBillingProfileAsync(ClaimsPrincipal admin, BillingProfileAdminViewModel model, CancellationToken ct = default)
@@ -178,6 +219,19 @@ public class HierarchyOnboardingAdminHandler<TContext> : IOnboardingAdminHandler
         var fallback = model.DisplayName;
         profile.DefaultAddress = Apply(profile.DefaultAddress, model.DefaultAddress, fallback);
         profile.InvoiceAddress = model.UseInvoiceAddr ? Apply(profile.InvoiceAddress, model.InvoiceAddress, fallback) : null;
+
+        // Sprache und Zeitzone gehoeren dem Mandanten; sie werden mit dem Profil gespeichert, weil sie dort
+        // erfasst werden - wie beim Onboarding.
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.TenantId == current, ct);
+        if (tenant != null)
+        {
+            tenant.Culture = TenantLocaleInput.Culture(model.Culture, logger);
+            tenant.TimeZone = TenantLocaleInput.TimeZone(model.TimeZone, logger);
+        }
+        else
+        {
+            logger.LogError("Billing profile: tenant {TenantId} was not found; its language and time zone were not saved.", current);
+        }
 
         await db.SaveChangesAsync(ct);
         return profile.BillingProfileId;

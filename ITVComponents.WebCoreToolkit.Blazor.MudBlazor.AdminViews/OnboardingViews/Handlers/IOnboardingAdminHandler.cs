@@ -65,12 +65,22 @@ public interface IOnboardingAdminHandler
     /// <summary>Lists the billing profiles of the current scope tenant (summary projection).</summary>
     Task<BillingProfileAdminViewModel[]> ListBillingProfilesAsync(ClaimsPrincipal admin, CancellationToken ct = default);
 
-    /// <summary>Loads a single billing profile (including addresses) for editing; null if not in scope.</summary>
+    /// <summary>
+    /// Loads a single billing profile (including addresses and the tenant's stored language and time zone) for
+    /// editing; null if not in scope.
+    /// </summary>
     Task<BillingProfileAdminViewModel?> GetBillingProfileAsync(ClaimsPrincipal admin, int billingProfileId, CancellationToken ct = default);
 
     /// <summary>
-    /// Creates (BillingProfileId == 0) or updates a billing profile in the current scope tenant. Returns the
-    /// profile id, or null when not authorized / out of scope.
+    /// The empty profile for a tenant that has none yet - carrying the tenant's stored language and time zone,
+    /// so that saving the first profile does not wipe them. Null when not authorized.
+    /// </summary>
+    Task<BillingProfileAdminViewModel?> NewBillingProfileAsync(ClaimsPrincipal admin, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates (BillingProfileId == 0) or updates a billing profile in the current scope tenant, and stores
+    /// <see cref="BillingProfileAdminViewModel.Culture"/> / <see cref="BillingProfileAdminViewModel.TimeZone"/>
+    /// on the tenant (empty = inherited). Returns the profile id, or null when not authorized / out of scope.
     /// </summary>
     Task<int?> SaveBillingProfileAsync(ClaimsPrincipal admin, BillingProfileAdminViewModel model, CancellationToken ct = default);
 

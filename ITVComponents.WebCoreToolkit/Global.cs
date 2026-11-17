@@ -91,6 +91,13 @@
         /// </summary>
         public const string CulturePathPrefixItemKey = "ITVComponents.WebCoreToolkit.CulturePathPrefix";
 
+        /// <summary>
+        /// Key under which the <c>PathBase</c> as it was BEFORE the culture prefix was added (an IIS virtual
+        /// directory, or empty) is stored in <c>HttpContext.Items</c>. Cookies take their path from it: they
+        /// belong to the application, not to the language it is currently read in.
+        /// </summary>
+        public const string CulturePathOuterPathBaseItemKey = "ITVComponents.WebCoreToolkit.CulturePathOuterPathBase";
+
         public const string AppUserKeyIndicatorFormat = "##APPUSER##{0}#";
 
         public const string AppUserKeyPattern = "^##APPUSER##(?<appUserKey>[^#]+)#$";
