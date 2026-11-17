@@ -30,6 +30,12 @@ namespace ITVComponents.UpdateService.Agents
 
         public DateTimeOffset RegisteredUtc { get; init; }
 
+        /// <summary>
+        /// Gets a value indicating whether the instance said it is active when it registered. A hint for a service that
+        /// restarted and does not know yet which instance is active - nothing else.
+        /// </summary>
+        public bool ClaimedActive { get; init; }
+
         /// <inheritdoc />
         public override string ToString() => $"{UserName} (session {SessionId}, process {ProcessId}, version {Version})";
     }
@@ -54,6 +60,11 @@ namespace ITVComponents.UpdateService.Agents
         public event EventHandler<RegisteredAgent>? AgentLeft;
 
         /// <summary>
+        /// Is raised when an application registered (also again, over the same connection).
+        /// </summary>
+        public event EventHandler<RegisteredAgent>? AgentRegistered;
+
+        /// <summary>
         /// Gets the registered applications.
         /// </summary>
         public IReadOnlyList<RegisteredAgent> Active => agents.Values.ToArray();
@@ -64,11 +75,14 @@ namespace ITVComponents.UpdateService.Agents
         /// <param name="caller">the identity the pipe hub read from the operating system</param>
         /// <param name="productId">the product the caller claims to belong to</param>
         /// <param name="version">the version it claims to have (shown only, never trusted for a decision)</param>
+        /// <param name="claimsActive">whether the instance says it is active (a hint after a restart of the service)</param>
         /// <param name="reason">why the registration was refused</param>
+        /// <param name="runningInstance">the instance that already runs in the same session, if that is the reason</param>
         /// <returns>the registration, or null when refused</returns>
-        public RegisteredAgent? Register(ClaimsIdentity? caller, string productId, string version, out string? reason)
+        public RegisteredAgent? Register(ClaimsIdentity? caller, string productId, string version, bool claimsActive, out string? reason, out RegisteredAgent? runningInstance)
         {
             reason = null;
+            runningInstance = null;
             if (caller == null || caller.AuthenticationType != PipeClaimTypes.AuthenticationType)
             {
                 reason = "Only an application on this machine, connected through the service's pipe, can register.";
@@ -88,18 +102,42 @@ namespace ITVComponents.UpdateService.Agents
                 return null;
             }
 
+            var connectionId = caller.FindFirst(PipeClaimTypes.ConnectionId)?.Value ?? string.Empty;
+            var sessionId = int.Parse(caller.FindFirst(PipeClaimTypes.SessionId)?.Value ?? "-1", CultureInfo.InvariantCulture);
+            runningInstance = agents.Values.FirstOrDefault(a => a.SessionId == sessionId && a.ConnectionId != connectionId);
+            if (runningInstance != null)
+            {
+                reason = $"The application already runs in this session (process {runningInstance.ProcessId}, {runningInstance.UserName}).";
+                return null;
+            }
+
             var agent = new RegisteredAgent
             {
-                ConnectionId = caller.FindFirst(PipeClaimTypes.ConnectionId)?.Value ?? string.Empty,
+                ConnectionId = connectionId,
                 UserName = caller.Name ?? string.Empty,
-                SessionId = int.Parse(caller.FindFirst(PipeClaimTypes.SessionId)?.Value ?? "-1", CultureInfo.InvariantCulture),
+                SessionId = sessionId,
+                ClaimedActive = claimsActive,
                 ProcessId = int.Parse(caller.FindFirst(PipeClaimTypes.ProcessId)?.Value ?? "0", CultureInfo.InvariantCulture),
                 ProcessPath = processPath,
                 Version = version,
                 RegisteredUtc = DateTimeOffset.UtcNow
             };
+            var again = agents.ContainsKey(agent.ConnectionId);
             agents[agent.ConnectionId] = agent;
-            LogEnvironment.LogEvent($"Application registered: {agent}.", LogSeverity.Report);
+            if (!again)
+            {
+                LogEnvironment.LogEvent($"Application registered: {agent}.", LogSeverity.Report);
+            }
+
+            try
+            {
+                AgentRegistered?.Invoke(this, agent);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"A listener on the registration of {agent} failed: {ex.OutlineException()}", LogSeverity.Error);
+            }
+
             return agent;
         }
 

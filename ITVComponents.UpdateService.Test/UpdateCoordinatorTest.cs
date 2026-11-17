@@ -254,7 +254,7 @@ namespace ITVComponents.UpdateService.Test
             identity.AddClaim(new Claim(PipeClaimTypes.ConnectionId, Guid.NewGuid().ToString()));
             identity.AddClaim(new Claim(PipeClaimTypes.SessionId, session.ToString()));
             identity.AddClaim(new Claim(PipeClaimTypes.ProcessId, (1000 + session).ToString()));
-            return registry.Register(identity, "Shop.Agent", "1.4.1", out _)!;
+            return registry.Register(identity, "Shop.Agent", "1.4.1", false, out _, out _)!;
         }
 
         private sealed class ManualClock : TimeProvider

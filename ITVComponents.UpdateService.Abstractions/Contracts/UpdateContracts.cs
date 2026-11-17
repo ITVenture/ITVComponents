@@ -93,6 +93,33 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
     }
 
     /// <summary>
+    /// What an instance of the application may do. Of all instances on a machine, one is active; the others wait.
+    /// </summary>
+    public enum AgentRole
+    {
+        /// <summary>The instance waits: no hub connection, no devices.</summary>
+        Waiting = 0,
+
+        /// <summary>The instance is active: it connects to the hub and holds the devices.</summary>
+        Active = 1
+    }
+
+    /// <summary>
+    /// The instruction to one instance to take over or release.
+    /// </summary>
+    public sealed class RoleChange
+    {
+        /// <summary>Gets or sets the process the instruction is for.</summary>
+        public int ProcessId { get; set; }
+
+        /// <summary>Gets or sets the session of that process.</summary>
+        public int SessionId { get; set; }
+
+        /// <summary>Gets or sets the new role.</summary>
+        public AgentRole Role { get; set; }
+    }
+
+    /// <summary>
     /// How the service sees an application that announced itself.
     /// </summary>
     public sealed class AgentRegistration
@@ -102,6 +129,21 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets why not.</summary>
         public string? Reason { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the registration was refused because the application already runs in
+        /// the same session. The new instance should end.
+        /// </summary>
+        public bool AlreadyRunning { get; set; }
+
+        /// <summary>Gets or sets the role the instance starts with.</summary>
+        public AgentRole Role { get; set; }
+
+        /// <summary>Gets or sets the session of the active instance, if another one is active.</summary>
+        public int? ActiveSessionId { get; set; }
+
+        /// <summary>Gets or sets the user of the active instance, if another one is active ("runs already under user X").</summary>
+        public string? ActiveUserName { get; set; }
 
         /// <summary>Gets or sets the Windows session of the application, as the operating system reports it.</summary>
         public int SessionId { get; set; }
@@ -134,6 +176,8 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
             register(typeof(ShutdownRequest), "itv.update.shutdown");
             register(typeof(ShutdownReason), "itv.update.shutdownreason");
             register(typeof(AgentRegistration), "itv.update.registration");
+            register(typeof(AgentRole), "itv.update.role");
+            register(typeof(RoleChange), "itv.update.rolechange");
         }
     }
 }

@@ -43,8 +43,16 @@ namespace ITVComponents.UpdateService.Client
     /// to the events, defers while it is busy, and ends when asked.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Without a service (development, <c>dotnet run</c>) the client keeps trying in the background and says so once in
-    /// the log; the application works on.
+    /// the log; the application works on - and counts as active.
+    /// </para>
+    /// <para>
+    /// With several sessions, only one instance is active (<see cref="Role"/>). When <see cref="RoleChanged"/> says
+    /// <see cref="AgentRole.Waiting"/>, the application disconnects from the hub, releases its devices and then calls
+    /// <see cref="ReportReleasedAsync"/>; when it says <see cref="AgentRole.Active"/>, it takes over. If the registration is
+    /// refused with <see cref="AlreadyRunning"/>, another instance runs in the same session and this one should end.
+    /// </para>
     /// </remarks>
     [SupportedOSPlatform("windows")]
     public sealed class UpdateServiceClient : IDisposable
@@ -78,6 +86,23 @@ namespace ITVComponents.UpdateService.Client
         /// Is raised when the state of the updates changes.
         /// </summary>
         public event Action<UpdateStatus>? StatusChanged;
+
+        /// <summary>
+        /// Is raised when this instance is to take over (<see cref="AgentRole.Active"/>) or to release
+        /// (<see cref="AgentRole.Waiting"/>).
+        /// </summary>
+        public event Action<AgentRole>? RoleChanged;
+
+        /// <summary>
+        /// Gets the role of this instance. Without a service it is <see cref="AgentRole.Active"/>: nobody else decides.
+        /// </summary>
+        public AgentRole Role { get; private set; } = AgentRole.Active;
+
+        /// <summary>
+        /// Gets a value indicating whether the registration was refused because the application already runs in this
+        /// session (see <see cref="Registration"/> for who). The instance should end.
+        /// </summary>
+        public bool AlreadyRunning { get; private set; }
 
         /// <summary>
         /// Gets a value indicating whether the service is connected and the application registered.
@@ -147,6 +172,24 @@ namespace ITVComponents.UpdateService.Client
             return current != null && await Call(() => current.DeferAsync((int)Math.Ceiling(duration.TotalMinutes), reason)).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Confirms that this instance has released the hub connection and the devices after being asked to.
+        /// </summary>
+        public async Task ReportReleasedAsync()
+        {
+            var current = Facade();
+            if (current == null)
+            {
+                return;
+            }
+
+            await Call(async () =>
+            {
+                await current.ReportReleasedAsync().ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+        }
+
         /// <inheritdoc />
         public void Dispose()
         {
@@ -204,11 +247,15 @@ namespace ITVComponents.UpdateService.Client
                     var proxy = client.CreateProxy<IUpdateServiceFacade>(UpdateContractTypes.FacadeObjectName);
                     proxy.ShutdownRequested += OnShutdownRequested;
                     proxy.StatusChanged += OnStatusChanged;
-                    var registration = proxy.RegisterAsync(options.ProductId, options.Version).ConfigureAwait(false).GetAwaiter().GetResult();
+                    proxy.RoleChanged += OnRoleChanged;
+                    var registration = proxy.RegisterAsync(options.ProductId, options.Version, Role == AgentRole.Active).ConfigureAwait(false).GetAwaiter().GetResult();
                     if (!registration.Accepted)
                     {
-                        LogEnvironment.LogEvent($"The update service refused the registration: {registration.Reason}", LogSeverity.Error);
+                        LogEnvironment.LogEvent($"The update service refused the registration: {registration.Reason}",
+                            registration.AlreadyRunning ? LogSeverity.Warning : LogSeverity.Error);
                         RefusalReason = registration.Reason;
+                        AlreadyRunning = registration.AlreadyRunning;
+                        Registration = registration;
                         Disconnect();
                         refused = true;
                         reconnect.Change(Timeout.Infinite, Timeout.Infinite);
@@ -236,10 +283,38 @@ namespace ITVComponents.UpdateService.Client
                 }
             }
 
-            if (Registration?.Status != null)
+            var accepted = Registration;
+            if (accepted is { Accepted: true })
             {
-                OnStatusChanged(Registration.Status);
+                SetRole(accepted.Role);
+                if (accepted.Status != null)
+                {
+                    OnStatusChanged(accepted.Status);
+                }
             }
+        }
+
+        private void OnRoleChanged(RoleChange change)
+        {
+            // Every instance receives every change; only the one for this process counts.
+            if (change.ProcessId != Registration?.ProcessId)
+            {
+                return;
+            }
+
+            SetRole(change.Role);
+        }
+
+        private void SetRole(AgentRole role)
+        {
+            if (Role == role)
+            {
+                return;
+            }
+
+            Role = role;
+            LogEnvironment.LogEvent(role == AgentRole.Active ? "This instance takes over." : "This instance is asked to release and wait.", LogSeverity.Report);
+            Forward(RoleChanged, role);
         }
 
         /// <summary>
@@ -262,10 +337,14 @@ namespace ITVComponents.UpdateService.Client
 
             try
             {
-                var registration = current.RegisterAsync(options.ProductId, options.Version).ConfigureAwait(false).GetAwaiter().GetResult();
+                var registration = current.RegisterAsync(options.ProductId, options.Version, Role == AgentRole.Active).ConfigureAwait(false).GetAwaiter().GetResult();
                 if (!registration.Accepted)
                 {
                     LogEnvironment.LogEvent($"The update service no longer accepts the application: {registration.Reason}", LogSeverity.Error);
+                }
+                else
+                {
+                    SetRole(registration.Role);
                 }
             }
             catch (Exception ex)

@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 113 | **Update-Dienst (Phase 2): eine aktive Instanz, Übergabe zwischen Sitzungen** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade.RegisterAsync` hat den Parameter `currentlyActive`, neu sind `ReportReleasedAsync` und `RoleChanged`. |
 | 112 | **Update-Dienst (Phase 1); Korrektur der Typbeschränkung aus §110** | Kein Schema-Change. Neu: `ITVComponents.UpdateService(.Abstractions/.Client)`. **Korrektur:** `RestrictArgumentTypes` (§110) liess Proxy-Aufrufe leer ankommen und war über den deklarierten Parametertyp zu umgehen (§112.2). |
 | 111 | **GenericService: Sitzungswechsel, Startfehler** | Kein Schema-Change, nichts zu tun. Neu: `ITVComponents.GenericService.Windows`. Opt-in: Einstellung `FailOnStartupError`. |
 | 110 | **IPC über Named Pipe (neues Paket); Identität und Typen am Message-Server** | Kein Schema-Change. Neu: `ITVComponents.InterProcessCommunication.NamedPipe`. **Verhaltensänderung:** `JsonSettingsSecurityRepository` vergleicht Benutzer- und Rollennamen ohne Gross-/Kleinschreibung, ein Benutzer ohne Authentifizierungsart gilt auch bei den Berechtigungen für alle Arten (§110.4). Opt-in am `MessageServer`: `TrustClientIdentity`, `RestrictArgumentTypes`. |
@@ -9766,3 +9767,68 @@ Zwei Fehler in §110:
 
 **Für den Host:** Nichts zu tun. Wer `NamedPipeServer` oder `RestrictArgumentTypes` schon verwendet, bekommt mit
 diesem Stand erst die beabsichtigte Wirkung. Ohne Beschränkung ändert sich nichts.
+
+## 113. Update-Dienst (Phase 2): eine aktive Instanz, Übergabe zwischen Sitzungen — **kein Schema-Change**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, Abschnitte 6 und 7.
+
+### 113.1 Die Regel
+
+Auf einer Maschine können mehrere Sitzungen die Anwendung ausführen: schneller Benutzerwechsel, Konsole und Remote
+Desktop. Das Backend lässt aber nur eine aktive Instanz je ClientApp zu. Deshalb entscheidet der Dienst, denn nur er
+sieht alle Sitzungen (`RoleCoordinator`):
+
+- **Eine Instanz ist aktiv**, alle anderen warten. Eine wartende Instanz ist mit dem Dienst verbunden, aber nicht mit
+  dem Hub, und hält keine Geräte.
+- **Sperren allein ist kein Grund für einen Wechsel.** Eine gesperrte Kasse ohne andere Sitzung bleibt verbunden.
+- **Wird eine andere Sitzung interaktiv** (Anmelden, Entsperren, Konsole oder Remote verbunden), übernimmt deren
+  Instanz.
+- **Sind mehrere Sitzungen interaktiv, hat die Konsole Vorrang.**
+- **Die Übergabe läuft geordnet ab:**
+  1. Die aktive Instanz bekommt `RoleChanged` mit `Waiting`.
+  2. Sie trennt sich vom Hub, gibt die Geräte frei und bestätigt mit `ReportReleasedAsync`.
+  3. Erst danach bekommt die neue Instanz `Active`. Bleibt die Bestätigung aus, übergibt der Dienst nach 15 s
+     trotzdem.
+- **Endet die aktive Instanz**, übernimmt eine wartende.
+- **Wird eine Sitzung interaktiv, ohne dass dort eine Instanz läuft**, startet der Dienst eine. Nach einer Anmeldung
+  wartet er dafür 60 s, damit der Autostart zuerst zum Zug kommt. Nach Entsperren oder Verbinden wartet er 15 s.
+  Solange ein Update die Anwendung unten hält, startet er keine.
+- **Eine zweite Instanz in derselben Sitzung** wird abgelehnt (`AlreadyRunning`, dazu Sitzung und Benutzer der
+  laufenden Instanz). Sie soll sich beenden. Das ersetzt den globalen Mutex.
+- **Nach einem Neustart des Dienstes** kennt der Dienst die aktive Instanz nicht mehr. Bei der erneuten Anmeldung sagt
+  jede Instanz, ob sie aktiv war (`currentlyActive`). Das ist nur ein Hinweis: Er verhindert, dass eine zweite
+  Instanz übernimmt, solange die erste noch die Geräte hält.
+
+### 113.2 Voraussetzungen
+
+- Der Dienst läuft mit `UseGenericWindowsService()` (§111), damit er die Sitzungswechsel erfährt.
+- Das Plugin bekommt `$serviceSessionEvents` als vierten Parameter:
+  `[ITVComponents.UpdateService]<ITVComponents.UpdateService.UpdateServicePlugin>($hub, $pipe, "ITVenture:UpdateService", $serviceSessionEvents)`.
+- Fehlen die Sitzungsmeldungen, schreibt der Dienst eine Warnung ins Log. Ohne sie gibt es keine Übergabe zwischen
+  Sitzungen: Eine Instanz ist aktiv, bis sie endet.
+
+### 113.3 In der Anwendung
+
+```csharp
+updates.RoleChanged += role =>
+{
+    if (role == AgentRole.Waiting)
+    {
+        // vom Hub trennen, Geräte freigeben, dann:
+        _ = updates.ReportReleasedAsync();
+    }
+    else
+    {
+        // mit dem Hub verbinden, Geräte übernehmen
+    }
+};
+updates.Start();
+if (updates.AlreadyRunning)
+{
+    // "läuft schon unter Benutzer X" anzeigen und beenden
+}
+```
+
+- `RoleChanged` geht über die IPC an alle Instanzen. Der Client reicht nur die Meldung weiter, die an den eigenen
+  Prozess gerichtet ist.
+- Ohne Dienst gilt die Instanz als aktiv.

@@ -6,6 +6,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.UpdateService.Abstractions.Contracts;
 using ITVComponents.UpdateService.Agents;
+using ITVComponents.UpdateService.Sessions;
 
 namespace ITVComponents.UpdateService
 {
@@ -22,14 +23,22 @@ namespace ITVComponents.UpdateService
     {
         private readonly UpdateCoordinator coordinator;
         private readonly AgentRegistry registry;
+        private readonly RoleCoordinator roles;
 
-        internal UpdateServiceFacade(UpdateCoordinator coordinator, AgentRegistry registry)
+        internal UpdateServiceFacade(UpdateCoordinator coordinator, AgentRegistry registry, RoleCoordinator roles)
         {
             this.coordinator = coordinator;
             this.registry = registry;
+            this.roles = roles;
             coordinator.StatusChanged += s => StatusChanged?.Invoke(s);
             coordinator.ShutdownRequested += r => ShutdownRequested?.Invoke(r);
+            roles.RoleChanged += c => RoleChanged?.Invoke(c);
         }
+
+        /// <summary>
+        /// See <see cref="IUpdateServiceFacade.RoleChanged"/>.
+        /// </summary>
+        public event Action<RoleChange>? RoleChanged;
 
         /// <summary>
         /// See <see cref="IUpdateServiceFacade.ShutdownRequested"/>.
@@ -44,22 +53,50 @@ namespace ITVComponents.UpdateService
         /// <summary>
         /// See <see cref="IUpdateServiceFacade.RegisterAsync"/>.
         /// </summary>
-        public Task<AgentRegistration> RegisterAsync(string productId, string version, IIdentity caller)
+        public Task<AgentRegistration> RegisterAsync(string productId, string version, bool currentlyActive, IIdentity caller)
         {
-            var agent = registry.Register(caller as ClaimsIdentity, productId, version, out var reason);
+            var agent = registry.Register(caller as ClaimsIdentity, productId, version, currentlyActive, out var reason, out var running);
             if (agent == null)
             {
-                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} could not register: {reason}", LogSeverity.Warning);
-                return Task.FromResult(new AgentRegistration { Accepted = false, Reason = reason });
+                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} could not register: {reason}", running != null ? LogSeverity.Report : LogSeverity.Warning);
+                return Task.FromResult(new AgentRegistration
+                {
+                    Accepted = false,
+                    Reason = reason,
+                    AlreadyRunning = running != null,
+                    ActiveSessionId = running?.SessionId,
+                    ActiveUserName = running?.UserName
+                });
             }
 
+            var role = roles.RoleOf(agent);
+            var activeInstance = roles.Active;
             return Task.FromResult(new AgentRegistration
             {
                 Accepted = true,
                 SessionId = agent.SessionId,
                 ProcessId = agent.ProcessId,
+                Role = role,
+                ActiveSessionId = activeInstance != null && activeInstance.ConnectionId != agent.ConnectionId ? activeInstance.SessionId : null,
+                ActiveUserName = activeInstance != null && activeInstance.ConnectionId != agent.ConnectionId ? activeInstance.UserName : null,
                 Status = coordinator.Status
             });
+        }
+
+        /// <summary>
+        /// See <see cref="IUpdateServiceFacade.ReportReleasedAsync"/>. Only a registered application may report.
+        /// </summary>
+        public Task ReportReleasedAsync(IIdentity caller)
+        {
+            var agent = registry.Find(caller as ClaimsIdentity);
+            if (agent == null)
+            {
+                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} reported a release without being registered; ignored.", LogSeverity.Warning);
+                return Task.CompletedTask;
+            }
+
+            roles.Released(agent);
+            return Task.CompletedTask;
         }
 
         /// <summary>

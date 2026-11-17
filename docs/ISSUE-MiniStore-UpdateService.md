@@ -489,6 +489,45 @@ Vorschlag:
 
 Wünschenswert, keine Bedingung.
 
+### Antworten der Toolkit-Seite zu M1–M3 (2026-11-17)
+
+**Zu M1: einverstanden, umgesetzt in Phase 4, mit zwei Ergänzungen.**
+
+- Der Dienst plant einen **Durchgang** statt eines Pakets: das Grundpaket, dazu für jedes zugewiesene Modul die
+  höchste Fassung, deren `requires` die neue Grundfassung einschliesst. Fehlt eine solche Fassung, bleibt das
+  Grundpaket stehen, mit dem Stand „wartet auf <Modul> für <Fassung>“. `urgent` und die Wochenfrist überstimmen das
+  nicht.
+- **Reihenfolge:** Alle Module des Durchgangs werden heruntergeladen und geprüft, **bevor** `msiexec` startet.
+  1. Das MSI installiert das Grundpaket.
+  2. Der Dienst startet neu, entpackt die Module und startet erst dann den Agenten.
+
+  Danach kann nur noch etwas am Dateisystem scheitern. Ein Grundpaket zurückdrehen kann der Dienst nicht, MSI rollt
+  nur eine gescheiterte Installation zurück. Den Rest deckt M3 ab.
+- **Folge:** Eine dringende Korrektur am Grundpaket kann an einem fehlenden Modul hängen bleiben. Das Web fängt das
+  beim Freigeben ab (Phase 5): Gibt jemand eine Grundfassung frei, für die ein zugewiesenes Modul keine passende
+  Fassung hat, warnt die Maske und nennt die betroffenen Kassen.
+
+**Zu M2: die Bauanleitung ja, die Regel „was im Installationsordner liegt“ nein.**
+
+- Im Installationsordner liegen auch fremde Bibliotheken des Agenten (`Newtonsoft.Json`, `System.IO.Ports` …). Gälte
+  alles dort als Vertrag, dürfte kein Modul eine eigene Fassung davon mitbringen. Genau dafür ist der Ladekontext je
+  Modul aber da (P5).
+- **Stattdessen:** Vertrags-Assemblies tragen ein Assembly-Attribut (`[assembly: AgentContract]`), ITVComponents
+  und die Agent-Abstraktionen. Das pflegt sich so selbst wie der Vorschlag, ohne Fehlgriffe. Dienst und Ladekontext
+  lesen es aus den Metadaten, ohne die Assembly zu laden.
+- Die Bauanleitung (`<Private>false</Private>` bzw. `ExcludeAssets="runtime"` für Verweise auf Verträge) kommt in
+  den Leitfaden.
+
+**Zu M3: einverstanden, umgesetzt in Phase 4.**
+
+- Beim Umschalten bleibt `modules\<id>.old\` stehen.
+- Der Agent meldet nach dem Start über die Fassade, welche Module er geladen hat und welche nicht.
+- **Als Absturz** gilt: Der Agent trennt sich innerhalb einer Frist nach dem Start, ohne diese Meldung geschickt
+  zu haben.
+- Bei einem Ladefehler oder Absturz schaltet der Dienst zurück und merkt sich die neue Fassung als
+  fehlgeschlagen, wie beim Grundpaket. Er versucht sie erst mit einer neueren Fassung wieder.
+- Zusammen mit M1 deckt das den Rest-Fall ab, dass nach einem Grundpaket-Update ein Modul nicht lädt.
+
 ### P6. Phasen
 
 | Phase | Inhalt |

@@ -16,6 +16,7 @@ using ITVComponents.UpdateService.Client;
 using ITVComponents.UpdateService.Feed;
 using ITVComponents.UpdateService.Installation;
 using ITVComponents.UpdateService.Packages;
+using ITVComponents.UpdateService.Sessions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.UpdateService.Test
@@ -58,7 +59,7 @@ namespace ITVComponents.UpdateService.Test
             feed = new Feed();
             coordinator = new UpdateCoordinator(options, feed, new Downloader(directory), new Verifier(), new Installer(), new MsiInstallResultEvaluator(),
                 new InstallStateStore(directory), registry, new Application(), directory);
-            var facade = new UpdateServiceFacade(coordinator, registry);
+            var facade = new UpdateServiceFacade(coordinator, registry, new RoleCoordinator(registry, new OneSession(), new Application(), () => false));
             server = new NamedPipeServer(hub, new Dictionary<string, object> { { UpdateContractTypes.FacadeObjectName, facade } }, options.HubServiceName);
             server.Initialize();
             client = new UpdateServiceClient(new UpdateServiceClientOptions
@@ -115,13 +116,30 @@ namespace ITVComponents.UpdateService.Test
         }
 
         [TestMethod]
+        public void A_Single_Instance_Is_Active_And_A_Second_One_In_The_Same_Session_Is_Refused()
+        {
+            client.Start();
+            Assert.AreEqual(AgentRole.Active, client.Role);
+
+            using var second = new UpdateServiceClient(new UpdateServiceClientOptions
+            {
+                PipeName = pipeName, ProductId = "Shop.Agent", Version = "1.4.1", ExpectedServiceAccount = null
+            });
+            second.Start();
+
+            Assert.IsFalse(second.Connected);
+            Assert.IsTrue(second.AlreadyRunning, "the same session runs the application already");
+            Assert.AreEqual(1, registry.Active.Count);
+        }
+
+        [TestMethod]
         public void A_Process_Outside_The_Application_Folder_Cannot_Register()
         {
             client.Dispose();
             var directory = Directory.CreateTempSubdirectory("itv-update-pipe").FullName;
             var strict = new AgentRegistry(new UpdateServiceOptions { ProductId = "Shop.Agent", ApplicationPath = @"C:\Program Files\Shop\Agent.exe" });
             var facade = new UpdateServiceFacade(new UpdateCoordinator(new UpdateServiceOptions { ProductId = "Shop.Agent", FeedUrl = "https://x", DataDirectory = directory, ApplicationPath = @"C:\Program Files\Shop\Agent.exe" },
-                feed, new Downloader(directory), new Verifier(), new Installer(), new MsiInstallResultEvaluator(), new InstallStateStore(directory), strict, new Application(), directory), strict);
+                feed, new Downloader(directory), new Verifier(), new Installer(), new MsiInstallResultEvaluator(), new InstallStateStore(directory), strict, new Application(), directory), strict, new RoleCoordinator(strict, new OneSession(), new Application(), () => false));
             using var other = new NamedPipeServer(hub, new Dictionary<string, object> { { UpdateContractTypes.FacadeObjectName, facade } }, "StrictUpdateService");
             other.Initialize();
             using var outsider = new UpdateServiceClient(new UpdateServiceClientOptions
@@ -134,6 +152,13 @@ namespace ITVComponents.UpdateService.Test
             Assert.IsFalse(outsider.Connected);
             Assert.AreEqual(0, strict.Active.Count);
             StringAssert.Contains(outsider.RefusalReason, "does not run from the application's folder");
+        }
+
+        private sealed class OneSession : ISessionInfo
+        {
+            public int ConsoleSessionId() => Process.GetCurrentProcess().SessionId;
+
+            public bool IsConnected(int sessionId) => true;
         }
 
         private sealed class Feed : IUpdateFeedClient

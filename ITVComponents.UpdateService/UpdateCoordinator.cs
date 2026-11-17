@@ -103,6 +103,21 @@ namespace ITVComponents.UpdateService
         }
 
         /// <summary>
+        /// Gets a value indicating whether the service keeps the application down right now: it asked it to end for an
+        /// update, or the installation runs. No instance is started in a new session meanwhile.
+        /// </summary>
+        public bool HoldsApplication
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return shutdownRequested != null || status.Phase == UpdatePhase.Installing;
+                }
+            }
+        }
+
+        /// <summary>
         /// Starts the worker.
         /// </summary>
         public void Start()
