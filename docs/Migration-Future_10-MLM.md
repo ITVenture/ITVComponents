@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 115 | **Plugin-Module: ein Ladekontext je Modul; Vertragsmarke der Pakete** | Kein Schema-Change. Neu: `Directory.Build.targets` (markiert jedes veröffentlichte Paket). Opt-in: `PluginFactory.AssemblyContextSelector`. |
 | 114 | **Update-Dienst (Phase 3): Signatur des Feeds** | Kein Schema-Change. Opt-in: `FeedSigningThumbprints`, `RequireFeedSignature`. |
 | 113 | **Update-Dienst (Phase 2): eine aktive Instanz, Übergabe zwischen Sitzungen** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade.RegisterAsync` hat den Parameter `currentlyActive`, neu sind `ReportReleasedAsync` und `RoleChanged`. |
 | 112 | **Update-Dienst (Phase 1); Korrektur der Typbeschränkung aus §110** | Kein Schema-Change. Neu: `ITVComponents.UpdateService(.Abstractions/.Client)`. **Korrektur:** `RestrictArgumentTypes` (§110) liess Proxy-Aufrufe leer ankommen und war über den deklarierten Parametertyp zu umgehen (§112.2). |
@@ -9875,3 +9876,56 @@ Das Zertifikat gehört nicht in die Datenbank, sonst steckt es in jedem Backup. 
 - **Empfehlung:** `RequireFeedSignature` im Laden einschalten, in der Entwicklung ausschalten. Ohne Signatur hängt die
   Echtheit der Module (Phase 4) allein an HTTPS und am Webserver. Das MSI des Grundpakets prüft der Dienst
   unabhängig davon immer per Authenticode.
+
+## 115. Plugin-Module: ein Ladekontext je Modul; Vertragsmarke der Pakete — **kein Schema-Change**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, P4/P5 und M2. Erster Teil von Phase 4: das Laden. Die Installation
+der Module durch den Update-Dienst folgt.
+
+### 115.1 Vertragsmarke
+
+Ein **Vertrag** ist eine Assembly, die ein Modul mit seinem Host teilt, statt eine eigene Kopie zu laden. Andernfalls
+wären die Typen des Moduls nicht die des Hosts (`InvalidCastException`). Erkannt wird ein Vertrag an
+
+```xml
+<AssemblyMetadata Include="ITVComponents.PluginContract" Value="true" />
+```
+
+also an `[assembly: AssemblyMetadata("ITVComponents.PluginContract", "true")]`. Das Attribut ist ein Typ des Frameworks,
+deshalb kann es auch eine Assembly ohne Abhängigkeiten tragen. Gelesen wird es aus den Metadaten, ohne die Assembly
+zu laden (`PluginContract.IsContract`).
+
+- **Neu im Repository:** `Directory.Build.targets` setzt die Marke für jedes Projekt mit
+  `GeneratePackageOnBuild=true`, also für alle veröffentlichten ITVComponents-Pakete. Zuvor gab es keine
+  `Directory.Build.*`.
+- **Eine Anwendung** markiert ihre eigenen Abstraktionen mit der Zeile oben in deren csproj, z. B. die
+  Geräte-Schnittstellen des Agenten.
+- **Bauanleitung für ein Modul:** Das Modul-Projekt wird mit `<EnableDynamicLoading>true</EnableDynamicLoading>`
+  gebaut, damit eine `.deps.json` entsteht. Verweise auf Verträge tragen `<Private>false</Private>` (Projekte) bzw.
+  `ExcludeAssets="runtime"` (Pakete). So gelangen Verträge gar nicht erst ins Modul.
+
+### 115.2 Ein Ladekontext je Modul
+
+- **`PluginFactory.AssemblyContextSelector`** (neu, optional): Vor dem Laden einer Plugin-Assembly fragt die Factory,
+  in welchen Ladekontext sie gehört. **Ohne Selektor ändert sich nichts**, alles kommt wie bisher in den
+  Standard-Kontext.
+- **`ModuleContextSelector(modulesRoot)`**: Jede Assembly unter `modulesRoot\<id>\` kommt in den Ladekontext dieses
+  Moduls, je Modul genau einer. Alles andere bleibt im Standard-Kontext. Der Ort entscheidet, nicht ein Eintrag in
+  der Konfiguration. Haupt-Assembly, Id und Fassung stehen in `module.json` im Modulordner.
+- **`ModuleLoadContext`:**
+  - Einen Vertrag, den der Host hat, nimmt er immer vom Host, auch wenn das Modul eine Kopie mitbringt.
+  - Alles andere löst er über die `.deps.json` des Moduls auf, ersatzweise aus dem Modulordner. So kann jedes Modul
+    seine Abhängigkeiten in der eigenen Fassung laden, auch wenn ein anderes Modul dieselbe Assembly in einer anderen
+    Fassung mitbringt.
+  - Native DLLs lädt er aus dem Modulordner. Restrisiko: Deren eigene Abhängigkeiten löst Windows nach dem Namen auf.
+  - Der Kontext ist nicht entladbar, ein Modul wird mit dem nächsten Start des Hosts wirksam.
+- **Konstruktionszeilen der Module** bleiben gewöhnliche Plugin-Zeilen, immer mit Pfad:
+  `[modules\<id>\X.dll]<Typ>`. Ein blosser Dateiname könnte mit einem anderen Modul kollidieren.
+- **Was über die IPC geht**, muss in einem Vertrag definiert sein. Die IPC löst Typnamen im Standard-Kontext auf,
+  einen Typ aus einem Modul fände sie dort nicht. Die Suche der Methode selbst funktioniert auch an Typen aus einem
+  Modul.
+- **Lade-Scopes und Transient-Plugins** sind nicht betroffen: Sie regeln die Lebensdauer von Instanzen, nicht das
+  Laden von Assemblies.
+
+**Für den Host:** Nichts zu tun. Ein Agent, der Module ausführt, setzt
+`factory.AssemblyContextSelector = new ModuleContextSelector(<Installationsordner>\modules)`.

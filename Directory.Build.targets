@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Every published ITVComponents package is a contract for plugin modules: a module shares it with its host instead of
+    loading its own copy (see ITVComponents.Plugins.Modules.PluginContract). An application marks its own abstractions
+    the same way: <AssemblyMetadata Include="ITVComponents.PluginContract" Value="true" />.
+  -->
+  <ItemGroup Condition="'$(GeneratePackageOnBuild)' == 'true'">
+    <AssemblyMetadata Include="ITVComponents.PluginContract" Value="true" />
+  </ItemGroup>
+</Project>

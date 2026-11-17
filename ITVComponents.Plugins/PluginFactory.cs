@@ -178,6 +178,29 @@ namespace ITVComponents.Plugins
         private AssemblyLoadContext reflectionContext;
 
         /// <summary>
+        /// Gets or sets who chooses the load context of a plugin assembly. Null (the default): everything is loaded into
+        /// the default context, as always. A host that runs modules sets a
+        /// <see cref="ITVComponents.Plugins.Modules.ModuleContextSelector"/>; plugins of a module are then configured with
+        /// the path of their assembly (<c>[modules\&lt;id&gt;\X.dll]&lt;Type&gt;</c>), never with a bare file name.
+        /// </summary>
+        public ITVComponents.Plugins.Modules.IAssemblyContextSelector AssemblyContextSelector { get; set; }
+
+        /// <summary>
+        /// Gets the load context for the assembly of a construction string, or null for the default context.
+        /// </summary>
+        private AssemblyLoadContext LoadContextFor(string assemblyName)
+        {
+            var selector = AssemblyContextSelector;
+            if (selector == null)
+            {
+                return null;
+            }
+
+            var path = AssemblyResolver.ResolveAssemblyLocation(assemblyName, out var exists);
+            return exists ? selector.ContextFor(path) : null;
+        }
+
+        /// <summary>
         /// Releases a reflection-context
         /// </summary>
         private IResourceLock contextRelease;
@@ -690,7 +713,7 @@ namespace ITVComponents.Plugins
                 }
                 else
                 {
-                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext);
+                    a = AssemblyResolver.FindAssemblyByFileName(parsed.AssemblyName, reflectionContext ?? LoadContextFor(parsed.AssemblyName));
                 }
 
                 pluginType = a?.GetType(parsed.TypeName);
@@ -1413,7 +1436,7 @@ namespace ITVComponents.Plugins
                 {
                     a = registeredAssemblies.GetOrAdd(parsed.AssemblyName,
                         name => new Lazy<Assembly>(
-                            () => AssemblyResolver.FindAssemblyByFileName(name, reflectionContext))).Value;
+                            () => AssemblyResolver.FindAssemblyByFileName(name, reflectionContext ?? LoadContextFor(name)))).Value;
                 }
             }
 
