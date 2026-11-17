@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE275</Version>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Description>Connects an application to its update service: announce itself, receive "please end" and state changes, defer, ask to check now. Works without a service (development) and says so once in the log.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.UpdateService.Abstractions\ITVComponents.UpdateService.Abstractions.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.NamedPipe\ITVComponents.InterProcessCommunication.NamedPipe.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+  </ItemGroup>
+</Project>

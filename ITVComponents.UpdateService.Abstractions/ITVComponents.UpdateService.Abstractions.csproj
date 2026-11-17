@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE275</Version>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Description>Contracts of the ITVComponents update service: the feed (a list of packages) and what an application may ask of the service. Free of dependencies, for the service, the application and the web.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+</Project>

@@ -450,6 +450,45 @@ Dateien, keine Referenzzählung und keine Konflikte zwischen Fassungen. Deinstal
 - **Zu bestätigen zu Beginn von Phase 4:** Lädt die Factory die Modul-Assembly über den Selektor, sollten die
   Konstruktionszeilen der Module ohne weitere Änderung funktionieren. Das wird zuerst mit einem Test geprüft.
 
+### Anmerkungen MiniStore zum Plan (2026-11-17)
+
+**M1. Ein Update des Grundpakets darf kein zugewiesenes Modul verlieren.**
+
+Der Fall: Das Grundpaket geht von 1.x auf 2.0, und ein Modul trägt `requires: [1.4.0,2.0.0)`. Nach P2 wird das
+Modul dann nicht installiert, der Agent startet aber trotzdem neu. An der Kasse fehlt danach der Bondrucker.
+
+Gewünscht:
+- Ein Grundpaket wird nur installiert, wenn für **jedes zugewiesene Modul** eine Fassung im Feed liegt, deren
+  `requires` die neue Fassung einschliesst.
+- Diese Module kommen im **selben Durchgang** mit. Der Agent startet erst, wenn Grundpaket und Module stehen.
+- Fehlt eine passende Modulfassung, bleibt das Grundpaket stehen. Der Stand nennt den Grund, z. B. „wartet auf
+  EpsonTM für 2.x“.
+- `urgent` und die Wochenfrist überstimmen das **nicht**. Eine Kasse, die nicht mehr druckt, ist schlechter als
+  eine veraltete.
+
+**M2. Woran erkennt der Dienst eine Vertrags-Assembly (P5)?**
+
+P5 lässt den Dienst ein Modul ablehnen, das Vertrags-Assemblies mitbringt. Offen ist, woran er sie erkennt.
+
+Vorschlag: **Was im Installationsordner des Grundpakets liegt, gilt als Vertrag.** Das braucht keine Liste, die
+man pflegen muss, und es stimmt mit jeder Fassung des Grundpakets von selbst.
+
+Dazu gehört eine Bauanleitung im Leitfaden: Im Modul-Projekt tragen die Verweise auf Vertragsprojekte und
+-pakete `<Private>false</Private>` bzw. `ExcludeAssets="runtime"`. So gelangen sie gar nicht erst ins Paket, und
+die Ablehnung trifft nur den Fehlerfall.
+
+**M3. Rückweg für ein Modul.**
+
+Beim Grundpaket rollt MSI zurück, beim Modul fehlt bisher ein Rückweg.
+
+Vorschlag:
+- Beim Umbenennen den bisherigen Ordner als `modules\<id>.old\` behalten.
+- Gelöscht wird er erst, wenn der Agent nach dem Start meldet, dass das Modul geladen ist.
+- Meldet der Agent einen Ladefehler oder stürzt er beim Start ab, schaltet der Dienst zurück und meldet die neue
+  Fassung als fehlgeschlagen. Er versucht sie erst mit einer neueren Fassung im Feed wieder.
+
+Wünschenswert, keine Bedingung.
+
 ### P6. Phasen
 
 | Phase | Inhalt |

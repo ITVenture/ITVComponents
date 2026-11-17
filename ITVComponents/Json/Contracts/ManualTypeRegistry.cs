@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 
 namespace ITVComponents.Json.Contracts
@@ -31,6 +32,12 @@ namespace ITVComponents.Json.Contracts
             new ConcurrentDictionary<Type, string>();
 
         private static readonly AsyncLocal<bool> restricted = new AsyncLocal<bool>();
+
+        /// <summary>
+        /// Types that may be read under the restriction without a short name - written, as before, with their
+        /// AssemblyQualifiedName (see <see cref="Allow"/>).
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, byte> allowed = new ConcurrentDictionary<Type, byte>();
 
         /// <summary>Das Anhaengsel, mit dem eine Sammlung ueber ihrem Elementtyp benannt wird.</summary>
         private const string ArraySuffix = "[]";
@@ -107,6 +114,26 @@ namespace ITVComponents.Json.Contracts
 
         /// <summary>Meldet einen Typ unter einem stabilen Kurznamen an.</summary>
         public static void Register<T>(string alias) => Register(typeof(T), alias);
+
+        /// <summary>
+        /// Allows a type to be read under the restriction (<see cref="RestrictToRegisteredTypes"/>) WITHOUT giving it a
+        /// short name: it keeps being written with its AssemblyQualifiedName, so the format on the wire does not change and
+        /// peers of other versions still understand each other. Meant for the transport types of a protocol (e.g. the
+        /// parameter wrappers of the inter-process communication).
+        /// </summary>
+        /// <remarks>
+        /// Under the restriction the name is matched against the allowed and the registered types only - by type name and
+        /// assembly name, ignoring version, culture and key. Nothing is loaded by name.
+        /// </remarks>
+        public static void Allow(Type type)
+        {
+            if (type == null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+
+            allowed.TryAdd(type, 0);
+        }
 
         /// <summary>Liefert den registrierten Kurznamen eines Typs, oder false.</summary>
         public static bool TryGetAlias(Type type, out string alias)
@@ -185,11 +212,68 @@ namespace ITVComponents.Json.Contracts
 
             if (restricted.Value)
             {
+                var known = FindKnown(typeName);
+                if (known != null)
+                {
+                    return known;
+                }
+
                 refused = true;
                 return null;
             }
 
             return Type.GetType(typeName);
+        }
+
+        /// <summary>
+        /// Finds an allowed or registered type by its written name (AssemblyQualifiedName or FullName), without loading
+        /// anything. An array of such a type is found as well.
+        /// </summary>
+        private static Type FindKnown(string typeName)
+        {
+            var key = Simplify(typeName);
+            if (key == null)
+            {
+                return null;
+            }
+
+            foreach (var candidate in allowed.Keys.Concat(byType.Keys))
+            {
+                if (key == Simplify(candidate.AssemblyQualifiedName) || key == candidate.FullName)
+                {
+                    return candidate;
+                }
+            }
+
+            var comma = key.IndexOf(',');
+            var namePart = comma < 0 ? key : key.Substring(0, comma);
+            if (namePart.EndsWith(ArraySuffix, StringComparison.Ordinal))
+            {
+                var element = FindKnown(namePart.Substring(0, namePart.Length - ArraySuffix.Length) + (comma < 0 ? string.Empty : key.Substring(comma)));
+                return element?.MakeArrayType();
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// "Namespace.Type, Assembly, Version=..., Culture=..., PublicKeyToken=..." -> "Namespace.Type, Assembly". Names of
+        /// generic types are not simplified (they nest further assembly names) and only match exactly.
+        /// </summary>
+        private static string Simplify(string assemblyQualifiedName)
+        {
+            if (string.IsNullOrWhiteSpace(assemblyQualifiedName))
+            {
+                return null;
+            }
+
+            if (assemblyQualifiedName.Contains('['))
+            {
+                return assemblyQualifiedName.Trim();
+            }
+
+            var parts = assemblyQualifiedName.Split(',');
+            return parts.Length >= 2 ? $"{parts[0].Trim()}, {parts[1].Trim()}" : parts[0].Trim();
         }
 
         /// <summary>Der Elementtyp einer Sammlung (Array oder generische Ein-Parameter-Sammlung), sonst null.</summary>

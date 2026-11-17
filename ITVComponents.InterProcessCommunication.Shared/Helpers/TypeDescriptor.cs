@@ -29,6 +29,11 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 
         public static implicit operator Type(TypeDescriptor desc)
         {
+            if (ManualTypeRegistry.Restricted)
+            {
+                return RestrictedType(desc);
+            }
+
             var retVal = Type.GetType(desc.fullName);
             if (retVal == null)
             {
@@ -55,6 +60,22 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             {
                 var typeArg = (from t in desc.genericArguments select (Type) t).ToArray();
                 retVal = retVal.MakeGenericType(typeArg);
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Under the restriction to registered types, the type a peer names is only taken if it is registered or allowed -
+        /// otherwise the peer could choose any type the value is then read as.
+        /// </summary>
+        private static Type RestrictedType(TypeDescriptor desc)
+        {
+            var retVal = ManualTypeRegistry.Resolve(desc.typeName, out _) ?? ManualTypeRegistry.Resolve(desc.fullName, out _);
+            if (retVal == null || desc.isGeneric)
+            {
+                LogEnvironment.LogEvent($"The type {desc.typeName} named by the peer is not registered{(desc.isGeneric ? " (generic types are not accepted)" : string.Empty)}; it is not loaded.", LogSeverity.Warning);
+                throw new TypeLoadException($"Type {desc.typeName} is not registered.");
             }
 
             return retVal;

@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 112 | **Update-Dienst (Phase 1); Korrektur der Typbeschränkung aus §110** | Kein Schema-Change. Neu: `ITVComponents.UpdateService(.Abstractions/.Client)`. **Korrektur:** `RestrictArgumentTypes` (§110) liess Proxy-Aufrufe leer ankommen und war über den deklarierten Parametertyp zu umgehen (§112.2). |
 | 111 | **GenericService: Sitzungswechsel, Startfehler** | Kein Schema-Change, nichts zu tun. Neu: `ITVComponents.GenericService.Windows`. Opt-in: Einstellung `FailOnStartupError`. |
 | 110 | **IPC über Named Pipe (neues Paket); Identität und Typen am Message-Server** | Kein Schema-Change. Neu: `ITVComponents.InterProcessCommunication.NamedPipe`. **Verhaltensänderung:** `JsonSettingsSecurityRepository` vergleicht Benutzer- und Rollennamen ohne Gross-/Kleinschreibung, ein Benutzer ohne Authentifizierungsart gilt auch bei den Berechtigungen für alle Arten (§110.4). Opt-in am `MessageServer`: `TrustClientIdentity`, `RestrictArgumentTypes`. |
 | 109 | **Abmelden unter `/c/{sprache}`; Sprache und Zeitzone im Firmenprofil** | Kein Schema-Change. **Verhaltensänderung:** mit `AddCulturePath()` lässt der Pfad der Anmelde-Cookies das Kultur-Präfix weg (§109). **BREAKING (nur eigene Implementierungen):** `IOnboardingAdminHandler.NewBillingProfileAsync` ist neu. |
@@ -9655,3 +9656,113 @@ Vorarbeit für den Update-Dienst (`docs/ISSUE-MiniStore-UpdateService.md`, Phase
   `false`: Der Dienst läuft wie bisher ohne Plugins weiter. Mit `true` schlägt der Start fehl. Nur dann greifen die
   Wiederherstellungsaktionen von Windows (bzw. `Restart=on-failure` unter systemd) und starten den Dienst neu.
   Gedacht ist das für Dienste, die sich ohne Eingriff vor Ort selbst erholen müssen.
+
+## 112. Update-Dienst (Phase 1); Korrektur der Typbeschränkung aus §110 — **kein Schema-Change**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, Abschnitt „Plan der Toolkit-Seite“.
+
+### 112.1 Neue Pakete
+
+| Paket | Inhalt |
+|---|---|
+| `ITVComponents.UpdateService.Abstractions` | Feed (`UpdateFeed`, `UpdatePackage`, Paketliste), `IUpdateServiceFacade`, Stand und Aufforderungen. Ohne Abhängigkeiten. |
+| `ITVComponents.UpdateService` | Der Dienst als Plugin von GenericService (`UpdateServicePlugin`), nur für Windows. |
+| `ITVComponents.UpdateService.Client` | `UpdateServiceClient` für die Anwendung. |
+
+**Was der Dienst tut:**
+
+- **Feed:**
+  - Er liest das Manifest `<FeedUrl>/<Channel>.json`, nur über HTTPS und mit `ETag`.
+  - Ohne SHA-256 je Paket ist das Manifest unbrauchbar.
+  - Ein älteres Grundpaket installiert er nur mit `AllowDowngrade`.
+- **Download:**
+  - Er lädt in `DataDirectory\packages`. Dort dürfen nur SYSTEM und die Administratoren schreiben, der Dienst setzt
+    die ACL selbst.
+  - Übernommen wird die Datei erst, wenn Grösse und Hash stimmen.
+- **Prüfung des MSI:**
+  - Authenticode (`WinVerifyTrust`, die Sperrprüfung nur mit `CheckRevocation`).
+  - Der Herausgeber über `PublisherThumbprints` oder `PublisherSubject`.
+  - `UpgradeCode` gleich der Konfiguration, `ProductVersion` gleich der Fassung im Manifest.
+- **Installation:**
+  - Den Zustand schreibt er vor dem Start auf die Platte (`DataDirectory\state.json`), dann läuft
+    `msiexec /i … /qn /norestart /l*v`.
+  - Wird der Dienst dabei selbst neu gestartet, wartet er auf das Ende von `msiexec` und liest das Ergebnis aus
+    dessen Log.
+  - Bei 1618 versucht er es nach `RetryMinutes` wieder. 3010 gilt als „Neustart von Windows nötig“, bis Windows neu
+    gestartet ist.
+  - Eine gescheiterte oder abgelehnte Fassung versucht er erst mit einer neueren Fassung oder auf „jetzt prüfen“ wieder.
+- **Wann installiert wird:**
+  - Ohne verbundene Anwendung: sofort.
+  - Mit verbundener Anwendung: Sie wird gebeten, sich zu beenden, sobald sie untätig ist.
+  - Bei einer dringenden Fassung bekommt sie eine Frist (`UrgentDeadlineMinutes`), danach beendet der Dienst sie.
+    Dringend ist eine Fassung mit `urgent`, eine Fassung, wenn die installierte unter `minimumVersion` liegt, und
+    jede Fassung nach `MaximumDeferralDays` ab der Veröffentlichung.
+  - Aufschieben geht höchstens bis zu dieser Grenze.
+- **Danach** startet der Dienst die Anwendung wieder in den Sitzungen, in denen sie lief (`CreateProcessAsUser`).
+  Das tut er in jedem Ausgang, auch nach einem Fehlschlag.
+- **Anmelden** kann sich nur eine Anwendung, die über die Pipe kommt. Sie muss aus dem Ordner von `ApplicationPath`
+  laufen, was sich mit `RequireApplicationPath` abschalten lässt. Aufschieben und „jetzt prüfen“ darf nur eine
+  angemeldete Anwendung.
+
+**Einrichtung** (Plugins des generischen Dienstes; der Dienst läuft als LocalSystem, mit `FailOnStartupError` aus §111):
+
+```
+hub      [ITVComponents.InterProcessCommunication.MessagingShared]<ITVComponents.InterProcessCommunication.MessagingShared.MessageServiceHub>()
+pipe     [ITVComponents.InterProcessCommunication.NamedPipe]<ITVComponents.InterProcessCommunication.NamedPipe.Hub.NamedPipeHubEndPoint>("MiniStore.Updates", $hub, "", false, false)
+updates  [ITVComponents.UpdateService]<ITVComponents.UpdateService.UpdateServicePlugin>($hub, $pipe, "ITVenture:UpdateService")
+```
+
+```json
+"ITVenture": { "UpdateService": {
+  "ProductId": "MiniStore.PosAgent",
+  "FeedUrl": "https://shop.example/updates/ministore",
+  "Channel": "stable",
+  "DataDirectory": "C:\\ProgramData\\MiniStore\\Updates",
+  "ApplicationPath": "C:\\Program Files\\MiniStore\\PosAgent.exe",
+  "PublisherThumbprints": [ "…" ],
+  "UpgradeCode": "{…}"
+} }
+```
+
+**In der Anwendung:**
+
+```csharp
+var updates = new UpdateServiceClient(new UpdateServiceClientOptions
+{
+    PipeName = "MiniStore.Updates", ProductId = "MiniStore.PosAgent", Version = "1.4.1"
+});
+updates.ShutdownRequested += r => { /* untätig? dann beenden; sonst DeferAsync */ };
+updates.StatusChanged += s => { /* Anzeige im Tray, Meldung ans Backend */ };
+updates.Start();
+```
+
+Ohne Dienst arbeitet die Anwendung weiter. Der Client meldet das einmal im Log und versucht es im Hintergrund wieder.
+Eine Ablehnung, z. B. wegen eines falschen Ordners, steht in `RefusalReason`.
+
+**Noch nicht gegen ein echtes MSI erprobt:** Signatur- und MSI-Prüfung, `msiexec`, der Neustart des Dienstes durch
+das MSI und das Starten in der Sitzung sind nur mit Stellvertretern getestet. Die Abnahme braucht ein signiertes
+Test-MSI mit eingebautem Dienst, auch für den Fall „Installation bricht mittendrin ab“.
+
+### 112.2 Korrektur: `RestrictArgumentTypes` (§110)
+
+Zwei Fehler in §110:
+
+1. **Aufrufe über einen Proxy kamen leer an.** Ein Proxy verpackt jedes Argument in den Transporttyp `TypedParam`.
+   Unter der Beschränkung war dieser Typ nicht zugelassen, jedes Argument kam als `null` an. Aufrufe mit
+   `CallRemoteMethod` waren nicht betroffen.
+2. **Der deklarierte Parametertyp umging die Beschränkung.** `TypedParam` trägt den Typ des Parameters als
+   `TypeDescriptor`, und den löste der Server per `Type.GetType` auf. Der Wert wurde dann als dieser Typ gelesen. Ein
+   Client konnte so weiterhin jeden Typ vorgeben.
+
+**Jetzt gilt:**
+
+- **`ManualTypeRegistry.Allow(type)`** (neu) lässt einen Typ unter der Beschränkung zu, ohne ihm einen Kurznamen zu
+  geben. Er wird weiter mit vollem Namen geschrieben, das Format auf der Leitung bleibt gleich. Die IPC lässt so ihre
+  Transporttypen zu: `TypedParam`, `TypeDescriptor` und `ProxyResult`.
+- **Unter der Beschränkung** löst die Registry Typnamen nur noch gegen angemeldete und zugelassene Typen auf, nach
+  Typ- und Assembly-Name, ohne Version. Per Name geladen wird nichts mehr.
+- **`TypeDescriptor`** nimmt unter der Beschränkung nur angemeldete oder zugelassene Typen an, generische gar nicht.
+  Alles andere lehnt er mit Warnung im Log ab, das Argument kommt dann als `null` an.
+
+**Für den Host:** Nichts zu tun. Wer `NamedPipeServer` oder `RestrictArgumentTypes` schon verwendet, bekommt mit
+diesem Stand erst die beabsichtigte Wirkung. Ohne Beschränkung ändert sich nichts.

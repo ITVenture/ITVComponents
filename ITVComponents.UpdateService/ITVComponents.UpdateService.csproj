@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE275</Version>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Description>The update service for client applications: a plugin for ITVComponents.GenericService that keeps an application up to date from a feed - download, check (hash, Authenticode, MSI identity), install, restart the application in its session. Windows only.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.UpdateService.Abstractions\ITVComponents.UpdateService.Abstractions.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.NamedPipe\ITVComponents.InterProcessCommunication.NamedPipe.csproj" />
+    <ProjectReference Include="..\ITVComponents.GenericService\ITVComponents.GenericService.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
+    <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ITVComponents.UpdateService.Test" />
+  </ItemGroup>
+</Project>
