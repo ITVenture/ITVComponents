@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.ExtendedFormatting;
+using ITVComponents.GenericService.Sessions;
 using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
@@ -34,6 +35,11 @@ namespace ITVComponents.GenericService
         /// the loader object used to load the worker plugins
         /// </summary>
         private PluginFactory pluginLoader;
+
+        /// <summary>
+        /// The Windows session notifications, shared with the host lifetime and the plugins
+        /// </summary>
+        private readonly ServiceSessionEvents sessionEvents = new ServiceSessionEvents();
 
         /// <summary>
         /// The ServiceHost that is running the local service
@@ -66,6 +72,8 @@ namespace ITVComponents.GenericService
             var builder = Host.CreateDefaultBuilder().ConfigureServices((hostContext, services) =>
             {
                 services.AddHostedService(s => srv);
+                services.AddSingleton(srv.sessionEvents);
+                services.AddSingleton<IServiceSessionEvents>(srv.sessionEvents);
                 var cf = NativeSettings.Configuration.GetSection("HostOptions");
                 services.Configure<HostOptions>(cf.GetSection("HostOptions"));
             });
@@ -124,6 +132,7 @@ namespace ITVComponents.GenericService
             pluginLoader = new PluginFactory(true, false, true, Configure);
             pluginLoader.AllowFactoryParameter = true;
             pluginLoader.ImplementGenericType += ImplementGenericPlugIn;
+            pluginLoader.RegisterObject(ServiceSessionEvents.ParameterName, sessionEvents);
         }
 
         /// <summary>
@@ -148,6 +157,14 @@ namespace ITVComponents.GenericService
             }
             catch (Exception ex)
             {
+                // A service has no console: without the log, a failed start would leave no trace at all.
+                if (ServiceConfigHelper.FailOnStartupError)
+                {
+                    LogEnvironment.LogEvent($"The service {ServiceConfigHelper.ServiceName} could not set up its plugins; the start fails so that it can be restarted: {ex.OutlineException()}", LogSeverity.Error);
+                    throw;
+                }
+
+                LogEnvironment.LogEvent($"The service {ServiceConfigHelper.ServiceName} could not set up its plugins and runs without them: {ex.OutlineException()}", LogSeverity.Error);
                 Exception e = ex;
                 while (e != null)
                 {
@@ -179,6 +196,7 @@ namespace ITVComponents.GenericService
         /// </summary>
         /// <param name="initializeDeferrables">indicates whether to initialize the deferrables. Pass <c>false</c> to
         /// load the plugins into the factory without actually starting the service-workers (e.g. for interactive mode)</param>
+        /// <param name="continueOnFailure">indicates whether a plugin that fails to load is only logged and skipped</param>
         private void SetupWorkers(bool initializeDeferrables, bool continueOnFailure)
         {
             foreach (PluginConfigurationItem pi in ServiceConfigHelper.PlugIns)

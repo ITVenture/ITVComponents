@@ -1,6 +1,6 @@
 # ISSUE: Update-Dienst für Client-Anwendungen (Windows-Dienst mit IPC zur Anwendung)
 
-**Status:** offen, Grundanforderungen · **Datum:** 2026-11-17 · **Version:** 5.0.0-PRE275 ·
+**Status:** in Arbeit, Plan der Toolkit-Seite am Ende · **Datum:** 2026-11-17 · **Version:** 5.0.0-PRE275 ·
 **Quelle:** MiniStore, Setup und Verteilung des POS-Agenten
 
 ## Worum es geht
@@ -314,3 +314,148 @@ Später sind weitere Ausprägungen denkbar (S3, Azure Blob), ohne dass sich am R
 - das Melden von Fassung und Update-Stand aus dem Agenten (der Meldeweg kommt aus dem Toolkit);
 - die Einbindung der Client-Bibliothek in den Tray: Anzeige, Aufschieben während Zahlung oder Druck, „läuft
   schon“.
+
+## Plan der Toolkit-Seite (Stand 2026-11-17)
+
+Dieser Abschnitt hält fest, was die Toolkit-Seite entschieden und schon gebaut hat. Wo er den Abschnitten oben
+widerspricht, gilt er.
+
+### P1. Lokaler Kanal: gebaut (`f56cf145c`, Leitfaden §110)
+
+Die Anwendung spricht den Dienst über die ITVComponents-IPC an, nicht über ein eigenes Protokoll. Der Transport
+ist das neue Paket `ITVComponents.InterProcessCommunication.NamedPipe`.
+
+- **Die Pipe:**
+  - Die ACL lässt angemeldete Konten zu, gesperrt sind Netzwerkzugriffe und neue Instanzen.
+  - Der Dienst öffnet die Pipe exklusiv.
+  - Die Anwendung kann prüfen, dass die Pipe LocalSystem gehört (`ExpectedServerOwner = S-1-5-18`).
+- **Identität:** Der Dienst liest sie beim Betriebssystem, nie aus der Nachricht: Benutzer, Gruppen, Sitzung,
+  Prozess-Id und Programmpfad. Damit sind Sitzungs-Id und PID aus der Tabelle in B nicht mehr Teil der Anmeldung,
+  der Dienst kennt sie selbst.
+- **Angebot des Dienstes:** Er bietet eine schmale Fassade an. Öffentlich ist nur, was die Anwendung tun darf.
+  Argumente sind nur Grundtypen und angemeldete Typen.
+- **Ereignisse** (Beenden, freigeben/übernehmen, Stand geändert) kommen über den Rückkanal der IPC.
+
+### P2. Feed: eine Paketliste
+
+Ein Manifest je Kanal (`stable.json`, `beta.json`) listet alle Pakete eines Produkts. Das Grundpaket ist ein
+Eintrag darin.
+
+```json
+{
+  "channel": "stable",
+  "generated": "2026-11-17T08:00:00Z",
+  "packages": [
+    {
+      "id": "MiniStore.PosAgent", "kind": "base", "version": "1.4.2",
+      "url": "packages/MiniStore.PosAgent-1.4.2.msi", "sha256": "…", "size": 48213504,
+      "published": "…", "urgent": false, "minimumVersion": "1.3.0"
+    },
+    {
+      "id": "MiniStore.Printer.EpsonTM", "kind": "module", "version": "2.0.1",
+      "url": "packages/MiniStore.Printer.EpsonTM-2.0.1.zip", "sha256": "…", "size": 812345,
+      "published": "…", "requires": { "MiniStore.PosAgent": "[1.4.0,2.0.0)" }
+    }
+  ]
+}
+```
+
+- **`kind`** bestimmt die Installations-Strategie: `base` installiert per `msiexec` (Auswertung wie in 8),
+  `module` per Entpacken und Umschalten (P4).
+- **`requires`** gibt einen Fassungsbereich in NuGet-Schreibweise an. Passt er nicht zur installierten Fassung,
+  wird das Paket nicht installiert, und der Stand meldet den Grund.
+- **`sha256` ist Pflicht.** Ohne passenden Hash wird nichts installiert.
+- `url` ist relativ zum Manifest. `urgent` und `minimumVersion` gelten wie in 2 und 4.
+
+### P3. Signatur des Feeds: optional, Hash zwingend
+
+- Das Web signiert das Manifest byte-genau so, wie es ausgeliefert wird. Die Signatur liegt daneben
+  (`stable.json.sig`). Es gibt keine Kanonisierung, und alles bleibt statisch auslieferbar.
+- **Der Schlüssel** ist ein Zertifikat, das in der Web-Anwendung hinterlegt wird.
+  - Es kommt als PFX aus der Konfiguration, das Passwort aus den Secrets, und es liegt hinter `IFeedSigner`.
+    Später kann es so auch aus einem Key Vault kommen.
+  - Es liegt nicht in der Datenbank, sonst steckte es in jedem Backup.
+- **Der Dienst** kennt die Fingerabdrücke des öffentlichen Zertifikats. Er nimmt zwei an, damit sich das
+  Zertifikat ohne Unterbruch wechseln lässt.
+- **Einstellung „Signatur verlangen“:** Ist sie an, lehnt der Dienst ein unsigniertes oder falsch signiertes
+  Manifest ab. Ist sie aus, hängt die Echtheit der Module allein an HTTPS und am Webserver. Module haben keine
+  Authenticode-Signatur, das Manifest ist ihre einzige Bindung. Für den Laden einschalten, für die Entwicklung
+  ausschalten.
+- Das MSI des Grundpakets prüft der Dienst immer zusätzlich per Authenticode, wie unter „Sicherheit“ beschrieben.
+
+### P4. Zusatzpakete (Module)
+
+Ein Modul ist eine Erweiterung des Agenten: Plugin-Assemblies, ihre Abhängigkeiten und ihr Eintrag im Agent-Katalog
+(§72). Es installiert nichts am System. Die Windows-Installation verantwortet der Kunde. Der Dienst hütet nur das
+Grundpaket und die Module.
+
+- **Ablage:** `Program Files\<Produkt>\modules\<id>\`, schreibbar nur für SYSTEM. So kann kein Benutzer Code
+  unterschieben, der danach im Agenten läuft.
+  - Der Pfad enthält keine Fassung. Damit bleiben die Konstruktionszeilen über Updates hinweg gleich.
+  - Die Fassung steht im `module.json` des Ordners, zusammen mit Id und Haupt-Assembly. Der Dienst schreibt und
+    prüft es.
+- **Inhalt:** Das Modul wird als Plugin-Projekt gebaut (`EnableDynamicLoading`). Seine `.deps.json` beschreibt alle
+  Abhängigkeiten, auch native. Eine eigene Liste braucht es nicht.
+- **Installation:**
+  - Herunterladen und den Hash prüfen.
+  - Nach `modules\<id>.new\` entpacken. Kein Eintrag darf aus dem Zielordner herausführen (Zip-Slip).
+  - Umbenennen, sobald der Agent beendet ist, denn er hält die Dateien geladener Assemblies offen. Der Agent startet
+    nie mit einem halb geschriebenen Modul.
+- **Wirksam** wird ein Modul mit dem nächsten Start des Agenten: untätig beenden lassen und neu starten, wie in 2.
+  Es braucht keinen Neustart des Systems.
+- **Buchführung:** Was installiert ist, führt der Dienst selbst in `ProgramData`. Deinstallieren entfernt den
+  Ordner des Moduls und sonst nichts (P5).
+- **Konfiguration:** Das Paket bringt seinen Eintrag für den Agent-Katalog mit. Die Assemblies nennt er immer mit
+  Pfad relativ zum Installationsordner (`[modules\<id>\X.dll]<Typ>`). Ein blosser Dateiname könnte mit einem
+  anderen Modul kollidieren und wird mit Warnung im Log abgelehnt.
+- **Zuweisung:**
+  - Im Web wird je ClientApp festgelegt, welche Module sie bekommt, z. B. über die Vorlage plus Zusätze je Kasse.
+  - Der Agent reicht die Liste der Paket-Ids an den Dienst weiter. Über die Pipe gehen nur Ids, nie Pfade oder
+    URLs, wie oben unter B gefordert.
+  - Der Dienst nimmt die Liste nur vom Agenten an, erkennbar an dessen Programmpfad im Installationsordner.
+  - Er gleicht ab: Fehlt ein zugewiesenes Modul, wird es installiert. Ist ein installiertes Modul nicht mehr
+    zugewiesen, wird es entfernt.
+- **Stand je Paket:** Der Agent meldet ihn wie in 7, z. B. „Kasse 2: Grundpaket aktuell, EpsonTM fehlgeschlagen
+  (Hash stimmt nicht)“.
+
+### P5. Abhängigkeiten von Modulen: ein Ladekontext je Modul
+
+Module bringen eigene Abhängigkeiten mit, und mehrere Module können dieselbe Assembly brauchen, auch in
+verschiedenen Fassungen. Jedes Modul wird deshalb in einem eigenen `AssemblyLoadContext` geladen. Darin lädt es
+seine Abhängigkeiten in der Fassung, die es mitbringt. Jeder Modulordner ist vollständig. Es gibt keine geteilten
+Dateien, keine Referenzzählung und keine Konflikte zwischen Fassungen. Deinstallieren heisst Ordner löschen.
+
+- **PluginFactory:** Eine austauschbare Wahl des Ladekontexts, `IAssemblyContextSelector`
+  (`ContextFor(assemblyPath)`).
+  - Ohne Selektor arbeitet die Factory wie bisher im Standard-Kontext. Für bestehende Hosts ändert sich nichts.
+  - Der Agent bekommt einen `ModuleContextSelector`: Liegt eine Assembly unter `modules\<id>\`, kommt sie in den
+    Kontext dieses Moduls, je Modul genau einer. Alles andere kommt in den Standard-Kontext. Der Ort entscheidet,
+    nicht ein Eintrag in der Konfiguration, und den Ort kann nur der Dienst beschreiben.
+  - Die Abhängigkeiten einer Modul-Assembly löst die Runtime über deren Kontext auf. Die Factory muss davon nichts
+    wissen.
+  - Lade-Scopes und Transient-Plugins sind nicht betroffen: Sie regeln die Lebensdauer von Instanzen, nicht das
+    Laden von Assemblies.
+- **`ModuleLoadContext`** löst über den `AssemblyDependencyResolver` der Haupt-Assembly auf und lädt native DLLs
+  aus dem Modulordner. Er ist nicht entladbar, Module werden ohnehin mit dem Neustart des Agenten wirksam.
+- **Verträge kommen immer aus dem Standard-Kontext:** ITVComponents, Plugins, die Agent-Abstraktionen und die
+  Geräte-Schnittstellen. Der Modul-Kontext gibt für sie nichts zurück. Würde ein Modul eine eigene Kopie laden,
+  wären seine Typen für die Runtime andere als die des Agenten (`InvalidCastException`). Ein Modul, das
+  Vertrags-Assemblies mitbringt, lehnt der Dienst ab.
+- **Was über die IPC geht, ist in Vertrags-Assemblies definiert, nie in einem Modul.** Die IPC löst Typnamen im
+  Standard-Kontext auf, ein Typ aus einem Modul wäre dort nicht zu finden. Das Web kennt die Module ohnehin nicht.
+  Die Bereitstellung der Dienste ans Web-Backend ändert sich damit nicht.
+- **Restrisiko native DLLs:** Windows lädt eine native DLL je Prozess nach ihrem Namen. Der Modul-Kontext lädt sie
+  über den vollen Pfad, ihre eigenen Abhängigkeiten löst Windows aber nach dem Namen auf. Zwei Module mit
+  gleichnamigen nativen DLLs in verschiedenen Fassungen können sich deshalb weiterhin stören.
+- **Zu bestätigen zu Beginn von Phase 4:** Lädt die Factory die Modul-Assembly über den Selektor, sollten die
+  Konstruktionszeilen der Module ohne weitere Änderung funktionieren. Das wird zuerst mit einem Test geprüft.
+
+### P6. Phasen
+
+| Phase | Inhalt |
+|---|---|
+| 1 | Dienst auf GenericService:<br>- Sitzungswechsel über eine eigene `WindowsServiceLifetime`<br>- Fehler beim Start ins Log statt auf die Konsole<br>- Feed als Paketliste, zunächst nur das Grundpaket; Hash zwingend<br>- Authenticode-Prüfung des MSI, dazu `UpgradeCode` und `ProductVersion` gegen Konfiguration und Manifest<br>- Installation losgelöst, mit Zustandsdatei und `IInstallResultEvaluator`<br>- Neustart der Anwendung in ihrer Sitzung<br>- Fassade über die Pipe: Anmelden, Stand, Beenden, Aufschieben, Jetzt prüfen<br>- Client-Bibliothek für die Anwendung |
+| 2 | Übergabe zwischen Sitzungen, „läuft schon“, Konsole hat Vorrang |
+| 3 | Signatur des Feeds (P3): `IFeedSigner` im Web, Prüfung im Dienst |
+| 4 | Module (P4, P5): Paketart `module`, `IAssemblyContextSelector` in der PluginFactory, `ModuleLoadContext` im Agenten, Abgleich der Zuweisung |
+| 5 | Web: Pakete und Freigaben verwalten, Manifest-Endpunkt mit `ETag`, Zuweisung der Module je ClientApp, Übersicht des Stands je Instanz |

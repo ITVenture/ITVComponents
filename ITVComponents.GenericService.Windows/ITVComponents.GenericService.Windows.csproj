@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE275</Version>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Description>Runs an ITVComponents generic service as a Windows service, with the Windows session notifications for its plugins. Kept apart from ITVComponents.GenericService so that the generic service stays free of Windows-only dependencies.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.13" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ITVComponents.GenericService\ITVComponents.GenericService.csproj" />
+  </ItemGroup>
+</Project>

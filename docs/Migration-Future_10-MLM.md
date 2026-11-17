@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 111 | **GenericService: Sitzungswechsel, Startfehler** | Kein Schema-Change, nichts zu tun. Neu: `ITVComponents.GenericService.Windows`. Opt-in: Einstellung `FailOnStartupError`. |
 | 110 | **IPC über Named Pipe (neues Paket); Identität und Typen am Message-Server** | Kein Schema-Change. Neu: `ITVComponents.InterProcessCommunication.NamedPipe`. **Verhaltensänderung:** `JsonSettingsSecurityRepository` vergleicht Benutzer- und Rollennamen ohne Gross-/Kleinschreibung, ein Benutzer ohne Authentifizierungsart gilt auch bei den Berechtigungen für alle Arten (§110.4). Opt-in am `MessageServer`: `TrustClientIdentity`, `RestrictArgumentTypes`. |
 | 109 | **Abmelden unter `/c/{sprache}`; Sprache und Zeitzone im Firmenprofil** | Kein Schema-Change. **Verhaltensänderung:** mit `AddCulturePath()` lässt der Pfad der Anmelde-Cookies das Kultur-Präfix weg (§109). **BREAKING (nur eigene Implementierungen):** `IOnboardingAdminHandler.NewBillingProfileAsync` ist neu. |
 | 108 | **Sprach-JSON zeigt nie mehr den Rohwert; Auszahlungs-Reiter in vier Sprachen** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** fehlt einem `{"de":…}`-Datensatz die Sprache und ein `Default`, erscheint `en` bzw. der erste Eintrag statt des JSON (einmal je Datensatz als Warnung im Log); bei invarianter Kultur gilt `Default` (§108). |
@@ -9628,3 +9629,29 @@ Stelle:
 
 **Für den Host:** Prüfen, ob die Service-Konfiguration Benutzer ohne `AuthenticationType` enthält, die bisher
 bewusst keine Berechtigungen bekommen sollten. Sie bekommen jetzt die ihrer Rollen.
+
+## 111. GenericService: Sitzungswechsel, Startfehler — **kein Schema-Change**
+
+Vorarbeit für den Update-Dienst (`docs/ISSUE-MiniStore-UpdateService.md`, Phase 1).
+
+### 111.1 Sitzungswechsel für Plugins
+
+- **`ITVComponents.GenericService`** (plattformneutral, ohne neue Abhängigkeit) bietet `IServiceSessionEvents` an:
+  Anmelden und Abmelden, Sperren und Entsperren, Konsole und Remote verbunden bzw. getrennt (`ServiceSessionChange`).
+  Ein Plugin bekommt das Objekt über einen Konstruktorparameter namens `serviceSessionEvents`. Unter Linux, in der
+  Konsole und beim Debuggen ist `Active` false, und es kommt nichts.
+- **Neues Paket `ITVComponents.GenericService.Windows`** liefert die Benachrichtigungen:
+  `Service.Run(args, h => h.UseGenericWindowsService())` statt `h.UseWindowsService()`. Ausserhalb eines
+  Windows-Dienstes ändert es nichts.
+- GenericService selbst bleibt bewusst ohne `Microsoft.Extensions.Hosting.WindowsServices`, damit es unter Linux
+  bzw. im Container lauffähig bleibt. Ein Dienst, der auch dort laufen soll, ruft `UseGenericWindowsService()` nur
+  unter Windows auf.
+
+### 111.2 Startfehler
+
+- Scheitert das Einrichten der Plugins beim Start, steht das jetzt als Fehler im Log. Bisher stand es nur auf der
+  Konsole, die ein Dienst nicht hat.
+- **Neue Einstellung `FailOnStartupError`** in der Service-Konfiguration, neben `ServiceName` usw. Vorgabe ist
+  `false`: Der Dienst läuft wie bisher ohne Plugins weiter. Mit `true` schlägt der Start fehl. Nur dann greifen die
+  Wiederherstellungsaktionen von Windows (bzw. `Restart=on-failure` unter systemd) und starten den Dienst neu.
+  Gedacht ist das für Dienste, die sich ohne Eingriff vor Ort selbst erholen müssen.

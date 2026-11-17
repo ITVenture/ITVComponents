@@ -35,5 +35,7 @@ namespace ITVComponents.GenericService
             : Default.GenericTypeInformation;
 
         public static IList<string> Dependencies => Section.UseExtConfig ? (IList<string>)Section.Dependencies : Default.Dependencies;
+
+        public static bool FailOnStartupError => Section.UseExtConfig ? Section.FailOnStartupError : Default.FailOnStartupError;
     }
 }
