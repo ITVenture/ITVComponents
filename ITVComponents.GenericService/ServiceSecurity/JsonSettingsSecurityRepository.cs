@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using ITVComponents.GenericService.ServiceSecurity.Config;
 using System.IO;
 using System.Linq;
 using ITVComponents.Helpers;
@@ -153,12 +154,12 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>a value indicating whether this user is valid in the current scope</returns>
         public bool IsAuthenticated(string[] userLabels, string userAuthenticationType)
         {
-            return Users.Any(n => (string.IsNullOrEmpty(n.AuthenticationType) || n.AuthenticationType == userAuthenticationType) && userLabels.Contains(n.UserName));
+            return MatchingHostUsers(userLabels, userAuthenticationType).Any();
         }
 
         public bool IsAuthenticated(string[] userLabels, string forScope, string userAuthenticationType)
         {
-            return Users.Any(n => (string.IsNullOrEmpty(n.AuthenticationType) || n.AuthenticationType == userAuthenticationType) && userLabels.Contains(n.UserName));
+            return MatchingHostUsers(userLabels, userAuthenticationType).Any();
         }
 
         /// <summary>
@@ -167,10 +168,25 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <param name="userLabels">the labels that describe the current user</param>
         /// <param name="userAuthenticationType">the authentication-type that was used to authenticate current user</param>
         /// <returns>an enumerable of all the custom user-properties for this user</returns>
+        /// <summary>
+        /// The configured users a caller is, by any of its labels (user name, group, ...).
+        /// </summary>
+        /// <remarks>
+        /// Names are compared without regard to case - Windows does not care either, and the same account may be written
+        /// <c>DOMAIN\user</c> in the configuration and <c>Domain\User</c> by the system. A user without authentication type
+        /// in the configuration stands for every authentication type. Every lookup by labels goes through here, so that
+        /// "is authenticated" and "has permissions" never disagree.
+        /// </remarks>
+        private static IEnumerable<HostUser> MatchingHostUsers(string[] userLabels, string userAuthenticationType)
+        {
+            var labels = new HashSet<string>(userLabels ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            return HostConfiguration.Helper.HostUsers.Where(u => labels.Contains(u.UserName ?? string.Empty)
+                                                                 && (string.IsNullOrEmpty(u.AuthenticationType) || string.Equals(u.AuthenticationType, userAuthenticationType, StringComparison.Ordinal)));
+        }
+
         public IEnumerable<CustomUserProperty> GetCustomProperties(string[] userLabels, string userAuthenticationType, CustomUserPropertyType propertyType)
         {
-            return (from t in userLabels
-                    join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
+            return (from u in MatchingHostUsers(userLabels, userAuthenticationType)
                     select u.CustomInfo).SelectMany(i => i.Where(n => n.PropertyType == propertyType).Select(m => new CustomUserProperty
                     {
                         PropertyName = m.PropertyName,
@@ -181,10 +197,7 @@ namespace ITVComponents.GenericService.ServiceSecurity
 
         public IEnumerable<T> GetUserIds<T>(string[] userLabels, string userAuthenticationType)
         {
-            return (from t in userLabels
-                join u in HostConfiguration.Helper.HostUsers on new
-                    { UserName = t, AuthenticationType = userAuthenticationType } equals new
-                    { u.UserName, u.AuthenticationType }
+            return (from u in MatchingHostUsers(userLabels, userAuthenticationType)
                 select u.UserName).Cast<T>();
         }
 
@@ -329,10 +342,9 @@ namespace ITVComponents.GenericService.ServiceSecurity
         /// <returns>an enumerable of permissions for the given user-labels</returns>
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string userAuthenticationType)
         {
-            return (from ur in (from t in userLabels
-                                join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
-                                select u.Roles).SelectMany(r => r).Distinct()
-                    join hr in HostConfiguration.Helper.HostRoles on ur equals hr.RoleName
+            return (from ur in (from u in MatchingHostUsers(userLabels, userAuthenticationType)
+                                select u.Roles).SelectMany(r => r).Distinct(StringComparer.OrdinalIgnoreCase)
+                    join hr in HostConfiguration.Helper.HostRoles on ur.ToLowerInvariant() equals hr.RoleName.ToLowerInvariant()
                     select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(p => new Permission { PermissionName = p });
@@ -340,10 +352,9 @@ namespace ITVComponents.GenericService.ServiceSecurity
 
         public IEnumerable<Permission> GetPermissions(string[] userLabels, string forScope, string userAuthenticationType)
         {
-            return (from ur in (from t in userLabels
-                        join u in HostConfiguration.Helper.HostUsers on new { UserName = t, AuthenticationType = userAuthenticationType } equals new { u.UserName, u.AuthenticationType }
-                        select u.Roles).SelectMany(r => r).Distinct()
-                    join hr in HostConfiguration.Helper.HostRoles on ur equals hr.RoleName
+            return (from ur in (from u in MatchingHostUsers(userLabels, userAuthenticationType)
+                        select u.Roles).SelectMany(r => r).Distinct(StringComparer.OrdinalIgnoreCase)
+                    join hr in HostConfiguration.Helper.HostRoles on ur.ToLowerInvariant() equals hr.RoleName.ToLowerInvariant()
                     select hr.Permissions).SelectMany(n => n).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Union(TemporaryGrants.GetTemporaryPermissions(userLabels)).Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(p => new Permission { PermissionName = p });

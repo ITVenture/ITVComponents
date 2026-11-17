@@ -81,6 +81,63 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
              MessageTranslator.RegisterMessages();
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether an identity the client puts into its request is used. Default: true
+        /// (the behavior so far - the client's identity wins over the one the hub vouches for).
+        /// </summary>
+        /// <remarks>
+        /// Set it to false when the hub is the only party that can vouch for a caller, e.g. a named pipe whose
+        /// identity comes from the operating system. Then only the hub's identity counts, and whatever a client
+        /// claims in its request is ignored.
+        /// </remarks>
+        public bool TrustClientIdentity { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether method arguments may only be of types registered with
+        /// <see cref="JsonHelper.RegisterManualType{T}"/> (the basic types are registered by default). Default: false.
+        /// </summary>
+        /// <remarks>
+        /// Without it, the client names the type of every argument and the server loads it. With it, an
+        /// unregistered type is not loaded and the argument arrives as null.
+        /// </remarks>
+        public bool RestrictArgumentTypes { get; set; }
+
+        /// <summary>
+        /// Decides whether a caller may (un)subscribe events for the given back channel. Default: always.
+        /// </summary>
+        /// <param name="respondChannel">the back channel the events are delivered to</param>
+        /// <param name="caller">the identity of the caller</param>
+        /// <returns>true if the caller may use the channel</returns>
+        /// <remarks>
+        /// A transport that knows which back channel belongs to which caller overrides it, so that nobody can
+        /// subscribe or cancel events on behalf of another client.
+        /// </remarks>
+        protected virtual bool MayUseEventChannel(string respondChannel, System.Security.Principal.IIdentity caller)
+        {
+            return true;
+        }
+
+        /// <summary>
+        /// Determines the identity a request runs under.
+        /// </summary>
+        /// <param name="message">the request</param>
+        /// <param name="e">the arguments of the arrived message, holding the identity of the hub</param>
+        /// <returns>the identity of the caller, or null</returns>
+        private System.Security.Principal.IIdentity CallerOf(IRequestMessage message, MessageArrivedEventArgs e)
+        {
+            if (TrustClientIdentity && message is AuthenticatedRequestMessage arm && arm.AuthenticatedUser != null)
+            {
+                return arm.AuthenticatedUser.ToIdentity() ?? e.HubUser;
+            }
+
+            if (!TrustClientIdentity && message is AuthenticatedRequestMessage ignored && ignored.AuthenticatedUser != null)
+            {
+                LogEnvironment.LogDebugEvent("The client sent an identity of its own; it is ignored, only the hub's identity counts.", LogSeverity.Report);
+            }
+
+            return e.HubUser;
+        }
+
         private void TryReconnect(object state)
         {
             if (Monitor.TryEnter(reconnLock))
@@ -255,14 +312,27 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
 
         private void ClientInvokation(object? sender, MessageArrivedEventArgs e)
         {
-            
-            var msg = JsonHelper.FromJsonString<IRequestMessage>(e.Message, SerializationTypingMode.NativePolymorphism, true);
+            using var typeRestriction = RestrictArgumentTypes ? JsonHelper.RestrictManualTypesToRegistered() : null;
+            IRequestMessage msg;
+            try
+            {
+                msg = JsonHelper.FromJsonString<IRequestMessage>(e.Message, SerializationTypingMode.NativePolymorphism, true);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"A request could not be read and is refused: {ex.OutlineException()}", LogSeverity.Warning);
+                e.Error = JsonHelper.ToJson<IServerResponse>(new ErrorResponse{SerializedException = new InvalidOperationException("The request could not be read.")}, SerializationTypingMode.NativePolymorphism);
+                e.Completed = true;
+                return;
+            }
+
             LogEnvironment.LogDebugEvent($"Message is {msg}", LogSeverity.Report);
             LogEnvironment.LogDebugEvent(e.Message, LogSeverity.Report);
             IServiceProvider services = e.Services;
             try
             {
-                var requestContext = new RequestContext(msg, (msg as AuthenticatedRequestMessage)?.AuthenticatedUser?.ToIdentity() ?? e.HubUser, services);
+                var caller = CallerOf(msg, e);
+                var requestContext = new RequestContext(msg, caller, services);
                 using var scopeFactory = plugins.OpenScope(new Dictionary<string, object>
                     { { "requestContext", requestContext } }, services);
                 requestContext.ScopeFactory = scopeFactory;
@@ -273,7 +343,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is ObjectAvailabilityRequestMessage oarm)
                 {
-                    var avail = CheckForAvailableProxy(oarm.UniqueName, oarm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    var avail = CheckForAvailableProxy(oarm.UniqueName, caller, services);
                     e.Response = JsonHelper.ToJson(new ObjectAvailabilityResponseMessage
                     {
                         Message = avail.Message,
@@ -283,7 +353,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is SetPropertyRequestMessage sprm)
                 {
-                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments.UnpackArguments(), sprm.Value, sprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments.UnpackArguments(), sprm.Value, caller, services);
                     e.Response = JsonHelper.ToJson(new SetPropertyResponseMessage
                     {
                         Ok = true
@@ -291,7 +361,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is GetPropertyRequestMessage gprm)
                 {
-                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments.UnpackArguments(), gprm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    var retVal = GetProperty(gprm.TargetObject, gprm.TargetMethod, gprm.MethodArguments.UnpackArguments(), caller, services);
                     e.Response = JsonHelper.ToJson(new GetPropertyResponseMessage
                     {
                         Result = new []{retVal}.PackArguments(),
@@ -300,7 +370,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is InvokeMethodRequestMessage imrm)
                 {
-                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments.UnpackArguments(), imrm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    var result = ExecuteMethod(imrm.TargetObject, imrm.TargetMethod, imrm.MethodArguments.UnpackArguments(), caller, services);
                     e.Response = JsonHelper.ToJson(new InvokeMethodResponseMessage
                     {
                         Arguments = imrm.MethodArguments,
@@ -309,7 +379,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is UnRegisterEventRequestMessage urerm)
                 {
-                    var ok = UnSubscribeEvent(urerm.TargetObject, urerm.EventName, urerm.RespondChannel, urerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    if (!MayUseEventChannel(urerm.RespondChannel, caller))
+                    {
+                        LogEnvironment.LogEvent($"{caller?.Name ?? "An anonymous caller"} wanted to cancel event {urerm.EventName} for back channel {urerm.RespondChannel}, which is not its own; refused.", LogSeverity.Warning);
+                        throw new System.Security.SecurityException("The back channel does not belong to the caller.");
+                    }
+
+                    var ok = UnSubscribeEvent(urerm.TargetObject, urerm.EventName, urerm.RespondChannel, caller, services);
                     e.Response = JsonHelper.ToJson(new UnRegisterEventResponseMessage
                     {
                         Ok = ok
@@ -317,7 +393,13 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is RegisterEventRequestMessage rerm)
                 {
-                    var ok = SubscribeForEvent(rerm.TargetObject, rerm.EventName, rerm.RespondChannel, rerm.AuthenticatedUser?.ToIdentity()??e.HubUser, services);
+                    if (!MayUseEventChannel(rerm.RespondChannel, caller))
+                    {
+                        LogEnvironment.LogEvent($"{caller?.Name ?? "An anonymous caller"} wanted to subscribe event {rerm.EventName} for back channel {rerm.RespondChannel}, which is not its own; refused.", LogSeverity.Warning);
+                        throw new System.Security.SecurityException("The back channel does not belong to the caller.");
+                    }
+
+                    var ok = SubscribeForEvent(rerm.TargetObject, rerm.EventName, rerm.RespondChannel, caller, services);
                     e.Response = JsonHelper.ToJson(new RegisterEventResponseMessage
                     {
                         Ok = ok

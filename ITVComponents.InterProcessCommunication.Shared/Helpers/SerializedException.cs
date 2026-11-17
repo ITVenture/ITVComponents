@@ -96,7 +96,32 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         public KeyValuePair<string, string>[] CollectedInformation
         {
             get { return collectedInformation.ToArray(); }
-            set { value.ForEach(n => collectedInformation[n.Key] = n.Value); }
+            set
+            {
+                if (value == null)
+                {
+                    return;
+                }
+
+                // An entry without key cannot be kept - but it must not cost the whole exception either: the message,
+                // type and stack trace of the remote error are what the caller needs.
+                var dropped = 0;
+                foreach (var item in value)
+                {
+                    if (item.Key == null)
+                    {
+                        dropped++;
+                        continue;
+                    }
+
+                    collectedInformation[item.Key] = item.Value;
+                }
+
+                if (dropped != 0)
+                {
+                    ITVComponents.Logging.LogEnvironment.LogDebugEvent($"{dropped} collected detail(s) of a remote {ExceptionType ?? "exception"} arrived without name and were dropped.", ITVComponents.Logging.LogSeverity.Warning);
+                }
+            }
         }
 
         /// <summary>

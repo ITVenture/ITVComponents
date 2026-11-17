@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 110 | **IPC über Named Pipe (neues Paket); Identität und Typen am Message-Server** | Kein Schema-Change. Neu: `ITVComponents.InterProcessCommunication.NamedPipe`. **Verhaltensänderung:** `JsonSettingsSecurityRepository` vergleicht Benutzer- und Rollennamen ohne Gross-/Kleinschreibung, ein Benutzer ohne Authentifizierungsart gilt auch bei den Berechtigungen für alle Arten (§110.4). Opt-in am `MessageServer`: `TrustClientIdentity`, `RestrictArgumentTypes`. |
 | 109 | **Abmelden unter `/c/{sprache}`; Sprache und Zeitzone im Firmenprofil** | Kein Schema-Change. **Verhaltensänderung:** mit `AddCulturePath()` lässt der Pfad der Anmelde-Cookies das Kultur-Präfix weg (§109). **BREAKING (nur eigene Implementierungen):** `IOnboardingAdminHandler.NewBillingProfileAsync` ist neu. |
 | 108 | **Sprach-JSON zeigt nie mehr den Rohwert; Auszahlungs-Reiter in vier Sprachen** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** fehlt einem `{"de":…}`-Datensatz die Sprache und ein `Default`, erscheint `en` bzw. der erste Eintrag statt des JSON (einmal je Datensatz als Warnung im Log); bei invarianter Kultur gilt `Default` (§108). |
 | 107 | **Kultur-Präfix fällt auf die Elternsprache zurück** | Kein Schema-Change, nichts zu tun. `/c/fr-ch/…` ergibt bei angebotenem `fr` jetzt Französisch statt der Vorgabe, sofern `FallBackToParentUICultures` gesetzt ist (Vorgabe). **Verhaltensänderung:** die Warnung „not among the supported ones“ fällt für solche Adressen weg (§107). |
@@ -9555,3 +9556,75 @@ wird der gespeicherte Wert, nicht der aufgelöste: Leer heisst geerbt.
 Nichts zu tun. Wer `IOnboardingAdminHandler` selbst implementiert, ergänzt `NewBillingProfileAsync`. Nach dem
 Update meldet man sich am besten einmal ab und wieder an. Ein unter einem Präfix gespeichertes Alt-Cookie
 verschwindet beim nächsten Abmelden unter diesem Präfix.
+
+## 110. IPC über Named Pipe; Identität und Typen am Message-Server — **kein Schema-Change; Verhaltensänderung**
+
+Auslöser ist der Update-Dienst für Client-Anwendungen (`docs/ISSUE-MiniStore-UpdateService.md`). Das ist ein
+Windows-Dienst unter LocalSystem, mit dem sich die Anwendung lokal verbindet. Dieser Abschnitt beschreibt nur den
+Transport. Den Update-Dienst selbst gibt es noch nicht.
+
+### 110.1 Neues Paket `ITVComponents.InterProcessCommunication.NamedPipe`
+
+Ein weiterer Hub-Transport neben InMemory und gRPC. Die Hub-Verbindung läuft über eine lokale Named Pipe, die
+Objekt-Kommunikation bleibt in MessagingShared. Der Endpunkt hängt wie die anderen an einem `IServiceHubProvider`
+(`MessageServiceHub`), die Transporte lassen sich also kombinieren: Ein Pipe-Client erreicht einen InMemory- oder
+gRPC-Dienst und umgekehrt, auch mit Events.
+
+- **`NamedPipeHubEndPoint`** (Plugin) öffnet die Pipe. Hält schon ein anderer Prozess den Namen, startet der Hub
+  nicht und schreibt einen Fehler ins Log.
+- **ACL der Pipe:** Vorgabe sind alle angemeldeten Konten (`S-1-5-11`), also Benutzer, Dienste, geplante Aufgaben
+  und Web-Anwendungen. Neue Pipe-Instanzen anlegen darf kein Client, Zugriff über das Netzwerk ist gesperrt.
+  `allowedClients` nimmt SIDs oder Namen. Für eingebaute Gruppen besser SIDs verwenden: Ihre Namen hängen von der
+  Sprache von Windows ab.
+- **Identität:** Der Hub liest sie beim Betriebssystem, nicht beim Client: Benutzer, Gruppen (SID und Name),
+  Sitzung, Prozess-Id und Programmpfad (`PipeClaimTypes`). Der Client verbindet sich anonym und immer unter dem
+  Konto seines Prozesses, auch wenn der Thread gerade jemanden impersoniert. Der Hub impersoniert nie.
+- **Berechtigung:** Optional über `IPipeHubAuthorizer`. Die Standard-Umsetzung `SecurityRepositoryPipeAuthorizer`
+  liest Benutzer, Rollen und Berechtigungen aus der Service-Konfiguration, wie die angemeldeten InMemory- und
+  gRPC-Hubs. Benutzer und Gruppen kommen als Labels (`PipeUserNameMapper`).
+  - Aufrufen, Suchen und einen Rückkanal registrieren: `ConnectAnyService` oder eine Berechtigung mit dem Namen
+    des Dienstes.
+  - Einen eigenen Dienst registrieren: `ActAsService`, und nur mit `AllowRemoteServices`.
+  - Ein unbekannter Client wird sofort getrennt.
+- **Regeln je Verbindung:**
+  - Ein Pipe-Client registriert nur einen Rückkanal, mit einer GUID als Namen.
+  - Einen fremden Rückkanal ruft nur der Dienst auf, für den er antwortet.
+  - Alles, was ein Client registriert hat, verschwindet mit seiner Verbindung.
+- **`NamedPipeClient` / `NamedPipeServer`:** Der Server ist ab Werk streng (§110.2). Ein Client kann prüfen, wem
+  die Pipe gehört (`ExpectedServerOwner`, z. B. `S-1-5-18` für einen Hub unter LocalSystem).
+
+### 110.2 `MessageServer`: Identität und Argumenttypen (Opt-in)
+
+- **`TrustClientIdentity`**, Vorgabe `true`. Bisher galt immer: Eine Identität, die der Client in seiner Anfrage
+  mitschickt, schlägt die des Hubs. Mit `false` zählt nur die Identität des Hubs. `NamedPipeServer` setzt `false`.
+- **`RestrictArgumentTypes`**, Vorgabe `false`. Mit `true` lädt der Server nur Argumenttypen, die per
+  `JsonHelper.RegisterManualType` angemeldet sind; die Grundtypen sind es ab Werk. Ein anderer Typ kommt als `null`
+  an. `NamedPipeServer` setzt `true`.
+- **`MayUseEventChannel`** (virtuell, Vorgabe: immer erlaubt). Damit kann ein Transport verhindern, dass jemand
+  Events für den Rückkanal eines anderen bestellt oder abbestellt.
+- Eine Anfrage, die sich nicht lesen lässt, wird jetzt mit Warnung im Log abgelehnt. Bisher ging die Exception in
+  den Transport.
+
+**Wichtig beim Kombinieren:** Die Identität aus der Pipe kommt bei jedem Dienst an. Ein InMemory- oder gRPC-Server
+übernimmt aber weiterhin eine Identität, die der Client mitschickt, solange er nicht selbst
+`TrustClientIdentity = false` setzt.
+
+### 110.3 `SerializedException`: Zusatzangaben ohne Namen
+
+Die Zusatzangaben einer Server-Exception (`CollectedInformation`) können beim Client ohne Schlüssel ankommen.
+Bisher warf der Client dann eine `ArgumentNullException` und zeigte die eigentliche Fehlermeldung des Servers
+nicht, z. B. bei einer `SecurityException`. Jetzt überspringt er solche Einträge mit Warnung im Log. Meldung, Typ
+und Stacktrace kommen an. Die Zusatzangaben selbst gehen weiterhin verloren. Das zu beheben, ändert das Format auf
+der Leitung und ist offen.
+
+### 110.4 `JsonSettingsSecurityRepository`: einheitlicher Vergleich
+
+Alle Abfragen über Labels (angemeldet, Berechtigungen, eigene Angaben, Benutzer-Ids) laufen jetzt durch eine
+Stelle:
+- Benutzer- und Rollennamen werden ohne Gross-/Kleinschreibung verglichen. Bisher konnte ein Benutzer als nicht
+  angemeldet gelten, obwohl er Berechtigungen gehabt hätte.
+- Ein Benutzer ohne `AuthenticationType` in der Konfiguration gilt auch bei den Berechtigungen für jede
+  Authentifizierungsart. Bisher galt das nur für „angemeldet“.
+
+**Für den Host:** Prüfen, ob die Service-Konfiguration Benutzer ohne `AuthenticationType` enthält, die bisher
+bewusst keine Berechtigungen bekommen sollten. Sie bekommen jetzt die ihrer Rollen.
