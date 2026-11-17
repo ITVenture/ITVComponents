@@ -3,7 +3,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using ITVComponents.Logging;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.UpdateService.Abstractions.Feed;
@@ -56,25 +58,45 @@ namespace ITVComponents.UpdateService.Feed
     }
 
     /// <summary>
-    /// Reads the manifest over HTTPS, with <c>ETag</c>, so that a check without news costs almost nothing.
+    /// Reads the manifest over HTTPS, with <c>ETag</c>, so that a check without news costs almost nothing - and checks its
+    /// signature (<c>&lt;channel&gt;.json.sig</c>).
     /// </summary>
+    /// <remarks>
+    /// <list type="bullet">
+    /// <item><see cref="UpdateServiceOptions.RequireFeedSignature"/>: a manifest without valid signature is refused.</item>
+    /// <item>Not required, but trusted signers configured: a signature that is there is checked; a wrong one refuses the
+    /// manifest - a signature that does not fit is a sign of tampering, not a missing feature.</item>
+    /// <item>Neither: the signature is not looked at.</item>
+    /// </list>
+    /// </remarks>
     public sealed class UpdateFeedClient : IUpdateFeedClient
     {
         private readonly HttpClient http;
         private readonly Uri manifestUri;
+        private readonly Uri signatureUri;
         private readonly bool allowInsecure;
+        private readonly bool requireSignature;
+        private readonly string[] trustedSigners;
         private EntityTagHeaderValue? lastTag;
 
         public UpdateFeedClient(HttpClient http, UpdateServiceOptions options)
         {
             this.http = http;
             allowInsecure = options.AllowInsecureFeed;
+            requireSignature = options.RequireFeedSignature;
+            trustedSigners = options.FeedSigningThumbprints.Where(t => !string.IsNullOrWhiteSpace(t)).ToArray();
+            if (requireSignature && trustedSigners.Length == 0)
+            {
+                throw new InvalidOperationException("RequireFeedSignature needs the thumbprints of the feed signers (FeedSigningThumbprints).");
+            }
+
             if (!Uri.TryCreate(options.FeedUrl.TrimEnd('/') + "/", UriKind.Absolute, out var feedFolder))
             {
                 throw new InvalidOperationException($"The feed address '{options.FeedUrl}' is not an absolute address.");
             }
 
             manifestUri = new Uri(feedFolder, $"{options.Channel}.json");
+            signatureUri = new Uri(feedFolder, $"{options.Channel}.json.sig");
             EnsureSecure(manifestUri, allowInsecure);
         }
 
@@ -94,10 +116,44 @@ namespace ITVComponents.UpdateService.Feed
             }
 
             response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            var feed = Parse(json);
+            var manifest = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            if (requireSignature || trustedSigners.Length != 0)
+            {
+                await CheckSignatureAsync(manifest, cancellationToken).ConfigureAwait(false);
+            }
+
+            var feed = Parse(Encoding.UTF8.GetString(StripByteOrderMark(manifest)));
             lastTag = response.Headers.ETag;
             return new FeedResult(feed, manifestUri);
+        }
+
+        private async Task CheckSignatureAsync(byte[] manifest, CancellationToken cancellationToken)
+        {
+            using var response = await http.GetAsync(signatureUri, cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                if (requireSignature)
+                {
+                    throw new InvalidOperationException($"The manifest is not signed ({signatureUri} is missing), and a signature is required.");
+                }
+
+                LogEnvironment.LogDebugEvent($"The manifest is not signed ({signatureUri} is missing); a signature is not required.", LogSeverity.Report);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var signature = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!FeedSignature.Verify(manifest, signature, trustedSigners, out var reason))
+            {
+                throw new InvalidOperationException($"The signature of the manifest is refused: {reason}");
+            }
+
+            LogEnvironment.LogDebugEvent("The signature of the manifest is valid.", LogSeverity.Report);
+        }
+
+        private static byte[] StripByteOrderMark(byte[] bytes)
+        {
+            return bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? bytes[3..] : bytes;
         }
 
         /// <summary>

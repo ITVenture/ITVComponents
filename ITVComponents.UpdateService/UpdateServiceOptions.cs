@@ -29,6 +29,19 @@ namespace ITVComponents.UpdateService
         public bool AllowInsecureFeed { get; set; }
 
         /// <summary>
+        /// Gets or sets the thumbprints of the certificates the feed may be signed with (two, to change the certificate
+        /// without interruption). If set, a signature next to the manifest is checked whenever there is one.
+        /// </summary>
+        public List<string> FeedSigningThumbprints { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the manifest must be signed. Without a signature, the authenticity of
+        /// modules rests on HTTPS and the web server alone (the MSI of the base package is always checked by Authenticode).
+        /// On in the shop, off in development.
+        /// </summary>
+        public bool RequireFeedSignature { get; set; }
+
+        /// <summary>
         /// Gets or sets how often to look for a new version, in minutes. Default: 60.
         /// </summary>
         public int CheckIntervalMinutes { get; set; } = 60;

@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 114 | **Update-Dienst (Phase 3): Signatur des Feeds** | Kein Schema-Change. Opt-in: `FeedSigningThumbprints`, `RequireFeedSignature`. |
 | 113 | **Update-Dienst (Phase 2): eine aktive Instanz, Übergabe zwischen Sitzungen** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade.RegisterAsync` hat den Parameter `currentlyActive`, neu sind `ReportReleasedAsync` und `RoleChanged`. |
 | 112 | **Update-Dienst (Phase 1); Korrektur der Typbeschränkung aus §110** | Kein Schema-Change. Neu: `ITVComponents.UpdateService(.Abstractions/.Client)`. **Korrektur:** `RestrictArgumentTypes` (§110) liess Proxy-Aufrufe leer ankommen und war über den deklarierten Parametertyp zu umgehen (§112.2). |
 | 111 | **GenericService: Sitzungswechsel, Startfehler** | Kein Schema-Change, nichts zu tun. Neu: `ITVComponents.GenericService.Windows`. Opt-in: Einstellung `FailOnStartupError`. |
@@ -9832,3 +9833,45 @@ if (updates.AlreadyRunning)
 - `RoleChanged` geht über die IPC an alle Instanzen. Der Client reicht nur die Meldung weiter, die an den eigenen
   Prozess gerichtet ist.
 - Ohne Dienst gilt die Instanz als aktiv.
+
+## 114. Update-Dienst (Phase 3): Signatur des Feeds — **kein Schema-Change**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, P3. Die Signatur ist optional, der Hash jedes Pakets Pflicht.
+
+### 114.1 Format
+
+- **Signiert wird das Manifest Byte für Byte**, so wie es ausgeliefert wird. Es gibt keine Kanonisierung, das
+  Manifest kann eine statische Datei bleiben.
+- **Die Signatur liegt daneben** (`<Kanal>.json.sig`), als JSON mit Algorithmus, Zertifikat und Signatur.
+- **Das Zertifikat** des Unterzeichners steht darin nur mit seinem öffentlichen Teil. Der Dienst vertraut ihm über den
+  Fingerabdruck in seiner Konfiguration. Eine Zertifikatskette braucht es nicht, ein selbst ausgestelltes Zertifikat
+  genügt.
+- **Algorithmen:** Ein RSA-Schlüssel signiert mit PSS und SHA-256, ein EC-Schlüssel mit ECDSA und SHA-256.
+
+### 114.2 Signieren (Web)
+
+`ITVComponents.UpdateService.Abstractions` liefert `IFeedSigner` und `CertificateFeedSigner`:
+
+```csharp
+using var signer = new CertificateFeedSigner(pfxPath, pfxPassword); // Passwort aus den Secrets
+File.WriteAllText(manifestPath + ".sig", signer.Sign(File.ReadAllBytes(manifestPath)));
+// signer.Thumbprint gehört in FeedSigningThumbprints der Update-Dienste
+```
+
+Das Zertifikat gehört nicht in die Datenbank, sonst steckt es in jedem Backup. Die Verwaltung der Freigaben im Web
+(Phase 5) signiert über `IFeedSigner`. Ein Zertifikat aus einem Key Vault übergibt man als `X509Certificate2`.
+
+### 114.3 Prüfen (Dienst)
+
+| `RequireFeedSignature` | `FeedSigningThumbprints` | Verhalten |
+|---|---|---|
+| `true` | gesetzt | Ein Manifest ohne gültige Signatur wird abgelehnt. |
+| `true` | leer | Konfigurationsfehler, der Dienst startet nicht. |
+| `false` | gesetzt | Eine vorhandene Signatur wird geprüft. Eine falsche wird abgelehnt, denn sie deutet auf Manipulation hin. Fehlt die Signatur, wird das Manifest angenommen. |
+| `false` | leer | Die Signatur wird nicht angeschaut. |
+
+- Es werden zwei Fingerabdrücke angenommen, damit sich das Zertifikat ohne Unterbruch wechseln lässt.
+- Eine Ablehnung steht im Stand als Fehler beim Feed. Das Manifest wird beim nächsten Durchlauf neu geladen.
+- **Empfehlung:** `RequireFeedSignature` im Laden einschalten, in der Entwicklung ausschalten. Ohne Signatur hängt die
+  Echtheit der Module (Phase 4) allein an HTTPS und am Webserver. Das MSI des Grundpakets prüft der Dienst
+  unabhängig davon immer per Authenticode.
