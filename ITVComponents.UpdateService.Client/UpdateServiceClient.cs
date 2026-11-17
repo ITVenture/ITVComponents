@@ -173,6 +173,44 @@ namespace ITVComponents.UpdateService.Client
         }
 
         /// <summary>
+        /// Tells the service which modules this machine is to have (the assignment of the client app in the backend). Call
+        /// it after the start and whenever the backend reports a change. Returns false without service.
+        /// </summary>
+        public async Task<bool> AssignModulesAsync(string[] moduleIds)
+        {
+            var current = Facade();
+            if (current == null)
+            {
+                return false;
+            }
+
+            return await Call(async () =>
+            {
+                await current.AssignModulesAsync(moduleIds).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reports which modules the application loaded after its start. Without this report the service keeps the former
+        /// versions; a module reported as failed is switched back.
+        /// </summary>
+        public async Task<bool> ReportModulesLoadedAsync(ModuleLoadReport[] reports)
+        {
+            var current = Facade();
+            if (current == null)
+            {
+                return false;
+            }
+
+            return await Call(async () =>
+            {
+                await current.ReportModulesLoadedAsync(reports).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Confirms that this instance has released the hub connection and the devices after being asked to.
         /// </summary>
         public async Task ReportReleasedAsync()

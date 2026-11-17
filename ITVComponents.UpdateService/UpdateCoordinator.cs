@@ -12,6 +12,7 @@ using ITVComponents.UpdateService.Abstractions.Feed;
 using ITVComponents.UpdateService.Agents;
 using ITVComponents.UpdateService.Feed;
 using ITVComponents.UpdateService.Installation;
+using ITVComponents.UpdateService.Modules;
 using ITVComponents.UpdateService.Packages;
 
 namespace ITVComponents.UpdateService
@@ -44,6 +45,7 @@ namespace ITVComponents.UpdateService
         private readonly IApplicationControl application;
         private readonly TimeProvider clock;
         private readonly string logDirectory;
+        private readonly ModuleManager? modules;
         private readonly SemaphoreSlim wake = new SemaphoreSlim(0);
         private readonly object sync = new object();
         private CancellationTokenSource? stopping;
@@ -51,6 +53,8 @@ namespace ITVComponents.UpdateService
 
         private FeedResult? feed;
         private Candidate? candidate;
+        private ModulePlan modulePlan = ModulePlan.Empty;
+        private bool rollbackNeeded;
         private DateTimeOffset nextCheck = DateTimeOffset.MinValue;
         private DateTimeOffset? lastCheck;
         private DateTimeOffset? shutdownRequested;
@@ -62,8 +66,9 @@ namespace ITVComponents.UpdateService
 
         public UpdateCoordinator(UpdateServiceOptions options, IUpdateFeedClient feedClient, IPackageDownloader downloader, IPackageVerifier verifier,
             IPackageInstaller installer, IInstallResultEvaluator evaluator, InstallStateStore stateStore, AgentRegistry registry,
-            IApplicationControl application, string logDirectory, TimeProvider? clock = null)
+            IApplicationControl application, string logDirectory, TimeProvider? clock = null, ModuleManager? modules = null)
         {
+            this.modules = modules;
             this.options = options;
             this.feedClient = feedClient;
             this.downloader = downloader;
@@ -75,7 +80,54 @@ namespace ITVComponents.UpdateService
             this.application = application;
             this.logDirectory = logDirectory;
             this.clock = clock ?? TimeProvider.System;
-            registry.AgentLeft += (_, _) => Wake();
+            registry.AgentLeft += (_, _) =>
+            {
+                bool askedToEnd;
+                lock (sync)
+                {
+                    askedToEnd = shutdownRequested != null;
+                }
+
+                // An application that ends because the service asked it to has not crashed.
+                if (!askedToEnd)
+                {
+                    modules?.ApplicationLeft();
+                }
+
+                Wake();
+            };
+            registry.AgentRegistered += (_, _) => modules?.ApplicationSeen();
+        }
+
+        /// <summary>
+        /// Takes over the modules assigned to this machine.
+        /// </summary>
+        public void AssignModules(IEnumerable<string> moduleIds)
+        {
+            if (modules == null)
+            {
+                LogEnvironment.LogEvent("Modules were assigned, but this update service runs without modules; ignored.", LogSeverity.Warning);
+                return;
+            }
+
+            if (modules.Assign(moduleIds))
+            {
+                Wake();
+            }
+        }
+
+        /// <summary>
+        /// The application reports which modules it loaded.
+        /// </summary>
+        public void ReportModules(IEnumerable<ModuleLoadReport> reports)
+        {
+            if (modules == null)
+            {
+                return;
+            }
+
+            modules.Report(reports);
+            Wake();
         }
 
         /// <summary>
@@ -154,25 +206,28 @@ namespace ITVComponents.UpdateService
         public bool Defer(int minutes, string reason, RegisteredAgent agent)
         {
             Candidate? current;
+            bool moduleWork;
             lock (sync)
             {
                 current = candidate;
+                moduleWork = modulePlan.HasWork || rollbackNeeded;
             }
 
-            if (current == null)
+            if (current == null && !moduleWork)
             {
                 LogEnvironment.LogDebugEvent($"{agent} asked to defer, but there is nothing to install.", LogSeverity.Report);
                 return true;
             }
 
             var now = clock.GetUtcNow();
-            if (IsUrgent(current.Package, application.InstalledVersion(), now))
+            var workKey = WorkKey(current?.Package);
+            if (current != null && IsUrgent(current.Package, application.InstalledVersion(), now))
             {
                 LogEnvironment.LogEvent($"{agent} asked to defer the urgent update to {current.Package.Version} ({reason}); refused.", LogSeverity.Warning);
                 return false;
             }
 
-            var limit = DeferralLimit(current.Package);
+            var limit = current != null ? DeferralLimit(current.Package) : null;
             var until = now + TimeSpan.FromMinutes(Math.Clamp(minutes, 1, options.MaximumDeferralMinutes));
             if (limit.HasValue && until > limit.Value)
             {
@@ -181,12 +236,12 @@ namespace ITVComponents.UpdateService
 
             if (until <= now)
             {
-                LogEnvironment.LogEvent($"{agent} asked to defer the update to {current.Package.Version} ({reason}); the longest deferral is used up.", LogSeverity.Warning);
+                LogEnvironment.LogEvent($"{agent} asked to defer the update ({workKey}, {reason}); the longest deferral is used up.", LogSeverity.Warning);
                 return false;
             }
 
             var state = stateStore.Load();
-            state.DeferralVersion = current.Package.Version;
+            state.DeferralVersion = workKey;
             state.DeferredUntil = until;
             stateStore.Save(state);
             lock (sync)
@@ -195,7 +250,7 @@ namespace ITVComponents.UpdateService
                 shutdownDeadline = null;
             }
 
-            LogEnvironment.LogEvent($"{agent} defers the update to {current.Package.Version} until {until:u}: {reason}", LogSeverity.Report);
+            LogEnvironment.LogEvent($"{agent} defers the update ({workKey}) until {until:u}: {reason}", LogSeverity.Report);
             SetStatus(s =>
             {
                 s.Phase = UpdatePhase.Deferred;
@@ -245,6 +300,30 @@ namespace ITVComponents.UpdateService
                 stateStore.Save(state);
             }
 
+            if (modules != null && modules.RollbackPending(state))
+            {
+                if (registry.Active.Count == 0)
+                {
+                    var sessions = modules.Rollback(state);
+                    stateStore.Save(state);
+                    lock (sync)
+                    {
+                        rollbackNeeded = false;
+                        shutdownRequested = null;
+                        shutdownDeadline = null;
+                    }
+
+                    Relaunch(sessions);
+                }
+                else
+                {
+                    lock (sync)
+                    {
+                        rollbackNeeded = true;
+                    }
+                }
+            }
+
             var now = clock.GetUtcNow();
             if (retryAfter.HasValue && now < retryAfter.Value)
             {
@@ -261,6 +340,51 @@ namespace ITVComponents.UpdateService
             }
 
             var package = SelectBase(installed, state.FailedVersion);
+            FeedResult? currentFeed;
+            lock (sync)
+            {
+                currentFeed = feed;
+            }
+
+            // M1: a newer application only together with a fitting version of every assigned module.
+            string? blockedBy = null;
+            var plan = ModulePlan.Empty;
+            if (modules != null)
+            {
+                var target = package != null && VersionText.TryParse(package.Version, out var targetVersion) ? targetVersion : installed;
+                plan = modules.Plan(currentFeed, target, state);
+                if (package != null && plan.Missing.Count > 0)
+                {
+                    blockedBy = $"waits for {string.Join(", ", plan.Missing)} for {package.Version}";
+                    LogEnvironment.LogEvent($"Version {package.Version} {blockedBy}; it is not installed before.", LogSeverity.Warning);
+                    package = null;
+                    plan = modules.Plan(currentFeed, installed, state);
+                }
+            }
+
+            bool pendingRollback;
+            lock (sync)
+            {
+                modulePlan = plan;
+                pendingRollback = rollbackNeeded;
+            }
+
+            SetStatus(s =>
+            {
+                s.BlockedBy = blockedBy;
+                s.Modules = modules?.States(state);
+            });
+
+            if (package == null && (plan.HasWork || pendingRollback))
+            {
+                lock (sync)
+                {
+                    candidate = null;
+                }
+
+                return await DecideAsync(null, installed, state, cancellationToken).ConfigureAwait(false);
+            }
+
             if (package == null)
             {
                 lock (sync)
@@ -484,17 +608,18 @@ namespace ITVComponents.UpdateService
             return true;
         }
 
-        private async Task<TimeSpan> DecideAsync(UpdatePackage package, Version installed, InstallState state, CancellationToken cancellationToken)
+        private async Task<TimeSpan> DecideAsync(UpdatePackage? package, Version installed, InstallState state, CancellationToken cancellationToken)
         {
             var now = clock.GetUtcNow();
-            var urgent = IsUrgent(package, installed, now);
+            var urgent = package != null && IsUrgent(package, installed, now);
             var agents = registry.Active;
+            var workKey = WorkKey(package);
             SetStatus(s =>
             {
                 s.InstalledVersion = installed.ToString();
-                s.AvailableVersion = package.Version;
+                s.AvailableVersion = package?.Version;
                 s.Urgent = urgent;
-                s.DeferralLimit = DeferralLimit(package);
+                s.DeferralLimit = package != null ? DeferralLimit(package) : null;
                 s.Error = null;
             });
 
@@ -504,7 +629,7 @@ namespace ITVComponents.UpdateService
                 return NextWake(clock.GetUtcNow(), stateStore.Load());
             }
 
-            var deferred = !urgent && string.Equals(state.DeferralVersion, package.Version, StringComparison.OrdinalIgnoreCase)
+            var deferred = !urgent && string.Equals(state.DeferralVersion, workKey, StringComparison.OrdinalIgnoreCase)
                                    && state.DeferredUntil.HasValue && state.DeferredUntil.Value > now;
             if (deferred)
             {
@@ -528,7 +653,7 @@ namespace ITVComponents.UpdateService
                     {
                         Reason = urgent ? ShutdownReason.UrgentUpdate : ShutdownReason.Update,
                         Deadline = shutdownDeadline,
-                        Version = package.Version
+                        Version = package?.Version
                     };
                 }
             }
@@ -540,7 +665,7 @@ namespace ITVComponents.UpdateService
             });
             if (request != null)
             {
-                LogEnvironment.LogEvent($"Version {package.Version} is ready; {agents.Count} application(s) asked to end ({request.Reason}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : ", when idle")}).", LogSeverity.Report);
+                LogEnvironment.LogEvent($"{workKey} is ready; {agents.Count} application(s) asked to end ({request.Reason}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : ", when idle")}).", LogSeverity.Report);
                 Raise(ShutdownRequested, request);
             }
 
@@ -554,7 +679,7 @@ namespace ITVComponents.UpdateService
             {
                 foreach (var agent in agents)
                 {
-                    LogEnvironment.LogEvent($"{agent} did not end by {deadline:u} for the urgent update to {package.Version}.", LogSeverity.Warning);
+                    LogEnvironment.LogEvent($"{agent} did not end by {deadline:u} for the urgent update to {package?.Version}.", LogSeverity.Warning);
                     application.Terminate(agent);
                 }
             }
@@ -564,12 +689,66 @@ namespace ITVComponents.UpdateService
 
         private async Task InstallAsync(InstallState state, CancellationToken cancellationToken)
         {
-            Candidate current;
+            Candidate? current;
             List<int> sessions;
+            ModulePlan plan;
+            FeedResult? currentFeed;
+            bool pendingRollback;
             lock (sync)
             {
-                current = candidate!;
+                current = candidate;
                 sessions = sessionsToRestart.ToList();
+                plan = modulePlan;
+                currentFeed = feed;
+                pendingRollback = rollbackNeeded;
+            }
+
+            if (pendingRollback)
+            {
+                // The rollback runs at the start of the next pass, now that the application is down.
+                return;
+            }
+
+            // M1: every module of the pass is fetched, checked and unpacked BEFORE the base package is installed. After that
+            // only the file system can fail.
+            var staged = new List<StagedModule>();
+            if (modules != null && plan.HasWork && currentFeed != null)
+            {
+                try
+                {
+                    staged = await modules.StageAsync(currentFeed, plan, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ModuleStagingException ex)
+                {
+                    SetStatus(s =>
+                    {
+                        s.Phase = UpdatePhase.Failed;
+                        s.Error = ex.Message;
+                        s.Modules = modules.States(stateStore.Load());
+                    });
+                    EndPass(sessions);
+                    return;
+                }
+
+                modules.ApplyRemovals(plan, state);
+                stateStore.Save(state);
+            }
+
+            if (current == null)
+            {
+                modules?.Activate(staged, state, sessions);
+                state.DeferralVersion = null;
+                state.DeferredUntil = null;
+                stateStore.Save(state);
+                LogEnvironment.LogEvent($"Modules updated ({staged.Count} switched, {plan.Removals.Count} removed).", LogSeverity.Report);
+                SetStatus(s =>
+                {
+                    s.Phase = UpdatePhase.UpToDate;
+                    s.Error = null;
+                    s.Modules = modules?.States(state);
+                });
+                EndPass(sessions);
+                return;
             }
 
             var logPath = Path.Combine(logDirectory, $"install-{current.Package.Id}-{current.Package.Version}-{clock.GetUtcNow():yyyyMMddHHmmss}.log");
@@ -579,7 +758,8 @@ namespace ITVComponents.UpdateService
                 Version = current.Package.Version!,
                 LogPath = logPath,
                 StartedUtc = clock.GetUtcNow(),
-                SessionsToRestart = sessions
+                SessionsToRestart = sessions,
+                StagedModules = staged
             };
 
             // The state goes to disk BEFORE the installer starts: an MSI that contains the service stops it, and the
@@ -637,6 +817,20 @@ namespace ITVComponents.UpdateService
             state.Pending = null;
             state.LastResult = $"{pending?.Version}: {result.Description}";
             var installed = application.InstalledVersion();
+            var staged = pending?.StagedModules ?? new List<StagedModule>();
+            if (modules != null && staged.Count > 0)
+            {
+                if (result.Outcome is InstallOutcome.Succeeded or InstallOutcome.SucceededRestartRequired)
+                {
+                    modules.Activate(staged, state, pending!.SessionsToRestart);
+                }
+                else
+                {
+                    LogEnvironment.LogEvent($"The application was not updated; the {staged.Count} prepared module(s) are thrown away.", LogSeverity.Warning);
+                    modules.Discard(staged);
+                }
+            }
+
             switch (result.Outcome)
             {
                 case InstallOutcome.Succeeded:
@@ -688,6 +882,15 @@ namespace ITVComponents.UpdateService
             }
 
             stateStore.Save(state);
+            EndPass(pending?.SessionsToRestart ?? new List<int>());
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Ends a pass: no request to end is open any more, and the application runs again where it ran before.
+        /// </summary>
+        private void EndPass(List<int> sessions)
+        {
             lock (sync)
             {
                 shutdownRequested = null;
@@ -695,8 +898,16 @@ namespace ITVComponents.UpdateService
                 sessionsToRestart = new List<int>();
             }
 
+            Relaunch(sessions);
+        }
+
+        /// <summary>
+        /// Starts the application in the given sessions, unless it runs there already.
+        /// </summary>
+        private void Relaunch(IEnumerable<int> sessions)
+        {
             // Whatever the outcome: the application runs again where it ran before.
-            foreach (var session in pending?.SessionsToRestart ?? new List<int>())
+            foreach (var session in sessions)
             {
                 if (registry.Active.Any(a => a.SessionId == session))
                 {
@@ -713,9 +924,12 @@ namespace ITVComponents.UpdateService
                     LogEnvironment.LogEvent($"The application could not be started again in session {session}; it starts with the next logon: {ex.OutlineException()}", LogSeverity.Error);
                 }
             }
-
-            return Task.CompletedTask;
         }
+
+        /// <summary>
+        /// The key a deferral is recorded under: the version of the application, or "modules" for a pass of modules only.
+        /// </summary>
+        private static string WorkKey(UpdatePackage? package) => package?.Version ?? "modules";
 
         private bool IsUrgent(UpdatePackage package, Version installed, DateTimeOffset now)
         {
@@ -818,7 +1032,9 @@ namespace ITVComponents.UpdateService
             DeferredUntil = s.DeferredUntil,
             DeferralLimit = s.DeferralLimit,
             LastCheck = s.LastCheck,
-            Error = s.Error
+            Error = s.Error,
+            BlockedBy = s.BlockedBy,
+            Modules = s.Modules
         };
 
         private static TimeSpan Clamp(TimeSpan delay)

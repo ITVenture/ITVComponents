@@ -16,6 +16,7 @@ using ITVComponents.UpdateService.Abstractions.Contracts;
 using ITVComponents.UpdateService.Agents;
 using ITVComponents.UpdateService.Feed;
 using ITVComponents.UpdateService.Installation;
+using ITVComponents.UpdateService.Modules;
 using ITVComponents.UpdateService.Packages;
 using ITVComponents.UpdateService.Sessions;
 
@@ -94,9 +95,13 @@ namespace ITVComponents.UpdateService
 
             http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
             registry = new AgentRegistry(options);
-            coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http, options), new PackageDownloader(http, packages),
-                new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), new InstallStateStore(options.DataDirectory),
-                registry, new ApplicationControl(options), logs);
+            var downloader = new PackageDownloader(http, packages);
+            var stateStore = new InstallStateStore(options.DataDirectory);
+            var applicationDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ApplicationPath))!;
+            var moduleFiles = new ModuleFiles(options.ModulesDirectory ?? Path.Combine(applicationDirectory, "modules"), applicationDirectory);
+            coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http, options), downloader,
+                new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), stateStore,
+                registry, new ApplicationControl(options), logs, null, new ModuleManager(options, downloader, moduleFiles, stateStore));
             var application = new ApplicationControl(options);
             var updates = coordinator;
             roles = new RoleCoordinator(registry, new WindowsSessions(), application, () => updates.HoldsApplication);

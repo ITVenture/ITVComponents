@@ -120,6 +120,17 @@ namespace ITVComponents.UpdateService
         public int RetryMinutes { get; set; } = 10;
 
         /// <summary>
+        /// Gets or sets the folder of the modules. Default: <c>modules</c> next to <see cref="ApplicationPath"/>.
+        /// </summary>
+        public string? ModulesDirectory { get; set; }
+
+        /// <summary>
+        /// Gets or sets how long after switching modules an end of the application without a report counts as a crash, in
+        /// minutes. Default: 5.
+        /// </summary>
+        public int ModuleConfirmMinutes { get; set; } = 5;
+
+        /// <summary>
         /// Gets or sets the name of the service at the hub. Default: <c>UpdateService</c>.
         /// </summary>
         public string HubServiceName { get; set; } = "UpdateService";

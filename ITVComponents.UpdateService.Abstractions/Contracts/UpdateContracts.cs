@@ -60,6 +60,48 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets why the last step failed.</summary>
         public string? Error { get; set; }
+
+        /// <summary>
+        /// Gets or sets why a newer version of the application waits: a module assigned to this machine has no version for
+        /// it yet ("waits for EpsonTM for 2.0.0").
+        /// </summary>
+        public string? BlockedBy { get; set; }
+
+        /// <summary>Gets or sets the state of the modules.</summary>
+        public ModuleState[]? Modules { get; set; }
+    }
+
+    /// <summary>
+    /// The state of one module on this machine.
+    /// </summary>
+    public sealed class ModuleState
+    {
+        /// <summary>Gets or sets the id.</summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the installed version, or null.</summary>
+        public string? InstalledVersion { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether the module is assigned to this machine.</summary>
+        public bool Assigned { get; set; }
+
+        /// <summary>Gets or sets why its last installation failed, if it did.</summary>
+        public string? Error { get; set; }
+    }
+
+    /// <summary>
+    /// Whether the application could load a module.
+    /// </summary>
+    public sealed class ModuleLoadReport
+    {
+        /// <summary>Gets or sets the id of the module.</summary>
+        public string ModuleId { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets a value indicating whether it loaded.</summary>
+        public bool Loaded { get; set; }
+
+        /// <summary>Gets or sets why not.</summary>
+        public string? Error { get; set; }
     }
 
     /// <summary>
@@ -178,6 +220,8 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
             register(typeof(AgentRegistration), "itv.update.registration");
             register(typeof(AgentRole), "itv.update.role");
             register(typeof(RoleChange), "itv.update.rolechange");
+            register(typeof(ModuleState), "itv.update.modulestate");
+            register(typeof(ModuleLoadReport), "itv.update.moduleload");
         }
     }
 }

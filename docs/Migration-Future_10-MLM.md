@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 116 | **Update-Dienst (Phase 4): Module installieren, zuweisen, zurückschalten** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade` hat `AssignModulesAsync` und `ReportModulesLoadedAsync`. |
 | 115 | **Plugin-Module: ein Ladekontext je Modul; Vertragsmarke der Pakete** | Kein Schema-Change. Neu: `Directory.Build.targets` (markiert jedes veröffentlichte Paket). Opt-in: `PluginFactory.AssemblyContextSelector`. |
 | 114 | **Update-Dienst (Phase 3): Signatur des Feeds** | Kein Schema-Change. Opt-in: `FeedSigningThumbprints`, `RequireFeedSignature`. |
 | 113 | **Update-Dienst (Phase 2): eine aktive Instanz, Übergabe zwischen Sitzungen** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade.RegisterAsync` hat den Parameter `currentlyActive`, neu sind `ReportReleasedAsync` und `RoleChanged`. |
@@ -9929,3 +9930,61 @@ zu laden (`PluginContract.IsContract`).
 
 **Für den Host:** Nichts zu tun. Ein Agent, der Module ausführt, setzt
 `factory.AssemblyContextSelector = new ModuleContextSelector(<Installationsordner>\modules)`.
+
+## 116. Update-Dienst (Phase 4): Module installieren, zuweisen, zurückschalten — **kein Schema-Change**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, P4, M1–M3. Das Laden der Module steht in §115.
+
+### 116.1 Pakete im Feed
+
+Ein Modul ist ein ZIP mit `"kind": "module"`. Es enthält die Haupt-Assembly und ihre `.deps.json` (gebaut mit
+`EnableDynamicLoading`, siehe §115.1), dazu die eigenen Abhängigkeiten. Optional liegt ein `module.json` mit
+`mainAssembly` bei. `requires` nennt die Fassungen der Anwendung, zu denen das Modul passt, in NuGet-Schreibweise:
+
+```json
+{ "id": "MiniStore.Printer.EpsonTM", "kind": "module", "version": "2.0.1",
+  "url": "packages/MiniStore.Printer.EpsonTM-2.0.1.zip", "sha256": "…", "size": 812345,
+  "requires": { "MiniStore.PosAgent": "[2.0.0,3.0.0)" } }
+```
+
+### 116.2 Was der Dienst tut
+
+- **Zuweisung:** Die Anwendung gibt die Ids der zugewiesenen Module weiter (`AssignModulesAsync`). Über die Pipe gehen
+  nur Ids, was sie bedeuten, bestimmt allein der Feed. Nur eine angemeldete Anwendung aus ihrem Installationsordner
+  darf zuweisen.
+- **Ablage:** `modules\<id>\` neben der Anwendung, mit `ModulesDirectory` änderbar.
+  - Neu entpackt wird nach `<id>.new`. Ein Eintrag, der aus dem Ordner hinausführt, lehnt das ganze Paket ab
+    (Zip-Slip).
+  - Bringt ein Modul einen Vertrag mit, der auch im Ordner der Anwendung liegt, wird es abgelehnt (M2).
+- **Wann:** Gearbeitet wird nur, solange die Anwendung beendet ist. Ein Durchgang nur mit Modulen fordert sie wie ein
+  Update zum Beenden auf, aber nie dringend. Er lässt sich aufschieben.
+- **M1, Anwendung und Module in einem Durchgang:**
+  - Eine neuere Fassung der Anwendung wird nur installiert, wenn jedes zugewiesene Modul eine Fassung hat, deren
+    `requires` sie einschliesst. Sonst wartet sie, und der Stand meldet `BlockedBy` („waits for EpsonTM for 2.0.0“).
+    Auch `urgent` und die Wochenfrist überstimmen das nicht.
+  - Alle Module des Durchgangs werden heruntergeladen, geprüft und entpackt, bevor `msiexec` startet.
+  - Umgeschaltet wird erst nach einem erfolgreichen MSI. Scheitert es, werden die vorbereiteten Module verworfen.
+- **M3, Rückweg:**
+  - Die vorherige Fassung bleibt als `<id>.old`, bis die Anwendung meldet, dass sie das Modul geladen hat
+    (`ReportModulesLoadedAsync`).
+  - Meldet sie einen Ladefehler, wird sie beendet, und der Dienst schaltet zurück. Ein neues Modul ohne vorherige
+    Fassung wird dabei entfernt.
+  - Endet sie innerhalb von `ModuleConfirmMinutes` (Vorgabe 5) nach dem Umschalten ohne Meldung, gilt das als Absturz,
+    und der Dienst schaltet ebenfalls zurück. Hatte der Dienst sie selbst zum Beenden aufgefordert, gilt es nicht als
+    Absturz.
+  - Die zurückgeschaltete Fassung versucht er erst wieder, wenn eine neuere erscheint.
+- **Nicht mehr zugewiesen:** Das Modul wird entfernt.
+- **Stand:** `UpdateStatus.Modules` je Modul: installierte Fassung, zugewiesen ja/nein, letzter Fehler.
+
+### 116.3 In der Anwendung
+
+```csharp
+factory.AssemblyContextSelector = new ModuleContextSelector(Path.Combine(AppContext.BaseDirectory, "modules"));
+// … Module laden …
+await updates.ReportModulesLoadedAsync(loaded.Select(m => new ModuleLoadReport { ModuleId = m.Id, Loaded = m.Ok, Error = m.Error }).ToArray());
+
+// nach dem Start und bei jeder Änderung aus dem Backend:
+await updates.AssignModulesAsync(assignedModuleIds);
+```
+
+**Noch nicht gegen ein echtes Modul erprobt.** Getestet ist der Ablauf mit nachgebauten Paketen.

@@ -48,6 +48,20 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
         Task<bool> DeferAsync(int minutes, string reason);
 
         /// <summary>
+        /// Tells the service which modules this machine is to have (from the backend: the assignment of the client app).
+        /// Only ids - what they are and where they come from, the feed alone decides. Modules not in the list are removed.
+        /// </summary>
+        /// <param name="moduleIds">the ids of the assigned modules</param>
+        Task AssignModulesAsync(string[] moduleIds);
+
+        /// <summary>
+        /// Reports, after a start, which modules the application loaded and which not. A module that failed is switched
+        /// back to its former version (or removed), and its new version is not tried again until a newer one appears.
+        /// </summary>
+        /// <param name="reports">one report per module</param>
+        Task ReportModulesLoadedAsync(ModuleLoadReport[] reports);
+
+        /// <summary>
         /// Confirms that the application has released what only the active instance may hold (hub connection, devices),
         /// after the service asked it to (<see cref="RoleChanged"/> to <see cref="AgentRole.Waiting"/>). The service
         /// hands over to the next instance only then - or when the release takes too long.

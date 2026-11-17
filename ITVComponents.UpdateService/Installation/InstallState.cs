@@ -35,6 +35,88 @@ namespace ITVComponents.UpdateService.Installation
 
         /// <summary>Gets or sets since when Windows must restart; a start of Windows after it clears the flag.</summary>
         public DateTimeOffset? RestartRequiredSince { get; set; }
+
+        /// <summary>Gets or sets the modules assigned to this machine (ids).</summary>
+        public List<string> AssignedModules { get; set; } = new List<string>();
+
+        /// <summary>Gets or sets the installed modules, by id.</summary>
+        public Dictionary<string, InstalledModule> Modules { get; set; } = new Dictionary<string, InstalledModule>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Gets or sets the module versions that failed (id to version); they are not tried again.</summary>
+        public Dictionary<string, ModuleFailure> FailedModules { get; set; } = new Dictionary<string, ModuleFailure>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Gets or sets the modules switched to a new version and not yet confirmed by the application.</summary>
+        public ModuleActivation? ModuleActivation { get; set; }
+    }
+
+    /// <summary>
+    /// A module as installed.
+    /// </summary>
+    public sealed class InstalledModule
+    {
+        public string Version { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the versions of the base package the installed version works with (NuGet range), or null for any.</summary>
+        public string? Requires { get; set; }
+    }
+
+    /// <summary>
+    /// A module version that failed, and why.
+    /// </summary>
+    public sealed class ModuleFailure
+    {
+        public string Version { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// A module that was unpacked next to the active one and waits to be switched to.
+    /// </summary>
+    public sealed class StagedModule
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Version { get; set; } = string.Empty;
+
+        public string? Requires { get; set; }
+    }
+
+    /// <summary>
+    /// Modules switched to new versions; their former versions are kept until the application confirms that it loaded them.
+    /// </summary>
+    public sealed class ModuleActivation
+    {
+        public List<ActivatedModule> Modules { get; set; } = new List<ActivatedModule>();
+
+        public DateTimeOffset ActivatedUtc { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether the application has connected since the switch.</summary>
+        public bool ApplicationSeen { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether the switch is to be undone (load failure or crash).</summary>
+        public bool RollbackRequested { get; set; }
+
+        /// <summary>Gets or sets why.</summary>
+        public string? RollbackReason { get; set; }
+
+        /// <summary>Gets or sets the sessions the application ran in before the switch, to start it again after an undo.</summary>
+        public List<int> Sessions { get; set; } = new List<int>();
+    }
+
+    /// <summary>
+    /// One switched module.
+    /// </summary>
+    public sealed class ActivatedModule
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Version { get; set; } = string.Empty;
+
+        public string? Requires { get; set; }
+
+        /// <summary>Gets or sets the version before the switch, or null if the module was new.</summary>
+        public InstalledModule? Previous { get; set; }
     }
 
     /// <summary>
@@ -54,6 +136,9 @@ namespace ITVComponents.UpdateService.Installation
 
         /// <summary>Gets or sets the sessions in which the application ran and is to be started again.</summary>
         public List<int> SessionsToRestart { get; set; } = new List<int>();
+
+        /// <summary>Gets or sets the modules prepared for this installation; they are switched to only if it succeeds.</summary>
+        public List<StagedModule> StagedModules { get; set; } = new List<StagedModule>();
     }
 
     /// <summary>

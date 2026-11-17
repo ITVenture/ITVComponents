@@ -84,6 +84,39 @@ namespace ITVComponents.UpdateService
         }
 
         /// <summary>
+        /// See <see cref="IUpdateServiceFacade.AssignModulesAsync"/>. Only a registered application may assign - and the
+        /// registration only admits the application from its installation folder.
+        /// </summary>
+        public Task AssignModulesAsync(string[] moduleIds, IIdentity caller)
+        {
+            var agent = registry.Find(caller as ClaimsIdentity);
+            if (agent == null)
+            {
+                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} assigned modules without being registered; ignored.", LogSeverity.Warning);
+                return Task.CompletedTask;
+            }
+
+            coordinator.AssignModules(moduleIds ?? Array.Empty<string>());
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// See <see cref="IUpdateServiceFacade.ReportModulesLoadedAsync"/>. Only a registered application may report.
+        /// </summary>
+        public Task ReportModulesLoadedAsync(ModuleLoadReport[] reports, IIdentity caller)
+        {
+            var agent = registry.Find(caller as ClaimsIdentity);
+            if (agent == null)
+            {
+                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} reported modules without being registered; ignored.", LogSeverity.Warning);
+                return Task.CompletedTask;
+            }
+
+            coordinator.ReportModules(reports ?? Array.Empty<ModuleLoadReport>());
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
         /// See <see cref="IUpdateServiceFacade.ReportReleasedAsync"/>. Only a registered application may report.
         /// </summary>
         public Task ReportReleasedAsync(IIdentity caller)
