@@ -74,6 +74,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
     public interface IUpdateReleaseAdministration
     {
         /// <summary>
+        /// The products, applications first.
+        /// </summary>
+        Task<IReadOnlyList<UpdateProduct>> GetProductsAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// The releases of a product in all channels, newest first.
+        /// </summary>
+        Task<IReadOnlyList<UpdateRelease>> GetReleasesAsync(string productKey, CancellationToken cancellationToken);
+
+        /// <summary>
         /// Creates a product, or returns the existing one with that key.
         /// </summary>
         Task<UpdateProduct> EnsureProductAsync(string productKey, string kind, string displayName, string? baseProductKey, CancellationToken cancellationToken);
@@ -122,6 +132,32 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
         {
             this.contextFactory = contextFactory;
             this.store = store;
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<UpdateProduct>> GetProductsAsync(CancellationToken cancellationToken)
+        {
+            await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var products = await db.UpdateProducts.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            return products.OrderBy(p => p.Kind == PackageKinds.Base ? 0 : 1).ThenBy(p => p.ProductKey, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<UpdateRelease>> GetReleasesAsync(string productKey, CancellationToken cancellationToken)
+        {
+            await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var productId = await db.UpdateProducts.AsNoTracking().Where(p => p.ProductKey == productKey).Select(p => (int?)p.UpdateProductId)
+                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+            if (productId == null)
+            {
+                LogEnvironment.LogEvent($"Releases of the unknown product '{productKey}' were requested.", LogSeverity.Warning);
+                return Array.Empty<UpdateRelease>();
+            }
+
+            var releases = await db.UpdateReleases.AsNoTracking().Where(r => r.UpdateProductId == productId)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            return releases.OrderBy(r => r.Channel, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(r => UpdateFeedBuilder<TContext>.ParseVersion(r.Version)).ToList();
         }
 
         /// <inheritdoc />

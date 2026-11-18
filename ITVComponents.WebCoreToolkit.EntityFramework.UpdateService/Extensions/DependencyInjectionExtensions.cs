@@ -54,6 +54,20 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Extensions
             return AddCore<TContext, TClientApp, TClientAppTemplate>(services);
         }
 
+        /// <summary>
+        /// Registers the handler of the update masks (<see cref="IUpdateAdminHandler"/>), which checks the permissions
+        /// itself (<see cref="UpdatePermissions"/>). Call it in addition to <c>AddUpdateServiceWith…Store</c>.
+        /// </summary>
+        public static IServiceCollection AddUpdateServiceAdministration<TContext, TClientApp, TClientAppTemplate>(this IServiceCollection services)
+            where TContext : DbContext, IUpdateServiceContext, IClientAppContext<TClientApp, TClientAppTemplate>, ITenantScopeContext
+            where TClientApp : class, IClientAppCore
+            where TClientAppTemplate : class, IClientAppTemplateCore
+        {
+            services.TryAddScoped<IUpdatePermissionGate, ServiceProviderUpdatePermissionGate>();
+            services.TryAddScoped<IUpdateAdminHandler, UpdateAdminHandler<TContext, TClientApp, TClientAppTemplate>>();
+            return services;
+        }
+
         private static IServiceCollection AddCore<TContext, TClientApp, TClientAppTemplate>(IServiceCollection services)
             where TContext : DbContext, IUpdateServiceContext, IClientAppContext<TClientApp, TClientAppTemplate>
             where TClientApp : class, IClientAppCore

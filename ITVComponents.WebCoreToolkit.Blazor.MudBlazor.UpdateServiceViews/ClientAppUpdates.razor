@@ -1,0 +1,253 @@
+@inject IUpdateAdminHandler Admin
+@inject ILogger<ClientAppUpdates> Logger
+@inject IStringLocalizer<UpdateServiceMessages> L
+@inject ISnackbar Snackbar
+
+@*
+    The updates of one till: the state it reported last, the modules of its template and those it has in addition.
+    The state is fetched from the till on demand; a till that is off keeps showing the state of its last report, with
+    the time of that report.
+*@
+
+@if (!Admin.CanViewClientApps())
+{
+    <MudAlert Severity="Severity.Warning">@L["Upd_NoPermission"]</MudAlert>
+}
+else if (loading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudStack Spacing="3">
+        @if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="@(() => error = null)">@error</MudAlert>
+        }
+
+        @if (notice != null)
+        {
+            <MudAlert Severity="Severity.Info" ShowCloseIcon="true" CloseIconClicked="@(() => notice = null)">@notice</MudAlert>
+        }
+
+        @if (info?.State is { } state)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                <MudChip T="string" Color="@PhaseColor(state.Phase)" Size="Size.Small">@PhaseText(state.Phase)</MudChip>
+                <MudText Typo="Typo.body2">@L["Upd_Installed", state.InstalledVersion ?? "-"]</MudText>
+                @if (!string.IsNullOrEmpty(state.AvailableVersion))
+                {
+                    <MudText Typo="Typo.body2">@L["Upd_Available", state.AvailableVersion]</MudText>
+                }
+
+                <MudText Typo="Typo.caption">@L["Upd_ReportedAt", state.ReportedUtc.ToLocalTime().ToString("g")]</MudText>
+            </MudStack>
+
+            @if (!string.IsNullOrEmpty(state.BlockedBy))
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">@L["Upd_BlockedBy", state.BlockedBy]</MudAlert>
+            }
+
+            @if (!string.IsNullOrEmpty(state.Error))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@L["Upd_Error", state.Error]</MudAlert>
+            }
+
+            @if (state.DeferredUntilUtc is { } deferred)
+            {
+                <MudText Typo="Typo.caption">@L["Upd_DeferredUntil", deferred.ToLocalTime().ToString("g")]</MudText>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2">@L["Upd_NeverReported"]</MudText>
+        }
+
+        <MudStack Row="true" Spacing="2">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@busy" OnClick="RefreshAsync">@L["Upd_Refresh"]</MudButton>
+            @if (canManage)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@busy" OnClick="CheckNowAsync">@L["Upd_CheckNow"]</MudButton>
+            }
+        </MudStack>
+
+        <MudDivider />
+        <MudText Typo="Typo.subtitle2">@L["Upd_Modules"]</MudText>
+
+        @if (info == null || info.AvailableModules.Count == 0)
+        {
+            <MudText Typo="Typo.body2">@L["Upd_NoModules"]</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Hover="true">
+                <thead>
+                    <tr>
+                        <th>@L["Upd_ModuleColumn"]</th>
+                        <th>@L["Upd_AssignedColumn"]</th>
+                        <th>@L["Upd_ModuleInstalled"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var module in info.AvailableModules)
+                    {
+                        var key = module.ProductKey;
+                        var fromTemplate = info.TemplateModules.Contains(key, StringComparer.OrdinalIgnoreCase);
+                        var reported = info.ReportedModules.FirstOrDefault(m => string.Equals(m.Id, key, StringComparison.OrdinalIgnoreCase));
+                        <tr>
+                            <td>@(string.IsNullOrEmpty(module.DisplayName) ? key : module.DisplayName) <MudText Typo="Typo.caption" Inline="true">(@key)</MudText></td>
+                            <td>
+                                @if (fromTemplate)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@L["Upd_FromTemplate"]</MudChip>
+                                }
+                                else
+                                {
+                                    <MudCheckBox T="bool" Dense="true" Disabled="@(!canManage || busy)"
+                                                 Value="@own.Contains(key)" ValueChanged="@(v => Toggle(key, v))" />
+                                }
+                            </td>
+                            <td>
+                                @(reported?.InstalledVersion ?? "-")
+                                @if (!string.IsNullOrEmpty(reported?.Error))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Error">@reported.Error</MudText>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (canManage)
+            {
+                <MudStack Row="true">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(busy || !changed)" OnClick="SaveAsync">@L["Upd_Save"]</MudButton>
+                </MudStack>
+            }
+        }
+    </MudStack>
+}
+
+@code {
+    /// <summary>The till.</summary>
+    [Parameter] public int ClientAppId { get; set; }
+
+    private ClientAppUpdateInfo? info;
+    private HashSet<string> own = new(StringComparer.OrdinalIgnoreCase);
+    private bool loading = true;
+    private bool busy;
+    private bool canManage;
+    private bool changed;
+    private string? error;
+    private string? notice;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Admin.CanViewClientApps())
+        {
+            loading = false;
+            return;
+        }
+
+        canManage = Admin.CanManageClientApps();
+        loading = true;
+        await RunAsync(LoadAsync, "load the update state", "Upd_LoadFailed");
+        loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        info = await Admin.GetClientAppAsync(ClientAppId);
+        own = new HashSet<string>(info.OwnModules, StringComparer.OrdinalIgnoreCase);
+        changed = false;
+    }
+
+    private void Toggle(string key, bool assigned)
+    {
+        if (assigned)
+        {
+            own.Add(key);
+        }
+        else
+        {
+            own.Remove(key);
+        }
+
+        changed = true;
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        var result = await Admin.SetClientAppModulesAsync(ClientAppId, own.ToArray());
+        Report(result, L["Upd_Saved"].Value);
+        await LoadAsync();
+    }, "assign the modules", "Upd_SaveFailed");
+
+    private Task RefreshAsync() => RunAsync(async () =>
+    {
+        Report(await Admin.RefreshClientAppAsync(ClientAppId), null);
+        await LoadAsync();
+    }, "fetch the update state", "Upd_RefreshFailed");
+
+    private Task CheckNowAsync() => RunAsync(async () =>
+    {
+        Report(await Admin.CheckClientAppNowAsync(ClientAppId), L["Upd_CheckSent"].Value);
+        await LoadAsync();
+    }, "ask the till to check for updates", "Upd_CheckFailed");
+
+    private void Report(UpdateSyncResult result, string? success)
+    {
+        if (result.Reached)
+        {
+            if (success != null)
+            {
+                Snackbar.Add(success, Severity.Success);
+            }
+        }
+        else
+        {
+            // Not an error of the mask: a till that is off is a normal case; the assignment reaches it on connect.
+            notice = L["Upd_NotReached", result.Message ?? string.Empty];
+        }
+    }
+
+    private async Task RunAsync(Func<Task> action, string what, string failureKey)
+    {
+        busy = true;
+        error = null;
+        notice = null;
+        try
+        {
+            await action();
+        }
+        catch (UpdateAdministrationException ex)
+        {
+            Logger.LogWarning(ex, "Could not {What} for client app {ClientAppId}.", what, ClientAppId);
+            error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not {What} for client app {ClientAppId}.", what, ClientAppId);
+            error = L[failureKey];
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string PhaseText(string? phase)
+    {
+        var text = L["Upd_Phase_" + (phase ?? "Unknown")];
+        return text.ResourceNotFound ? phase ?? string.Empty : text.Value;
+    }
+
+    private static Color PhaseColor(string? phase) => phase switch
+    {
+        nameof(UpdatePhase.UpToDate) => Color.Success,
+        nameof(UpdatePhase.Failed) => Color.Error,
+        nameof(UpdatePhase.RestartRequired) or nameof(UpdatePhase.Deferred) or ClientAppUpdateStateExtensions.NoServicePhase => Color.Warning,
+        _ => Color.Info
+    };
+}

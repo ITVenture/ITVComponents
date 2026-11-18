@@ -29,11 +29,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Test
     /// The tables of the update service, without the tenant model: the tests are about stores, feed and administration,
     /// not about the mapping to SQL Server.
     /// </summary>
-    public class UpdateTestContext : DbContext, IUpdateServiceContext, IClientAppContext<TestClientApp, TestClientAppTemplate>
+    public class UpdateTestContext : DbContext, IUpdateServiceContext, IClientAppContext<TestClientApp, TestClientAppTemplate>, ITenantScopeContext
     {
         public UpdateTestContext(DbContextOptions<UpdateTestContext> options) : base(options)
         {
         }
+
+        public int? CurrentTenantId { get; set; }
 
         public DbSet<UpdateProduct> UpdateProducts { get; set; } = null!;
         public DbSet<UpdateRelease> UpdateReleases { get; set; } = null!;
@@ -62,6 +64,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Test
             options = new DbContextOptionsBuilder<UpdateTestContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         }
 
-        public UpdateTestContext CreateDbContext() => new UpdateTestContext(options);
+        /// <summary>The active tenant of every context the factory hands out.</summary>
+        public int? TenantId { get; set; }
+
+        public UpdateTestContext CreateDbContext() => new UpdateTestContext(options) { CurrentTenantId = TenantId };
     }
 }

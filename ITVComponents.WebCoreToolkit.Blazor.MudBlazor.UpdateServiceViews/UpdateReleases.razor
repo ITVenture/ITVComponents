@@ -1,0 +1,422 @@
+@page "/Connectivity/Updates"
+@rendermode @(RenderMode.InteractiveServer)
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inject IUpdateAdminHandler Admin
+@inject AuthenticationStateProvider AuthState
+@inject ILogger<UpdateReleases> Logger
+@inject ISnackbar Snackbar
+
+@*
+    Platform page of the update service: products, releases and the modules of the templates. Releases are
+    platform-wide; the handler checks the permission itself, this page only hides what is not permitted.
+*@
+
+<PageTitle>Updates</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">Updates</MudText>
+
+<SecureView RequiredPermissions="@($"{UpdatePermissions.ReleasesView},{UpdatePermissions.ReleasesWrite}")" RequiredFeatures="ITVAdminViews">
+    <Permitted>
+        @if (error != null)
+        {
+            <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="@(() => error = null)" Class="mb-2">@error</MudAlert>
+        }
+
+        <MudTabs Elevation="0" Outlined="true" PanelClass="pa-3">
+            <MudTabPanel Text="Releases">
+                <MudStack Spacing="3">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                        <MudSelect T="string" Label="Product" Dense="true" Style="min-width:20rem"
+                                   Value="@productKey" ValueChanged="SelectProductAsync">
+                            @foreach (var product in products)
+                            {
+                                <MudSelectItem T="string" Value="@product.ProductKey">@Describe(product)</MudSelectItem>
+                            }
+                        </MudSelect>
+                        @if (canManage)
+                        {
+                            <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => newProduct = new ProductDraft())">New product</MudButton>
+                        }
+                    </MudStack>
+
+                    @if (newProduct != null)
+                    {
+                        <MudPaper Outlined="true" Class="pa-3">
+                            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                                <MudTextField T="string" Label="Key" Dense="true" @bind-Value="newProduct.Key" HelperText="As in the feed, e.g. MiniStore.PosAgent" />
+                                <MudTextField T="string" Label="Name" Dense="true" @bind-Value="newProduct.DisplayName" />
+                                <MudSelect T="string" Label="Kind" Dense="true" @bind-Value="newProduct.Kind" Style="min-width:10rem">
+                                    <MudSelectItem T="string" Value="@PackageKinds.Base">Application</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@PackageKinds.Module">Module</MudSelectItem>
+                                </MudSelect>
+                                @if (newProduct.Kind == PackageKinds.Module)
+                                {
+                                    <MudSelect T="string" Label="Extends" Dense="true" @bind-Value="newProduct.BaseProductKey" Style="min-width:14rem">
+                                        @foreach (var app in products.Where(p => p.Kind == PackageKinds.Base))
+                                        {
+                                            <MudSelectItem T="string" Value="@app.ProductKey">@Describe(app)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@busy" OnClick="SaveProductAsync">Save</MudButton>
+                                <MudButton Size="Size.Small" OnClick="@(() => newProduct = null)">Cancel</MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    }
+
+                    @if (selected != null)
+                    {
+                        <MudSimpleTable Dense="true" Hover="true">
+                            <thead>
+                                <tr>
+                                    <th>Channel</th>
+                                    <th>Version</th>
+                                    <th>Published</th>
+                                    <th>Size</th>
+                                    @if (selected.Kind == PackageKinds.Module)
+                                    {
+                                        <th>Fits application</th>
+                                    }
+                                    else
+                                    {
+                                        <th>Minimum version</th>
+                                    }
+                                    <th>Urgent</th>
+                                    <th>Withdrawn</th>
+                                    <th>By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (releases.Count == 0)
+                                {
+                                    <tr><td colspan="8"><MudText Typo="Typo.body2">No release published yet.</MudText></td></tr>
+                                }
+
+                                @foreach (var release in releases)
+                                {
+                                    <tr style="@(release.Withdrawn ? "opacity:0.55" : null)">
+                                        <td>@release.Channel</td>
+                                        <td>@release.Version</td>
+                                        <td>@release.PublishedUtc.ToLocalTime().ToString("g")</td>
+                                        <td>@FormatSize(release.Size)</td>
+                                        <td>@(selected.Kind == PackageKinds.Module ? release.Requires : release.MinimumVersion)</td>
+                                        <td>
+                                            <MudSwitch T="bool" Value="@release.Urgent" Color="Color.Warning" Disabled="@(!canManage || busy)"
+                                                       ValueChanged="@(v => SetUrgentAsync(release, v))" />
+                                        </td>
+                                        <td>
+                                            <MudSwitch T="bool" Value="@release.Withdrawn" Color="Color.Error" Disabled="@(!canManage || busy)"
+                                                       ValueChanged="@(v => SetWithdrawnAsync(release, v))" />
+                                        </td>
+                                        <td>@release.UploadedBy</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+
+                        @if (canManage)
+                        {
+                            <MudPaper Outlined="true" Class="pa-3">
+                                <MudText Typo="Typo.subtitle2" GutterBottom="true">Publish a release</MudText>
+                                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                                    <MudTextField T="string" Label="Channel" Dense="true" @bind-Value="upload.Channel" Style="max-width:10rem" />
+                                    <MudTextField T="string" Label="Version" Dense="true" @bind-Value="upload.Version" Style="max-width:10rem"
+                                                  HelperText="@(selected.Kind == PackageKinds.Base ? "Must match the MSI" : null)" />
+                                    @if (selected.Kind == PackageKinds.Module)
+                                    {
+                                        <MudTextField T="string" Label="Fits application (range)" Dense="true" @bind-Value="upload.Requires"
+                                                      HelperText="NuGet notation, e.g. [2.0.0,3.0.0)" />
+                                    }
+                                    else
+                                    {
+                                        <MudTextField T="string" Label="Minimum version" Dense="true" @bind-Value="upload.MinimumVersion" Style="max-width:12rem" />
+                                        <MudSwitch T="bool" @bind-Value="upload.Urgent" Label="Urgent" Color="Color.Warning" />
+                                    }
+                                    <MudButton HtmlTag="label" for="@inputId" StartIcon="@Icons.Material.Filled.AttachFile" Variant="Variant.Outlined" Disabled="@busy">
+                                        @(file == null ? "Choose package" : file.Name)
+                                    </MudButton>
+                                    <InputFile id="@inputId" OnChange="@(e => file = e.File)" hidden accept="@(selected.Kind == PackageKinds.Base ? ".msi" : ".zip")" />
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                               Disabled="@(busy || file == null || string.IsNullOrWhiteSpace(upload.Version))" OnClick="CheckAndPublishAsync">Publish</MudButton>
+                                    @if (busy)
+                                    {
+                                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                                    }
+                                </MudStack>
+
+                                @if (warnings.Count != 0)
+                                {
+                                    <MudAlert Severity="Severity.Warning" Class="mt-3">
+                                        <MudText Typo="Typo.body2">
+                                            These modules have no release for @upload.Version yet. The tills that have them keep their current version
+                                            until a fitting module release is published:
+                                        </MudText>
+                                        <ul>
+                                            @foreach (var warning in warnings)
+                                            {
+                                                <li>
+                                                    <b>@warning.ModuleProductKey</b>:
+                                                    @string.Join(", ", warning.ClientApps.Take(10).Select(a => $"{a.ClientName} (tenant {a.TenantId})"))
+                                                    @if (warning.ClientApps.Count > 10)
+                                                    {
+                                                        @($" and {warning.ClientApps.Count - 10} more")
+                                                    }
+                                                </li>
+                                            }
+                                        </ul>
+                                        <MudStack Row="true" Spacing="2">
+                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" Disabled="@busy" OnClick="PublishAsync">Publish anyway</MudButton>
+                                            <MudButton Size="Size.Small" OnClick="@(() => warnings = [])">Cancel</MudButton>
+                                        </MudStack>
+                                    </MudAlert>
+                                }
+                            </MudPaper>
+
+                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.body2">Clean up channel</MudText>
+                                <MudTextField T="string" Label="Channel" Dense="true" @bind-Value="cleanupChannel" Style="max-width:10rem" />
+                                <MudNumericField T="int" Label="Keep newest" Dense="true" @bind-Value="cleanupKeep" Min="1" Style="max-width:8rem" />
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="@busy" OnClick="CleanupAsync">Delete older releases</MudButton>
+                            </MudStack>
+                        }
+                    }
+                </MudStack>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Modules of templates">
+                @if (templates.Count == 0)
+                {
+                    <MudText Typo="Typo.body2">There are no client app templates.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        Every till of a template gets its modules, in all tenants. A tenant can add further modules to a single till.
+                    </MudText>
+                    <MudSimpleTable Dense="true">
+                        <thead>
+                            <tr><th>Template</th><th>Modules</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var template in templates)
+                            {
+                                <tr>
+                                    <td>@template.Name</td>
+                                    <td style="min-width:20rem">
+                                        <MudSelect T="string" Dense="true" MultiSelection="true" ReadOnly="@(!canManage)"
+                                                   SelectedValues="@template.Modules"
+                                                   SelectedValuesChanged="@(v => { template.Modules = v.OfType<string>().ToArray(); changedTemplates.Add(template.ClientAppTemplateId); })">
+                                            @foreach (var module in products.Where(p => p.Kind == PackageKinds.Module))
+                                            {
+                                                <MudSelectItem T="string" Value="@module.ProductKey">@Describe(module)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </td>
+                                    <td>
+                                        @if (canManage)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                                       Disabled="@(busy || !changedTemplates.Contains(template.ClientAppTemplateId))"
+                                                       OnClick="@(() => SaveTemplateAsync(template))">Save</MudButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </Permitted>
+    <NotPermitted>
+        <MudAlert Severity="Severity.Warning">No permission to view the updates.</MudAlert>
+    </NotPermitted>
+</SecureView>
+
+@code {
+    /// <summary>The largest package accepted from the browser.</summary>
+    private const long MaxPackageSize = 2L * 1024 * 1024 * 1024;
+
+    private sealed class ProductDraft
+    {
+        public string Key { get; set; } = string.Empty;
+
+        public string DisplayName { get; set; } = string.Empty;
+
+        public string Kind { get; set; } = PackageKinds.Base;
+
+        public string? BaseProductKey { get; set; }
+    }
+
+    private readonly string inputId = "upd-" + Guid.NewGuid().ToString("N");
+    private IReadOnlyList<UpdateProduct> products = [];
+    private IReadOnlyList<UpdateRelease> releases = [];
+    private IReadOnlyList<TemplateModulesInfo> templates = [];
+    private readonly HashSet<int> changedTemplates = new();
+    private IReadOnlyList<MissingModuleWarning> warnings = [];
+    private UpdateProduct? selected;
+    private string? productKey;
+    private ProductDraft? newProduct;
+    private ReleaseUpload upload = new();
+    private IBrowserFile? file;
+    private string cleanupChannel = "stable";
+    private int cleanupKeep = 5;
+    private bool canManage;
+    private bool busy;
+    private string? error;
+    private string? userName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Admin.CanViewReleases())
+        {
+            return;
+        }
+
+        canManage = Admin.CanManageReleases();
+        userName = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.Name;
+        await RunAsync(async () =>
+        {
+            await LoadProductsAsync();
+            templates = await Admin.GetTemplatesAsync();
+        }, "load the update products");
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        products = await Admin.GetProductsAsync();
+        if (productKey == null || products.All(p => p.ProductKey != productKey))
+        {
+            productKey = products.FirstOrDefault()?.ProductKey;
+        }
+
+        await LoadReleasesAsync();
+    }
+
+    private async Task LoadReleasesAsync()
+    {
+        selected = products.FirstOrDefault(p => p.ProductKey == productKey);
+        releases = selected == null ? [] : await Admin.GetReleasesAsync(selected.ProductKey);
+    }
+
+    private Task SelectProductAsync(string key) => RunAsync(async () =>
+    {
+        productKey = key;
+        ResetUpload();
+        await LoadReleasesAsync();
+    }, "load the releases");
+
+    private Task SaveProductAsync() => RunAsync(async () =>
+    {
+        var draft = newProduct!;
+        var saved = await Admin.SaveProductAsync(draft.Key, draft.Kind, string.IsNullOrWhiteSpace(draft.DisplayName) ? draft.Key : draft.DisplayName,
+            draft.Kind == PackageKinds.Module ? draft.BaseProductKey : null);
+        newProduct = null;
+        productKey = saved.ProductKey;
+        await LoadProductsAsync();
+        Snackbar.Add($"Product {saved.ProductKey} saved.", Severity.Success);
+    }, "save the product");
+
+    private Task CheckAndPublishAsync() => RunAsync(async () =>
+    {
+        warnings = await Admin.CheckBeforeUploadAsync(selected!.ProductKey, Channel(), upload.Version.Trim());
+        if (warnings.Count == 0)
+        {
+            await PublishCoreAsync();
+        }
+    }, "publish the release");
+
+    private Task PublishAsync() => RunAsync(PublishCoreAsync, "publish the release");
+
+    private async Task PublishCoreAsync()
+    {
+        upload.ProductKey = selected!.ProductKey;
+        upload.Channel = Channel();
+        upload.Version = upload.Version.Trim();
+        upload.FileName = file!.Name;
+        upload.UploadedBy = userName;
+        await using (var content = file.OpenReadStream(MaxPackageSize))
+        {
+            var release = await Admin.UploadAsync(upload, content);
+            Snackbar.Add($"{selected.ProductKey} {release.Version} published.", Severity.Success);
+        }
+
+        ResetUpload();
+        await LoadReleasesAsync();
+    }
+
+    private Task SetUrgentAsync(UpdateRelease release, bool urgent) => RunAsync(async () =>
+    {
+        await Admin.SetUrgentAsync(release.UpdateReleaseId, urgent);
+        await LoadReleasesAsync();
+    }, "mark the release as urgent");
+
+    private Task SetWithdrawnAsync(UpdateRelease release, bool withdrawn) => RunAsync(async () =>
+    {
+        await Admin.SetWithdrawnAsync(release.UpdateReleaseId, withdrawn);
+        await LoadReleasesAsync();
+    }, "withdraw the release");
+
+    private Task CleanupAsync() => RunAsync(async () =>
+    {
+        var deleted = await Admin.CleanupAsync(selected!.ProductKey, string.IsNullOrWhiteSpace(cleanupChannel) ? "stable" : cleanupChannel.Trim(), cleanupKeep);
+        Snackbar.Add($"{deleted} release(s) deleted.", Severity.Info);
+        await LoadReleasesAsync();
+    }, "clean up the releases");
+
+    private Task SaveTemplateAsync(TemplateModulesInfo template) => RunAsync(async () =>
+    {
+        var results = await Admin.SetTemplateModulesAsync(template.ClientAppTemplateId, template.Modules);
+        changedTemplates.Remove(template.ClientAppTemplateId);
+        var reached = results.Count(r => r.Reached);
+        Snackbar.Add(results.Count == reached
+                ? $"Saved and sent to {reached} till(s)."
+                : $"Saved. Sent to {reached} of {results.Count} till(s); the others get it when they connect.",
+            results.Count == reached ? Severity.Success : Severity.Info);
+        templates = await Admin.GetTemplatesAsync();
+    }, "assign the modules of the template");
+
+    private string Channel() => string.IsNullOrWhiteSpace(upload.Channel) ? "stable" : upload.Channel.Trim();
+
+    private void ResetUpload()
+    {
+        upload = new ReleaseUpload();
+        file = null;
+        warnings = [];
+    }
+
+    private async Task RunAsync(Func<Task> action, string what)
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            await action();
+        }
+        catch (UpdateAdministrationException ex)
+        {
+            Logger.LogWarning(ex, "Could not {What}.", what);
+            error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not {What}.", what);
+            error = $"Could not {what} - see the log.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static string Describe(UpdateProduct product)
+        => string.IsNullOrEmpty(product.DisplayName) || product.DisplayName == product.ProductKey
+            ? product.ProductKey
+            : $"{product.DisplayName} ({product.ProductKey})";
+
+    private static string FormatSize(long size)
+        => size >= 1024 * 1024 ? $"{size / 1024d / 1024d:0.0} MB" : $"{size / 1024d:0} KB";
+}

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Tab_Updates" xml:space="preserve"><value>Mises à jour</value></data>
+  <data name="Upd_NoPermission" xml:space="preserve"><value>Aucune autorisation pour voir les mises à jour de cette application.</value></data>
+  <data name="Upd_NeverReported" xml:space="preserve"><value>Cette caisse n'a pas encore signalé d'état de mise à jour.</value></data>
+  <data name="Upd_Installed" xml:space="preserve"><value>Installée : {0}</value></data>
+  <data name="Upd_Available" xml:space="preserve"><value>Disponible : {0}</value></data>
+  <data name="Upd_ReportedAt" xml:space="preserve"><value>Signalé : {0}</value></data>
+  <data name="Upd_BlockedBy" xml:space="preserve"><value>La nouvelle version attend : {0}</value></data>
+  <data name="Upd_Error" xml:space="preserve"><value>Erreur : {0}</value></data>
+  <data name="Upd_DeferredUntil" xml:space="preserve"><value>Reportée jusqu'au {0}</value></data>
+  <data name="Upd_Phase_Unknown" xml:space="preserve"><value>Pas encore vérifiée</value></data>
+  <data name="Upd_Phase_UpToDate" xml:space="preserve"><value>À jour</value></data>
+  <data name="Upd_Phase_Downloading" xml:space="preserve"><value>Téléchargement</value></data>
+  <data name="Upd_Phase_ReadyToInstall" xml:space="preserve"><value>Prête à installer</value></data>
+  <data name="Upd_Phase_Deferred" xml:space="preserve"><value>Reportée</value></data>
+  <data name="Upd_Phase_Installing" xml:space="preserve"><value>Installation</value></data>
+  <data name="Upd_Phase_RestartRequired" xml:space="preserve"><value>Redémarrage de Windows requis</value></data>
+  <data name="Upd_Phase_Failed" xml:space="preserve"><value>Échec</value></data>
+  <data name="Upd_Phase_NoService" xml:space="preserve"><value>Aucun service de mise à jour</value></data>
+  <data name="Upd_Refresh" xml:space="preserve"><value>Récupérer l'état</value></data>
+  <data name="Upd_CheckNow" xml:space="preserve"><value>Rechercher des mises à jour</value></data>
+  <data name="Upd_CheckSent" xml:space="preserve"><value>La caisse recherche des mises à jour.</value></data>
+  <data name="Upd_Modules" xml:space="preserve"><value>Modules</value></data>
+  <data name="Upd_NoModules" xml:space="preserve"><value>Aucun module n'est disponible.</value></data>
+  <data name="Upd_ModuleColumn" xml:space="preserve"><value>Module</value></data>
+  <data name="Upd_AssignedColumn" xml:space="preserve"><value>Attribué</value></data>
+  <data name="Upd_ModuleInstalled" xml:space="preserve"><value>Installé</value></data>
+  <data name="Upd_FromTemplate" xml:space="preserve"><value>Du modèle</value></data>
+  <data name="Upd_Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Upd_Saved" xml:space="preserve"><value>Enregistré et envoyé à la caisse.</value></data>
+  <data name="Upd_NotReached" xml:space="preserve"><value>La caisse n'a pas été atteinte ({0}). Elle recevra l'attribution dès sa connexion.</value></data>
+  <data name="Upd_LoadFailed" xml:space="preserve"><value>L'état des mises à jour n'a pas pu être chargé - voir le journal.</value></data>
+  <data name="Upd_SaveFailed" xml:space="preserve"><value>Les modules n'ont pas pu être enregistrés - voir le journal.</value></data>
+  <data name="Upd_RefreshFailed" xml:space="preserve"><value>L'état n'a pas pu être récupéré - voir le journal.</value></data>
+  <data name="Upd_CheckFailed" xml:space="preserve"><value>La caisse n'a pas pu être invitée à rechercher - voir le journal.</value></data>
+</root>

@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 119 | **Update-Dienst (Phase 5c): Masken für Freigaben, Vorlagen und Kassen** | Kein Schema-Change. Neu: `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.UpdateServiceViews`, `AddUpdateServiceAdministration`, Rechte `Updates.Releases.View/.Write`. |
 | 118 | **Update-Dienst (Phase 5b): Zuweisung und Stand zwischen Web und Kasse** | Kein Schema-Change (Tabellen aus §117). Neu: `IAgentUpdateBridge`/`AgentUpdateBridge`, `IClientAppUpdateSync`, `IModuleAssignmentAdministration`. Voraussetzung: `AddAgentServices`. |
 | 117 | **Update-Dienst (Phase 5a): Freigaben, Paketablage und Feed im Web** | **Pflicht-Migration (6 Tabellen), nur wer das neue Paket einbindet.** Neu: `ITVComponents.WebCoreToolkit.EntityFramework.UpdateService`. |
 | 116 | **Update-Dienst (Phase 4): Module installieren, zuweisen, zurückschalten** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade` hat `AssignModulesAsync` und `ReportModulesLoadedAsync`. |
@@ -10116,3 +10117,51 @@ Schnittstelle des generischen Typs wird nicht von jedem Provider übersetzt.
 
 **Noch nicht gegen einen echten Verteiler und eine echte Kasse erprobt.** Getestet mit nachgebauten Kassen gegen den
 InMemory-Provider, die Nachlieferung der Zuweisung über eine echte Pipe.
+
+## 119. Update-Dienst (Phase 5c): Masken für Freigaben, Vorlagen und Kassen — **kein Schema-Change**
+
+Neues Paket `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.UpdateServiceViews`.
+
+### 119.1 Verdrahtung
+
+```csharp
+services.AddUpdateServiceWithDatabaseStore<MyContext, ClientApp, ClientAppTemplate>();   // §117
+services.AddAgentServices<MyContext, ClientApp, ClientAppTemplate>();                    // §118
+services.AddUpdateServiceAdministration<MyContext, ClientApp, ClientAppTemplate>();     // neu, Kontext mit ITenantScopeContext
+services.AddMudBlazorUpdateServiceViews();   // nur ohne WebPart-Lader; sonst registriert das WebPart den Reiter
+```
+
+Die Seite ist routbar und braucht keine Registrierung. Sie muss nur in die Navigation.
+
+### 119.2 Masken
+
+- **`/Connectivity/Updates` (Plattform, Englisch wie die übrigen Plattform-Seiten):**
+  - Reiter **Releases**: Produkte anlegen (Anwendung oder Modul mit „Extends“). Freigaben je Produkt mit Kanal,
+    Fassung, Grösse, Bereich bzw. Mindestfassung. Schalter für dringend und zurückgezogen. Hochladen eines Pakets
+    (`.msi` bzw. `.zip`, bis 2 GB). Aufräumen eines Kanals bis auf die neuesten N.
+  - Vor dem Veröffentlichen einer Anwendungsfassung zeigt die Seite die zugewiesenen Module ohne passende Freigabe
+    mit den betroffenen Kassen (M1). Veröffentlicht wird dann erst nach „Publish anyway“.
+  - Reiter **Modules of templates**: Module je Vorlage. Speichern schiebt an alle aktiven Kassen der Vorlage und meldet,
+    wie viele erreicht wurden.
+- **Reiter „Updates“ in der Detailzeile der ClientApps (Mandant, en/de/fr/it):**
+  - Stand der letzten Meldung mit Zeitpunkt, installierte und verfügbare Fassung, „wartet auf“, Fehler und
+    Aufschub.
+  - Module mit installierter Fassung. Module der Vorlage sind als solche markiert, weitere lassen sich je Kasse
+    anhaken.
+  - „Stand abholen“ und „Jetzt nach Updates suchen“ sprechen die Kasse direkt an. Ist sie aus, bleibt der letzte Stand
+    sichtbar, und ein Hinweis sagt, dass sie die Zuweisung beim Verbinden erhält.
+
+### 119.3 Rechte
+
+`IUpdateAdminHandler` prüft selbst (`UpdatePermissions`), die Masken blenden nur aus:
+
+| Recht | wofür |
+|---|---|
+| `Updates.Releases.View` | Produkte, Freigaben, Module der Vorlagen lesen |
+| `Updates.Releases.Write` | veröffentlichen, zurückziehen, aufräumen, Module der Vorlagen setzen |
+| `Apps.View` | Reiter „Updates“ lesen, Stand abholen |
+| `Apps.Write` | Module einer Kasse setzen, Suche anstossen |
+
+Der Reiter arbeitet nur im aktiven Mandanten. Eine Kasse eines anderen Mandanten ist „nicht vorhanden“.
+
+**Nur kompiliert, nicht im Browser erprobt.** Getestet ist der Handler (Rechte, Mandantengrenze, Meldungen).

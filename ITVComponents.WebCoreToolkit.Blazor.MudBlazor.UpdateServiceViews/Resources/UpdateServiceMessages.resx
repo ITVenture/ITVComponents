@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Tab_Updates" xml:space="preserve"><value>Updates</value></data>
+  <data name="Upd_NoPermission" xml:space="preserve"><value>No permission to view the updates of this application.</value></data>
+  <data name="Upd_NeverReported" xml:space="preserve"><value>This till has not reported an update state yet.</value></data>
+  <data name="Upd_Installed" xml:space="preserve"><value>Installed: {0}</value></data>
+  <data name="Upd_Available" xml:space="preserve"><value>Available: {0}</value></data>
+  <data name="Upd_ReportedAt" xml:space="preserve"><value>Reported: {0}</value></data>
+  <data name="Upd_BlockedBy" xml:space="preserve"><value>The new version waits: {0}</value></data>
+  <data name="Upd_Error" xml:space="preserve"><value>Error: {0}</value></data>
+  <data name="Upd_DeferredUntil" xml:space="preserve"><value>Deferred until {0}</value></data>
+  <data name="Upd_Phase_Unknown" xml:space="preserve"><value>Not checked yet</value></data>
+  <data name="Upd_Phase_UpToDate" xml:space="preserve"><value>Up to date</value></data>
+  <data name="Upd_Phase_Downloading" xml:space="preserve"><value>Downloading</value></data>
+  <data name="Upd_Phase_ReadyToInstall" xml:space="preserve"><value>Ready to install</value></data>
+  <data name="Upd_Phase_Deferred" xml:space="preserve"><value>Deferred</value></data>
+  <data name="Upd_Phase_Installing" xml:space="preserve"><value>Installing</value></data>
+  <data name="Upd_Phase_RestartRequired" xml:space="preserve"><value>Windows restart required</value></data>
+  <data name="Upd_Phase_Failed" xml:space="preserve"><value>Failed</value></data>
+  <data name="Upd_Phase_NoService" xml:space="preserve"><value>No update service</value></data>
+  <data name="Upd_Refresh" xml:space="preserve"><value>Fetch state</value></data>
+  <data name="Upd_CheckNow" xml:space="preserve"><value>Check for updates now</value></data>
+  <data name="Upd_CheckSent" xml:space="preserve"><value>The till looks for updates.</value></data>
+  <data name="Upd_Modules" xml:space="preserve"><value>Modules</value></data>
+  <data name="Upd_NoModules" xml:space="preserve"><value>No modules are available.</value></data>
+  <data name="Upd_ModuleColumn" xml:space="preserve"><value>Module</value></data>
+  <data name="Upd_AssignedColumn" xml:space="preserve"><value>Assigned</value></data>
+  <data name="Upd_ModuleInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="Upd_FromTemplate" xml:space="preserve"><value>From the template</value></data>
+  <data name="Upd_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Upd_Saved" xml:space="preserve"><value>Saved and sent to the till.</value></data>
+  <data name="Upd_NotReached" xml:space="preserve"><value>The till was not reached ({0}). It gets the assignment when it connects.</value></data>
+  <data name="Upd_LoadFailed" xml:space="preserve"><value>The update state could not be loaded - see the log.</value></data>
+  <data name="Upd_SaveFailed" xml:space="preserve"><value>The modules could not be saved - see the log.</value></data>
+  <data name="Upd_RefreshFailed" xml:space="preserve"><value>The state could not be fetched - see the log.</value></data>
+  <data name="Upd_CheckFailed" xml:space="preserve"><value>The till could not be asked to check - see the log.</value></data>
+</root>
