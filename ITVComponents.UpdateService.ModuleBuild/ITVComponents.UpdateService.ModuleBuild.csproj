@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Build-time package: packs the publish output of a plugin project as a module for the update service. netstandard2.0,
+    so the task runs in Visual Studio (MSBuild on .NET Framework) as well as in dotnet publish.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>5.0.0-PRE277</Version>
+    <Authors>mw</Authors>
+    <Company>IT-Venture GmbH</Company>
+    <Description>Packs a plugin project as a module of the ITVComponents update service at the end of its publish, and checks it the way the service will: one main assembly, no contract assemblies, framework-dependent. Opt-in with &lt;ItvModulePackage&gt;true&lt;/ItvModulePackage&gt;.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RepositoryUrl>https://github.com/ITVenture/ITVComponents</RepositoryUrl>
+    <!-- A tool for the build, not a library of the module: nothing of it ends up in the publish output. -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+    <!-- Not a contract: no module or host ever loads it (see Directory.Build.targets). -->
+    <ItvNoPluginContract>true</ItvNoPluginContract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Both are provided by MSBuild itself at run time. -->
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Reflection.Metadata" Version="1.6.0" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="build\ITVComponents.UpdateService.ModuleBuild.targets" Pack="true" PackagePath="build\" />
+  </ItemGroup>
+</Project>

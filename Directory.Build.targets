@@ -4,7 +4,7 @@
     loading its own copy (see ITVComponents.Plugins.Modules.PluginContract). An application marks its own abstractions
     the same way: <AssemblyMetadata Include="ITVComponents.PluginContract" Value="true" />.
   -->
-  <ItemGroup Condition="'$(GeneratePackageOnBuild)' == 'true'">
+  <ItemGroup Condition="'$(GeneratePackageOnBuild)' == 'true' And '$(ItvNoPluginContract)' != 'true'">
     <AssemblyMetadata Include="ITVComponents.PluginContract" Value="true" />
   </ItemGroup>
 </Project>

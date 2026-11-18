@@ -1,0 +1,41 @@
+<Project>
+  <!--
+    Packs the publish output of a plugin project as a module of the ITVComponents update service, at the end of the
+    publish. Opt-in in the module project:
+
+      <PropertyGroup>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <ItvModulePackage>true</ItvModulePackage>
+      </PropertyGroup>
+
+    Optional:
+      ItvModuleId                 name part of the zip (default: AssemblyName); the id of the module itself is set by
+                                  the release in the web
+      ItvModulePackagePath        the zip to write (default: <PublishDir>\..\<ItvModuleId>-<Version>.zip)
+      ItvModuleAllowedContracts   ;-separated file names of contract assemblies the module may bring because its host
+                                  does not have them (usually none)
+      ItvModuleBuildTaskAssembly  the task assembly (set it when importing this file from source instead of the package)
+  -->
+  <PropertyGroup>
+    <ItvModuleBuildTaskAssembly Condition="'$(ItvModuleBuildTaskAssembly)' == ''">$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\ITVComponents.UpdateService.ModuleBuild.dll</ItvModuleBuildTaskAssembly>
+  </PropertyGroup>
+
+  <!-- In a process of its own: otherwise the resident MSBuild nodes keep the task assembly locked after the publish. -->
+  <UsingTask TaskName="ITVComponents.UpdateService.ModuleBuild.PackModule" AssemblyFile="$(ItvModuleBuildTaskAssembly)" TaskFactory="TaskHostFactory" />
+
+  <Target Name="ItvPackModule" AfterTargets="Publish" Condition="'$(ItvModulePackage)' == 'true'">
+    <PropertyGroup>
+      <_ItvModulePublishDir>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)'))))</_ItvModulePublishDir>
+      <ItvModuleId Condition="'$(ItvModuleId)' == ''">$(AssemblyName)</ItvModuleId>
+      <ItvModulePackagePath Condition="'$(ItvModulePackagePath)' == ''">$([System.IO.Path]::GetFullPath('$(_ItvModulePublishDir)..\$(ItvModuleId)-$(Version).zip'))</ItvModulePackagePath>
+    </PropertyGroup>
+
+    <Error Condition="'$(SelfContained)' == 'true'" Code="ITVMOD003"
+           Text="A module runs in the runtime of its host and is published framework-dependent; set SelfContained=false." />
+
+    <PackModule PublishDirectory="$(_ItvModulePublishDir)" PackagePath="$(ItvModulePackagePath)" AllowedContracts="$(ItvModuleAllowedContracts)">
+      <Output TaskParameter="Sha256" PropertyName="ItvModuleSha256" />
+      <Output TaskParameter="MainAssembly" PropertyName="ItvModuleMainAssembly" />
+    </PackModule>
+  </Target>
+</Project>

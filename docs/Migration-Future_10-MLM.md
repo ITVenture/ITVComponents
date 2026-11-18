@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 124 | **Module beim Publish paketieren (neues Paket `ITVComponents.UpdateService.ModuleBuild`)** | Kein Schema-Change. Opt-in im Modul-Projekt: Paket referenzieren, `<ItvModulePackage>true</ItvModulePackage>`. |
 | 123 | **Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken** | Kein Schema-Change. Opt-in; **empfohlen** für jede Benutzerdatei, die mehr Konten schreiben dürfen als die Anwendung (Agent unter `ProgramData`). |
 | 122 | **Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** `FileLogWriter` versucht einen gescheiterten Dateiwechsel erst nach einer Minute wieder; die Datei wächst bis dahin über die Grenze. |
 | 121 | **Mandantenauswahl: direkt schlägt geerbt; Server-Cookies ohne Zeile, Gültigkeit in UTC** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** Server-Cookies laufen nach UTC ab (vorher um den Zeitzonen-Versatz des Servers verschoben). |
@@ -10334,3 +10335,83 @@ Abschnitte, die wirklich dorthin gehören. Eine eigene „vertrauenswürdige“ 
 - Warnung ohne Werte;
 - Schreiben ausserhalb abgelehnt, innerhalb möglich;
 - nur leere Angaben werfen.
+
+## 124. Module beim Publish paketieren — **kein Schema-Change, neues Paket, opt-in**
+
+Ein Modul für den Update-Dienst (§116) ist der Publish-Ordner eines Plugin-Projekts als Zip. Neu erzeugt das Paket
+`ITVComponents.UpdateService.ModuleBuild` dieses Zip am Ende von `dotnet publish` bzw. des Publish in Visual
+Studio. Es prüft das Modul dabei so, wie es der Dienst beim Installieren tut. Was der Dienst ablehnen würde, lässt
+schon den Publish scheitern und nicht erst die Installation auf der Kasse.
+
+### 124.1 Im Modul-Projekt
+
+```xml
+<PropertyGroup>
+  <EnableDynamicLoading>true</EnableDynamicLoading>
+  <ItvModulePackage>true</ItvModulePackage>
+</PropertyGroup>
+<ItemGroup>
+  <PackageReference Include="ITVComponents.UpdateService.ModuleBuild" Version="…" PrivateAssets="all" />
+  <!-- Verträge nicht mitkopieren -->
+  <PackageReference Include="ITVComponents.AgentServices.Abstractions" Version="…" ExcludeAssets="runtime" />
+</ItemGroup>
+```
+
+Ergebnis: `<PublishDir>\..\<ItvModuleId>-<Version>.zip`, also z.B. `bin\Release\net10.0\Shop.Printer-1.2.3.zip`.
+Die Build-Ausgabe nennt Pfad, Anzahl Dateien, Grösse, Haupt-Assembly und SHA-256. Hochgeladen wird das Zip wie
+bisher in der Maske `/Connectivity/Updates`. Id und Fassung des Moduls legt die Freigabe im Web fest, nicht das Zip.
+
+| Eigenschaft | Vorgabe | Bedeutung |
+|---|---|---|
+| `ItvModulePackage` | – | `true` schaltet das Paketieren ein |
+| `ItvModuleId` | `$(AssemblyName)` | Namensteil des Zips |
+| `ItvModulePackagePath` | `<PublishDir>\..\<Id>-<Version>.zip` | Ziel; darf nicht im Publish-Ordner liegen |
+| `ItvModuleAllowedContracts` | leer | `;`-getrennte Dateinamen von Verträgen, die das Modul trotzdem mitbringt, weil der Host sie nicht hat |
+| `ItvModuleBuildTaskAssembly` | aus dem Paket | nur beim Einbinden der `.targets` aus dem Quellcode |
+
+### 124.2 Was geprüft wird (Build-Fehler `ITVMOD001`–`003`)
+
+- **Genau eine Haupt-Assembly:** aus `module.json` (`mainAssembly`) oder der einzigen `.deps.json`. Ohne
+  `EnableDynamicLoading` fehlt die `.deps.json`.
+- **Framework-abhängig:** Ein Modul läuft in der Runtime seines Hosts. `SelfContained=true` bzw. eine
+  mitgebrachte Runtime (`hostfxr.dll`, `coreclr.dll` …) ist ein Fehler.
+- **Haupt-Assembly kein Vertrag:** Ein Modul lädt in einem eigenen Kontext, ein Vertrag nie.
+- **Unlesbare DLL** im Publish-Ordner.
+- Das Zip darf nicht im Publish-Ordner liegen, sonst packt es sich selbst.
+
+### 124.3 Verträge werden weggelassen
+
+Vertrags-Assemblies (`ITVComponents.PluginContract`, also jedes ITVComponents-Paket und markierte Abstraktionen
+der Anwendung) lässt das Paketieren weg, samt `.pdb`, `.xml`, `.dll.config` und Satelliten-Assemblies. Der Host
+hat sie, `ModuleLoadContext` nimmt sie immer von ihm, und `ModuleFiles.Stage` lehnt ein Modul mit eigener Kopie ab.
+Die weggelassenen werden in der Build-Ausgabe genannt.
+
+Weglassen statt Fehler hat einen Grund: Der Publish kopiert sie auch bei richtiger Referenz mit. Bei einer
+**Projekt**referenz halten `<Private>false</Private>` und `<ExcludeAssets>runtime</ExcludeAssets>` nur die
+referenzierte Assembly selbst draussen, ihre eigenen Projektreferenzen nicht (im Probe-Publish nachgewiesen). Wie
+weit `ExcludeAssets="runtime"` bei einer **Paket**referenz die Abhängigkeiten erfasst, ist nicht geprüft. Das
+Weglassen deckt beides ab. Andere Abhängigkeiten eines Vertrags (z.B. Roslyn über `ITVComponents.Scripting.CScript`)
+sind keine Verträge und bleiben im Zip. Sie belegen Platz, schaden aber nicht.
+
+Hat der Host einen Vertrag ausnahmsweise nicht, gehört dessen Dateiname in `ItvModuleAllowedContracts`. Sonst
+fehlt er dem Modul zur Laufzeit.
+
+### 124.4 Technik
+
+- `netstandard2.0`, damit der Task auch im MSBuild von Visual Studio (.NET Framework) läuft.
+- Er läuft per `TaskHostFactory` in einem eigenen Prozess. Sonst halten die MSBuild-Knoten die Task-DLL nach dem
+  Publish gesperrt.
+- Das Paket ist eine Entwicklungsabhängigkeit (`developmentDependency`) und landet nicht im Modul.
+- `Directory.Build.targets`: `ItvNoPluginContract=true` nimmt ein Paket von der Vertragsmarke aus. Das gilt hier,
+  denn das Build-Paket wird nie geladen.
+- Die Logik steht in `ModulePackager` (`Validate`, `Pack`) und lässt sich ohne MSBuild verwenden.
+
+### 124.5 Tests
+
+`ITVComponents.UpdateService.Test/ModulePackagerTest.cs`:
+
+- Ein gepacktes Modul geht durch `ModuleFiles.Stage`.
+- Verträge werden mit allem Zugehörigen weggelassen, oder per Name behalten.
+- Fehlerfälle: Haupt-Assembly, `self-contained`, Zip im Publish-Ordner, leerer Ordner.
+
+Dazu kommt ein Probe-Publish eines Plugin-Projekts mit Projektreferenz auf `ITVComponents.Plugins`.

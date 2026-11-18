@@ -13,6 +13,7 @@
     <ProjectReference Include="..\ITVComponents.UpdateService\ITVComponents.UpdateService.csproj" />
     <ProjectReference Include="..\ITVComponents.UpdateService.Client\ITVComponents.UpdateService.Client.csproj" />
     <ProjectReference Include="..\ITVComponents.UpdateService.Abstractions\ITVComponents.UpdateService.Abstractions.csproj" />
+    <ProjectReference Include="..\ITVComponents.UpdateService.ModuleBuild\ITVComponents.UpdateService.ModuleBuild.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.NamedPipe\ITVComponents.InterProcessCommunication.NamedPipe.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.MessagingShared\ITVComponents.InterProcessCommunication.MessagingShared.csproj" />
   </ItemGroup>
