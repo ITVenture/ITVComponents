@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE277</Version>
+    <Version>5.0.0-PRE278</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>Runs an ITVComponents generic service as a Windows service, with the Windows session notifications for its plugins. Kept apart from ITVComponents.GenericService so that the generic service stays free of Windows-only dependencies.</Description>

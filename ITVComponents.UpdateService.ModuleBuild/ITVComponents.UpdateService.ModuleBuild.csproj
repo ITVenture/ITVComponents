@@ -8,7 +8,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE277</Version>
+    <Version>5.0.0-PRE278</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>Packs a plugin project as a module of the ITVComponents update service at the end of its publish, and checks it the way the service will: one main assembly, no contract assemblies, framework-dependent. Opt-in with &lt;ItvModulePackage&gt;true&lt;/ItvModulePackage&gt;.</Description>
@@ -22,13 +22,11 @@
     <!-- Not a contract: no module or host ever loads it (see Directory.Build.targets). -->
     <ItvNoPluginContract>true</ItvNoPluginContract>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Both are provided by MSBuild itself at run time. -->
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="System.Reflection.Metadata" Version="1.6.0" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="build\ITVComponents.UpdateService.ModuleBuild.targets" Pack="true" PackagePath="build\" />
   </ItemGroup>

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE277</Version>
+    <Version>5.0.0-PRE278</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>Connects an application to its update service: announce itself, receive "please end" and state changes, defer, ask to check now. Works without a service (development) and says so once in the log.</Description>
