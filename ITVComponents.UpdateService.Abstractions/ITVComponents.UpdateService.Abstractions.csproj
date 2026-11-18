@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE275</Version>
+    <Version>5.0.0-PRE277</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>Contracts of the ITVComponents update service: the feed (a list of packages) and what an application may ask of the service. Free of dependencies, for the service, the application and the web.</Description>
