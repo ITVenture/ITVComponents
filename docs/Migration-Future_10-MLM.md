@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 117 | **Update-Dienst (Phase 5a): Freigaben, Paketablage und Feed im Web** | **Pflicht-Migration (6 Tabellen), nur wer das neue Paket einbindet.** Neu: `ITVComponents.WebCoreToolkit.EntityFramework.UpdateService`. |
 | 116 | **Update-Dienst (Phase 4): Module installieren, zuweisen, zurückschalten** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade` hat `AssignModulesAsync` und `ReportModulesLoadedAsync`. |
 | 115 | **Plugin-Module: ein Ladekontext je Modul; Vertragsmarke der Pakete** | Kein Schema-Change. Neu: `Directory.Build.targets` (markiert jedes veröffentlichte Paket). Opt-in: `PluginFactory.AssemblyContextSelector`. |
 | 114 | **Update-Dienst (Phase 3): Signatur des Feeds** | Kein Schema-Change. Opt-in: `FeedSigningThumbprints`, `RequireFeedSignature`. |
@@ -9988,3 +9989,72 @@ await updates.AssignModulesAsync(assignedModuleIds);
 ```
 
 **Noch nicht gegen ein echtes Modul erprobt.** Getestet ist der Ablauf mit nachgebauten Paketen.
+
+## 117. Update-Dienst (Phase 5a): Freigaben, Paketablage und Feed im Web — **Pflicht-Migration (6 Tabellen), opt-in**
+
+Grundlage: `docs/ISSUE-MiniStore-UpdateService.md`, P5. Neues Paket `ITVComponents.WebCoreToolkit.EntityFramework.UpdateService`.
+Wer es nicht einbindet, hat nichts zu tun.
+
+### 117.1 Modell
+
+Freigaben gelten plattformweit, Zuweisung und Stand je Mandant:
+
+| Tabelle | Inhalt | Ebene |
+|---|---|---|
+| `UpdateProducts` | Anwendung (`kind = base`) oder Modul (`kind = module`, mit `BaseProductKey`) | Plattform |
+| `UpdateReleases` | Fassung je Produkt und Kanal: `Urgent`, `MinimumVersion`, `Requires`, `Withdrawn`, `Sha256`, `Size`, `StorageKey` | Plattform |
+| `UpdatePackageChunks` | Paketinhalt in Blöcken zu 1 MB (nur Datenbank-Ablage) | Plattform |
+| `ClientAppTemplateModuleAssignments` | Module, die jede Kasse einer Vorlage bekommt | Plattform |
+| `ClientAppModuleAssignments` | zusätzliche Module einer einzelnen Kasse | Mandant |
+| `ClientAppUpdateStates` | zuletzt gemeldeter Stand je Kasse (Fassung, Phase, `BlockedBy`, Fehler, Module) | Mandant |
+
+Eine Fassung lässt sich je Produkt und Kanal nur einmal veröffentlichen. Gelöscht wird sie nicht, sondern
+zurückgezogen (`Withdrawn`), dann bietet der Feed wieder die vorherige an.
+
+### 117.2 Verdrahtung
+
+```csharp
+// OnModelCreating des Kontexts (implementiert IUpdateServiceContext und IClientAppContext<…>):
+modelBuilder.ConfigureUpdateService<Tenant, ClientApp, ClientAppTemplate>();
+
+// Dienste – Pakete in der Datenbank …
+services.AddUpdateServiceWithDatabaseStore<MyContext, ClientApp, ClientAppTemplate>();
+// … oder als Dateien (Ordner muss Neustarts überleben und von allen Instanzen geteilt werden):
+services.AddUpdateServiceWithFileStore<MyContext, ClientApp, ClientAppTemplate>("/data/update-packages");
+
+// optional: Feed signieren (§114)
+services.AddSingleton<IFeedSigner>(new CertificateFeedSigner(certificate));
+
+// Endpunkte (anonym)
+app.MapUpdateFeed<MyContext>();   // Präfix "/updates"
+```
+
+Der Kontext braucht ein `IDbContextFactory<MyContext>`. Danach eine Migration erzeugen. **Die Abbildung auf SQL Server
+ist noch nicht gegen eine echte Datenbank geprüft**, die Tests laufen gegen den InMemory-Provider.
+
+### 117.3 Feed
+
+| Pfad | Inhalt |
+|---|---|
+| `/updates/{product}/{channel}.json` | Manifest mit `ETag`, `If-None-Match` ergibt 304 |
+| `/updates/{product}/{channel}.json.sig` | Signatur, 404 ohne `IFeedSigner` |
+| `/updates/{product}/packages/{releaseId}/{fileName}` | Paket mit HTTP-Range, `ETag` = SHA-256 |
+
+Das Manifest enthält die neueste nicht zurückgezogene Fassung der Anwendung und alle Fassungen der Module dazu, damit
+der Dienst für jede Anwendungsfassung das passende Modul wählen kann (§116). Ein Paket wird nur unter dem Produkt
+ausgeliefert, zu dessen Feed es gehört. Im Dienst wird `FeedUrl = https://host/updates/{product}` eingetragen.
+
+### 117.4 Verwaltung
+
+`IUpdateReleaseAdministration` (scoped):
+
+- `EnsureProductAsync`: legt ein Produkt an oder aktualisiert es.
+- `UploadReleaseAsync(ReleaseUpload, Stream)`: speichert das Paket, berechnet Hash und Grösse und prüft `Requires`
+  auf lesbare NuGet-Bereiche.
+- `SetWithdrawnAsync`, `SetUrgentAsync`.
+- `CleanupAsync(product, channel, keep)`: behält die neuesten `keep` Fassungen, löscht die übrigen samt Paket.
+- `CheckModulesForAsync(base, channel, version)`: **M1** – vor dem Veröffentlichen einer Anwendungsfassung die
+  zugewiesenen Module ohne passende Freigabe, mit den betroffenen Kassen. Ohne Freigabe würde der Dienst die neue
+  Fassung auf diesen Kassen zurückhalten.
+
+Masken dazu und die Übergabe von Zuweisung und Stand zwischen Web und Agent folgen in Phase 5b/5c.
