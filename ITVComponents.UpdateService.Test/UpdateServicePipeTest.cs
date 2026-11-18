@@ -154,6 +154,28 @@ namespace ITVComponents.UpdateService.Test
             StringAssert.Contains(outsider.RefusalReason, "does not run from the application's folder");
         }
 
+        [TestMethod]
+        public async Task An_Assignment_Before_The_Service_Is_Reached_Is_Delivered_After_The_Connect()
+        {
+            using var bridge = new AgentUpdateBridge(client);
+            string[]? announced = null;
+            bridge.ModulesAssigned += ids => announced = ids;
+
+            var before = await bridge.AssignModulesAsync(new[] { "Shop.Epson" });
+
+            CollectionAssert.AreEqual(new[] { "Shop.Epson" }, announced);
+            Assert.IsFalse(before.ServiceConnected);
+            Assert.IsTrue(before.AssignmentPending, "kept until the service is reached");
+            Assert.AreEqual("1.4.1", before.ApplicationVersion);
+
+            client.Start();
+
+            var after = await bridge.GetReportAsync();
+            Assert.IsTrue(after.ServiceConnected);
+            Assert.IsFalse(after.AssignmentPending, "delivered with the connect");
+            Assert.IsNotNull(after.Status);
+        }
+
         private sealed class OneSession : ISessionInfo
         {
             public int ConsoleSessionId() => Process.GetCurrentProcess().SessionId;

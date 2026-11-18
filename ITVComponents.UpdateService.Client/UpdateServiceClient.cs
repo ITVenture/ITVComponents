@@ -65,6 +65,7 @@ namespace ITVComponents.UpdateService.Client
         private bool unavailableReported;
         private bool refused;
         private bool disposed;
+        private string[]? pendingAssignment;
 
         static UpdateServiceClient()
         {
@@ -174,22 +175,47 @@ namespace ITVComponents.UpdateService.Client
 
         /// <summary>
         /// Tells the service which modules this machine is to have (the assignment of the client app in the backend). Call
-        /// it after the start and whenever the backend reports a change. Returns false without service.
+        /// it after the start and whenever the backend reports a change. Returns false if the assignment did not reach the
+        /// service (yet).
         /// </summary>
+        /// <remarks>
+        /// An assignment that does not reach the service is kept and delivered after the next connect; a newer assignment
+        /// replaces it.
+        /// </remarks>
         public async Task<bool> AssignModulesAsync(string[] moduleIds)
         {
-            var current = Facade();
-            if (current == null)
+            moduleIds ??= Array.Empty<string>();
+            lock (sync)
             {
-                return false;
+                pendingAssignment = moduleIds;
             }
 
-            return await Call(async () =>
-            {
-                await current.AssignModulesAsync(moduleIds).ConfigureAwait(false);
-                return true;
-            }).ConfigureAwait(false);
+            return await DeliverPendingAssignment().ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Gets a value indicating whether an assignment waits for the service.
+        /// </summary>
+        public bool AssignmentPending
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return pendingAssignment != null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the product id the application announces itself with.
+        /// </summary>
+        public string ProductId => options.ProductId;
+
+        /// <summary>
+        /// Gets the version the application announces itself with.
+        /// </summary>
+        public string Version => options.Version;
 
         /// <summary>
         /// Reports which modules the application loaded after its start. Without this report the service keeps the former
@@ -237,6 +263,46 @@ namespace ITVComponents.UpdateService.Client
                 reconnect.Dispose();
                 Disconnect();
             }
+        }
+
+        private async Task<bool> DeliverPendingAssignment()
+        {
+            string[]? assignment;
+            lock (sync)
+            {
+                assignment = pendingAssignment;
+            }
+
+            var current = Facade();
+            if (assignment == null)
+            {
+                return true;
+            }
+
+            if (current == null)
+            {
+                LogEnvironment.LogDebugEvent("The module assignment waits for the update service.", LogSeverity.Report);
+                return false;
+            }
+
+            var delivered = await Call(async () =>
+            {
+                await current.AssignModulesAsync(assignment).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+            if (delivered)
+            {
+                lock (sync)
+                {
+                    // A newer assignment that arrived meanwhile stays pending.
+                    if (ReferenceEquals(pendingAssignment, assignment))
+                    {
+                        pendingAssignment = null;
+                    }
+                }
+            }
+
+            return delivered;
         }
 
         private IUpdateServiceFacade? Facade()
@@ -328,6 +394,12 @@ namespace ITVComponents.UpdateService.Client
                 if (accepted.Status != null)
                 {
                     OnStatusChanged(accepted.Status);
+                }
+
+                if (AssignmentPending)
+                {
+                    // On the timer thread or in Start: waiting for the delivery keeps the order of connect and assignment.
+                    DeliverPendingAssignment().ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
         }

@@ -289,8 +289,15 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
                 }
 
                 var apps = await db.ClientApps.IgnoreQueryFilters().AsNoTracking()
-                    .Where(c => templateIds.Contains(c.ClientAppTemplateId) || directIds.Contains(c.ClientAppId))
-                    .Select(c => new AffectedClientApp { TenantId = c.TenantId, ClientAppId = c.ClientAppId, ClientName = c.ClientName })
+                    // EF.Property: a member read through the interface of the generic type is not translated by every provider.
+                    .Where(c => templateIds.Contains(EF.Property<int>(c, nameof(IClientAppCore.ClientAppTemplateId)))
+                                || directIds.Contains(EF.Property<int>(c, nameof(IClientAppCore.ClientAppId))))
+                    .Select(c => new AffectedClientApp
+                    {
+                        TenantId = EF.Property<int>(c, nameof(IClientAppCore.TenantId)),
+                        ClientAppId = EF.Property<int>(c, nameof(IClientAppCore.ClientAppId)),
+                        ClientName = EF.Property<string>(c, nameof(IClientAppCore.ClientName))
+                    })
                     .ToListAsync(cancellationToken).ConfigureAwait(false);
                 warnings.Add(new MissingModuleWarning { ModuleProductKey = module.ProductKey, ClientApps = apps });
             }

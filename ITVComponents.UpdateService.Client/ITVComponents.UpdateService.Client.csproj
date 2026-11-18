@@ -14,5 +14,6 @@
     <ProjectReference Include="..\ITVComponents.UpdateService.Abstractions\ITVComponents.UpdateService.Abstractions.csproj" />
     <ProjectReference Include="..\ITVComponents.InterProcessCommunication.NamedPipe\ITVComponents.InterProcessCommunication.NamedPipe.csproj" />
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+    <ProjectReference Include="..\ITVComponents.Plugins\ITVComponents.Plugins.csproj" />
   </ItemGroup>
 </Project>

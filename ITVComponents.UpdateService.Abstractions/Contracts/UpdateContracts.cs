@@ -209,6 +209,12 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
         public const string FacadeObjectName = "updates";
 
         /// <summary>
+        /// The name under which an application offers its <see cref="IAgentUpdateBridge"/> on the service hub, unless the
+        /// backend is configured with another one.
+        /// </summary>
+        public const string BridgeObjectName = "UpdateBridge";
+
+        /// <summary>
         /// Registers every contract type with the given registration (e.g. <c>JsonHelper.RegisterManualType</c>).
         /// </summary>
         public static void RegisterAll(Action<Type, string> register)
@@ -222,6 +228,7 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
             register(typeof(RoleChange), "itv.update.rolechange");
             register(typeof(ModuleState), "itv.update.modulestate");
             register(typeof(ModuleLoadReport), "itv.update.moduleload");
+            register(typeof(AgentUpdateReport), "itv.update.agentreport");
         }
     }
 }

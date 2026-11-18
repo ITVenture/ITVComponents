@@ -2,11 +2,13 @@ using System;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administration;
+using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Agents;
 using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Feed;
 using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Extensions
 {
@@ -22,7 +24,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Extensions
         /// The host provides an <see cref="IDbContextFactory{TContext}"/>, the tables
         /// (<c>modelBuilder.ConfigureUpdateService&lt;TTenant, TClientApp, TClientAppTemplate&gt;()</c>) and maps the feed
         /// (<c>app.MapUpdateFeed&lt;TContext&gt;()</c>). To sign the feed, it registers an
-        /// <see cref="ITVComponents.UpdateService.Abstractions.Feed.IFeedSigner"/> (§114).
+        /// <see cref="ITVComponents.UpdateService.Abstractions.Feed.IFeedSigner"/> (§114). For the exchange with the agents
+        /// (assignment of modules, update state) it also calls <c>AddAgentServices</c>.
         /// </remarks>
         public static IServiceCollection AddUpdateServiceWithDatabaseStore<TContext, TClientApp, TClientAppTemplate>(this IServiceCollection services)
             where TContext : DbContext, IUpdateServiceContext, IClientAppContext<TClientApp, TClientAppTemplate>
@@ -58,6 +61,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Extensions
         {
             services.TryAddSingleton<UpdateFeedBuilder<TContext>>();
             services.TryAddScoped<IUpdateReleaseAdministration, UpdateReleaseAdministration<TContext, TClientApp, TClientAppTemplate>>();
+
+            // Exchange with the agents (§118): needs the IAgentConnector of AddAgentServices.
+            services.AddOptions<UpdateAgentOptions>();
+            services.TryAddScoped<IClientAppUpdateSync, ClientAppUpdateSync<TContext, TClientApp, TClientAppTemplate>>();
+            services.TryAddScoped<IModuleAssignmentAdministration, ModuleAssignmentAdministration<TContext, TClientApp, TClientAppTemplate>>();
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ClientAppUpdateObserver<TContext, TClientApp, TClientAppTemplate>>());
             return services;
         }
     }

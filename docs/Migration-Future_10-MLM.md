@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 118 | **Update-Dienst (Phase 5b): Zuweisung und Stand zwischen Web und Kasse** | Kein Schema-Change (Tabellen aus §117). Neu: `IAgentUpdateBridge`/`AgentUpdateBridge`, `IClientAppUpdateSync`, `IModuleAssignmentAdministration`. Voraussetzung: `AddAgentServices`. |
 | 117 | **Update-Dienst (Phase 5a): Freigaben, Paketablage und Feed im Web** | **Pflicht-Migration (6 Tabellen), nur wer das neue Paket einbindet.** Neu: `ITVComponents.WebCoreToolkit.EntityFramework.UpdateService`. |
 | 116 | **Update-Dienst (Phase 4): Module installieren, zuweisen, zurückschalten** | Kein Schema-Change. **BREAKING (nur Phase-1-Nutzer):** `IUpdateServiceFacade` hat `AssignModulesAsync` und `ReportModulesLoadedAsync`. |
 | 115 | **Plugin-Module: ein Ladekontext je Modul; Vertragsmarke der Pakete** | Kein Schema-Change. Neu: `Directory.Build.targets` (markiert jedes veröffentlichte Paket). Opt-in: `PluginFactory.AssemblyContextSelector`. |
@@ -10058,3 +10059,60 @@ ausgeliefert, zu dessen Feed es gehört. Im Dienst wird `FeedUrl = https://host/
   Fassung auf diesen Kassen zurückhalten.
 
 Masken dazu und die Übergabe von Zuweisung und Stand zwischen Web und Agent folgen in Phase 5b/5c.
+
+## 118. Update-Dienst (Phase 5b): Zuweisung und Stand zwischen Web und Kasse — **kein Schema-Change**
+
+Das Web ruft die Kasse, nie den Update-Dienst: Der Dienst ist nur auf dem Rechner erreichbar (Named Pipe), die Kasse
+ist die Instanz, die das Web kennt. Es reisen nur Ids, was ein Modul ist, bestimmt allein der Feed.
+
+### 118.1 Auf der Kasse
+
+`ITVComponents.UpdateService.Client` bringt `AgentUpdateBridge` mit (Vertrag `IAgentUpdateBridge` in den
+Abstractions). Die Kasse bietet sie am Dienst-Verteiler unter `UpdateBridge` an
+(`UpdateContractTypes.BridgeObjectName`), z.B. als Plugin:
+
+```
+[ITVComponents.UpdateService.Client.dll]<ITVComponents.UpdateService.Client.AgentUpdateBridge>($updates)
+```
+
+`$updates` ist der `UpdateServiceClient` der Kasse. Die Brücke:
+
+- `GetReportAsync`: Fassung der Kasse, ob ein Update-Dienst verbunden ist, Stand des Dienstes.
+- `AssignModulesAsync`: gibt die Zuweisung an den Dienst weiter. Ist er noch nicht erreichbar, hält
+  `UpdateServiceClient` sie zurück und liefert sie beim Verbinden nach (`AssignmentPending`). Das Ereignis
+  `ModulesAssigned` erlaubt der Kasse einen Hinweis an den Benutzer, installiert wird erst, wenn sie beendet ist.
+- `CheckNowAsync`: lässt den Dienst sofort nach einer neuen Fassung suchen.
+
+Neue Paket-Abhängigkeit des Clients: `ITVComponents.Plugins` (für `IPlugin`).
+
+### 118.2 Im Web
+
+Mit `AddUpdateServiceWith…Store` (§117) registriert, braucht `AddAgentServices` (den `IAgentConnector`):
+
+- `IClientAppUpdateSync`:
+  - `GetAssignedModulesAsync`: Module der Vorlage plus die eigenen der Kasse.
+  - `SynchronizeAsync`: schiebt die Zuweisung und speichert den gemeldeten Stand in `ClientAppUpdateStates`.
+  - `RefreshStateAsync`, `CheckNowAsync`.
+  - Der Mandant ist Teil jedes Aufrufs, eine Kasse eines anderen Mandanten ist „nicht vorhanden“.
+  - Ohne Update-Dienst auf der Kasse steht als Phase `NoService`
+    (`ClientAppUpdateStateExtensions.NoServicePhase`), sonst der Name der `UpdatePhase`. `ReadModules()` liest den
+    Stand der Module.
+  - Ist die Kasse nicht erreichbar, bleibt der gespeicherte Stand stehen, das Ergebnis nennt den Grund.
+- `IModuleAssignmentAdministration`:
+  - `SetTemplateModulesAsync` (Plattform) schiebt an jede aktive Kasse der Vorlage, über alle Mandanten.
+  - `SetClientAppModulesAsync` (Mandant) schiebt an die eine Kasse.
+  - Nur bekannte Module (`kind = module`) sind zulässig, sie werden in der Schreibweise des Produkts gespeichert.
+  - Nicht erreichte Kassen kommen im Ergebnis zurück, sie erhalten die Zuweisung beim nächsten Verbinden.
+- `ClientAppUpdateObserver`: Meldet sich eine Kasse am Verteiler an, der in diesem Prozess läuft, gleicht er nach
+  `UpdateAgentOptions.ConnectDelay` (Vorgabe 15 s) ab. Da die Kasse nach jedem Update neu startet, kommt so auch die
+  neue Fassung ins Web. Läuft der Verteiler anderswo, sagt er das beim Start einmal.
+
+`UpdateAgentOptions.BridgeObjectName` ändert den Objektnamen, falls die Kasse die Brücke anders nennt.
+
+### 118.3 Korrektur aus §117
+
+`CheckModulesForAsync` liest die Felder der Kasse jetzt über `EF.Property`, wie `AgentConnector`. Ein Zugriff über die
+Schnittstelle des generischen Typs wird nicht von jedem Provider übersetzt.
+
+**Noch nicht gegen einen echten Verteiler und eine echte Kasse erprobt.** Getestet mit nachgebauten Kassen gegen den
+InMemory-Provider, die Nachlieferung der Zuweisung über eine echte Pipe.
