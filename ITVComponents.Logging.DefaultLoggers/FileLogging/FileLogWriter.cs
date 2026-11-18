@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -58,6 +59,26 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// synch object that is used to log one event per line
         /// </summary>
         private object syncher = new object();
+
+        /// <summary>
+        /// The time between two attempts to rotate or to open the file after it failed.
+        /// </summary>
+        private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
+
+        /// <summary>
+        /// No rotation is attempted before this time (set after a failed rotation).
+        /// </summary>
+        private DateTime nextSwitchAttemptUtc = DateTime.MinValue;
+
+        /// <summary>
+        /// While the file can not be opened, no attempt is made before this time.
+        /// </summary>
+        private DateTime nextOpenAttemptUtc = DateTime.MinValue;
+
+        /// <summary>
+        /// Whether the current outage was reported already.
+        /// </summary>
+        private bool outageReported;
 
         /// <summary>
         /// Initializes a new instance of the FileLogWriter class
@@ -306,27 +327,135 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// <param name="context">provides additional information about the logging-context in which the message was generated</param>
         protected override void Log(string eventText, int severity, string context)
         {
-            lastUsage = DateTime.Now;
-            string eventMessage = string.Format(@"{0:dd.MM.yyyy HH:mm:ss} {1:000} {2,10} {3} {4}
+            lock (syncher)
+            {
+                lastUsage = DateTime.Now;
+                string eventMessage = string.Format(@"{0:dd.MM.yyyy HH:mm:ss} {1:000} {2,10} {3} {4}
 ", DateTime.Now, severity, LogEnvironment.GetClosestSeverity(severity), context,
-                eventText);
-            if (currentSize > maxLogSize)
+                    eventText);
+                var nowUtc = DateTime.UtcNow;
+                if (innerStream != null && currentSize > maxLogSize && nowUtc >= nextSwitchAttemptUtc)
+                {
+                    try
+                    {
+                        SwitchLog();
+                        nextSwitchAttemptUtc = DateTime.MinValue;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Typically a virus scanner, an editor or a backup holds the file or one of the archives. Not
+                        // retried with every line - the file grows past its limit until then, which is better than
+                        // closing and reopening it for every message.
+                        nextSwitchAttemptUtc = nowUtc + RetryDelay;
+                        if (innerStream != null)
+                        {
+                            TryWriteMessage(string.Format(@"{0:dd.MM.yyyy HH:mm:ss} --Log rotation of {1} failed; the file grows past its limit until the next attempt at {2:HH:mm:ss} UTC: {3}--
+", DateTime.Now, logName, nextSwitchAttemptUtc, ex));
+                        }
+                        else
+                        {
+                            ReportOutage($"Log rotation of {logName} failed and the file could not be reopened", ex);
+                        }
+                    }
+                }
+
+                if (innerStream == null)
+                {
+                    if (nowUtc < nextOpenAttemptUtc)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        OpenStream();
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportOutage($"Log file {logName} could not be opened", ex);
+                        return;
+                    }
+
+                    ReportRecovered();
+                }
+
+                TryWriteMessage(eventMessage);
+            }
+        }
+
+        /// <summary>
+        /// While the file can not be written, the logger reports itself as disabled until the next attempt is due, so
+        /// the messages in between are not even formatted.
+        /// </summary>
+        protected override bool IsEnabled()
+        {
+            return innerStream != null || DateTime.UtcNow >= nextOpenAttemptUtc;
+        }
+
+        /// <summary>
+        /// Writes a message; on failure the stream is dropped and the outage reported.
+        /// </summary>
+        private bool TryWriteMessage(string eventMessage)
+        {
+            try
+            {
+                WriteMessage(eventMessage);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                CloseStream(ex);
+                ReportOutage($"Writing to log file {logName} failed", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Closes a stream that failed. Afterwards <see cref="innerStream"/> is null, so the next attempt opens it anew
+        /// instead of writing into a closed stream.
+        /// </summary>
+        private void CloseStream(Exception cause)
+        {
+            var stream = innerStream;
+            innerStream = null;
+            if (stream != null)
             {
                 try
                 {
-                    SwitchLog();
+                    stream.Dispose();
                 }
                 catch (Exception ex)
                 {
+                    // The stream is broken already (see cause); closing it is best effort.
+                    Trace.TraceWarning($"Closing the broken stream of log file {logName} failed: {ex} (broken by: {cause?.GetType().FullName})");
                 }
             }
+        }
 
-            if (innerStream == null)
+        /// <summary>
+        /// Reports that this file can not be written. Not through <see cref="LogEnvironment"/>: that would come back into
+        /// this very target on the same thread. Reported once per outage, not once per message.
+        /// </summary>
+        private void ReportOutage(string what, Exception ex)
+        {
+            nextOpenAttemptUtc = DateTime.UtcNow + RetryDelay;
+            if (!outageReported)
             {
-                OpenStream();
+                outageReported = true;
+                Trace.TraceError($"{what}; its messages are lost until it can be written again (next attempt at {nextOpenAttemptUtc:HH:mm:ss} UTC): {ex}");
             }
+        }
 
-            WriteMessage(eventMessage);
+        private void ReportRecovered()
+        {
+            nextOpenAttemptUtc = DateTime.MinValue;
+            if (outageReported)
+            {
+                outageReported = false;
+                Trace.TraceInformation($"Log file {logName} can be written again.");
+                TryWriteMessage(string.Format(@"{0:dd.MM.yyyy HH:mm:ss} --Log file could not be written for a while; messages in between are lost--
+", DateTime.Now));
+            }
         }
 
         /// <summary>
@@ -338,10 +467,14 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
             ManualResetEvent resetter = new ManualResetEvent(false);
             streamKeeper.Dispose(resetter);
             resetter.WaitOne();
-            if (innerStream != null)
+            lock (syncher)
             {
-                innerStream.Flush();
-                innerStream.Dispose();
+                if (innerStream != null)
+                {
+                    innerStream.Flush();
+                    innerStream.Dispose();
+                    innerStream = null;
+                }
             }
 
             base.Dispose();
@@ -369,7 +502,8 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
             state.LocalOwner(state.ToString());
             try
             {
-                lock (innerStream)
+                // Not on innerStream: it may be null, and Log locks on syncher.
+                lock (syncher)
                 {
                     if (innerStream != null)
                     {
@@ -412,10 +546,13 @@ namespace ITVComponents.Logging.DefaultLoggers.FileLogging
         /// </summary>
         private void SwitchLog()
         {
-            if (innerStream != null)
+            // Closed and dropped first: if reopening fails below, no closed stream is left behind to be written into.
+            var stream = innerStream;
+            innerStream = null;
+            if (stream != null)
             {
-                innerStream.Flush();
-                innerStream.Dispose();
+                stream.Flush();
+                stream.Dispose();
             }
 
             try

@@ -37,6 +37,12 @@ namespace ITVComponents.Logging
         private static bool debugListening = false;
 
         /// <summary>
+        /// Log targets whose last call failed. A failing target is reported to <see cref="Trace"/> once per outage, not
+        /// once per message, and again when it works again.
+        /// </summary>
+        private static readonly ConcurrentDictionary<object, byte> failingTargets = new ConcurrentDictionary<object, byte>();
+
+        /// <summary>
         /// Sets a Log-hook for the current thread without having to implement a LogWriter
         /// </summary>
         /// <param name="hook">the hook callback that will receive all log-messages</param>
@@ -75,8 +81,10 @@ namespace ITVComponents.Logging
                 {
                     localLogginZone.Value = null;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    // Not through LogEvent: the logging infrastructure itself is the one failing here.
+                    Trace.TraceError($"Failed to reset the logging zone of the current thread: {ex}");
                 }
 
                 if (zoneLoggers.TryRemove(ticket, out loggers))
@@ -283,9 +291,10 @@ namespace ITVComponents.Logging
                     context = AutoLogContext(isDebugMessage);
                 }
 
+                // Each target on its own: one that throws must not take the message from the targets behind it.
                 foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                 {
-                    n.LogEvent(eventText, severity, context);
+                    LogToTarget(n, eventText, severity, context);
                 }
 
                 if (loggerTicket != null)
@@ -300,18 +309,62 @@ namespace ITVComponents.Logging
 
                         foreach (var n in targets.Where(l => !isDebugMessage || ((l as IDebugLogTarget)?.EnableDebugMessages ?? false)))
                         {
-                            n.LogEvent(eventText, severity, context);
+                            LogToTarget(n, eventText, severity, context);
                         }
                     }
                 }
 
                 if (currentThreadHook.IsValueCreated && currentThreadHook.Value != null)
                 {
-                    currentThreadHook.Value(isDebugMessage, eventText, GetClosestSeverity(severity), context);
+                    var hook = currentThreadHook.Value;
+                    try
+                    {
+                        hook(isDebugMessage, eventText, GetClosestSeverity(severity), context);
+                        ReportTargetRecovered(hook, "the temporary logging hook");
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportTargetFailure(hook, "the temporary logging hook", ex);
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // Not through LogEvent - that would end up here again.
+                Trace.TraceError($"Failed to dispatch a log message to the log targets: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// Hands a message to one log target. A target that throws is reported to <see cref="Trace"/> (once per outage)
+        /// and does not keep the message from the other targets.
+        /// </summary>
+        private static void LogToTarget(ILogTarget target, string eventText, int severity, string context)
+        {
+            try
+            {
+                target.LogEvent(eventText, severity, context);
+                ReportTargetRecovered(target, target.GetType().FullName);
+            }
+            catch (Exception ex)
+            {
+                ReportTargetFailure(target, target.GetType().FullName, ex);
+            }
+        }
+
+        private static void ReportTargetFailure(object target, string name, Exception ex)
+        {
+            if (failingTargets.TryAdd(target, 0))
+            {
+                Trace.TraceError($"Log target {name} failed; messages to it are lost until it works again. The other targets keep logging: {ex}");
+            }
+        }
+
+        private static void ReportTargetRecovered(object target, string name)
+        {
+            if (!failingTargets.IsEmpty && failingTargets.TryRemove(target, out _))
+            {
+                Trace.TraceInformation($"Log target {name} works again.");
             }
         }
 
@@ -324,8 +377,10 @@ namespace ITVComponents.Logging
                     return localLogginZone.Value;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // Not through LogEvent: it asks for the logging zone itself.
+                Trace.TraceError($"Failed to read the logging zone of the current thread: {ex}");
             }
 
             return null;

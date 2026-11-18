@@ -14,5 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
+    <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
+    <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
   </ItemGroup>
 </Project>

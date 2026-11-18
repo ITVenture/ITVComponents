@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 122 | **Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** `FileLogWriter` versucht einen gescheiterten Dateiwechsel erst nach einer Minute wieder; die Datei wächst bis dahin über die Grenze. |
 | 121 | **Mandantenauswahl: direkt schlägt geerbt; Server-Cookies ohne Zeile, Gültigkeit in UTC** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** Server-Cookies laufen nach UTC ab (vorher um den Zeitzonen-Versatz des Servers verschoben). |
 | 120 | **Fehlerdetails über IPC; Update-Downloads werden fortgesetzt** | Kein Schema-Change. **BREAKING (nur bei direktem Zugriff):** `SerializedException.CollectedInformation` ist `SerializedExceptionInformation[]` statt `KeyValuePair<string,string>[]`. |
 | 119 | **Update-Dienst (Phase 5c): Masken für Freigaben, Vorlagen und Kassen** | Kein Schema-Change. Neu: `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.UpdateServiceViews`, `AddUpdateServiceAdministration`, Rechte `Updates.Releases.View/.Write`. |
@@ -10232,3 +10233,39 @@ Beide vergleichen jetzt mit `DateTime.UtcNow`.
 Das Testprojekt `ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test` initialisiert `PasswordSecurity` per
 `[AssemblyInitialize]` mit AES. Vorher legte der erste Test, der ohne Einrichtung verschlüsselte, DPAPI fest, und Tests
 mit AES scheiterten je nach Reihenfolge.
+
+## 122. Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg — **kein Schema-Change**
+
+Gemeldet aus MiniStore (`docs/ISSUE-MiniStore-FileLogWriter-SilentRotation.md`), hergeleitet aus dem Code, im Betrieb
+noch nicht beobachtet.
+
+### 122.1 `LogEnvironment`: jedes Ziel für sich
+
+Ein `try` mit leerem `catch` lag um die ganze Verteilung. Warf ein Ziel, bekamen die Ziele dahinter, die Zonen-Ziele
+und der `TemporaryLoggingHook` die Meldung nicht, ohne Spur. Neu hat jedes Ziel und der Hook ein eigenes `try`/`catch`.
+Ein Ziel, das wirft, wird einmal je Ausfall per `Trace.TraceError` gemeldet und nach Erholung per
+`Trace.TraceInformation`. Bewusst nicht über `LogEnvironment`, denn die Meldung liefe zurück in dasselbe Ziel. Die
+übrigen leeren `catch` in `LogEnvironment` melden ebenfalls an `Trace`.
+
+Wer die Fehler der Protokollierung selbst sehen will, hängt einen `TraceListener` an (z.B. Datei oder Konsole).
+
+### 122.2 `FileLogWriter`: Dateiwechsel und Schreiben
+
+- **Wechsel scheitert, die Datei geht wieder auf** (Sperre durch Virenscanner, Editor, Sicherung): Eine Zeile
+  `--Log rotation of … failed …--` mit der vollständigen Exception kommt in die Datei. Der nächste Versuch erfolgt erst
+  nach einer Minute statt bei jeder Zeile. Bis dahin wächst die Datei über die Grenze.
+- **Die Datei lässt sich nicht öffnen oder beschreiben** (Rechte, Datenträger voll): Der Stream wird verworfen, statt
+  geschlossen in `innerStream` zu bleiben. Vorher folgte bei jeder Meldung eine `ObjectDisposedException`. Das Ziel
+  meldet sich über `IsEnabled()` ab und versucht das Öffnen jede Minute erneut. Der Ausfall geht einmal an
+  `Trace.TraceError`. Nach der Erholung steht in der Datei, dass Meldungen fehlen.
+- `Abandon` sperrte auf `innerStream`, der `null` sein kann, und nicht auf dasselbe Objekt wie `Log`. Jetzt sperren
+  beide auf `syncher`. Der Timer wird wie bisher nicht gestartet.
+
+Das Windows-Ereignisprotokoll als letzte Stufe ist verworfen: Es braucht eine Quelle, die nur ein Administrator anlegen
+kann.
+
+### 122.3 Tests
+
+`ITVComponents.Tests/LoggingFailureTests.cs` prüft drei Fälle: eine gesperrte Datei beim Wechsel (eine Zeile, alle
+Meldungen da), einen Wechsel ohne Sperre und ein werfendes Ziel vor einem funktionierenden (alle Meldungen kommen an,
+eine `Trace`-Meldung). Der Fall „Öffnen scheitert“ ist nicht automatisch getestet.
