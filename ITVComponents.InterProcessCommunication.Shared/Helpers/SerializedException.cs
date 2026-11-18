@@ -7,6 +7,19 @@ using System.Text.Json.Serialization;
 using ITVComponents.DataAccess.Extensions;
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
+    /// <summary>
+    /// One detail collected from an exception (a public property of it, as text).
+    /// </summary>
+    [Serializable]
+    public sealed class SerializedExceptionInformation
+    {
+        /// <summary>Gets or sets the name of the property.</summary>
+        public string Key { get; set; }
+
+        /// <summary>Gets or sets its value as text.</summary>
+        public string Value { get; set; }
+    }
+
     [Serializable]
     public class SerializedException
     {
@@ -93,9 +106,14 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         /// <summary>
         /// Gets or sets the Collected information for this serialized exception
         /// </summary>
-        public KeyValuePair<string, string>[] CollectedInformation
+        /// <remarks>
+        /// An own entry type, not <see cref="KeyValuePair{TKey,TValue}"/>: the IPC serializes with
+        /// <c>IgnoreReadOnlyProperties</c>, and the read-only <c>Key</c>/<c>Value</c> of a key value pair were written as
+        /// <c>{}</c> - every detail arrived without name and value. The JSON shape (<c>{"Key":…,"Value":…}</c>) is the same.
+        /// </remarks>
+        public SerializedExceptionInformation[] CollectedInformation
         {
-            get { return collectedInformation.ToArray(); }
+            get { return collectedInformation.Select(n => new SerializedExceptionInformation { Key = n.Key, Value = n.Value }).ToArray(); }
             set
             {
                 if (value == null)
@@ -104,11 +122,12 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
                 }
 
                 // An entry without key cannot be kept - but it must not cost the whole exception either: the message,
-                // type and stack trace of the remote error are what the caller needs.
+                // type and stack trace of the remote error are what the caller needs. A peer before the own entry type
+                // still sends empty entries.
                 var dropped = 0;
                 foreach (var item in value)
                 {
-                    if (item.Key == null)
+                    if (item?.Key == null)
                     {
                         dropped++;
                         continue;

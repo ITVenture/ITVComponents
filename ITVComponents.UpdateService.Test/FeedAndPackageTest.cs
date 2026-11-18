@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -116,6 +119,130 @@ namespace ITVComponents.UpdateService.Test
             var loaded = new InstallStateStore(directory).Load();
             Assert.AreEqual("1.4.2", loaded.Pending!.Version);
             CollectionAssert.AreEqual(new[] { 1, 2 }, loaded.Pending.SessionsToRestart);
+        }
+
+        [TestMethod]
+        public async Task An_Interrupted_Download_Is_Continued_Where_It_Stopped()
+        {
+            var (downloader, package, content, server) = Interrupting(honorRange: true);
+
+            await Assert.ThrowsExactlyAsync<IOException>(() => downloader.DownloadAsync(package, new Uri("https://shop.example/a.msi"), CancellationToken.None));
+            var path = await downloader.DownloadAsync(package, new Uri("https://shop.example/a.msi"), CancellationToken.None);
+
+            CollectionAssert.AreEqual(content, await File.ReadAllBytesAsync(path));
+            var second = server.Requests[1];
+            Assert.AreEqual(4000, second.Headers.Range!.Ranges.Single().From, "only the rest is fetched");
+            Assert.AreEqual("\"v1\"", second.Headers.IfRange!.EntityTag!.Tag, "conditional on the file of the first attempt");
+            Assert.AreEqual(1, Directory.GetFiles(Path.GetDirectoryName(path)!).Length, "no part and no notes are left");
+        }
+
+        [TestMethod]
+        public async Task A_Server_Sending_The_Whole_File_Again_Replaces_The_Part()
+        {
+            var (downloader, package, content, _) = Interrupting(honorRange: false);
+
+            await Assert.ThrowsExactlyAsync<IOException>(() => downloader.DownloadAsync(package, new Uri("https://shop.example/a.msi"), CancellationToken.None));
+            var path = await downloader.DownloadAsync(package, new Uri("https://shop.example/a.msi"), CancellationToken.None);
+
+            CollectionAssert.AreEqual(content, await File.ReadAllBytesAsync(path));
+        }
+
+        [TestMethod]
+        public async Task A_Part_Of_Another_Package_Is_Not_Continued()
+        {
+            var (downloader, package, content, server) = Interrupting(honorRange: true);
+            await Assert.ThrowsExactlyAsync<IOException>(() => downloader.DownloadAsync(package, new Uri("https://shop.example/a.msi"), CancellationToken.None));
+
+            // Same id and version, other content (re-published after a cleanup).
+            var other = content.Select(b => (byte)(b ^ 0xFF)).ToArray();
+            server.Content = other;
+            var republished = new UpdatePackage { Id = package.Id, Version = package.Version, Size = other.Length, Sha256 = Convert.ToHexString(SHA256.HashData(other)) };
+            var path = await downloader.DownloadAsync(republished, new Uri("https://shop.example/a.msi"), CancellationToken.None);
+
+            CollectionAssert.AreEqual(other, await File.ReadAllBytesAsync(path));
+            Assert.IsNull(server.Requests.Last().Headers.Range, "from the start");
+        }
+
+        private static (PackageDownloader Downloader, UpdatePackage Package, byte[] Content, RangeHandler Server) Interrupting(bool honorRange)
+        {
+            var content = Enumerable.Range(0, 10_000).Select(i => (byte)(i * 7 % 256)).ToArray();
+            var server = new RangeHandler(content, honorRange) { FailFirstAfter = 4000 };
+            var downloader = new PackageDownloader(new HttpClient(server), Directory.CreateTempSubdirectory("itv-update-test").FullName);
+            var package = new UpdatePackage { Id = "Shop.Agent", Version = "1.4.2", Size = content.Length, Sha256 = Convert.ToHexString(SHA256.HashData(content)) };
+            return (downloader, package, content, server);
+        }
+
+        /// <summary>
+        /// A server with ranges; the first response breaks off after <see cref="FailFirstAfter"/> bytes, like a weak line.
+        /// </summary>
+        private sealed class RangeHandler : HttpMessageHandler
+        {
+            private readonly bool honorRange;
+
+            public RangeHandler(byte[] content, bool honorRange)
+            {
+                Content = content;
+                this.honorRange = honorRange;
+            }
+
+            public byte[] Content { get; set; }
+
+            public int? FailFirstAfter { get; set; }
+
+            public List<HttpRequestMessage> Requests { get; } = new();
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                Requests.Add(request);
+                var tag = new EntityTagHeaderValue("\"v1\"");
+                var from = honorRange && request.Headers.Range?.Ranges.Single().From is { } start ? (int)start : 0;
+                var body = Content.Skip(from).ToArray();
+                Stream stream = Requests.Count == 1 && FailFirstAfter is { } fail ? new BreakingStream(body, fail) : new MemoryStream(body);
+                var response = new HttpResponseMessage(from > 0 ? HttpStatusCode.PartialContent : HttpStatusCode.OK) { Content = new StreamContent(stream) };
+                response.Headers.ETag = tag;
+                if (from > 0)
+                {
+                    response.Content.Headers.ContentRange = new ContentRangeHeaderValue(from, Content.Length - 1, Content.Length);
+                }
+
+                return Task.FromResult(response);
+            }
+        }
+
+        private sealed class BreakingStream : MemoryStream
+        {
+            private readonly int failAfter;
+
+            public BreakingStream(byte[] content, int failAfter) : base(content)
+            {
+                this.failAfter = failAfter;
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (Position >= failAfter)
+                {
+                    throw new IOException("The connection was reset.");
+                }
+
+                return base.Read(buffer, offset, (int)Math.Min(count, failAfter - Position));
+            }
+
+            public override int Read(Span<byte> buffer)
+            {
+                if (Position >= failAfter)
+                {
+                    throw new IOException("The connection was reset.");
+                }
+
+                return base.Read(buffer.Slice(0, (int)Math.Min(buffer.Length, failAfter - Position)));
+            }
+
+            public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+                => Task.FromResult(Read(buffer, offset, count));
+
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+                => ValueTask.FromResult(Read(buffer.Span));
         }
 
         private sealed class FixedHandler : HttpMessageHandler

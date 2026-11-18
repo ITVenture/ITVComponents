@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 120 | **Fehlerdetails über IPC; Update-Downloads werden fortgesetzt** | Kein Schema-Change. **BREAKING (nur bei direktem Zugriff):** `SerializedException.CollectedInformation` ist `SerializedExceptionInformation[]` statt `KeyValuePair<string,string>[]`. |
 | 119 | **Update-Dienst (Phase 5c): Masken für Freigaben, Vorlagen und Kassen** | Kein Schema-Change. Neu: `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.UpdateServiceViews`, `AddUpdateServiceAdministration`, Rechte `Updates.Releases.View/.Write`. |
 | 118 | **Update-Dienst (Phase 5b): Zuweisung und Stand zwischen Web und Kasse** | Kein Schema-Change (Tabellen aus §117). Neu: `IAgentUpdateBridge`/`AgentUpdateBridge`, `IClientAppUpdateSync`, `IModuleAssignmentAdministration`. Voraussetzung: `AddAgentServices`. |
 | 117 | **Update-Dienst (Phase 5a): Freigaben, Paketablage und Feed im Web** | **Pflicht-Migration (6 Tabellen), nur wer das neue Paket einbindet.** Neu: `ITVComponents.WebCoreToolkit.EntityFramework.UpdateService`. |
@@ -10165,3 +10166,32 @@ Die Seite ist routbar und braucht keine Registrierung. Sie muss nur in die Navig
 Der Reiter arbeitet nur im aktiven Mandanten. Eine Kasse eines anderen Mandanten ist „nicht vorhanden“.
 
 **Nur kompiliert, nicht im Browser erprobt.** Getestet ist der Handler (Rechte, Mandantengrenze, Meldungen).
+
+## 120. Fehlerdetails über IPC; Update-Downloads werden fortgesetzt — **kein Schema-Change**
+
+### 120.1 `SerializedException.CollectedInformation`
+
+Die Zusatzangaben eines Fehlers auf der Gegenseite (öffentliche Eigenschaften wie `ParamName`) kamen nie an. Die
+JSON-Strategie der IPC (`DefaultJsonStrategy`) schreibt mit `IgnoreReadOnlyProperties = true`. Die Einträge waren
+`KeyValuePair<string,string>`, deren `Key`/`Value` nur lesbar sind, deshalb ging jeder Eintrag als `{}` über die Leitung.
+Seit §112 verwirft der Empfänger solche Einträge, statt mit `ArgumentNullException` den eigentlichen Fehler zu verdecken.
+
+Jetzt ist `CollectedInformation` ein Array von `SerializedExceptionInformation` (setzbares `Key`/`Value`). Die JSON-Form
+ist dieselbe (`{"Key":…,"Value":…}`). Eine ältere Gegenstelle schickt weiterhin leere Einträge, die verworfen werden.
+
+**Zu tun nur**, wer `CollectedInformation` direkt liest oder setzt: auf den neuen Typ umstellen. Der Indexer
+`exception["ParamName"]` und `InformationKeys` bleiben.
+
+**Allgemein:** Alles, was über `JsonHelper` bzw. die IPC reist, braucht setzbare Eigenschaften. Nur lesbare werden still
+weggelassen.
+
+### 120.2 Update-Dienst: abgebrochene Downloads
+
+`PackageDownloader` lässt einen abgebrochenen Download als `<paket>.partial` liegen, daneben `<paket>.partial.meta` mit
+dem erwarteten SHA-256 und dem `ETag` der ersten Antwort. Der nächste Durchgang
+
+- holt per `Range` (und `If-Range` mit dem `ETag`) nur noch den Rest;
+- ersetzt den Teil, wenn der Server die ganze Datei schickt (anderes `ETag`, kein Range-Support);
+- verwirft den Teil, wenn er zu einem anderen Paket gehört (anderer Hash) oder der Server den Bereich ablehnt.
+
+Am Ende entscheiden wie bisher Grösse und SHA-256. Der Feed aus §117 liefert Range und `ETag` bereits.
