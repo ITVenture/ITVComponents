@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text.Json.Nodes;
 using ITVComponents.Settings.Native;
 
@@ -77,9 +78,15 @@ namespace ITVComponents.AgentServices
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            PathOf(objectName);
+            var path = PathOf(objectName);
             var file = userSettingsFile ?? NativeSettings.UserSettingsFile
                 ?? throw new InvalidOperationException("No user settings file is registered; call NativeSettings.AddUserSettings at the start of the agent.");
+            if (IsRegisteredFile(file) && !NativeSettings.UserSettingsAllow(path))
+            {
+                // Written, the device would be dropped again on the next read - better to fail while setting it up.
+                throw new InvalidOperationException($"The user settings file only contributes {string.Join(", ", NativeSettings.UserSettingsSections)}, not {path}; add {SectionPath} to NativeSettings.AddUserSettings.");
+            }
+
             lock (WriteLock)
             {
                 var root = JsonUserSettings.LoadFrom(file);
@@ -93,6 +100,12 @@ namespace ITVComponents.AgentServices
                 root.Save();
                 NativeSettings.Reload();
             }
+        }
+
+        private static bool IsRegisteredFile(string file)
+        {
+            var registered = NativeSettings.UserSettingsFile;
+            return registered != null && string.Equals(Path.GetFullPath(file), registered, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string PathOf(string objectName)

@@ -52,21 +52,51 @@ namespace ITVComponents.Settings.Native
 
         /// <summary>
         /// Die Datei, in die zur Laufzeit geschrieben wird (<see cref="JsonUserSettings"/>), oder <c>null</c>,
-        /// wenn keine registriert ist (<see cref="AddUserSettings"/>).
+        /// wenn keine registriert ist (<see cref="AddUserSettings(string)"/>).
         /// </summary>
         public static string UserSettingsFile { get; private set; }
 
         /// <summary>
+        /// Die Abschnitte, die <see cref="UserSettingsFile"/> beisteuern darf, oder <c>null</c>, wenn die Datei
+        /// alles uebersteuern darf (<see cref="AddUserSettings(string, string[])"/>).
+        /// </summary>
+        public static string[] UserSettingsSections { get; private set; }
+
+        /// <summary>
         /// Haengt die Datei an, in die zur Laufzeit geschrieben wird, und merkt sie sich - wer schreibt, findet
         /// sie unter <see cref="UserSettingsFile"/>, und was er schreibt, ist ueber <see cref="GetSection{T}"/>
-        /// lesbar.
+        /// lesbar. Die Datei darf jeden Abschnitt der Konfiguration uebersteuern.
         /// </summary>
         /// <param name="fileName">die Datei; sie darf (noch) fehlen</param>
         /// <remarks>
+        /// <para>
         /// Muss vor dem ersten Lesen der Einstellungen laufen: was erst danach angehaengt wird, sieht die
         /// bereits gebaute <see cref="Configuration"/> nicht.
+        /// </para>
+        /// <para>
+        /// Duerfen mehr Konten in die Datei schreiben als die Anwendung selbst (z.B. unter <c>ProgramData</c>),
+        /// gehoert sie mit <see cref="AddUserSettings(string, string[])"/> auf ihre Abschnitte beschraenkt: sonst
+        /// uebersteuert jedes dieser Konten auch <c>ITVenture:AssemblyResolving</c> oder
+        /// <c>ITVenture:Plugins:Constants</c> - und damit, welcher Code in der Anwendung eines anderen Kontos laeuft.
+        /// </para>
         /// </remarks>
         public static void AddUserSettings(string fileName)
+        {
+            AddUserSettings(fileName, null);
+        }
+
+        /// <summary>
+        /// Wie <see cref="AddUserSettings(string)"/>, aber die Datei steuert nur Schluessel unter den angegebenen
+        /// Abschnitten bei (Vergleich an der <c>:</c>-Grenze, ohne Ruecksicht auf Gross-/Kleinschreibung). Alles
+        /// andere darin wird beim Laden und bei jedem Neuladen verworfen und je Laden einmal als Warnung gemeldet.
+        /// </summary>
+        /// <param name="fileName">die Datei; sie darf (noch) fehlen</param>
+        /// <param name="allowedSections">die Abschnitte, z.B. <c>ITVenture:AgentServices:Devices</c>; keine = alles erlaubt</param>
+        /// <remarks>
+        /// Ein Abschnitt, den das Toolkit nur einmal liest (z.B. <c>ITVenture:AssemblyResolving</c> beim ersten
+        /// Aufloesen einer Assembly), ist nur geschuetzt, wenn die Datei vorher angehaengt wurde.
+        /// </remarks>
+        public static void AddUserSettings(string fileName, params string[] allowedSections)
         {
             if (string.IsNullOrEmpty(fileName))
             {
@@ -79,8 +109,41 @@ namespace ITVComponents.Settings.Native
                     LogSeverity.Warning);
             }
 
+            var sections = SectionFilteredJsonConfigurationSource.NormalizeSections(allowedSections);
+            if (allowedSections != null && allowedSections.Length != 0 && sections.Length == 0)
+            {
+                // Only blank entries: almost certainly a mistake, and "everything" would be the opposite of what was asked.
+                throw new ArgumentException("The allowed sections contain no section name.", nameof(allowedSections));
+            }
+
             UserSettingsFile = Path.GetFullPath(fileName);
-            Builder.AddJsonFile(UserSettingsFile, optional: true, reloadOnChange: true);
+            if (sections.Length == 0)
+            {
+                UserSettingsSections = null;
+                Builder.AddJsonFile(UserSettingsFile, optional: true, reloadOnChange: true);
+                return;
+            }
+
+            UserSettingsSections = sections;
+            var source = new SectionFilteredJsonConfigurationSource(sections)
+            {
+                Path = UserSettingsFile,
+                Optional = true,
+                ReloadOnChange = true
+            };
+            source.ResolveFileProvider();
+            Builder.Add(source);
+        }
+
+        /// <summary>
+        /// Ob <see cref="UserSettingsFile"/> unter diesem Pfad etwas beisteuern darf - immer, wenn die Datei nicht
+        /// beschraenkt ist.
+        /// </summary>
+        /// <param name="path">der Pfad eines Abschnitts oder Schluessels</param>
+        public static bool UserSettingsAllow(string path)
+        {
+            var sections = UserSettingsSections;
+            return sections == null || SectionFilteredJsonConfigurationSource.IsWithin(path ?? string.Empty, sections);
         }
 
         /// <summary>
@@ -100,6 +163,7 @@ namespace ITVComponents.Settings.Native
                 reloadToken?.Dispose();
                 reloadToken = null;
                 UserSettingsFile = null;
+                UserSettingsSections = null;
                 var startAssembly = Assembly.GetEntryAssembly();
                 var settingsFileName = "appsettings.json";
                 if (startAssembly != null)

@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 123 | **Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken** | Kein Schema-Change. Opt-in; **empfohlen** für jede Benutzerdatei, die mehr Konten schreiben dürfen als die Anwendung (Agent unter `ProgramData`). |
 | 122 | **Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** `FileLogWriter` versucht einen gescheiterten Dateiwechsel erst nach einer Minute wieder; die Datei wächst bis dahin über die Grenze. |
 | 121 | **Mandantenauswahl: direkt schlägt geerbt; Server-Cookies ohne Zeile, Gültigkeit in UTC** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** Server-Cookies laufen nach UTC ab (vorher um den Zeitzonen-Versatz des Servers verschoben). |
 | 120 | **Fehlerdetails über IPC; Update-Downloads werden fortgesetzt** | Kein Schema-Change. **BREAKING (nur bei direktem Zugriff):** `SerializedException.CollectedInformation` ist `SerializedExceptionInformation[]` statt `KeyValuePair<string,string>[]`. |
@@ -7386,6 +7387,10 @@ Datei (`NativeSettings.UserSettingsFile`). Dorthin schreibt der Katalog mit `Jso
 { "ITVenture": { "AgentServices": { "Devices": {
     "epson": { "printerName": "EPSON TM-T20III", "columns": 48 } } } } }
 ```
+
+> **Liegt die Datei dort, wo mehr Konten schreiben dürfen als die Anwendung selbst** (z.B. `ProgramData`), auf
+> die Geräte beschränken: `NativeSettings.AddUserSettings(file, NativeDeviceSettingsStore.SectionPath)`. Sonst
+> übersteuert jedes dieser Konten auch `ITVenture:AssemblyResolving` für den Agenten des nächsten (§123).
 
 Ohne registrierte Benutzerdatei lehnt der Katalog jedes Einrichten mit einer Meldung ab. Ein Gerätename mit
 `:` wird abgelehnt — er wäre in der Konfiguration ein weiterer Abschnitt.
@@ -10269,3 +10274,63 @@ kann.
 `ITVComponents.Tests/LoggingFailureTests.cs` prüft drei Fälle: eine gesperrte Datei beim Wechsel (eine Zeile, alle
 Meldungen da), einen Wechsel ohne Sperre und ein werfendes Ziel vor einem funktionierenden (alle Meldungen kommen an,
 eine `Trace`-Meldung). Der Fall „Öffnen scheitert“ ist nicht automatisch getestet.
+
+## 123. Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken — **kein Schema-Change, opt-in**
+
+Gemeldet aus MiniStore (`docs/ISSUE-MiniStore-UserSettings-SectionScope.md`).
+
+### 123.1 Die Lücke
+
+`NativeSettings.AddUserSettings(file)` hängt die Datei an die **ganze** Konfiguration. Liegt sie dort, wo jedes Konto
+des Rechners schreiben darf (ein Agent, der pro Maschine installiert ist, unter `ProgramData`), übersteuert jedes
+dieser Konten jeden Abschnitt für den Agenten, der als Nächstes unter einem anderen Konto startet. Zwei davon liest
+das Toolkit selbst, und der Host kann sie nicht schützen:
+
+- `ITVenture:AssemblyResolving` (`ResolverConfig`): ordnet einem Assembly-Namen eine beliebige DLL zu.
+- `ITVenture:Plugins:Constants` (`PluginConstSection`): Werte, die in Konstruktionszeilen eingesetzt werden.
+
+### 123.2 Neu: `AddUserSettings(file, params string[] allowedSections)`
+
+```csharp
+// wie bisher: die Datei übersteuert alles
+NativeSettings.AddUserSettings(file);
+
+// nur die Geräte des Agenten-Katalogs
+NativeSettings.AddUserSettings(file, NativeDeviceSettingsStore.SectionPath);
+```
+
+- Mit Abschnitten übernimmt `SectionFilteredJsonConfigurationSource` nur Schlüssel, die einem Abschnitt gleichen
+  oder darunter liegen. Verglichen wird an der `:`-Grenze und ohne Rücksicht auf Gross-/Kleinschreibung, deshalb
+  liegt `…:DevicesX` nicht in `…:Devices`. Das gilt auch bei jedem Neuladen (`reloadOnChange` bleibt).
+- Verworfenes wird je Laden einmal als Warning protokolliert, mit Datei und Abschnitten, **nie mit Werten**. Aus der
+  Datei gelöscht wird nichts.
+- `NativeSettings.UserSettingsSections` nennt die Abschnitte, `NativeSettings.UserSettingsAllow(path)` sagt, ob ein
+  Pfad beigesteuert werden darf. Ohne Abschnitte ist beides offen (`null` bzw. `true`).
+- Nur leere Angaben (`" "`, `":"`) werfen `ArgumentException`. Stillschweigend „alles“ zu erlauben wäre das
+  Gegenteil des Gewollten.
+- `NativeDeviceSettingsStore.Write` lehnt ein Gerät ab, das ausserhalb der erlaubten Abschnitte läge. Sonst wäre es
+  geschrieben und beim nächsten Lesen wieder weg. Der Fehler fällt so beim Einrichten auf.
+
+**Zeitpunkt:** `ResolverConfig` liest seinen Abschnitt nur einmal, beim ersten Auflösen einer Assembly. Die Datei
+muss also vorher angehängt sein. Das galt für `AddUserSettings` schon bisher (vor dem ersten Lesen).
+
+Eine Sperrliste (`AssemblyResolving`, `Plugins` …) ist verworfen: Jeder neue sicherheitsrelevante Abschnitt müsste
+dort nachgetragen werden, und ein vergessener fällt nicht auf.
+
+### 123.3 Für Agenten
+
+Hosts, deren Benutzerdatei nur das eigene Konto schreiben kann (`%LOCALAPPDATA%`), ändern nichts. Hosts mit einer
+Datei für alle Konten stellen um auf `AddUserSettings(file, NativeDeviceSettingsStore.SectionPath)`, plus eigene
+Abschnitte, die wirklich dorthin gehören. Eine eigene „vertrauenswürdige“ Zweitkonfiguration als Umgehung
+(MiniStore: `Program.TrustedConfiguration`) kann danach entfallen.
+
+### 123.4 Tests
+
+`ITVComponents.AgentServices.Test/SectionScopedUserSettingsTest.cs` prüft:
+
+- ohne Abschnitte unverändert;
+- Filter an der `:`-Grenze und ohne Rücksicht auf Gross-/Kleinschreibung;
+- erneutes Filtern beim Neuladen;
+- Warnung ohne Werte;
+- Schreiben ausserhalb abgelehnt, innerhalb möglich;
+- nur leere Angaben werfen.
