@@ -40,7 +40,7 @@ namespace ITVComponents.WebCoreToolkit.Net.Handlers
                     (from t in context.User.Identities
                         where t.IsAuthenticated
                         select securityRepo.GetEligibleScopes(userProvider.GetUserLabels(t), t.AuthenticationType))
-                    .SelectMany(n => n).Distinct(new ScopeInfoComparer()).ToArray();
+                    .SelectMany(n => n).DistinctPreferDirectAccess().ToArray();
                 if (eligibleTenants.Any(n => n.ScopeName.ToLower() == formData.NewTenant.ToLower()))
                 {
                     scopeProvider.ChangeScope(formData.NewTenant, false);

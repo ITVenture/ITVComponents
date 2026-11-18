@@ -1,4 +1,5 @@
 using System;
+using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.Extensions;
@@ -56,7 +57,8 @@ namespace ITVComponents.WebCoreToolkit.Security.UserScopes
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Failed to unpack UserScope: {ex.Message}", LogSeverity.Error);
+                // Self-healing: without a token the scope is resolved anew and the cookie rewritten.
+                LogEnvironment.LogEvent($"Failed to unpack UserScope; the scope is resolved anew: {ex.OutlineException()}", LogSeverity.Warning);
                 return null;
             }
         }

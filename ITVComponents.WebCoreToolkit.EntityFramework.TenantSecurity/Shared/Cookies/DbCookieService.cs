@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ITVComponents.DuckTyping;
+using ITVComponents.Logging;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.Cookies;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
@@ -44,16 +45,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
         public bool TryGetCookie(string cookieKey, out string cookieValue)
         {
             cookieValue = null;
-            var  isSvCookie = IsServerCookie(cookieKey, out var svCookie, out var found, out var cookieVal, out var validUntil);
+            var  isSvCookie = IsServerCookie(cookieKey, out var svCookie, out var found, out var cookieVal, out var validUntil, out var isTag);
             if (found)
             {
                 cookieValue = cookieVal;
-                if (isSvCookie && validUntil > DateTime.Now)
+                // The validity is written in UTC (CookieBufferHelper) - compared against local time, a server cookie
+                // lived shorter or longer by the offset of the server's time zone.
+                if (isSvCookie && validUntil > DateTime.UtcNow)
                 {
                     cookieValue = svCookie.Content;
                 }
                 else if (isSvCookie)
                 {
+                    found = false;
+                    cookieValue = null;
+                }
+                else if (isTag)
+                {
+                    // The cookie only points to a server cookie that is gone (cleaned up, other database, restored
+                    // backup). Its value is the encrypted placeholder - handing that out as the content made every
+                    // reader fail on it ("unsupported compression method"). Without content the cookie counts as
+                    // missing, and the caller builds it anew.
+                    LogEnvironment.LogDebugEvent($"Cookie {cookieKey} points to a server cookie that no longer exists; it is treated as missing.", LogSeverity.Report);
                     found = false;
                     cookieValue = null;
                 }
@@ -87,7 +100,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
 
         private bool TryDropOldCookie(string cookieKey)
         {
-            var retVal = IsServerCookie(cookieKey, out var serverCookie, out _, out _, out _);
+            var retVal = IsServerCookie(cookieKey, out var serverCookie, out _, out _, out _, out _);
             if (retVal)
             {
                 var buffer = services.GetService<ServerCookieBuffer>();
@@ -110,15 +123,18 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
             return retVal;
         }
 
-        private bool IsServerCookie(string cookieKey, out ServerCookie cookie, out bool cookieFound, out string oriCookie, out DateTime validUntil)
+        // isTag: whether the cookie is a placeholder for a server cookie - true even if that server cookie is gone.
+        private bool IsServerCookie(string cookieKey, out ServerCookie cookie, out bool cookieFound, out string oriCookie, out DateTime validUntil, out bool isTag)
         {
 
+            isTag = false;
             cookieFound = decorated.TryGetCookie(cookieKey, out oriCookie);
             var cookieValue = oriCookie;
             if (cookieFound)
             {
                 if (CookieBufferHelper.IsBufferCookie(cookieValue, "SC", out var guid, out validUntil))
                 {
+                    isTag = true;
                     var vd = validUntil;
                     var buffer = services.GetService<ServerCookieBuffer>();
                     if (buffer == null)

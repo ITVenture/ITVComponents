@@ -74,11 +74,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Coo
             }
 
             var idleLimit = now - IdleLifetime;
-            var localNow = DateTime.Now;
             foreach (var item in entries)
             {
-                // ValidThrough is compared like DbCookieService does (against DateTime.Now).
-                if (item.Value.LastAccessUtc < idleLimit || item.Key.ValidThrough < localNow)
+                // ValidThrough is UTC (CookieBufferHelper), compared like DbCookieService does.
+                if (item.Value.LastAccessUtc < idleLimit || item.Key.ValidThrough < now)
                 {
                     entries.TryRemove(item.Key, out _);
                 }

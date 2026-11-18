@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using ITVComponents.Logging;
 using ITVComponents.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
@@ -26,7 +27,15 @@ namespace ITVComponents.WebCoreToolkit.Cookies
                 {
                     cookieValue = Encoding.Default.GetString(WebEncoders.Base64UrlDecode(cookieValue).Decrypt());
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // The ordinary case for every cookie that is no placeholder (its value is not encrypted with this
+                    // key). Also the case for a placeholder encrypted with another key - it cannot be resolved either.
+                    LogEnvironment.LogDebugEvent($"Cookie value is no buffer placeholder of topic {bufferTopic} (not decryptable): {ex.Message}", LogSeverity.Report);
+                    guid = Guid.Empty;
+                    validity = DateTime.MinValue;
+                    return false;
+                }
             }
 
             var topicPattern = string.Format(ServerCookiePattern, bufferTopic);

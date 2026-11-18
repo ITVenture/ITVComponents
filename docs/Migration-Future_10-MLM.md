@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 121 | **Mandantenauswahl: direkt schlägt geerbt; Server-Cookies ohne Zeile, Gültigkeit in UTC** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** Server-Cookies laufen nach UTC ab (vorher um den Zeitzonen-Versatz des Servers verschoben). |
 | 120 | **Fehlerdetails über IPC; Update-Downloads werden fortgesetzt** | Kein Schema-Change. **BREAKING (nur bei direktem Zugriff):** `SerializedException.CollectedInformation` ist `SerializedExceptionInformation[]` statt `KeyValuePair<string,string>[]`. |
 | 119 | **Update-Dienst (Phase 5c): Masken für Freigaben, Vorlagen und Kassen** | Kein Schema-Change. Neu: `ITVComponents.WebCoreToolkit.Blazor.MudBlazor.UpdateServiceViews`, `AddUpdateServiceAdministration`, Rechte `Updates.Releases.View/.Write`. |
 | 118 | **Update-Dienst (Phase 5b): Zuweisung und Stand zwischen Web und Kasse** | Kein Schema-Change (Tabellen aus §117). Neu: `IAgentUpdateBridge`/`AgentUpdateBridge`, `IClientAppUpdateSync`, `IModuleAssignmentAdministration`. Voraussetzung: `AddAgentServices`. |
@@ -10195,3 +10196,39 @@ dem erwarteten SHA-256 und dem `ETag` der ersten Antwort. Der nächste Durchgang
 - verwirft den Teil, wenn er zu einem anderen Paket gehört (anderer Hash) oder der Server den Bereich ablehnt.
 
 Am Ende entscheiden wie bisher Grösse und SHA-256. Der Feed aus §117 liefert Range und `ETag` bereits.
+
+## 121. Mandantenauswahl: direkt schlägt geerbt; Server-Cookies ohne Zeile, Gültigkeit in UTC — **kein Schema-Change**
+
+### 121.1 Mandanten, die direkt und geerbt erreichbar sind (aus DEV `4b7bb2790`)
+
+Erreicht ein Benutzer denselben Mandanten auf mehreren Wegen, behielt `Distinct(new ScopeInfoComparer())` den zuerst
+gesehenen Eintrag, also zufällig `Direct` oder `Inherited`. Neu: `DistinctPreferDirectAccess()`
+(`ITVComponents.WebCoreToolkit.Models.Comparers.ScopeInfoEnumerableExtensions`), ein Eintrag je Mandant ohne Rücksicht
+auf Gross-/Kleinschreibung, `Direct` vor `Inherited`. Verwendet in `ResolvingPermissionScope` und `TenantHandler`.
+Wer selbst wählbare Mandanten zusammenführt, nimmt dieselbe Erweiterung.
+
+### 121.2 „Failed to unpack UserScope: unsupported compression method“
+
+Kam nach einem Neustart oder Aufräumen vor: Das UserScope-Cookie zeigte auf ein Server-Cookie (`ServerCookies`), das es
+nicht mehr gab. `DbCookieService` gab dann den verschlüsselten Platzhalter roh als Inhalt zurück, und das Entpacken
+scheiterte. Jetzt gilt ein solches Cookie als nicht vorhanden, und das Token wird ohne Fehlermeldung neu gebaut.
+
+Dazu:
+
+- `CookieBufferHelper.IsBufferCookie`: Der leere `catch` beim Entschlüsseln protokolliert jetzt (Debug). Ein Wert, der
+  sich nicht entschlüsseln lässt, gilt sofort als kein Platzhalter.
+- `CookiePermissionScope`: Ein nicht lesbares Token wird mit der vollständigen Exception protokolliert, als Warning statt
+  Error, weil es sich selbst behebt.
+
+### 121.3 Gültigkeit der Server-Cookies in UTC
+
+`ValidThrough` wird in UTC geschrieben (`CookieBufferHelper`) und von `CleanupOutdatedCookies` in UTC aufgeräumt.
+`DbCookieService` und `ServerCookieBuffer` verglichen aber mit `DateTime.Now`. Ein Server-Cookie lief deshalb auf einem
+Server östlich von UTC zu früh ab (bei uns eine bis zwei Stunden), westlich davon zu spät (USA: fünf bis acht Stunden).
+Beide vergleichen jetzt mit `DateTime.UtcNow`.
+
+### 121.4 Tests
+
+Das Testprojekt `ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test` initialisiert `PasswordSecurity` per
+`[AssemblyInitialize]` mit AES. Vorher legte der erste Test, der ohne Einrichtung verschlüsselte, DPAPI fest, und Tests
+mit AES scheiterten je nach Reihenfolge.
