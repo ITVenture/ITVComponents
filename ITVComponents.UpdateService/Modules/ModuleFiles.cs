@@ -32,6 +32,21 @@ namespace ITVComponents.UpdateService.Modules
         }
 
         /// <summary>
+        /// Gets the installation folder of the application.
+        /// </summary>
+        public string HostDirectory => hostDirectory;
+
+        /// <summary>
+        /// Gets the folder of the active version of a module.
+        /// </summary>
+        public string ActiveDirectory(string moduleId) => Path.Combine(modulesRoot, SafeId(moduleId));
+
+        /// <summary>
+        /// Gets the folder of the prepared version of a module.
+        /// </summary>
+        public string PreparedDirectory(string moduleId) => Path.Combine(modulesRoot, SafeId(moduleId) + ".new");
+
+        /// <summary>
         /// Unpacks a checked package next to the active version and writes its <c>module.json</c>.
         /// </summary>
         /// <exception cref="InvalidDataException">when the package is not a usable module; nothing is left behind</exception>

@@ -7,6 +7,7 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using ITVComponents.Plugins.Modules;
 
 namespace ITVComponents.UpdateService.ModuleBuild
 {
@@ -25,7 +26,10 @@ namespace ITVComponents.UpdateService.ModuleBuild
     /// </para>
     /// <list type="bullet">
     /// <item>exactly one main assembly - named by <c>module.json</c> (<c>mainAssembly</c>) or the only <c>.deps.json</c>;</item>
-    /// <item>framework-dependent: a self-contained publish carries a runtime of its own.</item>
+    /// <item>framework-dependent: a self-contained publish carries a runtime of its own;</item>
+    /// <item>the <c>ModulePlugin</c> marks (<see cref="ModulePluginMarks.Check"/>): only on closed, buildable types
+    /// that implement IPlugin, infrastructure with a valid unique name, templates without one. A module without any
+    /// mark is a warning.</item>
     /// </list>
     /// <para>
     /// Contract assemblies (<c>[assembly: AssemblyMetadata("ITVComponents.PluginContract", "true")]</c>) are left out of
@@ -59,16 +63,35 @@ namespace ITVComponents.UpdateService.ModuleBuild
         /// <returns>what is wrong; empty if the module can be packed</returns>
         public static IReadOnlyList<string> Validate(string publishDirectory, IEnumerable<string>? allowedContracts, out string? mainAssembly)
         {
-            return Inspect(publishDirectory, allowedContracts, out mainAssembly, out _);
+            return Inspect(publishDirectory, allowedContracts, out mainAssembly, out _, out _, out _);
         }
 
         /// <summary>
-        /// Checks a publish folder and finds the contract assemblies that will be left out.
+        /// Checks a publish folder without packing it, and returns what could not be verified as well.
         /// </summary>
-        private static List<string> Inspect(string publishDirectory, IEnumerable<string>? allowedContracts, out string? mainAssembly, out List<string> contracts)
+        /// <param name="publishDirectory">the publish output of the module</param>
+        /// <param name="allowedContracts">see <see cref="Validate(string, IEnumerable{string}?, out string?)"/></param>
+        /// <param name="mainAssembly">the main assembly, if one was found</param>
+        /// <param name="warnings">what does not stop the publish but should be looked at, e.g. a module without any
+        /// <c>ModulePlugin</c> mark</param>
+        /// <returns>what is wrong; empty if the module can be packed</returns>
+        public static IReadOnlyList<string> Validate(string publishDirectory, IEnumerable<string>? allowedContracts, out string? mainAssembly, out IReadOnlyList<string> warnings)
+        {
+            var problems = Inspect(publishDirectory, allowedContracts, out mainAssembly, out _, out var found, out _);
+            warnings = found;
+            return problems;
+        }
+
+        /// <summary>
+        /// Checks a publish folder, finds the contract assemblies that will be left out and reads the plugin marks.
+        /// </summary>
+        private static List<string> Inspect(string publishDirectory, IEnumerable<string>? allowedContracts, out string? mainAssembly, out List<string> contracts,
+            out List<string> warnings, out List<string> plugins)
         {
             mainAssembly = null;
             contracts = new List<string>();
+            warnings = new List<string>();
+            plugins = new List<string>();
             var problems = new List<string>();
             if (string.IsNullOrWhiteSpace(publishDirectory) || !Directory.Exists(publishDirectory))
             {
@@ -93,10 +116,17 @@ namespace ITVComponents.UpdateService.ModuleBuild
             }
 
             var allowed = new HashSet<string>(allowedContracts ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            var moduleAssemblies = new List<string>();
             foreach (var dll in files.Where(f => f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
+                var topLevel = string.Equals(Path.GetDirectoryName(dll), root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
                 if (allowed.Contains(Path.GetFileName(dll)))
                 {
+                    if (topLevel)
+                    {
+                        moduleAssemblies.Add(dll);
+                    }
+
                     continue;
                 }
 
@@ -114,6 +144,11 @@ namespace ITVComponents.UpdateService.ModuleBuild
 
                 if (!contract)
                 {
+                    if (topLevel)
+                    {
+                        moduleAssemblies.Add(dll);
+                    }
+
                     continue;
                 }
 
@@ -126,7 +161,42 @@ namespace ITVComponents.UpdateService.ModuleBuild
                 contracts.Add(dll);
             }
 
+            CheckPluginMarks(root, moduleAssemblies, problems, warnings, plugins);
             return problems;
+        }
+
+        /// <summary>
+        /// Reads the <c>ModulePlugin</c> marks of the module's own assemblies (top level of the publish folder, the
+        /// contracts excluded) and checks them like the service will. Base types and interfaces are followed into every
+        /// assembly at the top level of the publish folder - the contracts are still there before packing.
+        /// </summary>
+        private static void CheckPluginMarks(string root, List<string> moduleAssemblies, List<string> problems, List<string> warnings, List<string> plugins)
+        {
+            var available = Directory.GetFiles(root, "*.dll", SearchOption.TopDirectoryOnly)
+                .GroupBy(f => Path.GetFileNameWithoutExtension(f), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            Func<string, string?> resolve = name => available.TryGetValue(name, out var path) ? path : null;
+
+            var marks = new List<ModulePluginMark>();
+            foreach (var dll in moduleAssemblies)
+            {
+                try
+                {
+                    marks.AddRange(ModulePluginMarks.Read(dll, resolve));
+                }
+                catch (BadImageFormatException ex)
+                {
+                    problems.Add($"{RelativePath(root, dll)} is no readable DLL: {ex.Message}");
+                }
+            }
+
+            ModulePluginMarks.Check(marks, problems, warnings);
+            if (marks.Count == 0)
+            {
+                warnings.Add("The module offers no plugin: none of its assemblies carries a ModulePlugin mark ([ModulePlugin(kind, loadType)] from ITVComponents.Plugins.Modules). Nothing of it can be registered as plugin.");
+            }
+
+            plugins.AddRange(marks.Select(m => m.ToString()));
         }
 
         /// <summary>
@@ -161,7 +231,7 @@ namespace ITVComponents.UpdateService.ModuleBuild
         /// </summary>
         /// <param name="publishDirectory">the publish output of the module</param>
         /// <param name="packagePath">the zip to write; it is replaced if it exists, and must not lie in the publish folder</param>
-        /// <param name="allowedContracts">see <see cref="Validate"/></param>
+        /// <param name="allowedContracts">see <see cref="Validate(string, IEnumerable{string}?, out string?)"/></param>
         /// <returns>what was packed</returns>
         /// <exception cref="ModulePackageException">the module can not be packed; nothing is written</exception>
         public static ModulePackageResult Pack(string publishDirectory, string packagePath, IEnumerable<string>? allowedContracts = null)
@@ -171,7 +241,7 @@ namespace ITVComponents.UpdateService.ModuleBuild
                 throw new ArgumentNullException(nameof(packagePath));
             }
 
-            var problems = Inspect(publishDirectory, allowedContracts, out var mainAssembly, out var contracts);
+            var problems = Inspect(publishDirectory, allowedContracts, out var mainAssembly, out var contracts, out var warnings, out var plugins);
             var target = Path.GetFullPath(packagePath);
             if (Directory.Exists(publishDirectory))
             {
@@ -234,7 +304,7 @@ namespace ITVComponents.UpdateService.ModuleBuild
             }
 
             return new ModulePackageResult(target, mainAssembly!, hash, new FileInfo(target).Length, files.Length,
-                contracts.Select(c => RelativePath(source, c)).ToArray());
+                contracts.Select(c => RelativePath(source, c)).ToArray(), warnings, plugins);
         }
 
         /// <summary>
@@ -386,8 +456,11 @@ namespace ITVComponents.UpdateService.ModuleBuild
         /// <summary>
         /// Initializes a new instance of the <see cref="ModulePackageResult"/> class
         /// </summary>
-        public ModulePackageResult(string packagePath, string mainAssembly, string sha256, long size, int fileCount, IReadOnlyList<string> leftOutContracts)
+        public ModulePackageResult(string packagePath, string mainAssembly, string sha256, long size, int fileCount, IReadOnlyList<string> leftOutContracts,
+            IReadOnlyList<string>? warnings = null, IReadOnlyList<string>? plugins = null)
         {
+            Warnings = warnings ?? Array.Empty<string>();
+            Plugins = plugins ?? Array.Empty<string>();
             PackagePath = packagePath;
             MainAssembly = mainAssembly;
             Sha256 = sha256;
@@ -395,6 +468,12 @@ namespace ITVComponents.UpdateService.ModuleBuild
             FileCount = fileCount;
             LeftOutContracts = leftOutContracts;
         }
+
+        /// <summary>What did not stop the publish but should be looked at (e.g. no plugin mark at all).</summary>
+        public IReadOnlyList<string> Warnings { get; }
+
+        /// <summary>The plugins the module offers (its ModulePlugin marks), one line each.</summary>
+        public IReadOnlyList<string> Plugins { get; }
 
         /// <summary>Contract assemblies in the publish output that were left out (relative paths); the host provides them.</summary>
         public IReadOnlyList<string> LeftOutContracts { get; }

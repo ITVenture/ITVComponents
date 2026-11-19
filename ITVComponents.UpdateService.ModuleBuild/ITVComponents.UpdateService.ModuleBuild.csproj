@@ -21,7 +21,13 @@
     <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
     <!-- Not a contract: no module or host ever loads it (see Directory.Build.targets). -->
     <ItvNoPluginContract>true</ItvNoPluginContract>
+    <!-- The shared mark reader below is internal here (it is public in ITVComponents.Plugins). -->
+    <DefineConstants>$(DefineConstants);ITV_MODULEBUILD</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Same rules for the module build and the update service: one source, compiled into both. -->
+    <Compile Include="..\ITVComponents.Plugins\Modules\ModulePluginMarks.cs" Link="Shared\ModulePluginMarks.cs" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Both are provided by MSBuild itself at run time. -->
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" PrivateAssets="all" ExcludeAssets="runtime" />

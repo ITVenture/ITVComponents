@@ -1591,6 +1591,26 @@ namespace ITVComponents.Plugins
         }
 
         /// <summary>
+        /// Gets the <see cref="IDynamicLoader"/> the factory would take a scoped plugin of this name from: the first one
+        /// that knows it.
+        /// </summary>
+        /// <param name="pluginName">the name of the scoped plugin</param>
+        /// <returns>the loader, or <c>null</c> if none knows the name</returns>
+        /// <remarks>
+        /// For a loader that must give way to another one with the same name (module plugin instances give way to the
+        /// application's own configuration) and has to find out whether it does.
+        /// </remarks>
+        public IDynamicLoader FindScopedPluginLoader(string pluginName)
+        {
+            if (string.IsNullOrEmpty(pluginName))
+            {
+                return null;
+            }
+
+            return plugins(null).DynamicLoaders.FirstOrDefault(l => l.HasScopedPlugin(pluginName));
+        }
+
+        /// <summary>
         /// Zaehlt die Bereichs-Plugins (<see cref="PluginLoadType.Scope"/>) aller <see cref="IDynamicLoader"/>
         /// dieser Factory auf, deren Typ einen Vertrag erfuellt - OHNE eines davon zu bauen.
         /// </summary>

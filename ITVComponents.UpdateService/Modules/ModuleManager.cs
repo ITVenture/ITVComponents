@@ -70,16 +70,45 @@ namespace ITVComponents.UpdateService.Modules
         private readonly IPackageDownloader downloader;
         private readonly ModuleFiles files;
         private readonly InstallStateStore store;
+        private readonly ModulePluginRegistry? plugins;
         private readonly TimeProvider clock;
         private readonly object sync = new object();
 
-        public ModuleManager(UpdateServiceOptions options, IPackageDownloader downloader, ModuleFiles files, InstallStateStore store, TimeProvider? clock = null)
+        /// <param name="options">the configuration of the service</param>
+        /// <param name="downloader">fetches and checks the module packages</param>
+        /// <param name="files">the module folders</param>
+        /// <param name="store">the state of the service</param>
+        /// <param name="clock">the clock; the system clock if omitted</param>
+        /// <param name="plugins">the plugin instances of the modules (<c>plugins.json</c>); without it no instance is kept</param>
+        public ModuleManager(UpdateServiceOptions options, IPackageDownloader downloader, ModuleFiles files, InstallStateStore store, TimeProvider? clock = null, ModulePluginRegistry? plugins = null)
         {
             this.options = options;
             this.downloader = downloader;
             this.files = files;
             this.store = store;
+            this.plugins = plugins;
             this.clock = clock ?? TimeProvider.System;
+        }
+
+        /// <summary>
+        /// Brings the plugin instances in line with every installed module - at the start of the service, for modules
+        /// installed before there were plugin instances, and after anything that went wrong while switching. Never throws.
+        /// </summary>
+        public void ReconcilePlugins()
+        {
+            if (plugins == null)
+            {
+                return;
+            }
+
+            lock (sync)
+            {
+                var state = store.Load();
+                foreach (var id in state.Modules.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+                {
+                    plugins.Reconcile(id);
+                }
+            }
         }
 
         /// <summary>
@@ -168,12 +197,25 @@ namespace ITVComponents.UpdateService.Modules
         public async Task<List<StagedModule>> StageAsync(FeedResult feed, ModulePlan plan, CancellationToken cancellationToken)
         {
             var staged = new List<StagedModule>();
+            var infrastructureNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var package in plan.Installs)
             {
                 try
                 {
                     var path = await downloader.DownloadAsync(package, feed.ResolvePackageUri(package, options.AllowInsecureFeed), cancellationToken).ConfigureAwait(false);
                     files.Stage(path, package);
+                    try
+                    {
+                        // C.1: a version that offers its plugins wrongly, or would leave a template instance without its
+                        // type, is refused before anything is switched.
+                        plugins?.CheckPrepared(package.Id!, package.Version!, infrastructureNames);
+                    }
+                    catch
+                    {
+                        files.Discard(package.Id!);
+                        throw;
+                    }
+
                     staged.Add(new StagedModule { Id = package.Id!, Version = package.Version!, Requires = RequiresOf(package) });
                     LogEnvironment.LogEvent($"Module {package.Id} {package.Version} is prepared.", LogSeverity.Report);
                 }
@@ -202,6 +244,7 @@ namespace ITVComponents.UpdateService.Modules
             {
                 files.Remove(id);
                 state.Modules.Remove(id);
+                plugins?.RemoveModule(id);
                 LogEnvironment.LogEvent($"Module {id} is no longer assigned and was removed.", LogSeverity.Report);
             }
         }
@@ -223,6 +266,7 @@ namespace ITVComponents.UpdateService.Modules
                 state.Modules.TryGetValue(module.Id, out var previous);
                 files.Activate(module.Id);
                 state.Modules[module.Id] = new InstalledModule { Version = module.Version, Requires = module.Requires };
+                plugins?.Reconcile(module.Id);
                 activation.Modules.Add(new ActivatedModule { Id = module.Id, Version = module.Version, Requires = module.Requires, Previous = previous });
                 LogEnvironment.LogEvent($"Module {module.Id} switched to {module.Version}{(previous != null ? $" (from {previous.Version}, kept until the application confirms)" : string.Empty)}.", LogSeverity.Report);
             }
@@ -357,6 +401,8 @@ namespace ITVComponents.UpdateService.Modules
             foreach (var module in activation.Modules)
             {
                 files.Rollback(module.Id);
+                // Back to the instances of the former version - or none, if the module had none before.
+                plugins?.Reconcile(module.Id);
                 if (module.Previous != null)
                 {
                     state.Modules[module.Id] = module.Previous;

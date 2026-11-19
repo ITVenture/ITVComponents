@@ -46,6 +46,16 @@ namespace ITVComponents.UpdateService.ModuleBuild
                 var result = ModulePackager.Pack(PublishDirectory, PackagePath, allowed);
                 Sha256 = result.Sha256;
                 MainAssembly = result.MainAssembly;
+                foreach (var warning in result.Warnings)
+                {
+                    Log.LogWarning(null, "ITVMOD003", null, PublishDirectory, 0, 0, 0, 0, warning);
+                }
+
+                foreach (var plugin in result.Plugins)
+                {
+                    Log.LogMessage(MessageImportance.High, $"Module package: offers {plugin}");
+                }
+
                 if (result.LeftOutContracts.Count != 0)
                 {
                     // Expected whenever a referenced project depends on ITVComponents - informational, not a warning.

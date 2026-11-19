@@ -74,6 +74,7 @@ Für die Marke gilt:
 - `ModulePackager` (§124) prüft beim Publish, ob die Marke stimmt:
   - Eine Marke an einem Typ ohne `IPlugin` ist ein Fehler.
   - Zwei Infrastruktur-Plugins mit demselben Namen sind ein Fehler.
+  - Eine Marke an einem offen-generischen Typ ist ein Fehler (A.2).
   - Ein Modul ohne jede Marke ergibt eine Warnung.
 
 ### A.1 Der Lademodus gehört zur Marke
@@ -111,6 +112,50 @@ ist:
 Der Katalog zählt heute nur `Scope`-Plugins auf (`SettingsDrivenLoader.GetScopedPluginNames`). Für Vorlagen und
 Instanzen der beiden anderen Modi braucht er deshalb eine eigene Aufzählung, getrennt von den Geräten. Ein
 Hintergrund-Arbeiter ist kein Gerät, das einer Kasse zugeordnet wird.
+
+### A.2 Generische Typargumente
+
+Ein offen-generisches Plugin braucht seine Typargumente aus `GenericTypeDefinition`. Deren `TypeExpression` ist
+**kein Typname, sondern ein Ausdruck**: `GenericArgumentHelper.BuildGenericArguments` gibt ihn an
+`ExpressionParser.Parse`. Wer ihn schreibt, führt Code aus. Er darf darum weder aus dem Web kommen noch als freier
+Text in `plugins.json` oder in der Benutzerdatei stehen.
+
+Wer das Argument kennt, entscheidet, wie es zustande kommt:
+
+| Fall | Wer kennt das Argument | Regel |
+|---|---|---|
+| **Modul legt es fest** | Autor des Moduls | Die Marke steht nur an einem **geschlossenen** Typ, z.B. `class EscPosPrinter : PrinterBase<EscPosSettings>`. Kein eigener Mechanismus. |
+| **Anwendung liefert es** (z.B. `TContext` = DbContext des Hosts) | Hersteller der Anwendung | Zurückgestellt, siehe unten. |
+| **Web wählt es** | niemand verlässlich | Nicht vorgesehen. |
+
+**Umgesetzt wird zuerst nur der erste Fall:**
+
+- `ModulePackager` meldet einen Fehler, wenn die Marke an einem offen-generischen Typ steht.
+- Der Lader lehnt einen offen-generischen Typ ebenso ab, falls ein Modul ohne Prüfung in den Feed kam, und
+  protokolliert einen Fehler.
+- `plugins.json` bekommt **kein** Feld für Typargumente.
+
+**Zurückgestellt: Typargumente aus der Anwendung (Bindungen).** Kommt dazu, sobald ein Modul es wirklich braucht.
+Das Attribut wird so angelegt, dass die Erweiterung ohne Bruch möglich ist.
+
+- Die Marke nennt je offenem Typparameter einen **Bindungsnamen**:
+  `[ModulePluginGenericArgument("TContext", Binding = "ServiceDbContext")]`.
+- Die **Hauptkonfiguration** der Anwendung ordnet dem Bindungsnamen `GenericTypeDefinition`-Zeilen zu,
+  einschliesslich `$$genericArgumentProvider`. Der Ausdruck steht damit in der Datei des MSI, der ohnehin vertraut
+  wird.
+- Der Lader beantwortet `HasParamsFor`/`GetGenericParams` über die Bindung und benutzt dafür
+  `BuildGenericArguments`. Die Regel bleibt an einer Stelle.
+- Die Typargumente einer Instanz ergeben sich aus Marke und Anwendung. Zwei Instanzen derselben Vorlage haben in
+  derselben Anwendung immer dieselben Argumente. `plugins.json` bleibt unverändert.
+- **Fehlende Bindung:** Der Katalog bietet die Vorlage nicht an und protokolliert eine Warnung mit dem Namen der
+  Bindung. Eine bestehende Instanz überspringt der Lader, protokolliert einen Fehler, und die Anwendung startet
+  trotzdem (wie „Modul fehlt“, C.4).
+- **Bindung verletzt die Constraints** (`FinalizeTypeArguments` scheitert): wie fehlende Bindung, der Fehler betrifft
+  nur die Instanz.
+- Der Update-Dienst liest per `MetadataReader` nur, **welche** Bindungen ein Typ verlangt. Auflösen kann sie nur die
+  Anwendung. Die Prüfung liegt darum im Katalog, vor `CreatePluginInstanceAsync`.
+- `ModulePackager` prüft dann: Jeder offene Typparameter hat genau eine Bindung, und keine Bindung nennt einen
+  Parameter, den der Typ nicht hat.
 
 ## B. Wo die Instanzen stehen
 
@@ -277,15 +322,52 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
 
 ## Offene Punkte / zu prüfen
 
-- Neue `Scope`-Instanz ohne Neustart: Findet die Factory sie, sobald der Lader `plugins.json` neu gelesen hat?
-  Puffert sie die Antwort „kenne ich nicht“ von `HasScopedPlugin`?
-- Reicht ein Modus je Typ, oder braucht es eine Liste erlaubter Modi in der Marke (A.1)?
-- `Singleton`-Instanz entfernen: erst mit dem Neustart wirksam. Bis dahin läuft sie weiter, das muss der Katalog
-  so anzeigen.
-- Wie der neue Lader in die Factory des POS-Agenten und des GenericService kommt (`ServiceConfigHelper.PlugIns`
-  bzw. `ServiceStartup`): Ist er selbst ein Plugin der Hauptkonfiguration wie `SettingsDrivenLoader`, oder hängt die
-  Anwendung ihn beim Start ein?
-- Muss eine Instanz in `plugins.json` abgeschaltet werden können (`Disabled`, §72), ohne sie zu entfernen?
+**Geklärt (2026-11-19):**
+
+- Neue `Scope`-Instanz ohne Neustart: Die Factory puffert kein „kenne ich nicht“. `RequestScopePlugin` und
+  `DescribeScopedPlugin` fragen die Lader bei jedem Aufruf neu. **Falle:** Bei genau einem Lader überspringt die
+  Factory `HasScopedPlugin` und ruft direkt `GetScopedPlugin`. Beide dürfen darum nie werfen.
+- Einbindung des Laders: Er ist ein Plugin der Hauptkonfiguration wie `SettingsDrivenLoader`, mit dem Pfad zu
+  `plugins.json` als Parameter. Die Anwendungen brauchen keinen eigenen Startcode.
+- Ein Modus je Typ (A.1). Eine Liste erlaubter Modi lässt sich später ohne Bruch ergänzen.
+- `Disabled` in `plugins.json`: vorerst nicht. Abschalten heisst entfernen, die Einstellungen in der Benutzerdatei
+  bleiben stehen.
+- `Singleton`-Instanz entfernen: Der Katalog zeigt sie bis zum Neustart als „entfernt, wirkt nach Neustart“.
+- Ohne `Targets` liegt `plugins.json` gleich unter `targets\default\`. Abschnitt D muss den Pfad nicht verschieben.
+- Vorlagen im Katalog (C.2, Schritt 1): Die **Anwendung** liest die Marken der installierten Module, über
+  `ModuleContextSelector`. `DescribeSettings` braucht den echten Typ ohnehin. Der Dienst prüft die Marke beim Anlegen
+  trotzdem selbst, per `MetadataReader`.
+- Gleicher Infrastruktur-Name in zwei Modulen: Beim Umschalten ist das ein Fehler. Das zweite Modul wird nicht
+  installiert, und `UpdateStatus.Modules` nennt den Grund (wie ein fehlender Template-Typ, C.1).
+- Generische Typargumente: siehe A.2.
+
+- Instanznamen: Buchstabe am Anfang, danach `[A-Za-z0-9_.-]`, höchstens 64 Zeichen
+  (`ModulePluginMarks.IsValidInstanceName`). Strenger als §72, weil der Name in `plugins.json`, im Pfad
+  `Devices:<Name>` und in Logs landet.
+- `$DeviceSettings`: Der Lader liest **am Typ** ab, ob er `IHasDeviceSettings<T>` implementiert (Metadaten, über den
+  Namen, ohne Verweis auf die Agent-Dienste). `plugins.json` hat dafür kein Feld. Ein Modul-Plugin hat darum genau
+  zwei mögliche Konstruktoren: ohne Parameter oder mit den Geräte-Einstellungen.
+- Eine Instanz, die beim Bau scheitert, wird protokolliert und übersprungen. Die Anwendung startet trotzdem.
+- Eine Version, die ein Modul-Update wegen einer verwaisten Template-Instanz verweigert, gilt als gescheitert
+  (`FailedModules`) und wird erst mit einer neueren Version wieder versucht, auch wenn die Instanz inzwischen entfernt
+  wurde.
+
+## Stand der Umsetzung
+
+- **Schritt 1** (Marke, Prüfung beim Publish): `ModulePluginAttribute`, `ModulePluginMarks` (eine Quelle, auch in
+  `ModuleBuild` kompiliert), Prüfung in `ModulePackager` (`ITVMOD001` Fehler, `ITVMOD003` Warnung).
+- **Schritt 2** (`plugins.json`, Lader, Abgleich):
+  - Format: `ModulePluginInstance` / `ModulePluginInstanceFile` (ITVComponents.Plugins), Felder als Text, damit ein
+    unbekannter Wert nur die eine Instanz unbrauchbar macht.
+  - Dienst: `ModulePluginRegistry` unter `<DataDirectory>\targets\default\plugins.json`. Prüft eine vorbereitete
+    Version vor dem Umschalten (C.1). Gleicht beim Umschalten, Zurückschalten und Entfernen ab (C.4) und beim Start
+    des Dienstes für Module, die schon vorher installiert waren.
+  - Anwendung: `ModulePluginLoader` als Plugin der Hauptkonfiguration:
+    `[ITVComponents.Plugins.dll]<ITVComponents.Plugins.Modules.ModulePluginLoader>"<plugins.json>","<modules>",$factory`.
+    Vorrang anderer Lader über `PluginFactory.FindScopedPluginLoader`.
+
+**Noch offen:**
+
 - `WindowsService`-Ziel: Der Dienst muss sich an der Pipe als dieser Dienst ausweisen. Zu prüfen ist, ob der Name
   des Prozesses und die SCM-Abfrage dafür genügen.
 - Umbau des Dienstes auf mehrere Ziele: Der Stand (`InstallStateStore`) und die Aufschub-Schlüssel
@@ -293,7 +375,8 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
 
 ## Vorgeschlagene Reihenfolge
 
-1. Marke `ModulePlugin` mit Art und `PluginLoadType`, und die Prüfung in `ModulePackager`.
+1. Marke `ModulePlugin` mit Art und `PluginLoadType`, und die Prüfung in `ModulePackager` (nur geschlossene Typen,
+   A.2).
 2. `plugins.json`: Format, Lader in der Anwendung, Abgleich der Infrastruktur-Instanzen beim Umschalten,
    einschliesslich Rückweg.
 3. Katalog und Dienst: Vorlagen und Instanzen anlegen bzw. entfernen.

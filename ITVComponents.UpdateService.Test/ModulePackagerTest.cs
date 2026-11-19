@@ -7,6 +7,8 @@ using ITVComponents.Plugins;
 using ITVComponents.UpdateService.Abstractions.Feed;
 using ITVComponents.UpdateService.ModuleBuild;
 using ITVComponents.UpdateService.Modules;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ITVComponents.UpdateService.Test
@@ -204,9 +206,82 @@ namespace ITVComponents.UpdateService.Test
             Assert.AreEqual(2, archive.Entries.Count);
         }
 
+        [TestMethod]
+        public void A_Module_Without_Any_Plugin_Mark_Packs_With_A_Warning()
+        {
+            WriteModule("Shop.Printer");
+
+            Assert.AreEqual(0, ModulePackager.Validate(publish, null, out _, out var warnings).Count);
+
+            StringAssert.Contains(warnings.Single(), "no plugin");
+            var result = ModulePackager.Pack(publish, Path.Combine(root, "m.zip"));
+            Assert.AreEqual(1, result.Warnings.Count);
+            Assert.AreEqual(0, result.Plugins.Count);
+        }
+
+        [TestMethod]
+        public void Marked_Plugins_Are_Listed_And_Their_Contracts_Are_Followed_Before_They_Are_Left_Out()
+        {
+            // IPlugin comes through a contract that is in the publish output and left out of the package.
+            File.Copy(ContractAssembly, Path.Combine(publish, Path.GetFileName(ContractAssembly)));
+            CompileModule("Shop.Printer", """
+                using ITVComponents.Plugins.Initialization;
+                using ITVComponents.Plugins.Modules;
+                namespace Shop.Printer
+                {
+                    [ModulePlugin(ModulePluginKind.Template, PluginLoadType.Scope, DisplayName = "Epson TM")]
+                    public class EscPosPrinter : ITVComponents.Plugins.IPlugin
+                    {
+                        public string UniqueName { get; set; }
+                        public event System.EventHandler Disposed;
+                        public void Dispose() => Disposed?.Invoke(this, System.EventArgs.Empty);
+                    }
+                }
+                """);
+
+            var result = ModulePackager.Pack(publish, Path.Combine(root, "m.zip"));
+
+            Assert.AreEqual(0, result.Warnings.Count, string.Join(Environment.NewLine, result.Warnings));
+            StringAssert.Contains(result.Plugins.Single(), "Shop.Printer.EscPosPrinter in Shop.Printer.dll (Template, Scope)");
+            CollectionAssert.AreEqual(new[] { Path.GetFileName(ContractAssembly) }, result.LeftOutContracts.ToArray());
+        }
+
+        [TestMethod]
+        public void A_Wrong_Mark_Fails_The_Publish()
+        {
+            CompileModule("Shop.Printer", """
+                [ITVComponents.Plugins.Modules.ModulePlugin(ITVComponents.Plugins.Modules.ModulePluginKind.Template, ITVComponents.Plugins.Initialization.PluginLoadType.Scope)]
+                public class NotAPlugin { }
+                """);
+
+            var ex = Assert.ThrowsExactly<ModulePackageException>(() => ModulePackager.Pack(publish, Path.Combine(root, "m.zip")));
+
+            StringAssert.Contains(ex.Problems.Single(), "NotAPlugin (Shop.Printer.dll): carries the ModulePlugin mark but does not implement");
+            Assert.IsFalse(File.Exists(Path.Combine(root, "m.zip")));
+        }
+
         private void WriteModule(string name)
         {
             File.Copy(PlainAssembly, Path.Combine(publish, name + ".dll"), true);
+            File.WriteAllText(Path.Combine(publish, name + ".deps.json"), "{}");
+        }
+
+        /// <summary>
+        /// Compiles a module assembly into the publish folder, against the plugin abstractions.
+        /// </summary>
+        private void CompileModule(string name, string source)
+        {
+            var platform = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+                .Where(p => Path.GetFileName(p).StartsWith("System.", StringComparison.Ordinal) || Path.GetFileName(p) is "mscorlib.dll" or "netstandard.dll");
+            var compilation = CSharpCompilation.Create(name, new[] { CSharpSyntaxTree.ParseText(source) },
+                platform.Append(ContractAssembly).Select(r => MetadataReference.CreateFromFile(r)),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            var result = compilation.Emit(Path.Combine(publish, name + ".dll"));
+            if (!result.Success)
+            {
+                Assert.Fail(string.Join(Environment.NewLine, result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+            }
+
             File.WriteAllText(Path.Combine(publish, name + ".deps.json"), "{}");
         }
     }

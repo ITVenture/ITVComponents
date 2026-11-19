@@ -10,6 +10,7 @@ using ITVComponents.InterProcessCommunication.NamedPipe.Server;
 using ITVComponents.Json;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
+using ITVComponents.Plugins.Modules;
 using ITVComponents.GenericService.Sessions;
 using ITVComponents.Settings.Native;
 using ITVComponents.UpdateService.Abstractions.Contracts;
@@ -37,6 +38,11 @@ namespace ITVComponents.UpdateService
     [SupportedOSPlatform("windows")]
     public sealed class UpdateServicePlugin : IPlugin, IDeferredInit
     {
+        /// <summary>
+        /// The id of the only target so far; its plugin instances lie in <c>&lt;DataDirectory&gt;\targets\default\plugins.json</c>.
+        /// </summary>
+        public const string DefaultTargetId = "default";
+
         private readonly IServiceHubProvider hubProvider;
         private readonly NamedPipeHubEndPoint endPoint;
         private readonly string settingsSection;
@@ -99,9 +105,16 @@ namespace ITVComponents.UpdateService
             var stateStore = new InstallStateStore(options.DataDirectory);
             var applicationDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ApplicationPath))!;
             var moduleFiles = new ModuleFiles(options.ModulesDirectory ?? Path.Combine(applicationDirectory, "modules"), applicationDirectory);
+
+            // Below DataDirectory, so it inherits its ACL: the application reads it, only the service writes it. One
+            // target for now; with several applications per service each gets its own folder (issue
+            // ModulePlugins-Instances, D).
+            var pluginInstances = new ModulePluginRegistry(Path.Combine(options.DataDirectory, "targets", DefaultTargetId, ModulePluginInstanceFile.FileName), moduleFiles);
+            var moduleManager = new ModuleManager(options, downloader, moduleFiles, stateStore, null, pluginInstances);
+            moduleManager.ReconcilePlugins();
             coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http, options), downloader,
                 new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), stateStore,
-                registry, new ApplicationControl(options), logs, null, new ModuleManager(options, downloader, moduleFiles, stateStore));
+                registry, new ApplicationControl(options), logs, null, moduleManager);
             var application = new ApplicationControl(options);
             var updates = coordinator;
             roles = new RoleCoordinator(registry, new WindowsSessions(), application, () => updates.HoldsApplication);
