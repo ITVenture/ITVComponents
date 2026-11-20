@@ -402,6 +402,21 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
   - Verträge: `TargetId` an `AgentRegistration`, `UpdateStatus`, `ShutdownRequest` und `RoleChange`. Der Client
     verwirft Ereignisse eines anderen Ziels. Ein Ereignis ohne `TargetId` (älterer Dienst) gilt weiter.
   - Logs der Ziele tragen `[<Id>]` (ausser beim Ziel `default`).
+- **Schritt 4b** (Ziel `WindowsService`):
+  - Konfiguration: `Kind = "WindowsService"` braucht `ServiceName`. Zwei Ziele dürfen nicht denselben Dienst nennen.
+    Die Einzelwerte ohne `Targets` bleiben immer `SessionApplication`.
+  - Anmeldung: Ordner wie bisher, dazu fragt der Update-Dienst (LocalSystem) den SCM nach dem Dienst
+    (`QueryServiceStatusEx`). Angenommen wird nur, wenn die Prozess-Id des Dienstes die des Pipe-Aufrufers ist (vom
+    Betriebssystem, nicht vom Aufrufer). Abgelehnt wird mit Grund, wenn der Dienst nicht installiert ist, nicht läuft,
+    seinen Prozess teilt (kein `SERVICE_WIN32_OWN_PROCESS`) oder der SCM nicht antwortet (dann als Fehler im Log).
+  - `ServiceApplicationControl`: Starten über den SCM, ausser der Dienst läuft schon (oft startet ihn das MSI selbst).
+    Nach der Frist eines dringenden Updates wird der Dienst gestoppt. Hängt er länger als 60 s im Stoppen, wird sein
+    Prozess beendet. Die Sitzung spielt keine Rolle.
+  - Keine Rollen: Ein Dienst-Ziel hat keinen `RoleCoordinator`. Die Anmeldung meldet immer `Active`, und
+    `ReportReleasedAsync` hat keine Wirkung.
+  - SCM-Aufrufe direkt über `advapi32` (`UpdateNativeMethods`), weil `ServiceController` die Prozess-Id nicht liefert.
+  - Ein Dienst, der aufgefordert wird zu enden, stoppt sich selbst (über seinen Host). Nur dann endet die
+    Pipe-Verbindung und der Durchgang läuft weiter. Das ist Sache der Anwendung, wie bei `SessionApplication`.
 
 **Noch offen:**
 
@@ -410,8 +425,6 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
 - Eine eigene Aufzählung der Instanzen in den Modi `Singleton` und `ScopeStartup` für das Web (A.1): Sie kommt mit
   den Web-Masken. `GetInstance` am Lader genügt als Grundlage.
 
-- `WindowsService`-Ziel (Schritt 4b): Der Dienst muss sich an der Pipe als dieser Dienst ausweisen. Zu prüfen ist,
-  ob der Name des Prozesses und die SCM-Abfrage dafür genügen.
 - Gemeinsames MSI für zwei Ziele (D): Heute beim Start abgelehnt. Es braucht einen Durchgang, der beide Anwendungen
   beendet, bevor das MSI läuft.
 - Ein älterer Client an einem Dienst mit mehreren Zielen sieht die Ereignisse aller Ziele. Darum müssen die Anwendungen

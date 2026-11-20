@@ -273,5 +273,159 @@ namespace ITVComponents.UpdateService.Native
                 CloseHandle(userToken);
             }
         }
+
+        // ----- Service control manager -----
+
+        private const uint ScManagerConnect = 0x0001;
+        private const uint ServiceQueryStatusAccess = 0x0004;
+        private const uint ServiceStartAccess = 0x0010;
+        private const uint ServiceStopAccess = 0x0020;
+        private const int ScStatusProcessInfo = 0;
+        private const uint ServiceControlStop = 1;
+        private const int ErrorServiceDoesNotExist = 1060;
+        private const int ErrorServiceAlreadyRunning = 1056;
+        private const int ErrorServiceNotActive = 1062;
+
+        /// <summary>SERVICE_WIN32_OWN_PROCESS: the service has a process of its own.</summary>
+        public const uint ServiceWin32OwnProcess = 0x10;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ServiceStatusProcess
+        {
+            public uint dwServiceType;
+            public uint dwCurrentState;
+            public uint dwControlsAccepted;
+            public uint dwWin32ExitCode;
+            public uint dwServiceSpecificExitCode;
+            public uint dwCheckPoint;
+            public uint dwWaitHint;
+            public int dwProcessId;
+            public uint dwServiceFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ServiceStatus
+        {
+            public uint dwServiceType;
+            public uint dwCurrentState;
+            public uint dwControlsAccepted;
+            public uint dwWin32ExitCode;
+            public uint dwServiceSpecificExitCode;
+            public uint dwCheckPoint;
+            public uint dwWaitHint;
+        }
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenSCManagerW")]
+        private static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint desiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenServiceW")]
+        private static extern IntPtr OpenService(IntPtr scManager, string serviceName, uint desiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryServiceStatusEx(IntPtr service, int infoLevel, out ServiceStatusProcess buffer, int bufferSize, out int bytesNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "StartServiceW")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool StartService(IntPtr service, int argumentCount, IntPtr arguments);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ControlService(IntPtr service, uint control, out ServiceStatus status);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseServiceHandle(IntPtr handle);
+
+        /// <summary>
+        /// Reads state, type and process of a Windows service.
+        /// </summary>
+        /// <returns>(state, process id, service type), or null when no such service is installed</returns>
+        /// <exception cref="Win32Exception">when the service control manager cannot be asked</exception>
+        public static (uint State, int ProcessId, uint ServiceType)? QueryService(string serviceName)
+        {
+            return WithService<(uint State, int ProcessId, uint ServiceType)?>(serviceName, ServiceQueryStatusAccess, service =>
+            {
+                if (!QueryServiceStatusEx(service, ScStatusProcessInfo, out var status, Marshal.SizeOf<ServiceStatusProcess>(), out _))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"QueryServiceStatusEx failed for service {serviceName}.");
+                }
+
+                return ((uint State, int ProcessId, uint ServiceType)?)(status.dwCurrentState, status.dwProcessId, status.dwServiceType);
+            });
+        }
+
+        /// <summary>
+        /// Starts a Windows service.
+        /// </summary>
+        /// <returns>false when it runs already</returns>
+        /// <exception cref="Win32Exception">when it is not installed or cannot be started</exception>
+        public static bool StartWindowsService(string serviceName)
+        {
+            return WithService<bool?>(serviceName, ServiceStartAccess, service =>
+            {
+                if (StartService(service, 0, IntPtr.Zero))
+                {
+                    return true;
+                }
+
+                var error = Marshal.GetLastWin32Error();
+                return error == ErrorServiceAlreadyRunning ? false : throw new Win32Exception(error, $"StartService failed for service {serviceName}.");
+            }) ?? throw new Win32Exception(ErrorServiceDoesNotExist, $"The service {serviceName} is not installed.");
+        }
+
+        /// <summary>
+        /// Asks a Windows service to stop. Returns at once; the service stops on its own time.
+        /// </summary>
+        /// <returns>false when it does not run</returns>
+        /// <exception cref="Win32Exception">when it is not installed or refuses</exception>
+        public static bool StopWindowsService(string serviceName)
+        {
+            return WithService<bool?>(serviceName, ServiceStopAccess, service =>
+            {
+                if (ControlService(service, ServiceControlStop, out _))
+                {
+                    return true;
+                }
+
+                var error = Marshal.GetLastWin32Error();
+                return error == ErrorServiceNotActive ? false : throw new Win32Exception(error, $"Stopping service {serviceName} failed.");
+            }) ?? throw new Win32Exception(ErrorServiceDoesNotExist, $"The service {serviceName} is not installed.");
+        }
+
+        /// <summary>
+        /// Runs an action on an open service handle; returns default when no such service is installed.
+        /// </summary>
+        private static T? WithService<T>(string serviceName, uint access, Func<IntPtr, T> action)
+        {
+            var manager = OpenSCManager(null, null, ScManagerConnect);
+            if (manager == IntPtr.Zero)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "The service control manager could not be opened.");
+            }
+
+            try
+            {
+                var service = OpenService(manager, serviceName, access);
+                if (service == IntPtr.Zero)
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    return error == ErrorServiceDoesNotExist ? default : throw new Win32Exception(error, $"The service {serviceName} could not be opened.");
+                }
+
+                try
+                {
+                    return action(service);
+                }
+                finally
+                {
+                    CloseServiceHandle(service);
+                }
+            }
+            finally
+            {
+                CloseServiceHandle(manager);
+            }
+        }
     }
 }

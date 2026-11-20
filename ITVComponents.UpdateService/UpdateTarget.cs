@@ -10,7 +10,7 @@ namespace ITVComponents.UpdateService
     /// </summary>
     internal sealed class UpdateTarget
     {
-        public UpdateTarget(UpdateServiceOptions options, UpdateCoordinator coordinator, AgentRegistry registry, RoleCoordinator roles, ModuleManager? modules)
+        public UpdateTarget(UpdateServiceOptions options, UpdateCoordinator coordinator, AgentRegistry registry, RoleCoordinator? roles, ModuleManager? modules)
         {
             Options = options;
             Coordinator = coordinator;
@@ -31,8 +31,10 @@ namespace ITVComponents.UpdateService
         /// <summary>Gets the registered instances.</summary>
         public AgentRegistry Registry { get; }
 
-        /// <summary>Gets the roles across sessions.</summary>
-        public RoleCoordinator Roles { get; }
+        /// <summary>
+        /// Gets the roles across sessions; null for a Windows service, which has exactly one instance and is always active.
+        /// </summary>
+        public RoleCoordinator? Roles { get; }
 
         /// <summary>Gets the modules, or null when the service keeps none.</summary>
         public ModuleManager? Modules { get; }

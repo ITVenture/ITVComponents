@@ -53,11 +53,14 @@ namespace ITVComponents.UpdateService
                 var id = target.Id;
                 target.Coordinator.StatusChanged += s => StatusChanged?.Invoke(s);
                 target.Coordinator.ShutdownRequested += r => ShutdownRequested?.Invoke(r);
-                target.Roles.RoleChanged += c =>
+                if (target.Roles != null)
                 {
-                    c.TargetId = id;
-                    RoleChanged?.Invoke(c);
-                };
+                    target.Roles.RoleChanged += c =>
+                    {
+                        c.TargetId = id;
+                        RoleChanged?.Invoke(c);
+                    };
+                }
             }
         }
 
@@ -105,8 +108,9 @@ namespace ITVComponents.UpdateService
                 });
             }
 
-            var role = target.Roles.RoleOf(agent);
-            var activeInstance = target.Roles.Active;
+            // A Windows service has one instance; it is always active.
+            var role = target.Roles?.RoleOf(agent) ?? AgentRole.Active;
+            var activeInstance = target.Roles?.Active;
             return Task.FromResult(new AgentRegistration
             {
                 Accepted = true,
@@ -179,6 +183,12 @@ namespace ITVComponents.UpdateService
             if (target == null || agent == null)
             {
                 LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} reported a release without being registered; ignored.", LogSeverity.Warning);
+                return Task.CompletedTask;
+            }
+
+            if (target.Roles == null)
+            {
+                LogEnvironment.LogDebugEvent($"{agent} reported a release, but {target} has no roles; nothing to do.", LogSeverity.Report);
                 return Task.CompletedTask;
             }
 

@@ -54,11 +54,16 @@ namespace ITVComponents.UpdateService.Agents
     public sealed class AgentRegistry
     {
         private readonly UpdateServiceOptions options;
+        private readonly IWindowsServices? services;
         private readonly ConcurrentDictionary<string, RegisteredAgent> agents = new ConcurrentDictionary<string, RegisteredAgent>(StringComparer.Ordinal);
 
-        public AgentRegistry(UpdateServiceOptions options)
+        /// <param name="options">the options of the target</param>
+        /// <param name="services">the service control manager; needed for a target of the kind <c>WindowsService</c>, whose
+        /// applications are refused without it</param>
+        public AgentRegistry(UpdateServiceOptions options, IWindowsServices? services = null)
         {
             this.options = options;
+            this.services = services;
         }
 
         /// <summary>
@@ -125,6 +130,16 @@ namespace ITVComponents.UpdateService.Agents
                 return null;
             }
 
+            if (options.IsWindowsService)
+            {
+                var callerProcess = int.Parse(caller.FindFirst(PipeClaimTypes.ProcessId)?.Value ?? "0", CultureInfo.InvariantCulture);
+                reason = CheckServiceProcess(callerProcess);
+                if (reason != null)
+                {
+                    return null;
+                }
+            }
+
             var connectionId = caller.FindFirst(PipeClaimTypes.ConnectionId)?.Value ?? string.Empty;
             var sessionId = int.Parse(caller.FindFirst(PipeClaimTypes.SessionId)?.Value ?? "-1", CultureInfo.InvariantCulture);
             runningInstance = agents.Values.FirstOrDefault(a => a.SessionId == sessionId && a.ConnectionId != connectionId);
@@ -163,6 +178,49 @@ namespace ITVComponents.UpdateService.Agents
             }
 
             return agent;
+        }
+
+        /// <summary>
+        /// For a target of the kind <c>WindowsService</c>: the caller must be the process the service control manager names
+        /// for the service - the folder alone would admit any program started from there.
+        /// </summary>
+        /// <returns>why not, or null</returns>
+        private string? CheckServiceProcess(int callerProcess)
+        {
+            var serviceName = options.ServiceName ?? string.Empty;
+            if (services == null)
+            {
+                LogEnvironment.LogEvent($"Target {options.TargetId} is the service {serviceName}, but the update service cannot ask the service control manager; every registration is refused.", LogSeverity.Error);
+                return "The update service cannot check the service process.";
+            }
+
+            WindowsServiceInfo? info;
+            try
+            {
+                info = services.Query(serviceName);
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"The service control manager could not be asked about {serviceName} (target {options.TargetId}); the registration of process {callerProcess} is refused: {ex.OutlineException()}", LogSeverity.Error);
+                return $"The service {serviceName} could not be checked.";
+            }
+
+            if (info == null)
+            {
+                return $"The service {serviceName} is not installed.";
+            }
+
+            if (!info.OwnProcess)
+            {
+                return $"The service {serviceName} shares its process with other services; its process does not identify it.";
+            }
+
+            if (info.ProcessId == 0)
+            {
+                return $"The service {serviceName} does not run ({info.State}).";
+            }
+
+            return info.ProcessId == callerProcess ? null : $"Process {callerProcess} is not the service {serviceName}.";
         }
 
         /// <summary>

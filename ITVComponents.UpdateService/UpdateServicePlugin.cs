@@ -147,17 +147,22 @@ namespace ITVComponents.UpdateService
             // application reads plugins.json, only the service writes.
             var targetDirectory = Directory.CreateDirectory(Path.Combine(options.DataDirectory, "targets", options.TargetId)).FullName;
             var stateDirectory = string.Equals(options.TargetId, DefaultTargetId, StringComparison.OrdinalIgnoreCase) ? options.DataDirectory : targetDirectory;
-            var registry = new AgentRegistry(options);
+            var services = new WindowsServices();
+            var registry = new AgentRegistry(options, services);
             var stateStore = new InstallStateStore(stateDirectory);
             var applicationDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ApplicationPath))!;
             var moduleFiles = new ModuleFiles(options.ModulesDirectory ?? Path.Combine(applicationDirectory, "modules"), applicationDirectory);
             var pluginInstances = new ModulePluginRegistry(Path.Combine(targetDirectory, ModulePluginInstanceFile.FileName), moduleFiles);
             var moduleManager = new ModuleManager(options, downloader, moduleFiles, stateStore, null, pluginInstances);
             moduleManager.ReconcilePlugins();
+            // A Windows service is started and stopped through the service control manager and has no sessions, so no roles.
+            IApplicationControl application = options.IsWindowsService
+                ? new ServiceApplicationControl(options, services, new ApplicationControl(options))
+                : new ApplicationControl(options);
             var coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http!, options), downloader,
                 new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), stateStore,
-                registry, new ApplicationControl(options), logs, null, moduleManager, installGate);
-            var roles = new RoleCoordinator(registry, new WindowsSessions(), new ApplicationControl(options), () => coordinator.HoldsApplication);
+                registry, application, logs, null, moduleManager, installGate);
+            var roles = options.IsWindowsService ? null : new RoleCoordinator(registry, new WindowsSessions(), application, () => coordinator.HoldsApplication);
             return new UpdateTarget(options, coordinator, registry, roles, moduleManager);
         }
 
@@ -188,7 +193,7 @@ namespace ITVComponents.UpdateService
             {
                 try
                 {
-                    target.Roles.SessionChanged(e.Reason, e.SessionId);
+                    target.Roles?.SessionChanged(e.Reason, e.SessionId);
                 }
                 catch (Exception ex)
                 {
@@ -203,7 +208,7 @@ namespace ITVComponents.UpdateService
             {
                 try
                 {
-                    target.Roles.Tick();
+                    target.Roles?.Tick();
                 }
                 catch (Exception ex)
                 {

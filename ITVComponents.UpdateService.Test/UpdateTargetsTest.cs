@@ -87,15 +87,133 @@ namespace ITVComponents.UpdateService.Test
         }
 
         [TestMethod]
-        public void A_Windows_Service_Is_Not_A_Target_Yet()
+        public void A_Windows_Service_Target_Needs_Its_Service_Name()
         {
             var options = Shared();
             var target = Target("Tasks", "Shop.Tasks", TaskFolder);
-            target.Kind = UpdateTargetKinds.WindowsService;
+            target.Kind = "windowsservice";
             options.Targets.Add(target);
 
-            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => options.ResolveTargets());
-            StringAssert.Contains(ex.Message, "not supported yet");
+            StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() => options.ResolveTargets()).Message, "ServiceName");
+
+            target.ServiceName = " ShopTasks ";
+            var resolved = options.ResolveTargets().Single();
+            Assert.IsTrue(resolved.IsWindowsService);
+            Assert.AreEqual(UpdateTargetKinds.WindowsService, resolved.TargetKind);
+            Assert.AreEqual("ShopTasks", resolved.ServiceName);
+        }
+
+        [TestMethod]
+        public void Two_Targets_Never_Name_The_Same_Service()
+        {
+            var options = Shared();
+            options.Targets.Add(Service("Tasks", "Shop.Tasks", TaskFolder, "ShopTasks"));
+            options.Targets.Add(Service("Tasks2", "Shop.Tasks2", PosFolder, "shoptasks"));
+
+            StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() => options.ResolveTargets()).Message, "same service");
+        }
+
+        [TestMethod]
+        public void An_Unknown_Kind_Is_Refused()
+        {
+            var options = Shared();
+            var target = Target("Tasks", "Shop.Tasks", TaskFolder);
+            target.Kind = "Daemon";
+            options.Targets.Add(target);
+
+            StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() => options.ResolveTargets()).Message, "unknown");
+        }
+
+        [TestMethod]
+        public void A_Service_Registers_Only_From_Its_Own_Process()
+        {
+            var services = new FakeServices { Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true } };
+            var registry = ServiceRegistry(services);
+
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4712), "Shop.Tasks", "1.0", false, out var other, out _));
+            StringAssert.Contains(other, "is not the service");
+
+            Assert.IsNotNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var reason, out _), reason);
+        }
+
+        [TestMethod]
+        public void A_Service_That_Does_Not_Run_Or_Shares_Its_Process_Is_Refused()
+        {
+            var services = new FakeServices();
+            var registry = ServiceRegistry(services);
+
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var missing, out _));
+            StringAssert.Contains(missing, "not installed");
+
+            services.Info = new WindowsServiceInfo { State = WindowsServiceRunState.Stopped, ProcessId = 0, OwnProcess = true };
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var stopped, out _));
+            StringAssert.Contains(stopped, "does not run");
+
+            services.Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = false };
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var shared, out _));
+            StringAssert.Contains(shared, "shares its process");
+
+            services.Throws = true;
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var broken, out _));
+            StringAssert.Contains(broken, "could not be checked");
+        }
+
+        [TestMethod]
+        public void A_Service_Target_Without_The_Service_Control_Manager_Admits_Nobody()
+        {
+            var registry = new AgentRegistry(ResolvedService());
+
+            Assert.IsNull(registry.Register(Identity(0, TaskFolder + @"\App.exe", 4711), "Shop.Tasks", "1.0", false, out var reason, out _));
+            StringAssert.Contains(reason, "cannot check");
+        }
+
+        [TestMethod]
+        public async Task A_Service_Is_Always_Active_And_Has_No_Roles()
+        {
+            var services = new FakeServices { Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true } };
+            var world = Build(services, Target("Pos", "Shop.Pos", PosFolder), Service("Tasks", "Shop.Tasks", TaskFolder, "ShopTasks"));
+            var caller = Identity(0, TaskFolder + @"\App.exe", 4711);
+
+            var registration = await world.Facade.RegisterAsync("Shop.Tasks", "1.0", false, caller);
+            await world.Facade.ReportReleasedAsync(caller);
+
+            Assert.IsTrue(registration.Accepted, registration.Reason);
+            Assert.AreEqual("Tasks", registration.TargetId);
+            Assert.AreEqual(AgentRole.Active, registration.Role);
+            Assert.IsNull(world.Targets[1].Roles);
+            Assert.IsNotNull(world.Targets[0].Roles, "an application in a session keeps its roles");
+        }
+
+        [TestMethod]
+        public void A_Service_Is_Started_Unless_It_Runs_Already()
+        {
+            var services = new FakeServices { Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true } };
+            var control = new ServiceApplicationControl(ResolvedService(), services, new FakeApplication());
+
+            control.Launch(0);
+            Assert.AreEqual(0, services.Started, "the installer started it already");
+
+            services.Info = new WindowsServiceInfo { State = WindowsServiceRunState.Stopped, OwnProcess = true };
+            control.Launch(3);
+            Assert.AreEqual(1, services.Started, "the session does not matter for a service");
+        }
+
+        [TestMethod]
+        public void A_Service_That_Does_Not_End_In_Time_Is_Stopped_And_Then_Ended()
+        {
+            var services = new FakeServices { Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true } };
+            var killed = new List<int>();
+            var agent = new RegisteredAgent { ProcessId = 4711, TargetId = "Tasks" };
+
+            services.StopsOnRequest = true;
+            new ServiceApplicationControl(ResolvedService(), services, new FakeApplication(), TimeSpan.FromSeconds(2), killed.Add).Terminate(agent);
+            Assert.AreEqual(1, services.Stopped);
+            Assert.AreEqual(0, killed.Count, "it stopped within the time");
+
+            services.Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true };
+            services.StopsOnRequest = false;
+            new ServiceApplicationControl(ResolvedService(), services, new FakeApplication(), TimeSpan.FromMilliseconds(600), killed.Add).Terminate(agent);
+            CollectionAssert.AreEqual(new[] { 4711 }, killed, "a service that hangs in stopping is ended");
         }
 
         [TestMethod]
@@ -231,7 +349,26 @@ namespace ITVComponents.UpdateService.Test
             RequireApplicationPath = requireApplicationPath
         };
 
-        private World Build(params UpdateTargetOptions[] targetOptions)
+        private static UpdateTargetOptions Service(string id, string productId, string folder, string serviceName)
+        {
+            var target = Target(id, productId, folder);
+            target.Kind = UpdateTargetKinds.WindowsService;
+            target.ServiceName = serviceName;
+            return target;
+        }
+
+        private static UpdateServiceOptions ResolvedService()
+        {
+            var options = Shared();
+            options.Targets.Add(Service("Tasks", "Shop.Tasks", TaskFolder, "ShopTasks"));
+            return options.ResolveTargets().Single();
+        }
+
+        private static AgentRegistry ServiceRegistry(IWindowsServices services) => new AgentRegistry(ResolvedService(), services);
+
+        private World Build(params UpdateTargetOptions[] targetOptions) => Build(new FakeServices(), targetOptions);
+
+        private World Build(IWindowsServices services, params UpdateTargetOptions[] targetOptions)
         {
             var directory = Directory.CreateTempSubdirectory("itv-update-targets").FullName;
             directories.Add(directory);
@@ -245,11 +382,11 @@ namespace ITVComponents.UpdateService.Test
                 var feed = new FakeFeed();
                 var installer = new FakeInstaller();
                 var store = new InstallStateStore(targetDirectory);
-                var registry = new AgentRegistry(resolved);
+                var registry = new AgentRegistry(resolved, services);
                 var application = new FakeApplication();
                 var coordinator = new UpdateCoordinator(resolved, feed, new FakeDownloader(targetDirectory), new FakeVerifier(), installer,
                     new MsiInstallResultEvaluator(), store, registry, application, targetDirectory, null, null, world.Gate);
-                var roles = new RoleCoordinator(registry, new OneSession(), application, () => false);
+                var roles = resolved.IsWindowsService ? null : new RoleCoordinator(registry, new OneSession(), application, () => false);
                 world.Targets.Add(new UpdateTarget(resolved, coordinator, registry, roles, null));
                 world.Feeds.Add(feed);
                 world.Installers.Add(installer);
@@ -260,13 +397,15 @@ namespace ITVComponents.UpdateService.Test
             return world;
         }
 
-        private static ClaimsIdentity Identity(int session, string processPath)
+        private static ClaimsIdentity Identity(int session, string processPath) => Identity(session, processPath, Random.Shared.Next(1000, 60000));
+
+        private static ClaimsIdentity Identity(int session, string processPath, int processId)
         {
             var identity = new ClaimsIdentity(PipeClaimTypes.AuthenticationType, ClaimTypes.Name, ClaimTypes.Role);
             identity.AddClaim(new Claim(ClaimTypes.Name, $@"SHOP\user{session}"));
             identity.AddClaim(new Claim(PipeClaimTypes.ConnectionId, Guid.NewGuid().ToString()));
             identity.AddClaim(new Claim(PipeClaimTypes.SessionId, session.ToString()));
-            identity.AddClaim(new Claim(PipeClaimTypes.ProcessId, Random.Shared.Next(1000, 60000).ToString()));
+            identity.AddClaim(new Claim(PipeClaimTypes.ProcessId, processId.ToString()));
             identity.AddClaim(new Claim(PipeClaimTypes.ProcessPath, processPath));
             return identity;
         }
@@ -343,6 +482,48 @@ namespace ITVComponents.UpdateService.Test
 
             public void Terminate(RegisteredAgent agent)
             {
+            }
+        }
+
+        private sealed class FakeServices : IWindowsServices
+        {
+            public WindowsServiceInfo? Info { get; set; }
+
+            public bool Throws { get; set; }
+
+            public bool StopsOnRequest { get; set; }
+
+            public int Started { get; private set; }
+
+            public int Stopped { get; private set; }
+
+            public WindowsServiceInfo? Query(string serviceName)
+            {
+                if (Throws)
+                {
+                    throw new System.ComponentModel.Win32Exception(5, "Access denied (test).");
+                }
+
+                return Info;
+            }
+
+            public bool Start(string serviceName)
+            {
+                Started++;
+                Info = new WindowsServiceInfo { State = WindowsServiceRunState.Running, ProcessId = 4711, OwnProcess = true };
+                return true;
+            }
+
+            public bool Stop(string serviceName)
+            {
+                Stopped++;
+                Info = new WindowsServiceInfo
+                {
+                    State = StopsOnRequest ? WindowsServiceRunState.Stopped : WindowsServiceRunState.StopPending,
+                    ProcessId = StopsOnRequest ? 0 : 4711,
+                    OwnProcess = true
+                };
+                return true;
             }
         }
 

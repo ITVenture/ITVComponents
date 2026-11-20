@@ -150,6 +150,23 @@ namespace ITVComponents.UpdateService
         public string TargetId { get; internal set; } = DefaultTargetId;
 
         /// <summary>
+        /// Gets the kind of the target these options were resolved for (<see cref="UpdateTargetKinds"/>). Not configurable
+        /// here; the single values always form a <c>SessionApplication</c>.
+        /// </summary>
+        public string TargetKind { get; internal set; } = UpdateTargetKinds.SessionApplication;
+
+        /// <summary>
+        /// Gets the Windows service of a target of the kind <c>WindowsService</c>. Not configurable here; see
+        /// <see cref="UpdateTargetOptions.ServiceName"/>.
+        /// </summary>
+        public string? ServiceName { get; internal set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the target is a Windows service.
+        /// </summary>
+        public bool IsWindowsService => string.Equals(TargetKind, UpdateTargetKinds.WindowsService, StringComparison.Ordinal);
+
+        /// <summary>
         /// The id of the target formed by the single values when <see cref="Targets"/> is empty.
         /// </summary>
         public const string DefaultTargetId = "default";
@@ -181,11 +198,22 @@ namespace ITVComponents.UpdateService
                     throw new InvalidOperationException($"The target id '{target?.Id}' is not valid: a letter first, then letters, digits, '_', '.' or '-', at most 64 characters.");
                 }
 
-                if (!string.Equals(target.Kind, UpdateTargetKinds.SessionApplication, StringComparison.OrdinalIgnoreCase))
+                string kind;
+                if (string.Equals(target.Kind, UpdateTargetKinds.SessionApplication, StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException(string.Equals(target.Kind, UpdateTargetKinds.WindowsService, StringComparison.OrdinalIgnoreCase)
-                        ? $"Target {target.Id}: a Windows service as target is not supported yet."
-                        : $"Target {target.Id}: the kind '{target.Kind}' is unknown ({UpdateTargetKinds.SessionApplication} or {UpdateTargetKinds.WindowsService}).");
+                    kind = UpdateTargetKinds.SessionApplication;
+                }
+                else if (string.Equals(target.Kind, UpdateTargetKinds.WindowsService, StringComparison.OrdinalIgnoreCase))
+                {
+                    kind = UpdateTargetKinds.WindowsService;
+                    if (string.IsNullOrWhiteSpace(target.ServiceName))
+                    {
+                        throw new InvalidOperationException($"Target {target.Id} is a Windows service and needs ServiceName.");
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Target {target.Id}: the kind '{target.Kind}' is unknown ({UpdateTargetKinds.SessionApplication} or {UpdateTargetKinds.WindowsService}).");
                 }
 
                 if (string.IsNullOrWhiteSpace(target.ProductId) || string.IsNullOrWhiteSpace(target.ApplicationPath) || string.IsNullOrWhiteSpace(target.UpgradeCode))
@@ -195,6 +223,8 @@ namespace ITVComponents.UpdateService
 
                 var options = Copy();
                 options.TargetId = target.Id;
+                options.TargetKind = kind;
+                options.ServiceName = kind == UpdateTargetKinds.WindowsService ? target.ServiceName!.Trim() : null;
                 options.ProductId = target.ProductId;
                 options.ApplicationPath = target.ApplicationPath;
                 options.ApplicationArguments = target.ApplicationArguments;
@@ -219,6 +249,11 @@ namespace ITVComponents.UpdateService
                     if (string.Equals(FolderOf(other.ApplicationPath), FolderOf(options.ApplicationPath), StringComparison.OrdinalIgnoreCase))
                     {
                         throw new InvalidOperationException($"Targets {other.TargetId} and {target.Id} run from the same folder; each target needs its own.");
+                    }
+
+                    if (options.ServiceName != null && string.Equals(other.ServiceName, options.ServiceName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException($"Targets {other.TargetId} and {target.Id} name the same service {options.ServiceName}.");
                     }
                 }
 
@@ -265,7 +300,10 @@ namespace ITVComponents.UpdateService
         /// <summary>An application that runs in the Windows session of a user.</summary>
         public const string SessionApplication = "SessionApplication";
 
-        /// <summary>A Windows service (not supported yet).</summary>
+        /// <summary>
+        /// A Windows service: started and stopped with the service control manager, one instance, no sessions. It may only
+        /// register from the process the service control manager names for <see cref="UpdateTargetOptions.ServiceName"/>.
+        /// </summary>
         public const string WindowsService = "WindowsService";
     }
 
