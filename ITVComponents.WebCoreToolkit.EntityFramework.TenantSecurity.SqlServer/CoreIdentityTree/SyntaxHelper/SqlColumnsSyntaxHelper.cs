@@ -208,11 +208,8 @@ WHERE [x].[__rnk] = 1";
                 {
                     var ctx = (TargetInterface)c;
                     var sql = $"exec {c.QualifiedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsProcName)} @UserId={{0}},@UserIsLabels=0,@ViewPointTenantName={{1}},@RequiredPermissionArray={{2}}";
-                    return ctx.Tenants
-                        .FromSqlRaw(
-                            sql,
-                            userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
-                        .ToArray();
+                    return ChildTenantProcedureReader.ReadTenants(c, ctx.Tenants, sql,
+                        userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping));
                 });
 
             bld.ConfigureMethod<Func<DbContext, string[], string, string[], HierarchyTenant[]>>(GlobalDbObjectNaming.ChildTenantsWithProc,
@@ -220,11 +217,8 @@ WHERE [x].[__rnk] = 1";
                 {
                     var ctx = (TargetInterface)c;
                     var sql = $"exec {c.QualifiedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsProcName)} @UserId={{0}},@UserIsLabels=1,@ViewPointTenantName={{1}},@RequiredPermissionArray={{2}}";
-                    return ctx.Tenants
-                        .FromSqlRaw(
-                            sql,
-                            JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
-                        .ToArray();
+                    return ChildTenantProcedureReader.ReadTenants(c, ctx.Tenants, sql,
+                        JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping));
                 });
 
             //--
@@ -234,11 +228,8 @@ WHERE [x].[__rnk] = 1";
                 {
                     var ctx = (TargetInterface)c;
                     var sql = $"exec {c.QualifiedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsByVpIdProcName)} @UserId={{0}},@UserIsLabels=0,@ViewPointTenantId={{1}},@RequiredPermissionArray={{2}}";
-                    return ctx.Tenants
-                        .FromSqlRaw(
-                            sql,
-                            userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
-                        .ToArray();
+                    return ChildTenantProcedureReader.ReadTenants(c, ctx.Tenants, sql,
+                        userId, currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping));
                 });
 
             bld.ConfigureMethod<Func<DbContext, string[], int?, string[], HierarchyTenant[]>>(GlobalDbObjectNaming.ChildTenantsWithProc,
@@ -246,11 +237,8 @@ WHERE [x].[__rnk] = 1";
                 {
                     var ctx = (TargetInterface)c;
                     var sql = $"exec {c.QualifiedObjectName(GlobalDbObjectNaming.ChildTenantsWithPermsByVpIdProcName)} @UserId={{0}},@UserIsLabels=1,@ViewPointTenantId={{1}},@RequiredPermissionArray={{2}}";
-                    return ctx.Tenants
-                        .FromSqlRaw(
-                            sql,
-                            JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping))
-                        .ToArray();
+                    return ChildTenantProcedureReader.ReadTenants(c, ctx.Tenants, sql,
+                        JsonHelper.ToJson(userLabels, SerializationTypingMode.StaticTyping), currentTenant, JsonHelper.ToJson(requiredPermissions, SerializationTypingMode.StaticTyping));
                 });
         }
 
