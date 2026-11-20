@@ -18,6 +18,12 @@ namespace ITVComponents.WebCoreToolkit.ServiceShared.Diagnostics
         /// <param name="context">the neutral execution context (identity + services)</param>
         /// <param name="arguments">the query arguments</param>
         /// <returns>the query result, or null when the query was not found or access was denied</returns>
+        /// <remarks>
+        /// A sequence of rows is streamed; enumerate it completely, the data-source is released at its end. A
+        /// dictionary or a string is a single value (<see cref="DiagnosticsQueryService.IsSingleValue"/>): it is
+        /// returned as such (a dictionary as a copy with string keys) and the data-source is already released, so
+        /// a query returning a dictionary must materialize its values.
+        /// </remarks>
         IEnumerable Execute(string queryName, string area, IDiagnosticsQueryContext context, IDictionary<string, string> arguments);
     }
 }

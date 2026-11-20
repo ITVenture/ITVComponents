@@ -208,10 +208,20 @@ namespace ITVComponents.WebCoreToolkit.Blazor.SharedComponents.Widgets
                 // Vollstaendig aufzaehlen, bevor gerendert wird: der Query-Service gibt die Datenquelle
                 // erst am ENDE der Aufzaehlung frei. Wer die Aufzaehlung ins Template traegt, rendert
                 // gegen eine Quelle, die waehrenddessen zugeht.
+                // Ein Einzelwert (Dictionary, String) ist EINE Zeile: aufgezaehlt zerfiele er in
+                // Schluessel/Wert-Paare bzw. Zeichen. So sieht das Template {{ Row.Model }} - dasselbe
+                // Objekt, das der MVC-Endpunkt als JSON liefert.
                 var rows = new List<object?>();
-                foreach (object? row in result)
+                if (DiagnosticsQueryService.IsSingleValue(result))
                 {
-                    rows.Add(row);
+                    rows.Add(result);
+                }
+                else
+                {
+                    foreach (object? row in result)
+                    {
+                        rows.Add(row);
+                    }
                 }
 
                 var values = paramValues ?? new Dictionary<string, string?>(StringComparer.Ordinal);
