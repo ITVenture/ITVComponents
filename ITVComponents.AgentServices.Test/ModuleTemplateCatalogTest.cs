@@ -56,6 +56,9 @@ namespace ITVComponents.AgentServices.Test
                     {
                         [DeviceSetting("Port", Required = true)]
                         public int Port { get; set; }
+
+                        [DeviceSetting("Queue", ChoiceSource = "printerChoices")]
+                        public string Queue { get; set; }
                     }
 
                     [ModulePlugin(ModulePluginKind.Template, PluginLoadType.Scope, DisplayName = "ESC/POS")]
@@ -70,7 +73,12 @@ namespace ITVComponents.AgentServices.Test
                     public class Worker : ITVComponents.Plugins.IPlugin { {{PluginBody}} }
 
                     [ModulePlugin(ModulePluginKind.Infrastructure, PluginLoadType.Scope, Name = "printerChoices")]
-                    public class Choices : ITVComponents.Plugins.IPlugin { {{PluginBody}} }
+                    public class Choices : ITVComponents.Plugins.IPlugin, IDeviceChoiceProvider
+                    {
+                        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<SettingChoice>> GetChoicesAsync(string settingName, System.Collections.Generic.IReadOnlyDictionary<string, string> draft)
+                            => System.Threading.Tasks.Task.FromResult<System.Collections.Generic.IReadOnlyList<SettingChoice>>(new[] { new SettingChoice { Value = "Kitchen" }, new SettingChoice { Value = "Bar" } });
+                        {{PluginBody}}
+                    }
                 }
                 """, Path.Combine(folder, "Shop.Printer.dll"));
             File.WriteAllText(Path.Combine(folder, ModuleManifest.FileName), JsonSerializer.Serialize(new ModuleManifest { Id = "Shop.Printer", Version = "1.0", MainAssembly = "Shop.Printer.dll" }));
@@ -110,7 +118,7 @@ namespace ITVComponents.AgentServices.Test
             Assert.AreEqual("ESC/POS", printer.DisplayName);
             Assert.AreEqual("Scope", printer.LoadType);
             Assert.IsTrue(printer.HasSettings);
-            Assert.AreEqual("port", printer.Settings.Single().Name);
+            CollectionAssert.AreEqual(new[] { "port", "queue" }, printer.Settings.Select(f => f.Name).ToArray());
 
             CollectionAssert.AreEquivalent(new[] { "Shop.Printer.EscPos", "Shop.Printer.Worker" }, (await catalog.GetTemplatesAsync(string.Empty)).Select(t => t.TypeName).ToArray());
             Assert.AreEqual(0, (await catalog.GetTemplatesAsync("No.Such.Contract")).Length);
@@ -193,6 +201,59 @@ namespace ITVComponents.AgentServices.Test
             Assert.IsFalse(result.Success);
             StringAssert.Contains(result.Message, "can not be removed");
             Assert.AreEqual(0, service.Calls.Count);
+        }
+
+        [TestMethod]
+        public async Task The_Choices_Of_A_Template_Come_Before_The_Device_Exists()
+        {
+            service.Add(new ModulePluginInstance { Name = "printerChoices", Module = "Shop.Printer", Assembly = "Shop.Printer.dll", Type = "Shop.Printer.Choices", Kind = "infrastructure", LoadType = "Scope" });
+
+            var choices = await catalog.GetTemplateChoicesAsync(PrinterKey, "queue", null);
+
+            CollectionAssert.AreEqual(new[] { "Kitchen", "Bar" }, choices.Select(c => c.Value).ToArray());
+            Assert.AreEqual(0, (await catalog.GetTemplateChoicesAsync("Gone/Gone.Type", "queue", null)).Length);
+            Assert.AreEqual(0, (await catalog.GetTemplateChoicesAsync(PrinterKey, "noSuchField", null)).Length);
+            Assert.AreEqual(0, service.Calls.Count, "nothing is created for a choice");
+        }
+
+        [TestMethod]
+        public async Task The_Module_Objects_Show_Every_Instance_Also_Those_Whose_Module_Is_Missing()
+        {
+            Assert.IsTrue((await catalog.CreateObjectAsync(PrinterKey, "Bondrucker1", """{ "port": 9100 }""")).Success);
+            Assert.IsTrue((await catalog.CreateObjectAsync("Shop.Printer/Shop.Printer.Worker", "Nightly", null)).Success);
+            service.Add(new ModulePluginInstance { Name = "printerChoices", Module = "Shop.Printer", Assembly = "Shop.Printer.dll", Type = "Shop.Printer.Choices", Kind = "infrastructure", LoadType = "Scope" });
+            service.Add(new ModulePluginInstance { Name = "OldScale", Module = "Shop.Scale", Assembly = "Shop.Scale.dll", Type = "Shop.Scale.Scale", Kind = "template", LoadType = "Scope" });
+
+            var objects = (await catalog.GetModuleObjectsAsync()).ToDictionary(o => o.Name);
+
+            Assert.AreEqual(4, objects.Count);
+            var printer = objects["Bondrucker1"];
+            Assert.IsTrue(printer.Usable);
+            Assert.IsTrue(printer.Removable);
+            Assert.AreEqual(PrinterKey, printer.TemplateKey);
+            Assert.AreEqual("Scope", printer.LoadType);
+            Assert.AreEqual("Singleton", objects["Nightly"].LoadType);
+            Assert.IsTrue(objects["Nightly"].Usable, "a Singleton is listed although it is no scoped plugin");
+            Assert.IsFalse(objects["printerChoices"].Removable, "infrastructure comes with its module");
+            Assert.IsNull(objects["printerChoices"].TemplateKey);
+            var scale = objects["OldScale"];
+            Assert.IsFalse(scale.Usable);
+            Assert.IsTrue(scale.ModuleMissing);
+            Assert.IsTrue(scale.Removable, "an instance of a missing module can still be removed (C.4)");
+            StringAssert.Contains(scale.Problem, "not installed");
+
+            var removed = await catalog.RemoveObjectAsync("OldScale");
+            Assert.IsTrue(removed.Success, removed.Message);
+            Assert.IsFalse((await catalog.GetModuleObjectsAsync()).Any(o => o.Name == "OldScale"));
+        }
+
+        [TestMethod]
+        public async Task Without_Module_Plugins_There_Are_No_Module_Objects()
+        {
+            using var plain = new PluginAgentObjectCatalog(factory, store);
+
+            Assert.AreEqual(0, (await plain.GetModuleObjectsAsync()).Length);
+            Assert.AreEqual(0, (await plain.GetTemplateChoicesAsync(PrinterKey, "queue", null)).Length);
         }
 
         private static string Escape(string path) => path.Replace("\\", "\\\\");

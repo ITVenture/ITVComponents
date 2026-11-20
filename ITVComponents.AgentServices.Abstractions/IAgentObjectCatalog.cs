@@ -88,6 +88,55 @@ namespace ITVComponents.AgentServices.Abstractions
         /// <param name="name">der Name des Geräts</param>
         /// <returns>das Ergebnis</returns>
         Task<AgentObjectChangeResult> RemoveObjectAsync(string name);
+
+        /// <summary>
+        /// Die Auswahl für ein Feld einer Vorlage, bevor es das Gerät gibt — für die Maske, in der es angelegt wird.
+        /// </summary>
+        /// <param name="templateKey">die Vorlage (<see cref="AgentTemplateInfo.Key"/>)</param>
+        /// <param name="settingName">das Feld</param>
+        /// <param name="draftJson">die Werte, die in der Maske gerade stehen, als JSON-Objekt</param>
+        Task<SettingChoice[]> GetTemplateChoicesAsync(string templateKey, string settingName, string? draftJson);
+
+        /// <summary>
+        /// Alle Geräte (und anderen Plugins) aus Modulen, die der Agent kennt — in jedem Lademodus, auch solche, deren
+        /// Modul fehlt (Issue ModulePlugins-Instances, C.4).
+        /// </summary>
+        /// <returns>die Instanzen; leer, wenn der Agent keine Modul-Plugins kennt</returns>
+        Task<AgentModuleObjectInfo[]> GetModuleObjectsAsync();
+    }
+
+    /// <summary>Eine Instanz aus einem Modul, wie der Agent sie kennt.</summary>
+    public class AgentModuleObjectInfo
+    {
+        /// <summary>Der Name der Instanz.</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>Das Modul, aus dem sie kommt.</summary>
+        public string ModuleId { get; set; } = string.Empty;
+
+        /// <summary>Der volle Name des Typs.</summary>
+        public string TypeName { get; set; } = string.Empty;
+
+        /// <summary>Die Vorlage, aus der sie angelegt wurde (<c>&lt;Modul&gt;/&lt;Typ&gt;</c>); leer bei Infrastruktur.</summary>
+        public string? TemplateKey { get; set; }
+
+        /// <summary>Wie sie in einer Auswahl heissen soll; leer = <see cref="Name"/>.</summary>
+        public string? DisplayName { get; set; }
+
+        /// <summary>Wann sie entsteht: <c>Singleton</c>, <c>ScopeStartup</c> oder <c>Scope</c>.</summary>
+        public string LoadType { get; set; } = string.Empty;
+
+        /// <summary>Ob sie sich entfernen lässt — nur, was aus einer Vorlage angelegt wurde.</summary>
+        public bool Removable { get; set; }
+
+        /// <summary>Ob der Agent sie lädt.</summary>
+        public bool Usable { get; set; }
+
+        /// <summary>Warum nicht, technisch und englisch (z.B. das Modul fehlt).</summary>
+        public string? Problem { get; set; }
+
+        /// <summary>Ob das Modul fehlt — der häufigste Grund, eigens benannt, damit die Maske ihn übersetzen kann.</summary>
+        public bool ModuleMissing { get; set; }
     }
 
     /// <summary>Eine Vorlage eines installierten Moduls.</summary>

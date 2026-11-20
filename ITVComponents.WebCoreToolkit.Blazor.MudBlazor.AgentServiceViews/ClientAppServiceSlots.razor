@@ -2,11 +2,15 @@
 @inject ILogger<ClientAppServiceSlots> Logger
 @inject IStringLocalizer<AgentServiceMessages> L
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 @*
     Die Rollen einer Kasse: welches Geraet am Agenten sie in welcher Rolle benutzt, und dessen Einstellungen.
     Die Einstellungen liegen beim Agenten - diese Maske liest sie dort und gibt sie dorthin zurueck. Ist der
     Agent nicht erreichbar, zeigt sie das, statt veraltete Werte vorzutaeuschen.
+
+    Dazu Geraete aus Vorlagen der Module (Issue ModulePlugins-Instances, C.2/C.3): anlegen je Rolle, und die
+    Liste der Geraete aus Modulen mit Entfernen. Es gibt keinen Spiegel im Web - die Liste kommt vom Agenten.
 *@
 
 @if (!Admin.CanView())
@@ -88,6 +92,12 @@ else
 
                         <MudButton Size="Size.Small" Disabled="@(busy || string.IsNullOrWhiteSpace(row.ObjectName) || status is not { Reachable: true })"
                                    OnClick="@(() => OpenSettingsAsync(row))">@L["Dev_Settings"]</MudButton>
+
+                        @if (row.Templates.Count != 0)
+                        {
+                            <MudButton Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" Disabled="@(busy || status is not { Reachable: true })"
+                                       OnClick="@(() => OpenCreate(row))">@L["Dev_CreateFromTemplate"]</MudButton>
+                        }
                     }
                 </MudStack>
 
@@ -115,7 +125,105 @@ else
                         </MudStack>
                     }
                 }
+
+                @if (createFor == row)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudStack Spacing="2">
+                        <MudStack Row="true" Spacing="3" Wrap="Wrap.Wrap">
+                            <MudSelect T="string" Label="@L["Dev_Template"]" Dense="true" Style="min-width:16rem"
+                                       Value="@createTemplateKey" ValueChanged="@(k => SelectTemplateAsync(k))" Disabled="@busy">
+                                @foreach (var template in row.Templates)
+                                {
+                                    <MudSelectItem T="string" Value="@template.Key">@(template.DisplayName ?? template.TypeName) (@template.ModuleId)</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTextField T="string" Label="@L["Dev_NewName"]" Dense="true" @bind-Value="createName"
+                                          HelperText="@L["Dev_NameHint"]" Style="min-width:16rem" Disabled="@busy" />
+                        </MudStack>
+
+                        @if (createTemplate != null && createFields.Count != 0)
+                        {
+                            <DeclaredFieldsForm @ref="createForm"
+                                                Fields="@createDeclared"
+                                                Prefill="@createPrefill"
+                                                PrefillIsInvariant="true"
+                                                ResetKey="@($"{ClientAppId}:template:{createTemplate.Key}")"
+                                                AllowReadOnly="false"
+                                                TranslateText="SettingFieldProjection.Translate"
+                                                RequiredFieldMessage="@L["Dev_RequiredMissing"]" />
+                        }
+
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       Disabled="@(busy || createTemplate == null || string.IsNullOrWhiteSpace(createName))"
+                                       OnClick="CreateAsync">@L["Dev_Create"]</MudButton>
+                            <MudButton Size="Size.Small" OnClick="CloseCreate">@L["Dev_Close"]</MudButton>
+                        </MudStack>
+                    </MudStack>
+                }
             </MudPaper>
+        }
+
+        @if (status is { Reachable: true })
+        {
+            @if (moduleObjectsUnavailable)
+            {
+                <MudText Typo="Typo.caption">@L["Dev_ModuleObjectsUnavailable"]</MudText>
+            }
+            else if (moduleObjects.Count != 0)
+            {
+                <MudText Typo="Typo.subtitle1" Class="mt-2">@L["Dev_ModuleObjects"]</MudText>
+                <MudSimpleTable Dense="true" Outlined="true">
+                    <thead>
+                        <tr>
+                            <th>@L["Dev_Device"]</th>
+                            <th>@L["Dev_Module"]</th>
+                            <th>@L["Dev_LoadType"]</th>
+                            <th>@L["Dev_State"]</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in moduleObjects)
+                        {
+                            var usedBy = UsedBy(item.Name);
+                            <tr>
+                                <td>
+                                    @(item.DisplayName ?? item.Name)
+                                    @if (usedBy.Count != 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="d-block">@L["Dev_UsedBy", string.Join(", ", usedBy)]</MudText>
+                                    }
+                                </td>
+                                <td>@item.ModuleId</td>
+                                <td>@item.LoadType</td>
+                                <td>
+                                    @if (item.Usable)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@L["Dev_Loaded"]</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@(item.ModuleMissing ? L["Dev_ModuleMissing"] : L["Dev_NotLoaded"])</MudChip>
+                                        @if (!item.ModuleMissing && !string.IsNullOrEmpty(item.Problem))
+                                        {
+                                            <MudText Typo="Typo.caption" Class="d-block">@item.Problem</MudText>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    @if (canManage && item.Removable)
+                                    {
+                                        <MudButton Size="Size.Small" Color="Color.Error" Disabled="@busy"
+                                                   OnClick="@(() => RemoveObjectAsync(item))">@L["Dev_Remove"]</MudButton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
         }
     </MudStack>
 }
@@ -129,6 +237,8 @@ else
         public required AgentServiceBindingInfo Binding { get; set; }
 
         public IReadOnlyList<AgentObjectInfo> Offers { get; set; } = [];
+
+        public IReadOnlyList<AgentTemplateInfo> Templates { get; set; } = [];
 
         public string? ObjectName { get; set; }
 
@@ -147,6 +257,18 @@ else
     private IReadOnlyList<DeclaredField> settingsDeclared = [];
     private Dictionary<string, object?> settingsPrefill = new();
     private DeclaredFieldsForm? settingsForm;
+
+    private Row? createFor;
+    private string? createTemplateKey;
+    private AgentTemplateInfo? createTemplate;
+    private string? createName;
+    private IReadOnlyList<SettingDescriptor> createFields = [];
+    private IReadOnlyList<DeclaredField> createDeclared = [];
+    private Dictionary<string, object?> createPrefill = new();
+    private DeclaredFieldsForm? createForm;
+
+    private IReadOnlyList<AgentModuleObjectInfo> moduleObjects = [];
+    private bool moduleObjectsUnavailable;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -182,12 +304,26 @@ else
                         // Eine Rolle ohne Liste bleibt bedienbar (Textfeld); die anderen laden weiter.
                         Logger.LogWarning(ex, "The offers for slot {Slot} of client app {ClientAppId} could not be loaded.", binding.Slot, ClientAppId);
                     }
+
+                    if (canManage)
+                    {
+                        try
+                        {
+                            row.Templates = await Admin.GetTemplatesAsync(ClientAppId, binding.Slot);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Ein aelterer Agent kennt keine Vorlagen; die Rolle bleibt ohne "Neu aus Vorlage" bedienbar.
+                            Logger.LogWarning(ex, "The templates for slot {Slot} of client app {ClientAppId} could not be loaded.", binding.Slot, ClientAppId);
+                        }
+                    }
                 }
 
                 loaded.Add(row);
             }
 
             rows = loaded;
+            await LoadModuleObjectsAsync();
         }
         catch (Exception ex)
         {
@@ -197,6 +333,27 @@ else
         finally
         {
             loading = false;
+        }
+    }
+
+    private async Task LoadModuleObjectsAsync()
+    {
+        moduleObjects = [];
+        moduleObjectsUnavailable = false;
+        if (status is not { Reachable: true })
+        {
+            return;
+        }
+
+        try
+        {
+            moduleObjects = await Admin.GetModuleObjectsAsync(ClientAppId);
+        }
+        catch (Exception ex)
+        {
+            // Ein aelterer Agent fuehrt die Geraete seiner Module nicht auf; die Rollen bleiben bedienbar.
+            Logger.LogWarning(ex, "The devices from modules of client app {ClientAppId} could not be loaded.", ClientAppId);
+            moduleObjectsUnavailable = true;
         }
     }
 
@@ -234,6 +391,7 @@ else
             }
 
             settingsDeclared = SettingFieldProjection.ToDeclaredFields(settingsFields, choices);
+            CloseCreate();
             settingsFor = row;
         }, "open the settings", "Dev_OpenSettingsFailed");
     }
@@ -248,9 +406,7 @@ else
         var row = settingsFor;
         await RunAsync(async () =>
         {
-            var json = System.Text.Json.JsonSerializer.Serialize(values.Where(v => !string.IsNullOrWhiteSpace(v.Value))
-                .ToDictionary(v => v.Key, v => v.Value));
-            var result = await Admin.ApplySettingsAsync(ClientAppId, row.ObjectName!, json);
+            var result = await Admin.ApplySettingsAsync(ClientAppId, row.ObjectName!, Json(values));
             if (result.Success)
             {
                 settingsFor = null;
@@ -258,15 +414,167 @@ else
             }
             else
             {
-                // Die Einzelmeldungen formuliert die Maske selbst, in der Sprache des Benutzers und mit der
-                // uebersetzten Beschriftung - der Agent liefert nur Feldname und Art.
-                error = string.Join(" ", new[] { L["Dev_Refused"].Value, result.Message }
-                    .Concat(result.Errors.Select(e => SettingFieldProjection.DescribeError(e, settingsFields,
-                        L["Dev_SettingRequired"].Value, L["Dev_SettingInvalid"].Value, L["Dev_SettingUnknown"].Value)))
-                    .Where(m => !string.IsNullOrWhiteSpace(m)));
+                error = Refusal(L["Dev_Refused"].Value, result.Message, result.Errors, settingsFields);
             }
         }, "send the settings", "Dev_ApplyFailed");
     }
+
+    private async Task OpenCreate(Row row)
+    {
+        settingsFor = null;
+        createFor = row;
+        createName = null;
+        createTemplateKey = null;
+        createTemplate = null;
+        createFields = [];
+        createDeclared = [];
+        createPrefill = new();
+        if (row.Templates.Count == 1)
+        {
+            // Die einzige Vorlage gleich waehlen - wie bei einer Auswahl mit einem Eintrag ueblich.
+            await SelectTemplateAsync(row.Templates[0].Key);
+        }
+    }
+
+    private void CloseCreate()
+    {
+        createFor = null;
+        createTemplate = null;
+        createTemplateKey = null;
+    }
+
+    private async Task SelectTemplateAsync(string? key)
+    {
+        var row = createFor;
+        createTemplateKey = key;
+        createTemplate = row?.Templates.FirstOrDefault(t => t.Key == key);
+        createFields = createTemplate?.Settings ?? [];
+        createDeclared = [];
+        createPrefill = new();
+        if (row == null || createTemplate == null)
+        {
+            return;
+        }
+
+        var template = createTemplate;
+        await RunAsync(async () =>
+        {
+            var choices = new Dictionary<string, IReadOnlyList<SettingChoice>>();
+            foreach (var field in createFields.Where(f => !string.IsNullOrEmpty(f.ChoiceSource)))
+            {
+                choices[field.Name] = await Admin.GetTemplateChoicesAsync(ClientAppId, template.Key, field.Name, null);
+            }
+
+            createPrefill = SettingFieldProjection.Defaults(createFields, new Dictionary<string, string?>());
+            createDeclared = SettingFieldProjection.ToDeclaredFields(createFields, choices);
+        }, $"read template {template.Key}", "Dev_OpenTemplateFailed");
+        StateHasChanged();
+    }
+
+    private async Task CreateAsync()
+    {
+        if (createFor == null || createTemplate == null || string.IsNullOrWhiteSpace(createName))
+        {
+            return;
+        }
+
+        string? json = null;
+        if (createFields.Count != 0)
+        {
+            if (createForm == null || !createForm.TryGetInvariantResult(out var values))
+            {
+                return;
+            }
+
+            json = Json(values);
+        }
+
+        var slot = createFor.Binding.Slot;
+        var template = createTemplate;
+        var name = createName.Trim();
+        await RunAsync(async () =>
+        {
+            var result = await Admin.CreateObjectAsync(ClientAppId, template.Key, name, json);
+            if (!result.Success)
+            {
+                error = Refusal(L["Dev_CreateRefused"].Value, result.Message, result.Errors, createFields);
+                return;
+            }
+
+            Snackbar.Add(result.EffectiveAfterRestart
+                ? $"{L["Dev_Created", name].Value} {L["Dev_EffectiveAfterRestart"].Value}"
+                : L["Dev_Created", name].Value, Severity.Success);
+            CloseCreate();
+            await LoadAsync();
+
+            // Das neue Geraet gleich in der Rolle vorschlagen; gespeichert wird erst mit "Speichern".
+            var row = rows.FirstOrDefault(r => r.Binding.Slot == slot);
+            if (row != null)
+            {
+                row.ObjectName = name;
+            }
+        }, $"create {name} from template {template.Key}", "Dev_CreateFailed");
+    }
+
+    private async Task RemoveObjectAsync(AgentModuleObjectInfo item)
+    {
+        var usedBy = UsedBy(item.Name);
+        var text = L["Dev_RemoveConfirm", item.DisplayName ?? item.Name].Value;
+        if (usedBy.Count != 0)
+        {
+            text += " " + L["Dev_RemoveBoundWarning", string.Join(", ", usedBy)].Value;
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(L["Dev_RemoveTitle"].Value, text,
+            yesText: L["Dev_Remove"].Value, cancelText: L["Dev_Cancel"].Value);
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            var result = await Admin.RemoveObjectAsync(ClientAppId, item.Name);
+            if (!result.Success)
+            {
+                error = Refusal(L["Dev_RemoveRefused"].Value, result.Message, [], []);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(result.Message))
+            {
+                Snackbar.Add(L["Dev_RemovedPartly", item.Name].Value, Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add(result.EffectiveAfterRestart
+                    ? $"{L["Dev_Removed", item.Name].Value} {L["Dev_EffectiveAfterRestart"].Value}"
+                    : L["Dev_Removed", item.Name].Value, Severity.Success);
+            }
+
+            await LoadAsync();
+        }, $"remove {item.Name}", "Dev_RemoveFailed");
+    }
+
+    /// <summary>Die Rollen, die ein Geraet benutzen - wie gespeichert, nicht wie gerade in der Maske gewaehlt.</summary>
+    private IReadOnlyList<string> UsedBy(string objectName)
+        => rows.Where(r => string.Equals(r.Binding.ObjectName, objectName, StringComparison.Ordinal))
+            .Select(r => r.Binding.DisplayName)
+            .ToList();
+
+    private string Refusal(string lead, string? message, IEnumerable<SettingError> errors, IReadOnlyList<SettingDescriptor> fields)
+    {
+        // Die Einzelmeldungen formuliert die Maske selbst, in der Sprache des Benutzers und mit der
+        // uebersetzten Beschriftung - der Agent liefert nur Feldname und Art.
+        return string.Join(" ", new[] { lead, message }
+            .Concat(errors.Select(e => SettingFieldProjection.DescribeError(e, fields,
+                L["Dev_SettingRequired"].Value, L["Dev_SettingInvalid"].Value, L["Dev_SettingUnknown"].Value)))
+            .Where(m => !string.IsNullOrWhiteSpace(m)));
+    }
+
+    private static string Json(IEnumerable<KeyValuePair<string, string?>> values)
+        => System.Text.Json.JsonSerializer.Serialize(values.Where(v => !string.IsNullOrWhiteSpace(v.Value))
+            .ToDictionary(v => v.Key, v => v.Value));
 
     private async Task RunAsync(Func<Task> action, string what, string failureKey)
     {

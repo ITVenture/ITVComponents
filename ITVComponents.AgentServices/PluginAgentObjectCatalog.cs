@@ -133,14 +133,62 @@ namespace ITVComponents.AgentServices
         }
 
         /// <inheritdoc />
-        public async Task<SettingChoice[]> GetChoicesAsync(string objectName, string settingName, string draftJson)
+        public Task<SettingChoice[]> GetChoicesAsync(string objectName, string settingName, string draftJson)
         {
-            var device = Device(objectName);
-            var field = DeviceSettingsReflection.Describe(DeviceSettingsReflection.SettingsTypeOf(device))
+            return ChoicesAsync(Device(objectName), $"'{objectName}'", objectName, settingName, draftJson);
+        }
+
+        /// <inheritdoc />
+        public Task<SettingChoice[]> GetTemplateChoicesAsync(string templateKey, string settingName, string draftJson)
+        {
+            var template = modules?.GetTemplates().FirstOrDefault(t => string.Equals(t.Key, templateKey, StringComparison.Ordinal));
+            if (template == null)
+            {
+                LogEnvironment.LogEvent($"Choices were requested for '{settingName}' of template '{templateKey}', which no installed module offers.", LogSeverity.Warning);
+                return Task.FromResult(Array.Empty<SettingChoice>());
+            }
+
+            return ChoicesAsync(TemplateType(template), $"template '{templateKey}'", null, settingName, draftJson);
+        }
+
+        /// <inheritdoc />
+        public Task<AgentModuleObjectInfo[]> GetModuleObjectsAsync()
+        {
+            if (modules == null)
+            {
+                LogEnvironment.LogDebugEvent("Module objects were requested, but this agent knows no module plugins.", LogSeverity.Report);
+                return Task.FromResult(Array.Empty<AgentModuleObjectInfo>());
+            }
+
+            var retVal = modules.GetInstances().Select(s =>
+            {
+                var instance = s.Instance;
+                var isTemplate = instance.TryGetKind(out var kind) && kind == ModulePluginKind.Template;
+                return new AgentModuleObjectInfo
+                {
+                    Name = instance.Name ?? string.Empty,
+                    ModuleId = instance.Module ?? string.Empty,
+                    TypeName = instance.Type ?? string.Empty,
+                    TemplateKey = isTemplate ? $"{instance.Module}{ModulePluginTemplate.KeySeparator}{instance.Type}" : null,
+                    DisplayName = string.IsNullOrEmpty(s.Entry?.Item.DisplayName) ? null : s.Entry!.Item.DisplayName,
+                    LoadType = instance.LoadType ?? string.Empty,
+                    // Der Dienst entfernt nur, was aus einer Vorlage angelegt wurde - auch wenn das Modul fehlt (C.4).
+                    Removable = isTemplate,
+                    Usable = s.Entry != null,
+                    Problem = s.Problem,
+                    ModuleMissing = s.ModuleMissing
+                };
+            }).ToArray();
+            return Task.FromResult(retVal);
+        }
+
+        private async Task<SettingChoice[]> ChoicesAsync(Type owner, string ownerLabel, string ownerName, string settingName, string draftJson)
+        {
+            var field = DeviceSettingsReflection.Describe(DeviceSettingsReflection.SettingsTypeOf(owner))
                 .FirstOrDefault(f => string.Equals(f.Name, settingName, StringComparison.OrdinalIgnoreCase));
             if (field == null)
             {
-                LogEnvironment.LogEvent($"Choices were requested for '{settingName}' of '{objectName}', which is no setting of a device on this agent.",
+                LogEnvironment.LogEvent($"Choices were requested for '{settingName}' of {ownerLabel}, which is no setting of a device on this agent.",
                     LogSeverity.Warning);
                 return Array.Empty<SettingChoice>();
             }
@@ -150,10 +198,10 @@ namespace ITVComponents.AgentServices
                 return field.Choices?.ToArray() ?? Array.Empty<SettingChoice>();
             }
 
-            if (string.Equals(field.ChoiceSource, objectName, StringComparison.Ordinal))
+            if (ownerName != null && string.Equals(field.ChoiceSource, ownerName, StringComparison.Ordinal))
             {
                 // Das Geraet als seine eigene Auswahl-Quelle hiesse: eine Liste aufklappen baut das Geraet.
-                LogEnvironment.LogEvent($"Device '{objectName}' names itself as the choice source of '{settingName}'. A device is never built to answer a choice request; configure a separate IDeviceChoiceProvider.",
+                LogEnvironment.LogEvent($"Device '{ownerName}' names itself as the choice source of '{settingName}'. A device is never built to answer a choice request; configure a separate IDeviceChoiceProvider.",
                     LogSeverity.Error);
                 return Array.Empty<SettingChoice>();
             }
@@ -168,13 +216,13 @@ namespace ITVComponents.AgentServices
                     return choices?.ToArray() ?? Array.Empty<SettingChoice>();
                 }
 
-                LogEnvironment.LogEvent($"Choice source '{field.ChoiceSource}' for '{settingName}' of '{objectName}' could not be resolved as an IDeviceChoiceProvider.",
+                LogEnvironment.LogEvent($"Choice source '{field.ChoiceSource}' for '{settingName}' of {ownerLabel} could not be resolved as an IDeviceChoiceProvider.",
                     LogSeverity.Error);
                 return Array.Empty<SettingChoice>();
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"Choice source '{field.ChoiceSource}' for '{settingName}' of '{objectName}' failed: {ex.OutlineException()}",
+                LogEnvironment.LogEvent($"Choice source '{field.ChoiceSource}' for '{settingName}' of {ownerLabel} failed: {ex.OutlineException()}",
                     LogSeverity.Error);
                 return Array.Empty<SettingChoice>();
             }

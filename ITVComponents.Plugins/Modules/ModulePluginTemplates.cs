@@ -40,6 +40,41 @@ namespace ITVComponents.Plugins.Modules
     }
 
     /// <summary>
+    /// An instance from <c>plugins.json</c> as the <see cref="ModulePluginLoader"/> judged it: usable, or why not (issue
+    /// ModulePlugins-Instances, C.4 - the catalog shows a missing module instead of hiding the instance).
+    /// </summary>
+    public sealed class ModulePluginInstanceStatus
+    {
+        internal ModulePluginInstanceStatus(ModulePluginInstance instance, ModulePluginEntry? entry, string? problem, bool moduleMissing = false)
+        {
+            Instance = instance;
+            Entry = entry;
+            Problem = problem;
+            ModuleMissing = moduleMissing;
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the instance is not loaded because its module is not installed (any more).
+        /// </summary>
+        public bool ModuleMissing { get; }
+
+        /// <summary>
+        /// Gets the instance as the file has it.
+        /// </summary>
+        public ModulePluginInstance Instance { get; }
+
+        /// <summary>
+        /// Gets the usable instance, or null when it is not loaded (see <see cref="Problem"/>).
+        /// </summary>
+        public ModulePluginEntry? Entry { get; }
+
+        /// <summary>
+        /// Gets why the instance is not loaded; null when it is usable.
+        /// </summary>
+        public string? Problem { get; }
+    }
+
+    /// <summary>
     /// A type of an installed module that can be instantiated under a name of one's own (mark
     /// <see cref="ModulePluginKind.Template"/>).
     /// </summary>

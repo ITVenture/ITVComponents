@@ -69,5 +69,28 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AgentServices
 
         /// <summary>Gibt eine Rolle frei.</summary>
         Task RemoveBindingAsync(int clientAppId, string slot, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Die Vorlagen der Module am Agenten, aus denen sich ein Gerät für die Rolle anlegen lässt (Issue
+        /// ModulePlugins-Instances, C.2).
+        /// </summary>
+        Task<IReadOnlyList<AgentTemplateInfo>> GetTemplatesAsync(int clientAppId, string slot, CancellationToken cancellationToken = default);
+
+        /// <summary>Eine Auswahl für ein Feld einer Vorlage, bevor es das Gerät gibt.</summary>
+        Task<IReadOnlyList<SettingChoice>> GetTemplateChoicesAsync(int clientAppId, string templateKey, string settingName,
+            string? draftJson, CancellationToken cancellationToken = default);
+
+        /// <summary>Legt am Agenten ein Gerät aus einer Vorlage an. <b>Schreibt auf dem Kassen-PC.</b></summary>
+        Task<AgentObjectChangeResult> CreateObjectAsync(int clientAppId, string templateKey, string name, string? settingsJson,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Die Geräte (und anderen Plugins) aus Modulen am Agenten, auch solche, deren Modul fehlt.</summary>
+        Task<IReadOnlyList<AgentModuleObjectInfo>> GetModuleObjectsAsync(int clientAppId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Entfernt am Agenten ein Gerät, das aus einer Vorlage angelegt wurde. Rollen, die es benutzen, bleiben
+        /// besetzt — die Maske warnt vorher. <b>Schreibt auf dem Kassen-PC.</b>
+        /// </summary>
+        Task<AgentObjectChangeResult> RemoveObjectAsync(int clientAppId, string name, CancellationToken cancellationToken = default);
     }
 }

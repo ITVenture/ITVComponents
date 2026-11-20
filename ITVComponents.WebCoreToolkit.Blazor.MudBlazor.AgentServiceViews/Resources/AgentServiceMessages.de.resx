@@ -77,4 +77,32 @@
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Die Rolle konnte nicht freigegeben werden - siehe Protokoll.</value></data>
   <data name="Dev_OpenSettingsFailed" xml:space="preserve"><value>Die Einstellungen konnten nicht vom Agenten gelesen werden - siehe Protokoll.</value></data>
   <data name="Dev_ApplyFailed" xml:space="preserve"><value>Die Einstellungen konnten nicht an den Agenten gesendet werden - siehe Protokoll.</value></data>
+  <data name="Dev_CreateFromTemplate" xml:space="preserve"><value>Neu aus Vorlage</value></data>
+  <data name="Dev_Template" xml:space="preserve"><value>Vorlage</value></data>
+  <data name="Dev_NewName" xml:space="preserve"><value>Name des neuen Geräts</value></data>
+  <data name="Dev_NameHint" xml:space="preserve"><value>Zuerst ein Buchstabe, dann Buchstaben, Ziffern, _ . -; höchstens 64 Zeichen.</value></data>
+  <data name="Dev_Create" xml:space="preserve"><value>Anlegen</value></data>
+  <data name="Dev_Created" xml:space="preserve"><value>Das Gerät {0} wurde am Agenten angelegt.</value></data>
+  <data name="Dev_EffectiveAfterRestart" xml:space="preserve"><value>Das wirkt erst nach einem Neustart des Agenten.</value></data>
+  <data name="Dev_CreateRefused" xml:space="preserve"><value>Der Agent hat das Gerät nicht angelegt:</value></data>
+  <data name="Dev_CreateFailed" xml:space="preserve"><value>Das Gerät konnte nicht angelegt werden - siehe Protokoll.</value></data>
+  <data name="Dev_OpenTemplateFailed" xml:space="preserve"><value>Die Vorlage konnte nicht vom Agenten gelesen werden - siehe Protokoll.</value></data>
+  <data name="Dev_ModuleObjects" xml:space="preserve"><value>Geräte aus Modulen</value></data>
+  <data name="Dev_ModuleObjectsUnavailable" xml:space="preserve"><value>Dieser Agent führt die Geräte seiner Module nicht auf (ältere Version).</value></data>
+  <data name="Dev_Module" xml:space="preserve"><value>Modul</value></data>
+  <data name="Dev_LoadType" xml:space="preserve"><value>Lademodus</value></data>
+  <data name="Dev_State" xml:space="preserve"><value>Zustand</value></data>
+  <data name="Dev_Loaded" xml:space="preserve"><value>Geladen</value></data>
+  <data name="Dev_ModuleMissing" xml:space="preserve"><value>Modul fehlt</value></data>
+  <data name="Dev_NotLoaded" xml:space="preserve"><value>Nicht geladen</value></data>
+  <data name="Dev_UsedBy" xml:space="preserve"><value>Benutzt von: {0}</value></data>
+  <data name="Dev_Remove" xml:space="preserve"><value>Entfernen</value></data>
+  <data name="Dev_RemoveTitle" xml:space="preserve"><value>Gerät entfernen</value></data>
+  <data name="Dev_RemoveConfirm" xml:space="preserve"><value>{0} wirklich vom Agenten entfernen? Seine Einstellungen werden mit entfernt.</value></data>
+  <data name="Dev_RemoveBoundWarning" xml:space="preserve"><value>Es wird noch benutzt von: {0}. Diese Rollen bleiben besetzt und funktionieren dann nicht mehr.</value></data>
+  <data name="Dev_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="Dev_Removed" xml:space="preserve"><value>{0} wurde vom Agenten entfernt.</value></data>
+  <data name="Dev_RemovedPartly" xml:space="preserve"><value>{0} wurde entfernt, seine Einstellungen konnten aber nicht vom Agenten entfernt werden.</value></data>
+  <data name="Dev_RemoveRefused" xml:space="preserve"><value>Der Agent hat das Gerät nicht entfernt:</value></data>
+  <data name="Dev_RemoveFailed" xml:space="preserve"><value>Das Gerät konnte nicht entfernt werden - siehe Protokoll.</value></data>
 </root>

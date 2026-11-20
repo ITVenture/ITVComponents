@@ -157,6 +157,24 @@ namespace ITVComponents.Plugins.Modules
         }
 
         /// <summary>
+        /// Gets every instance of <c>plugins.json</c>, usable or not, in the order of the file (issue ModulePlugins-Instances,
+        /// C.4): an instance whose module is missing stays visible with the reason, so that it can be removed.
+        /// </summary>
+        /// <returns>the instances; empty when the file can not be read (logged)</returns>
+        public IReadOnlyList<ModulePluginInstanceStatus> GetInstances()
+        {
+            try
+            {
+                return Current().All;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"The module plugin instances could not be read: {ex.OutlineException()}", LogSeverity.Error);
+                return Array.Empty<ModulePluginInstanceStatus>();
+            }
+        }
+
+        /// <summary>
         /// Gets the templates the installed modules offer (issue ModulePlugins-Instances, C.2): every type with the mark
         /// <see cref="ModulePluginKind.Template"/>, read from the metadata. Nothing is loaded.
         /// </summary>
@@ -308,25 +326,27 @@ namespace ITVComponents.Plugins.Modules
                 {
                     // Kept: the instances known so far stay usable. Read again on the next change of the file.
                     LogEnvironment.LogEvent($"{instancesFile} could not be read; the module plugin instances read before stay in use: {ex.OutlineException()}", LogSeverity.Error);
-                    current = new Snapshot(stamp, length, current.Entries);
+                    current = new Snapshot(stamp, length, current.Entries, current.All);
                     return current;
                 }
 
-                current = new Snapshot(stamp, length, Build(file));
+                var all = Build(file);
+                current = new Snapshot(stamp, length, all.Where(s => s.Entry != null).Select(s => s.Entry!).ToList(), all);
                 LogEnvironment.LogEvent($"Module plugin instances read from {instancesFile}: {(current.Entries.Count == 0 ? "none" : string.Join(", ", current.Entries.Select(e => $"{e.Item.Name} ({e.LoadType})")))}.", LogSeverity.Report);
                 return current;
             }
         }
 
-        private List<ModulePluginEntry> Build(ModulePluginInstanceFile file)
+        private List<ModulePluginInstanceStatus> Build(ModulePluginInstanceFile file)
         {
-            var entries = new List<ModulePluginEntry>();
+            var all = new List<ModulePluginInstanceStatus>();
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var instance in file.Instances)
             {
                 if (!names.Add(instance.Name ?? string.Empty))
                 {
                     LogEnvironment.LogEvent($"{instancesFile}: the name {instance.Name} is used more than once; only the first instance is loaded.", LogSeverity.Error);
+                    all.Add(new ModulePluginInstanceStatus(instance, null, $"the name {instance.Name} is used more than once"));
                     continue;
                 }
 
@@ -334,13 +354,15 @@ namespace ITVComponents.Plugins.Modules
                 if (entry == null)
                 {
                     LogEnvironment.LogEvent($"Module plugin instance {instance} is not loaded: {problem}.", LogSeverity.Error);
+                    var moduleMissing = ModulePluginInstance.IsSafeModuleId(instance.Module) && !Directory.Exists(Path.Combine(modulesDirectory, instance.Module!));
+                    all.Add(new ModulePluginInstanceStatus(instance, null, problem ?? "it did not pass the checks", moduleMissing));
                     continue;
                 }
 
-                entries.Add(entry);
+                all.Add(new ModulePluginInstanceStatus(instance, entry, null));
             }
 
-            return entries;
+            return all;
         }
 
         private ModulePluginEntry? Check(ModulePluginInstance instance, out string? problem)
@@ -450,13 +472,14 @@ namespace ITVComponents.Plugins.Modules
 
         private sealed class Snapshot
         {
-            public static readonly Snapshot Empty = new Snapshot(DateTime.MaxValue, -2, new List<ModulePluginEntry>());
+            public static readonly Snapshot Empty = new Snapshot(DateTime.MaxValue, -2, new List<ModulePluginEntry>(), new List<ModulePluginInstanceStatus>());
 
-            public Snapshot(DateTime stamp, long length, List<ModulePluginEntry> entries)
+            public Snapshot(DateTime stamp, long length, List<ModulePluginEntry> entries, IReadOnlyList<ModulePluginInstanceStatus> all)
             {
                 Stamp = stamp;
                 Length = length;
                 Entries = entries;
+                All = all;
                 ByName = entries.ToDictionary(e => e.Item.Name, StringComparer.OrdinalIgnoreCase);
             }
 
@@ -465,6 +488,9 @@ namespace ITVComponents.Plugins.Modules
             public long Length { get; }
 
             public List<ModulePluginEntry> Entries { get; }
+
+            /// <summary>Every instance of the file, usable or not.</summary>
+            public IReadOnlyList<ModulePluginInstanceStatus> All { get; }
 
             public Dictionary<string, ModulePluginEntry> ByName { get; }
 

@@ -77,4 +77,32 @@
   <data name="Dev_ReleaseFailed" xml:space="preserve"><value>Le rôle n'a pas pu être libéré - voir le journal.</value></data>
   <data name="Dev_OpenSettingsFailed" xml:space="preserve"><value>Les paramètres n'ont pas pu être lus sur l'agent - voir le journal.</value></data>
   <data name="Dev_ApplyFailed" xml:space="preserve"><value>Les paramètres n'ont pas pu être envoyés à l'agent - voir le journal.</value></data>
+  <data name="Dev_CreateFromTemplate" xml:space="preserve"><value>Nouveau à partir d'un modèle</value></data>
+  <data name="Dev_Template" xml:space="preserve"><value>Modèle</value></data>
+  <data name="Dev_NewName" xml:space="preserve"><value>Nom du nouvel appareil</value></data>
+  <data name="Dev_NameHint" xml:space="preserve"><value>D'abord une lettre, puis des lettres, chiffres, _ . - ; 64 caractères au plus.</value></data>
+  <data name="Dev_Create" xml:space="preserve"><value>Créer</value></data>
+  <data name="Dev_Created" xml:space="preserve"><value>L'appareil {0} a été créé sur l'agent.</value></data>
+  <data name="Dev_EffectiveAfterRestart" xml:space="preserve"><value>Cela prend effet après un redémarrage de l'agent.</value></data>
+  <data name="Dev_CreateRefused" xml:space="preserve"><value>L'agent n'a pas créé l'appareil :</value></data>
+  <data name="Dev_CreateFailed" xml:space="preserve"><value>L'appareil n'a pas pu être créé - voir le journal.</value></data>
+  <data name="Dev_OpenTemplateFailed" xml:space="preserve"><value>Le modèle n'a pas pu être lu sur l'agent - voir le journal.</value></data>
+  <data name="Dev_ModuleObjects" xml:space="preserve"><value>Appareils des modules</value></data>
+  <data name="Dev_ModuleObjectsUnavailable" xml:space="preserve"><value>Cet agent ne liste pas les appareils de ses modules (version plus ancienne).</value></data>
+  <data name="Dev_Module" xml:space="preserve"><value>Module</value></data>
+  <data name="Dev_LoadType" xml:space="preserve"><value>Mode de chargement</value></data>
+  <data name="Dev_State" xml:space="preserve"><value>État</value></data>
+  <data name="Dev_Loaded" xml:space="preserve"><value>Chargé</value></data>
+  <data name="Dev_ModuleMissing" xml:space="preserve"><value>Module manquant</value></data>
+  <data name="Dev_NotLoaded" xml:space="preserve"><value>Non chargé</value></data>
+  <data name="Dev_UsedBy" xml:space="preserve"><value>Utilisé par : {0}</value></data>
+  <data name="Dev_Remove" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="Dev_RemoveTitle" xml:space="preserve"><value>Supprimer l'appareil</value></data>
+  <data name="Dev_RemoveConfirm" xml:space="preserve"><value>Vraiment supprimer {0} de l'agent ? Ses paramètres sont aussi supprimés.</value></data>
+  <data name="Dev_RemoveBoundWarning" xml:space="preserve"><value>Il est encore utilisé par : {0}. Ces rôles restent attribués et ne fonctionnent plus.</value></data>
+  <data name="Dev_Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Dev_Removed" xml:space="preserve"><value>{0} a été supprimé de l'agent.</value></data>
+  <data name="Dev_RemovedPartly" xml:space="preserve"><value>{0} a été supprimé, mais ses paramètres n'ont pas pu être supprimés de l'agent.</value></data>
+  <data name="Dev_RemoveRefused" xml:space="preserve"><value>L'agent n'a pas supprimé l'appareil :</value></data>
+  <data name="Dev_RemoveFailed" xml:space="preserve"><value>L'appareil n'a pas pu être supprimé - voir le journal.</value></data>
 </root>

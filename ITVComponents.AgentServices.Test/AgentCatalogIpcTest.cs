@@ -77,5 +77,14 @@ namespace ITVComponents.AgentServices.Test
             Assert.IsTrue(applied.Success, applied.Message);
             Assert.IsNotNull(await remote.GetSettingsAsync("epson"));
         }
+
+        [TestMethod]
+        public async Task The_Calls_For_Templates_Answer_Over_Ipc_Without_Module_Plugins()
+        {
+            // Der Web-Teil fragt jeden Agenten; einer ohne Modul-Plugins antwortet leer statt mit einem Fehler.
+            Assert.AreEqual(0, (await remote.GetModuleObjectsAsync()).Length);
+            Assert.AreEqual(0, (await remote.GetTemplateChoicesAsync("Shop.Printer/Shop.Printer.EscPos", "queue", null)).Length);
+            Assert.AreEqual(0, (await remote.GetTemplatesAsync(string.Empty)).Length);
+        }
     }
 }

@@ -190,6 +190,65 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.AgentServices.Impl
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<AgentTemplateInfo>> GetTemplatesAsync(int clientAppId, string slot,
+            CancellationToken cancellationToken = default)
+        {
+            var declared = Slot(slot);
+            var catalog = await CatalogAsync(clientAppId, CanManage(), cancellationToken);
+            return await catalog.GetTemplatesAsync(declared.Contract.FullName!);
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<SettingChoice>> GetTemplateChoicesAsync(int clientAppId, string templateKey,
+            string settingName, string? draftJson, CancellationToken cancellationToken = default)
+            => await (await CatalogAsync(clientAppId, CanManage(), cancellationToken))
+                .GetTemplateChoicesAsync(templateKey, settingName, draftJson);
+
+        /// <inheritdoc />
+        public async Task<AgentObjectChangeResult> CreateObjectAsync(int clientAppId, string templateKey, string name,
+            string? settingsJson, CancellationToken cancellationToken = default)
+        {
+            var result = await (await CatalogAsync(clientAppId, CanManage(), cancellationToken))
+                .CreateObjectAsync(templateKey, name?.Trim() ?? string.Empty, settingsJson);
+            if (result.Success)
+            {
+                logger.LogInformation("Device {Name} of template {TemplateKey} was created on the agent of client app {ClientAppId}{Restart}.",
+                    name, templateKey, clientAppId, result.EffectiveAfterRestart ? " (effective after a restart)" : string.Empty);
+            }
+            else
+            {
+                logger.LogWarning("The agent of client app {ClientAppId} did not create {Name} of template {TemplateKey}: {Message}",
+                    clientAppId, name, templateKey, result.Message ?? string.Join("; ", result.Errors.Select(e => e.Message)));
+            }
+
+            return result;
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<AgentModuleObjectInfo>> GetModuleObjectsAsync(int clientAppId,
+            CancellationToken cancellationToken = default)
+            => await (await CatalogAsync(clientAppId, CanView(), cancellationToken)).GetModuleObjectsAsync();
+
+        /// <inheritdoc />
+        public async Task<AgentObjectChangeResult> RemoveObjectAsync(int clientAppId, string name,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await (await CatalogAsync(clientAppId, CanManage(), cancellationToken)).RemoveObjectAsync(name);
+            if (result.Success)
+            {
+                logger.LogInformation("Device {Name} was removed from the agent of client app {ClientAppId}{Restart}{Message}.",
+                    name, clientAppId, result.EffectiveAfterRestart ? " (effective after a restart)" : string.Empty,
+                    string.IsNullOrEmpty(result.Message) ? string.Empty : $": {result.Message}");
+            }
+            else
+            {
+                logger.LogWarning("The agent of client app {ClientAppId} did not remove {Name}: {Message}", clientAppId, name, result.Message);
+            }
+
+            return result;
+        }
+
         private AgentServiceSlot Slot(string slot)
             => slots.FirstOrDefault(s => s.Name == slot)
                ?? throw new AgentServiceAdministrationException($"Slot '{slot}' is not declared.");

@@ -418,12 +418,26 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
   - Ein Dienst, der aufgefordert wird zu enden, stoppt sich selbst (über seinen Host). Nur dann endet die
     Pipe-Verbindung und der Durchgang läuft weiter. Das ist Sache der Anwendung, wie bei `SessionApplication`.
 
+- **Schritt 5** (Web-Masken, im Reiter „Geräte“ der ClientApp):
+  - Lader: `ModulePluginLoader.GetInstances()` liefert jede Instanz aus `plugins.json` als
+    `ModulePluginInstanceStatus`, also auch die unbrauchbaren, mit `Problem` und `ModuleMissing`.
+  - Katalog: `GetTemplateChoicesAsync(templateKey, settingName, draftJson)` liefert Auswahlwerte für eine Vorlage, bevor
+    es das Gerät gibt. Dafür gibt es eine gemeinsame Auswahllogik mit `GetChoicesAsync`. `GetModuleObjectsAsync()`
+    liefert alle Instanzen aus Modulen in jedem Lademodus als `AgentModuleObjectInfo`, mit `Removable` (nur
+    `Template`), `Usable`, `Problem` und `ModuleMissing`. Ein Agent ohne Modul-Plugins antwortet leer.
+  - Web: `IAgentServiceAdministration` hat `GetTemplatesAsync(clientAppId, slot)` (Vertrag der Rolle),
+    `GetTemplateChoicesAsync`, `CreateObjectAsync`, `GetModuleObjectsAsync` und `RemoveObjectAsync` bekommen.
+    Schreiben und das Lesen von Vorlagen brauchen `Apps.Write`, die Liste `Apps.View`.
+  - Maske `ClientAppServiceSlots`: Jede Rolle hat „Neu aus Vorlage“ (Vorlage, Name, Einstellungen mit Auswahlwerten).
+    Danach steht das neue Gerät in der Rolle bereit. Gespeichert wird es erst mit „Speichern“. Darunter steht die
+    Liste „Geräte aus Modulen“ mit Lademodus, Zustand (geladen / Modul fehlt / nicht geladen) und den Rollen, die das
+    Gerät benutzen. „Entfernen“ fragt nach und warnt, wenn Rollen es noch benutzen. Diese Rollen bleiben besetzt.
+    Ein älterer Agent ohne die neuen Aufrufe wird erkannt. Die Rollen bleiben dann bedienbar, und die Maske sagt es.
+
 **Noch offen:**
 
-- Auswahlwerte (`GetChoicesAsync`) für eine Vorlage, bevor die Instanz existiert: Sie gehen heute über den Namen des
-  Geräts. Kommt mit den Web-Masken (Schritt 5).
-- Eine eigene Aufzählung der Instanzen in den Modi `Singleton` und `ScopeStartup` für das Web (A.1): Sie kommt mit
-  den Web-Masken. `GetInstance` am Lader genügt als Grundlage.
+- Warnung vor dem Abwählen eines Moduls (C.4) in der Update-Verwaltung, wenn noch Instanzen des Moduls bestehen. Die
+  Liste liefert `GetModuleObjectsAsync`.
 
 - Gemeinsames MSI für zwei Ziele (D): Heute beim Start abgelehnt. Es braucht einen Durchgang, der beide Anwendungen
   beendet, bevor das MSI läuft.
