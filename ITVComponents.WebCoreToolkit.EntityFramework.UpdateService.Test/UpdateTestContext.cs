@@ -1,4 +1,6 @@
 using System;
+using ITVComponents.WebCoreToolkit.EntityFramework.AgentServices;
+using ITVComponents.WebCoreToolkit.EntityFramework.AgentServices.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Models;
@@ -29,7 +31,8 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Test
     /// The tables of the update service, without the tenant model: the tests are about stores, feed and administration,
     /// not about the mapping to SQL Server.
     /// </summary>
-    public class UpdateTestContext : DbContext, IUpdateServiceContext, IClientAppContext<TestClientApp, TestClientAppTemplate>, ITenantScopeContext
+    public class UpdateTestContext : DbContext, IUpdateServiceContext, IClientAppContext<TestClientApp, TestClientAppTemplate>, ITenantScopeContext,
+        IAgentServiceBindingContext
     {
         public UpdateTestContext(DbContextOptions<UpdateTestContext> options) : base(options)
         {
@@ -45,6 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Test
         public DbSet<ClientAppUpdateState> ClientAppUpdateStates { get; set; } = null!;
         public DbSet<TestClientApp> ClientApps { get; set; } = null!;
         public DbSet<TestClientAppTemplate> ClientAppTemplates { get; set; } = null!;
+        public DbSet<ClientAppServiceBinding> ClientAppServiceBindings { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

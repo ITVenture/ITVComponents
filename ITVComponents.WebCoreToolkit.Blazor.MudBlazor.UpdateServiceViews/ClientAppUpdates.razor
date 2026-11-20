@@ -2,6 +2,7 @@
 @inject ILogger<ClientAppUpdates> Logger
 @inject IStringLocalizer<UpdateServiceMessages> L
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 @*
     The updates of one till: the state it reported last, the modules of its template and those it has in addition.
@@ -179,10 +180,48 @@ else
 
     private Task SaveAsync() => RunAsync(async () =>
     {
+        // Issue ModulePlugins-Instances, C.4: devices created from a module go away with it - ask first.
+        var check = await Admin.CheckClientAppModuleRemovalAsync(ClientAppId, own.ToArray());
+        if (check.NeedsConfirmation && !await ConfirmRemovalAsync(check))
+        {
+            return;
+        }
+
         var result = await Admin.SetClientAppModulesAsync(ClientAppId, own.ToArray());
         Report(result, L["Upd_Saved"].Value);
         await LoadAsync();
     }, "assign the modules", "Upd_SaveFailed");
+
+    private async Task<bool> ConfirmRemovalAsync(ModuleRemovalCheck check)
+    {
+        var text = new List<string>();
+        var created = check.Warnings.Where(w => w.Instances.Length != 0).ToList();
+        if (created.Count != 0)
+        {
+            text.Add(L["Upd_RemoveModulesInstances", string.Join("; ", created.Select(w => $"{w.ModuleProductKey}: {string.Join(", ", w.Instances)}"))].Value);
+        }
+
+        var roles = check.Warnings.SelectMany(w => w.Bindings).ToList();
+        if (roles.Count != 0)
+        {
+            text.Add(L["Upd_RemoveModulesRoles", string.Join(", ", roles.Select(b => $"{b.Slot} → {b.ObjectName}"))].Value);
+        }
+
+        if (check.Unreached.Count != 0)
+        {
+            text.Add(L["Upd_RemoveModulesUnreached", string.Join(", ", check.RemovedModules)].Value);
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(L["Upd_RemoveModulesTitle"].Value, string.Join(" ", text),
+            yesText: L["Upd_RemoveModulesConfirm"].Value, cancelText: L["Upd_Cancel"].Value);
+        if (confirmed != true)
+        {
+            Logger.LogInformation("Deselecting [{Modules}] from client app {ClientAppId} was cancelled after the warning.", string.Join(", ", check.RemovedModules), ClientAppId);
+            return false;
+        }
+
+        return true;
+    }
 
     private Task RefreshAsync() => RunAsync(async () =>
     {

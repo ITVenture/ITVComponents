@@ -84,4 +84,10 @@
   <data name="Upd_SaveFailed" xml:space="preserve"><value>Die Module konnten nicht gespeichert werden - siehe Log.</value></data>
   <data name="Upd_RefreshFailed" xml:space="preserve"><value>Der Stand konnte nicht abgeholt werden - siehe Log.</value></data>
   <data name="Upd_CheckFailed" xml:space="preserve"><value>Die Kasse konnte nicht zur Suche aufgefordert werden - siehe Log.</value></data>
+  <data name="Upd_RemoveModulesTitle" xml:space="preserve"><value>Module abwählen</value></data>
+  <data name="Upd_RemoveModulesInstances" xml:space="preserve"><value>Auf der Kasse wurden aus den abgewählten Modulen diese Geräte angelegt; sie werden mit dem Modul entfernt: {0}.</value></data>
+  <data name="Upd_RemoveModulesUnreached" xml:space="preserve"><value>Die Kasse ist nicht erreichbar; ob dort Geräte aus {0} angelegt wurden, ist unbekannt. Sie würden mit dem Modul entfernt.</value></data>
+  <data name="Upd_RemoveModulesRoles" xml:space="preserve"><value>Diese Rollen benutzen ein Gerät, das mit dem Modul wegfällt, und werden danach nicht mehr bedient: {0}.</value></data>
+  <data name="Upd_RemoveModulesConfirm" xml:space="preserve"><value>Trotzdem abwählen</value></data>
+  <data name="Upd_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
 </root>

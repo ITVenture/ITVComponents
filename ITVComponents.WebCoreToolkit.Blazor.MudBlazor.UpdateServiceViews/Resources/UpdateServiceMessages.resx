@@ -84,4 +84,10 @@
   <data name="Upd_SaveFailed" xml:space="preserve"><value>The modules could not be saved - see the log.</value></data>
   <data name="Upd_RefreshFailed" xml:space="preserve"><value>The state could not be fetched - see the log.</value></data>
   <data name="Upd_CheckFailed" xml:space="preserve"><value>The till could not be asked to check - see the log.</value></data>
+  <data name="Upd_RemoveModulesTitle" xml:space="preserve"><value>Deselect modules</value></data>
+  <data name="Upd_RemoveModulesInstances" xml:space="preserve"><value>These devices were created on the till from the modules you deselect; they are removed with the module: {0}.</value></data>
+  <data name="Upd_RemoveModulesUnreached" xml:space="preserve"><value>The till cannot be reached, so it is unknown whether devices were created there from {0}. They would be removed with the module.</value></data>
+  <data name="Upd_RemoveModulesRoles" xml:space="preserve"><value>These roles use a device that goes away with the module and will not be served any more: {0}.</value></data>
+  <data name="Upd_RemoveModulesConfirm" xml:space="preserve"><value>Deselect anyway</value></data>
+  <data name="Upd_Cancel" xml:space="preserve"><value>Cancel</value></data>
 </root>

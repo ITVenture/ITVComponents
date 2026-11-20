@@ -434,10 +434,25 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
     Gerät benutzen. „Entfernen“ fragt nach und warnt, wenn Rollen es noch benutzen. Diese Rollen bleiben besetzt.
     Ein älterer Agent ohne die neuen Aufrufe wird erkannt. Die Rollen bleiben dann bedienbar, und die Maske sagt es.
 
-**Noch offen:**
+- **Warnung vor dem Abwählen** (C.4):
+  - `IClientAppUpdateSync.GetModuleObjectsAsync(tenantId, clientAppId)` fragt den Katalog einer Kasse über den
+    `IAgentConnector`. Eine Kasse, die aus ist, oder ein älterer Agent gilt als nicht erreicht (`ModuleObjectsResult`).
+  - `IUpdateAdminHandler.CheckClientAppModuleRemovalAsync` / `CheckTemplateModuleRemovalAsync` liefern einen
+    `ModuleRemovalCheck`: welche Module wegfallen, welche Geräte aus Vorlagen dieser Module je Kasse mitgehen
+    (Infrastruktur nicht) und welche Kassen nicht gefragt werden konnten. Sie ändern nichts.
+    - Je Kasse: Ein Modul, das die Vorlage der Kasse mitbringt, fällt nicht weg.
+    - Je Vorlage: Gefragt wird jede aktive Kasse der Vorlage in allen Mandanten, die das Modul nicht selbst
+      zugewiesen hat (wie beim Verteilen).
+  - Masken: `ClientAppUpdates` (übersetzt) und die Vorlagen in `UpdateReleases` (englisch wie die übrige
+    Plattform-Seite) fragen vor dem Speichern nach, wenn Geräte mitgehen oder eine Kasse nicht erreicht wurde.
+    Abbrechen wird protokolliert.
+  - Rollen: Jede Warnung nennt auch die Rollen der Kasse (`ModuleRemovalWarning.Bindings`: Rolle, Gerät, aktiv), die
+    ein Gerät des Moduls benutzen. Dazu zählen auch Infrastruktur-Geräte des Moduls; eine solche Bindung allein löst
+    die Rückfrage aus. Die Bindungen liest der Handler aus dem Kontext, wenn dieser `IAgentServiceBindingContext`
+    implementiert. Ohne Agent-Dienste gibt es keine Bindungen, der Vertrag des Handlers verlangt sie darum nicht.
+    Die Rollen bleiben nach dem Abwählen besetzt und werden nicht bedient, bis jemand sie neu bindet.
 
-- Warnung vor dem Abwählen eines Moduls (C.4) in der Update-Verwaltung, wenn noch Instanzen des Moduls bestehen. Die
-  Liste liefert `GetModuleObjectsAsync`.
+**Noch offen:**
 
 - Gemeinsames MSI für zwei Ziele (D): Heute beim Start abgelehnt. Es braucht einen Durchgang, der beide Anwendungen
   beendet, bevor das MSI läuft.

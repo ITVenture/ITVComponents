@@ -78,6 +78,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Agents
         /// Asks the agent to let its update service look for a new version now, then fetches the state.
         /// </summary>
         Task<UpdateSyncResult> CheckNowAsync(int tenantId, int clientAppId, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Asks the catalog of a till which instances of modules it has (issue ModulePlugins-Instances, C.4): the warning
+        /// before modules are deselected. A till that is off, or an older agent without the call, is not reached.
+        /// </summary>
+        Task<ModuleObjectsResult> GetModuleObjectsAsync(int tenantId, int clientAppId, CancellationToken cancellationToken);
     }
 
     /// <summary>
@@ -154,18 +160,54 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Agents
             }, cancellationToken);
         }
 
+        /// <inheritdoc />
+        public async Task<ModuleObjectsResult> GetModuleObjectsAsync(int tenantId, int clientAppId, CancellationToken cancellationToken)
+        {
+            var result = new ModuleObjectsResult { ClientAppId = clientAppId };
+            var clientKey = await ClientKeyAsync(tenantId, clientAppId, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(clientKey))
+            {
+                logger.LogWarning("Client app {ClientAppId} does not exist in tenant {TenantId}; its module instances are unknown.", clientAppId, tenantId);
+                result.Message = "The till does not exist in this tenant.";
+                return result;
+            }
+
+            try
+            {
+                var catalog = await connector.GetCatalogAsync(tenantId, clientKey, cancellationToken).ConfigureAwait(false);
+                result.Objects = await catalog.GetModuleObjectsAsync().ConfigureAwait(false) ?? Array.Empty<AgentModuleObjectInfo>();
+                result.Reached = true;
+            }
+            catch (AgentConnectionException ex)
+            {
+                // The connector logged the cause; an agent that is off is a normal case.
+                logger.LogInformation("Client app {ClientKey} was not reached for its module instances: {Failure} {Message}", clientKey, ex.Failure, ex.Message);
+                result.Message = ex.Message;
+            }
+            catch (Exception ex)
+            {
+                // Above all an older agent, whose catalog does not know the call yet.
+                logger.LogWarning(ex, "The catalog of client app {ClientKey} did not list its module instances.", clientKey);
+                result.Message = ex.Message;
+            }
+
+            return result;
+        }
+
+        private async Task<string?> ClientKeyAsync(int tenantId, int clientAppId, CancellationToken cancellationToken)
+        {
+            await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            return await db.ClientApps.IgnoreQueryFilters().AsNoTracking()
+                .Where(c => EF.Property<int>(c, nameof(IClientAppCore.ClientAppId)) == clientAppId
+                            && EF.Property<int>(c, nameof(IClientAppCore.TenantId)) == tenantId)
+                .Select(c => EF.Property<string>(c, nameof(IClientAppCore.ClientKey)))
+                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         private async Task<UpdateSyncResult> WithBridge(int tenantId, int clientAppId, Func<IAgentUpdateBridge, Task<AgentUpdateReport>> call, CancellationToken cancellationToken)
         {
             var result = new UpdateSyncResult { ClientAppId = clientAppId };
-            string? clientKey;
-            await using (var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
-            {
-                clientKey = await db.ClientApps.IgnoreQueryFilters().AsNoTracking()
-                    .Where(c => EF.Property<int>(c, nameof(IClientAppCore.ClientAppId)) == clientAppId
-                                && EF.Property<int>(c, nameof(IClientAppCore.TenantId)) == tenantId)
-                    .Select(c => EF.Property<string>(c, nameof(IClientAppCore.ClientKey)))
-                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-            }
+            var clientKey = await ClientKeyAsync(tenantId, clientAppId, cancellationToken).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(clientKey))
             {
@@ -238,6 +280,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Agents
         {
             return text == null || text.Length <= length ? text : text.Substring(0, length);
         }
+    }
+
+    /// <summary>
+    /// The instances of modules a till reported, or why it did not.
+    /// </summary>
+    public sealed class ModuleObjectsResult
+    {
+        /// <summary>Gets or sets the till.</summary>
+        public int ClientAppId { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether the till answered.</summary>
+        public bool Reached { get; set; }
+
+        /// <summary>Gets or sets why not.</summary>
+        public string? Message { get; set; }
+
+        /// <summary>Gets or sets the instances; empty when not reached.</summary>
+        public IReadOnlyList<AgentModuleObjectInfo> Objects { get; set; } = Array.Empty<AgentModuleObjectInfo>();
     }
 
     /// <summary>

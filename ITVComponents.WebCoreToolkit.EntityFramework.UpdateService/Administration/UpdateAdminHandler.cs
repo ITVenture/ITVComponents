@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.UpdateService.Abstractions.Contracts;
 using ITVComponents.UpdateService.Abstractions.Feed;
+using ITVComponents.WebCoreToolkit.EntityFramework.AgentServices;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Agents;
@@ -103,6 +104,66 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
     }
 
     /// <summary>
+    /// Instances on one till that go away with a module that is deselected (issue ModulePlugins-Instances, C.4).
+    /// </summary>
+    public sealed class ModuleRemovalWarning
+    {
+        /// <summary>Gets or sets the till.</summary>
+        public int ClientAppId { get; set; }
+
+        /// <summary>Gets or sets its tenant.</summary>
+        public int TenantId { get; set; }
+
+        /// <summary>Gets or sets its name.</summary>
+        public string ClientName { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the module that is deselected.</summary>
+        public string ModuleProductKey { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the instances created from templates of the module; they are removed with it.</summary>
+        public string[] Instances { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Gets or sets the roles of the till that use a device of the module - created from a template or brought by the
+        /// module as infrastructure. They are not served any more once the module is gone.
+        /// </summary>
+        public ModuleRemovalBinding[] Bindings { get; set; } = Array.Empty<ModuleRemovalBinding>();
+    }
+
+    /// <summary>
+    /// A role of a till that uses a device which goes away with a module.
+    /// </summary>
+    public sealed class ModuleRemovalBinding
+    {
+        /// <summary>Gets or sets the role, as the host declared it.</summary>
+        public string Slot { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the device the role uses.</summary>
+        public string ObjectName { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets a value indicating whether the role is served now.</summary>
+        public bool Enabled { get; set; }
+    }
+
+    /// <summary>
+    /// What deselecting modules removes on the tills, as far as they could be asked.
+    /// </summary>
+    public sealed class ModuleRemovalCheck
+    {
+        /// <summary>Gets or sets the modules that would be deselected; empty = nothing is deselected, nothing to warn about.</summary>
+        public string[] RemovedModules { get; set; } = Array.Empty<string>();
+
+        /// <summary>Gets or sets the instances that go away, per till and module.</summary>
+        public IReadOnlyList<ModuleRemovalWarning> Warnings { get; set; } = Array.Empty<ModuleRemovalWarning>();
+
+        /// <summary>Gets or sets the tills that lose a module but could not be asked (off, or an older agent).</summary>
+        public IReadOnlyList<string> Unreached { get; set; } = Array.Empty<string>();
+
+        /// <summary>Gets a value indicating whether the mask should ask before it saves.</summary>
+        public bool NeedsConfirmation => Warnings.Count != 0 || Unreached.Count != 0;
+    }
+
+    /// <summary>
     /// What the update masks may do, with the permission checked here - not only in the mask.
     /// </summary>
     /// <remarks>
@@ -143,6 +204,19 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
         Task<ClientAppUpdateInfo> GetClientAppAsync(int clientAppId, CancellationToken cancellationToken = default);
 
         Task<UpdateSyncResult> SetClientAppModulesAsync(int clientAppId, string[] modules, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Before <see cref="SetTemplateModulesAsync"/>: which instances the tills of the template lose with the modules
+        /// that are deselected (issue ModulePlugins-Instances, C.4). Asks every enabled till of the template that loses a
+        /// module, in all tenants. Changes nothing.
+        /// </summary>
+        Task<ModuleRemovalCheck> CheckTemplateModuleRemovalAsync(int clientAppTemplateId, string[] modules, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Before <see cref="SetClientAppModulesAsync"/>: which instances the till loses with the modules that are
+        /// deselected. Changes nothing.
+        /// </summary>
+        Task<ModuleRemovalCheck> CheckClientAppModuleRemovalAsync(int clientAppId, string[] modules, CancellationToken cancellationToken = default);
 
         Task<UpdateSyncResult> RefreshClientAppAsync(int clientAppId, CancellationToken cancellationToken = default);
 
@@ -314,6 +388,138 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.UpdateService.Administrat
         {
             var (tenantId, _) = await ClientAppAsync(clientAppId, CanManageClientApps(), "assign modules", cancellationToken).ConfigureAwait(false);
             return await Guard(() => assignments.SetClientAppModulesAsync(tenantId, clientAppId, modules, cancellationToken)).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public async Task<ModuleRemovalCheck> CheckTemplateModuleRemovalAsync(int clientAppTemplateId, string[] modules, CancellationToken cancellationToken = default)
+        {
+            Require(CanManageReleases(), "assign modules to templates");
+            var current = await assignments.GetTemplateModulesAsync(clientAppTemplateId, cancellationToken).ConfigureAwait(false);
+            var removed = Removed(current, modules);
+            if (removed.Length == 0)
+            {
+                return new ModuleRemovalCheck();
+            }
+
+            List<(int TenantId, int ClientAppId, string Name)> apps;
+            await using (var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            {
+                apps = (await db.ClientApps.IgnoreQueryFilters().AsNoTracking()
+                        .Where(c => EF.Property<int>(c, nameof(IClientAppCore.ClientAppTemplateId)) == clientAppTemplateId
+                                    && EF.Property<bool>(c, nameof(IClientAppCore.Enabled)))
+                        .Select(c => new
+                        {
+                            TenantId = EF.Property<int>(c, nameof(IClientAppCore.TenantId)),
+                            ClientAppId = EF.Property<int>(c, nameof(IClientAppCore.ClientAppId)),
+                            Name = EF.Property<string>(c, nameof(IClientAppCore.ClientName))
+                        })
+                        .ToListAsync(cancellationToken).ConfigureAwait(false))
+                    .Select(c => (c.TenantId, c.ClientAppId, c.Name)).ToList();
+            }
+
+            var warnings = new List<ModuleRemovalWarning>();
+            var unreached = new List<string>();
+            foreach (var app in apps)
+            {
+                // A till that has the module assigned of its own keeps it.
+                var own = await assignments.GetClientAppModulesAsync(app.TenantId, app.ClientAppId, cancellationToken).ConfigureAwait(false);
+                var lost = removed.Where(m => !own.Contains(m, StringComparer.OrdinalIgnoreCase)).ToArray();
+                if (lost.Length != 0)
+                {
+                    await CollectAsync(app.TenantId, app.ClientAppId, app.Name, lost, warnings, unreached, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            logger.LogInformation("Deselecting [{Modules}] from template {TemplateId} removes {Count} instance(s) on {Tills} till(s); {Unreached} till(s) could not be asked.",
+                string.Join(", ", removed), clientAppTemplateId, warnings.Sum(w => w.Instances.Length), warnings.Select(w => w.ClientAppId).Distinct().Count(), unreached.Count);
+            return new ModuleRemovalCheck { RemovedModules = removed, Warnings = warnings, Unreached = unreached };
+        }
+
+        /// <inheritdoc />
+        public async Task<ModuleRemovalCheck> CheckClientAppModuleRemovalAsync(int clientAppId, string[] modules, CancellationToken cancellationToken = default)
+        {
+            var (tenantId, templateId) = await ClientAppAsync(clientAppId, CanManageClientApps(), "assign modules", cancellationToken).ConfigureAwait(false);
+            var fromTemplate = await assignments.GetTemplateModulesAsync(templateId, cancellationToken).ConfigureAwait(false);
+            var own = await assignments.GetClientAppModulesAsync(tenantId, clientAppId, cancellationToken).ConfigureAwait(false);
+            // A module the template brings stays, whatever the till has of its own.
+            var removed = Removed(own, modules).Where(m => !fromTemplate.Contains(m, StringComparer.OrdinalIgnoreCase)).ToArray();
+            if (removed.Length == 0)
+            {
+                return new ModuleRemovalCheck();
+            }
+
+            string name;
+            await using (var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+            {
+                name = await db.ClientApps.IgnoreQueryFilters().AsNoTracking()
+                    .Where(c => EF.Property<int>(c, nameof(IClientAppCore.ClientAppId)) == clientAppId && EF.Property<int>(c, nameof(IClientAppCore.TenantId)) == tenantId)
+                    .Select(c => EF.Property<string>(c, nameof(IClientAppCore.ClientName)))
+                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false) ?? clientAppId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            var warnings = new List<ModuleRemovalWarning>();
+            var unreached = new List<string>();
+            await CollectAsync(tenantId, clientAppId, name, removed, warnings, unreached, cancellationToken).ConfigureAwait(false);
+            return new ModuleRemovalCheck { RemovedModules = removed, Warnings = warnings, Unreached = unreached };
+        }
+
+        /// <summary>
+        /// The modules that are assigned now and not any more after the change.
+        /// </summary>
+        private static string[] Removed(IEnumerable<string> current, string[]? next)
+        {
+            var keep = next ?? Array.Empty<string>();
+            return current.Where(m => !keep.Contains(m, StringComparer.OrdinalIgnoreCase)).ToArray();
+        }
+
+        /// <summary>
+        /// Asks one till for its instances and keeps those created from templates of the lost modules, plus the roles that
+        /// use any device of them. Infrastructure comes and goes with its module and is named only when a role uses it.
+        /// </summary>
+        private async Task CollectAsync(int tenantId, int clientAppId, string name, string[] lost, List<ModuleRemovalWarning> warnings, List<string> unreached,
+            CancellationToken cancellationToken)
+        {
+            var result = await sync.GetModuleObjectsAsync(tenantId, clientAppId, cancellationToken).ConfigureAwait(false);
+            if (!result.Reached)
+            {
+                unreached.Add(name);
+                return;
+            }
+
+            var bindings = await BindingsAsync(tenantId, clientAppId, cancellationToken).ConfigureAwait(false);
+            foreach (var module in lost)
+            {
+                var objects = result.Objects.Where(o => string.Equals(o.ModuleId, module, StringComparison.OrdinalIgnoreCase)).ToList();
+                var instances = objects.Where(o => o.Removable).Select(o => o.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+                var names = new HashSet<string>(objects.Select(o => o.Name), StringComparer.OrdinalIgnoreCase);
+                var used = bindings.Where(b => names.Contains(b.ObjectName)).OrderBy(b => b.Slot, StringComparer.OrdinalIgnoreCase).ToArray();
+                if (instances.Length != 0 || used.Length != 0)
+                {
+                    warnings.Add(new ModuleRemovalWarning
+                    {
+                        ClientAppId = clientAppId, TenantId = tenantId, ClientName = name, ModuleProductKey = module, Instances = instances, Bindings = used
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// The roles of one till. A host without agent services has no bindings in its context - then no role can use a
+        /// device of a module.
+        /// </summary>
+        private async Task<ModuleRemovalBinding[]> BindingsAsync(int tenantId, int clientAppId, CancellationToken cancellationToken)
+        {
+            await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            if (db is not IAgentServiceBindingContext bound)
+            {
+                logger.LogDebug("The context {Context} has no agent service bindings; no role of client app {ClientAppId} can use a module device.", typeof(TContext).Name, clientAppId);
+                return Array.Empty<ModuleRemovalBinding>();
+            }
+
+            return await bound.ClientAppServiceBindings.IgnoreQueryFilters().AsNoTracking()
+                .Where(b => b.TenantId == tenantId && b.ClientAppId == clientAppId)
+                .Select(b => new ModuleRemovalBinding { Slot = b.Slot, ObjectName = b.ObjectName, Enabled = b.Enabled })
+                .ToArrayAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <inheritdoc />

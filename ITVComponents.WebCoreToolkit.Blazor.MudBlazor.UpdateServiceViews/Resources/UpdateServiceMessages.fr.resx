@@ -84,4 +84,10 @@
   <data name="Upd_SaveFailed" xml:space="preserve"><value>Les modules n'ont pas pu être enregistrés - voir le journal.</value></data>
   <data name="Upd_RefreshFailed" xml:space="preserve"><value>L'état n'a pas pu être récupéré - voir le journal.</value></data>
   <data name="Upd_CheckFailed" xml:space="preserve"><value>La caisse n'a pas pu être invitée à rechercher - voir le journal.</value></data>
+  <data name="Upd_RemoveModulesTitle" xml:space="preserve"><value>Désélectionner des modules</value></data>
+  <data name="Upd_RemoveModulesInstances" xml:space="preserve"><value>Ces appareils ont été créés sur la caisse à partir des modules désélectionnés ; ils sont supprimés avec le module : {0}.</value></data>
+  <data name="Upd_RemoveModulesUnreached" xml:space="preserve"><value>La caisse n'est pas joignable ; on ne sait pas si des appareils y ont été créés à partir de {0}. Ils seraient supprimés avec le module.</value></data>
+  <data name="Upd_RemoveModulesRoles" xml:space="preserve"><value>Ces rôles utilisent un appareil qui disparaît avec le module et ne seront plus servis : {0}.</value></data>
+  <data name="Upd_RemoveModulesConfirm" xml:space="preserve"><value>Désélectionner quand même</value></data>
+  <data name="Upd_Cancel" xml:space="preserve"><value>Annuler</value></data>
 </root>

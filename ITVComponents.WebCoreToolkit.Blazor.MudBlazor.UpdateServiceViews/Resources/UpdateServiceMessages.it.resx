@@ -84,4 +84,10 @@
   <data name="Upd_SaveFailed" xml:space="preserve"><value>I moduli non sono stati salvati - vedi il log.</value></data>
   <data name="Upd_RefreshFailed" xml:space="preserve"><value>Lo stato non è stato recuperato - vedi il log.</value></data>
   <data name="Upd_CheckFailed" xml:space="preserve"><value>Non è stato possibile chiedere alla cassa di cercare - vedi il log.</value></data>
+  <data name="Upd_RemoveModulesTitle" xml:space="preserve"><value>Deselezionare moduli</value></data>
+  <data name="Upd_RemoveModulesInstances" xml:space="preserve"><value>Questi dispositivi sono stati creati sulla cassa dai moduli deselezionati; vengono rimossi con il modulo: {0}.</value></data>
+  <data name="Upd_RemoveModulesUnreached" xml:space="preserve"><value>La cassa non è raggiungibile; non si sa se vi sono stati creati dispositivi da {0}. Verrebbero rimossi con il modulo.</value></data>
+  <data name="Upd_RemoveModulesRoles" xml:space="preserve"><value>Questi ruoli usano un dispositivo che scompare con il modulo e non saranno più serviti: {0}.</value></data>
+  <data name="Upd_RemoveModulesConfirm" xml:space="preserve"><value>Deselezionare comunque</value></data>
+  <data name="Upd_Cancel" xml:space="preserve"><value>Annulla</value></data>
 </root>

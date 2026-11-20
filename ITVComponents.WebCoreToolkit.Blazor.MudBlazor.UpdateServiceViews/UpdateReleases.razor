@@ -8,6 +8,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject ILogger<UpdateReleases> Logger
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 @*
     Platform page of the update service: products, releases and the modules of the templates. Releases are
@@ -369,6 +370,14 @@
 
     private Task SaveTemplateAsync(TemplateModulesInfo template) => RunAsync(async () =>
     {
+        // Issue ModulePlugins-Instances, C.4: devices created from a module go away with it on every till of the
+        // template - ask first.
+        var check = await Admin.CheckTemplateModuleRemovalAsync(template.ClientAppTemplateId, template.Modules);
+        if (check.NeedsConfirmation && !await ConfirmTemplateRemovalAsync(template, check))
+        {
+            return;
+        }
+
         var results = await Admin.SetTemplateModulesAsync(template.ClientAppTemplateId, template.Modules);
         changedTemplates.Remove(template.ClientAppTemplateId);
         var reached = results.Count(r => r.Reached);
@@ -378,6 +387,45 @@
             results.Count == reached ? Severity.Success : Severity.Info);
         templates = await Admin.GetTemplatesAsync();
     }, "assign the modules of the template");
+
+    private async Task<bool> ConfirmTemplateRemovalAsync(TemplateModulesInfo template, ModuleRemovalCheck check)
+    {
+        const int shown = 15;
+        var text = new System.Text.StringBuilder();
+        var tills = check.Warnings.Where(w => w.Instances.Length != 0).GroupBy(w => (w.TenantId, w.ClientAppId)).ToList();
+        if (tills.Count != 0)
+        {
+            text.Append($"Deselecting {string.Join(", ", check.RemovedModules)} removes devices created from it on {tills.Count} till(s): ");
+            text.Append(string.Join("; ", tills.Take(shown).Select(t => $"{t.First().ClientName} ({string.Join(", ", t.SelectMany(w => w.Instances))})")));
+            text.Append(tills.Count > shown ? $"; and {tills.Count - shown} more. " : ". ");
+        }
+
+        var roles = check.Warnings.Where(w => w.Bindings.Length != 0).GroupBy(w => (w.TenantId, w.ClientAppId)).ToList();
+        if (roles.Count != 0)
+        {
+            text.Append($"On {roles.Count} till(s) roles use such a device and will not be served any more: ");
+            text.Append(string.Join("; ", roles.Take(shown).Select(t => $"{t.First().ClientName} ({string.Join(", ", t.SelectMany(w => w.Bindings).Select(b => $"{b.Slot} → {b.ObjectName}"))})")));
+            text.Append(roles.Count > shown ? $"; and {roles.Count - shown} more. " : ". ");
+        }
+
+        if (check.Unreached.Count != 0)
+        {
+            text.Append($"{check.Unreached.Count} till(s) could not be asked (off, or an older agent): ");
+            text.Append(string.Join(", ", check.Unreached.Take(shown)));
+            text.Append(check.Unreached.Count > shown ? $" and {check.Unreached.Count - shown} more." : ".");
+            text.Append(" Devices created there from the module would be removed as well.");
+        }
+
+        var confirmed = await DialogService.ShowMessageBoxAsync($"Deselect modules of {template.Name}", text.ToString(),
+            yesText: "Deselect anyway", cancelText: "Cancel");
+        if (confirmed != true)
+        {
+            Logger.LogInformation("Deselecting [{Modules}] from template {TemplateId} was cancelled after the warning.", string.Join(", ", check.RemovedModules), template.ClientAppTemplateId);
+            return false;
+        }
+
+        return true;
+    }
 
     private string Channel() => string.IsNullOrWhiteSpace(upload.Channel) ? "stable" : upload.Channel.Trim();
 
