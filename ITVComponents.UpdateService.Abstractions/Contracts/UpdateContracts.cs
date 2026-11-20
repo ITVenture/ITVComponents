@@ -69,6 +69,12 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets the state of the modules.</summary>
         public ModuleState[]? Modules { get; set; }
+
+        /// <summary>
+        /// Gets or sets the target (application) this is about (issue ModulePlugins-Instances, D). Every application on
+        /// the pipe receives every event; it ignores those of another target. Null from a service without targets.
+        /// </summary>
+        public string? TargetId { get; set; }
     }
 
     /// <summary>
@@ -144,6 +150,12 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets the version that will be installed.</summary>
         public string? Version { get; set; }
+
+        /// <summary>
+        /// Gets or sets the target (application) this is about (issue ModulePlugins-Instances, D). Every application on
+        /// the pipe receives every event; it ignores those of another target. Null from a service without targets.
+        /// </summary>
+        public string? TargetId { get; set; }
     }
 
     /// <summary>
@@ -171,6 +183,12 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets the new role.</summary>
         public AgentRole Role { get; set; }
+
+        /// <summary>
+        /// Gets or sets the target (application) this is about (issue ModulePlugins-Instances, D). Every application on
+        /// the pipe receives every event; it ignores those of another target. Null from a service without targets.
+        /// </summary>
+        public string? TargetId { get; set; }
     }
 
     /// <summary>
@@ -207,6 +225,12 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
 
         /// <summary>Gets or sets the current state of the updates.</summary>
         public UpdateStatus? Status { get; set; }
+
+        /// <summary>
+        /// Gets or sets the target the service assigned the application to, from its product and folder. Events of other
+        /// targets are not for it. Null from a service without targets.
+        /// </summary>
+        public string? TargetId { get; set; }
     }
 
     /// <summary>

@@ -36,8 +36,15 @@ namespace ITVComponents.UpdateService.Agents
         /// </summary>
         public bool ClaimedActive { get; init; }
 
+        /// <summary>
+        /// Gets the target the application belongs to (issue ModulePlugins-Instances, D).
+        /// </summary>
+        public string TargetId { get; init; } = UpdateServiceOptions.DefaultTargetId;
+
         /// <inheritdoc />
-        public override string ToString() => $"{UserName} (session {SessionId}, process {ProcessId}, version {Version})";
+        public override string ToString() => string.Equals(TargetId, UpdateServiceOptions.DefaultTargetId, StringComparison.OrdinalIgnoreCase)
+            ? $"{UserName} (session {SessionId}, process {ProcessId}, version {Version})"
+            : $"{UserName} ({TargetId}, session {SessionId}, process {ProcessId}, version {Version})";
     }
 
     /// <summary>
@@ -68,6 +75,22 @@ namespace ITVComponents.UpdateService.Agents
         /// Gets the registered applications.
         /// </summary>
         public IReadOnlyList<RegisteredAgent> Active => agents.Values.ToArray();
+
+        /// <summary>
+        /// Gets the target this registry keeps the applications of.
+        /// </summary>
+        public string TargetId => options.TargetId;
+
+        /// <summary>
+        /// Gets the product of the target.
+        /// </summary>
+        public string ProductId => options.ProductId;
+
+        /// <summary>
+        /// Indicates whether a process of the given path belongs to this target: it runs from the application's folder,
+        /// or the target does not ask for that. Lets the service pick the target before it registers.
+        /// </summary>
+        public bool Admits(string? processPath) => !options.RequireApplicationPath || RunsFromApplicationFolder(processPath);
 
         /// <summary>
         /// Registers the caller as an application.
@@ -120,7 +143,8 @@ namespace ITVComponents.UpdateService.Agents
                 ProcessId = int.Parse(caller.FindFirst(PipeClaimTypes.ProcessId)?.Value ?? "0", CultureInfo.InvariantCulture),
                 ProcessPath = processPath,
                 Version = version,
-                RegisteredUtc = DateTimeOffset.UtcNow
+                RegisteredUtc = DateTimeOffset.UtcNow,
+                TargetId = options.TargetId
             };
             var again = agents.ContainsKey(agent.ConnectionId);
             agents[agent.ConnectionId] = agent;
@@ -171,7 +195,10 @@ namespace ITVComponents.UpdateService.Agents
             }
         }
 
-        private bool RunsFromApplicationFolder(string? processPath)
+        /// <summary>
+        /// Indicates whether a process of the given path runs from the folder of the application.
+        /// </summary>
+        public bool RunsFromApplicationFolder(string? processPath)
         {
             var folder = Path.GetDirectoryName(options.ApplicationPath);
             if (string.IsNullOrEmpty(processPath) || string.IsNullOrEmpty(folder))

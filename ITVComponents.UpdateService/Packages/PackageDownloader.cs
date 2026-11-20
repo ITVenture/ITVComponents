@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -34,6 +35,9 @@ namespace ITVComponents.UpdateService.Packages
         private readonly HttpClient http;
         private readonly string directory;
 
+        // Several targets share the store; the same file is never written by two of them at once.
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> fileLocks = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+
         public PackageDownloader(HttpClient http, string directory)
         {
             this.http = http;
@@ -44,6 +48,20 @@ namespace ITVComponents.UpdateService.Packages
         public async Task<string> DownloadAsync(UpdatePackage package, Uri source, CancellationToken cancellationToken)
         {
             var target = Path.Combine(directory, FileNameOf(package, source));
+            var fileLock = fileLocks.GetOrAdd(target, _ => new SemaphoreSlim(1, 1));
+            await fileLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await DownloadLockedAsync(package, source, target, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                fileLock.Release();
+            }
+        }
+
+        private async Task<string> DownloadLockedAsync(UpdatePackage package, Uri source, string target, CancellationToken cancellationToken)
+        {
             if (File.Exists(target))
             {
                 if (await MatchesAsync(target, package, cancellationToken).ConfigureAwait(false))

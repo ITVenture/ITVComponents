@@ -445,7 +445,7 @@ namespace ITVComponents.UpdateService.Client
         private void OnRoleChanged(RoleChange change)
         {
             // Every instance receives every change; only the one for this process counts.
-            if (change.ProcessId != Registration?.ProcessId)
+            if (change.ProcessId != Registration?.ProcessId || !IsForThisTarget(change.TargetId))
             {
                 return;
             }
@@ -528,14 +528,46 @@ namespace ITVComponents.UpdateService.Client
             }
         }
 
+        /// <summary>
+        /// Indicates whether an event is for the target of this application. A service with several targets sends every
+        /// event to every application (issue ModulePlugins-Instances, D); a service without targets sends none.
+        /// </summary>
+        private bool IsForThisTarget(string? targetId)
+        {
+            if (targetId == null)
+            {
+                return true;
+            }
+
+            var own = Registration is { Accepted: true } ? Registration.TargetId : null;
+            if (own == null)
+            {
+                // Not registered (yet), or at a service that names no target: an event of a named target is not for us.
+                LogEnvironment.LogDebugEvent($"An event of target {targetId} arrived before the registration named this application's target; ignored.", LogSeverity.Report);
+                return false;
+            }
+
+            return string.Equals(own, targetId, StringComparison.OrdinalIgnoreCase);
+        }
+
         private void OnShutdownRequested(ShutdownRequest request)
         {
+            if (!IsForThisTarget(request.TargetId))
+            {
+                return;
+            }
+
             LogEnvironment.LogEvent($"The update service asks the application to end ({request.Reason}, version {request.Version}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : string.Empty)}).", LogSeverity.Report);
             Forward(ShutdownRequested, request);
         }
 
         private void OnStatusChanged(UpdateStatus status)
         {
+            if (!IsForThisTarget(status.TargetId))
+            {
+                return;
+            }
+
             Forward(StatusChanged, status);
         }
 

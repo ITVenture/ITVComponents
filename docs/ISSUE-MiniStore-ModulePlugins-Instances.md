@@ -383,6 +383,25 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
     `[ITVComponents.AgentServices.dll]<ITVComponents.AgentServices.PluginAgentObjectCatalog>$factory,$modulePlugins,$updates`.
     Einstellungen von Modul-Instanzen der Modi `Singleton` und `ScopeStartup` lassen sich wie die von Geräten lesen
     und ändern. `IDeviceSettingsStore` hat dafür `Remove` bekommen.
+- **Schritt 4a** (mehrere Ziele vom Typ `SessionApplication`):
+  - Konfiguration: `UpdateServiceOptions.Targets` (`UpdateTargetOptions`: `Id`, `Kind`, `ProductId`,
+    `ApplicationPath`, `ApplicationArguments`, `UpgradeCode`, `ModulesDirectory`, `RequireApplicationPath`).
+    `ResolveTargets` macht daraus je Ziel eine Kopie der Optionen. Ohne `Targets` bilden die Einzelwerte das Ziel
+    `default`. Beim Start abgelehnt werden: `WindowsService` (Schritt 4b), zwei Ziele mit demselben `UpgradeCode` und
+    zwei Ziele im selben Ordner. Die Id muss sich als Ordnername eignen und darf nur einmal vorkommen.
+  - Je Ziel (`UpdateTarget`) gibt es `AgentRegistry`, `UpdateCoordinator`, `RoleCoordinator`, `ModuleManager`, den
+    Stand unter `targets\<Id>\state.json` und `plugins.json`. Das Ziel `default` behält seinen Stand direkt in
+    `DataDirectory`, damit die Umstellung auf `Targets` nichts verliert. Damit sind auch Stand und Aufschub-Schlüssel
+    je Ziel getrennt.
+  - Gemeinsam: Feed-Adresse, `HttpClient`, Paketablage (mit Sperre je Datei), Pipe und Hub. Ein Riegel lässt immer nur
+    ein `msiexec` laufen; das zweite Ziel wartet mit beendeter Anwendung. Den Feed liest jedes Ziel selbst (eigenes
+    `ETag`).
+  - Fassade: Die Anmeldung wählt das Ziel über das Produkt und bei mehreren Zielen desselben Produkts über den Ordner.
+    Jeder spätere Aufruf geht nur an das Ziel des Aufrufers. `GetStatusAsync` ohne Anmeldung antwortet nur noch, wenn
+    es genau ein Ziel gibt.
+  - Verträge: `TargetId` an `AgentRegistration`, `UpdateStatus`, `ShutdownRequest` und `RoleChange`. Der Client
+    verwirft Ereignisse eines anderen Ziels. Ein Ereignis ohne `TargetId` (älterer Dienst) gilt weiter.
+  - Logs der Ziele tragen `[<Id>]` (ausser beim Ziel `default`).
 
 **Noch offen:**
 
@@ -391,10 +410,12 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
 - Eine eigene Aufzählung der Instanzen in den Modi `Singleton` und `ScopeStartup` für das Web (A.1): Sie kommt mit
   den Web-Masken. `GetInstance` am Lader genügt als Grundlage.
 
-- `WindowsService`-Ziel: Der Dienst muss sich an der Pipe als dieser Dienst ausweisen. Zu prüfen ist, ob der Name
-  des Prozesses und die SCM-Abfrage dafür genügen.
-- Umbau des Dienstes auf mehrere Ziele: Der Stand (`InstallStateStore`) und die Aufschub-Schlüssel
-  (`UpdateCoordinator.WorkKey`) sind heute nicht je Ziel getrennt.
+- `WindowsService`-Ziel (Schritt 4b): Der Dienst muss sich an der Pipe als dieser Dienst ausweisen. Zu prüfen ist,
+  ob der Name des Prozesses und die SCM-Abfrage dafür genügen.
+- Gemeinsames MSI für zwei Ziele (D): Heute beim Start abgelehnt. Es braucht einen Durchgang, der beide Anwendungen
+  beendet, bevor das MSI läuft.
+- Ein älterer Client an einem Dienst mit mehreren Zielen sieht die Ereignisse aller Ziele. Darum müssen die Anwendungen
+  vor der Umstellung auf `Targets` den neuen Client haben. Mit nur einem Ziel ändert sich nichts.
 
 ## Vorgeschlagene Reihenfolge
 

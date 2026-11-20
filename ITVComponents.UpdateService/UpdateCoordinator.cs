@@ -46,6 +46,8 @@ namespace ITVComponents.UpdateService
         private readonly TimeProvider clock;
         private readonly string logDirectory;
         private readonly ModuleManager? modules;
+        private readonly SemaphoreSlim? installGate;
+        private readonly string tag;
         private readonly SemaphoreSlim wake = new SemaphoreSlim(0);
         private readonly object sync = new object();
         private CancellationTokenSource? stopping;
@@ -66,9 +68,13 @@ namespace ITVComponents.UpdateService
 
         public UpdateCoordinator(UpdateServiceOptions options, IUpdateFeedClient feedClient, IPackageDownloader downloader, IPackageVerifier verifier,
             IPackageInstaller installer, IInstallResultEvaluator evaluator, InstallStateStore stateStore, AgentRegistry registry,
-            IApplicationControl application, string logDirectory, TimeProvider? clock = null, ModuleManager? modules = null)
+            IApplicationControl application, string logDirectory, TimeProvider? clock = null, ModuleManager? modules = null,
+            SemaphoreSlim? installGate = null)
         {
             this.modules = modules;
+            this.installGate = installGate;
+            tag = string.Equals(options.TargetId, UpdateServiceOptions.DefaultTargetId, StringComparison.OrdinalIgnoreCase) ? string.Empty : $"[{options.TargetId}] ";
+            status.TargetId = options.TargetId;
             this.options = options;
             this.feedClient = feedClient;
             this.downloader = downloader;
@@ -106,7 +112,7 @@ namespace ITVComponents.UpdateService
         {
             if (modules == null)
             {
-                LogEnvironment.LogEvent("Modules were assigned, but this update service runs without modules; ignored.", LogSeverity.Warning);
+                LogEnvironment.LogEvent($"{tag}Modules were assigned, but this update service runs without modules; ignored.", LogSeverity.Warning);
                 return;
             }
 
@@ -215,7 +221,7 @@ namespace ITVComponents.UpdateService
 
             if (current == null && !moduleWork)
             {
-                LogEnvironment.LogDebugEvent($"{agent} asked to defer, but there is nothing to install.", LogSeverity.Report);
+                LogEnvironment.LogDebugEvent($"{tag}{agent} asked to defer, but there is nothing to install.", LogSeverity.Report);
                 return true;
             }
 
@@ -223,7 +229,7 @@ namespace ITVComponents.UpdateService
             var workKey = WorkKey(current?.Package);
             if (current != null && IsUrgent(current.Package, application.InstalledVersion(), now))
             {
-                LogEnvironment.LogEvent($"{agent} asked to defer the urgent update to {current.Package.Version} ({reason}); refused.", LogSeverity.Warning);
+                LogEnvironment.LogEvent($"{tag}{agent} asked to defer the urgent update to {current.Package.Version} ({reason}); refused.", LogSeverity.Warning);
                 return false;
             }
 
@@ -236,7 +242,7 @@ namespace ITVComponents.UpdateService
 
             if (until <= now)
             {
-                LogEnvironment.LogEvent($"{agent} asked to defer the update ({workKey}, {reason}); the longest deferral is used up.", LogSeverity.Warning);
+                LogEnvironment.LogEvent($"{tag}{agent} asked to defer the update ({workKey}, {reason}); the longest deferral is used up.", LogSeverity.Warning);
                 return false;
             }
 
@@ -250,7 +256,7 @@ namespace ITVComponents.UpdateService
                 shutdownDeadline = null;
             }
 
-            LogEnvironment.LogEvent($"{agent} defers the update ({workKey}) until {until:u}: {reason}", LogSeverity.Report);
+            LogEnvironment.LogEvent($"{tag}{agent} defers the update ({workKey}) until {until:u}: {reason}", LogSeverity.Report);
             SetStatus(s =>
             {
                 s.Phase = UpdatePhase.Deferred;
@@ -272,7 +278,7 @@ namespace ITVComponents.UpdateService
             }
             catch (AggregateException ex)
             {
-                LogEnvironment.LogDebugEvent($"The update worker ended with: {ex.InnerException?.Message}", LogSeverity.Report);
+                LogEnvironment.LogDebugEvent($"{tag}The update worker ended with: {ex.InnerException?.Message}", LogSeverity.Report);
             }
 
             stopping?.Dispose();
@@ -294,7 +300,7 @@ namespace ITVComponents.UpdateService
             if (state.RestartRequired && state.RestartRequiredSince.HasValue
                                       && state.RestartRequiredSince.Value < clock.GetUtcNow() - TimeSpan.FromMilliseconds(Environment.TickCount64))
             {
-                LogEnvironment.LogEvent("Windows has restarted since the last installation; it is complete.", LogSeverity.Report);
+                LogEnvironment.LogEvent($"{tag}Windows has restarted since the last installation; it is complete.", LogSeverity.Report);
                 state.RestartRequired = false;
                 state.RestartRequiredSince = null;
                 stateStore.Save(state);
@@ -334,7 +340,7 @@ namespace ITVComponents.UpdateService
             var installed = application.InstalledVersion();
             if (state.FailedVersion != null && VersionText.TryParse(state.FailedVersion, out var failed) && VersionText.Compare(installed, failed) >= 0)
             {
-                LogEnvironment.LogEvent($"Version {state.FailedVersion}, which failed before, is installed by now.", LogSeverity.Report);
+                LogEnvironment.LogEvent($"{tag}Version {state.FailedVersion}, which failed before, is installed by now.", LogSeverity.Report);
                 state.FailedVersion = null;
                 stateStore.Save(state);
             }
@@ -356,7 +362,7 @@ namespace ITVComponents.UpdateService
                 if (package != null && plan.Missing.Count > 0)
                 {
                     blockedBy = $"waits for {string.Join(", ", plan.Missing)} for {package.Version}";
-                    LogEnvironment.LogEvent($"Version {package.Version} {blockedBy}; it is not installed before.", LogSeverity.Warning);
+                    LogEnvironment.LogEvent($"{tag}Version {package.Version} {blockedBy}; it is not installed before.", LogSeverity.Warning);
                     package = null;
                     plan = modules.Plan(currentFeed, installed, state);
                 }
@@ -433,7 +439,7 @@ namespace ITVComponents.UpdateService
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent($"The update course failed and is tried again: {ex.OutlineException()}", LogSeverity.Error);
+                    LogEnvironment.LogEvent($"{tag}The update course failed and is tried again: {ex.OutlineException()}", LogSeverity.Error);
                     SetStatus(s =>
                     {
                         s.Phase = UpdatePhase.Failed;
@@ -452,7 +458,7 @@ namespace ITVComponents.UpdateService
                 }
             }
 
-            LogEnvironment.LogDebugEvent("The update worker stopped.", LogSeverity.Report);
+            LogEnvironment.LogDebugEvent($"{tag}The update worker stopped.", LogSeverity.Report);
         }
 
         private async Task CheckFeedAsync(DateTimeOffset now, CancellationToken cancellationToken)
@@ -487,7 +493,7 @@ namespace ITVComponents.UpdateService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                LogEnvironment.LogEvent($"The feed could not be read: {ex.OutlineException()}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"{tag}The feed could not be read: {ex.OutlineException()}", LogSeverity.Error);
                 lock (sync)
                 {
                     nextCheck = now + TimeSpan.FromMinutes(Math.Max(1, options.RetryMinutes));
@@ -522,7 +528,7 @@ namespace ITVComponents.UpdateService
             {
                 if (comparison < 0)
                 {
-                    LogEnvironment.LogDebugEvent($"The feed offers {release.Package.Version}, older than the installed {installed}; no downgrade.", LogSeverity.Report);
+                    LogEnvironment.LogDebugEvent($"{tag}The feed offers {release.Package.Version}, older than the installed {installed}; no downgrade.", LogSeverity.Report);
                 }
 
                 return null;
@@ -530,7 +536,7 @@ namespace ITVComponents.UpdateService
 
             if (string.Equals(failedVersion, release.Package.Version, StringComparison.OrdinalIgnoreCase))
             {
-                LogEnvironment.LogDebugEvent($"Version {failedVersion} failed before; it is tried again with the next version or on request.", LogSeverity.Report);
+                LogEnvironment.LogDebugEvent($"{tag}Version {failedVersion} failed before; it is tried again with the next version or on request.", LogSeverity.Report);
                 return null;
             }
 
@@ -572,7 +578,7 @@ namespace ITVComponents.UpdateService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                LogEnvironment.LogEvent($"Version {package.Version} could not be downloaded: {ex.OutlineException()}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"{tag}Version {package.Version} could not be downloaded: {ex.OutlineException()}", LogSeverity.Error);
                 SetStatus(s =>
                 {
                     s.Phase = UpdatePhase.Failed;
@@ -585,7 +591,7 @@ namespace ITVComponents.UpdateService
             var refusal = verifier.Verify(path, package);
             if (refusal != null)
             {
-                LogEnvironment.LogEvent($"Version {package.Version} is refused: {refusal}", LogSeverity.Error);
+                LogEnvironment.LogEvent($"{tag}Version {package.Version} is refused: {refusal}", LogSeverity.Error);
                 var state = stateStore.Load();
                 state.FailedVersion = package.Version;
                 state.LastResult = $"{package.Version}: {refusal}";
@@ -599,7 +605,7 @@ namespace ITVComponents.UpdateService
                 return false;
             }
 
-            LogEnvironment.LogEvent($"Version {package.Version} is checked and ready to install.", LogSeverity.Report);
+            LogEnvironment.LogEvent($"{tag}Version {package.Version} is checked and ready to install.", LogSeverity.Report);
             lock (sync)
             {
                 candidate = new Candidate(package, path);
@@ -653,7 +659,8 @@ namespace ITVComponents.UpdateService
                     {
                         Reason = urgent ? ShutdownReason.UrgentUpdate : ShutdownReason.Update,
                         Deadline = shutdownDeadline,
-                        Version = package?.Version
+                        Version = package?.Version,
+                        TargetId = options.TargetId
                     };
                 }
             }
@@ -665,7 +672,7 @@ namespace ITVComponents.UpdateService
             });
             if (request != null)
             {
-                LogEnvironment.LogEvent($"{workKey} is ready; {agents.Count} application(s) asked to end ({request.Reason}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : ", when idle")}).", LogSeverity.Report);
+                LogEnvironment.LogEvent($"{tag}{workKey} is ready; {agents.Count} application(s) asked to end ({request.Reason}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : ", when idle")}).", LogSeverity.Report);
                 Raise(ShutdownRequested, request);
             }
 
@@ -679,7 +686,7 @@ namespace ITVComponents.UpdateService
             {
                 foreach (var agent in agents)
                 {
-                    LogEnvironment.LogEvent($"{agent} did not end by {deadline:u} for the urgent update to {package?.Version}.", LogSeverity.Warning);
+                    LogEnvironment.LogEvent($"{tag}{agent} did not end by {deadline:u} for the urgent update to {package?.Version}.", LogSeverity.Warning);
                     application.Terminate(agent);
                 }
             }
@@ -740,7 +747,7 @@ namespace ITVComponents.UpdateService
                 state.DeferralVersion = null;
                 state.DeferredUntil = null;
                 stateStore.Save(state);
-                LogEnvironment.LogEvent($"Modules updated ({staged.Count} switched, {plan.Removals.Count} removed).", LogSeverity.Report);
+                LogEnvironment.LogEvent($"{tag}Modules updated ({staged.Count} switched, {plan.Removals.Count} removed).", LogSeverity.Report);
                 SetStatus(s =>
                 {
                     s.Phase = UpdatePhase.UpToDate;
@@ -771,37 +778,52 @@ namespace ITVComponents.UpdateService
                 s.Phase = UpdatePhase.Installing;
                 s.Error = null;
             });
-            LogEnvironment.LogEvent($"Installing {current.Package.Id} {current.Package.Version} (log {logPath}).", LogSeverity.Report);
+            LogEnvironment.LogEvent($"{tag}Installing {current.Package.Id} {current.Package.Version} (log {logPath}).", LogSeverity.Report);
 
-            Process process;
+            // Only one msiexec at a time on the machine: the targets of the service take turns (issue
+            // ModulePlugins-Instances, D). The application of this target is down already; it waits for the other one.
+            if (installGate != null && !await installGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            {
+                LogEnvironment.LogEvent($"{tag}Another target of the update service is installing; {current.Package.Id} {current.Package.Version} waits for it.", LogSeverity.Report);
+                await installGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             try
             {
-                process = installer.Start(current.Path, current.Package, logPath);
-            }
-            catch (Exception ex)
-            {
-                LogEnvironment.LogEvent($"The installer for {current.Package.Version} could not be started: {ex.OutlineException()}", LogSeverity.Error);
-                await CompleteAsync(stateStore.Load(), new InstallResult(InstallOutcome.Failed, null, $"installer not started: {ex.Message}")).ConfigureAwait(false);
-                return;
-            }
+                Process process;
+                try
+                {
+                    process = installer.Start(current.Path, current.Package, logPath);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"{tag}The installer for {current.Package.Version} could not be started: {ex.OutlineException()}", LogSeverity.Error);
+                    await CompleteAsync(stateStore.Load(), new InstallResult(InstallOutcome.Failed, null, $"installer not started: {ex.Message}")).ConfigureAwait(false);
+                    return;
+                }
 
-            using (process)
-            {
-                pending.InstallerProcessId = process.Id;
-                state.Pending = pending;
-                stateStore.Save(state);
+                using (process)
+                {
+                    pending.InstallerProcessId = process.Id;
+                    state.Pending = pending;
+                    stateStore.Save(state);
 
-                // If the service survives the installation (the MSI does not contain it), it sees the end itself.
-                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-                var result = evaluator.FromExitCode(process.ExitCode);
-                await CompleteAsync(stateStore.Load(), result).ConfigureAwait(false);
+                    // If the service survives the installation (the MSI does not contain it), it sees the end itself.
+                    await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                    var result = evaluator.FromExitCode(process.ExitCode);
+                    await CompleteAsync(stateStore.Load(), result).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                installGate?.Release();
             }
         }
 
         private async Task ResumeAsync(InstallState state, CancellationToken cancellationToken)
         {
             var pending = state.Pending!;
-            LogEnvironment.LogEvent($"The installation of {pending.PackageId} {pending.Version} started at {pending.StartedUtc:u} is evaluated.", LogSeverity.Report);
+            LogEnvironment.LogEvent($"{tag}The installation of {pending.PackageId} {pending.Version} started at {pending.StartedUtc:u} is evaluated.", LogSeverity.Report);
             SetStatus(s =>
             {
                 s.Phase = UpdatePhase.Installing;
@@ -826,7 +848,7 @@ namespace ITVComponents.UpdateService
                 }
                 else
                 {
-                    LogEnvironment.LogEvent($"The application was not updated; the {staged.Count} prepared module(s) are thrown away.", LogSeverity.Warning);
+                    LogEnvironment.LogEvent($"{tag}The application was not updated; the {staged.Count} prepared module(s) are thrown away.", LogSeverity.Warning);
                     modules.Discard(staged);
                 }
             }
@@ -835,7 +857,7 @@ namespace ITVComponents.UpdateService
             {
                 case InstallOutcome.Succeeded:
                 case InstallOutcome.SucceededRestartRequired:
-                    LogEnvironment.LogEvent($"{pending?.PackageId} {pending?.Version} installed ({result.Description}, exit code {result.ExitCode}).", LogSeverity.Report);
+                    LogEnvironment.LogEvent($"{tag}{pending?.PackageId} {pending?.Version} installed ({result.Description}, exit code {result.ExitCode}).", LogSeverity.Report);
                     state.RestartRequired = result.Outcome == InstallOutcome.SucceededRestartRequired;
                     state.RestartRequiredSince = state.RestartRequired ? clock.GetUtcNow() : null;
                     state.DeferralVersion = null;
@@ -856,7 +878,7 @@ namespace ITVComponents.UpdateService
                     });
                     break;
                 case InstallOutcome.Busy:
-                    LogEnvironment.LogEvent($"{pending?.Version} could not be installed now ({result.Description}); tried again in {options.RetryMinutes} minutes.", LogSeverity.Warning);
+                    LogEnvironment.LogEvent($"{tag}{pending?.Version} could not be installed now ({result.Description}); tried again in {options.RetryMinutes} minutes.", LogSeverity.Warning);
                     retryAfter = clock.GetUtcNow() + TimeSpan.FromMinutes(Math.Max(1, options.RetryMinutes));
                     SetStatus(s =>
                     {
@@ -865,7 +887,7 @@ namespace ITVComponents.UpdateService
                     });
                     break;
                 default:
-                    LogEnvironment.LogEvent($"{pending?.PackageId} {pending?.Version} was not installed: {result.Description} (exit code {result.ExitCode?.ToString() ?? "unknown"}). It is tried again with the next version or on request.", LogSeverity.Error);
+                    LogEnvironment.LogEvent($"{tag}{pending?.PackageId} {pending?.Version} was not installed: {result.Description} (exit code {result.ExitCode?.ToString() ?? "unknown"}). It is tried again with the next version or on request.", LogSeverity.Error);
                     state.FailedVersion = pending?.Version;
                     lock (sync)
                     {
@@ -911,7 +933,7 @@ namespace ITVComponents.UpdateService
             {
                 if (registry.Active.Any(a => a.SessionId == session))
                 {
-                    LogEnvironment.LogDebugEvent($"The application already runs again in session {session}.", LogSeverity.Report);
+                    LogEnvironment.LogDebugEvent($"{tag}The application already runs again in session {session}.", LogSeverity.Report);
                     continue;
                 }
 
@@ -921,7 +943,7 @@ namespace ITVComponents.UpdateService
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent($"The application could not be started again in session {session}; it starts with the next logon: {ex.OutlineException()}", LogSeverity.Error);
+                    LogEnvironment.LogEvent($"{tag}The application could not be started again in session {session}; it starts with the next logon: {ex.OutlineException()}", LogSeverity.Error);
                 }
             }
         }
@@ -986,7 +1008,7 @@ namespace ITVComponents.UpdateService
             }
             catch (ObjectDisposedException ex)
             {
-                LogEnvironment.LogDebugEvent($"The update worker is stopped; nothing to wake ({ex.Message}).", LogSeverity.Report);
+                LogEnvironment.LogDebugEvent($"{tag}The update worker is stopped; nothing to wake ({ex.Message}).", LogSeverity.Report);
             }
         }
 
@@ -1003,7 +1025,7 @@ namespace ITVComponents.UpdateService
             Raise(StatusChanged, snapshot);
         }
 
-        private static void Raise<T>(Action<T>? handler, T value)
+        private void Raise<T>(Action<T>? handler, T value)
         {
             if (handler == null)
             {
@@ -1018,7 +1040,7 @@ namespace ITVComponents.UpdateService
                 }
                 catch (Exception ex)
                 {
-                    LogEnvironment.LogEvent($"A listener of the update service failed: {ex.OutlineException()}", LogSeverity.Error);
+                    LogEnvironment.LogEvent($"{tag}A listener of the update service failed: {ex.OutlineException()}", LogSeverity.Error);
                 }
             }
         }
@@ -1034,7 +1056,8 @@ namespace ITVComponents.UpdateService
             LastCheck = s.LastCheck,
             Error = s.Error,
             BlockedBy = s.BlockedBy,
-            Modules = s.Modules
+            Modules = s.Modules,
+            TargetId = s.TargetId
         };
 
         private static TimeSpan Clamp(TimeSpan delay)
@@ -1047,7 +1070,7 @@ namespace ITVComponents.UpdateService
             return delay > TimeSpan.FromHours(6) ? TimeSpan.FromHours(6) : delay;
         }
 
-        private static void TryDelete(string path)
+        private void TryDelete(string path)
         {
             try
             {
@@ -1055,7 +1078,7 @@ namespace ITVComponents.UpdateService
             }
             catch (Exception ex)
             {
-                LogEnvironment.LogEvent($"The refused package {path} could not be deleted: {ex.OutlineException()}", LogSeverity.Warning);
+                LogEnvironment.LogEvent($"{tag}The refused package {path} could not be deleted: {ex.OutlineException()}", LogSeverity.Warning);
             }
         }
 

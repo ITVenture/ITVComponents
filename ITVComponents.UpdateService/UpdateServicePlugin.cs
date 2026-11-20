@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Runtime.Versioning;
 using ITVComponents.Helpers;
@@ -39,20 +40,20 @@ namespace ITVComponents.UpdateService
     public sealed class UpdateServicePlugin : IPlugin, IDeferredInit
     {
         /// <summary>
-        /// The id of the only target so far; its plugin instances lie in <c>&lt;DataDirectory&gt;\targets\default\plugins.json</c>.
+        /// The id of the target formed by the single values of <see cref="UpdateServiceOptions"/>; its plugin instances lie in
+        /// <c>&lt;DataDirectory&gt;\targets\default\plugins.json</c>, its state directly in <c>&lt;DataDirectory&gt;</c>.
         /// </summary>
-        public const string DefaultTargetId = "default";
+        public const string DefaultTargetId = UpdateServiceOptions.DefaultTargetId;
 
         private readonly IServiceHubProvider hubProvider;
         private readonly NamedPipeHubEndPoint endPoint;
         private readonly string settingsSection;
         private readonly IServiceSessionEvents? sessionEvents;
         private HttpClient? http;
-        private RoleCoordinator? roles;
         private System.Threading.Timer? roleTimer;
-        private UpdateCoordinator? coordinator;
         private NamedPipeServer? server;
-        private AgentRegistry? registry;
+        private List<UpdateTarget> targets = new List<UpdateTarget>();
+        private System.Threading.SemaphoreSlim? installGate;
 
         public UpdateServicePlugin(IServiceHubProvider hubProvider, NamedPipeHubEndPoint endPoint, string settingsSection)
             : this(hubProvider, endPoint, settingsSection, null)
@@ -88,10 +89,19 @@ namespace ITVComponents.UpdateService
             }
 
             var options = NativeSettings.GetSection<UpdateServiceOptions>(settingsSection);
-            if (string.IsNullOrWhiteSpace(options.ProductId) || string.IsNullOrWhiteSpace(options.FeedUrl)
-                                                            || string.IsNullOrWhiteSpace(options.DataDirectory) || string.IsNullOrWhiteSpace(options.ApplicationPath))
+            if (string.IsNullOrWhiteSpace(options.FeedUrl) || string.IsNullOrWhiteSpace(options.DataDirectory))
             {
-                throw new InvalidOperationException($"The update service needs ProductId, FeedUrl, DataDirectory and ApplicationPath in {settingsSection}.");
+                throw new InvalidOperationException($"The update service needs FeedUrl and DataDirectory in {settingsSection}.");
+            }
+
+            IReadOnlyList<UpdateServiceOptions> resolved;
+            try
+            {
+                resolved = options.ResolveTargets();
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new InvalidOperationException($"{settingsSection}: {ex.Message}", ex);
             }
 
             UpdateContractTypes.RegisterAll((t, alias) => JsonHelper.RegisterManualType(t, alias));
@@ -99,25 +109,11 @@ namespace ITVComponents.UpdateService
             var packages = Directory.CreateDirectory(Path.Combine(options.DataDirectory, "packages")).FullName;
             var logs = Directory.CreateDirectory(Path.Combine(options.DataDirectory, "logs")).FullName;
 
+            // Shared by every target: the connection, the package store and the right to run msiexec.
             http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            registry = new AgentRegistry(options);
             var downloader = new PackageDownloader(http, packages);
-            var stateStore = new InstallStateStore(options.DataDirectory);
-            var applicationDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ApplicationPath))!;
-            var moduleFiles = new ModuleFiles(options.ModulesDirectory ?? Path.Combine(applicationDirectory, "modules"), applicationDirectory);
-
-            // Below DataDirectory, so it inherits its ACL: the application reads it, only the service writes it. One
-            // target for now; with several applications per service each gets its own folder (issue
-            // ModulePlugins-Instances, D).
-            var pluginInstances = new ModulePluginRegistry(Path.Combine(options.DataDirectory, "targets", DefaultTargetId, ModulePluginInstanceFile.FileName), moduleFiles);
-            var moduleManager = new ModuleManager(options, downloader, moduleFiles, stateStore, null, pluginInstances);
-            moduleManager.ReconcilePlugins();
-            coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http, options), downloader,
-                new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), stateStore,
-                registry, new ApplicationControl(options), logs, null, moduleManager);
-            var application = new ApplicationControl(options);
-            var updates = coordinator;
-            roles = new RoleCoordinator(registry, new WindowsSessions(), application, () => updates.HoldsApplication);
+            installGate = new System.Threading.SemaphoreSlim(1, 1);
+            targets = resolved.Select(t => CreateTarget(t, downloader, logs)).ToList();
             if (sessionEvents is { Active: true })
             {
                 sessionEvents.SessionChanged += SessionChanged;
@@ -128,13 +124,41 @@ namespace ITVComponents.UpdateService
             }
 
             roleTimer = new System.Threading.Timer(_ => TickRoles(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-            var facade = new UpdateServiceFacade(coordinator, registry, roles, moduleManager);
+            var facade = new UpdateServiceFacade(targets);
             endPoint.ClientDisconnected += ClientDisconnected;
             server = new NamedPipeServer(hubProvider, new Dictionary<string, object> { { UpdateContractTypes.FacadeObjectName, facade } }, options.HubServiceName);
             server.Initialize();
-            coordinator.Start();
+            foreach (var target in targets)
+            {
+                target.Coordinator.Start();
+            }
+
             Initialized = true;
-            LogEnvironment.LogEvent($"The update service for {options.ProductId} runs (feed {options.FeedUrl}, channel {options.Channel}).", LogSeverity.Report);
+            LogEnvironment.LogEvent($"The update service runs for {string.Join(", ", targets.Select(t => t.ToString()))} (feed {options.FeedUrl}, channel {options.Channel}).", LogSeverity.Report);
+        }
+
+        /// <summary>
+        /// Builds everything that belongs to one target alone.
+        /// </summary>
+        private UpdateTarget CreateTarget(UpdateServiceOptions options, PackageDownloader downloader, string logs)
+        {
+            // The target "default" keeps its state where the service kept it before there were targets, so that a switch
+            // to a list of targets loses nothing. Every folder lies below DataDirectory and inherits its ACL: the
+            // application reads plugins.json, only the service writes.
+            var targetDirectory = Directory.CreateDirectory(Path.Combine(options.DataDirectory, "targets", options.TargetId)).FullName;
+            var stateDirectory = string.Equals(options.TargetId, DefaultTargetId, StringComparison.OrdinalIgnoreCase) ? options.DataDirectory : targetDirectory;
+            var registry = new AgentRegistry(options);
+            var stateStore = new InstallStateStore(stateDirectory);
+            var applicationDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ApplicationPath))!;
+            var moduleFiles = new ModuleFiles(options.ModulesDirectory ?? Path.Combine(applicationDirectory, "modules"), applicationDirectory);
+            var pluginInstances = new ModulePluginRegistry(Path.Combine(targetDirectory, ModulePluginInstanceFile.FileName), moduleFiles);
+            var moduleManager = new ModuleManager(options, downloader, moduleFiles, stateStore, null, pluginInstances);
+            moduleManager.ReconcilePlugins();
+            var coordinator = new UpdateCoordinator(options, new UpdateFeedClient(http!, options), downloader,
+                new MsiPackageVerifier(options), new MsiInstaller(), new MsiInstallResultEvaluator(), stateStore,
+                registry, new ApplicationControl(options), logs, null, moduleManager, installGate);
+            var roles = new RoleCoordinator(registry, new WindowsSessions(), new ApplicationControl(options), () => coordinator.HoldsApplication);
+            return new UpdateTarget(options, coordinator, registry, roles, moduleManager);
         }
 
         /// <inheritdoc />
@@ -147,32 +171,53 @@ namespace ITVComponents.UpdateService
             }
 
             endPoint.ClientDisconnected -= ClientDisconnected;
-            coordinator?.Dispose();
+            foreach (var target in targets)
+            {
+                target.Coordinator.Dispose();
+            }
+
             server?.Dispose();
             http?.Dispose();
+            installGate?.Dispose();
             Disposed?.Invoke(this, EventArgs.Empty);
         }
 
         private void SessionChanged(object? sender, ServiceSessionChangedEventArgs e)
         {
-            roles?.SessionChanged(e.Reason, e.SessionId);
+            foreach (var target in targets)
+            {
+                try
+                {
+                    target.Roles.SessionChanged(e.Reason, e.SessionId);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"The session change ({e.Reason}, session {e.SessionId}) could not be handled for {target}: {ex.OutlineException()}", LogSeverity.Error);
+                }
+            }
         }
 
         private void TickRoles()
         {
-            try
+            foreach (var target in targets)
             {
-                roles?.Tick();
-            }
-            catch (Exception ex)
-            {
-                LogEnvironment.LogEvent($"The handover between sessions failed a step: {ex.OutlineException()}", LogSeverity.Error);
+                try
+                {
+                    target.Roles.Tick();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"The handover between sessions failed a step for {target}: {ex.OutlineException()}", LogSeverity.Error);
+                }
             }
         }
 
         private void ClientDisconnected(object? sender, PipeClientEventArgs e)
         {
-            registry?.Remove(e.Client.ConnectionId);
+            foreach (var target in targets)
+            {
+                target.Registry.Remove(e.Client.ConnectionId);
+            }
         }
     }
 }
