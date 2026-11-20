@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using ITVComponents.Logging;
 using ITVComponents.Settings.Native;
 
 namespace ITVComponents.AgentServices
@@ -19,6 +20,10 @@ namespace ITVComponents.AgentServices
         /// <param name="objectName">der Name des Geräts</param>
         /// <param name="settings">die Einstellungen</param>
         void Write(string objectName, object settings);
+
+        /// <summary>Entfernt die Einstellungen eines Geräts; gibt es keine, geschieht nichts.</summary>
+        /// <param name="objectName">der Name des Geräts</param>
+        void Remove(string objectName);
     }
 
     /// <summary>
@@ -97,6 +102,34 @@ namespace ITVComponents.AgentServices
                 }
 
                 devices.SetSubSection(objectName, JsonNode.Parse(DeviceSettingsReflection.Write(settings)));
+                root.Save();
+                NativeSettings.Reload();
+            }
+        }
+
+        /// <inheritdoc />
+        /// <remarks>Entfernt wird nur aus der Benutzerdatei; was in einer anderen Quelle steht, bleibt.</remarks>
+        public void Remove(string objectName)
+        {
+            var path = PathOf(objectName);
+            if (!NativeSettings.SectionExists(path))
+            {
+                LogEnvironment.LogDebugEvent($"Device '{objectName}' has no stored settings to remove.", LogSeverity.Report);
+                return;
+            }
+
+            var file = userSettingsFile ?? NativeSettings.UserSettingsFile
+                ?? throw new InvalidOperationException("No user settings file is registered; call NativeSettings.AddUserSettings at the start of the agent.");
+            lock (WriteLock)
+            {
+                var root = JsonUserSettings.LoadFrom(file);
+                var devices = root;
+                foreach (var part in SectionPath.Split(':'))
+                {
+                    devices = devices.GetSubSection(part);
+                }
+
+                devices.SetSubSection(objectName, null);
                 root.Save();
                 NativeSettings.Reload();
             }

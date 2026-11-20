@@ -7,6 +7,7 @@ using ITVComponents.Helpers;
 using ITVComponents.InterProcessCommunication.NamedPipe.Client;
 using ITVComponents.Json;
 using ITVComponents.Logging;
+using ITVComponents.Plugins.Modules;
 using ITVComponents.UpdateService.Abstractions.Contracts;
 
 namespace ITVComponents.UpdateService.Client
@@ -55,7 +56,7 @@ namespace ITVComponents.UpdateService.Client
     /// </para>
     /// </remarks>
     [SupportedOSPlatform("windows")]
-    public sealed class UpdateServiceClient : IDisposable
+    public sealed class UpdateServiceClient : IDisposable, IModulePluginInstanceService
     {
         private readonly UpdateServiceClientOptions options;
         private readonly object sync = new object();
@@ -237,6 +238,24 @@ namespace ITVComponents.UpdateService.Client
         }
 
         /// <summary>
+        /// Asks the service to create an instance of a template in <c>plugins.json</c> (issue ModulePlugins-Instances, C.2).
+        /// </summary>
+        /// <returns>whether it was created; without service it was not</returns>
+        public Task<ModulePluginInstanceOutcome> CreateInstanceAsync(string moduleId, string typeName, string name)
+        {
+            return ChangeInstance($"create the plugin instance {name}", f => f.CreatePluginInstanceAsync(moduleId, typeName, name));
+        }
+
+        /// <summary>
+        /// Asks the service to remove an instance of a template from <c>plugins.json</c> (issue ModulePlugins-Instances, C.3).
+        /// </summary>
+        /// <returns>whether it was removed; without service it was not</returns>
+        public Task<ModulePluginInstanceOutcome> RemoveInstanceAsync(string name)
+        {
+            return ChangeInstance($"remove the plugin instance {name}", f => f.RemovePluginInstanceAsync(name));
+        }
+
+        /// <summary>
         /// Confirms that this instance has released the hub connection and the devices after being asked to.
         /// </summary>
         public async Task ReportReleasedAsync()
@@ -303,6 +322,25 @@ namespace ITVComponents.UpdateService.Client
             }
 
             return delivered;
+        }
+
+        private async Task<ModulePluginInstanceOutcome> ChangeInstance(string what, Func<IUpdateServiceFacade, Task<PluginInstanceResult>> change)
+        {
+            var current = Facade();
+            if (current == null)
+            {
+                LogEnvironment.LogEvent($"Could not {what}: the update service is not reachable.", LogSeverity.Warning);
+                return ModulePluginInstanceOutcome.Refused("the update service is not reachable");
+            }
+
+            var result = await Call(() => change(current)).ConfigureAwait(false);
+            if (result == null)
+            {
+                // Call logged why and reconnects.
+                return ModulePluginInstanceOutcome.Refused("the update service did not answer");
+            }
+
+            return result.Success ? ModulePluginInstanceOutcome.Done() : ModulePluginInstanceOutcome.Refused(result.Reason ?? "refused without a reason");
         }
 
         private IUpdateServiceFacade? Facade()

@@ -128,7 +128,7 @@ namespace ITVComponents.UpdateService
             }
 
             roleTimer = new System.Threading.Timer(_ => TickRoles(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-            var facade = new UpdateServiceFacade(coordinator, registry, roles);
+            var facade = new UpdateServiceFacade(coordinator, registry, roles, moduleManager);
             endPoint.ClientDisconnected += ClientDisconnected;
             server = new NamedPipeServer(hubProvider, new Dictionary<string, object> { { UpdateContractTypes.FacadeObjectName, facade } }, options.HubServiceName);
             server.Initialize();

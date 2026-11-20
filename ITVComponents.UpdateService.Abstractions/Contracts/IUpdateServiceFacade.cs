@@ -62,6 +62,24 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
         Task ReportModulesLoadedAsync(ModuleLoadReport[] reports);
 
         /// <summary>
+        /// Creates an instance of a template of an assigned and installed module in <c>plugins.json</c>. The load type is
+        /// the one of the template's mark; the application keeps the instance's settings itself.
+        /// </summary>
+        /// <param name="moduleId">the module</param>
+        /// <param name="typeName">the type with the mark <c>Template</c></param>
+        /// <param name="name">the name of the new instance; it must be valid and free</param>
+        /// <returns>whether the instance was created, and if not, why</returns>
+        Task<PluginInstanceResult> CreatePluginInstanceAsync(string moduleId, string typeName, string name);
+
+        /// <summary>
+        /// Removes an instance of a template from <c>plugins.json</c>. Infrastructure instances follow their module and can
+        /// not be removed.
+        /// </summary>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>whether the instance was removed, and if not, why</returns>
+        Task<PluginInstanceResult> RemovePluginInstanceAsync(string name);
+
+        /// <summary>
         /// Confirms that the application has released what only the active instance may hold (hub connection, devices),
         /// after the service asked it to (<see cref="RoleChanged"/> to <see cref="AgentRole.Waiting"/>). The service
         /// hands over to the next instance only then - or when the release takes too long.

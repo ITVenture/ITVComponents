@@ -161,5 +161,7 @@ namespace ITVComponents.AgentServices.Test
         public object? Read(string objectName, Type settingsType) => Values.TryGetValue(objectName, out var v) ? v : null;
 
         public void Write(string objectName, object settings) => Values[objectName] = settings;
+
+        public void Remove(string objectName) => Values.Remove(objectName);
     }
 }

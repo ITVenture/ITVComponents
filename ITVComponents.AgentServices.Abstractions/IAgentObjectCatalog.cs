@@ -63,6 +63,72 @@ namespace ITVComponents.AgentServices.Abstractions
         /// <param name="settingsJson">die Werte als JSON-Objekt</param>
         /// <returns>das Ergebnis; bei Fehlern je Feld eine Meldung, nichts wurde abgelegt</returns>
         Task<ApplySettingsResult> ApplySettingsAsync(string objectName, string settingsJson);
+
+        /// <summary>
+        /// Die Vorlagen der installierten Module: Typen, von denen sich unter eigenem Namen Geräte (oder andere
+        /// Plugins) anlegen lassen.
+        /// </summary>
+        /// <param name="contractTypeName">der volle Name des Vertrags; leer = alle Vorlagen</param>
+        /// <returns>die Vorlagen; leer, wenn der Agent keine Modul-Plugins kennt oder keine passt</returns>
+        Task<AgentTemplateInfo[]> GetTemplatesAsync(string contractTypeName);
+
+        /// <summary>
+        /// Legt von einer Vorlage ein Gerät an: prüft die Einstellungen, legt sie ab und lässt die Instanz vom
+        /// Update-Dienst eintragen.
+        /// </summary>
+        /// <param name="templateKey">die Vorlage (<see cref="AgentTemplateInfo.Key"/>)</param>
+        /// <param name="name">der Name des neuen Geräts</param>
+        /// <param name="settingsJson">die Einstellungen als JSON-Objekt; leer bei einer Vorlage ohne Einstellungen</param>
+        /// <returns>das Ergebnis; bei einem Fehler wurde nichts angelegt</returns>
+        Task<AgentObjectChangeResult> CreateObjectAsync(string templateKey, string name, string? settingsJson);
+
+        /// <summary>
+        /// Entfernt ein Gerät, das von einer Vorlage angelegt wurde, samt seinen Einstellungen.
+        /// </summary>
+        /// <param name="name">der Name des Geräts</param>
+        /// <returns>das Ergebnis</returns>
+        Task<AgentObjectChangeResult> RemoveObjectAsync(string name);
+    }
+
+    /// <summary>Eine Vorlage eines installierten Moduls.</summary>
+    public class AgentTemplateInfo
+    {
+        /// <summary>Der Schlüssel, mit dem sie gewählt wird: <c>&lt;Modul&gt;/&lt;Typ&gt;</c>.</summary>
+        public string Key { get; set; } = string.Empty;
+
+        /// <summary>Das Modul, das sie mitbringt.</summary>
+        public string ModuleId { get; set; } = string.Empty;
+
+        /// <summary>Der volle Name des Typs.</summary>
+        public string TypeName { get; set; } = string.Empty;
+
+        /// <summary>Wie sie in einer Auswahl heissen soll; leer = <see cref="TypeName"/>.</summary>
+        public string? DisplayName { get; set; }
+
+        /// <summary>Wann ein angelegtes Gerät entsteht: <c>Singleton</c>, <c>ScopeStartup</c> oder <c>Scope</c>.</summary>
+        public string LoadType { get; set; } = string.Empty;
+
+        /// <summary>Ob die Vorlage Einstellungen hat.</summary>
+        public bool HasSettings { get; set; }
+
+        /// <summary>Die Felder der Einstellungen; leer ohne Einstellungen.</summary>
+        public SettingDescriptor[] Settings { get; set; } = Array.Empty<SettingDescriptor>();
+    }
+
+    /// <summary>Das Ergebnis von <see cref="IAgentObjectCatalog.CreateObjectAsync"/> und <see cref="IAgentObjectCatalog.RemoveObjectAsync"/>.</summary>
+    public class AgentObjectChangeResult
+    {
+        /// <summary>Ob das Gerät angelegt bzw. entfernt wurde.</summary>
+        public bool Success { get; set; }
+
+        /// <summary>Was nicht stimmt, technisch und englisch; bei Erfolg ein Hinweis, falls etwas nur teilweise gelang.</summary>
+        public string? Message { get; set; }
+
+        /// <summary>Fehler je Feld der Einstellungen.</summary>
+        public SettingError[] Errors { get; set; } = Array.Empty<SettingError>();
+
+        /// <summary>Ob die Änderung erst nach einem Neustart des Agenten wirkt (Lademodus <c>Singleton</c>).</summary>
+        public bool EffectiveAfterRestart { get; set; }
     }
 
     /// <summary>Ein Gerät, das der Agent anbietet.</summary>

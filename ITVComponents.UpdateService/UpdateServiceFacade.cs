@@ -6,6 +6,7 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.UpdateService.Abstractions.Contracts;
 using ITVComponents.UpdateService.Agents;
+using ITVComponents.UpdateService.Modules;
 using ITVComponents.UpdateService.Sessions;
 
 namespace ITVComponents.UpdateService
@@ -24,12 +25,14 @@ namespace ITVComponents.UpdateService
         private readonly UpdateCoordinator coordinator;
         private readonly AgentRegistry registry;
         private readonly RoleCoordinator roles;
+        private readonly ModuleManager? modules;
 
-        internal UpdateServiceFacade(UpdateCoordinator coordinator, AgentRegistry registry, RoleCoordinator roles)
+        internal UpdateServiceFacade(UpdateCoordinator coordinator, AgentRegistry registry, RoleCoordinator roles, ModuleManager? modules = null)
         {
             this.coordinator = coordinator;
             this.registry = registry;
             this.roles = roles;
+            this.modules = modules;
             coordinator.StatusChanged += s => StatusChanged?.Invoke(s);
             coordinator.ShutdownRequested += r => ShutdownRequested?.Invoke(r);
             roles.RoleChanged += c => RoleChanged?.Invoke(c);
@@ -117,6 +120,23 @@ namespace ITVComponents.UpdateService
         }
 
         /// <summary>
+        /// See <see cref="IUpdateServiceFacade.CreatePluginInstanceAsync"/>. Only a registered application may create - the
+        /// same check as for <see cref="AssignModulesAsync"/>.
+        /// </summary>
+        public Task<PluginInstanceResult> CreatePluginInstanceAsync(string moduleId, string typeName, string name, IIdentity caller)
+        {
+            return ChangePluginInstance(caller, $"create plugin instance {name} of {moduleId}/{typeName}", m => m.CreatePluginInstance(moduleId ?? string.Empty, typeName ?? string.Empty, name ?? string.Empty));
+        }
+
+        /// <summary>
+        /// See <see cref="IUpdateServiceFacade.RemovePluginInstanceAsync"/>. Only a registered application may remove.
+        /// </summary>
+        public Task<PluginInstanceResult> RemovePluginInstanceAsync(string name, IIdentity caller)
+        {
+            return ChangePluginInstance(caller, $"remove plugin instance {name}", m => m.RemovePluginInstance(name ?? string.Empty));
+        }
+
+        /// <summary>
         /// See <see cref="IUpdateServiceFacade.ReportReleasedAsync"/>. Only a registered application may report.
         /// </summary>
         public Task ReportReleasedAsync(IIdentity caller)
@@ -177,6 +197,39 @@ namespace ITVComponents.UpdateService
             {
                 LogEnvironment.LogEvent($"The deferral asked by {agent} could not be recorded: {ex.OutlineException()}", LogSeverity.Error);
                 return Task.FromResult(false);
+            }
+        }
+
+        private Task<PluginInstanceResult> ChangePluginInstance(IIdentity caller, string what, Func<ModuleManager, string?> change)
+        {
+            var agent = registry.Find(caller as ClaimsIdentity);
+            if (agent == null)
+            {
+                LogEnvironment.LogEvent($"{caller?.Name ?? "An unknown caller"} asked to {what} without being registered; refused.", LogSeverity.Warning);
+                return Task.FromResult(new PluginInstanceResult { Reason = "the application is not registered at the update service" });
+            }
+
+            if (modules == null)
+            {
+                LogEnvironment.LogEvent($"{agent} asked to {what}, but this update service keeps no modules; refused.", LogSeverity.Warning);
+                return Task.FromResult(new PluginInstanceResult { Reason = "this update service keeps no modules" });
+            }
+
+            try
+            {
+                var refusal = change(modules);
+                if (refusal != null)
+                {
+                    LogEnvironment.LogEvent($"{agent} asked to {what}; refused: {refusal}", LogSeverity.Warning);
+                    return Task.FromResult(new PluginInstanceResult { Reason = refusal });
+                }
+
+                return Task.FromResult(new PluginInstanceResult { Success = true });
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"{agent} asked to {what}; it failed: {ex.OutlineException()}", LogSeverity.Error);
+                return Task.FromResult(new PluginInstanceResult { Reason = $"the update service failed: {ex.Message}" });
             }
         }
     }

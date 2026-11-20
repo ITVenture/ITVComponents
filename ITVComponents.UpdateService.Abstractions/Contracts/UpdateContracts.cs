@@ -105,6 +105,18 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
     }
 
     /// <summary>
+    /// The answer to creating or removing a plugin instance.
+    /// </summary>
+    public sealed class PluginInstanceResult
+    {
+        /// <summary>Gets or sets a value indicating whether the change was made.</summary>
+        public bool Success { get; set; }
+
+        /// <summary>Gets or sets why it was not made.</summary>
+        public string? Reason { get; set; }
+    }
+
+    /// <summary>
     /// Why the service wants the application to end.
     /// </summary>
     public enum ShutdownReason
@@ -229,6 +241,7 @@ namespace ITVComponents.UpdateService.Abstractions.Contracts
             register(typeof(ModuleState), "itv.update.modulestate");
             register(typeof(ModuleLoadReport), "itv.update.moduleload");
             register(typeof(AgentUpdateReport), "itv.update.agentreport");
+            register(typeof(PluginInstanceResult), "itv.update.plugininstance");
         }
     }
 }

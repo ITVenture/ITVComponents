@@ -132,6 +132,98 @@ namespace ITVComponents.Plugins.Modules
                 .ToArray();
         }
 
+        /// <summary>
+        /// Gets the instance of a name, as far as it passed the checks - whatever its load type, and even if a plugin of
+        /// the application's own configuration hides it.
+        /// </summary>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>the instance, or null if <c>plugins.json</c> has no usable instance of that name</returns>
+        public ModulePluginEntry? GetInstance(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Current().ByName.TryGetValue(name, out var entry) ? entry : null;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"The module plugin instances could not be read: {ex.OutlineException()}", LogSeverity.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the templates the installed modules offer (issue ModulePlugins-Instances, C.2): every type with the mark
+        /// <see cref="ModulePluginKind.Template"/>, read from the metadata. Nothing is loaded.
+        /// </summary>
+        /// <returns>the templates; a module or assembly that can not be read is logged and left out</returns>
+        public IReadOnlyList<ModulePluginTemplate> GetTemplates()
+        {
+            var templates = new List<ModulePluginTemplate>();
+            if (!Directory.Exists(modulesDirectory))
+            {
+                LogEnvironment.LogDebugEvent($"There is no module folder {modulesDirectory}, so there are no templates.", LogSeverity.Report);
+                return templates;
+            }
+
+            lock (sync)
+            {
+                foreach (var moduleDirectory in Directory.GetDirectories(modulesDirectory).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+                {
+                    var moduleId = Path.GetFileName(moduleDirectory);
+                    if (!ModulePluginInstance.IsSafeModuleId(moduleId))
+                    {
+                        // The versions next to the active one (.new, .old) offer nothing.
+                        continue;
+                    }
+
+                    foreach (var dll in Directory.GetFiles(moduleDirectory, "*.dll", SearchOption.TopDirectoryOnly).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (PluginContract.IsContract(dll))
+                        {
+                            continue;
+                        }
+
+                        IReadOnlyList<ModulePluginMark> marks;
+                        try
+                        {
+                            marks = MarksOf(dll, moduleDirectory);
+                        }
+                        catch (BadImageFormatException ex)
+                        {
+                            // A native DLL at the top of a module is legitimate; it simply carries no mark.
+                            LogEnvironment.LogDebugEvent($"Module {moduleId}: {Path.GetFileName(dll)} is no managed assembly, it offers no template ({ex.Message}).", LogSeverity.Report);
+                            continue;
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            LogEnvironment.LogEvent($"Module {moduleId}: {dll} could not be read; its templates are not offered: {ex.OutlineException()}", LogSeverity.Error);
+                            continue;
+                        }
+
+                        foreach (var mark in marks.Where(m => m.Kind == ModulePluginKind.Template))
+                        {
+                            var problems = new List<string>();
+                            ModulePluginMarks.Check(new[] { mark }, problems, new List<string>());
+                            if (problems.Count != 0)
+                            {
+                                LogEnvironment.LogEvent($"Module {moduleId}: template {mark.TypeName} is not offered: {string.Join("; ", problems)}", LogSeverity.Error);
+                                continue;
+                            }
+
+                            templates.Add(new ModulePluginTemplate(moduleId, dll, mark));
+                        }
+                    }
+                }
+            }
+
+            return templates;
+        }
+
         /// <inheritdoc />
         public void Dispose()
         {
@@ -139,7 +231,7 @@ namespace ITVComponents.Plugins.Modules
             Disposed?.Invoke(this, EventArgs.Empty);
         }
 
-        private Entry? Scoped(string pluginName)
+        private ModulePluginEntry? Scoped(string pluginName)
         {
             if (string.IsNullOrEmpty(pluginName) || checkingShadow.Value)
             {
@@ -226,9 +318,9 @@ namespace ITVComponents.Plugins.Modules
             }
         }
 
-        private List<Entry> Build(ModulePluginInstanceFile file)
+        private List<ModulePluginEntry> Build(ModulePluginInstanceFile file)
         {
-            var entries = new List<Entry>();
+            var entries = new List<ModulePluginEntry>();
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var instance in file.Instances)
             {
@@ -251,7 +343,7 @@ namespace ITVComponents.Plugins.Modules
             return entries;
         }
 
-        private Entry? Check(ModulePluginInstance instance, out string? problem)
+        private ModulePluginEntry? Check(ModulePluginInstance instance, out string? problem)
         {
             if (!instance.IsWellFormed(out problem))
             {
@@ -319,7 +411,7 @@ namespace ITVComponents.Plugins.Modules
             }
 
             var construction = $"[{assembly}]<{mark.TypeName}>{(mark.HasDeviceSettings == true ? DeviceSettingsParameter : string.Empty)}";
-            return new Entry(instance, loadType, new PluginConfigurationItem
+            return new ModulePluginEntry(instance, kind, new PluginConfigurationItem
             {
                 Name = instance.Name!,
                 ConstructionString = construction,
@@ -355,27 +447,12 @@ namespace ITVComponents.Plugins.Modules
             return marks;
         }
 
-        private sealed class Entry
-        {
-            public Entry(ModulePluginInstance instance, PluginLoadType loadType, PluginConfigurationItem item)
-            {
-                Instance = instance;
-                LoadType = loadType;
-                Item = item;
-            }
-
-            public ModulePluginInstance Instance { get; }
-
-            public PluginLoadType LoadType { get; }
-
-            public PluginConfigurationItem Item { get; }
-        }
 
         private sealed class Snapshot
         {
-            public static readonly Snapshot Empty = new Snapshot(DateTime.MaxValue, -2, new List<Entry>());
+            public static readonly Snapshot Empty = new Snapshot(DateTime.MaxValue, -2, new List<ModulePluginEntry>());
 
-            public Snapshot(DateTime stamp, long length, List<Entry> entries)
+            public Snapshot(DateTime stamp, long length, List<ModulePluginEntry> entries)
             {
                 Stamp = stamp;
                 Length = length;
@@ -387,9 +464,9 @@ namespace ITVComponents.Plugins.Modules
 
             public long Length { get; }
 
-            public List<Entry> Entries { get; }
+            public List<ModulePluginEntry> Entries { get; }
 
-            public Dictionary<string, Entry> ByName { get; }
+            public Dictionary<string, ModulePluginEntry> ByName { get; }
 
             /// <summary>Whether another loader has a plugin of the name, found out once per version of the file.</summary>
             public ConcurrentDictionary<string, bool> Shadowed { get; } = new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);

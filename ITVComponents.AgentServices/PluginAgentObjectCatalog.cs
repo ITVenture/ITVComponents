@@ -9,6 +9,8 @@ using ITVComponents.Helpers;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.Config;
+using ITVComponents.Plugins.Initialization;
+using ITVComponents.Plugins.Modules;
 
 namespace ITVComponents.AgentServices
 {
@@ -32,12 +34,22 @@ namespace ITVComponents.AgentServices
     /// (<see cref="PluginFactory.GetScopedPluginTypes"/>); Auswahlwerte kommen von eigenen
     /// <see cref="IDeviceChoiceProvider"/>n.
     /// </para>
+    /// <para>
+    /// <b>Vorlagen der Module</b> (Issue ModulePlugins-Instances, C.2/C.3) bietet er nur an, wenn er den
+    /// <see cref="ModulePluginLoader"/> und den Update-Dienst kennt:
+    /// <c>…PluginAgentObjectCatalog&gt;$factory,$modulePlugins,$updates</c>. Angelegt und entfernt wird über den
+    /// Update-Dienst; nur er schreibt <c>plugins.json</c>.
+    /// </para>
     /// </remarks>
     public sealed class PluginAgentObjectCatalog : IAgentObjectCatalog, IPlugin
     {
         private readonly PluginFactory factory;
 
         private readonly IDeviceSettingsStore store;
+
+        private readonly ModulePluginLoader modules;
+
+        private readonly IModulePluginInstanceService instances;
 
         /// <summary>Initialisiert den Katalog mit der Standard-Ablage (<see cref="NativeDeviceSettingsStore"/>).</summary>
         /// <param name="factory">die Factory, deren Bereichs-Plugins die Geräte sind</param>
@@ -48,10 +60,30 @@ namespace ITVComponents.AgentServices
         /// <summary>Initialisiert den Katalog.</summary>
         /// <param name="factory">die Factory, deren Bereichs-Plugins die Geräte sind</param>
         /// <param name="store">die Ablage der Einstellungen</param>
-        public PluginAgentObjectCatalog(PluginFactory factory, IDeviceSettingsStore store)
+        public PluginAgentObjectCatalog(PluginFactory factory, IDeviceSettingsStore store) : this(factory, store, null, null)
+        {
+        }
+
+        /// <summary>Initialisiert den Katalog mit Vorlagen aus Modulen und der Standard-Ablage.</summary>
+        /// <param name="factory">die Factory, deren Bereichs-Plugins die Geräte sind</param>
+        /// <param name="modules">der Lader der Modul-Plugins: kennt die Vorlagen und die angelegten Instanzen</param>
+        /// <param name="instances">wer Instanzen anlegt und entfernt - der Update-Dienst (<c>UpdateServiceClient</c>)</param>
+        public PluginAgentObjectCatalog(PluginFactory factory, ModulePluginLoader modules, IModulePluginInstanceService instances)
+            : this(factory, new NativeDeviceSettingsStore(), modules, instances)
+        {
+        }
+
+        /// <summary>Initialisiert den Katalog.</summary>
+        /// <param name="factory">die Factory, deren Bereichs-Plugins die Geräte sind</param>
+        /// <param name="store">die Ablage der Einstellungen</param>
+        /// <param name="modules">der Lader der Modul-Plugins; null = keine Vorlagen</param>
+        /// <param name="instances">wer Instanzen anlegt und entfernt; null = keine Vorlagen</param>
+        public PluginAgentObjectCatalog(PluginFactory factory, IDeviceSettingsStore store, ModulePluginLoader modules, IModulePluginInstanceService instances)
         {
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
             this.store = store ?? throw new ArgumentNullException(nameof(store));
+            this.modules = modules;
+            this.instances = instances;
             factory.UnknownConstructorParameter += ProvideDeviceSettings;
         }
 
@@ -213,6 +245,148 @@ namespace ITVComponents.AgentServices
             }
         }
 
+        /// <inheritdoc />
+        public Task<AgentTemplateInfo[]> GetTemplatesAsync(string contractTypeName)
+        {
+            if (modules == null)
+            {
+                LogEnvironment.LogDebugEvent("Templates were requested, but this agent knows no module plugins.", LogSeverity.Report);
+                return Task.FromResult(Array.Empty<AgentTemplateInfo>());
+            }
+
+            var retVal = new List<AgentTemplateInfo>();
+            foreach (var template in modules.GetTemplates())
+            {
+                var type = TemplateType(template);
+                if (type == null || (!string.IsNullOrEmpty(contractTypeName) && !Fulfills(type, contractTypeName)))
+                {
+                    continue;
+                }
+
+                var settingsType = DeviceSettingsReflection.SettingsTypeOf(type);
+                retVal.Add(new AgentTemplateInfo
+                {
+                    Key = template.Key,
+                    ModuleId = template.ModuleId,
+                    TypeName = template.Mark.TypeName,
+                    DisplayName = string.IsNullOrEmpty(template.Mark.DisplayName) ? null : template.Mark.DisplayName,
+                    LoadType = template.Mark.LoadType.ToString(),
+                    HasSettings = settingsType != null,
+                    Settings = DeviceSettingsReflection.Describe(settingsType)
+                });
+            }
+
+            return Task.FromResult(retVal.ToArray());
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Die Einstellungen werden <b>vor</b> der Instanz abgelegt: eine Instanz im Modus <c>Scope</c> kann verlangt
+        /// werden, sobald sie in <c>plugins.json</c> steht, und soll nie mit leeren Einstellungen entstehen. Lehnt der
+        /// Dienst ab, werden die Einstellungen wieder entfernt.
+        /// </remarks>
+        public async Task<AgentObjectChangeResult> CreateObjectAsync(string templateKey, string name, string settingsJson)
+        {
+            if (modules == null || instances == null)
+            {
+                LogEnvironment.LogEvent($"Device '{name}' was to be created from template '{templateKey}', but this agent knows no module plugins.", LogSeverity.Warning);
+                return new AgentObjectChangeResult { Message = "This agent offers no templates." };
+            }
+
+            if (!ModulePluginMarks.IsValidInstanceName(name))
+            {
+                return new AgentObjectChangeResult { Message = $"'{name}' is no valid name: a letter, then letters, digits, '_', '.' or '-', at most 64 characters." };
+            }
+
+            var template = modules.GetTemplates().FirstOrDefault(t => string.Equals(t.Key, templateKey, StringComparison.Ordinal));
+            if (template == null)
+            {
+                LogEnvironment.LogEvent($"Device '{name}' was to be created from template '{templateKey}', which no installed module offers.", LogSeverity.Warning);
+                return new AgentObjectChangeResult { Message = $"'{templateKey}' is no template of an installed module." };
+            }
+
+            if (factory.Contains(name) || Device(name) != null || modules.GetInstance(name) != null)
+            {
+                return new AgentObjectChangeResult { Message = $"The name '{name}' is already used on this agent." };
+            }
+
+            var type = TemplateType(template);
+            if (type == null)
+            {
+                return new AgentObjectChangeResult { Message = $"The type of template '{templateKey}' could not be loaded on this agent." };
+            }
+
+            var settingsType = DeviceSettingsReflection.SettingsTypeOf(type);
+            object settings = null;
+            if (settingsType != null)
+            {
+                var errors = new List<SettingError>();
+                settings = DeviceSettingsReflection.Validate(settingsType, settingsJson, errors);
+                if (errors.Count != 0)
+                {
+                    return new AgentObjectChangeResult { Errors = errors.ToArray() };
+                }
+
+                try
+                {
+                    store.Write(name, settings);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"Could not store the settings of the new device '{name}'; it is not created: {ex.OutlineException()}", LogSeverity.Error);
+                    return new AgentObjectChangeResult { Message = $"The settings of '{name}' could not be stored on the agent." };
+                }
+            }
+
+            var outcome = await instances.CreateInstanceAsync(template.ModuleId, template.Mark.TypeName, name).ConfigureAwait(false);
+            if (!outcome.Success)
+            {
+                LogEnvironment.LogEvent($"Device '{name}' of template '{templateKey}' was not created: {outcome.Reason}", LogSeverity.Warning);
+                if (settings != null)
+                {
+                    RemoveSettings(name, "the device was not created");
+                }
+
+                return new AgentObjectChangeResult { Message = outcome.Reason };
+            }
+
+            LogEnvironment.LogEvent($"Device '{name}' of template '{templateKey}' was created ({template.Mark.LoadType}).", LogSeverity.Report);
+            return new AgentObjectChangeResult { Success = true, EffectiveAfterRestart = template.Mark.LoadType == PluginLoadType.Singleton };
+        }
+
+        /// <inheritdoc />
+        public async Task<AgentObjectChangeResult> RemoveObjectAsync(string name)
+        {
+            if (modules == null || instances == null)
+            {
+                LogEnvironment.LogEvent($"Device '{name}' was to be removed, but this agent knows no module plugins.", LogSeverity.Warning);
+                return new AgentObjectChangeResult { Message = "This agent offers no templates." };
+            }
+
+            // Fehlt das Modul, kennt der Lader die Instanz nicht mehr; entfernen laesst sie sich trotzdem (C.4).
+            var entry = modules.GetInstance(name);
+            if (entry != null && entry.Kind != ModulePluginKind.Template)
+            {
+                return new AgentObjectChangeResult { Message = $"'{name}' comes with its module and can not be removed." };
+            }
+
+            var outcome = await instances.RemoveInstanceAsync(name).ConfigureAwait(false);
+            if (!outcome.Success)
+            {
+                LogEnvironment.LogEvent($"Device '{name}' was not removed: {outcome.Reason}", LogSeverity.Warning);
+                return new AgentObjectChangeResult { Message = outcome.Reason };
+            }
+
+            LogEnvironment.LogEvent($"Device '{name}' was removed.", LogSeverity.Report);
+            var retVal = new AgentObjectChangeResult { Success = true, EffectiveAfterRestart = entry?.LoadType == PluginLoadType.Singleton };
+            if (!RemoveSettings(name, "the device was removed"))
+            {
+                retVal.Message = $"'{name}' was removed, but its settings could not be removed from the agent.";
+            }
+
+            return retVal;
+        }
+
         /// <summary>
         /// Gibt den Katalog frei und nimmt <c>$DeviceSettings</c> wieder zurück. Die Factory gehört ihm nicht.
         /// </summary>
@@ -274,10 +448,44 @@ namespace ITVComponents.AgentServices
                 return null;
             }
 
-            return factory.GetScopedPluginTypes(null)
+            var scoped = factory.GetScopedPluginTypes(null)
                 .Where(d => d.Item.Name == objectName)
                 .Select(d => d.Type)
                 .FirstOrDefault();
+            if (scoped != null)
+            {
+                return scoped;
+            }
+
+            // Eine Instanz aus einem Modul, die beim Start oder je Scope entsteht, ist kein Bereichs-Plugin - eingestellt
+            // wird sie trotzdem hier.
+            var entry = modules?.GetInstance(objectName);
+            return entry != null && factory.TryGetPluginType(entry.Item.ConstructionString, out var type) ? type : null;
+        }
+
+        private Type TemplateType(ModulePluginTemplate template)
+        {
+            if (factory.TryGetPluginType(template.TypeConstructionString, out var type))
+            {
+                return type;
+            }
+
+            LogEnvironment.LogEvent($"Template {template.Key} is not offered: its type could not be loaded from {template.AssemblyPath}.", LogSeverity.Error);
+            return null;
+        }
+
+        private bool RemoveSettings(string name, string why)
+        {
+            try
+            {
+                store.Remove(name);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogEnvironment.LogEvent($"The settings of device '{name}' could not be removed ({why}): {ex.OutlineException()}", LogSeverity.Error);
+                return false;
+            }
         }
 
         /// <summary>

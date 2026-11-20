@@ -225,7 +225,9 @@ Infrastruktur-Instanzen des Moduls in `plugins.json` ab.
    die den Vertrag erfüllen, mit Anzeigename, Modul und Einstellungsfeldern (`DescribeSettings` über den Typ, wie
    heute).
 2. Web → Katalog: `CreateObjectAsync(templateKey, name, settingsJson)`.
-3. Die Anwendung prüft die Einstellungen gegen den Einstellungstyp. Bei einem Fehler wird nichts angelegt.
+3. Die Anwendung prüft die Einstellungen gegen den Einstellungstyp. Bei einem Fehler wird nichts angelegt. Sonst legt
+   sie die Einstellungen **gleich hier** ab (`DeviceSettingsStore`, wie heute). Eine `Scope`-Instanz kann verlangt
+   werden, sobald sie in `plugins.json` steht, und soll nie mit leeren Einstellungen entstehen.
 4. Die Anwendung ruft am Update-Dienst `CreatePluginInstanceAsync(moduleId, typeName, name)` auf.
 5. Der Dienst prüft:
    - Der Aufrufer ist die angemeldete Anwendung dieses Ziels, mit derselben Prüfung wie bei `AssignModulesAsync`.
@@ -233,16 +235,17 @@ Infrastruktur-Instanzen des Moduls in `plugins.json` ab.
    - Der Typ hat die Marke `Template`.
    - Der Name ist gültig und noch frei.
 
+   - Liegt eine neue Fassung des Moduls schon bereit, hat auch sie den Typ als Vorlage. Sie wurde ohne die neue
+     Instanz geprüft (C.1).
+
    Sind alle Prüfungen erfüllt, schreibt er `plugins.json`.
-6. Die Anwendung legt die Einstellungen ab (`DeviceSettingsStore`, wie heute).
+6. Lehnt der Dienst ab, entfernt die Anwendung die Einstellungen aus Schritt 3 wieder.
 7. Wann die Instanz wirkt, hängt vom Modus ab (A.1):
    - `Scope`: Der Lader liest `plugins.json` neu, und die Instanz entsteht, sobald sie verlangt wird.
    - `ScopeStartup`: ab dem nächsten Scope.
    - `Singleton`: erst nach einem Neustart. Der Katalog gibt das als Ergebnis zurück („wirkt nach Neustart“). Der
      Neustart läuft wie ein Durchgang nur mit Modulen über den Update-Dienst: Aufforderung, Aufschub, nie dringend.
 
-Scheitert Schritt 6, wird die Instanz in Schritt 4 wieder entfernt. Dafür ruft die Anwendung den Dienst erneut auf
-und protokolliert dabei einen Fehler.
 
 ### C.3 Instanz entfernen
 
@@ -365,8 +368,28 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
   - Anwendung: `ModulePluginLoader` als Plugin der Hauptkonfiguration:
     `[ITVComponents.Plugins.dll]<ITVComponents.Plugins.Modules.ModulePluginLoader>"<plugins.json>","<modules>",$factory`.
     Vorrang anderer Lader über `PluginFactory.FindScopedPluginLoader`.
+- **Schritt 3** (Vorlagen und Instanzen anlegen bzw. entfernen):
+  - Dienst: `CreatePluginInstanceAsync` / `RemovePluginInstanceAsync` an `IUpdateServiceFacade`, Ergebnis
+    `PluginInstanceResult`. Nur eine angemeldete Anwendung darf das, wie bei `AssignModulesAsync`. Die Prüfungen
+    liegen in `ModuleManager` (zugewiesen, installiert) und `ModulePluginRegistry` (Marke `Template` in der aktiven
+    und einer bereitliegenden Fassung, Name gültig und frei; entfernen nur `Template`). Anlegen und `CheckPrepared`
+    laufen unter derselben Sperre der Datei.
+  - Anwendung: `UpdateServiceClient` erfüllt `IModulePluginInstanceService` (ITVComponents.Plugins).
+    `ModulePluginLoader` zählt die Vorlagen der installierten Module auf (`GetTemplates`, aus den Metadaten) und
+    nennt angelegte Instanzen jedes Modus (`GetInstance`).
+  - Katalog: `IAgentObjectCatalog.GetTemplatesAsync` / `CreateObjectAsync` / `RemoveObjectAsync`, mit
+    `AgentTemplateInfo` (Schlüssel `<Modul>/<Typ>`, Lademodus, Einstellungsfelder) und `AgentObjectChangeResult`
+    (`EffectiveAfterRestart` bei `Singleton`). Konfiguration:
+    `[ITVComponents.AgentServices.dll]<ITVComponents.AgentServices.PluginAgentObjectCatalog>$factory,$modulePlugins,$updates`.
+    Einstellungen von Modul-Instanzen der Modi `Singleton` und `ScopeStartup` lassen sich wie die von Geräten lesen
+    und ändern. `IDeviceSettingsStore` hat dafür `Remove` bekommen.
 
 **Noch offen:**
+
+- Auswahlwerte (`GetChoicesAsync`) für eine Vorlage, bevor die Instanz existiert: Sie gehen heute über den Namen des
+  Geräts. Kommt mit den Web-Masken (Schritt 5).
+- Eine eigene Aufzählung der Instanzen in den Modi `Singleton` und `ScopeStartup` für das Web (A.1): Sie kommt mit
+  den Web-Masken. `GetInstance` am Lader genügt als Grundlage.
 
 - `WindowsService`-Ziel: Der Dienst muss sich an der Pipe als dieser Dienst ausweisen. Zu prüfen ist, ob der Name
   des Prozesses und die SCM-Abfrage dafür genügen.

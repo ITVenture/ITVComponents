@@ -202,6 +202,56 @@ namespace ITVComponents.UpdateService.Test
             Assert.AreEqual("choices", Instances().Single().Name);
         }
 
+        [TestMethod]
+        public void Template_Instances_Are_Created_And_Removed_Only_As_The_Service_Allows()
+        {
+            Prepare("Printer", "1.0", Infrastructure("Choices", "choices") + Template("EscPos", "Singleton"));
+            var state = store.Load();
+            manager.Activate(new[] { Staged("Printer", "1.0") }, state, Array.Empty<int>());
+            state.AssignedModules = new List<string> { "Drawer", "Printer" };
+            store.Save(state);
+
+            Assert.IsNull(manager.CreatePluginInstance("printer", "Shop.Printer.EscPos", "Bondrucker1"));
+
+            var created = Instances().Single(i => i.Name == "Bondrucker1");
+            Assert.AreEqual("Printer", created.Module, "the module id as the service keeps it");
+            Assert.AreEqual("Shop.Printer.dll", created.Assembly);
+            Assert.AreEqual("template", created.Kind);
+            Assert.AreEqual("Singleton", created.LoadType, "the load type comes from the mark");
+
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.EscPos", "bondrucker1"), "already used by");
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.EscPos", "choices"), "already used by");
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.Choices", "Second"), "is infrastructure, not a template");
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.Missing", "Second"), "has no type Shop.Printer.Missing");
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.EscPos", "1bad"), "is not valid");
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.EscPos", "bad:name"), "is not valid");
+            StringAssert.Contains(manager.CreatePluginInstance("Scanner", "Shop.Printer.EscPos", "Second"), "is not assigned");
+            StringAssert.Contains(manager.CreatePluginInstance("Drawer", "Shop.Printer.EscPos", "Second"), "is not installed yet");
+            Assert.AreEqual(2, Instances().Count, "nothing refused was written");
+
+            StringAssert.Contains(manager.RemovePluginInstance("choices"), "can not be removed");
+            StringAssert.Contains(manager.RemovePluginInstance("Nothing"), "there is no plugin instance Nothing");
+            Assert.IsNull(manager.RemovePluginInstance("BONDRUCKER1"));
+            Assert.AreEqual("choices", Instances().Single().Name);
+        }
+
+        [TestMethod]
+        public void A_Template_Missing_In_The_Version_About_To_Be_Installed_Is_Not_Instantiated()
+        {
+            Prepare("Printer", "1.0", Template("EscPos", "Scope"));
+            var state = store.Load();
+            manager.Activate(new[] { Staged("Printer", "1.0") }, state, Array.Empty<int>());
+            state.AssignedModules = new List<string> { "Printer" };
+            store.Save(state);
+
+            // Prepared and checked while there was no instance; switched to once the application is down.
+            Prepare("Printer", "2.0", Template("Renamed", "Scope"));
+            registry.CheckPrepared("Printer", "2.0", new Dictionary<string, string>());
+
+            StringAssert.Contains(manager.CreatePluginInstance("Printer", "Shop.Printer.EscPos", "Bondrucker1"), "about to be installed has no template");
+            Assert.AreEqual(0, Instances().Count);
+        }
+
         private static string Infrastructure(string type, string name) => $$"""
             [ITVComponents.Plugins.Modules.ModulePlugin(ITVComponents.Plugins.Modules.ModulePluginKind.Infrastructure, ITVComponents.Plugins.Initialization.PluginLoadType.Scope, Name = "{{name}}")]
             public class {{type}} : ITVComponents.Plugins.IPlugin { {{PluginBody}} }

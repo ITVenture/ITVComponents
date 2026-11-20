@@ -112,6 +112,58 @@ namespace ITVComponents.UpdateService.Modules
         }
 
         /// <summary>
+        /// Creates an instance of a template of an assigned and installed module (issue ModulePlugins-Instances, C.2).
+        /// </summary>
+        /// <param name="moduleId">the module</param>
+        /// <param name="typeName">the type with the mark <c>Template</c></param>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>null if it was created, else why not</returns>
+        public string? CreatePluginInstance(string moduleId, string typeName, string name)
+        {
+            if (plugins == null)
+            {
+                return "this update service keeps no plugin instances";
+            }
+
+            lock (sync)
+            {
+                var state = store.Load();
+                var assigned = state.AssignedModules.FirstOrDefault(m => string.Equals(m, moduleId, StringComparison.OrdinalIgnoreCase));
+                if (assigned == null)
+                {
+                    return $"the module {moduleId} is not assigned to this machine";
+                }
+
+                var installed = state.Modules.Keys.FirstOrDefault(m => string.Equals(m, moduleId, StringComparison.OrdinalIgnoreCase));
+                if (installed == null)
+                {
+                    return $"the module {moduleId} is not installed yet";
+                }
+
+                // The id as the service keeps it, so that the instance follows the module in the reconciliation.
+                return plugins.CreateTemplateInstance(installed, typeName, name);
+            }
+        }
+
+        /// <summary>
+        /// Removes an instance of a template (issue ModulePlugins-Instances, C.3).
+        /// </summary>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>null if it was removed, else why not</returns>
+        public string? RemovePluginInstance(string name)
+        {
+            if (plugins == null)
+            {
+                return "this update service keeps no plugin instances";
+            }
+
+            lock (sync)
+            {
+                return plugins.RemoveTemplateInstance(name);
+            }
+        }
+
+        /// <summary>
         /// Takes over the assignment of this machine.
         /// </summary>
         /// <returns>whether it changed</returns>

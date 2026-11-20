@@ -112,7 +112,161 @@ namespace ITVComponents.UpdateService.Modules
         public void CheckPrepared(string moduleId, string version, Dictionary<string, string> otherPrepared)
         {
             var marks = ReadMarks(files.PreparedDirectory(moduleId), moduleId);
-            var current = Load();
+
+            // Under the lock of the file: an instance created meanwhile is either seen here, or its creation sees the
+            // prepared version and checks it too (CreateTemplateInstance).
+            lock (sync)
+            {
+                CheckPrepared(moduleId, version, otherPrepared, marks, Load());
+            }
+        }
+
+        /// <summary>
+        /// Creates an instance of a template (C.2). The module must be installed, the type must carry the mark
+        /// <see cref="ModulePluginKind.Template"/> in the active version - and in a prepared one, if there is one -, and
+        /// the name must be valid and free.
+        /// </summary>
+        /// <param name="moduleId">the module</param>
+        /// <param name="typeName">the type</param>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>null if it was created, else why not</returns>
+        public string? CreateTemplateInstance(string moduleId, string typeName, string name)
+        {
+            if (!ModulePluginMarks.IsValidInstanceName(name))
+            {
+                return $"the name '{name}' is not valid (a letter, then letters, digits, '_', '.' or '-', at most 64 characters)";
+            }
+
+            if (!ModulePluginInstance.IsSafeModuleId(moduleId))
+            {
+                return $"the module id '{moduleId}' is not valid";
+            }
+
+            var active = files.ActiveDirectory(moduleId);
+            if (!Directory.Exists(active))
+            {
+                return $"the module {moduleId} is not installed";
+            }
+
+            ModulePluginMark? mark;
+            string? problem;
+            try
+            {
+                mark = TemplateOf(active, moduleId, typeName, out problem);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                LogEnvironment.LogEvent($"The templates of module {moduleId} could not be read: {ex.OutlineException()}", LogSeverity.Error);
+                return $"the templates of module {moduleId} could not be read: {ex.Message}";
+            }
+
+            if (mark == null)
+            {
+                return problem;
+            }
+
+            string? refusal = null;
+            var written = Change(file =>
+            {
+                var taken = file.Instances.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (taken != null)
+                {
+                    refusal = $"the name {name} is already used by {taken}";
+                    return false;
+                }
+
+                var prepared = files.PreparedDirectory(moduleId);
+                if (Directory.Exists(prepared))
+                {
+                    // A new version waits to be switched to; it was checked against the instances without this one.
+                    try
+                    {
+                        if (TemplateOf(prepared, moduleId, typeName, out _) == null)
+                        {
+                            refusal = $"the version of module {moduleId} that is about to be installed has no template {typeName}";
+                            return false;
+                        }
+                    }
+                    catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                    {
+                        LogEnvironment.LogEvent($"The prepared version of module {moduleId} could not be read; the instance {name} is not created: {ex.OutlineException()}", LogSeverity.Error);
+                        refusal = $"the version of module {moduleId} that is about to be installed could not be read; try again after it is installed";
+                        return false;
+                    }
+                }
+
+                file.Instances.Add(ModulePluginInstance.FromMark(name, moduleId, mark));
+                return true;
+            });
+
+            if (!written)
+            {
+                return $"{instancesFile} could not be updated";
+            }
+
+            if (refusal == null)
+            {
+                LogEnvironment.LogEvent($"Plugin instance {name} of template {typeName} (module {moduleId}, {mark.LoadType}) created.", LogSeverity.Report);
+            }
+
+            return refusal;
+        }
+
+        /// <summary>
+        /// Removes an instance of a template (C.3). Infrastructure instances follow their module and are refused.
+        /// </summary>
+        /// <param name="name">the name of the instance</param>
+        /// <returns>null if it was removed, else why not</returns>
+        public string? RemoveTemplateInstance(string name)
+        {
+            string? refusal = null;
+            ModulePluginInstance? removed = null;
+            var written = Change(file =>
+            {
+                var instance = file.Instances.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (instance == null)
+                {
+                    refusal = $"there is no plugin instance {name}";
+                    return false;
+                }
+
+                if (!instance.TryGetKind(out var kind) || kind != ModulePluginKind.Template)
+                {
+                    refusal = $"{instance} is no instance of a template; it follows its module and can not be removed";
+                    return false;
+                }
+
+                file.Instances.Remove(instance);
+                removed = instance;
+                return true;
+            });
+
+            if (!written)
+            {
+                return $"{instancesFile} could not be updated";
+            }
+
+            if (removed != null)
+            {
+                LogEnvironment.LogEvent($"Plugin instance {removed} removed.", LogSeverity.Report);
+            }
+
+            return refusal;
+        }
+
+        private ModulePluginMark? TemplateOf(string moduleDirectory, string moduleId, string typeName, out string? problem)
+        {
+            var mark = ReadMarks(moduleDirectory, moduleId).FirstOrDefault(m => string.Equals(m.TypeName, typeName, StringComparison.Ordinal));
+            problem = mark == null
+                ? $"module {moduleId} has no type {typeName} with the ModulePlugin mark"
+                : mark.Kind != ModulePluginKind.Template
+                    ? $"{typeName} of module {moduleId} is infrastructure, not a template"
+                    : null;
+            return problem == null ? mark : null;
+        }
+
+        private static void CheckPrepared(string moduleId, string version, Dictionary<string, string> otherPrepared, IReadOnlyList<ModulePluginMark> marks, ModulePluginInstanceFile current)
+        {
             var templates = marks.Where(m => m.Kind == ModulePluginKind.Template).Select(m => m.TypeName).ToHashSet(StringComparer.Ordinal);
             var orphaned = current.OfModule(moduleId)
                 .Where(i => i.TryGetKind(out var kind) && kind == ModulePluginKind.Template && !templates.Contains(i.Type ?? string.Empty))
