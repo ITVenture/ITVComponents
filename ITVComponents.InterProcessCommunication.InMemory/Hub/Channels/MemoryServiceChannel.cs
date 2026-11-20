@@ -230,51 +230,65 @@ namespace ITVComponents.InterProcessCommunication.InMemory.Hub.Channels
         {
             Task.Run(async () =>
             {
-                var context = new DataTransferContext();
-                string requestId = null;
-                var obj = JsonHelper.FromJsonString<IProtocolMessage>(e.Data, SerializationTypingMode.NativePolymorphism, true);
-                LogEnvironment.LogDebugEvent($"Message-Type: {obj.GetType()}", LogSeverity.Report);
-                if (obj is Request req)
+                try
                 {
-                    obj = req.Payload;
-                    requestId = req.RequestId;
-                    if (!string.IsNullOrEmpty(req.Identity))
-                    {
-                        context.Identity = JsonHelper.FromJsonString<TransferIdentity>(req.Identity, SerializationTypingMode.StaticTyping).ToIdentity();
-                    }
+                    await HandleIncoming(e.Data);
                 }
-                else if (obj is Response rep)
+                catch (Exception ex)
                 {
-                    obj = null;
-                    var ok = waitingOperations.TryRemove(rep.RequestId, out var wait);
-                    if (ok)
-                    {
-                        wait.ServerResponse.SetResult(rep.Payload);
-                    }
-                    else
-                    {
-                        throw new CommunicationException("The given operation is not open.");
-                    }
-                }
-
-                if (obj != null)
-                {
-                    var evData = new ObjectReceivedEventArgs { Value = obj, Context = context };
-                    OnObjectReceived(evData);
-                    if (!string.IsNullOrEmpty(requestId) && outgoing != null)
-                    {
-                        await WriteAsync(new Response
-                        {
-                            RequestId = requestId,
-                            Payload = evData.Result
-                        });
-                    }
-                    else if (evData.Result != null)
-                    {
-                        await WriteAsync(evData.Result);
-                    }
+                    // nobody observes this task: without the log a failed answer would only show as a timeout on the other side
+                    LogEnvironment.LogEvent($"Channel {Name} ({mode}) could not handle an incoming message: {ex.OutlineException()}", LogSeverity.Error);
                 }
             });
+        }
+
+        private async Task HandleIncoming(string data)
+        {
+            var context = new DataTransferContext();
+            string requestId = null;
+            var obj = JsonHelper.FromJsonString<IProtocolMessage>(data, SerializationTypingMode.NativePolymorphism, true);
+            LogEnvironment.LogDebugEvent($"Message-Type: {obj.GetType()}", LogSeverity.Report);
+            if (obj is Request req)
+            {
+                obj = req.Payload;
+                requestId = req.RequestId;
+                if (!string.IsNullOrEmpty(req.Identity))
+                {
+                    context.Identity = JsonHelper.FromJsonString<TransferIdentity>(req.Identity, SerializationTypingMode.StaticTyping).ToIdentity();
+                }
+            }
+            else if (obj is Response rep)
+            {
+                obj = null;
+                var ok = waitingOperations.TryRemove(rep.RequestId, out var wait);
+                if (ok)
+                {
+                    wait.ServerResponse.SetResult(rep.Payload);
+                }
+                else
+                {
+                    // the request has timed out (or the channel was disposed) before its answer arrived
+                    LogEnvironment.LogEvent($"Channel {Name} ({mode}) received the answer to request {rep.RequestId}, which is not open anymore; the answer is dropped.", LogSeverity.Warning);
+                }
+            }
+
+            if (obj != null)
+            {
+                var evData = new ObjectReceivedEventArgs { Value = obj, Context = context };
+                OnObjectReceived(evData);
+                if (!string.IsNullOrEmpty(requestId) && outgoing != null)
+                {
+                    await WriteAsync(new Response
+                    {
+                        RequestId = requestId,
+                        Payload = evData.Result
+                    });
+                }
+                else if (evData.Result != null)
+                {
+                    await WriteAsync(evData.Result);
+                }
+            }
         }
 
         public event EventHandler ConnectionStatusChanged;

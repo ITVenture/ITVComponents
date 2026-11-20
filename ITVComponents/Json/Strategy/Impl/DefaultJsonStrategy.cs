@@ -19,24 +19,36 @@ namespace ITVComponents.Json.Strategy.Impl
     {
         private readonly DynamicContractResolver strongContract = new DynamicContractResolver();
 
-        private readonly DefaultJsonTypeInfoResolver defaultContract = new DefaultJsonTypeInfoResolver();
+        private volatile DefaultJsonTypeInfoResolver defaultContract;
 
         private readonly List<Action<JsonTypeInfo>> protocolTypeExtensions = new List<Action<JsonTypeInfo>>();
 
-        private readonly JsonSerializerOptions strongTypedSerializerSettingsWithReferences;
+        private volatile JsonSerializerOptions strongTypedSerializerSettingsWithReferences;
 
         private readonly Encoding Utf8NoBom = new UTF8Encoding(false);
 
         /// <summary>
         /// Serializer-settings configuring newtonsoft to type-full-qualify each serialized object
         /// </summary>
-        private readonly JsonSerializerOptions strongTypedSerializerSettings;
+        private volatile JsonSerializerOptions strongTypedSerializerSettings;
 
         public DefaultJsonStrategy()
         {
             DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
-            defaultContract.Modifiers.Add(ProcessTypeExtensions);
-            defaultContract.Modifiers.Add(ApplyEncryptAttributes);
+            RebuildSerializerOptions();
+        }
+
+        /// <summary>
+        /// Builds the options with a new resolver. System.Text.Json shares the cached type infos between all equal
+        /// options; a new resolver makes them unequal, so a protocol base that was serialized before an extension was
+        /// registered (e.g. InMemory before NamedPipe in the same process) picks up its new derived types.
+        /// </summary>
+        private void RebuildSerializerOptions()
+        {
+            var contract = new DefaultJsonTypeInfoResolver();
+            contract.Modifiers.Add(ProcessTypeExtensions);
+            contract.Modifiers.Add(ApplyEncryptAttributes);
+            defaultContract = contract;
             strongTypedSerializerSettings = BuildSerializerOptions(false);
             strongTypedSerializerSettingsWithReferences = BuildSerializerOptions(true);
         }
@@ -61,6 +73,8 @@ namespace ITVComponents.Json.Strategy.Impl
                         t.PolymorphismOptions.DerivedTypes.Add(new JsonDerivedType(typeof(TExt), discriminator));
                     }
                 });
+
+                RebuildSerializerOptions();
             }
         }
 

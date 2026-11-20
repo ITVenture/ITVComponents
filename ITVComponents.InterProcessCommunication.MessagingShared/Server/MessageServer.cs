@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ITVComponents.Helpers;
@@ -353,7 +354,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
                 }
                 else if (msg is SetPropertyRequestMessage sprm)
                 {
-                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments.UnpackArguments(), sprm.Value, caller, services);
+                    // a client that does not pack the value sends it untyped; SetProperty converts it to the property's type then
+                    var value = !string.IsNullOrEmpty(sprm.PackedValue) ? sprm.PackedValue.UnpackArguments()?.FirstOrDefault() : sprm.Value;
+                    SetProperty(sprm.TargetObject, sprm.TargetMethod, sprm.MethodArguments.UnpackArguments(), value, caller, services);
                     e.Response = JsonHelper.ToJson(new SetPropertyResponseMessage
                     {
                         Ok = true

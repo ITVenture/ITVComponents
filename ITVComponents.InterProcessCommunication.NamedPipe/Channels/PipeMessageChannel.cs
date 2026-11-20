@@ -39,11 +39,6 @@ namespace ITVComponents.InterProcessCommunication.NamedPipe.Channels
             JsonHelper.ExtendNativeProtocolType<IProtocolMessage, PipeRequest>("PipeRequest");
             JsonHelper.ExtendNativeProtocolType<IProtocolMessage, PipeResponse>("PipeResponse");
             JsonHelper.ExtendNativeProtocolType<IProtocolMessage, PipeDisconnect>("PipeDisconnect");
-
-            // The hub answers these as the payload of a PipeResponse, typed as IProtocolMessage - but the shared
-            // protocol does not list them as its derived types, so they would not serialize there.
-            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, RegisterServiceResponseMessage>("PipeRegisterServiceResponse");
-            JsonHelper.ExtendNativeProtocolType<IProtocolMessage, ServiceTickResponseMessage>("PipeServiceTickResponse");
         }
 
         /// <summary>

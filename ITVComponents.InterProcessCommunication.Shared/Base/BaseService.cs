@@ -260,7 +260,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                         throw new InterProcessException(reason, null);
                     }
 
-                    pfo.SetValue(plugins[targetObject, services], value, index);
+                    pfo.SetValue(plugins[targetObject, services], ConvertPropertyValue(value, pfo), index);
                 }
                 else
                 {
@@ -271,12 +271,35 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                         throw new InterProcessException(reason, null);
                     }
 
-                    pfo.SetValue(plugins[targetObject, services], value, index);
+                    pfo.SetValue(plugins[targetObject, services], ConvertPropertyValue(value, pfo), index);
                 }
             }
             finally
             {
                 targetObject.LocalOwner(null);
+            }
+        }
+
+        /// <summary>
+        /// Converts a value that arrived untyped (a JsonElement from a client that does not pack it) to the type of the property
+        /// </summary>
+        /// <param name="value">the value as it arrived</param>
+        /// <param name="pfo">the property to set</param>
+        /// <returns>the value to set</returns>
+        private static object ConvertPropertyValue(object value, PropertyInfo pfo)
+        {
+            if (value is not System.Text.Json.JsonElement element || pfo.PropertyType == typeof(object) || pfo.PropertyType == typeof(System.Text.Json.JsonElement))
+            {
+                return value;
+            }
+
+            try
+            {
+                return element.ValueKind == System.Text.Json.JsonValueKind.Null ? null : System.Text.Json.JsonSerializer.Deserialize(element, pfo.PropertyType);
+            }
+            catch (Exception ex)
+            {
+                throw new InterProcessException($"The value for {pfo.DeclaringType?.Name}.{pfo.Name} can not be converted to {pfo.PropertyType.Name}: {ex.Message}", ex);
             }
         }
 

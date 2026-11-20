@@ -127,7 +127,9 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol
     [JsonDerivedType(typeof(ServerOperationMessage), "ServerOperationRequest")]
     [JsonDerivedType(typeof(ServiceDiscoverResponseMessage), "ServiceDiscoveryResponse")]
     [JsonDerivedType(typeof(ServiceDiscoverMessage), "ServiceDiscoveryRequest")]
-
+    // The hubs answer these as the payload of a channel response typed as IProtocolMessage (InMemory, NamedPipe).
+    [JsonDerivedType(typeof(RegisterServiceResponseMessage), "RegisterServiceResponse")]
+    [JsonDerivedType(typeof(ServiceTickResponseMessage), "ServiceTickResponse")]
     public interface IProtocolMessage
     {
         [JsonIgnore(Condition = JsonIgnoreCondition.Always)]

@@ -79,7 +79,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
             MessageTranslator.RegisterMessages();
         }
 
-        public override bool IsBidirectional => isBidirectional && !string.IsNullOrEmpty(connection.ServiceName);
+        public override bool IsBidirectional => isBidirectional && !string.IsNullOrEmpty(connection?.ServiceName);
 
         /// <summary>
         /// Implements a method to check on the remote object whether a specific object is available
@@ -144,7 +144,8 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
                     AuthenticatedUser = identityProvider?.CurrentIdentity
                 }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
                 var tk = connection.InvokeServiceAsync(targetService, msgStr);
-                return tk.TestServerMessage<GetPropertyResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult().Result;
+                // the server packs the value like the result of a method
+                return tk.TestServerMessage<GetPropertyResponseMessage>(CheckConnected, CheckConnected).ConfigureAwait(false).GetAwaiter().GetResult().Result.UnpackArguments()?.FirstOrDefault();
             }
 
             throw new InterProcessException("Not connected!", null);
@@ -160,6 +161,7 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
                     TargetObject = uniqueName,
                     MethodArguments = index.PackArguments(),
                     Value = value,
+                    PackedValue = new[] { value }.PackArguments(),
                     AuthenticatedUser = identityProvider?.CurrentIdentity
                 }, SerializationTypingMode.NativePolymorphism, typeof(IRequestMessage), true);
                 var tk = connection.InvokeServiceAsync(targetService, msgStr);
