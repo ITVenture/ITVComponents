@@ -679,8 +679,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             // BUGFIX: der Deckel wurde frueher ueber ALLE Zugaenge des Mandanten gebildet, nicht ueber
             // die gesuchten - App A hob damit den Deckel fuer App B. Der Label-Filter gehoert VOR die
             // Buendel-Aufloesung. Und der Mandant kommt von der App, nicht vom Benutzer.
+            var appTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Resolving the permissions of a client app");
             var appUsers = securityContext.ClientAppAccesses
-                .Where(n => n.ClientApp.TenantId == securityContext.CurrentTenantId.Value && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
+                .Where(n => n.ClientApp.TenantId == appTenantId && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
                 .Where(au => filteredLabels.Contains(au.Label.ToLower()));
             var machinePerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId == null));
             var preFilteredPerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId != null));
@@ -791,8 +792,9 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             // BUGFIX: der Deckel wurde frueher ueber ALLE Zugaenge des Mandanten gebildet, nicht ueber
             // die gesuchten - App A hob damit den Deckel fuer App B. Der Label-Filter gehoert VOR die
             // Buendel-Aufloesung. Und der Mandant kommt von der App, nicht vom Benutzer.
+            var appTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Resolving the permissions of a client app");
             var appUsers = securityContext.ClientAppAccesses
-                .Where(n => n.ClientApp.TenantId == securityContext.CurrentTenantId.Value && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
+                .Where(n => n.ClientApp.TenantId == appTenantId && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
                 .Where(au => filteredLabels.Contains(au.Label.ToLower()));
             var machinePerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId == null));
             var preFilteredPerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId != null));
@@ -1760,7 +1762,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
             {
                 login = new TExternalOAuthServiceTenantLogin
                 {
-                    TenantId = securityContext.CurrentTenantId.Value,
+                    TenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, $"Storing the token of '{connectionName}'"),
                     OAuthServiceId = serviceId.Value,
                     Token = JsonHelper.ToJson(encToken, SerializationTypingMode.StaticTyping)
                 };
@@ -1976,9 +1978,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
 
                 try
                 {
+                    var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, $"Resolving the external service '{name}'");
                     var phase1 = from p in securityContext.UpwardsTenantTreeView
                         join pin in securityContext.ExternalOAuthServices on p.ParentTenantId equals pin.TenantId
-                        where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value &&
+                        where p.OutermostLeafTenantId == currentTenantId &&
                               (p.ParentLevel == 1 || pin.Inheritable)
                         select new { pin.UniqueConnectionName, p.OutermostLeafTenantId, p.ParentLevel };
                     var phase2 = from gj in phase1
@@ -2033,7 +2036,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     // obersten Mandanten fuer alle Nachkommen; eine eigene vererbbare bricht sie fuer den Teilbaum, eine
                     // eigene nicht vererbbare gilt nur fuer den Mandanten selbst.
                     // Ohne Mandantenfilter (der Baum IST die Eingrenzung), damit die Abfrage nicht vom Trust abhaengt.
-                    var currentTenantId = securityContext.CurrentTenantId.Value;
+                    var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Resolving the credentials of an external service");
                     var inTree = (from p in securityContext.UpwardsTenantTreeView
                         join pin in securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Include(n => n.Tenant) on
                             (int?)p.ParentTenantId equals pin.TenantId

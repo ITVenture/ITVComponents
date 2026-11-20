@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.WebPlugins.Model;
@@ -164,9 +165,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
 
+                var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Loading web plugins of the tenant tree");
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
                     join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
+                    where p.OutermostLeafTenantId == currentTenantId && (p.ParentLevel == 1 || pin.Inheritable)
                     select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
                 var phase2 = from gj in phase1
                     group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }
@@ -273,9 +275,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                 using var tmp = securityAccessProvider.CreateForCaller(securityContext,
                     new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
 
+                var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Loading web plugins of the tenant tree");
                 var phase1 = from p in securityContext.UpwardsTenantTreeView
                     join pin in securityContext.WebPlugins on p.ParentTenantId equals pin.TenantId
-                    where p.OutermostLeafTenantId == securityContext.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
+                    where p.OutermostLeafTenantId == currentTenantId && (p.ParentLevel == 1 || pin.Inheritable)
                     select new { pin.UniqueName, p.OutermostLeafTenantId, p.ParentLevel };
                 var phase2 = from gj in phase1
                     group gj by new { gj.UniqueName, gj.OutermostLeafTenantId }

@@ -849,9 +849,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             // Festgehalten statt inline geprueft: der leere Treffer unten muss sagen koennen, WELCHER der
             // beiden Wege gelaufen ist - das ist die Information, die die Fehlersuche abkuerzt.
             var isUser = userLabels.All(n => !Regex.IsMatch(n, Global.AppUserKeyPattern));
+            var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Resolving the permissions of the current user");
             if (isUser)
             {
-                tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == securityContext.CurrentTenantId.Value).Select(u => u.User);
+                tenantUsers = securityContext.TenantUsers.Where(tu => tu.TenantId == currentTenantId).Select(u => u.User);
             }
             else
             {
@@ -862,7 +863,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 // ueber die gesuchten - App A hob damit den Deckel fuer App B. Der Label-Filter gehoert
                 // VOR die Buendel-Aufloesung.
                 var appUsers = securityContext.ClientAppAccesses
-                    .Where(n => n.ClientApp.TenantId == securityContext.CurrentTenantId.Value && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
+                    .Where(n => n.ClientApp.TenantId == currentTenantId && n.RevokedUtc == null && (n.ExpiresUtc == null || n.ExpiresUtc > DateTime.UtcNow) && n.ClientApp.Enabled)
                     .Where(au => filteredLabels.Contains(au.Label.ToLower()));
                 machinePerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId == null));
                 preFilteredPerms = AppSetPermissions(appUsers.Where(n => n.TenantUserId != null));
@@ -1271,7 +1272,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             var securityContext = lease.Context;
             var state = new TExternalOAuthServiceState
             {
-                TenantId = securityContext.CurrentTenantId.Value,
+                TenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, $"Preparing the connect of '{oAuthState.ConnectionName}'"),
                 ExpiresAt = DateTime.Now.AddMinutes(5).ToUniversalTime(),
                 State = oAuthState.State,
                 CodeVerifier = oAuthState.CodeVerifier,
@@ -1347,7 +1348,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
             {
                 login = new TExternalOAuthServiceTenantLogin
                 {
-                    TenantId = securityContext.CurrentTenantId.Value,
+                    TenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, $"Storing the token of '{connectionName}'"),
                     OAuthServiceId = connection.OAuthServiceId,
                     Token = JsonHelper.ToJson(encToken,SerializationTypingMode.StaticTyping)
                 };

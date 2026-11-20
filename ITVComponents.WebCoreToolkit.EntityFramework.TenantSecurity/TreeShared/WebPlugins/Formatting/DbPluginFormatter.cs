@@ -11,6 +11,7 @@ using ITVComponents.Plugins.Initialization;
 using ITVComponents.Security;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.DependencyInjection;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Extensions;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Models.HelperModels;
@@ -124,9 +125,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     using var tmp = securityAccessProvider.CreateForCaller(context,
                         new TTrustConfig { HideGlobals = false, IncludeParentTree = true, ShowAllTenants = false });
                     Dictionary<string, string> tenantPass = new Dictionary<string, string>();
+                    var currentTenantId = context.RequireCurrentTenantId(context.CurrentTenantName, "Loading the web plugin constants of the tenant tree");
                     var phase1 = from p in context.UpwardsTenantTreeView
                         join pin in context.WebPluginConstants on p.ParentTenantId equals pin.TenantId
-                        where p.OutermostLeafTenantId == context.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
+                        where p.OutermostLeafTenantId == currentTenantId && (p.ParentLevel == 1 || pin.Inheritable)
                         select new { pin.Name, p.OutermostLeafTenantId, p.ParentLevel };
                     var phase2 = from gj in phase1
                         group gj by new { gj.Name, gj.OutermostLeafTenantId }
@@ -201,7 +203,10 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                         });*/
                     var phase1 = from p in context.UpwardsTenantTreeView.Where(n => n.OutermostLeafTenantName.ToLower() == (plugInSelector.ExplicitPluginPermissionScope ?? "").ToLower())
                                  join pin in context.WebPluginConstants on p.ParentTenantId equals pin.TenantId
-                        where p.OutermostLeafTenantId == context.CurrentTenantId.Value && (p.ParentLevel == 1 || pin.Inheritable)
+                        // Nur der explizite Mandant zaehlt, wie im DbPluginsSelector. Der fruehere Zusatz
+                        // "== CurrentTenantId.Value" warf ohne angemeldeten Mandanten und lieferte bei einem
+                        // anderen aktuellen Mandanten gar keine Konstanten.
+                        where p.ParentLevel == 1 || pin.Inheritable
                         select new { pin.Name, p.OutermostLeafTenantId, p.ParentLevel };
                     var phase2 = from gj in phase1
                         group gj by new { gj.Name, gj.OutermostLeafTenantId }

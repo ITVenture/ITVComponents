@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ITVComponents.EFRepo.Helpers;
 using ITVComponents.EFRepo.Migrations;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -51,12 +52,45 @@ namespace ITVComponents.EFRepo.SqlServer.Migrations
                 if (operation is SqlOperation sqlOperation && !string.IsNullOrEmpty(sqlOperation.Sql))
                 {
                     sqlOperation.Sql = sqlOperation.Sql.Replace(MigrationSchema.Placeholder, targetSchema.Replace("]", "]]"));
+                    if (options.HasFlag(MigrationsSqlGenerationOptions.Idempotent) && MustStartABatch(sqlOperation.Sql))
+                    {
+                        // A copy: EF keeps the operations of a migration, a second run must not see the wrapped form.
+                        redirected.Add(new SqlOperation
+                        {
+                            Sql = $"EXEC(N'{sqlOperation.Sql.Replace("'", "''")}')",
+                            SuppressTransaction = sqlOperation.SuppressTransaction
+                        });
+                        continue;
+                    }
                 }
 
                 redirected.Add(operation);
             }
 
             return base.Generate(redirected, model, options);
+        }
+
+        /// <summary>
+        /// Matches a definition that T-SQL only accepts as the first statement of a batch (leading line comments allowed).
+        /// </summary>
+        private static readonly Regex BatchLeadingDefinition = new(
+            @"\A(\s*--[^\n]*\n)*\s*(CREATE\s+OR\s+ALTER|CREATE|ALTER)\s+(VIEW|FUNCTION|PROCEDURE|PROC|TRIGGER|SCHEMA)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex BatchSeparator = new(@"^\s*GO\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Indicates whether a raw sql-operation must be wrapped in EXEC for an idempotent script.
+        /// </summary>
+        /// <remarks>
+        /// An idempotent script puts every command into <c>IF NOT EXISTS (...) BEGIN ... END</c>. CREATE VIEW, FUNCTION,
+        /// PROCEDURE, TRIGGER and SCHEMA must be the first statement of a batch and are invalid there; EF wraps its own
+        /// operations of that kind in EXEC, but not the sql of <c>migrationBuilder.Sql</c> (e.g. from <c>ConfigureViews</c>).
+        /// Sql that contains its own GO separators is left alone: EF splits it into batches, which EXEC would break.
+        /// </remarks>
+        private static bool MustStartABatch(string sql)
+        {
+            return BatchLeadingDefinition.IsMatch(sql) && !BatchSeparator.IsMatch(sql);
         }
     }
 }

@@ -118,6 +118,62 @@ namespace ITVComponents.EFRepo.Test
             Assert.AreEqual("[t].[Col]", provider.FullQualifyColumn("t", "Col", false));
         }
 
+        /// <summary>
+        /// CREATE VIEW/FUNCTION/PROCEDURE muss in T-SQL die erste Anweisung eines Batches sein. Ein Skript aus
+        /// <c>migrations script</c> trennt die Befehle mit GO - jede SqlOperation (wie die aus ConfigureViews)
+        /// muss darum ein EIGENER Befehl bleiben.
+        /// </summary>
+        [TestMethod]
+        public void InAScript_EverySqlOperationIsABatchOfItsOwn()
+        {
+            var commands = GenerateCommands("partner", CreateModuleOperations(), MigrationsSqlGenerationOptions.Script);
+
+            Assert.AreEqual(2, commands.Count, string.Join(Environment.NewLine + "--" + Environment.NewLine, commands));
+            Assert.IsTrue(commands.All(c => c.TrimStart().StartsWith("CREATE ", StringComparison.OrdinalIgnoreCase)), string.Join(Environment.NewLine, commands));
+        }
+
+        /// <summary>
+        /// Im idempotenten Skript steht jeder Befehl in IF NOT EXISTS (...) BEGIN ... END. Dort ist ein nacktes
+        /// CREATE VIEW/PROCEDURE ungueltig; es muss als EXEC(N'...') kommen.
+        /// </summary>
+        [TestMethod]
+        public void InAnIdempotentScript_ModuleDefinitionsAreWrappedInExec()
+        {
+            var commands = GenerateCommands("partner", CreateModuleOperations(),
+                MigrationsSqlGenerationOptions.Script | MigrationsSqlGenerationOptions.Idempotent);
+
+            Assert.IsTrue(commands.All(c => c.TrimStart().StartsWith("EXEC(N'CREATE ", StringComparison.OrdinalIgnoreCase)),
+                string.Join(Environment.NewLine + "--" + Environment.NewLine, commands));
+            StringAssert.Contains(commands[1], "SELECT ''x'' AS Quote", "Hochkommas im Rumpf werden verdoppelt.");
+            Assert.IsFalse(commands.Any(c => c.Contains(MigrationSchema.Placeholder)), "Der Platzhalter ist vor dem Verpacken ersetzt.");
+        }
+
+        [TestMethod]
+        public void InAnIdempotentScript_OtherStatementsStayAsTheyAre()
+        {
+            var commands = GenerateCommands("partner",
+                new List<MigrationOperation> { new SqlOperation { Sql = $"DROP VIEW if exists [{MigrationSchema.Placeholder}].[TenantView]" } },
+                MigrationsSqlGenerationOptions.Script | MigrationsSqlGenerationOptions.Idempotent);
+
+            Assert.IsTrue(commands.Single().TrimStart().StartsWith("DROP VIEW", StringComparison.OrdinalIgnoreCase), commands.Single());
+        }
+
+        private static List<MigrationOperation> CreateModuleOperations()
+        {
+            return new List<MigrationOperation>
+            {
+                new SqlOperation { Sql = $"CREATE VIEW [{MigrationSchema.Placeholder}].[TenantView] AS SELECT 1 AS One" },
+                new SqlOperation { Sql = $"CREATE PROCEDURE [{MigrationSchema.Placeholder}].[TenantProc] AS BEGIN SELECT 'x' AS Quote END" }
+            };
+        }
+
+        private static List<string> GenerateCommands(string schema, List<MigrationOperation> operations, MigrationsSqlGenerationOptions options)
+        {
+            using var context = new SchemaTestContext(CreateOptions(schema));
+            var generator = context.GetService<IMigrationsSqlGenerator>();
+            return generator.Generate(operations, null, options).Select(n => n.CommandText).ToList();
+        }
+
         private static string GenerateScript(string schema, List<MigrationOperation> operations, bool ensureSchema = false)
         {
             using var context = new SchemaTestContext(CreateOptions(schema, ensureSchema));
