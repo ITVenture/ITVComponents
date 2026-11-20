@@ -27,6 +27,7 @@ namespace ITVComponents.UpdateService.Test
     {
         private const string PosFolder = @"C:\Program Files\Shop\Pos";
         private const string TaskFolder = @"C:\Program Files\Shop\Tasks";
+        private const string OtherFolder = @"C:\Program Files\Shop\Other";
 
         private readonly List<string> directories = new List<string>();
 
@@ -217,17 +218,74 @@ namespace ITVComponents.UpdateService.Test
         }
 
         [TestMethod]
-        public void Targets_That_Share_An_Msi_Are_Refused()
+        public void Targets_That_Share_An_Msi_Form_A_Group_Led_By_The_First()
         {
-            var options = Shared();
-            var pos = Target("Pos", "Shop.Pos", PosFolder);
-            var tasks = Target("Tasks", "Shop.Tasks", TaskFolder);
-            tasks.UpgradeCode = pos.UpgradeCode.ToUpperInvariant();
-            options.Targets.Add(pos);
-            options.Targets.Add(tasks);
+            var (pos, tasks) = SharedMsi();
+            var world = Build(pos, tasks, Target("Other", "Shop.Other", OtherFolder));
 
-            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => options.ResolveTargets());
-            StringAssert.Contains(ex.Message, "UpgradeCode");
+            Assert.AreEqual(UpdateServiceOptions.UpgradeCodeKey(pos.UpgradeCode), UpdateServiceOptions.UpgradeCodeKey(tasks.UpgradeCode), "the spelling does not matter");
+            Assert.IsFalse(world.Targets[0].Coordinator.HoldsApplication);
+            Assert.IsFalse(world.Targets[1].Coordinator.HoldsApplication);
+        }
+
+        [TestMethod]
+        public async Task The_Shared_Msi_Asks_The_Applications_Of_Every_Target_To_End_And_The_Lead_Decides_A_Deferral()
+        {
+            var (pos, tasks) = SharedMsi();
+            var world = Build(pos, tasks);
+            var requests = new List<ShutdownRequest>();
+            world.Facade.ShutdownRequested += r => requests.Add(r);
+            await world.Facade.RegisterAsync("Shop.Pos", "1.0", false, Identity(1, PosFolder + @"\App.exe"));
+            var tasksCaller = Identity(1, TaskFolder + @"\App.exe");
+            await world.Facade.RegisterAsync("Shop.Tasks", "1.0", false, tasksCaller);
+            world.Feeds[0].Offer("Shop.Pos", "2.0");
+
+            await world.Targets[0].Coordinator.RunOnceAsync(CancellationToken.None);
+
+            CollectionAssert.AreEquivalent(new[] { "Pos", "Tasks" }, requests.Select(r => r.TargetId).ToArray(), "each application hears it for its own target");
+            Assert.AreEqual(0, world.Installers[0].Started, "nothing is installed while an application of the MSI runs");
+            Assert.IsTrue(world.Targets[1].Coordinator.HoldsApplication, "no new instance of the other target starts meanwhile");
+            Assert.AreEqual(UpdatePhase.ReadyToInstall, world.Targets[1].Coordinator.Status.Phase);
+
+            await world.Targets[1].Coordinator.RunOnceAsync(CancellationToken.None);
+            Assert.AreEqual(0, world.Installers[1].Started, "the other target never installs the MSI itself");
+
+            Assert.IsTrue(await world.Facade.DeferAsync(30, "task running", tasksCaller));
+            Assert.IsNotNull(world.Stores[0].Load().DeferredUntil, "the lead decides about the deferral");
+            Assert.IsNull(world.Stores[1].Load().DeferredUntil);
+            Assert.IsFalse(world.Targets[1].Coordinator.HoldsApplication, "deferred: the applications may run");
+
+            await world.Targets[1].Coordinator.RunOnceAsync(CancellationToken.None);
+            Assert.AreEqual(UpdatePhase.Deferred, world.Targets[1].Coordinator.Status.Phase, "the other target shows what is coming");
+            Assert.AreEqual("2.0", world.Targets[1].Coordinator.Status.AvailableVersion);
+        }
+
+        [TestMethod]
+        public async Task The_Shared_Msi_Runs_Once_When_Every_Application_Has_Ended_And_Both_Run_Again()
+        {
+            var (pos, tasks) = SharedMsi();
+            var world = Build(pos, tasks);
+            var posCaller = Identity(1, PosFolder + @"\App.exe");
+            var tasksCaller = Identity(1, TaskFolder + @"\App.exe");
+            await world.Facade.RegisterAsync("Shop.Pos", "1.0", false, posCaller);
+            await world.Facade.RegisterAsync("Shop.Tasks", "1.0", false, tasksCaller);
+            world.Feeds[0].Offer("Shop.Pos", "2.0");
+            await world.Targets[0].Coordinator.RunOnceAsync(CancellationToken.None);
+
+            world.Targets[0].Registry.Remove(posCaller.FindFirst(PipeClaimTypes.ConnectionId)!.Value);
+            await world.Targets[0].Coordinator.RunOnceAsync(CancellationToken.None);
+            Assert.AreEqual(0, world.Installers[0].Started, "the application of the other target still runs");
+
+            world.Targets[1].Registry.Remove(tasksCaller.FindFirst(PipeClaimTypes.ConnectionId)!.Value);
+            await world.Targets[0].Coordinator.RunOnceAsync(CancellationToken.None);
+
+            Assert.AreEqual(1, world.Installers[0].Started);
+            Assert.AreEqual(0, world.Installers[1].Started);
+            CollectionAssert.AreEqual(new[] { 1 }, world.Applications[0].Launched);
+            CollectionAssert.AreEqual(new[] { 1 }, world.Applications[1].Launched, "the other target runs again in its session");
+            Assert.IsNull(world.Stores[0].Load().Pending);
+            Assert.IsNull(world.Stores[1].Load().Pending, "the other target completed its part");
+            Assert.IsFalse(world.Targets[1].Coordinator.HoldsApplication);
         }
 
         [TestMethod]
@@ -334,6 +392,14 @@ namespace ITVComponents.UpdateService.Test
             Assert.AreEqual(1, world.Gate.CurrentCount, "the gate is free again after the installation");
         }
 
+        private static (UpdateTargetOptions Pos, UpdateTargetOptions Tasks) SharedMsi()
+        {
+            var pos = Target("Pos", "Shop.Pos", PosFolder);
+            var tasks = Target("Tasks", "Shop.Tasks", TaskFolder);
+            tasks.UpgradeCode = "{" + pos.UpgradeCode.ToUpperInvariant() + "}";
+            return (pos, tasks);
+        }
+
         private static UpdateServiceOptions Shared() => new UpdateServiceOptions
         {
             FeedUrl = "https://shop.example/updates",
@@ -391,8 +457,10 @@ namespace ITVComponents.UpdateService.Test
                 world.Feeds.Add(feed);
                 world.Installers.Add(installer);
                 world.Stores.Add(store);
+                world.Applications.Add(application);
             }
 
+            UpdateServicePlugin.FormInstallGroups(world.Targets);
             world.Facade = new UpdateServiceFacade(world.Targets);
             return world;
         }
@@ -421,6 +489,8 @@ namespace ITVComponents.UpdateService.Test
             public List<FakeInstaller> Installers { get; } = new List<FakeInstaller>();
 
             public List<InstallStateStore> Stores { get; } = new List<InstallStateStore>();
+
+            public List<FakeApplication> Applications { get; } = new List<FakeApplication>();
 
             public UpdateServiceFacade Facade { get; set; } = null!;
         }
@@ -474,10 +544,13 @@ namespace ITVComponents.UpdateService.Test
 
         private sealed class FakeApplication : IApplicationControl
         {
+            public List<int> Launched { get; } = new List<int>();
+
             public Version InstalledVersion() => new Version(1, 0);
 
             public void Launch(int sessionId)
             {
+                Launched.Add(sessionId);
             }
 
             public void Terminate(RegisteredAgent agent)

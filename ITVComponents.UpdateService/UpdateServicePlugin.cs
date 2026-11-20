@@ -114,6 +114,7 @@ namespace ITVComponents.UpdateService
             var downloader = new PackageDownloader(http, packages);
             installGate = new System.Threading.SemaphoreSlim(1, 1);
             targets = resolved.Select(t => CreateTarget(t, downloader, logs)).ToList();
+            FormInstallGroups(targets);
             if (sessionEvents is { Active: true })
             {
                 sessionEvents.SessionChanged += SessionChanged;
@@ -135,6 +136,24 @@ namespace ITVComponents.UpdateService
 
             Initialized = true;
             LogEnvironment.LogEvent($"The update service runs for {string.Join(", ", targets.Select(t => t.ToString()))} (feed {options.FeedUrl}, channel {options.Channel}).", LogSeverity.Report);
+        }
+
+        /// <summary>
+        /// Targets with the same UpgradeCode share one MSI: the first of them installs it and ends the applications of
+        /// all of them before (issue ModulePlugins-Instances, D).
+        /// </summary>
+        internal static void FormInstallGroups(IEnumerable<UpdateTarget> all)
+        {
+            foreach (var shared in all.GroupBy(t => UpdateServiceOptions.UpgradeCodeKey(t.Options.UpgradeCode)).Where(g => g.Count() > 1))
+            {
+                var group = new InstallGroup(shared.Key);
+                foreach (var target in shared)
+                {
+                    target.Coordinator.JoinGroup(group);
+                }
+
+                LogEnvironment.LogEvent($"The targets {string.Join(", ", shared.Select(t => t.Id))} share the MSI {shared.Key}; target {shared.First().Id} installs it and ends the applications of all of them first.", LogSeverity.Report);
+            }
         }
 
         /// <summary>

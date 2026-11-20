@@ -239,12 +239,6 @@ namespace ITVComponents.UpdateService
                         throw new InvalidOperationException($"The target id {target.Id} is used twice.");
                     }
 
-                    // One MSI for two targets would update the second one without asking it to end first.
-                    if (Guid.TryParse(other.UpgradeCode, out var a) && Guid.TryParse(options.UpgradeCode, out var b) ? a == b : string.Equals(other.UpgradeCode, options.UpgradeCode, StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException($"Targets {other.TargetId} and {target.Id} have the same UpgradeCode; targets that share an MSI are not supported yet.");
-                    }
-
                     // The folder decides which target an application belongs to.
                     if (string.Equals(FolderOf(other.ApplicationPath), FolderOf(options.ApplicationPath), StringComparison.OrdinalIgnoreCase))
                     {
@@ -282,6 +276,16 @@ namespace ITVComponents.UpdateService
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// The UpgradeCode in one spelling: targets with the same key share their MSI and form an install group; the first
+        /// of them in the configuration installs it.
+        /// </summary>
+        public static string UpgradeCodeKey(string? upgradeCode)
+        {
+            var text = upgradeCode?.Trim() ?? string.Empty;
+            return Guid.TryParse(text, out var code) ? code.ToString("B").ToUpperInvariant() : text.ToUpperInvariant();
         }
 
         private static string FolderOf(string applicationPath)

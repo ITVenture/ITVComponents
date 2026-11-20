@@ -246,7 +246,6 @@ Infrastruktur-Instanzen des Moduls in `plugins.json` ab.
    - `Singleton`: erst nach einem Neustart. Der Katalog gibt das als Ergebnis zurück („wirkt nach Neustart“). Der
      Neustart läuft wie ein Durchgang nur mit Modulen über den Update-Dienst: Aufforderung, Aufschub, nie dringend.
 
-
 ### C.3 Instanz entfernen
 
 `RemoveObjectAsync(name)` am Katalog, dann `RemovePluginInstanceAsync(name)` am Dienst.
@@ -387,8 +386,8 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
   - Konfiguration: `UpdateServiceOptions.Targets` (`UpdateTargetOptions`: `Id`, `Kind`, `ProductId`,
     `ApplicationPath`, `ApplicationArguments`, `UpgradeCode`, `ModulesDirectory`, `RequireApplicationPath`).
     `ResolveTargets` macht daraus je Ziel eine Kopie der Optionen. Ohne `Targets` bilden die Einzelwerte das Ziel
-    `default`. Beim Start abgelehnt werden: `WindowsService` (Schritt 4b), zwei Ziele mit demselben `UpgradeCode` und
-    zwei Ziele im selben Ordner. Die Id muss sich als Ordnername eignen und darf nur einmal vorkommen.
+    `default`. Beim Start abgelehnt wurden damals `WindowsService` (Schritt 4b) und zwei Ziele mit demselben
+    `UpgradeCode` (gemeinsames MSI, siehe unten); abgelehnt bleiben zwei Ziele im selben Ordner. Die Id muss sich als Ordnername eignen und darf nur einmal vorkommen.
   - Je Ziel (`UpdateTarget`) gibt es `AgentRegistry`, `UpdateCoordinator`, `RoleCoordinator`, `ModuleManager`, den
     Stand unter `targets\<Id>\state.json` und `plugins.json`. Das Ziel `default` behält seinen Stand direkt in
     `DataDirectory`, damit die Umstellung auf `Targets` nichts verliert. Damit sind auch Stand und Aufschub-Schlüssel
@@ -452,10 +451,29 @@ der Anwendung ist dann eine, Module und Instanzen bleiben je Ziel getrennt. In `
     implementiert. Ohne Agent-Dienste gibt es keine Bindungen, der Vertrag des Handlers verlangt sie darum nicht.
     Die Rollen bleiben nach dem Abwählen besetzt und werden nicht bedient, bis jemand sie neu bindet.
 
+- **Gemeinsames MSI** (D): Ziele mit demselben `UpgradeCode` bilden eine Gruppe; der Durchgang beendet die
+  Anwendungen aller Ziele der Gruppe, bevor das MSI läuft.
+  - Gruppe = Ziele mit demselben `UpgradeCode` (`InstallGroup`, im Plugin gebildet). Das erste Ziel in der
+    Konfiguration ist der Lead: Nur er wählt das Basispaket (unter seiner `ProductId`). Folger liefern in `SelectBase`
+    null und haben nur Modul-Durchgänge.
+  - Halten: Eine Gruppe hat höchstens einen Halter (Lead mit Basispaket = ganze Gruppe, sonst nur das eigene Ziel).
+    Belegt wird vor dem Beenden bzw. Installieren in `DecideAsync`. Freigegeben wird überall, wo `shutdownRequested`
+    gelöscht wird (EndPass, Defer, kein Paket, neues Paket, Abwahl), sowie bei Dispose. Die Freigabe weckt alle Mitglieder.
+    Ein Ziel, dessen Gruppe ein anderes hält, überspringt seinen Durchgang (auch Pending und Rollback).
+  - Lead mit Basispaket: Er wartet auf die Agenten aller Mitglieder. Die Aufforderung geht an jedes Mitglied mit
+    dessen `TargetId`; dort werden `shutdownRequested` (ein Ende zählt nicht als Absturz) und `sessionsToRestart`
+    gesetzt. Nach Ablauf der Frist beendet jedes Mitglied seine Agenten über seine eigene `IApplicationControl`.
+  - M1: Der Lead plant auch die Module jedes Folgers für die neue Fassung. Fehlt eins, wird blockiert.
+  - Installieren: Der Lead staged die Module aller Mitglieder und schreibt jedem Folger ein eigenes
+    `Pending` (gleiches Paket und Log, eigene Module und Sitzungen). Nach dem Lauf schliesst er jeden Folger mit
+    demselben Ergebnis ab (`CompleteAsync`: Module aktivieren bzw. verwerfen, Sitzungen neu starten). Startet der
+    Dienst neu, schliesst jedes Ziel sein `Pending` selbst ab.
+  - Weiterleiten: Defer eines Folgers ohne eigene Arbeit geht an den Halter. `CheckNow` eines Folgers ruft auch den
+    Lead. `HoldsApplication` eines Folgers ist wahr, solange der Lead die ganze Gruppe hält (als Flag an der Gruppe,
+    keine verschachtelten Sperren). Der Status eines Folgers ohne eigene Arbeit spiegelt die Basis-Felder des Leads.
+
 **Noch offen:**
 
-- Gemeinsames MSI für zwei Ziele (D): Heute beim Start abgelehnt. Es braucht einen Durchgang, der beide Anwendungen
-  beendet, bevor das MSI läuft.
 - Ein älterer Client an einem Dienst mit mehreren Zielen sieht die Ereignisse aller Ziele. Darum müssen die Anwendungen
   vor der Umstellung auf `Targets` den neuen Client haben. Mit nur einem Ziel ändert sich nichts.
 

@@ -65,6 +65,8 @@ namespace ITVComponents.UpdateService
         private List<int> sessionsToRestart = new List<int>();
         private bool checkRequested;
         private UpdateStatus status = new UpdateStatus { Phase = UpdatePhase.Unknown };
+        private InstallGroup? group;
+        private Dictionary<UpdateCoordinator, ModulePlan> peerPlans = new Dictionary<UpdateCoordinator, ModulePlan>();
 
         public UpdateCoordinator(UpdateServiceOptions options, IUpdateFeedClient feedClient, IPackageDownloader downloader, IPackageVerifier verifier,
             IPackageInstaller installer, IInstallResultEvaluator evaluator, InstallStateStore stateStore, AgentRegistry registry,
@@ -137,6 +139,215 @@ namespace ITVComponents.UpdateService
         }
 
         /// <summary>
+        /// Gets the id of the target.
+        /// </summary>
+        internal string TargetId => options.TargetId;
+
+        /// <summary>
+        /// Makes this target a member of the targets that share its MSI. Before <see cref="Start"/>.
+        /// </summary>
+        internal void JoinGroup(InstallGroup installGroup)
+        {
+            group = installGroup;
+            installGroup.Add(this);
+        }
+
+        private bool IsFollower => group != null && group.Lead != this;
+
+        private IEnumerable<UpdateCoordinator> Peers => group?.Members.Where(m => m != this) ?? Enumerable.Empty<UpdateCoordinator>();
+
+        internal void WakeFromGroup() => Wake();
+
+        /// <summary>
+        /// The modules of this target for a version of the shared MSI that the lead is about to install.
+        /// </summary>
+        internal ModulePlan PlanForGroup(FeedResult? currentFeed, Version applicationVersion)
+        {
+            return modules?.Plan(currentFeed, applicationVersion, stateStore.Load()) ?? ModulePlan.Empty;
+        }
+
+        /// <summary>
+        /// The lead asks the applications of this target to end, because it installs the shared MSI.
+        /// </summary>
+        internal void JoinGroupShutdown(ShutdownRequest request)
+        {
+            var own = registry.Active;
+            lock (sync)
+            {
+                shutdownRequested ??= clock.GetUtcNow();
+                shutdownDeadline = request.Deadline;
+                sessionsToRestart = sessionsToRestart.Union(own.Select(a => a.SessionId)).ToList();
+            }
+
+            SetStatus(s =>
+            {
+                s.Phase = UpdatePhase.ReadyToInstall;
+                s.AvailableVersion = request.Version;
+                s.Urgent = request.Reason == ShutdownReason.UrgentUpdate;
+                s.DeferredUntil = null;
+                s.Error = null;
+            });
+            if (own.Count == 0)
+            {
+                LogEnvironment.LogDebugEvent($"{tag}The shared MSI {request.Version} is ready; no application of this target runs.", LogSeverity.Report);
+                return;
+            }
+
+            LogEnvironment.LogEvent($"{tag}The shared MSI {request.Version} is ready; {own.Count} application(s) asked to end ({request.Reason}).", LogSeverity.Report);
+            Raise(ShutdownRequested, new ShutdownRequest { Reason = request.Reason, Deadline = request.Deadline, Version = request.Version, TargetId = options.TargetId });
+        }
+
+        /// <summary>
+        /// The deadline of an urgent installation of the shared MSI has passed: the applications of this target are ended.
+        /// </summary>
+        internal void TerminateForGroup(DateTimeOffset deadline, string? version)
+        {
+            foreach (var agent in registry.Active)
+            {
+                LogEnvironment.LogEvent($"{tag}{agent} did not end by {deadline:u} for the urgent update of the shared MSI to {version}.", LogSeverity.Warning);
+                application.Terminate(agent);
+            }
+        }
+
+        /// <summary>
+        /// Prepares the modules of this target for the shared MSI; see <see cref="ModuleManager.StageAsync"/>.
+        /// </summary>
+        internal async Task<List<StagedModule>> StageForGroupAsync(FeedResult currentFeed, ModulePlan plan, CancellationToken cancellationToken)
+        {
+            if (modules == null || !plan.HasWork)
+            {
+                return new List<StagedModule>();
+            }
+
+            return await modules.StageAsync(currentFeed, plan, cancellationToken).ConfigureAwait(false);
+        }
+
+        internal void DiscardForGroup(List<StagedModule> staged)
+        {
+            if (modules != null && staged.Count != 0)
+            {
+                LogEnvironment.LogEvent($"{tag}The shared MSI is not installed; the {staged.Count} prepared module(s) are thrown away.", LogSeverity.Warning);
+                modules.Discard(staged);
+            }
+        }
+
+        /// <summary>
+        /// The lead starts the shared MSI: this target records it as its own pending installation, with its modules and
+        /// sessions, so that it can complete it by itself after a restart of the service.
+        /// </summary>
+        internal void BeginGroupInstall(PendingInstall leadPending, ModulePlan plan, List<StagedModule> staged)
+        {
+            var state = stateStore.Load();
+            if (modules != null && plan.HasWork)
+            {
+                modules.ApplyRemovals(plan, state);
+            }
+
+            List<int> sessions;
+            lock (sync)
+            {
+                sessions = sessionsToRestart.ToList();
+            }
+
+            state.Pending = new PendingInstall
+            {
+                PackageId = leadPending.PackageId,
+                Version = leadPending.Version,
+                LogPath = leadPending.LogPath,
+                StartedUtc = leadPending.StartedUtc,
+                SessionsToRestart = sessions,
+                StagedModules = staged
+            };
+            stateStore.Save(state);
+            SetStatus(s =>
+            {
+                s.Phase = UpdatePhase.Installing;
+                s.AvailableVersion = leadPending.Version;
+                s.Error = null;
+            });
+        }
+
+        internal void GroupInstallerStarted(int processId)
+        {
+            var state = stateStore.Load();
+            if (state.Pending == null)
+            {
+                LogEnvironment.LogEvent($"{tag}The shared MSI started (process {processId}), but this target has no pending installation.", LogSeverity.Warning);
+                return;
+            }
+
+            state.Pending.InstallerProcessId = processId;
+            stateStore.Save(state);
+        }
+
+        /// <summary>
+        /// The shared MSI ended: this target completes its part with the same result.
+        /// </summary>
+        internal Task CompleteGroupInstallAsync(InstallResult result)
+        {
+            var state = stateStore.Load();
+            if (state.Pending == null)
+            {
+                LogEnvironment.LogEvent($"{tag}The shared MSI ended ({result.Description}), but this target has no pending installation to complete.", LogSeverity.Warning);
+                return Task.CompletedTask;
+            }
+
+            return CompleteAsync(state, result);
+        }
+
+        /// <summary>
+        /// The lead gave up the group without installing (deferred, nothing to install any more, modules only): the
+        /// applications of this target run again.
+        /// </summary>
+        internal void EndGroupPass()
+        {
+            List<int> sessions;
+            lock (sync)
+            {
+                sessions = sessionsToRestart.ToList();
+            }
+
+            EndPass(sessions);
+        }
+
+        /// <summary>
+        /// Gives the group free when this target holds it; the other members end their part of the pass.
+        /// </summary>
+        private void ReleaseGroup()
+        {
+            if (group == null || !group.Release(this))
+            {
+                return;
+            }
+
+            foreach (var peer in Peers)
+            {
+                try
+                {
+                    peer.EndGroupPass();
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"{tag}Target {peer.TargetId} could not end its part of the pass: {ex.OutlineException()}", LogSeverity.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// No request to end is open any more.
+        /// </summary>
+        private void ClearShutdown()
+        {
+            lock (sync)
+            {
+                shutdownRequested = null;
+                shutdownDeadline = null;
+            }
+
+            ReleaseGroup();
+        }
+
+        /// <summary>
         /// Is raised when the state changes.
         /// </summary>
         public event Action<UpdateStatus>? StatusChanged;
@@ -170,8 +381,14 @@ namespace ITVComponents.UpdateService
             {
                 lock (sync)
                 {
-                    return shutdownRequested != null || status.Phase == UpdatePhase.Installing;
+                    if (shutdownRequested != null || status.Phase == UpdatePhase.Installing)
+                    {
+                        return true;
+                    }
                 }
+
+                // The lead installs the MSI this target shares: its application stays down as well.
+                return group?.WholeGroupHeldByOther(this) == true;
             }
         }
 
@@ -202,6 +419,12 @@ namespace ITVComponents.UpdateService
                 stateStore.Save(state);
             }
 
+            if (IsFollower)
+            {
+                // The MSI of this target is installed by the lead.
+                group!.Lead.CheckNow();
+            }
+
             Wake();
         }
 
@@ -211,6 +434,14 @@ namespace ITVComponents.UpdateService
         /// <returns>whether the deferral was granted</returns>
         public bool Defer(int minutes, string reason, RegisteredAgent agent)
         {
+            var holder = group?.HeldByOther(this);
+            if (holder != null)
+            {
+                // Another target of the shared MSI keeps the applications down; it decides.
+                LogEnvironment.LogDebugEvent($"{tag}{agent} asks to defer; target {holder.TargetId} holds the shared MSI and decides.", LogSeverity.Report);
+                return holder.Defer(minutes, reason, agent);
+            }
+
             Candidate? current;
             bool moduleWork;
             lock (sync)
@@ -250,11 +481,7 @@ namespace ITVComponents.UpdateService
             state.DeferralVersion = workKey;
             state.DeferredUntil = until;
             stateStore.Save(state);
-            lock (sync)
-            {
-                shutdownRequested = null;
-                shutdownDeadline = null;
-            }
+            ClearShutdown();
 
             LogEnvironment.LogEvent($"{tag}{agent} defers the update ({workKey}) until {until:u}: {reason}", LogSeverity.Report);
             SetStatus(s =>
@@ -290,6 +517,14 @@ namespace ITVComponents.UpdateService
         /// </summary>
         public async Task<TimeSpan> RunOnceAsync(CancellationToken cancellationToken)
         {
+            var holder = group?.HeldByOther(this);
+            if (holder != null)
+            {
+                // Target sharing the MSI is in a pass; this one waits until it gives the group free (it wakes us).
+                LogEnvironment.LogDebugEvent($"{tag}Waits: target {holder.TargetId} holds the applications of the shared MSI.", LogSeverity.Report);
+                return TimeSpan.FromMinutes(1);
+            }
+
             var state = stateStore.Load();
             if (state.Pending != null)
             {
@@ -315,10 +550,9 @@ namespace ITVComponents.UpdateService
                     lock (sync)
                     {
                         rollbackNeeded = false;
-                        shutdownRequested = null;
-                        shutdownDeadline = null;
                     }
 
+                    ClearShutdown();
                     Relaunch(sessions);
                 }
                 else
@@ -368,10 +602,36 @@ namespace ITVComponents.UpdateService
                 }
             }
 
+            // The MSI is shared: the modules of every other target must fit the new version as well.
+            var plans = new Dictionary<UpdateCoordinator, ModulePlan>();
+            if (package != null && group != null && VersionText.TryParse(package.Version, out var groupVersion))
+            {
+                foreach (var peer in Peers)
+                {
+                    var peerPlan = peer.PlanForGroup(currentFeed, groupVersion);
+                    if (peerPlan.Missing.Count > 0)
+                    {
+                        blockedBy = $"waits for {string.Join(", ", peerPlan.Missing)} of target {peer.TargetId} for {package.Version}";
+                        LogEnvironment.LogEvent($"{tag}Version {package.Version} {blockedBy}; it is not installed before.", LogSeverity.Warning);
+                        package = null;
+                        plans.Clear();
+                        if (modules != null)
+                        {
+                            plan = modules.Plan(currentFeed, installed, state);
+                        }
+
+                        break;
+                    }
+
+                    plans[peer] = peerPlan;
+                }
+            }
+
             bool pendingRollback;
             lock (sync)
             {
                 modulePlan = plan;
+                peerPlans = plans;
                 pendingRollback = rollbackNeeded;
             }
 
@@ -396,13 +656,32 @@ namespace ITVComponents.UpdateService
                 lock (sync)
                 {
                     candidate = null;
-                    shutdownRequested = null;
-                    shutdownDeadline = null;
                 }
+
+                ClearShutdown();
 
                 // A version that failed and is not tried again stays visible as failed - the application shows it, and
                 // the backend sees which shop is left behind.
                 var failedBefore = state.FailedVersion;
+
+                // The lead installs the shared MSI: this target shows what is coming.
+                var lead = IsFollower && failedBefore == null ? group!.Lead.Status : null;
+                if (lead != null && lead.AvailableVersion != null
+                                 && lead.Phase is UpdatePhase.Downloading or UpdatePhase.ReadyToInstall or UpdatePhase.Deferred or UpdatePhase.Installing)
+                {
+                    SetStatus(s =>
+                    {
+                        s.Phase = lead.Phase;
+                        s.InstalledVersion = installed.ToString();
+                        s.AvailableVersion = lead.AvailableVersion;
+                        s.Urgent = lead.Urgent;
+                        s.DeferredUntil = lead.DeferredUntil;
+                        s.DeferralLimit = lead.DeferralLimit;
+                        s.Error = null;
+                    });
+                    return NextWake(now, state);
+                }
+
                 SetStatus(s =>
                 {
                     s.Phase = failedBefore != null ? UpdatePhase.Failed : state.RestartRequired ? UpdatePhase.RestartRequired : UpdatePhase.UpToDate;
@@ -445,6 +724,17 @@ namespace ITVComponents.UpdateService
                         s.Phase = UpdatePhase.Failed;
                         s.Error = ex.Message;
                     });
+                    bool idle;
+                    lock (sync)
+                    {
+                        idle = shutdownRequested == null;
+                    }
+
+                    if (idle)
+                    {
+                        // A group held for a pass that never asked anybody to end is given free.
+                        ReleaseGroup();
+                    }
                     delay = TimeSpan.FromMinutes(Math.Max(1, options.RetryMinutes));
                 }
 
@@ -505,6 +795,12 @@ namespace ITVComponents.UpdateService
 
         private UpdatePackage? SelectBase(Version installed, string? failedVersion)
         {
+            if (IsFollower)
+            {
+                // The MSI is shared; the lead installs it for every target.
+                return null;
+            }
+
             FeedResult? current;
             lock (sync)
             {
@@ -553,10 +849,9 @@ namespace ITVComponents.UpdateService
                 }
 
                 candidate = null;
-                shutdownRequested = null;
-                shutdownDeadline = null;
             }
 
+            ClearShutdown();
             SetStatus(s =>
             {
                 s.Phase = UpdatePhase.Downloading;
@@ -618,7 +913,10 @@ namespace ITVComponents.UpdateService
         {
             var now = clock.GetUtcNow();
             var urgent = package != null && IsUrgent(package, installed, now);
-            var agents = registry.Active;
+            // The shared MSI: the applications of every target that shares it must end before it runs.
+            var wholeGroup = package != null && group != null;
+            var own = registry.Active;
+            var agents = wholeGroup ? group!.Members.SelectMany(m => m.registry.Active).ToList() : own;
             var workKey = WorkKey(package);
             SetStatus(s =>
             {
@@ -629,22 +927,29 @@ namespace ITVComponents.UpdateService
                 s.Error = null;
             });
 
-            if (agents.Count == 0)
-            {
-                await InstallAsync(state, cancellationToken).ConfigureAwait(false);
-                return NextWake(clock.GetUtcNow(), stateStore.Load());
-            }
-
             var deferred = !urgent && string.Equals(state.DeferralVersion, workKey, StringComparison.OrdinalIgnoreCase)
                                    && state.DeferredUntil.HasValue && state.DeferredUntil.Value > now;
-            if (deferred)
+            if (agents.Count != 0 && deferred)
             {
+                ReleaseGroup();
                 SetStatus(s =>
                 {
                     s.Phase = UpdatePhase.Deferred;
                     s.DeferredUntil = state.DeferredUntil;
                 });
                 return NextWake(now, state);
+            }
+
+            if (group != null && !group.TryHold(this, wholeGroup))
+            {
+                LogEnvironment.LogDebugEvent($"{tag}{workKey} waits: target {group.HeldByOther(this)?.TargetId} holds the applications of the shared MSI.", LogSeverity.Report);
+                return NextWake(now, state);
+            }
+
+            if (agents.Count == 0)
+            {
+                await InstallAsync(state, cancellationToken).ConfigureAwait(false);
+                return NextWake(clock.GetUtcNow(), stateStore.Load());
             }
 
             ShutdownRequest? request = null;
@@ -654,7 +959,7 @@ namespace ITVComponents.UpdateService
                 {
                     shutdownRequested = now;
                     shutdownDeadline = urgent ? now + TimeSpan.FromMinutes(Math.Max(1, options.UrgentDeadlineMinutes)) : null;
-                    sessionsToRestart = agents.Select(a => a.SessionId).Distinct().ToList();
+                    sessionsToRestart = own.Select(a => a.SessionId).Distinct().ToList();
                     request = new ShutdownRequest
                     {
                         Reason = urgent ? ShutdownReason.UrgentUpdate : ShutdownReason.Update,
@@ -674,6 +979,13 @@ namespace ITVComponents.UpdateService
             {
                 LogEnvironment.LogEvent($"{tag}{workKey} is ready; {agents.Count} application(s) asked to end ({request.Reason}{(request.Deadline.HasValue ? $", by {request.Deadline:u}" : ", when idle")}).", LogSeverity.Report);
                 Raise(ShutdownRequested, request);
+                if (wholeGroup)
+                {
+                    foreach (var peer in Peers)
+                    {
+                        peer.JoinGroupShutdown(request);
+                    }
+                }
             }
 
             DateTimeOffset? deadline;
@@ -684,10 +996,18 @@ namespace ITVComponents.UpdateService
 
             if (deadline.HasValue && now >= deadline.Value)
             {
-                foreach (var agent in agents)
+                foreach (var agent in own)
                 {
                     LogEnvironment.LogEvent($"{tag}{agent} did not end by {deadline:u} for the urgent update to {package?.Version}.", LogSeverity.Warning);
                     application.Terminate(agent);
+                }
+
+                if (wholeGroup)
+                {
+                    foreach (var peer in Peers)
+                    {
+                        peer.TerminateForGroup(deadline.Value, package?.Version);
+                    }
                 }
             }
 
@@ -701,6 +1021,7 @@ namespace ITVComponents.UpdateService
             ModulePlan plan;
             FeedResult? currentFeed;
             bool pendingRollback;
+            Dictionary<UpdateCoordinator, ModulePlan> plans;
             lock (sync)
             {
                 current = candidate;
@@ -708,6 +1029,7 @@ namespace ITVComponents.UpdateService
                 plan = modulePlan;
                 currentFeed = feed;
                 pendingRollback = rollbackNeeded;
+                plans = peerPlans;
             }
 
             if (pendingRollback)
@@ -736,7 +1058,43 @@ namespace ITVComponents.UpdateService
                     EndPass(sessions);
                     return;
                 }
+            }
 
+            // The shared MSI: the modules of the other targets are prepared as well, before anything changes.
+            var peerStaged = new List<(UpdateCoordinator Peer, ModulePlan Plan, List<StagedModule> Staged)>();
+            if (current != null && group != null)
+            {
+                foreach (var pair in plans)
+                {
+                    try
+                    {
+                        var prepared = currentFeed != null
+                            ? await pair.Key.StageForGroupAsync(currentFeed, pair.Value, cancellationToken).ConfigureAwait(false)
+                            : new List<StagedModule>();
+                        peerStaged.Add((pair.Key, pair.Value, prepared));
+                    }
+                    catch (ModuleStagingException ex)
+                    {
+                        LogEnvironment.LogEvent($"{tag}The modules of target {pair.Key.TargetId} could not be prepared for {current.Package.Version}; the shared MSI is not installed: {ex.OutlineException()}", LogSeverity.Error);
+                        modules?.Discard(staged);
+                        foreach (var done in peerStaged)
+                        {
+                            done.Peer.DiscardForGroup(done.Staged);
+                        }
+
+                        SetStatus(s =>
+                        {
+                            s.Phase = UpdatePhase.Failed;
+                            s.Error = ex.Message;
+                        });
+                        EndPass(sessions);
+                        return;
+                    }
+                }
+            }
+
+            if (modules != null && plan.HasWork && currentFeed != null)
+            {
                 modules.ApplyRemovals(plan, state);
                 stateStore.Save(state);
             }
@@ -773,6 +1131,11 @@ namespace ITVComponents.UpdateService
             // restarted service must find out what it was doing.
             state.Pending = pending;
             stateStore.Save(state);
+            foreach (var part in peerStaged)
+            {
+                part.Peer.BeginGroupInstall(pending, part.Plan, part.Staged);
+            }
+
             SetStatus(s =>
             {
                 s.Phase = UpdatePhase.Installing;
@@ -798,7 +1161,9 @@ namespace ITVComponents.UpdateService
                 catch (Exception ex)
                 {
                     LogEnvironment.LogEvent($"{tag}The installer for {current.Package.Version} could not be started: {ex.OutlineException()}", LogSeverity.Error);
-                    await CompleteAsync(stateStore.Load(), new InstallResult(InstallOutcome.Failed, null, $"installer not started: {ex.Message}")).ConfigureAwait(false);
+                    var notStarted = new InstallResult(InstallOutcome.Failed, null, $"installer not started: {ex.Message}");
+                    await CompletePeersAsync(peerStaged.Select(p => p.Peer), notStarted).ConfigureAwait(false);
+                    await CompleteAsync(stateStore.Load(), notStarted).ConfigureAwait(false);
                     return;
                 }
 
@@ -807,16 +1172,39 @@ namespace ITVComponents.UpdateService
                     pending.InstallerProcessId = process.Id;
                     state.Pending = pending;
                     stateStore.Save(state);
+                    foreach (var part in peerStaged)
+                    {
+                        part.Peer.GroupInstallerStarted(process.Id);
+                    }
 
                     // If the service survives the installation (the MSI does not contain it), it sees the end itself.
                     await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
                     var result = evaluator.FromExitCode(process.ExitCode);
+                    await CompletePeersAsync(peerStaged.Select(p => p.Peer), result).ConfigureAwait(false);
                     await CompleteAsync(stateStore.Load(), result).ConfigureAwait(false);
                 }
             }
             finally
             {
                 installGate?.Release();
+            }
+        }
+
+        /// <summary>
+        /// The other targets of the shared MSI complete their part first, so that they run again before the group is free.
+        /// </summary>
+        private async Task CompletePeersAsync(IEnumerable<UpdateCoordinator> peers, InstallResult result)
+        {
+            foreach (var peer in peers)
+            {
+                try
+                {
+                    await peer.CompleteGroupInstallAsync(result).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    LogEnvironment.LogEvent($"{tag}Target {peer.TargetId} could not complete its part of the shared MSI: {ex.OutlineException()}", LogSeverity.Error);
+                }
             }
         }
 
@@ -921,6 +1309,7 @@ namespace ITVComponents.UpdateService
             }
 
             Relaunch(sessions);
+            ReleaseGroup();
         }
 
         /// <summary>
