@@ -151,3 +151,10 @@ Direkte SQL-Updates bemerkt der Tracker nicht.
 - **`ChildTenantsWith` und `TenantNameLower`** (Issue ESAG ChildTenantsWith): Die Prozeduren bestimmen nur noch,
   welche Mandanten gelten. Die Zeilen kommen aus dem Modell. Es braucht **keine** Migration, und eine
   Umgehung per `ALTER PROCEDURE` ist nicht mehr nötig.
+- **Externe Dienste: Token-Zeilen aus 4.x** (Issue External Services 01): In 4.x waren die Zeilen in
+  `ExternalOAuthServiceTenantLogins` reine Token-Puffer. Nach dem Umzug der Zugangsdaten in die Plattform- bzw.
+  Besitzer-Zeile verdeckten sie diese, und der Token-Abruf lief mit leerem Benutzer und Passwort („invalid_grant“).
+  Der Start-Umzug entfernt solche Zeilen jetzt (ohne Zugangsdaten, nicht Authorization-Code, von einer Plattform- oder
+  vererbbaren Besitzer-Zeile mit Zugangsdaten abgedeckt), auch auf Datenbanken, die schon mit einer früheren 5.x-Fassung
+  umgezogen sind. Zusätzlich überspringt die Auflösung eine Zeile ohne Zugangsdaten und protokolliert das als Warnung.
+  Das manuelle Löschen der Zeile ist nicht mehr nötig.

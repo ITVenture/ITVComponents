@@ -181,6 +181,50 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             Assert.AreEqual("root-key", world.Repository.GetExternalService("svc", true).ClientSecret);
         }
 
+        // --- Token-Zeilen aus 4.x (Issue External Services 01) --------------------------------------
+
+        [TestMethod]
+        public void AStaleTokenRow_DoesNotHideThePlatformRow()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(platform: "platform-key", allowPlatform: true, staleRowAtGrandChild: true);
+
+            Assert.AreEqual("platform-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+            world.Repository.GetBufferedToken("svc", false, false, out var connection, out _);
+            Assert.AreEqual("platform-key", connection.ClientSecret, "Token and credentials come from the same row - the platform's.");
+        }
+
+        [TestMethod]
+        public void AStaleTokenRow_DoesNotHideAnInheritedRow()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            world.SeedCredentialTree(root: ("root-key", true), staleRowAtGrandChild: true);
+
+            Assert.AreEqual("root-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
+        [TestMethod]
+        public void Migration_RemovesTheStaleTokenRow_AndStaysIdempotent()
+        {
+            using var world = new World(dbName, GrandChild, TrustTarget.ConcreteContext, signedIn: true);
+            world.Seed();
+            var serviceId = world.SeedCredentialTree(platform: "platform-key", allowPlatform: true, staleRowAtGrandChild: true);
+
+            world.MigrateCredentials();
+            world.MigrateCredentials();
+
+            using (var check = world.Inspect())
+            {
+                var rows = check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Where(n => n.OAuthServiceId == serviceId).ToList();
+                Assert.AreEqual(1, rows.Count, "Only the platform row is left.");
+                Assert.IsNull(rows[0].TenantId);
+            }
+
+            Assert.AreEqual("platform-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+        }
+
         // --- Die Falle -------------------------------------------------------------------------
 
         [TestMethod]
@@ -363,8 +407,13 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             /// und die angegebenen Zugangsdaten-Zeilen. Verschluesselt wird mit dem Systemschluessel - die Testmandanten
             /// haben kein eigenes Passwort, und dann faellt auch der Mandantenschluessel darauf zurueck.
             /// </summary>
-            public void SeedCredentialTree((string Key, bool Inheritable)? root = null,
-                (string Key, bool Inheritable)? child = null, string platform = null, bool allowPlatform = false)
+            /// <param name="staleRowAtGrandChild">
+            /// dazu eine Token-Zeile im Stil von 4.x bei acme-a1: Token, keine Zugangsdaten, vererbbar (der Standard der neuen
+            /// Spalte) - Issue External Services 01
+            /// </param>
+            public int SeedCredentialTree((string Key, bool Inheritable)? root = null,
+                (string Key, bool Inheritable)? child = null, string platform = null, bool allowPlatform = false,
+                bool staleRowAtGrandChild = false)
             {
                 using var ctx = New();
                 var rootTenant = ctx.Tenants.Single(n => n.TenantName == TenantName);
@@ -374,11 +423,12 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 };
                 ctx.Tenants.Add(childTenant);
                 ctx.SaveChanges();
-                ctx.Tenants.Add(new TreeModels.HierarchyTenant
+                var grandChildTenant = new TreeModels.HierarchyTenant
                 {
                     TenantName = GrandChild, DisplayName = GrandChild, TenantNameLower = GrandChild,
                     ParentTenantId = childTenant.TenantId
-                });
+                };
+                ctx.Tenants.Add(grandChildTenant);
 
                 var service = new TreeModels.TreeModels.HierarchyExternalOAuthService
                 {
@@ -400,8 +450,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 if (root is { } r) Row(rootTenant.TenantId, r.Key, r.Inheritable);
                 if (child is { } c) Row(childTenant.TenantId, c.Key, c.Inheritable);
                 if (platform != null) Row(null, platform, false);
+                if (staleRowAtGrandChild)
+                {
+                    ctx.ExternalOAuthServiceTenantLogins.Add(new TreeModels.TreeModels.HierarchyExternalOAuthServiceTenantLogin
+                    {
+                        OAuthServiceId = service.OAuthServiceId, TenantId = grandChildTenant.TenantId, Token = "{}", Inheritable = true
+                    });
+                }
+
                 ctx.SaveChanges();
+                return service.OAuthServiceId;
             }
+
+            /// <summary>Der Umzug, wie ihn der Start-Dienst ausfuehrt.</summary>
+            public void MigrateCredentials()
+            {
+                using var ctx = New();
+                ExternalServiceCredentialMigrator.Run(ctx, Repository, NullLogger.Instance, default);
+            }
+
+            /// <summary>Ein Kontext zum Nachsehen.</summary>
+            public TreeTestContext Inspect() => New();
 
             private TreeTestContext New()
                 => ActivatorUtilities.CreateInstance<TreeTestContext>(services);

@@ -1530,7 +1530,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
         /// Die Zugangsdaten-Zeile fuer einen Dienst im aktuellen Mandanten: die eigene, sonst - wenn die Definition es
         /// erlaubt - die der Plattform. Flach gibt es keine Vererbung.
         /// </summary>
-        /// <returns>die Zeile, oder null (dann gelten ClientId/ClientSecret der Definition als Uebergang)</returns>
+        /// <returns>die Zeile, oder null (dann hat die Verbindung keine Zugangsdaten)</returns>
         private TExternalOAuthServiceTenantLogin ResolveCredentialRow(ISecurityContext<TTenant, TUserId, TUser, TRole, TPermission, TUserRole, TRolePermission, TTenantUser, TRoleRole, TGlobalRole, TGlobalRolePermission, TGRoleLRole, TNavigationMenu, TTenantNavigation, TQuery, TQueryParameter, TTenantQuery, TWidget, TWidgetParam, TWidgetLocalization, TUserWidget, TUserProperty, TAssetTemplate, TAssetTemplatePath, TAssetTemplateGrant, TAssetTemplateFeature, TSharedAsset, TSharedAssetUserFilter, TSharedAssetTenantFilter, TClientAppTemplate, TAppPermission, TAppPermissionSet, TClientApp, TClientAppPermission, TClientAppAccess, TWebPlugin, TWebPluginConstant, TWebPluginGenericParameter, TSequence, TTenantSetting, TTenantFeatureActivation, TExternalOAuthService, TExternalOAuthServiceState, TExternalOAuthServiceTenantLogin, TTrustConfig> securityContext, TExternalOAuthService service)
         {
             var tenantId = securityContext.CurrentTenantId;
@@ -1540,13 +1540,16 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Sec
                 ? null
                 : securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
                     .FirstOrDefault(n => n.OAuthServiceId == serviceId && n.TenantId == tenantId);
-            if (own != null || !service.AllowPlatformCredentials)
-            {
-                return own;
-            }
-
-            return securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
-                .FirstOrDefault(n => n.OAuthServiceId == serviceId && n.TenantId == null);
+            // Bei festen Zugangsdaten zaehlt eine eigene Zeile ohne Zugangsdaten nicht als Treffer (Token-Puffer aus 4.x,
+            // Issue External Services 01) - siehe PickCredentialRow.
+            return ExternalServiceCredentials.PickCredentialRow(
+                own == null ? Array.Empty<TExternalOAuthServiceTenantLogin>() : new[] { own },
+                () => service.AllowPlatformCredentials
+                    ? securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
+                        .FirstOrDefault(n => n.OAuthServiceId == serviceId && n.TenantId == null)
+                    : null,
+                service.AuthenticationType, n => n.CredentialJson,
+                $"external service {serviceId} ('{service.UniqueConnectionName}') in tenant {tenantId}");
         }
 
         /// <summary>Legt die festen Zugangsdaten einer Zeile (falls gespeichert) auf die Verbindung.</summary>

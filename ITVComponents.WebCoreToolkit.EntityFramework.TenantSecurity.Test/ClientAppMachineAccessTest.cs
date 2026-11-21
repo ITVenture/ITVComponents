@@ -293,6 +293,94 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
                 "The stale secret is cleared all the same.");
         }
 
+        // --- Token-Zeilen aus 4.x (Issue External Services 01) --------------------------------------
+
+        [TestMethod]
+        public void AStaleTokenRow_DoesNotHideThePlatformCredentials()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: null, platform: "platform-key", allowPlatform: true);
+            world.SeedTokenRow(world.ServiceId("svc"));
+
+            Assert.AreEqual("platform-key", world.Repository.GetExternalService("svc", true).ClientSecret);
+            world.Repository.GetBufferedToken("svc", false, false, out var connection, out _);
+            Assert.AreEqual("platform-key", connection.ClientSecret, "Token and credentials come from the same row - the platform's.");
+        }
+
+        [TestMethod]
+        public void Migration_RemovesTheStaleTokenRowOfAMovedPasswordService_AndStaysIdempotent()
+        {
+            // Der gemeldete Fall: Password-Grant, global, Zugangsdaten an der Definition, und der Mandant hatte schon ein Token.
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            var serviceId = world.SeedLegacyService("docs", ExternalServiceAuthenticationType.OAuthPasswordFlow, global: true, clientId: "user-7", secret: "pw");
+            world.SeedTokenRow(serviceId);
+
+            world.MigrateCredentials();
+            world.MigrateCredentials();
+
+            using (var check = world.Inspect())
+            {
+                var rows = check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Where(n => n.OAuthServiceId == serviceId).ToList();
+                Assert.AreEqual(1, rows.Count, "Only the platform row is left.");
+                Assert.IsNull(rows[0].TenantId);
+            }
+
+            var connection = world.Repository.GetExternalService("docs", true);
+            Assert.AreEqual("user-7", connection.ClientId);
+            Assert.AreEqual("pw", connection.ClientSecret);
+        }
+
+        [TestMethod]
+        public void Migration_RemovesStaleTokenRows_AlsoWhenTheCredentialsMovedInAnEarlierRun()
+        {
+            // Die Lage nach einem Start mit PRE280: umgezogen ist schon, die alte Zeile steht noch.
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: null, platform: "platform-key", allowPlatform: true);
+            var serviceId = world.ServiceId("svc");
+            world.SeedTokenRow(serviceId);
+
+            world.MigrateCredentials();
+
+            using var check = world.Inspect();
+            Assert.IsFalse(check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Any(n => n.OAuthServiceId == serviceId && n.TenantId != null));
+        }
+
+        [TestMethod]
+        public void Migration_KeepsATokenRow_WhenNothingCoversIt()
+        {
+            // Ohne Plattform-Zustimmung deckt die Plattform-Zeile den Mandanten nicht ab - dann bleibt sein Token-Puffer.
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            world.SeedCredentials(own: null, platform: "platform-key", allowPlatform: false);
+            var serviceId = world.ServiceId("svc");
+            world.SeedTokenRow(serviceId);
+
+            world.MigrateCredentials();
+
+            using var check = world.Inspect();
+            Assert.AreEqual(1, check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Count(n => n.OAuthServiceId == serviceId && n.TenantId != null));
+        }
+
+        [TestMethod]
+        public void Migration_LeavesTheLoginsOfAnAuthorizationCodeService()
+        {
+            var world = new World(dbName, TenantName);
+            world.Seed(machine: true);
+            var serviceId = world.SeedLegacyService("oauth", ExternalServiceAuthenticationType.OAuthAuthorizationFlow, global: true, clientId: "app", secret: "app-secret");
+            world.SeedTokenRow(serviceId);
+
+            world.MigrateCredentials();
+
+            using var check = world.Inspect();
+            Assert.AreEqual(1, check.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Count(n => n.OAuthServiceId == serviceId && n.TenantId != null),
+                "For Authorization-Code the tenant's row IS the login.");
+            Assert.AreNotEqual(string.Empty, check.ExternalOAuthServices.IgnoreQueryFilters().Single(n => n.OAuthServiceId == serviceId).ClientSecret,
+                "The app secret stays on the definition.");
+        }
+
         private sealed class World
         {
             private readonly DbContextOptions<TestSecurityContext> options;
@@ -400,6 +488,27 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
 
             /// <summary>Ein Kontext zum Nachsehen.</summary>
             public TestSecurityContext Inspect() => New();
+
+            /// <summary>
+            /// Eine Token-Zeile im Stil von 4.x fuer den aktuellen Mandanten: ein Token, aber keine Zugangsdaten.
+            /// </summary>
+            public void SeedTokenRow(int serviceId)
+            {
+                using var ctx = New();
+                var tenant = ctx.Tenants.Single(n => n.TenantName == TenantName);
+                ctx.ExternalOAuthServiceTenantLogins.Add(new FlatExternalOAuthServiceTenantLogin
+                {
+                    OAuthServiceId = serviceId, TenantId = tenant.TenantId, Token = "{}", Inheritable = true
+                });
+                ctx.SaveChanges();
+            }
+
+            /// <summary>Die Id des Dienstes "svc" aus <see cref="SeedCredentials"/>.</summary>
+            public int ServiceId(string name)
+            {
+                using var ctx = New();
+                return ctx.ExternalOAuthServices.IgnoreQueryFilters().Single(n => n.UniqueConnectionName == name).OAuthServiceId;
+            }
 
             /// <summary>Der globale ApiKey-Dienst "svc" und die angegebenen Zugangsdaten-Zeilen (Systemschluessel).</summary>
             public void SeedCredentials(string own, string platform, bool allowPlatform, string definitionSecret = null)

@@ -2037,25 +2037,31 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                     // eigene nicht vererbbare gilt nur fuer den Mandanten selbst.
                     // Ohne Mandantenfilter (der Baum IST die Eingrenzung), damit die Abfrage nicht vom Trust abhaengt.
                     var currentTenantId = securityContext.RequireCurrentTenantId(securityContext.CurrentTenantName, "Resolving the credentials of an external service");
+                    // Alle Kandidaten, der naechste zuerst: bei festen Zugangsdaten zaehlt eine Zeile ohne Zugangsdaten nicht
+                    // als Treffer (Token-Puffer aus 4.x, Issue External Services 01) - siehe PickCredentialRow.
                     var inTree = (from p in securityContext.UpwardsTenantTreeView
                         join pin in securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters().Include(n => n.Tenant) on
                             (int?)p.ParentTenantId equals pin.TenantId
                         where p.OutermostLeafTenantId == currentTenantId && pin.OAuthServiceId == oauthServiceId
                               && (p.ParentLevel == 1 || pin.Inheritable)
                         orderby p.ParentLevel
-                        select pin).FirstOrDefault();
-                    if (inTree != null)
+                        select pin).ToList();
+                    var definition = securityContext.ExternalOAuthServices.IgnoreQueryFilters()
+                        .Where(n => n.OAuthServiceId == oauthServiceId)
+                        .Select(n => new { n.AllowPlatformCredentials, n.AuthenticationType, n.UniqueConnectionName })
+                        .FirstOrDefault();
+                    if (definition == null)
                     {
-                        return inTree;
+                        return inTree.FirstOrDefault();
                     }
 
-                    var allowsPlatform = securityContext.ExternalOAuthServices.IgnoreQueryFilters()
-                        .Where(n => n.OAuthServiceId == oauthServiceId).Select(n => n.AllowPlatformCredentials)
-                        .FirstOrDefault();
-                    return allowsPlatform
-                        ? securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
-                            .FirstOrDefault(n => n.OAuthServiceId == oauthServiceId && n.TenantId == null)
-                        : null;
+                    return ExternalServiceCredentials.PickCredentialRow(inTree,
+                        () => definition.AllowPlatformCredentials
+                            ? securityContext.ExternalOAuthServiceTenantLogins.IgnoreQueryFilters()
+                                .FirstOrDefault(n => n.OAuthServiceId == oauthServiceId && n.TenantId == null)
+                            : null,
+                        definition.AuthenticationType, n => n.CredentialJson,
+                        $"external service {oauthServiceId} ('{definition.UniqueConnectionName}') in tenant {currentTenantId}");
                 }
                 finally
                 {

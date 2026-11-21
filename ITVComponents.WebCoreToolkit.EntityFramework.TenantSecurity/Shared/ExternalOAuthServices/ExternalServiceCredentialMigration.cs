@@ -128,9 +128,24 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
             if (pending.Count == 0)
             {
                 logger.LogDebug("No external-service credentials are left on service definitions.");
-                return;
+            }
+            else
+            {
+                MoveAll<TTenant, TService, TState, TLogin>(db, security, logger, pending, cancellationToken);
             }
 
+            // Auch ohne Umzug in diesem Lauf: eine Datenbank, die schon mit einer frueheren 5.x-Fassung umgezogen ist, traegt
+            // die verwaisten Token-Zeilen noch (Issue External Services 01).
+            RemoveStaleTokenRows<TTenant, TService, TState, TLogin>(db, logger, cancellationToken);
+        }
+
+        private static void MoveAll<TTenant, TService, TState, TLogin>(DbContext db, ISecurityRepository security,
+            ILogger logger, System.Collections.Generic.List<TService> pending, CancellationToken cancellationToken)
+            where TTenant : Tenant
+            where TService : ExternalOAuthService<TTenant, TService, TState, TLogin>
+            where TState : ExternalOAuthServiceState<TTenant, TService, TState, TLogin>
+            where TLogin : ExternalOAuthServiceTenantLogin<TTenant, TService, TState, TLogin>
+        {
             int moved = 0, alreadySet = 0, failed = 0;
             foreach (var service in pending)
             {
@@ -166,6 +181,84 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             logger.LogInformation("External-service credentials moved from service definitions into credentials rows: {Moved} moved, {AlreadySet} already had credentials, {Failed} failed.",
                 moved, alreadySet, failed);
+        }
+
+        /// <summary>
+        /// Entfernt die Token-Zeilen aus 4.x, die nach dem Umzug die umgezogenen Zugangsdaten verdecken (Issue External
+        /// Services 01).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// In 4.x waren die Zeilen der Mandanten reine Token-Puffer; die Zugangsdaten standen an der Definition. Nach dem
+        /// Umzug stehen sie in der Plattform-Zeile (globaler Dienst) bzw. in der des Besitzers - die alte Zeile des Mandanten
+        /// hat keine, wird aber zuerst gefunden.
+        /// </para>
+        /// <para>
+        /// Entfernt wird eine Mandanten-Zeile nur, wenn sie keine Zugangsdaten hat, der Dienst feste Zugangsdaten kennt (nicht
+        /// Authorization-Code - dort IST die Zeile das Login) und es eine Zeile gibt, die sie abdeckt: die Plattform-Zeile mit
+        /// Zugangsdaten, wenn die Definition sie zulaesst, oder die vererbbare des Besitzers mit Zugangsdaten. Dorthin schreibt
+        /// die Aufloesung danach auch das Token - es entstehen keine neuen leeren Zeilen, ein zweiter Start findet nichts mehr.
+        /// </para>
+        /// <para>
+        /// Verloren geht nur das gepufferte Token; es wird beim naechsten Abruf neu geholt.
+        /// </para>
+        /// </remarks>
+        private static void RemoveStaleTokenRows<TTenant, TService, TState, TLogin>(DbContext db, ILogger logger,
+            CancellationToken cancellationToken)
+            where TTenant : Tenant
+            where TService : ExternalOAuthService<TTenant, TService, TState, TLogin>
+            where TState : ExternalOAuthServiceState<TTenant, TService, TState, TLogin>
+            where TLogin : ExternalOAuthServiceTenantLogin<TTenant, TService, TState, TLogin>
+        {
+            var services = db.Set<TService>().IgnoreQueryFilters()
+                .Where(s => s.AuthenticationType != ExternalServiceAuthenticationType.OAuthAuthorizationFlow)
+                .Select(s => new { s.OAuthServiceId, s.TenantId, s.AllowPlatformCredentials, s.UniqueConnectionName })
+                .ToList();
+            var removed = 0;
+            foreach (var service in services)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var rows = db.Set<TLogin>().IgnoreQueryFilters()
+                        .Where(l => l.OAuthServiceId == service.OAuthServiceId)
+                        .ToList();
+                    var covered = rows.Any(l => l.TenantId == null && service.AllowPlatformCredentials && ExternalServiceCredentials.HasCredentials(l.CredentialJson))
+                                  || (service.TenantId != null && rows.Any(l => l.TenantId == service.TenantId && l.Inheritable && ExternalServiceCredentials.HasCredentials(l.CredentialJson)));
+                    if (!covered)
+                    {
+                        continue;
+                    }
+
+                    var stale = rows.Where(l => l.TenantId != null && !ExternalServiceCredentials.HasCredentials(l.CredentialJson)).ToList();
+                    if (stale.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    db.Set<TLogin>().RemoveRange(stale);
+                    db.SaveChanges();
+                    removed += stale.Count;
+                    logger.LogInformation("Removed {Count} token row(s) without credentials of external service {ServiceId} ('{Name}') for tenant(s) {Tenants}: they hid the credentials of the platform or owner row. The token is fetched again on the next call.",
+                        stale.Count, service.OAuthServiceId, service.UniqueConnectionName, string.Join(", ", stale.Select(l => l.TenantId)));
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Typisch: eine zweite Instanz hat dieselben Zeilen im selben Augenblick entfernt oder neu beschrieben.
+                    logger.LogWarning(ex, "The stale token rows of external service {ServiceId} ('{Name}') were not removed in this run; another instance may have changed them. Retried on the next start.",
+                        service.OAuthServiceId, service.UniqueConnectionName);
+                    db.ChangeTracker.Clear();
+                }
+            }
+
+            if (removed > 0)
+            {
+                logger.LogInformation("Removed {Removed} stale external-service token row(s) in total.", removed);
+            }
+            else
+            {
+                logger.LogDebug("No stale external-service token rows found.");
+            }
         }
 
         /// <returns>true, wenn umgezogen; false, wenn die Zeile schon eigene Zugangsdaten hatte (dann nur aufgeraeumt)</returns>
