@@ -60,9 +60,14 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
         /// <summary>
         /// The one column of the procedure result that is read. All other columns of the result are ignored.
         /// </summary>
-        public sealed class ProcedureTenantRow
+        /// <remarks>
+        /// Not sealed, with a virtual property: <c>SqlQueryRaw</c> maps it as an ad-hoc entity type of the context, and the
+        /// security contexts run with proxies (<c>UseLazyLoadingProxies</c>), which reject a sealed entity type -
+        /// "Entity type 'ProcedureTenantRow' is sealed".
+        /// </remarks>
+        public class ProcedureTenantRow
         {
-            public int TenantId { get; set; }
+            public virtual int TenantId { get; set; }
         }
     }
 }

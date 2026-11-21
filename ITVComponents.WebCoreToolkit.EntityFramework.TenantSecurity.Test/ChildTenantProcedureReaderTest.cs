@@ -95,6 +95,26 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
             Assert.AreEqual(1, result.Length);
         }
 
+        /// <summary>
+        /// Die Sicherheits-Kontexte schalten selbst Lazy-Loading-Proxies ein. Dann muss auch der Typ, den
+        /// <c>SqlQueryRaw</c> ad hoc mappt, proxyfaehig sein - sonst "Entity type 'ProcedureTenantRow' is sealed".
+        /// </summary>
+        [TestMethod]
+        public void AContextWithLazyLoadingProxies_CanReadTheProcedure()
+        {
+            using (var seed = Context())
+            {
+                Tenant(seed, "Alpha");
+            }
+
+            using var ctx = new ReaderContext(new DbContextOptionsBuilder<ReaderContext>()
+                .UseSqlite(connection).UseLazyLoadingProxies().Options);
+
+            HierarchyTenant[] result = ChildTenantProcedureReader.ReadTenants(ctx, ctx.Tenants, ProcedureLike(ctx, "'Alpha'"));
+
+            Assert.AreEqual("Alpha", result.Single().TenantName);
+        }
+
         [TestMethod]
         public void AnEmptyProcedureResult_YieldsNoTenants()
         {
