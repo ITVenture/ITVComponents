@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE280</Version>
+    <Version>5.0.0-PRE281</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>The update service for client applications: a plugin for ITVComponents.GenericService that keeps an application up to date from a feed - download, check (hash, Authenticode, MSI identity), install, restart the application in its session. Windows only.</Description>

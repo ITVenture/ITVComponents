@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>5.0.0-PRE280</Version>
+    <Version>5.0.0-PRE281</Version>
     <Authors>mw</Authors>
     <Company>IT-Venture GmbH</Company>
     <Description>The web side of the ITVComponents update service: releases of applications and modules (platform-wide), their packages (file volume or database), the feed the update services read, and the module assignment per client app.</Description>
