@@ -1,75 +1,160 @@
 # Security 01: `AesEncryptor` – Format Version 2 (authentifiziert, zeitgemässe Schlüsselableitung)
 
-**Typ:** Härtung / Format-Erweiterung (zur Prüfung)
+**Typ:** Härtung / Format-Erweiterung
+**Status:** Entscheide 1, 2, 4, 5 gefallen; Entscheid 3 und der Schutz der Mandantenschlüssel (Teil C) noch offen
 
 **Betrifft:**
 - `ITVComponents\Security\AesEncryptor.cs`, `CryptDecoratorStream.cs`, `PasswordSecurity.cs`
 - Aufrufer:
-  - `ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\Shared\Extensions\CipherExtensions.cs` (10 Stellen,
-    auch Streams und getrennt gespeicherte IV/Salt)
+  - `ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity\Shared\Extensions\CipherExtensions.cs`
+    (Mandanten-Verschlüsselung, auch Streams und getrennt gespeicherte IV/Salt)
+  - `ISecurityRepository.Encrypt/Decrypt/GetEncryptStream/GetDecryptStream` und Implementierungen
+    (`SecurityRepository`, `AssetSecurityRepository`, `CookiePermissionRepo`)
   - `ITVComponents\Json\Converters\JsonStringEncryptConverter.cs` (`encrypt:`-Werte in JSON)
   - `ITVComponents.Formatting\CustomFormat\Impl\StringDecryptor.cs`
   - `PlugInAdminHandler.cs` (MudBlazor AdminViews), `PlugInConstController.cs` (Telerik AdminViews)
   - `ITVComponents.NewtonsoftJson\CustomConverters\JsonStringEncryptConverter.cs`
 
 **Anlass:** Bereinigung der Obsolete-Warnungen (`AesManaged`, `Rfc2898DeriveBytes`). Die Parameter wurden dabei
-bewusst unverändert übernommen, damit bestehende Daten lesbar bleiben. Die Frage, ob das Verfahren selbst noch
-zeitgemäss ist, gehört in ein eigenes Issue.
+bewusst unverändert übernommen, damit bestehende Daten lesbar bleiben. Ob das Verfahren selbst noch zeitgemäss ist,
+wird hier geklärt.
 
 ## Ist-Zustand
 
 - **Verschlüsselung:** AES-256-CBC, PKCS7, zufälliger IV (16 Bytes).
-- **Schlüssel:** PBKDF2 mit HMAC-SHA1, **10'000 Iterationen**, 32 Bytes, zufälliges Salt (32 Bytes). Die
-  „Passphrase" ist `Encoding.UTF32` des Passworts bzw. der Entropie aus `PasswordSecurity.InitializeAes`.
-- **Kein Integritätsschutz:** Weder MAC noch AEAD-Tag.
+- **Schlüssel:** PBKDF2 mit HMAC-SHA1, **10'000 Iterationen**, 32 Bytes, zufälliges Salt (32 Bytes) pro Wert. Die
+  Eingabe kommt immer schon als Bytes an:
+  - `PasswordSecurity` wandelt die Passphrase per UTF-32 um.
+  - `CipherExtensions.GetEncryptionKey` liefert den Mandantenschlüssel (`Tenant.TenantPassword`, Base64 von
+    `AesEncryptor.CreateKey()`, also 32 Zufallsbytes).
+- **Kein Integritätsschutz:** weder MAC noch AEAD-Tag.
 - **Formate:**
   - **Blob** (`Encrypt(byte[], …)`, Base64 bei Strings): `[Salt-Länge (1)] [IV-Länge (1)] [Salt] [IV] [Ciphertext]`.
     Es gibt keine Versionskennung, das erste Byte ist in allen bestehenden Daten `32`.
   - **Stream** (`GetEncryptStream(stream, entropy)`): Kopf mit `MagicNumber (Int32)`, IV-Länge, Salt-Länge, IV, Salt.
-    Eine neue Magic Number kann eine neue Version kennzeichnen.
   - **Getrennt** (`Encrypt(…, out iv, out salt)`, `GetEncryptStream(…, out iv, out salt)`): Der Aufrufer speichert IV
-    und Salt selbst, z.B. in eigenen Spalten. Es gibt kein Format und keine Stelle für eine Version oder ein Tag.
+    und Salt selbst. **Im Einsatz bei Konsumenten**: Webanwendungen mit mandantenweise verschlüsselten Dokumenten,
+    das Salt (teils auch der IV) ist ein eigenes DB-Feld. Im Repo sieht man nur das Durchreichen über
+    `ISecurityRepository`.
 
 ## Bewertung
 
 | Punkt | Risiko | Begründung |
 |---|---|---|
-| SHA-1 in PBKDF2 | gering | Die Kollisionsangriffe auf SHA-1 betreffen HMAC/PBKDF2 nicht. HMAC-SHA1 gilt als PRF weiterhin als sicher. NIST will SHA-1 bis 2030 aber ganz auslaufen lassen. |
-| 10'000 Iterationen | mittel, abhängig von der Passphrase | OWASP empfiehlt heute ca. 1,3 Mio. (PBKDF2-HMAC-SHA1) bzw. 600'000 (PBKDF2-HMAC-SHA256). Bei einer kurzen oder erratbaren Passphrase ist das Durchprobieren nach einem Datenabfluss günstig. Bei langer, zufälliger Passphrase nicht relevant. |
-| CBC ohne Authentifizierung | mittel bis hoch, je nach Einsatz | Veränderte Ciphertexte fallen nicht auf (Bit-Flipping im ersten Block via IV). Wo ein Angreifer Ciphertexte einschleusen und das Gelingen der Entschlüsselung beobachten kann (Fehlermeldung, Laufzeit), ist ein Padding-Oracle-Angriff möglich. |
-| Schlüsselableitung bei jedem Aufruf | Leistung | 10'000 Runden pro `Encrypt`/`Decrypt`. Bei höheren Iterationszahlen wird das spürbar und spricht für einen Schlüssel-Cache je (Passphrase, Salt) oder ein Schema mit einmal abgeleitetem Hauptschlüssel. |
+| SHA-1 in PBKDF2 | gering | Die Kollisionsangriffe auf SHA-1 betreffen HMAC/PBKDF2 nicht. NIST will SHA-1 bis 2030 aber ganz auslaufen lassen. |
+| 10'000 Iterationen | mittel, abhängig von der Passphrase | OWASP: ca. 600'000 für PBKDF2-HMAC-SHA256. Bei einer schwachen Passphrase ist das Durchprobieren nach einem Datenabfluss günstig. **Ein einzelner Wert genügt dafür.** Das Salt pro Wert verteuert das Erraten der Passphrase nicht, es verhindert nur Vorberechnung und gleiche Schlüssel. |
+| CBC ohne Authentifizierung | mittel bis hoch, je nach Einsatz | Veränderte Ciphertexte fallen nicht auf. Wo ein Angreifer Ciphertexte einschleusen und das Gelingen beobachten kann, ist ein Padding-Oracle-Angriff möglich. |
+| Mandantenschlüssel im Klartext in `Tenants` | hoch bei DB-Abfluss | Schlüssel und damit verschlüsselte Daten liegen in derselben Datenbank. Gegen einen Abfluss hilft dann weder Verfahren noch Iterationszahl (Teil C). |
+| Streckung von Zufallsschlüsseln | Leistung | Mandantenschlüssel sind 256 Bit Zufall und nicht zu erraten. Die Iterationen kosten dort nur Zeit. |
 
-## Vorschlag
+## Teil A: Format Version 2
 
-1. **Version 2 für Blob und Stream**
-   - **Blob:** Das erste Byte `0x00` kennzeichnet ein versioniertes Format, denn eine Salt-Länge 0 kommt in Version 1
-     nie vor. Danach folgen eine Versionsnummer, Parameter-ID, Salt, Nonce, Ciphertext und Tag.
-   - **Verfahren:** AES-256-GCM (`AesGcm`). Die Schlüsselableitung ist PBKDF2-HMAC-SHA256 mit einer Iterationszahl,
-     die im Wert mitgeführt wird. So lässt sie sich später erhöhen, ohne das Format zu ändern.
-   - **Stream:** `AesGcm` arbeitet nur in einem Durchgang. Für Streams braucht es entweder segmentiertes GCM (Blöcke
-     mit eigenem Tag und Zähler-Nonce) oder Encrypt-then-MAC (CBC + HMAC-SHA256 am Ende). Siehe Entscheid 2.
-2. **Lesen:** Version 1 wird weiter gelesen. **Schreiben:** nur noch Version 2.
-3. **Umstellung bestehender Werte:** beim nächsten Schreiben (lazy). Optional kommt ein Werkzeug dazu, das die
-   bekannten Stellen (TenantSecurity-Tabellen, Plugin-Konstanten, Einstellungen) einmalig umschreibt.
-4. **Getrennte IV/Salt-Varianten:** Für sie braucht es einen eigenen Weg, siehe Entscheid 3.
+### Entscheid 1: Schlüsselableitung – zweistufig, mit Cache
 
-## Entscheide, die vor der Umsetzung fallen müssen
+| Stufe | Verfahren | Salt | Häufigkeit |
+|---|---|---|---|
+| 1 (teuer) | PBKDF2-HMAC-SHA256, **600'000** Runden (Zahl steht im Wert), Passphrase → Hauptschlüssel | zufällig, **pro Prozesslauf** | einmal, danach im Cache |
+| 2 (billig) | HKDF-SHA256, Hauptschlüssel → Schlüssel für diesen Wert | zufällig, **pro Wert** | jedes Mal |
 
-1. **Iterationszahl und Kosten:** Wie viele Runden, und braucht es einen Cache für abgeleitete Schlüssel? Der Cache
-   wäre pro Prozess, mit Schlüssel aus Passphrase-Hash und Salt.
-2. **Streams:** segmentiertes GCM oder CBC + HMAC?
-3. **Getrennte IV/Salt-Varianten** (`out iv, out salt`): Tag und Version im Ciphertext mitführen (Signatur bleibt,
-   Inhalt ändert sich)? Oder die Varianten auslaufen lassen (`[Obsolete]`) zugunsten des Blob-Formats? Zuerst ist zu
-   prüfen, welche Konsumenten sie nutzen und was dort gespeichert ist.
-4. **Passphrase-Kodierung:** UTF-32 der Passphrase bleibt für Version 1 nötig. Für Version 2 böte sich UTF-8 an.
-   Das ist wirkungslos für die Sicherheit, aber üblich.
-5. **Fehlerverhalten:** Eine fehlgeschlagene Tag-Prüfung muss laut scheitern (Exception), mit einheitlicher Meldung
-   ohne Unterscheidung „falsches Passwort" oder „manipuliert". So gibt es kein Orakel.
+- Jeder Wert hat weiterhin seinen **eigenen Schlüssel und sein eigenes Zufalls-Salt**. Beide Salts stehen im Wert,
+  wie heute ist keins davon geheim.
+- **Cache:** nur der Hauptschlüssel aus Stufe 1, im Speicher, pro (Hash der Passphrase, Stufe-1-Salt), begrenzt (z.B.
+  16 Einträge, LRU), für die Laufzeit des Prozesses. Ein Wert aus einem früheren Lauf kostet beim ersten Lesen einmal
+  die teure Ableitung.
+- Das Stufe-1-Salt wechselt mit jedem Neustart. Ein häufigerer Wechsel (zeit- oder mengenbasiert) ist möglich und
+  ändert an der Sicherheit nichts.
+- **Variante für Zufallsschlüssel** (Mandantenschlüssel): Stufe 1 entfällt, HKDF direkt auf dem Schlüssel.
+  - Dafür braucht es eine eigene API, z.B. `AesEncryptor.EncryptWithKey/DecryptWithKey` und die Stream-Pendants.
+    `AesEncryptor` kann an den Bytes nicht erkennen, ob sie Zufall oder eine umgewandelte Passphrase sind.
+  - `CipherExtensions` nutzt diese Variante. Gerade für die mandantenweisen Dokumente entfällt so die teure Ableitung.
+- **Verschlüsselung:** AES-256-GCM (`AesGcm`), 12-Byte-Nonce, 16-Byte-Tag.
+
+### Entscheid 2: Streams – segmentiertes GCM
+
+- Der Stream wird in Segmente von z.B. 64 KiB zerlegt, jedes mit eigenem Tag.
+- Die Nonce ist ein Präfix plus Segmentzähler. Das letzte Segment ist im zusätzlich authentifizierten Teil markiert,
+  damit Abschneiden und Umsortieren auffallen.
+- Abgelehnt: CBC + HMAC am Ende. Dabei würde erst am Schluss geprüft, bis dahin wäre ungeprüfter Klartext
+  herausgegeben.
+
+### Entscheid 3 (offen): Varianten mit getrennt gespeichertem IV und Salt
+
+Diese Varianten sind bei Konsumenten im Einsatz: mandantenweise verschlüsselte Dokumente, Salt und teils IV als DB-Feld.
+**Auslaufen lassen kommt deshalb nicht in Frage.** Zu klären:
+- Wie Version 2 in diese Signaturen passt: Wo stehen Version und Tag? Im Ciphertext bzw. Stream selbst, die
+  Signatur bleibt.
+- Wie verhält sich eine 12-Byte-Nonce statt eines 16-Byte-IV gegenüber festen DB-Feldern? Möglich wäre auch: Der
+  IV-Parameter bleibt 16 Bytes, und die Nonce wird daraus abgeleitet.
+- Woran erkennt der Lesepfad, ob ein Wert mit getrenntem Salt in Version 1 oder 2 vorliegt (Kennung im Ciphertext)?
+- Vorher bei den Konsumenten erheben, welche Feldgrössen und -typen für IV und Salt bestehen.
+
+### Entscheid 4: Kodierung der Passphrase – bleibt UTF-32
+
+Für die Sicherheit ohne Belang. Eine eigene Kodierung für Version 2 lässt sich auch nicht umsetzen: `PasswordSecurity`
+wandelt um, bevor die Version des Werts bekannt ist.
+
+### Entscheid 5: Fehlerverhalten – eine einheitliche Exception
+
+Eine `CryptographicException` mit der Meldung „Der Wert konnte nicht entschlüsselt werden (falscher Schlüssel oder
+veränderte Daten)". Sie gilt für **beide** Versionen, auch Padding-Fehler bei Version 1 laufen darauf. So verrät die
+Meldung nicht, warum es scheiterte, und es entsteht kein Orakel.
+
+### Lesen und Schreiben
+
+- Version 1 wird weiter gelesen, geschrieben wird nur noch Version 2.
+- **Erkennung:**
+  - Blob: Ein führendes `0x00` kennzeichnet das versionierte Format (eine Salt-Länge 0 kommt in Version 1 nie vor).
+    Danach folgen Versionsnummer, Parameter, Salts, Nonce, Ciphertext und Tag.
+  - Stream: neue Magic Number.
+
+## Teil B: Umstellung bestehender Werte
+
+Ein automatisches Umschreiben scheidet aus. Beispielsweise müssten in Einstellungen einzelne verschlüsselte
+JSON-Properties erkannt, einzeln neu verschlüsselt und zurückgeschrieben werden. Stattdessen:
+
+- **Warnung beim Lesen von Version 1, nur für Strings.**
+  - Die Meldung nennt das alte Format und enthält den Stacktrace, damit nachvollziehbar ist, woher der Wert kommt.
+  - Sie erscheint **einmal pro Aufrufstelle und Prozess**: Schlüssel ist ein Hash der obersten Stack-Frames, mit
+    Zähler. So flutet ein häufig gelesener Wert das Log nicht.
+  - Der Stacktrace kostet Mikrosekunden, das Entschlüsseln in Version 1 schon heute Millisekunden.
+- **Öffentlich `AesEncryptor.IsLegacyFormat(string)`** (und für `byte[]`): Damit kann ein Integrator seine Einstellungen
+  und Tabellen gezielt absuchen, z.B. alle `encrypt:`-Werte.
+- Wer einen Wert neu speichert, schreibt automatisch Version 2. Die Warnungen zeigen also genau das, was seit der
+  Migration nicht mehr geschrieben wurde.
+- Byte-Blobs und Streams (Dokumente) warnen nicht. Ihre Umstellung hängt an Entscheid 3.
+
+## Teil C (offen): Mandantenschlüssel schützen
+
+**Idee:** `Tenant.TenantPassword` wird mit dem Hauptschlüssel der Anwendung verschlüsselt abgelegt. Das ist die
+Passphrase aus `PasswordSecurity`, die ausserhalb der Datenbank liegt (Konfiguration, Secret Store). Bei jeder
+Verwendung wird der Mandantenschlüssel zuerst entschlüsselt. Ein DB-Abfluss allein gibt die Mandantenschlüssel dann
+nicht mehr preis.
+
+**Abzuklären:** Wo `TenantPassword` gelesen und geschrieben wird. Erste Suche (ohne Migrationen):
+
+| Art | Stellen |
+|---|---|
+| Lesen, Verschlüsselung | `CipherExtensions` (`GetEncryptionKey`), `DbPluginFormatter` (flach und Baum, je 4), `FormatHelperInfo` (Baum) |
+| Lesen und Schreiben, Admin | `PlugInAdminHandler` (MudBlazor), `PlugInConstController` (Telerik), `TenantAdminHandler`, `TenantControllerClass`/`TenantControllerStruct` (Telerik) |
+| Schreiben, neue Schlüssel | `TenantPasswordAssignment`, `OnboardingHandler`, `HierarchyOnboardingHandler`, `RegistrationController`, `CreateTenant.cshtml.cs` |
+| Konfiguration | `TenantOptions`, `SecurityViewsOptions`, `WebPartInit` (Telerik) |
+| SQL | `SqlColumnsSyntaxHelper`, `PostgreSqlColumnsSyntaxHelper` (Spalte in den Prozeduren) |
+
+- **Ziel:** genau eine Stelle, die den Mandantenschlüssel liefert, z.B. im `ISecurityRepository` oder als eigener
+  Dienst. Alle Leser gehen über sie. Heute lesen u.a. die beiden `DbPluginFormatter` und die Admin-Stellen die Spalte
+  direkt.
+- **Migration:** Bestehende Mandantenschlüssel einmalig verschlüsseln. Das ist eine überschaubare Tabelle und lässt
+  sich automatisch umstellen, anders als Teil B. Erkennung über `IsLegacyFormat` bzw. ein Präfix.
+- **Abhängigkeit:** Der Hauptschlüssel der Anwendung muss bei allen Prozessen, die Mandantenschlüssel brauchen,
+  konfiguriert sein (Web, Worker, Agent).
 
 ## Tests (Vorschlag)
 
-- Version 2: Hin- und Rückweg für Blob, String (Base64) und Stream.
+- Version 2: Hin- und Rückweg für Blob, String (Base64), Stream und die Variante für Zufallsschlüssel.
 - Bestehende Version-1-Werte (feste Testvektoren aus dem heutigen Code) werden weiter gelesen.
-- Ein manipulierter Ciphertext, ein manipulierter Tag und ein manipulierter Kopf ergeben jeweils eine Exception.
+- Ein manipulierter Ciphertext, Tag, Kopf, ein abgeschnittenes oder umsortiertes Stream-Segment ergeben jeweils
+  dieselbe Exception wie ein falsches Passwort.
 - Die Iterationszahl aus dem Wert wird benutzt, nicht die aktuelle Vorgabe.
-- Ein falsches Passwort ergibt dieselbe Exception wie eine Manipulation.
+- Cache: Die zweite Entschlüsselung mit gleichem Stufe-1-Salt leitet nicht neu ab. Unterschiedliche Passphrasen teilen
+  keinen Eintrag.
+- `IsLegacyFormat` erkennt Version 1 und 2 korrekt. Die Warnung beim Lesen von Version 1 kommt einmal pro Aufrufstelle.
