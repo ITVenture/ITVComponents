@@ -32,6 +32,18 @@ namespace ITVComponents.Json.Strategy.Impl
         /// </summary>
         private volatile JsonSerializerOptions strongTypedSerializerSettings;
 
+        /// <summary>Options for <see cref="SerializationTypingMode.EnvelopePolymorphism"/>, without and with references.</summary>
+        private volatile JsonSerializerOptions envelopeSerializerSettings;
+
+        private volatile JsonSerializerOptions envelopeSerializerSettingsWithReferences;
+
+        /// <summary>
+        /// Protocol bases that got native polymorphism through <see cref="ExtendNativeProtocolType{TProto,TExt}"/> - the
+        /// envelope leaves them alone.
+        /// </summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<Type, byte> nativeProtocolBases =
+            new System.Collections.Concurrent.ConcurrentDictionary<Type, byte>();
+
         public DefaultJsonStrategy()
         {
             DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
@@ -51,12 +63,15 @@ namespace ITVComponents.Json.Strategy.Impl
             defaultContract = contract;
             strongTypedSerializerSettings = BuildSerializerOptions(false);
             strongTypedSerializerSettingsWithReferences = BuildSerializerOptions(true);
+            envelopeSerializerSettings = BuildEnvelopeSerializerOptions(false);
+            envelopeSerializerSettingsWithReferences = BuildEnvelopeSerializerOptions(true);
         }
 
         public void ExtendNativeProtocolType<TProto, TExt>(string discriminator) where TExt : TProto
         {
             lock (protocolTypeExtensions)
             {
+                nativeProtocolBases.TryAdd(typeof(TProto), 0);
                 protocolTypeExtensions.Add(t =>
                 {
                     if (t.Type == typeof(TProto))
@@ -196,6 +211,11 @@ namespace ITVComponents.Json.Strategy.Impl
                 type = typeof(IManualSerializer);
                 value = new SimpleContract() { Value = value };
             }
+            else if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            {
+                // Without a given type the root keeps its runtime type: it is enveloped.
+                type ??= typeof(object);
+            }
             else
             {
                 type ??= value?.GetType() ?? typeof(object);
@@ -228,6 +248,7 @@ namespace ITVComponents.Json.Strategy.Impl
             {
                 using var fs = File.OpenWrite(fileName);
                 Serialize(value, jsop, fs);
+                return;
             }
 
             throw new NotSupportedException("DefaultJsonStrategy only supports Options of Type JsonSerializerOptions");
@@ -239,6 +260,7 @@ namespace ITVComponents.Json.Strategy.Impl
             if (options is JsonSerializerOptions jsop)
             {
                 Serialize(value, jsop, targetStream);
+                return;
             }
 
             throw new NotSupportedException("DefaultJsonStrategy only supports Options of Type JsonSerializerOptions");
@@ -248,6 +270,13 @@ namespace ITVComponents.Json.Strategy.Impl
             bool preserveReferences, bool useCamelCase)
         {
             var serializer = GetSerializer(typingMode, preserveReferences, useCamelCase);
+            if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            {
+                using var buffer = new MemoryStream();
+                sourceStream.CopyTo(buffer);
+                return ReadEnvelopeRoot<T>(buffer.ToArray(), serializer);
+            }
+
             if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
                 typeof(T).GetInterfaces().Contains(typeof(IManualSerializer)))
             {
@@ -280,6 +309,11 @@ namespace ITVComponents.Json.Strategy.Impl
         public T ReadObject<T>(string fileName, SerializationTypingMode typingMode, bool preserveReferences, bool useCamelCase)
         {
             var options = GetSerializer(typingMode, preserveReferences, useCamelCase);
+            if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            {
+                return ReadEnvelopeRoot<T>(File.ReadAllBytes(fileName), options);
+            }
+
             using (FileStream sourceStream = File.OpenRead(fileName))
             {
                 if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
@@ -305,6 +339,11 @@ namespace ITVComponents.Json.Strategy.Impl
             bool preserveReferences, bool useCamelCase)
         {
             var basicSettings = GetSerializer(typingMode, preserveReferences, useCamelCase);
+            if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            {
+                return ReadEnvelopeRoot<T>(Utf8NoBom.GetBytes(json), basicSettings);
+            }
+
             if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
                 typeof(T).GetInterfaces().Contains(typeof(IManualSerializer)))
             {
@@ -342,6 +381,8 @@ namespace ITVComponents.Json.Strategy.Impl
             {
                 t = typeof(IManualSerializer);
             }
+
+            // EnvelopePolymorphism without a type: an enveloped root carries its type itself (object).
 
             t ??= typeof(object);
             var mth = LambdaHelper
@@ -403,6 +444,7 @@ namespace ITVComponents.Json.Strategy.Impl
 
         private T DeserializeObject<T>(Stream r, JsonSerializerOptions settings, bool strongTyped)
         {
+            using var referenceScope = EnvelopeReferenceHandler.ScopeFor(settings);
             return
                 System.Text.Json.JsonSerializer
                     .Deserialize<T>(r, settings);
@@ -439,16 +481,61 @@ namespace ITVComponents.Json.Strategy.Impl
             }
             //System.Text.Json.JsonDocument.Parse(r.ReadToEnd(), t, settings);
             //JsonSerializer s = JsonSerializer.Create(settings);
+            using var referenceScope = EnvelopeReferenceHandler.ScopeFor(settings);
             return System.Text.Json.JsonSerializer.Deserialize(r.ReadToEnd(), t, settings);
             //return DeserializeObject(s, r, t);
         }
 
         private T DeserializeObject<T>(JsonSerializerOptions serializer, Stream r)
         {
+            using var referenceScope = EnvelopeReferenceHandler.ScopeFor(serializer);
             return
                 System.Text.Json.JsonSerializer
                     .Deserialize<T>(r, serializer);
         }
+
+        /// <summary>
+        /// Reads a document of <see cref="SerializationTypingMode.EnvelopePolymorphism"/>. An enveloped root read into a
+        /// concrete type is unpacked and checked (System.Text.Json itself would read it into an empty object); data in
+        /// the format of the assisted mode is rejected.
+        /// </summary>
+        private T ReadEnvelopeRoot<T>(byte[] utf8Json, JsonSerializerOptions settings)
+        {
+            ReadOnlySpan<byte> content = utf8Json;
+            if (content.StartsWith(Utf8Bom))
+            {
+                content = content.Slice(Utf8Bom.Length);
+            }
+
+            var shape = EnvelopeConverterFactory.InspectRoot(content);
+            if (shape == EnvelopeConverterFactory.RootShape.Legacy)
+            {
+                throw EnvelopeConverterFactory.LegacyFormat();
+            }
+
+            using var referenceScope = EnvelopeReferenceHandler.ScopeFor(settings);
+            var handledByEnvelope = settings.Converters.OfType<EnvelopeConverterFactory>().Any(f => f.CanConvert(typeof(T)));
+            if (shape == EnvelopeConverterFactory.RootShape.Envelope && !handledByEnvelope)
+            {
+                var value = JsonSerializer.Deserialize<object>(content, settings);
+                if (value is null)
+                {
+                    return default;
+                }
+
+                if (value is T typed)
+                {
+                    return typed;
+                }
+
+                throw new JsonException(
+                    $"The enveloped root holds a {value.GetType().FullName}, which is not a {typeof(T).FullName}.");
+            }
+
+            return JsonSerializer.Deserialize<T>(content, settings);
+        }
+
+        private static readonly byte[] Utf8Bom = { 0xEF, 0xBB, 0xBF };
 
         private string Serialize<T>(T value, JsonSerializerOptions settings)
         {
@@ -472,14 +559,15 @@ namespace ITVComponents.Json.Strategy.Impl
                 }
             }
 
+            using var referenceScope = EnvelopeReferenceHandler.ScopeFor(settings);
             JsonSerializer.Serialize(writer, value, settings);
         }
 
         private JsonSerializerOptions GetSerializer(SerializationTypingMode strongTypeMode, bool preserveReferences, bool useCamelCase)
         {
-            JsonSerializerOptions tmp = preserveReferences
-                ? strongTypedSerializerSettingsWithReferences
-                : strongTypedSerializerSettings; ;
+            JsonSerializerOptions tmp = strongTypeMode == SerializationTypingMode.EnvelopePolymorphism
+                ? (preserveReferences ? envelopeSerializerSettingsWithReferences : envelopeSerializerSettings)
+                : (preserveReferences ? strongTypedSerializerSettingsWithReferences : strongTypedSerializerSettings);
 
             tmp = new JsonSerializerOptions(tmp);
             if (useCamelCase)
@@ -508,6 +596,8 @@ namespace ITVComponents.Json.Strategy.Impl
                 UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
                 UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
                 WriteIndented = true,
+                // Discriminators and $id/$ref need not be the first properties (hand-written JSON, other writers).
+                AllowOutOfOrderMetadataProperties = true,
             };
 
             retVal.TypeInfoResolverChain.Clear();
@@ -516,6 +606,35 @@ namespace ITVComponents.Json.Strategy.Impl
             if (preserveReferences)
             {
                 retVal.ReferenceHandler = ReferenceHandler.Preserve;
+            }
+
+            return retVal;
+        }
+
+        /// <summary>
+        /// Options of <see cref="SerializationTypingMode.EnvelopePolymorphism"/>: the envelope converter instead of the
+        /// manual-serializer contract, and - with references - a handler that shares one resolver across envelopes.
+        /// </summary>
+        private JsonSerializerOptions BuildEnvelopeSerializerOptions(bool preserveReferences)
+        {
+            var retVal = new JsonSerializerOptions
+            {
+                AllowTrailingCommas = true,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+                IgnoreReadOnlyFields = true,
+                IgnoreReadOnlyProperties = true,
+                UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode,
+                UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+                WriteIndented = true,
+                AllowOutOfOrderMetadataProperties = true,
+            };
+
+            retVal.TypeInfoResolverChain.Clear();
+            retVal.TypeInfoResolverChain.Add(defaultContract);
+            retVal.Converters.Add(new EnvelopeConverterFactory(t => nativeProtocolBases.ContainsKey(t)));
+            if (preserveReferences)
+            {
+                retVal.ReferenceHandler = EnvelopeReferenceHandler.Instance;
             }
 
             return retVal;

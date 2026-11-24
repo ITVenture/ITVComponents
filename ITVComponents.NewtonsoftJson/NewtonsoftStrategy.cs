@@ -105,6 +105,21 @@ namespace ITVComponents.NewtonsoftJson
             return Utf8NoBom.GetString(data);
         }
 
+        /// <summary>
+        /// Maps the typing mode onto Newtonsoft's type-name handling. The envelope format is implemented by the
+        /// System.Text.Json strategy only; serializing it statically here would silently drop the type information.
+        /// </summary>
+        private static bool IsStrongTyped(SerializationTypingMode typingMode)
+        {
+            if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            {
+                throw new NotSupportedException(
+                    "SerializationTypingMode.EnvelopePolymorphism is only supported by the default (System.Text.Json) strategy.");
+            }
+
+            return typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+        }
+
         public string ToJson<TProtocol>(TProtocol value, SerializationTypingMode typingMode, bool preserveReferences,
             bool useCamelCase)
         {
@@ -114,7 +129,7 @@ namespace ITVComponents.NewtonsoftJson
 
         public string ToJson(object value, SerializationTypingMode typingMode, Type? type, bool preserveReferences, bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var serializer = GetSerializer(strong, preserveReferences, useCamelCase);
             using MemoryStream mst = new MemoryStream();
             WriteObject(value, serializer, mst);
@@ -125,7 +140,7 @@ namespace ITVComponents.NewtonsoftJson
         public void WriteObject<TProto>(TProto value, SerializationTypingMode typingMode, Stream targetStream, bool preserveReferences,
             bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var serializer = GetSerializer(strong, preserveReferences, useCamelCase);
             WriteObject(value, serializer, targetStream);
         }
@@ -133,7 +148,7 @@ namespace ITVComponents.NewtonsoftJson
         public void WriteObject<TProtocol>(TProtocol value, SerializationTypingMode typingMode, string fileName,
             bool preserveReferences, bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var ofs = new FileStream(fileName, FileMode.Create, FileAccess.Write);
             var serializer = GetSerializer(strong, preserveReferences, useCamelCase);
             WriteObject(value, serializer, ofs);
@@ -159,7 +174,7 @@ namespace ITVComponents.NewtonsoftJson
 
         public T ReadObject<T>(Stream sourceStream, SerializationTypingMode typingMode, bool preserveReferences, bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var sr = GetSerializer(strong, preserveReferences, useCamelCase);
             var retVal = ReadObject(sourceStream, typeof(T), sr);
             if (retVal is T r)
@@ -207,7 +222,7 @@ namespace ITVComponents.NewtonsoftJson
 
         public T FromJsonString<T>(string json, SerializationTypingMode typingMode, bool preserveReferences, bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var serializer = GetSerializer(strong, preserveReferences, useCamelCase);
             var retVal = FromJsonString(json, typeof(T), serializer);
             if (retVal is T r)
@@ -232,7 +247,7 @@ namespace ITVComponents.NewtonsoftJson
         public object FromJsonString(string json, Type t, SerializationTypingMode typingMode, bool preserveReferences,
             bool useCamelCase)
         {
-            var strong = typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            var strong = IsStrongTyped(typingMode);
             var serializer = GetSerializer(strong, preserveReferences, useCamelCase);
             return FromJsonString(json, t, serializer);
         }

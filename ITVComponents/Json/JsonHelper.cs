@@ -215,6 +215,21 @@ namespace ITVComponents.Json
     {
         StaticTyping,
         AssistedPolymorphism,
-        NativePolymorphism
+        NativePolymorphism,
+
+        /// <summary>
+        /// Every place whose declared type is open (<c>object</c>, abstract classes, non-collection interfaces) carries
+        /// its runtime type in a small envelope <c>{"$type": "&lt;name&gt;", "$value": …}</c> - on every level, also
+        /// inside collections. Concrete types are written as plain JSON. Only <c>string</c>, <c>bool</c> and
+        /// <c>null</c> stay without envelope in open places, everything else (numbers, dates, guids, enums) keeps its
+        /// exact type. Type names come from <see cref="Contracts.ManualTypeRegistry"/> (short names, otherwise the
+        /// assembly-qualified name without version). Reference preservation works across envelopes.
+        /// </summary>
+        /// <remarks>
+        /// A polymorphic root is written by serializing with <c>object</c> (or the base type) as protocol type; when no
+        /// type is given (<c>ToJson(value, mode, null)</c>), the root is enveloped. Reading an enveloped root into a
+        /// concrete type unpacks it and checks the type.
+        /// </remarks>
+        EnvelopePolymorphism
     }
 }
