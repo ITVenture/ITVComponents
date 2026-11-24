@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
-using ITVComponents.Json.Contracts;
+using System.Text.Json.Serialization;
 
 namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
 {
@@ -21,9 +21,15 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
         {
         }
 
+        [JsonConstructor]
+        private DeferredScheduleRequest()
+        {
+        }
+
         /// <summary>
         /// Gets the next execution time for this request
         /// </summary>
+        [JsonInclude]
         public DateTime NextExecution { get; private set; }
 
         /// <summary>
@@ -61,18 +67,6 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
             }
 
             return DateTime.Now;
-        }
-
-        public override void GetObjectData()
-        {
-            base.GetObjectData();
-            Data.Add(ManualSerializationData.FromValue("NextExecution", NextExecution));
-        }
-
-        public override void ApplyObjectData()
-        {
-            base.ApplyObjectData();
-            NextExecution = Data.GetDeserializedValue<DateTime>("NextExecution");
         }
     }
 }

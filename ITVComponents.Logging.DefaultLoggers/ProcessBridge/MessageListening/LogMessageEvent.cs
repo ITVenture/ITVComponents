@@ -1,12 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
-using ITVComponents.Json.Contracts;
 
 namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
 {
-    public class LogMessageEventArgs:EventArgs, IManualSerializer
+    /// <summary>
+    /// A message forwarded by the process bridge. The properties are serialized directly.
+    /// </summary>
+    [ITVComponents.Json.TransferByValue]
+    public class LogMessageEventArgs:EventArgs
     {
         /// <summary>
         /// Initializes a new instance of the LogMessageEventArgs class
@@ -30,32 +32,20 @@ namespace ITVComponents.Logging.DefaultLoggers.ProcessBridge.MessageListening
         /// <summary>
         /// Gets the severity of this logged message
         /// </summary>
+        [JsonInclude]
         public int Severity { get; private set; }
 
         /// <summary>
         /// Gets the content of this logged message
         /// </summary>
+        [JsonInclude]
         public string Message { get; private set; }
 
         /// <summary>
         /// Gets or sets the context in which this message was created
         /// </summary>
+        [JsonInclude]
         public string Context { get; private set; }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue(nameof(Message), Message));
-            Data.Add(ManualSerializationData.FromValue(nameof(Severity), Severity));
-            Data.Add(ManualSerializationData.FromValue(nameof(Context), Context));
-        }
-
-        public void ApplyObjectData()
-        {
-            Message = Data.GetDeserializedValue<string>(nameof(Message));
-            Severity = Data.GetDeserializedValue<int>(nameof(Severity));
-            Context = Data.GetDeserializedValue<string>(nameof(Context));
-        }
     }
 
     /// <summary>

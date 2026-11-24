@@ -15,6 +15,7 @@ using ITVComponents.InterProcessCommunication.Shared.Helpers;
 using ITVComponents.InterProcessCommunication.Shared.Proxying;
 using ITVComponents.InterProcessCommunication.Shared.Security;
 using ITVComponents.InterProcessCommunication.Shared.Security.SpecialWrappers;
+using ITVComponents.Json;
 using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
@@ -450,9 +451,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
 
                     retVal.Result = ret;
-                    #pragma warning disable CS0618 // self-serializing results (bridge types) are not proxied
-                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying && retVal.Result is not IManualSerializer)
-                    #pragma warning restore CS0618
+                    if (targetMethod.ReturnType.IsInterface && useExtendedProxying && !TravelsByValue(retVal.Result))
                     {
                         retVal.Result = GetBufferFor(retVal.Result, targetMethod.ReturnType, authenticatedUser);
                     }
@@ -816,6 +815,18 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         }
 
         /// <summary>
+        /// Whether a result is serialized instead of being replaced by a proxy: types marked with
+        /// <see cref="TransferByValueAttribute"/>, and implementations of the obsolete <see cref="IManualSerializer"/>.
+        /// </summary>
+        private static bool TravelsByValue(object value)
+        {
+#pragma warning disable CS0618 // existing self-serializing types of consumers keep traveling by value
+            return value is IManualSerializer
+#pragma warning restore CS0618
+                   || (value != null && value.GetType().IsDefined(typeof(TransferByValueAttribute), true));
+        }
+
+        /// <summary>
         /// Under the restriction to registered types (e.g. <c>MessageServer.RestrictArgumentTypes</c>) an argument whose
         /// type was refused arrives untyped from the wire (a JsonNode). It is handed to the method as null, as documented:
         /// the client must not be able to pass content of a type the server did not accept.
@@ -927,9 +938,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 {
                     types[i] = types[i].GetElementType();
                     retVal[i] = arguments[i];
-                    #pragma warning disable CS0618 // self-serializing results (bridge types) are not proxied
-                    if (types[i].IsInterface && useExtendedProxying && retVal[i] is not IManualSerializer)
-                    #pragma warning restore CS0618
+                    if (types[i].IsInterface && useExtendedProxying && !TravelsByValue(retVal[i]))
                     {
                         retVal[i] = GetBufferFor(retVal[i], types[i], owner);
                     }

@@ -139,10 +139,5 @@ namespace ITVComponents.Workflow.ParallelProcessing
         {
             return new UnsafeLock(null);
         }
-
-        /// <summary>Auftraege werden fuer Phase 4 nicht serialisiert - nichts zu ergaenzen.</summary>
-        protected override void CompleteObjectData()
-        {
-        }
     }
 }

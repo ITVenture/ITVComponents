@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
-using ITVComponents.Json.Contracts;
+using System.Text.Json.Serialization;
 using ITVComponents.Logging;
 using ITVComponents.Scheduling;
 
@@ -31,9 +31,15 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
             deferredInstructions.Clear();
         }
 
+        [JsonConstructor]
+        private PeriodScheduleRequest()
+        {
+        }
+
         /// <summary>
         /// Gets or sets the next execution of this schedule-Request
         /// </summary>
+        [JsonInclude]
         public DateTime? NextExecution { get; private set; }
 
         /// <summary>
@@ -69,18 +75,6 @@ namespace ITVComponents.ParallelProcessing.TaskSchedulers.Requests
             }
 
             base.AddInstruction(instruction, setBaseRemarks);
-        }
-
-        public override void GetObjectData()
-        {
-            base.GetObjectData();
-            Data.Add(ManualSerializationData.FromValue("NextExecution", NextExecution));
-        }
-
-        public override void ApplyObjectData()
-        {
-            base.ApplyObjectData();
-            NextExecution = Data.GetDeserializedValue<DateTime?>("NextExecution");
         }
     }
 }

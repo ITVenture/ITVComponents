@@ -5,20 +5,32 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
-using ITVComponents.Json.Contracts;
+using System.Text.Json.Serialization;
 using ITVComponents.Threading;
 using ITVComponents.ParallelProcessing.Helpers;
 
 namespace ITVComponents.ParallelProcessing
 {
-    public abstract class TaskBase : ITask, IManualSerializer
+    /// <summary>
+    /// Base of a task. Serialized through its fields (and <see cref="Success"/>/<see cref="Error"/>); a derived task makes
+    /// its own state visible with <c>[JsonInclude]</c> or as public properties. Open places (<c>object</c>, interfaces)
+    /// keep their runtime type in <c>SerializationTypingMode.EnvelopePolymorphism</c>.
+    /// </summary>
+    [ITVComponents.Json.TransferByValue]
+    public abstract class TaskBase : ITask
     {
         private IAsyncResult asyncHelper;
+        [JsonInclude]
         private int priority;
+        [JsonInclude]
         private ICollection<SchedulerPolicy> schedules;
+        [JsonInclude]
         private DateTime lastExecution;
+        [JsonInclude]
         private string description;
+        [JsonInclude]
         private bool active;
+        [JsonInclude]
         private bool executingUnsafe;
 
         protected TaskBase()
@@ -33,6 +45,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets the priority of this task
         /// </summary>
+        [JsonIgnore]
         public virtual int Priority
         {
             get => priority;
@@ -48,6 +61,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets configured schedules for this Task
         /// </summary>
+        [JsonIgnore]
         public virtual ICollection<SchedulerPolicy> Schedules
         {
             get => schedules;
@@ -57,6 +71,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets or sets the last Execution time of this Task
         /// </summary>
+        [JsonIgnore]
         public virtual DateTime LastExecution
         {
             get => lastExecution;
@@ -66,6 +81,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets remarks on this task
         /// </summary>
+        [JsonIgnore]
         public virtual string Description
         {
             get => description;
@@ -75,16 +91,19 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets a value indicating whether the processing of this task has been successful
         /// </summary>
+        [JsonInclude]
         public bool Success { get; protected set; }
 
         /// <summary>
         /// Gets the serialized Error that has caused this task to fail
         /// </summary>
+        [JsonInclude]
         public SerializedException Error { get; protected set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether a specific task is active or not
         /// </summary>
+        [JsonIgnore]
         public virtual bool Active
         {
             get => active;
@@ -94,6 +113,7 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Gets a value indicating whether this job is currently executing unsafe code
         /// </summary>
+        [JsonIgnore]
         public virtual bool ExecutingUnsafe
         {
             get => executingUnsafe;
@@ -159,37 +179,9 @@ namespace ITVComponents.ParallelProcessing
         /// <returns>a ResourceLock that resets the unsafe-flag when disposed</returns>
         public abstract IDisposable Unsafe();
 
-        protected abstract void CompleteObjectData();
-
         protected virtual void ResetTask()
         {
             asyncHelper = null;
-        }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue("TB##Priority", priority));
-            Data.Add(ManualSerializationData.FromValue("TB##Schedules", schedules));
-            Data.Add(ManualSerializationData.FromValue("TB##LastExecution", lastExecution));
-            Data.Add(ManualSerializationData.FromValue("TB##Description", description));
-            Data.Add(ManualSerializationData.FromValue("Success", Success));
-            Data.Add(ManualSerializationData.FromValue("Error", Error));
-            Data.Add(ManualSerializationData.FromValue("TB##Active", active));
-            Data.Add(ManualSerializationData.FromValue("TB##ExecutingUnsafe", executingUnsafe));
-            CompleteObjectData();
-        }
-
-        public virtual void ApplyObjectData()
-        {
-            priority = Data.GetDeserializedValue<int>("TB##Priority");
-            schedules = Data.GetDeserializedValue<ICollection<SchedulerPolicy>>("TB##Schedules");
-            lastExecution = Data.GetDeserializedValue<DateTime>("TB##LastExecution");
-            description = Data.GetDeserializedValue<string>("TB##Description");
-            Success = Data.GetDeserializedValue<bool>("Success");
-            Error = Data.GetDeserializedValue<SerializedException>("Error");
-            active = Data.GetDeserializedValue<bool>("TB##Active");
-            executingUnsafe = Data.GetDeserializedValue<bool>("TB##ExecutingUnsafe");
         }
     }
 }

@@ -5687,7 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
-| 125 | **JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` (Laufzeittyp jeder offenen Stelle, auf jeder Ebene)** | Kein Schema-Change. **BREAKING (Datenformat):** `AssistedPolymorphism` entfällt, altes Format wird nicht gelesen. IPC-Prozesse gemeinsam aktualisieren; laufende Workflow-Instanzen vor dem Update abschliessen (§125.4). |
+| 125 | **JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` (Laufzeittyp jeder offenen Stelle, auf jeder Ebene)** | Kein Schema-Change. **BREAKING (Datenformat):** `AssistedPolymorphism` entfällt, altes Format wird nicht gelesen. IPC-Prozesse gemeinsam aktualisieren; laufende Workflow-Instanzen vor dem Update abschliessen (§125.4). Eigene Task-Klassen: `CompleteObjectData`/`ApplyObjectData` entfallen (§125.8). |
 | 124 | **Module beim Publish paketieren (neues Paket `ITVComponents.UpdateService.ModuleBuild`)** | Kein Schema-Change. Opt-in im Modul-Projekt: Paket referenzieren, `<ItvModulePackage>true</ItvModulePackage>`. |
 | 123 | **Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken** | Kein Schema-Change. Opt-in; **empfohlen** für jede Benutzerdatei, die mehr Konten schreiben dürfen als die Anwendung (Agent unter `ProgramData`). |
 | 122 | **Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** `FileLogWriter` versucht einen gescheiterten Dateiwechsel erst nach einer Minute wieder; die Datei wächst bis dahin über die Grenze. |
@@ -10520,3 +10520,23 @@ Stelle ihren Laufzeittyp selbst, auf jeder Ebene (Issue `docs/issue-json-01-enve
 - `ITVComponents.InterProcessCommunication.NamedPipe.Test/InMemoryHubTest.cs`: Argumente über den echten IPC-Weg.
 - `ITVComponents.Workflow.Test/WorkflowVariableJsonTest.cs`: Variablen, `IterationFailure`, Kompensationen,
   Definitionen, bestehender Bestand.
+
+### 125.8 Die übrigen `IManualSerializer`-Typen sind normale Klassen (BREAKING für eigene Tasks)
+
+`DynamicResult`, `LinqParameter`, `RemoteDataParameter`, `LogMessageEventArgs`, `TaskBase`, `ProcessTaskBase`,
+`ProcessPackageBase` und `TaskScheduler.ScheduleRequest` (samt `DeferredScheduleRequest`/`PeriodScheduleRequest`)
+implementieren `IManualSerializer` nicht mehr:
+
+- **Datenklassen** werden über ihre Felder serialisiert (`[JsonInclude]`), offene Werte wie `Value` behalten ihren
+  Typ. `DynamicResult` hat einen eigenen Converter: Er schreibt eine Property je Spalte, `DBNull` als `null`.
+- **Tasks:** `TaskBase.CompleteObjectData()` und das überschreibbare `ApplyObjectData()` entfallen, ebenso
+  `ProcessPackageBase.CompleteObjectData()`. **Eine eigene Task- oder Paket-Klasse** entfernt diese Überschreibungen
+  und macht ihre Felder stattdessen mit `[JsonInclude]` oder als öffentliche Properties sichtbar. Sie braucht einen
+  parameterlosen Konstruktor, er darf privat sein, dann mit `[JsonConstructor]`. Ein Feld, dessen Name schon in einer
+  Basisklasse vorkommt, bekommt `[JsonPropertyName]` (z.B. `priority`).
+- `ProcessPackageBase` setzt nach dem Lesen das Paket an seinen Tasks wieder (`IJsonOnDeserialized`).
+  `ScheduleRequest` schreibt seinen Prozessor per Name und sucht ihn beim Lesen wieder.
+- **Neu: `[TransferByValue]`** (`ITVComponents.Json`). Bisher hat die IPC ein `IManualSerializer` als Wert
+  zurückgegeben, auch wenn die Methode ein Interface liefert (z.B. `IDbDataParameter CreateParameter(…)`), statt einen
+  Proxy dafür auszugeben. Diese Rolle übernimmt jetzt das Attribut. Die oben genannten Typen tragen es. Ein eigenes
+  `IManualSerializer` gilt weiterhin als „per Wert".

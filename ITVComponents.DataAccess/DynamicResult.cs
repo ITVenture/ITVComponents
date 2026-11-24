@@ -14,13 +14,15 @@ using System.Text.Json.Serialization;
 using ITVComponents.DataAccess.Resources;
 using ITVComponents.ExtendedFormatting;
 using ITVComponents.Helpers;
-using ITVComponents.Json.Contracts;
+using System.Text.Json;
 using ITVComponents.Logging;
 using TypeConverter = ITVComponents.TypeConversion.TypeConverter;
 
 namespace ITVComponents.DataAccess
 {
-    public class DynamicResult:DynamicObject, INotifyPropertyChanged, IManualSerializer, IBasicKeyValueProvider
+    [System.Text.Json.Serialization.JsonConverter(typeof(DynamicResult.Converter))]
+    [ITVComponents.Json.TransferByValue]
+    public class DynamicResult:DynamicObject, INotifyPropertyChanged, IBasicKeyValueProvider
     {
         /// <summary>
         /// the controller object used to write changes in this item into the database
@@ -569,41 +571,68 @@ Error: {ex.OutlineException()}", (int) LogSeverity.Error, null);
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
+        /// <summary>
+        /// Adds a column read back from JSON - the same steps as for a column of a data reader.
+        /// </summary>
+        private void RestoreColumn(string name, object value)
         {
-            foreach (KeyValuePair<string, object> value in values)
+            object val = value ?? DBNull.Value;
+            object postSet = null;
+            if (val is INotifyPropertyChanged || val is INotifyCollectionChanged)
             {
-                if (value.Value is not SmartProperty smp)
-                {
-                    Data.Add(ManualSerializationData.FromValue(value.Key, value.Value));
-                }
-                else
-                {
-                    Data.Add(ManualSerializationData.FromValue(value.Key, smp.Value));
-                }
+                postSet = val;
+                val = null;
+            }
+
+            values.Add(name, val);
+            types.Add(name, typeof(object));
+            if (postSet != null)
+            {
+                SetValue(name, postSet);
             }
         }
 
-        public virtual void ApplyObjectData()
+        /// <summary>
+        /// Writes the record as a JSON object with one property per column. Every value is an open place and keeps its
+        /// runtime type (<c>SerializationTypingMode.EnvelopePolymorphism</c>); <see cref="DBNull"/> is written as null and
+        /// comes back as <see cref="DBNull"/>, a <see cref="SmartProperty"/> as its value.
+        /// </summary>
+        internal sealed class Converter : JsonConverter<DynamicResult>
         {
-            foreach (ManualSerializationData ent in Data)
+            public override DynamicResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
             {
-                object val = ent.Data ?? DBNull.Value;
-                object postSet = null;
-                string name = ent.PropertyName;//.ToUpper();
-                if (val is INotifyPropertyChanged || val is INotifyCollectionChanged)
+                if (reader.TokenType == JsonTokenType.Null)
                 {
-                    postSet = val;
-                    val = null;
+                    return null;
                 }
 
-                values.Add(name, val);
-                types.Add(name, typeof(object));
-                if (postSet != null)
+                if (reader.TokenType != JsonTokenType.StartObject)
                 {
-                    SetValue(name, postSet);
+                    throw new JsonException($"Expected an object for a {nameof(DynamicResult)}, found {reader.TokenType}.");
                 }
+
+                var retVal = new DynamicResult();
+                while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+                {
+                    string name = reader.GetString();
+                    reader.Read();
+                    retVal.RestoreColumn(name, JsonSerializer.Deserialize<object>(ref reader, options));
+                }
+
+                return retVal;
+            }
+
+            public override void Write(Utf8JsonWriter writer, DynamicResult value, JsonSerializerOptions options)
+            {
+                writer.WriteStartObject();
+                foreach (KeyValuePair<string, object> column in value.values)
+                {
+                    object raw = column.Value is SmartProperty smp ? smp.Value : column.Value;
+                    writer.WritePropertyName(column.Key);
+                    JsonSerializer.Serialize<object>(writer, raw is DBNull ? null : raw, options);
+                }
+
+                writer.WriteEndObject();
             }
         }
     }

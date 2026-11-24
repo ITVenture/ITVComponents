@@ -413,6 +413,21 @@ Workflow:
 - `IterationFailure` mit polymorphem `Item`.
 - Kompensationen mit eingebettetem Variablenstand.
 
+## Folgearbeit: übrige `IManualSerializer` — erledigt (2026-11-24)
+
+`DynamicResult` (eigener Converter), `LinqParameter`, `RemoteDataParameter`, `LogMessageEventArgs`, `TaskBase`,
+`ProcessTaskBase`, `ProcessPackageBase` und `ScheduleRequest` (+ Deferred/Period) sind normale Klassen.
+
+- Entscheid Task-Hierarchie: **ganz umbauen**. `CompleteObjectData`/`ApplyObjectData` entfallen (BREAKING für
+  eigene Tasks, Leitfaden §125.8).
+- Die Prüfung `is not IManualSerializer` in `BaseService` hielt diese Typen davon ab, bei Interface-Rückgaben
+  (z.B. `CreateParameter` → `IDbDataParameter`) als Proxy statt als Wert zurückzugehen. Diese Rolle übernimmt jetzt
+  `[TransferByValue]`.
+- Nebenbefund: Die beiden `ScheduleRequest`-Ableitungen hatten keinen parameterlosen Konstruktor und liessen sich nie
+  zurücklesen.
+- Im Repo implementiert niemand mehr `IManualSerializer`, es bleiben keine Obsolete-Warnungen.
+- Tests in `ITVComponents.Tests/TransferByValueTypesTests.cs`. Solution baut, 8 Testprojekte grün.
+
 ## Abgrenzung
 
 - Das Lesen von Newtonsoft-Daten (`$type` aus `TypeNameHandling`) gehört **nicht** in dieses Issue. Konsumenten mit

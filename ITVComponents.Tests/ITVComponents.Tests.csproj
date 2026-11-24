@@ -16,5 +16,9 @@
     <ProjectReference Include="..\ITVComponents\ITVComponents.csproj" />
     <ProjectReference Include="..\ITVComponents.Logging\ITVComponents.Logging.csproj" />
     <ProjectReference Include="..\ITVComponents.Logging.DefaultLoggers\ITVComponents.Logging.DefaultLoggers.csproj" />
+    <ProjectReference Include="..\ITVComponents.DataAccess\ITVComponents.DataAccess.csproj" />
+    <ProjectReference Include="..\ITVComponents.DataAccess.Remote\ITVComponents.DataAccess.Remote.csproj" />
+    <ProjectReference Include="..\ITVComponents.ParallelProcessing\ITVComponents.ParallelProcessing.csproj" />
+    <ProjectReference Include="..\ITVComponents.InterProcessCommunication.ParallelProcessing\ITVComponents.InterProcessCommunication.ParallelProcessing.csproj" />
   </ItemGroup>
 </Project>

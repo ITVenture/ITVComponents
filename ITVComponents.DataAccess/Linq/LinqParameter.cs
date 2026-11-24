@@ -1,25 +1,43 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Text;
-using ITVComponents.Helpers;
-using ITVComponents.Json.Contracts;
+﻿using System.Data;
+using System.Text.Json.Serialization;
 
 namespace ITVComponents.DataAccess.Linq
 {
-    public class LinqParameter:IDbDataParameter, IManualSerializer
+    /// <summary>
+    /// A command parameter of the linq data connector. Serialized through its fields; <see cref="Value"/> is an open place
+    /// and keeps its runtime type (<c>SerializationTypingMode.EnvelopePolymorphism</c>).
+    /// </summary>
+    [ITVComponents.Json.TransferByValue]
+    public class LinqParameter:IDbDataParameter
     {
+        [JsonInclude]
         private DbType dbType;
+
+        [JsonInclude]
         private ParameterDirection direction;
+
+        [JsonInclude]
         private bool isNullable;
+
+        [JsonInclude]
         private string parameterName;
+
+        [JsonInclude]
         private string sourceColumn;
+
+        [JsonInclude]
         private DataRowVersion sourceVersion;
+
+        [JsonInclude]
         private object value;
+
+        [JsonInclude]
         private byte precision;
+
+        [JsonInclude]
         private byte scale;
+
+        [JsonInclude]
         private int size;
 
         public LinqParameter()
@@ -31,92 +49,73 @@ namespace ITVComponents.DataAccess.Linq
             isNullable = nullable;
         }
 
+        [JsonIgnore]
         public DbType DbType
         {
             get { return dbType; }
             set { dbType = value; }
         }
 
+        [JsonIgnore]
         public ParameterDirection Direction
         {
             get { return direction; }
             set { direction = value; }
         }
 
+        [JsonIgnore]
         public bool IsNullable
         {
             get { return isNullable; }
         }
 
+        [JsonIgnore]
         public string ParameterName
         {
             get { return parameterName; }
             set { parameterName = value; }
         }
 
+        [JsonIgnore]
         public string SourceColumn
         {
             get { return sourceColumn; }
             set { sourceColumn = value; }
         }
 
+        [JsonIgnore]
         public DataRowVersion SourceVersion
         {
             get { return sourceVersion; }
             set { sourceVersion = value; }
         }
 
+        [JsonIgnore]
         public object Value
         {
             get { return value; }
             set { this.value = value; }
         }
 
+        [JsonIgnore]
         public byte Precision
         {
             get { return precision; }
             set { precision = value; }
         }
 
+        [JsonIgnore]
         public byte Scale
         {
             get { return scale; }
             set { scale = value; }
         }
 
+        [JsonIgnore]
         public int Size
         {
             get { return size; }
             set { size = value; }
-        }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue(nameof(dbType), dbType));
-            Data.Add(ManualSerializationData.FromValue(nameof(direction), direction));
-            Data.Add(ManualSerializationData.FromValue(nameof(isNullable), isNullable));
-            Data.Add(ManualSerializationData.FromValue(nameof(parameterName), parameterName));
-            Data.Add(ManualSerializationData.FromValue(nameof(sourceColumn), sourceColumn));
-            Data.Add(ManualSerializationData.FromValue(nameof(sourceVersion), sourceVersion));
-            Data.Add(ManualSerializationData.FromValue(nameof(value), value));
-            Data.Add(ManualSerializationData.FromValue(nameof(precision), precision));
-            Data.Add(ManualSerializationData.FromValue(nameof(scale), scale));
-            Data.Add(ManualSerializationData.FromValue(nameof(size), size));
-        }
-
-        public void ApplyObjectData()
-        {
-            dbType = Data.GetDeserializedValue<DbType>(nameof(dbType));
-            direction = Data.GetDeserializedValue<ParameterDirection>(nameof(direction));
-            isNullable = Data.GetDeserializedValue<bool>(nameof(isNullable));
-            parameterName = Data.GetDeserializedValue<string>(nameof(parameterName));
-            sourceColumn = Data.GetDeserializedValue<string>(nameof(sourceColumn));
-            sourceVersion = Data.GetDeserializedValue<DataRowVersion>(nameof(sourceVersion));
-            value = Data.GetDeserializedValue<object>(nameof(value));
-            precision = Data.GetDeserializedValue<byte>(nameof(precision));
-            scale = Data.GetDeserializedValue<byte>(nameof(scale));
-            size = Data.GetDeserializedValue<int>(nameof(size));
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
-using ITVComponents.Json.Contracts;
+using System.Text.Json.Serialization;
 using ITVComponents.ParallelProcessing;
 using ITVComponents.Threading;
 
@@ -14,6 +14,8 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
     public abstract class ProcessTaskBase<TMe, TParent> : TaskBase, IProcessTask where TParent : ProcessPackageBase<TMe, TParent>
                                                                                 where TMe : ProcessTaskBase<TMe, TParent>
     {
+        [JsonInclude]
+        [JsonPropertyName("MyPriority")]
         private int priority;
 
         /// <summary>
@@ -49,6 +51,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// Gets the priority of this task
         /// </summary>
+        [JsonIgnore]
         public override int Priority
         {
             get { return Parent?.PackagePriority??priority; }
@@ -57,21 +60,25 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// Gets a value indicating whether this job is currently executing unsafe code
         /// </summary>
+        [JsonIgnore]
         public override bool ExecutingUnsafe => isUnsafe;
 
         /// <summary>
         /// Gets the parent job for Settings and other information
         /// </summary>
+        [JsonIgnore]
         public TParent Parent { get; private set; }
 
         /// <summary>
         /// Gets a value indicating how many fails have already ocurred on this task
         /// </summary>
+        [JsonInclude]
         public int FailCount { get; protected set; }
 
         /// <summary>
         /// Gets a value indicating wheter this task has finished processing (no matter whether successfully or not..)
         /// </summary>
+        [JsonInclude]
         public bool Done { get; private set; }
 
         /// <summary>
@@ -158,21 +165,6 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <param name="ex">the exception that was thrown by a worker or scheduler</param>
         protected virtual void OnException(SerializedException ex)
         {
-        }
-
-        protected override void CompleteObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue("Done", Done));
-            Data.Add(ManualSerializationData.FromValue("FailCount", FailCount));
-            Data.Add(ManualSerializationData.FromValue("MyPriority", Priority));
-        }
-
-        public override void ApplyObjectData()
-        {
-            base.ApplyObjectData();
-            Done = Data.GetDeserializedValue<bool>("Done");
-            FailCount = Data.GetDeserializedValue<int>("FailCount");
-            priority = Data.GetDeserializedValue<int>("MyPriority");
         }
     }
 }

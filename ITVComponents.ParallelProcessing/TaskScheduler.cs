@@ -9,7 +9,6 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using ITVComponents.Json.Contracts;
 using ITVComponents.Logging;
 using ITVComponents.Plugins;
 using ITVComponents.Plugins.SelfRegistration;
@@ -240,7 +239,8 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// A Request for Scheduling
         /// </summary>
-        public class ScheduleRequest:IManualSerializer
+        [ITVComponents.Json.TransferByValue]
+        public class ScheduleRequest
         {
             /// <summary>
             /// sha object used to calculate task request ids
@@ -250,6 +250,8 @@ namespace ITVComponents.ParallelProcessing
             /// <summary>
             /// holds a list of instructions for the current request
             /// </summary>
+            [JsonInclude]
+            [JsonPropertyName("Instructions")]
             private List<string> instructions = new List<string>();
 
             /// <summary>
@@ -286,29 +288,45 @@ namespace ITVComponents.ParallelProcessing
                                               targetProcessor.GetHashCode(), task.Description, LastExecution,metaInfo))));
             }
 
+            /// <summary>For reading back (and for derived requests that are read back).</summary>
             [JsonConstructor]
-            private ScheduleRequest()
+            protected ScheduleRequest()
             {
             }
 
             /// <summary>
             /// Gets or sets the name of the scheduelr that is responsible for scheduling this
             /// </summary>
+            [JsonInclude]
             public string SchedulerName { get; private set; }
 
             /// <summary>
             /// Gets the ParallelTaskProcessor on which to enqueue the Task in this request
             /// </summary>
+            [JsonIgnore]
             public ParallelTaskProcessor Target { get; private set; }
+
+            /// <summary>
+            /// The processor is written by its name and looked up again when read back.
+            /// </summary>
+            [JsonInclude]
+            [JsonPropertyName("TargetName")]
+            private string TargetName
+            {
+                get => Target?.Identifier;
+                set => Target = value == null ? null : ParallelTaskProcessor.GetInstance(value);
+            }
 
             /// <summary>
             /// Gets the TargetTask to enqueue
             /// </summary>
+            [JsonInclude]
             public ITask Task { get; private set; }
 
             /// <summary>
             /// Gets or sets the last time this Request was executed
             /// </summary>
+            [JsonInclude]
             public DateTime LastExecution { get; private set; }
 
             /// <summary>
@@ -319,11 +337,13 @@ namespace ITVComponents.ParallelProcessing
             /// <summary>
             /// Gets the unique RequestId of this Request
             /// </summary>
+            [JsonInclude]
             public string RequestId { get; private set; }
 
             /// <summary>
             /// Gets all instructions for this task scheduler
             /// </summary>
+            [JsonIgnore]
             public virtual IEnumerable<string> Instructions { get { return instructions; } }
 
             /// <summary>
@@ -348,30 +368,6 @@ namespace ITVComponents.ParallelProcessing
                     Remarks = string.Format("Execution-Condition: {0}",
                         string.Join(" OR ", instructions));
                 }
-            }
-
-            public IList<ManualSerializationData> Data { get; set; }
-            public virtual void GetObjectData()
-            {
-                Data.Add(ManualSerializationData.FromValue("TargetName", Target.Identifier));
-                Data.Add(ManualSerializationData.FromValue("Task", Task));
-                Data.Add(ManualSerializationData.FromValue("LastExecution", LastExecution));
-                Data.Add(ManualSerializationData.FromValue("Instructions", instructions.ToArray()));
-                Data.Add(ManualSerializationData.FromValue("Remarks", Remarks));
-                Data.Add(ManualSerializationData.FromValue("RequestId", RequestId));
-                Data.Add(ManualSerializationData.FromValue("SchedulerName", SchedulerName));
-            }
-
-            public virtual void ApplyObjectData()
-            {
-                var target = Data.GetDeserializedValue<string>("TargetName");
-                Target = ParallelTaskProcessor.GetInstance(target);
-                Task = Data.GetDeserializedValue<ITask>("Task");
-                LastExecution = Data.GetDeserializedValue<DateTime>(nameof(LastExecution));
-                instructions = new List<string>(Data.GetDeserializedValue<string[]>("Instructions"));
-                Remarks = Data.GetDeserializedValue<string>("Remarks");
-                RequestId = Data.GetDeserializedValue<string>("RequestId");
-                SchedulerName = Data.GetDeserializedValue<string>("SchedulerName");
             }
         }
     }

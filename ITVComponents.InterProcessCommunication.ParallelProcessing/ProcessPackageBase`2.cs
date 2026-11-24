@@ -6,22 +6,29 @@ using System.Text;
 using System.Threading.Tasks;
 using ITVComponents.DataAccess.Extensions;
 using ITVComponents.InterProcessCommunication.Shared.Helpers;
-using ITVComponents.Json.Contracts;
+using System.Text.Json.Serialization;
 using ITVComponents.Logging;
 
 namespace ITVComponents.InterProcessCommunication.ParallelProcessing
 {
-    public abstract class ProcessPackageBase<TTask, TMe> : IProcessPackage, IManualSerializer where TTask : ProcessTaskBase<TTask, TMe>
+    /// <summary>
+    /// Base of a package of process tasks. Serialized through its properties and the task list; the tasks get their
+    /// parent back after reading (<see cref="IJsonOnDeserialized"/>).
+    /// </summary>
+    [ITVComponents.Json.TransferByValue]
+    public abstract class ProcessPackageBase<TTask, TMe> : IProcessPackage, IJsonOnDeserialized where TTask : ProcessTaskBase<TTask, TMe>
                                                                                         where TMe : ProcessPackageBase<TTask, TMe>
     {
         /// <summary>
         /// The SubTasks associated with this ReleaseJob
         /// </summary>
+        [JsonInclude]
         private TTask[] subTasks;
 
         /// <summary>
         /// the number of open tasks in this release job
         /// </summary>
+        [JsonInclude]
         private int openTaskCount;
 
         /// <summary>
@@ -41,6 +48,7 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// Gets an object that enables client objects to Synchronize calls on this object
         /// </summary>
+        [JsonIgnore]
         public object Sync { get; private set; }
 
         /// <summary>
@@ -63,11 +71,13 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// The Id of the current Job
         /// </summary>
+        [JsonInclude]
         public int Id { get; protected set; }
 
         /// <summary>
         /// The Priority of the current job
         /// </summary>
+        [JsonInclude]
         public int PackagePriority { get; protected set; }
 
         /// <summary>
@@ -78,16 +88,19 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         /// <summary>
         /// Gets a value indicating whether the processing was successful
         /// </summary>
+        [JsonInclude]
         public bool Successful { get; protected set; }
 
         /// <summary>
         /// Gets the excact date and time when this package has been created
         /// </summary>
+        [JsonInclude]
         public DateTime CreationTime { get; protected set; }
 
         /// <summary>
         /// Gets a value indicating whether this package contains tasks
         /// </summary>
+        [JsonIgnore]
         public bool HasTasks { get { return subTasks.Length != 0; } }
 
         /// <summary>
@@ -185,32 +198,9 @@ namespace ITVComponents.InterProcessCommunication.ParallelProcessing
         [field: NonSerialized]
         public event DemandForRequeueEventHandler DemandForRequeue;
 
-        protected virtual void CompleteObjectData()
+        /// <summary>The tasks of a package that was read back belong to it again.</summary>
+        void IJsonOnDeserialized.OnDeserialized()
         {
-        }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue("Id", Id));
-            Data.Add(ManualSerializationData.FromValue("PackagePriority", PackagePriority));
-            Data.Add(ManualSerializationData.FromValue("RequestingSystem", RequestingSystem));    
-            Data.Add(ManualSerializationData.FromValue("Successful", Successful));
-            Data.Add(ManualSerializationData.FromValue("CreationTime", CreationTime));
-            Data.Add(ManualSerializationData.FromValue("subTasks", subTasks));
-            Data.Add(ManualSerializationData.FromValue("openTaskCount", openTaskCount));
-            CompleteObjectData();
-        }
-
-        public void ApplyObjectData()
-        {
-            Id = Data.GetDeserializedValue<int>("Id");
-            PackagePriority = Data.GetDeserializedValue<int>("PackagePriority");
-            RequestingSystem = Data.GetDeserializedValue<string>("RequestingSystem");
-            Successful = Data.GetDeserializedValue<bool>("Successful");
-            CreationTime = Data.GetDeserializedValue<DateTime>("CreationTime");
-            subTasks = Data.GetDeserializedValue<TTask[]>("subTasks");
-            openTaskCount = Data.GetDeserializedValue<int>("openTaskCount");
             if (subTasks != null)
             {
                 subTasks.ForEach(n => n.SetParent((TMe)this));
