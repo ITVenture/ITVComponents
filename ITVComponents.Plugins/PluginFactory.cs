@@ -1088,27 +1088,18 @@ namespace ITVComponents.Plugins
                         return false;
                     }
 
-                    bool isSelfRegistered = false;
                     bool isSingleton = false;
                     if (!testOnly)
                     {
-                        isSelfRegistered = CheckSelfRegistered(pluginType);
                         isSingleton = Attribute.IsDefined(pluginType, typeof(SingletonAttribute), true);
                     }
                     else
                     {
-                        var sra = FindSelfRegisteredRoType();
                         var sa = AssemblyResolver.FindReflectionOnlyTypeFor(typeof(SingletonAttribute));
                         var attrData = AllAttributesOf(pluginType);
                         foreach (CustomAttributeData attr in attrData)
                         {
-                            if (sra.IsAssignableFrom(attr.AttributeType))
-                            {
-                                LogEnvironment.LogDebugEvent(null, "Found a Self-Registered Plugin...",
-                                    (int)LogSeverity.Report, "PluginSystem");
-                                isSelfRegistered = true;
-                            }
-                            else if (sa.IsAssignableFrom(attr.AttributeType))
+                            if (sa.IsAssignableFrom(attr.AttributeType))
                             {
                                 LogEnvironment.LogDebugEvent(null, "Found a Singleton-Plugin", (int)LogSeverity.Report,
                                     "PluginSystem");
@@ -1126,22 +1117,6 @@ namespace ITVComponents.Plugins
                     }
 
                     bool doBuffer = buffer;
-                    if (isSelfRegistered)
-                    {
-                        object[] tmpConstructor = new object[constructor.Length + 1];
-                        Array.Copy(constructor, tmpConstructor, constructor.Length);
-                        if (!testOnly)
-                        {
-                            tmpConstructor[tmpConstructor.Length - 1] =
-                                GetSelfRegistrationCallback(uq.UniqueName, doBuffer);
-                        }
-                        else
-                        {
-                            tmpConstructor[tmpConstructor.Length - 1] = GetSelfRegistrationCallbackType();
-                        }
-
-                        constructor = tmpConstructor;
-                    }
 
                     /*Type[] constructorTypes = !testOnly
                         ? Type.GetTypeArray(constructor)
@@ -1150,15 +1125,16 @@ namespace ITVComponents.Plugins
                     if (inf != null && !testOnly)
                     {
                         IPlugin tmp = inf.Invoke(ct) as IPlugin;
+                        bool alreadyRegistered = false;
                         if (tmp is SingletonPlugin sip)
                         {
                             sip.Initialize();
                             tmp = sip.Instance;
                             sip.Dispose();
-                            isSelfRegistered = true;
+                            alreadyRegistered = true;
                         }
 
-                        if (!isSelfRegistered)
+                        if (!alreadyRegistered)
                         {
                             RegisterPlugin(tmp, uq.UniqueName, doBuffer);
                         }
@@ -1252,21 +1228,6 @@ namespace ITVComponents.Plugins
             return true;
         }
 
-        [Obsolete]
-        private Type GetSelfRegistrationCallbackType()
-        {
-            return AssemblyResolver.FindReflectionOnlyTypeFor(typeof(SelfRegistrationCallback));
-        }
-
-        [Obsolete]
-        private SelfRegistrationCallback GetSelfRegistrationCallback(string uniqueName, bool doBuffer)
-        {
-            return (pi) =>
-            {
-                RegisterPlugin(pi, uniqueName, doBuffer);
-            };
-        }
-
         private void RegisterPlugin(IPlugin pi, string uniqueName, bool doBuffer)
         {
             if (doBuffer)
@@ -1286,19 +1247,6 @@ namespace ITVComponents.Plugins
 
             pi.UniqueName = uniqueName;
             LogEnvironment.LogDebugEvent(null, pi.UniqueName, (int)LogSeverity.Report, "PluginSystem");
-        }
-
-        [Obsolete]
-        private bool CheckSelfRegistered(Type pluginType)
-        {
-            return SelfRegisteredAttribute.IsDefined(pluginType, typeof(SelfRegisteredAttribute),
-                true);
-        }
-
-        [Obsolete]
-        private Type FindSelfRegisteredRoType()
-        {
-            return AssemblyResolver.FindReflectionOnlyTypeFor(typeof(SelfRegisteredAttribute));
         }
 
         private CustomAttributeData[] AllAttributesOf(Type pluginType)

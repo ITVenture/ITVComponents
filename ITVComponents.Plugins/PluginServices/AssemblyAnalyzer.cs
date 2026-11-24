@@ -19,8 +19,6 @@ namespace ITVComponents.Plugins.PluginServices
 {
     public class AssemblyAnalyzer
     {
-        private static Type obsoleteCallbackType = GetObsoleteCallbackType();
-
         /// <summary>
         /// Describes all plugin-types in an assembly
         /// </summary>
@@ -176,7 +174,7 @@ namespace ITVComponents.Plugins.PluginServices
         /// <returns>a constructor descriptor for the given constructor info</returns>
         private static ConstructorDescriptor DescribeConstructor(ConstructorInfo c, int index, ref int objectId, Action<ParameterInfo, ConstructorParameterDescriptor> analyzeParameter)
         {
-            ParameterInfo[] parameters = c.GetParameters().Where(n => n.ParameterType !=obsoleteCallbackType).ToArray();
+            ParameterInfo[] parameters = c.GetParameters();
             List<ConstructorParameterDescriptor> parameterDescriptors = new List<ConstructorParameterDescriptor>();
             foreach (ParameterInfo param in parameters)
             {
@@ -319,12 +317,6 @@ namespace ITVComponents.Plugins.PluginServices
             }
 
             return retVal;
-        }
-
-        [Obsolete]
-        private static Type GetObsoleteCallbackType()
-        {
-            return typeof(SelfRegistrationCallback);
         }
 
         /*private static Type AsReflectOnlyType(Type runtimeType)
