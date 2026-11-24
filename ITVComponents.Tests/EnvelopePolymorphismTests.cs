@@ -1,3 +1,5 @@
+// The bridge tests implement the obsolete IManualSerializer on purpose.
+#pragma warning disable CS0618
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -377,7 +379,8 @@ namespace ITVComponents.Tests
         [TestMethod]
         public void Assisted_Format_Is_Rejected()
         {
-            var legacy = JsonHelper.ToJson(new Item { Name = "x" }, SerializationTypingMode.AssistedPolymorphism, null);
+            // The shape the removed AssistedPolymorphism wrote.
+            var legacy = "{\"$$Type\":\"SimpleContract\",\"Data\":[{\"PropertyName\":\"_\",\"TypeName\":\"envtest.item\",\"Data\":{\"Name\":\"x\"}}]}";
 
             Assert.ThrowsExactly<JsonException>(() => Read<Item>(legacy));
             Assert.ThrowsExactly<JsonException>(() => Read<Holder>($"{{\"Anything\":{legacy}}}"));

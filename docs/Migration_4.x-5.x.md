@@ -146,7 +146,18 @@ Danach macht jede Änderung über EF an `WebPlugin`, `WebPluginGenericParam`, `W
 `TenantSetting` oder `Tenant` den Puffer sofort ungültig (bei mehreren Instanzen im Takt von `RefreshSeconds`).
 Direkte SQL-Updates bemerkt der Tracker nicht.
 
-## 7. Behoben, ohne Aufwand beim Konsumenten
+## 7. JSON mit Typangaben (`TypeNameHandling`, `ToJsonStrongTyped`)
+
+Wo 4.x mit Newtonsoft und `TypeNameHandling` bzw. `ToJsonStrongTyped` serialisiert hat, nimmt 5.x
+`SerializationTypingMode.EnvelopePolymorphism`. Jede offene Stelle (`object`, abstrakte Klassen, Interfaces) trägt
+dann ihren Laufzeittyp selbst, auf jeder Ebene. Eine polymorphe Wurzel entsteht mit `JsonHelper.ToJson<object>(…)`
+bzw. `ToJson(value, mode, null)`. Details: `Migration-Future_10-MLM.md` §125.
+
+- **Gespeicherte Daten** aus 4.x (Newtonsoft-`$type`) liest 5.x nicht. Sie werden beim Port einmalig umgeschrieben.
+- **Typen, die in der Datenbank liegen**, mit `JsonHelper.RegisterManualType<T>("kurzname")` anmelden. Sonst steht
+  der Typname im JSON und bricht beim nächsten Umzug der Klasse oder Assembly (siehe Abschnitt 1).
+
+## 8. Behoben, ohne Aufwand beim Konsumenten
 
 - **`ChildTenantsWith` und `TenantNameLower`** (Issue ESAG ChildTenantsWith): Die Prozeduren bestimmen nur noch,
   welche Mandanten gelten. Die Zeilen kommen aus dem Modell. Es braucht **keine** Migration, und eine

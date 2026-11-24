@@ -450,7 +450,9 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                     }
 
                     retVal.Result = ret;
+                    #pragma warning disable CS0618 // self-serializing results (bridge types) are not proxied
                     if (targetMethod.ReturnType.IsInterface && useExtendedProxying && retVal.Result is not IManualSerializer)
+                    #pragma warning restore CS0618
                     {
                         retVal.Result = GetBufferFor(retVal.Result, targetMethod.ReturnType, authenticatedUser);
                     }
@@ -925,7 +927,9 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 {
                     types[i] = types[i].GetElementType();
                     retVal[i] = arguments[i];
+                    #pragma warning disable CS0618 // self-serializing results (bridge types) are not proxied
                     if (types[i].IsInterface && useExtendedProxying && retVal[i] is not IManualSerializer)
+                    #pragma warning restore CS0618
                     {
                         retVal[i] = GetBufferFor(retVal[i], types[i], owner);
                     }

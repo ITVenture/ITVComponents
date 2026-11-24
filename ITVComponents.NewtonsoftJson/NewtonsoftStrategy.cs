@@ -117,7 +117,7 @@ namespace ITVComponents.NewtonsoftJson
                     "SerializationTypingMode.EnvelopePolymorphism is only supported by the default (System.Text.Json) strategy.");
             }
 
-            return typingMode is SerializationTypingMode.AssistedPolymorphism or SerializationTypingMode.NativePolymorphism;
+            return typingMode == SerializationTypingMode.NativePolymorphism;
         }
 
         public string ToJson<TProtocol>(TProtocol value, SerializationTypingMode typingMode, bool preserveReferences,

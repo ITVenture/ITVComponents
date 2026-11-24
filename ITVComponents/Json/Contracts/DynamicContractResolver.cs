@@ -10,6 +10,11 @@ using ITVComponents.Logging;
 
 namespace ITVComponents.Json.Contracts
 {
+    /// <summary>
+    /// Polymorphism configured at runtime (<see cref="ConfigureType"/>): a base type gets the registered derived types
+    /// with the discriminator property <c>$$Type</c>. Types that are not configured are left to the next resolver of the
+    /// chain.
+    /// </summary>
     public class DynamicContractResolver:DefaultJsonTypeInfoResolver
     {
         private static ConcurrentDictionary<Type, ConcurrentDictionary<string, JsonDerivedType>> typeMap = new ConcurrentDictionary<Type, ConcurrentDictionary<string, JsonDerivedType>>();
@@ -50,32 +55,10 @@ namespace ITVComponents.Json.Contracts
             }
             else
             {
-                if (type != typeof(ManualSerializationData))
-                {
-                    LogEnvironment.LogDebugEvent(
-                        $"No custom mapping info found for Type '{type.AssemblyQualifiedName}'.", LogSeverity.Report);
-                    retVal = null;
-                }
-                else
-                {
-                    retVal.OnDeserialized = o =>
-                    {
-                        var m = o as ManualSerializationData;
-                        m?.ReadValues(options);
-                    };
-                }
-            }
-
-            if (retVal != null && type.GetInterfaces().Contains(typeof(IManualSerializer)))
-            {
-                var datProp = retVal.Properties.First(n => n.Name == nameof(IManualSerializer.Data));
-                retVal.Properties.Clear();
-                retVal.Properties.Add(datProp);
-                retVal.OnDeserialized = o =>
-                {
-                    var m = o as IManualSerializer;
-                    m?.OnDeserialized(options);
-                };
+                // Not configured here: the next resolver of the chain describes the type.
+                LogEnvironment.LogDebugEvent(
+                    $"No custom mapping info found for Type '{type.AssemblyQualifiedName}'.", LogSeverity.Report);
+                retVal = null;
             }
 
             return retVal;

@@ -1,3 +1,6 @@
+// The bridge for IManualSerializer is the supported way to keep existing implementations running; the interface is
+// obsolete for new code only.
+#pragma warning disable CS0618
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -70,7 +73,7 @@ namespace ITVComponents.Json.Converters
 
         /// <summary>
         /// Looks at the root of a document: an envelope (exactly <c>$type</c> and <c>$value</c>), the legacy format of
-        /// <see cref="SerializationTypingMode.AssistedPolymorphism"/> (<c>$$Type</c> with a <c>Data</c> array), or
+        /// removed <c>AssistedPolymorphism</c> mode (<c>$$Type</c> with a <c>Data</c> array), or
         /// anything else.
         /// </summary>
         public static RootShape InspectRoot(ReadOnlySpan<byte> utf8Json)
@@ -132,7 +135,7 @@ namespace ITVComponents.Json.Converters
         public static JsonException LegacyFormat()
         {
             return new JsonException(
-                "The data is in the format of SerializationTypingMode.AssistedPolymorphism (\"$$Type\" with a \"Data\" list), " +
+                "The data is in the format of the removed SerializationTypingMode.AssistedPolymorphism (\"$$Type\" with a \"Data\" list), " +
                 "which SerializationTypingMode.EnvelopePolymorphism does not read. The stored data has to be migrated.");
         }
     }

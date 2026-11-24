@@ -30,8 +30,8 @@ namespace ITVComponents.Tests
             var s = JsonHelper.ToJson(fu, SerializationTypingMode.StaticTyping, null);
             var fu2 = JsonHelper.FromJsonString<Fubar>(s, SerializationTypingMode.StaticTyping);
             Assert.AreEqual(fu.Fu, fu2.Fu);
-            s = JsonHelper.ToJson(fu, SerializationTypingMode.AssistedPolymorphism, null);
-            fu2 = JsonHelper.FromJsonString<Fubar>(s, SerializationTypingMode.AssistedPolymorphism);
+            s = JsonHelper.ToJson(fu, SerializationTypingMode.EnvelopePolymorphism, null);
+            fu2 = JsonHelper.FromJsonString<Fubar>(s, SerializationTypingMode.EnvelopePolymorphism);
             Assert.AreEqual(fu.Fu, fu2.Fu);
             fu.Fu = "encrypt:Bar";
             string p = null;
@@ -41,23 +41,21 @@ namespace ITVComponents.Tests
         }
 
         /// <summary>
-        /// Generische Listen ueber AssistedPolymorphism. Frueher unlesbar: der Zieltyp wurde unbedingt zum
-        /// Array erweitert, aus List&lt;T&gt; wurde List&lt;T&gt;[]. Arrays gingen, Listen nicht.
+        /// Generische Listen und Arrays als eingehuellte Wurzel: sie kommen in ihrer genauen Form zurueck.
         /// </summary>
         [TestMethod]
-        public void TestAssistedPolymorphismWithCollections()
+        public void TestEnvelopePolymorphismWithCollections()
         {
             var list = new List<Fubar> { new Fubar { Fu = "one" }, new Fubar { Fu = "two" } };
-            var listJson = JsonHelper.ToJson(list, SerializationTypingMode.AssistedPolymorphism, null);
-            var list2 = JsonHelper.FromJsonString<List<Fubar>>(listJson, SerializationTypingMode.AssistedPolymorphism);
+            var listJson = JsonHelper.ToJson(list, SerializationTypingMode.EnvelopePolymorphism, null);
+            var list2 = JsonHelper.FromJsonString<List<Fubar>>(listJson, SerializationTypingMode.EnvelopePolymorphism);
             Assert.IsNotNull(list2);
             Assert.AreEqual(2, list2.Count);
             Assert.AreEqual("one", list2[0].Fu);
 
-            // Arrays liefen schon vorher - und muessen weiter laufen.
-            var array = new[] { new Fubar { Fu = "a" }, new Fubar { Fu = "b" } };
-            var arrayJson = JsonHelper.ToJson(array, SerializationTypingMode.AssistedPolymorphism, null);
-            var array2 = JsonHelper.FromJsonString<Fubar[]>(arrayJson, SerializationTypingMode.AssistedPolymorphism);
+                        var array = new[] { new Fubar { Fu = "a" }, new Fubar { Fu = "b" } };
+            var arrayJson = JsonHelper.ToJson(array, SerializationTypingMode.EnvelopePolymorphism, null);
+            var array2 = JsonHelper.FromJsonString<Fubar[]>(arrayJson, SerializationTypingMode.EnvelopePolymorphism);
             Assert.AreEqual(2, array2.Length);
             Assert.AreEqual("b", array2[1].Fu);
         }
@@ -67,41 +65,41 @@ namespace ITVComponents.Tests
         /// Assembly und Version - der Sinn der Uebung fuer langlebig abgelegte Daten.
         /// </summary>
         [TestMethod]
-        public void TestAssistedPolymorphismWithRegisteredAlias()
+        public void TestEnvelopePolymorphismWithRegisteredAlias()
         {
             JsonHelper.RegisterManualType<Aliased>("test-aliased");
             var value = new Aliased { Name = "x", Count = 3 };
 
-            var json = JsonHelper.ToJson(value, SerializationTypingMode.AssistedPolymorphism, null);
+            var json = JsonHelper.ToJson(value, SerializationTypingMode.EnvelopePolymorphism, null);
             Assert.IsTrue(json.Contains("test-aliased"), "the short name must be what lands in the payload.");
             Assert.IsFalse(json.Contains("ITVComponents.Tests, Version"),
                 "no assembly-qualified name - that is the whole point.");
 
-            var back = JsonHelper.FromJsonString<Aliased>(json, SerializationTypingMode.AssistedPolymorphism);
+            var back = JsonHelper.FromJsonString<Aliased>(json, SerializationTypingMode.EnvelopePolymorphism);
             Assert.AreEqual("x", back.Name);
             Assert.AreEqual(3, back.Count);
         }
 
         /// <summary>
-        /// Unter der Beschraenkung wird ein AssemblyQualifiedName NICHT geladen - und der Wert geht
-        /// trotzdem nicht still verloren, sondern bleibt als UnresolvedPayload erhalten.
+        /// Unter der Beschraenkung wird ein nicht angemeldeter Typname NICHT geladen - das Lesen in einen
+        /// konkreten Typ scheitert dann laut, statt ein leeres oder fremdes Objekt zu liefern.
         /// </summary>
         [TestMethod]
         public void TestRestrictedManualTypesRefuseArbitraryTypes()
         {
-            // Ohne Registrierung geschrieben => AssemblyQualifiedName im Datenstrom.
-            var json = JsonHelper.ToJson(new Fubar { Fu = "Bar" }, SerializationTypingMode.AssistedPolymorphism, null);
+            // Ohne Registrierung geschrieben => Typname im Datenstrom.
+            var json = JsonHelper.ToJson(new Fubar { Fu = "Bar" }, SerializationTypingMode.EnvelopePolymorphism, null);
             Assert.IsTrue(json.Contains("ITVComponents.Tests"));
 
             using (JsonHelper.RestrictManualTypesToRegistered())
             {
-                var refused = JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.AssistedPolymorphism);
-                Assert.IsNull(refused, "an unregistered type must not be loaded under the restriction.");
+                Assert.ThrowsExactly<System.Text.Json.JsonException>(
+                    () => JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.EnvelopePolymorphism),
+                    "an unregistered type must not be loaded under the restriction.");
             }
 
-            // Ohne Beschraenkung laeuft derselbe Datenstrom wie bisher - die Prozesskommunikation
-            // haengt daran.
-            var allowed = JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.AssistedPolymorphism);
+            // Ohne Beschraenkung laeuft derselbe Datenstrom - die Prozesskommunikation haengt daran.
+            var allowed = JsonHelper.FromJsonString<Fubar>(json, SerializationTypingMode.EnvelopePolymorphism);
             Assert.AreEqual("Bar", allowed.Fu);
         }
 

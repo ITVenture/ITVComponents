@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 125 | **JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` (Laufzeittyp jeder offenen Stelle, auf jeder Ebene)** | Kein Schema-Change. **BREAKING (Datenformat):** `AssistedPolymorphism` entfällt, altes Format wird nicht gelesen. IPC-Prozesse gemeinsam aktualisieren; laufende Workflow-Instanzen vor dem Update abschliessen (§125.4). |
 | 124 | **Module beim Publish paketieren (neues Paket `ITVComponents.UpdateService.ModuleBuild`)** | Kein Schema-Change. Opt-in im Modul-Projekt: Paket referenzieren, `<ItvModulePackage>true</ItvModulePackage>`. |
 | 123 | **Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken** | Kein Schema-Change. Opt-in; **empfohlen** für jede Benutzerdatei, die mehr Konten schreiben dürfen als die Anwendung (Agent unter `ProgramData`). |
 | 122 | **Protokollziele: Ausfälle werden gemeldet, ein kaputtes Ziel nimmt den anderen nichts weg** | Kein Schema-Change, nichts zu tun. **Verhaltensänderung:** `FileLogWriter` versucht einen gescheiterten Dateiwechsel erst nach einer Minute wieder; die Datei wächst bis dahin über die Grenze. |
@@ -10415,3 +10416,107 @@ fehlt er dem Modul zur Laufzeit.
 - Fehlerfälle: Haupt-Assembly, `self-contained`, Zip im Publish-Ordner, leerer Ordner.
 
 Dazu kommt ein Probe-Publish eines Plugin-Projekts mit Projektreferenz auf `ITVComponents.Plugins`.
+
+## 125. JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` — **kein Schema-Change, BREAKING (Datenformat)**
+
+`SerializationTypingMode.AssistedPolymorphism` hat einen Wert in einen `SimpleContract`-Container gesteckt. Polymorph
+war damit nur die Wurzel. Darunter schrieb System.Text.Json nach dem deklarierten Typ: Eine abgeleitete Klasse in
+einer Property vom Basistyp verlor ihre Felder, und ein `object` kam als `JsonNode` zurück. Neu trägt jede offene
+Stelle ihren Laufzeittyp selbst, auf jeder Ebene (Issue `docs/issue-json-01-envelope-converter-fuer-offene-polymorphie.md`).
+
+### 125.1 Das Format
+
+```json
+{
+  "Name": "Monatsstatistik",
+  "Filter": { "$type": "ssv.dateFilter", "$value": { "From": "2026-01-01", "To": "2026-01-31" } },
+  "Args":   [ { "$type": "long", "$value": 42 }, "Text", true, { "$type": "list<ssv.item>", "$value": [ … ] } ]
+}
+```
+
+- **Offene Stellen** sind `object`, abstrakte Klassen und Interfaces, die keine Sammlungen sind. Nur dort steht eine
+  Hülle. Ein konkreter Typ wird als normales JSON geschrieben.
+- **Primitive sind exakt.** Ohne Hülle stehen nur `string`, `bool` und `null`. Zahlen, `char`, `DateTime`,
+  `DateTimeOffset`, `TimeSpan`, `Guid` und Enums werden umhüllt.
+- **Typnamen** kommen aus `ManualTypeRegistry`. Ein Kurzname wird bevorzugt, sonst steht `Namespace.Typ, Assembly`
+  **ohne Version**. Gelesen wird versionstolerant: Die Assembly wird über den einfachen Namen gesucht, zuerst unter
+  den geladenen, in allen Load-Contexts.
+- **Sammlungen** kommen in ihrem genauen Typ zurück. `List<>`, `HashSet<>` und `Dictionary<,>` sind ab Werk als
+  `list`, `set` und `dict` angemeldet, daraus entstehen Namen wie `list<x>` oder `dict<string,x>`. `x[]` steht nur
+  noch für echte Arrays.
+- **Referenzen** (`preserveReferences: true`) funktionieren über Hüllgrenzen hinweg, Zyklen eingeschlossen.
+- **Polymorphe Wurzel:** `ToJson<object>(…)` oder `ToJson(value, mode, null)` umhüllt die Wurzel. Eine umhüllte
+  Wurzel, die in einen konkreten Typ gelesen wird, wird ausgepackt und gegen ihn geprüft.
+- **Unbekannter Typ:** In einer `object`-Stelle kommt der Wert als `JsonNode` zurück. Ist der Typ nur nicht
+  angemeldet, wird das als Report geloggt, sonst (umbenannt, entfernt) als Error. In jeder anderen Stelle gibt es eine
+  `JsonException`. Ein aufgelöster Typ, der nicht zum deklarierten passt, ergibt ebenfalls eine `JsonException`.
+- **Native Polymorphie** (`[JsonPolymorphic]`, `ExtendNativeProtocolType`) bleibt bei System.Text.Json.
+  `AllowOutOfOrderMetadataProperties` ist jetzt in allen Modi gesetzt: Discriminator und `$id`/`$ref` müssen nicht
+  mehr zuerst stehen.
+
+### 125.2 Was entfällt (BREAKING)
+
+- **`SerializationTypingMode.AssistedPolymorphism`.** Wer den Wert benutzt, bekommt einen Compile-Fehler. Die Zahlen
+  der übrigen Werte bleiben: `StaticTyping = 0`, `NativePolymorphism = 2`, `EnvelopePolymorphism = 3`.
+- **Daten im alten Format werden nicht gelesen.** Eine Wurzel oder Stelle mit `"$$Type"` und einer `"Data"`-Liste
+  ergibt eine `JsonException` mit Hinweis auf die Migration.
+- `SimpleContract`, `TypedArray` (IPC) und `WorkflowVariableBag` sind entfernt, ebenso
+  `ManualSerializationData.ReadValues`/`UnresolvedPayload` und die `IManualSerializer`-Sonderbehandlung im
+  `DynamicContractResolver`. `ConfigureType` selbst bleibt.
+- `IManualSerializer` ist `[Obsolete]` und kein `IJsonOnSerializing`/`IJsonOnSerialized` mehr. Im neuen Modus läuft
+  er über eine Brücke: Die Einträge werden als Objekt mit einer Property je Eintrag geschrieben. Ausserhalb des neuen
+  Modus wird ein solcher Typ wie jede andere Klasse serialisiert. Neue Typen nehmen eine normale Klasse mit
+  `object`-Feldern.
+- `TypedParam`, `ResolvableArray<T>`, `TypeDescriptor` (IPC) und `IterationFailure` (Workflow) sind normale Klassen
+  und keine `IManualSerializer` mehr.
+- **Kurznamen** dürfen die Zeichen `< > , [ ]` nicht enthalten. `object`, `list`, `set` und `dict` sind ab Werk
+  vergeben.
+
+### 125.3 Was sich für IPC und Workflow ändert
+
+- **IPC:** Methodenargumente und Rückgabewerte reisen im neuen Format. Damit kommen eine Ableitung in einem Parameter
+  vom Basistyp, eine `List<T>` als Liste und ein `int` als `int` an. Bisher kamen sie verkürzt, als Array bzw. als
+  `long` an. **Client und Server müssen denselben Stand haben.** Unter `RestrictArgumentTypes` kommt ein Argument
+  unregistrierten Typs weiterhin als `null` an (§110.2).
+- **Workflow-Variablen** (`WorkflowJson.SerializeVariables`) sind ein JSON-Objekt mit einer Property je Variable, jeder
+  Wert umhüllt. Das betrifft Instanzen, Tokens, Kompensationen, Nachrichten-Nutzlasten, Zeitpläne und das Archiv.
+  Gelesen wird weiter nur mit Positivliste. Ein nicht angemeldeter Typ kommt untypisiert zurück (Liste,
+  Dictionary, Primitive) und steht im Log.
+- **Workflow-Definitionen** (`WorkflowJson.Serialize`/`Deserialize`, Export/Import) behalten ihr Format mit den
+  `kind`-Discriminatoren. Nur die offenen Stellen (`Literal` einer Bindung, Knoten-`Configuration`, Startwerte des
+  Zeitplans) werden umhüllt. Bisher kamen dort `long`, `double`, `DateTime`, `Guid` und Enums verfälscht zurück.
+  **Bestehende Definitionen bleiben lesbar:** Eine blanke Zahl wird wie bisher nach der Staffel int, long, decimal,
+  double gelesen. Neu wird unter der Positivliste gelesen. Ein nicht angemeldeter Datensatz kommt als `JsonNode`
+  statt als `JsonElement` zurück, `WorkflowJson.Materialize` nimmt beides.
+
+### 125.4 Für den Host
+
+1. Alle Prozesse, die miteinander über IPC reden, gleichzeitig aktualisieren.
+2. **Workflow:** Laufende und geparkte Instanzen können ihre Variablen nach dem Update nicht mehr lesen. Sie müssen
+   vor dem Update abgeschlossen werden. Wo das nicht geht, werden sie verworfen und neu gestartet. Dasselbe gilt für
+   offene Kompensationen, Zeitpläne mit festen Startwerten, Nachrichten in der Outbox und das Archiv.
+   Definitionen brauchen nichts.
+3. Eigene Ablagen, die mit `AssistedPolymorphism` geschrieben wurden, einmalig umschreiben oder verwerfen.
+4. Aufrufe mit `AssistedPolymorphism` auf `EnvelopePolymorphism` umstellen. Wer bisher den Wert aus dem
+   `SimpleContract` las, liest jetzt mit dem Zieltyp oder mit `object`.
+5. Typen, die länger liegen als ein Prozessaufruf, mit `JsonHelper.RegisterManualType<T>("kurzname")` anmelden. Ein
+   Typname ohne Kurzname bricht beim Umbenennen oder Verschieben der Klasse oder der Assembly.
+
+### 125.5 Neu
+
+- **`JsonHelper.UseEnvelopePolymorphism(options)`** hängt die Hülle an eigene `JsonSerializerOptions` an und lässt
+  alles andere, wie es ist. Preserve geht auf diesem Weg nicht, weil es den Scope der JsonHelper-Aufrufe braucht.
+- `NewtonsoftStrategy` lehnt `EnvelopePolymorphism` mit `NotSupportedException` ab.
+
+### 125.6 Behoben
+
+- `DefaultJsonStrategy.WriteObject` mit eigenen Options (Datei und Stream) warf nach erfolgreichem Schreiben eine
+  `NotSupportedException`, weil ein `return` fehlte. Das betraf u.a. `JsonSettings.SaveSettingsToStream`.
+
+### 125.7 Tests
+
+- `ITVComponents.Tests/EnvelopePolymorphismTests.cs`: Ebenen, Primitive, Sammlungen, Typnamen, Positivliste,
+  Referenzen, Nebenläufigkeit, Brücke, altes Format.
+- `ITVComponents.InterProcessCommunication.NamedPipe.Test/InMemoryHubTest.cs`: Argumente über den echten IPC-Weg.
+- `ITVComponents.Workflow.Test/WorkflowVariableJsonTest.cs`: Variablen, `IterationFailure`, Kompensationen,
+  Definitionen, bestehender Bestand.

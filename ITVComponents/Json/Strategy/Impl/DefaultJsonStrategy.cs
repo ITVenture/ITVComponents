@@ -46,7 +46,6 @@ namespace ITVComponents.Json.Strategy.Impl
 
         public DefaultJsonStrategy()
         {
-            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(SimpleContract), "SimpleContract");
             RebuildSerializerOptions();
         }
 
@@ -191,27 +190,13 @@ namespace ITVComponents.Json.Strategy.Impl
             bool preserveReferences, bool useCamelCase)
         {
             JsonSerializerOptions basicSettings = GetSerializer(typingMode, preserveReferences, useCamelCase);
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism && value is not IManualSerializer)
-            {
-                return ToJson<IManualSerializer>(new SimpleContract { Value = value }, basicSettings, useCamelCase);
-            }
-
             return ToJson(value, basicSettings, useCamelCase);
         }
 
         public string ToJson(object value, SerializationTypingMode typingMode, Type? type,
             bool preserveReferences, bool useCamelCase)
         {
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism && value is IManualSerializer)
-            {
-                type ??= typeof(IManualSerializer);
-            }
-            else if (typingMode == SerializationTypingMode.AssistedPolymorphism && value is not IManualSerializer)
-            {
-                type = typeof(IManualSerializer);
-                value = new SimpleContract() { Value = value };
-            }
-            else if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
+            if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
             {
                 // Without a given type the root keeps its runtime type: it is enveloped.
                 type ??= typeof(object);
@@ -277,21 +262,6 @@ namespace ITVComponents.Json.Strategy.Impl
                 return ReadEnvelopeRoot<T>(buffer.ToArray(), serializer);
             }
 
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
-                typeof(T).GetInterfaces().Contains(typeof(IManualSerializer)))
-            {
-                return (T)DeserializeObject<IManualSerializer>(serializer, sourceStream);
-            }
-
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism &&
-                typeof(T) != typeof(IManualSerializer))
-            {
-                if (DeserializeObject<IManualSerializer>(serializer, sourceStream) is SimpleContract tmp)
-                {
-                    return (T)tmp.Value;
-                }
-            }
-
             return DeserializeObject<T>(serializer, sourceStream);
         }
 
@@ -316,21 +286,6 @@ namespace ITVComponents.Json.Strategy.Impl
 
             using (FileStream sourceStream = File.OpenRead(fileName))
             {
-                if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
-                    typeof(T).GetInterfaces().Contains(typeof(IManualSerializer)))
-                {
-                    return (T)DeserializeObject<IManualSerializer>(options, sourceStream);
-                }
-
-                if (typingMode == SerializationTypingMode.AssistedPolymorphism &&
-                    typeof(T) != typeof(IManualSerializer))
-                {
-                    if (DeserializeObject<IManualSerializer>(options, sourceStream) is SimpleContract tmp)
-                    {
-                        return (T)tmp.Value;
-                    }
-                }
-
                 return DeserializeObject<T>(options, sourceStream);
             }
         }
@@ -342,21 +297,6 @@ namespace ITVComponents.Json.Strategy.Impl
             if (typingMode == SerializationTypingMode.EnvelopePolymorphism)
             {
                 return ReadEnvelopeRoot<T>(Utf8NoBom.GetBytes(json), basicSettings);
-            }
-
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism && typeof(T) != typeof(IManualSerializer) &&
-                typeof(T).GetInterfaces().Contains(typeof(IManualSerializer)))
-            {
-                return (T)DeserializeObject<IManualSerializer>(basicSettings, json);
-            }
-
-            if (typingMode == SerializationTypingMode.AssistedPolymorphism &&
-                typeof(T) != typeof(IManualSerializer))
-            {
-                if (DeserializeObject<IManualSerializer>(basicSettings, json) is SimpleContract tmp)
-                {
-                    return (T)tmp.Value;
-                }
             }
 
             return DeserializeObject<T>(basicSettings, json);
@@ -377,13 +317,7 @@ namespace ITVComponents.Json.Strategy.Impl
             bool preserveReferences,
             bool useCamelCase)
         {
-            if (t == null && typingMode == SerializationTypingMode.AssistedPolymorphism)
-            {
-                t = typeof(IManualSerializer);
-            }
-
-            // EnvelopePolymorphism without a type: an enveloped root carries its type itself (object).
-
+            // Without a type: object - in EnvelopePolymorphism an enveloped root carries its type itself.
             t ??= typeof(object);
             var mth = LambdaHelper
                 .GetMethodInfo(() => FromJsonString<object>(json, typingMode, preserveReferences, useCamelCase))

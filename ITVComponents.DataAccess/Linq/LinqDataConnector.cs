@@ -43,12 +43,6 @@ namespace ITVComponents.DataAccess.Linq
         {
         }
 
-        static LinqDataConnector()
-        {
-            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(LinqParameter),
-                "dal_LinqParameter");
-        }
-
         /// <summary>
         /// Gets or sets the UniqueName of this Plugin
         /// </summary>

@@ -12,7 +12,7 @@ namespace ITVComponents.Json.Contracts
 {
     /// <summary>
     /// Vergibt <b>stabile Kurznamen</b> fuer Typen, die polymorph serialisiert werden
-    /// (<see cref="SerializationTypingMode.EnvelopePolymorphism"/>, <see cref="SerializationTypingMode.AssistedPolymorphism"/>)
+    /// (<see cref="SerializationTypingMode.EnvelopePolymorphism"/>)
     /// - und entscheidet, ob beim Lesen ueberhaupt etwas anderes als ein registrierter Typ aufgeloest werden darf.
     /// </summary>
     /// <remarks>

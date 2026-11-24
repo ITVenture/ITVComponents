@@ -51,9 +51,9 @@ namespace ITVComponents.Json
         }
 
         /// <summary>
-        /// Meldet einen Typ fuer <see cref="SerializationTypingMode.AssistedPolymorphism"/> unter einem
-        /// stabilen <b>Kurznamen</b> an. Ohne Registrierung wird der <c>AssemblyQualifiedName</c>
-        /// geschrieben (unveraendertes Verhalten).
+        /// Meldet einen Typ fuer <see cref="SerializationTypingMode.EnvelopePolymorphism"/> unter einem
+        /// stabilen <b>Kurznamen</b> an. Ohne Registrierung wird der Typname ohne Version
+        /// (<c>Namespace.Typ, Assembly</c>) geschrieben.
         /// </summary>
         /// <remarks>
         /// Fuer alles, was laenger liegt als ein Prozessaufruf: der Kurzname ueberlebt das Umbenennen und
@@ -236,9 +236,12 @@ namespace ITVComponents.Json
 
     public enum SerializationTypingMode
     {
-        StaticTyping,
-        AssistedPolymorphism,
-        NativePolymorphism,
+        StaticTyping = 0,
+
+        // 1 was AssistedPolymorphism (SimpleContract container) - replaced by EnvelopePolymorphism. The numbers stay
+        // fixed so a value stored as number keeps its meaning.
+
+        NativePolymorphism = 2,
 
         /// <summary>
         /// Every place whose declared type is open (<c>object</c>, abstract classes, non-collection interfaces) carries
@@ -253,6 +256,6 @@ namespace ITVComponents.Json
         /// type is given (<c>ToJson(value, mode, null)</c>), the root is enveloped. Reading an enveloped root into a
         /// concrete type unpacks it and checks the type.
         /// </remarks>
-        EnvelopePolymorphism
+        EnvelopePolymorphism = 3
     }
 }

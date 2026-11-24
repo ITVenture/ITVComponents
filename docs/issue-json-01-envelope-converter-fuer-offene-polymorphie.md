@@ -355,10 +355,13 @@ nicht betroffen.
      gelesen, und Strings und Bools stehen weiter blank.
 
    Solution baut, alle Workflow-Testprojekte gruen (756 Tests inkl. `ITVComponents.Tests`).
-5. **Abbau:** `AssistedPolymorphism`, `SimpleContract`, der Zwei-Phasen-Pfad in `ManualSerializationData` und die
+5. **Erledigt** (2026-11-24): Enum-Nummern sind fest (0/2/3). `ConfigureType` bleibt, weil `JsonSettings` den
+   Resolver nutzt. `IManualSerializer` haengt nicht mehr an den STJ-Callbacks. Es bleiben sieben
+   Obsolete-Warnungen an den restlichen Implementierungen, als Erinnerung fuer den Folgeumbau. Solution baut, 11
+   Testprojekte gruen. **Abbau:** `AssistedPolymorphism`, `SimpleContract`, der Zwei-Phasen-Pfad in `ManualSerializationData` und die
    `IManualSerializer`-Sonderbehandlung in `DynamicContractResolver` werden entfernt. `IManualSerializer` wird
    `[Obsolete]`, mit Verweis auf POCO + offene Stellen.
-6. **Migrationshinweis** für Konsumenten: gespeicherte Daten im Assisted-Format (Workflow-Variablen und
+6. **Erledigt:** `Migration-Future_10-MLM.md` §125, `Migration_4.x-5.x.md` Abschnitt 7. **Migrationshinweis** für Konsumenten: gespeicherte Daten im Assisted-Format (Workflow-Variablen und
    -Kompensationen, eigene Ablagen) einmalig umschreiben oder verwerfen.
 
 ## Tests (`ITVComponents.Tests`)
