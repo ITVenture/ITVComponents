@@ -16,7 +16,7 @@ internal static class TenantPasswordAssignment
     {
         if (generate && string.IsNullOrEmpty(tenant.TenantPassword))
         {
-            tenant.TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey());
+            tenant.TenantPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.CreateProtected();
         }
     }
 }

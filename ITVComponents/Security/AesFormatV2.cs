@@ -60,7 +60,11 @@ namespace ITVComponents.Security
 
         private const int KeySize = 32;
 
-        private const int MaxCachedMasterKeys = 16;
+        /// <summary>
+        /// Room for one entry per (secret, salt) a process meets: tenant keys used as passphrases (JSON settings of tenants)
+        /// make one entry per tenant, so this must cover the tenants of a busy server.
+        /// </summary>
+        private const int MaxCachedMasterKeys = 1024;
 
         /// <summary>The salt of the expensive first stage for everything this process writes in passphrase mode.</summary>
         private static readonly byte[] ProcessKdfSalt = RandomNumberGenerator.GetBytes(SaltSize);

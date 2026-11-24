@@ -58,7 +58,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Mod
         [MaxLength(1024)]
         public string DisplayName { get; set; }
 
-        [MaxLength(125),ExcludeFromDictionary]
+        [MaxLength(512),ExcludeFromDictionary]
         public string TenantPassword { get; set; }
 
         [MaxLength(1024)]

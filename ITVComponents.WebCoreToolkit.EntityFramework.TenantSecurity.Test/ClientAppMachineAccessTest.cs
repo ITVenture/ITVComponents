@@ -607,7 +607,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test
         /// Reicht bei jedem Vorgang einen frischen Kontext heraus - genau wie die echte Fabrik. Die
         /// InMemory-Ablage haengt am Namen, alle Kontexte sehen also dieselben Daten.
         /// </summary>
-        private sealed class TestContextFactory : Shared.DependencyInjection.IToolkitContextFactory
+        internal sealed class TestContextFactory : Shared.DependencyInjection.IToolkitContextFactory
         {
             private readonly DbContextOptions<TestSecurityContext> options;
             private readonly string currentTenant;

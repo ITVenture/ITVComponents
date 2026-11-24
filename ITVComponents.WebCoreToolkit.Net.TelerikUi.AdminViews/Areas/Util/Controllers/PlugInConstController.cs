@@ -115,7 +115,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                         var t = db.Tenants.First(n => n.TenantId == tenantId);
                         if (!string.IsNullOrEmpty(t.TenantPassword))
                         {
-                            var pwd = Convert.FromBase64String(t.TenantPassword);
+                            var pwd = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.KeyBytes(t.TenantPassword);
                             model.Value = AesEncryptor.EncryptWithKey(model.Value.Substring(8), pwd);
                         }
                         else
@@ -176,7 +176,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                         var t = db.Tenants.First(n => n.TenantId == tenantId);
                         if (!string.IsNullOrEmpty(t.TenantPassword))
                         {
-                            var pwd = Convert.FromBase64String(t.TenantPassword);
+                            var pwd = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.KeyBytes(t.TenantPassword);
                             model.Value = AesEncryptor.EncryptWithKey(model.Value.Substring(8), pwd);
                         }
                         else

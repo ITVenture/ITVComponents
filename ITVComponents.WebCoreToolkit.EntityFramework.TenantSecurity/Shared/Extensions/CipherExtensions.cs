@@ -35,7 +35,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
                 var t = context.Tenants.First(n => n.TenantNameLower == (permissionScopeName ?? "").ToLower());
                 if (!string.IsNullOrEmpty(t.TenantPassword))
                 {
-                    return Convert.FromBase64String(t.TenantPassword);
+                    return ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.KeyBytes(t.TenantPassword);
                 }
             }
 

@@ -1,7 +1,19 @@
 # Security 01: `AesEncryptor` – Format Version 2 (authentifiziert, zeitgemässe Schlüsselableitung)
 
 **Typ:** Härtung / Format-Erweiterung
-**Status:** Teil A und B umgesetzt (2026-11-24). Teil C (Schutz der Mandantenschlüssel) offen.
+**Status:** Teile A, B und C umgesetzt (2026-11-24).
+
+**Umsetzung (Teil C):**
+- Entscheid: Die Spalte `Tenants.TenantPassword` wird von 125 auf 512 Zeichen verbreitert, per manuellem SQL
+  (Leitfaden §127.1, keine generierte Migration für den Security-Kontext).
+- Neu ist `TenantKeys` (`CreateProtected`, `Protect`, `Unprotect`, `KeyBytes`, Präfix `tk1:`). Alle Leser und
+  Schreiber im Toolkit gehen darüber.
+- Neu ist `TenantKeyProtectionService`, ein Start-Umzug nach dem Muster des Credential-Umzugs. Er ist in allen
+  Ausprägungen registriert.
+- Nebenbei: Der Master-Schlüssel-Cache (Teil A) hält 1024 statt 16 Einträge. Mandanten-JSON-Einstellungen verwenden
+  den Mandantenschlüssel als Passphrase, also gibt es einen Eintrag pro Mandant.
+- `StringDecryptor` hatte leere `catch`-Blöcke. Jetzt wird geloggt.
+- Tests in `TenantKeysTest`. `TenantPasswordAssignmentTest` ist auf geschützte Schlüssel angepasst.
 
 **Umsetzung (Teil A und B):**
 - Neu `AesFormatV2` (Schlüsselableitung, Blob, einheitliche Exception), `GcmSegmentStream` (segmentiertes GCM).

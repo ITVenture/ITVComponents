@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ITVComponents.Helpers;
+using ITVComponents.Logging;
 using ITVComponents.Security;
 
 namespace ITVComponents.Formatting.CustomFormat.Impl
@@ -23,8 +25,10 @@ namespace ITVComponents.Formatting.CustomFormat.Impl
                         retVal = AesEncryptor.Decrypt(retVal, Convert.FromBase64String(pwd));
                         success = true;
                     }
-                    catch
+                    catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or FormatException)
                     {
+                        // Expected when the value was encrypted with the application key: it is tried below.
+                        LogEnvironment.LogDebugEvent($"Value '{name}' could not be decrypted with the given key, trying the application key: {ex.OutlineException()}", LogSeverity.Report);
                     }
                 }
                 else if (pass is byte[] pwb && pwb.Length != 0)
@@ -34,8 +38,10 @@ namespace ITVComponents.Formatting.CustomFormat.Impl
                         retVal = AesEncryptor.Decrypt(retVal, pwb);
                         success = true;
                     }
-                    catch
+                    catch (System.Security.Cryptography.CryptographicException ex)
                     {
+                        // Expected when the value was encrypted with the application key: it is tried below.
+                        LogEnvironment.LogDebugEvent($"Value '{name}' could not be decrypted with the given key, trying the application key: {ex.OutlineException()}", LogSeverity.Report);
                     }
                 }
 

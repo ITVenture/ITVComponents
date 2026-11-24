@@ -361,7 +361,7 @@ public class TenantAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
             .FirstOrDefaultAsync();
         // EncryptJsonValues uses the default encryptor when password is null/empty,
         // matching Telerik TenantControllerStruct.CreateSetting / UpdateSetting behaviour.
-        return raw.EncryptJsonValues(tenantPassword);
+        return raw.EncryptJsonValues(ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(tenantPassword));
     }
 
     public async Task<bool> DeleteSettingAsync(ClaimsPrincipal user, int tenantSettingId)

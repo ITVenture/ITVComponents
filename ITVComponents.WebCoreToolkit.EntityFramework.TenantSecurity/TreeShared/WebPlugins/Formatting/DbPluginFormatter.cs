@@ -156,7 +156,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                                      IsGlobal = global,
                                      Name = cst.Name,
                                      DecryptKey = global?null:tenantPass.GetOrInsert(cst.Tenant.TenantName,
-                                         n => cst.Tenant.TenantPassword.Encrypt())
+                                         n => ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(cst.Tenant.TenantPassword).Encrypt())
                                  };
                              }).Distinct(new WebPluginConstantComparer()))
                     {
@@ -173,7 +173,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                         .Select(item => item.All.First(n => n.ParentLevel == item.Level))
                      join prc in context.WebPluginConstants on rprot.WebPluginConstantId equals prc.WebPluginConstantId
                      join tn in context.Tenants on prc.TenantId equals tn.TenantId
-                     select new WebPluginConstant { Value = prc.Value, IsGlobal = false, Name = prc.Name, DecryptKey = tenantPass.GetOrInsert(tn.TenantName, n => tn.TenantPassword.Encrypt()) })
+                     select new WebPluginConstant { Value = prc.Value, IsGlobal = false, Name = prc.Name, DecryptKey = tenantPass.GetOrInsert(tn.TenantName, n => ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(tn.TenantPassword).Encrypt()) })
                         .AsEnumerable()
                         .Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(cst => new WebPluginConstant { Value = cst.Value, IsGlobal = true, Name = cst.Name }).AsEnumerable(), new WebPluginConstantComparer())
                         .ForEach(lop =>
@@ -194,7 +194,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                                 .Select(item => item.All.First(n => n.ParentLevel == item.Level))
                      join prc in context.WebPluginConstants on rprot.WebPluginConstantId equals prc.WebPluginConstantId
                      join tn in context.Tenants on prc.TenantId equals tn.TenantId
-                     select new WebPluginConstant { Value = prc.Value, IsGlobal = false, Name = prc.Name, DecryptKey = tenantPass.GetOrInsert(tn.TenantName, n => tn.TenantPassword.Encrypt()) })
+                     select new WebPluginConstant { Value = prc.Value, IsGlobal = false, Name = prc.Name, DecryptKey = tenantPass.GetOrInsert(tn.TenantName, n => ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(tn.TenantPassword).Encrypt()) })
                         .AsEnumerable()
                         .Union(context.WebPluginConstants.Where(n => n.TenantId == null).Select(cst => new WebPluginConstant { Value = cst.Value, IsGlobal = true, Name = cst.Name }).AsEnumerable(), new WebPluginConstantComparer())
                         .ForEach(lop =>
@@ -236,7 +236,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.TreeShared
                                      DecryptKey = global
                                          ? null
                                          : tenantPass.GetOrInsert(cst.Tenant.TenantName,
-                                             n => cst.Tenant.TenantPassword.Encrypt())
+                                             n => ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(cst.Tenant.TenantPassword).Encrypt())
                                  };
                              }).Distinct(new WebPluginConstantComparer()))
                     {

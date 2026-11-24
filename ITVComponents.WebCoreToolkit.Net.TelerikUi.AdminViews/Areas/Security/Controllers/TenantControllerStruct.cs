@@ -214,7 +214,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 await this.TryUpdateModelAsync<TTenantViewModel, TTenant>(model);
                 if (options.Value.UseExplicitTenantPasswords)
                 {
-                    model.TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey());
+                    model.TenantPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.CreateProtected();
                 }
 
                 db.Tenants.Add(model);
@@ -351,7 +351,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 model.TenantId = tenantId;
                 if (model.JsonSetting)
                 {
-                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(tenant.TenantPassword);
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(tenant.TenantPassword));
                 }
 
                 db.TenantSettings.Add(model);
@@ -372,7 +372,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.AdminViews.TenantSecurityVi
                 await this.TryUpdateModelAsync<TenantSettingViewModel,TTenantSetting>(model, "", m => { return m.ElementType == null; });
                 if (model.JsonSetting)
                 {
-                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(model.Tenant.TenantPassword);
+                    model.SettingsValue = model.SettingsValue.EncryptJsonValues(ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(model.Tenant.TenantPassword));
                 }
 
                 await db.SaveChangesAsync();

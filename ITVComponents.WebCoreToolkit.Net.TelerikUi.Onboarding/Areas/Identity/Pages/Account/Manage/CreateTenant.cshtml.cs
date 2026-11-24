@@ -131,7 +131,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.P
             var tenant = new Tenant
             {
                 DisplayName = Input.Name, TenantName = Guid.NewGuid().ToString("N"),
-                TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey())
+                TenantPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.CreateProtected()
             };
             dbContext.Tenants.Add(tenant);
             var admin = new TenantUser { Enabled = true, Tenant = tenant, UserId = user.Id };

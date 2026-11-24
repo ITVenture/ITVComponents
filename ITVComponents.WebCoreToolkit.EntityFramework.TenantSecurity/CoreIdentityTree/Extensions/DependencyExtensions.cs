@@ -1,4 +1,5 @@
 ﻿using System;
+using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security;
 using ITVComponents.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Helpers;
 using ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdentityTree.Navigation;
@@ -47,6 +48,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<AspNetTreeSecurityContext>>()
                 // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
                 .AddExternalServiceCredentialMigration()
+                .AddTenantKeyProtection()
                 // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
@@ -91,6 +93,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                     .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                 // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
                 .AddExternalServiceCredentialMigration()
+                .AddTenantKeyProtection()
                     // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                     // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                     // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.
@@ -145,6 +148,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.CoreIdenti
                 .AddScoped<IToolkitContextFactory, ToolkitContextFactory<TImpl>>()
                 // Zieht beim Start Zugangsdaten von Dienst-Definitionen in die Zugangsdaten-Zeilen (§93) - einmal je Anwendung.
                 .AddExternalServiceCredentialMigration()
+                .AddTenantKeyProtection()
                 // Die Aufloesung der ClientApp-Zugaenge fuer den gehashten API-Schluessel-Weg. Der
                 // passende IGetApiKeyQuery wird im Host mit UseClientAppApiKeyResolver() gesetzt, und
                 // zwar NACH der WebPart-Konfiguration - sonst ueberschreibt der Klartext-Resolver ihn.

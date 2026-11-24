@@ -358,6 +358,6 @@ public class PlugInAdminHandler<TContext, TTenant, TUserId, TUser, TRole, TPermi
 
         return string.IsNullOrEmpty(tenant.TenantPassword)
             ? PasswordSecurity.Encrypt(plain)
-            : AesEncryptor.EncryptWithKey(plain, Convert.FromBase64String(tenant.TenantPassword));
+            : AesEncryptor.EncryptWithKey(plain, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.KeyBytes(tenant.TenantPassword));
     }
 }

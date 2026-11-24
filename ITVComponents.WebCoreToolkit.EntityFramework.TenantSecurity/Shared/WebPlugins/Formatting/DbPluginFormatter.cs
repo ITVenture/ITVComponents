@@ -123,7 +123,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                         var t = context.Tenants.First(n => n.TenantId == tenantId);
                         if (!string.IsNullOrEmpty(t.TenantPassword))
                         {
-                            encryptedPassword = t.TenantPassword.Encrypt();
+                            encryptedPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(t.TenantPassword).Encrypt();
                         }
                     }
 
@@ -155,7 +155,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Web
                     string encryptedPassword = null;
                     if (!string.IsNullOrEmpty(tenant.TenantPassword))
                     {
-                        encryptedPassword = tenant.TenantPassword.Encrypt();
+                        encryptedPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.Unprotect(tenant.TenantPassword).Encrypt();
                     }
 
                     tenantId = tenant.TenantId;

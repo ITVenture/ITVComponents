@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 127 | **Mandantenschlüssel mit dem Anwendungsschlüssel geschützt** | **Schema-Change (manuelles SQL, VOR dem Update):** `Tenants.TenantPassword` auf 512 Zeichen (§127.1). Alle Prozesse brauchen denselben `PasswordSecurity`-Schlüssel, mehrere Server nur im AES-Modus. Eigener Code: `TenantKeys.KeyBytes`/`Unprotect`/`CreateProtected` statt direktem Spaltenzugriff (§127.2). Start-Umzug schützt Bestand. |
 | 126 | **`AesEncryptor`: Format Version 2 (AES-GCM, PBKDF2-SHA256 600k, Variante für Zufallsschlüssel)** | Kein Schema-Change. Version 1 wird weiter gelesen, geschrieben wird Version 2. **Ältere Prozesse lesen Version 2 nicht** — gemeinsam aktualisieren. Getrennter IV/Salt: IV 14 statt 16 Bytes, Salt länger (§126.1). Warnungen beim Lesen alter Werte nachgehen (§126.2). |
 | 125 | **JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` (Laufzeittyp jeder offenen Stelle, auf jeder Ebene)** | Kein Schema-Change. **BREAKING (Datenformat):** `AssistedPolymorphism` entfällt, altes Format wird nicht gelesen. IPC-Prozesse gemeinsam aktualisieren; laufende Workflow-Instanzen vor dem Update abschliessen (§125.4). Eigene Task-Klassen: `CompleteObjectData`/`ApplyObjectData` entfallen (§125.8). |
 | 124 | **Module beim Publish paketieren (neues Paket `ITVComponents.UpdateService.ModuleBuild`)** | Kein Schema-Change. Opt-in im Modul-Projekt: Paket referenzieren, `<ItvModulePackage>true</ItvModulePackage>`. |
@@ -10586,3 +10587,70 @@ Neu verschlüsselte Werte haben ein neues Format. Bestehende Werte bleiben lesba
 `ITVComponents.Tests/AesEncryptorTests.cs`: Rundreisen (Passphrase, Schlüssel, Streams über Segmentgrenzen, getrennte
 Parameter), Lesen von Version 1 über eine unabhängige Referenzimplementierung, Warnung einmal pro Stelle, einheitliche
 Exception, gefälschte Iterationszahl, veränderte, gekürzte und umsortierte Streams.
+
+## 127. Mandantenschlüssel mit dem Anwendungsschlüssel geschützt — **Schema-Change (Spalte breiter, manuelles SQL)**
+
+Ein Mandantenschlüssel (`Tenants.TenantPassword`) verschlüsselt die Daten seines Mandanten. Bisher lag er im Klartext
+in derselben Datenbank wie diese Daten, ein Datenbank-Abfluss gab also beides preis. Neu wird er mit dem Schlüssel der
+Anwendung (`PasswordSecurity`, ausserhalb der Datenbank konfiguriert) verschlüsselt abgelegt (Issue
+`docs/issue-security-01-aes-format-v2.md`, Teil C).
+
+### 127.1 Schema: Spalte verbreitern — **vor dem Update ausführen**
+
+Der geschützte Wert ist länger als die bisherigen 125 Zeichen. Die Spalte bekommt 512 Zeichen (`[MaxLength(512)]` am
+Modell). Für den Security-Kontext gibt es keine generierte Migration, das SQL ist von Hand auszuführen (Schema anpassen,
+Vorgabe `dbo` bzw. `public`):
+
+```sql
+-- SQL Server
+ALTER TABLE [dbo].[Tenants] ALTER COLUMN [TenantPassword] nvarchar(512) NULL;
+```
+
+```sql
+-- PostgreSQL
+ALTER TABLE "public"."Tenants" ALTER COLUMN "TenantPassword" TYPE character varying(512);
+```
+
+**Reihenfolge:** zuerst das SQL, dann das Update. Ohne breitere Spalte scheitert das Anlegen eines Mandanten mit eigenem
+Schlüssel („String or binary data would be truncated" bzw. „value too long"), und der Start-Umzug (127.3) meldet bei
+jedem Start einen Fehler, ändert aber nichts.
+
+### 127.2 Was sich ändert
+
+- **Gespeichert** wird `tk1:` plus der mit `PasswordSecurity` verschlüsselte Schlüssel.
+- **Eine Stelle für alles:** `TenantKeys` (`…TenantSecurity.Shared.Security`) erzeugt (`CreateProtected`), schützt
+  (`Protect`) und liest (`Unprotect` als Text, `KeyBytes` als Bytes). Alle Leser und Schreiber im Toolkit gehen darüber:
+  `CipherExtensions`, die beiden `DbPluginFormatter`, die Admin-Masken (MudBlazor und Telerik), Onboarding (MudBlazor
+  und Telerik).
+- **Eigener Code, der `TenantPassword` direkt liest** (z.B. `Convert.FromBase64String(tenant.TenantPassword)`), muss auf
+  `TenantKeys.KeyBytes(tenant.TenantPassword)` bzw. `TenantKeys.Unprotect(…)` umgestellt werden. Eigener Code, der einen
+  Schlüssel erzeugt, nimmt `TenantKeys.CreateProtected()`.
+- Ein noch ungeschützter Schlüssel wird weiter gelesen, mit einer Warnung pro Schlüssel im Log.
+
+### 127.3 Start-Umzug
+
+`TenantKeyProtectionService` schützt beim Start alle noch ungeschützten Schlüssel. Er wird von allen Ausprägungen (flach,
+Identity, Baum) registriert, ist idempotent und ändert den Schlüssel selbst nicht: Bestehende verschlüsselte Daten
+bleiben lesbar. Scheitert er (Spalte noch zu schmal, `PasswordSecurity` nicht konfiguriert), steht ein Fehler im Log,
+und er versucht es beim nächsten Start wieder.
+
+### 127.4 Für den Host
+
+1. SQL aus 127.1 ausführen.
+2. Sicherstellen, dass **alle Prozesse**, die Mandantenschlüssel brauchen (Web, Worker, Agent), `PasswordSecurity` mit
+   **demselben** Anwendungsschlüssel initialisieren. Im DPAPI-Modus ist der Schlüssel an Maschine bzw. Benutzer
+   gebunden: Für mehrere Server ist der AES-Modus (`PasswordSecurity.InitializeAes`) nötig.
+3. Update einspielen. Nach dem ersten Start steht im Log „Protected N tenant key(s) with the application key".
+4. **Den Anwendungsschlüssel sichern.** Ohne ihn sind die Mandantenschlüssel, und damit alle Mandantendaten, nicht mehr
+   lesbar.
+
+### 127.5 Behoben
+
+- `StringDecryptor` (`ITVComponents.Formatting`) verschluckte Entschlüsselungsfehler mit einem leeren `catch`. Jetzt
+  steht der Grund im Debug-Log, bevor er auf den Anwendungsschlüssel ausweicht.
+
+### 127.6 Tests
+
+`ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Test/TenantKeysTest.cs`: neuer Schlüssel geschützt und
+passend zur Spalte, `Protect` idempotent, ungeschützter Schlüssel mit einer Warnung lesbar, Start-Umzug schützt nur
+ungeschützte Schlüssel und ist idempotent.

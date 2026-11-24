@@ -21,7 +21,9 @@ namespace ITVComponents.WebCoreToolkit.Blazor.MudBlazor.AdminViews.Test
             TenantPasswordAssignment.EnsureForNewTenant(second, true);
 
             Assert.IsFalse(string.IsNullOrEmpty(first.TenantPassword));
-            Assert.AreEqual(32, Convert.FromBase64String(first.TenantPassword).Length);
+            // Stored protected with the application key (Leitfaden §127), the key itself has 256 bits.
+            Assert.IsTrue(ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.IsProtected(first.TenantPassword));
+            Assert.AreEqual(32, ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.KeyBytes(first.TenantPassword).Length);
             Assert.AreNotEqual(first.TenantPassword, second.TenantPassword, "Every tenant needs a key of its own.");
         }
 

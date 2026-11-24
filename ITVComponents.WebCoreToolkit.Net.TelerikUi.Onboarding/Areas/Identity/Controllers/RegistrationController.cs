@@ -284,7 +284,7 @@ namespace ITVComponents.WebCoreToolkit.Net.TelerikUi.Onboarding.Areas.Identity.C
                     var tenant = new Tenant
                     {
                         DisplayName = companyInput.Name, TenantName = Guid.NewGuid().ToString("N"),
-                        TenantPassword = Convert.ToBase64String(AesEncryptor.CreateKey()),
+                        TenantPassword = ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Security.TenantKeys.CreateProtected(),
                         // Die Zeitzone wurde hier schon immer abgefragt, aber nie gespeichert.
                         TimeZone = string.IsNullOrWhiteSpace(companyInput.TimeZone) ? null : companyInput.TimeZone.Trim(),
                         Culture = string.IsNullOrWhiteSpace(companyInput.Culture) ? null : companyInput.Culture.Trim()
