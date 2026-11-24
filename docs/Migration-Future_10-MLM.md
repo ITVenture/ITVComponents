@@ -5687,6 +5687,7 @@ Server und PostgreSQL dabei verschieden. Die Prüfung bleibt im Handler.
 
 | # | Was | Aktion |
 |---|---|---|
+| 126 | **`AesEncryptor`: Format Version 2 (AES-GCM, PBKDF2-SHA256 600k, Variante für Zufallsschlüssel)** | Kein Schema-Change. Version 1 wird weiter gelesen, geschrieben wird Version 2. **Ältere Prozesse lesen Version 2 nicht** — gemeinsam aktualisieren. Getrennter IV/Salt: IV 14 statt 16 Bytes, Salt länger (§126.1). Warnungen beim Lesen alter Werte nachgehen (§126.2). |
 | 125 | **JSON: `EnvelopePolymorphism` ersetzt `AssistedPolymorphism` (Laufzeittyp jeder offenen Stelle, auf jeder Ebene)** | Kein Schema-Change. **BREAKING (Datenformat):** `AssistedPolymorphism` entfällt, altes Format wird nicht gelesen. IPC-Prozesse gemeinsam aktualisieren; laufende Workflow-Instanzen vor dem Update abschliessen (§125.4). Eigene Task-Klassen: `CompleteObjectData`/`ApplyObjectData` entfallen (§125.8). |
 | 124 | **Module beim Publish paketieren (neues Paket `ITVComponents.UpdateService.ModuleBuild`)** | Kein Schema-Change. Opt-in im Modul-Projekt: Paket referenzieren, `<ItvModulePackage>true</ItvModulePackage>`. |
 | 123 | **Benutzerdatei der nativen Einstellungen auf Abschnitte beschränken** | Kein Schema-Change. Opt-in; **empfohlen** für jede Benutzerdatei, die mehr Konten schreiben dürfen als die Anwendung (Agent unter `ProgramData`). |
@@ -10540,3 +10541,48 @@ implementieren `IManualSerializer` nicht mehr:
   zurückgegeben, auch wenn die Methode ein Interface liefert (z.B. `IDbDataParameter CreateParameter(…)`), statt einen
   Proxy dafür auszugeben. Diese Rolle übernimmt jetzt das Attribut. Die oben genannten Typen tragen es. Ein eigenes
   `IManualSerializer` gilt weiterhin als „per Wert".
+
+## 126. `AesEncryptor`: Format Version 2 (authentifiziert) — **kein Schema-Change, Verhaltensänderung**
+
+Neu verschlüsselte Werte haben ein neues Format. Bestehende Werte bleiben lesbar (Issue
+`docs/issue-security-01-aes-format-v2.md`).
+
+### 126.1 Was sich ändert
+
+- **Verfahren:** AES-256-GCM statt AES-256-CBC. Veränderte oder abgeschnittene Daten fallen jetzt auf, vorher gab es
+  keinen Integritätsschutz.
+- **Schlüssel aus einer Passphrase:** PBKDF2-HMAC-SHA256 mit **600'000** Runden statt PBKDF2-HMAC-SHA1 mit 10'000. Der
+  abgeleitete Hauptschlüssel wird pro Prozess gepuffert, und jeder Wert bekommt über HKDF einen eigenen Schlüssel. Die
+  erste Ver- oder Entschlüsselung eines Prozesses dauert deshalb spürbar (Bruchteile einer Sekunde), die weiteren nicht.
+- **Neu: Variante für Zufallsschlüssel** (`EncryptWithKey`, `GetEncryptStreamWithKey`) ohne Schlüsselstreckung. Sie
+  verlangt mindestens 128 Bit. Mandantenschlüssel (`TenantPassword`) werden damit verschlüsselt (`CipherExtensions`,
+  Plugin-Konstanten). Ein von Hand gesetztes `TenantPassword` unter 16 Bytes führt beim Verschlüsseln zu einem Fehler.
+- **Streams** werden in Segmenten von 64 KiB verschlüsselt, jedes geprüft. Ein Stream muss nach dem Schreiben
+  `Dispose()` erhalten, wie bisher.
+- **Getrennt gespeicherte Parameter** (`Encrypt(…, out iv, out salt)`, `GetEncryptStream(…, out iv, out salt)`): Der IV
+  ist in Version 2 **14 Bytes** lang (bisher 16), das Salt **länger** als 32 Bytes (es trägt die Schlüsselparameter).
+  Feste Feldgrössen beim Konsumenten müssen das aufnehmen; Text- bzw. Base64-Felder ohne Grenze sind unproblematisch.
+- **Fehler:** Jeder Fehler beim Entschlüsseln (falscher Schlüssel, veränderte Daten, kaputtes Base64, beide Versionen)
+  ist dieselbe `CryptographicException` „The value could not be decrypted (wrong key or modified data)". Der Grund
+  steht im Debug-Log.
+
+### 126.2 Bestehende Werte
+
+- Werte in Version 1 werden weiter gelesen. Wer einen Wert neu speichert, schreibt Version 2.
+- **Beim Lesen eines Strings in Version 1** steht eine Warnung mit Stacktrace im Log, einmal pro Aufrufstelle und
+  Prozess. Ihr nachgehen und den Wert neu verschlüsseln, z.B. die Einstellung neu speichern.
+- **`AesEncryptor.IsLegacyFormat(string)`** bzw. `(byte[])` findet Werte im alten Format gezielt, z.B. beim Durchsuchen
+  von Einstellungen nach `encrypt:`-Werten.
+- **Ältere Prozesse können Version 2 nicht lesen.** Alle Prozesse, die verschlüsselte Werte teilen (Web, Worker,
+  Agent), gleichzeitig aktualisieren.
+
+### 126.3 Behoben
+
+- `CryptDecoratorStream` las den Kopf eines Streams mit `Stream.Read`, ohne die gelesene Länge zu prüfen. Bei
+  Netzwerk- oder gepufferten Streams konnten IV und Salt dadurch falsch gelesen werden. Jetzt `ReadExactly`.
+
+### 126.4 Tests
+
+`ITVComponents.Tests/AesEncryptorTests.cs`: Rundreisen (Passphrase, Schlüssel, Streams über Segmentgrenzen, getrennte
+Parameter), Lesen von Version 1 über eine unabhängige Referenzimplementierung, Warnung einmal pro Stelle, einheitliche
+Exception, gefälschte Iterationszahl, veränderte, gekürzte und umsortierte Streams.

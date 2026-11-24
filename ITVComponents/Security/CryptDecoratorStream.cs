@@ -200,7 +200,7 @@ namespace ITVComponents.Security
                 stream.Seek(0, SeekOrigin.Begin);
             }
 
-            stream.Read(tmp, 0, tmp.Length);
+            stream.ReadExactly(tmp, 0, tmp.Length);
             var mg = BitConverter.ToInt32(tmp, 0);
             var ivl = BitConverter.ToInt32(tmp, 4);
             var sl = BitConverter.ToInt32(tmp, 8);
@@ -212,8 +212,8 @@ namespace ITVComponents.Security
             initializationVector = new byte[ivl];
             salt = new byte[sl];
             cryptoBlockLength = 12 + ivl + sl;
-            stream.Read(initializationVector, 0, ivl);
-            stream.Read(salt, 0, sl);
+            stream.ReadExactly(initializationVector, 0, ivl);
+            stream.ReadExactly(salt, 0, sl);
         }
     }
 }

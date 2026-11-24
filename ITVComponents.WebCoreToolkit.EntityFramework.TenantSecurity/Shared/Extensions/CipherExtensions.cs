@@ -158,7 +158,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd, out iv, out salt);
+                return AesEncryptor.EncryptWithKey(value, passwd, out iv, out salt);
             }
 
             throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
@@ -187,7 +187,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd);
+                return AesEncryptor.EncryptWithKey(value, passwd);
             }
 
             return value.Encrypt();
@@ -222,7 +222,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             if (passwd != null)
             {
-                return AesEncryptor.Encrypt(value, passwd);
+                return AesEncryptor.EncryptWithKey(value, passwd);
             }
 
             return value.Encrypt();
@@ -281,7 +281,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             if (passwd != null)
             {
-                return AesEncryptor.GetEncryptStream(baseStream, passwd, out iv, out salt);
+                return AesEncryptor.GetEncryptStreamWithKey(baseStream, passwd, out iv, out salt);
             }
 
             throw new InvalidOperationException("This is only supported for explicit tenant-encryption");
@@ -310,7 +310,7 @@ namespace ITVComponents.WebCoreToolkit.EntityFramework.TenantSecurity.Shared.Ext
 
             if (passwd != null)
             {
-                return AesEncryptor.GetEncryptStream(baseStream, passwd);
+                return AesEncryptor.GetEncryptStreamWithKey(baseStream, passwd);
             }
 
             throw new InvalidOperationException("This is only supported for explicit tenant-encryption");

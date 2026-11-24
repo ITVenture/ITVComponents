@@ -1,7 +1,20 @@
 # Security 01: `AesEncryptor` – Format Version 2 (authentifiziert, zeitgemässe Schlüsselableitung)
 
 **Typ:** Härtung / Format-Erweiterung
-**Status:** Entscheide 1, 2, 4, 5 gefallen; Entscheid 3 und der Schutz der Mandantenschlüssel (Teil C) noch offen
+**Status:** Teil A und B umgesetzt (2026-11-24). Teil C (Schutz der Mandantenschlüssel) offen.
+
+**Umsetzung (Teil A und B):**
+- Neu `AesFormatV2` (Schlüsselableitung, Blob, einheitliche Exception), `GcmSegmentStream` (segmentiertes GCM).
+- `AesEncryptor` schreibt Version 2 und liest beide. Neu sind `EncryptWithKey`, `GetEncryptStreamWithKey` (auch mit
+  getrenntem IV/Salt) und `IsLegacyFormat`.
+- `CipherExtensions`, `PlugInAdminHandler` und `PlugInConstController` verschlüsseln mit der Variante für
+  Zufallsschlüssel.
+- Lesen eines Version-1-Strings ergibt eine Warnung einmal pro Aufrufstelle. `CryptDecoratorStream` liest den Kopf
+  vollständig (`ReadExactly`).
+- Die Iterationszahl beim Lesen ist auf 10'000–10'000'000 begrenzt, damit ein gefälschter Wert keine endlose Rechnung
+  auslöst.
+- Tests in `ITVComponents.Tests/AesEncryptorTests.cs`. Version 1 wird darin über eine unabhängige
+  Referenzimplementierung erzeugt.
 
 **Betrifft:**
 - `ITVComponents\Security\AesEncryptor.cs`, `CryptDecoratorStream.cs`, `PasswordSecurity.cs`
@@ -77,16 +90,17 @@ wird hier geklärt.
 - Abgelehnt: CBC + HMAC am Ende. Dabei würde erst am Schluss geprüft, bis dahin wäre ungeprüfter Klartext
   herausgegeben.
 
-### Entscheid 3 (offen): Varianten mit getrennt gespeichertem IV und Salt
+### Entscheid 3: Varianten mit getrennt gespeichertem IV und Salt – Version 2 in denselben Signaturen
 
-Diese Varianten sind bei Konsumenten im Einsatz: mandantenweise verschlüsselte Dokumente, Salt und teils IV als DB-Feld.
-**Auslaufen lassen kommt deshalb nicht in Frage.** Zu klären:
-- Wie Version 2 in diese Signaturen passt: Wo stehen Version und Tag? Im Ciphertext bzw. Stream selbst, die
-  Signatur bleibt.
-- Wie verhält sich eine 12-Byte-Nonce statt eines 16-Byte-IV gegenüber festen DB-Feldern? Möglich wäre auch: Der
-  IV-Parameter bleibt 16 Bytes, und die Nonce wird daraus abgeleitet.
-- Woran erkennt der Lesepfad, ob ein Wert mit getrenntem Salt in Version 1 oder 2 vorliegt (Kennung im Ciphertext)?
-- Vorher bei den Konsumenten erheben, welche Feldgrössen und -typen für IV und Salt bestehen.
+Diese Varianten sind bei Konsumenten im Einsatz: mandantenweise verschlüsselte Dokumente. `Iv` und `Salt` sind dort
+unbegrenzte String-Felder (`[Required] public string Iv/Salt`), es passt also mehr hinein als bisher.
+
+- **„iv"** = `00 | 02 | Nonce-Präfix (8) | Segmentgrösse (Int32 LE)`, also 14 Bytes. Ein Version-1-IV hat immer 16 Bytes,
+  daran erkennt der Lesepfad die Version eindeutig.
+- **„salt"** = die Schlüsselparameter (Modus, Iterationen, Salt der Stufe 1, Salt des Werts).
+- **Daten** = segmentiertes GCM wie bei Streams. Salt und IV werden mit jedem Segment authentifiziert.
+- `Encrypt(…, out iv, out salt)` nutzt wie bisher intern das Stream-Format. Blob und Stream bleiben untereinander
+  austauschbar.
 
 ### Entscheid 4: Kodierung der Passphrase – bleibt UTF-32
 
