@@ -9,16 +9,24 @@ using ITVComponents.Scripting.CScript.ReflectionHelpers;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
-    public class TypeDescriptor:IManualSerializer
+    /// <summary>
+    /// Describes a type for the wire (e.g. the declared type of a null argument). A plain transport object; the fields
+    /// are serialized directly.
+    /// </summary>
+    public class TypeDescriptor
     {
         private static Dictionary<string, Type> reverseTypes = new Dictionary<string, Type>();
 
+        [JsonInclude]
         private string typeName;
 
+        [JsonInclude]
         private string fullName;
 
+        [JsonInclude]
         private TypeDescriptor[] genericArguments;
 
+        [JsonInclude]
         private bool isGeneric;
 
         [JsonConstructor]
@@ -37,7 +45,8 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             var retVal = Type.GetType(desc.fullName);
             if (retVal == null)
             {
-                retVal = Type.GetType(desc.typeName);
+                // Version-tolerant: the peer may run another build of the assembly.
+                retVal = ManualTypeRegistry.Resolve(desc.typeName, out _);
             }
             if (retVal == null)
             {
@@ -113,29 +122,6 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
             {
                 reverseTypes[assemblyQualifiedName] = concreteType;
             }
-        }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue(nameof(typeName), typeName));
-
-            Data.Add(ManualSerializationData.FromValue(nameof(fullName), fullName));
-
-            Data.Add(ManualSerializationData.FromValue(nameof(genericArguments), genericArguments));
-
-            Data.Add(ManualSerializationData.FromValue(nameof(isGeneric), isGeneric));
-        }
-
-        public void ApplyObjectData()
-        {
-            typeName = Data.GetDeserializedValue<string>(nameof(typeName));
-
-            fullName = Data.GetDeserializedValue<string>(nameof(fullName));
-
-            genericArguments = Data.GetDeserializedValue<TypeDescriptor[]>(nameof(genericArguments));
-
-            isGeneric = Data.GetDeserializedValue<bool>(nameof(isGeneric));
         }
     }
 }

@@ -13,6 +13,7 @@ using ITVComponents.InterProcessCommunication.InMemory.Server;
 using ITVComponents.InterProcessCommunication.MessagingShared;
 using ITVComponents.InterProcessCommunication.MessagingShared.Hub.Protocol;
 using ITVComponents.InterProcessCommunication.NamedPipe.Client;
+
 using ITVComponents.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -97,6 +98,44 @@ namespace ITVComponents.InterProcessCommunication.NamedPipe.Test
         }
 
         /// <summary>
+        /// Arguments and results travel in the envelope format (issue Json 01): derived types in base-typed parameters,
+        /// generic lists as such, and the exact numeric type for overload resolution.
+        /// </summary>
+        [TestMethod]
+        public void Arguments_And_Results_Keep_Their_Runtime_Types()
+        {
+            var scaled = CallWhenReady(() => client.CallRemoteMethod(ObjectName, nameof(Calculator.Scale), new object[] { new Circle { Radius = 2 }, 1.5 }));
+            Assert.IsInstanceOfType<Circle>(scaled);
+            Assert.AreEqual(3.0, ((Circle)scaled).Radius);
+
+            var items = new List<Item> { new Item { Name = "a" }, new Item { Name = "b" } };
+            var echoed = client.CallRemoteMethod(ObjectName, nameof(Calculator.Reverse), new object[] { items });
+            Assert.IsInstanceOfType<List<Item>>(echoed);
+            Assert.AreEqual("b", ((List<Item>)echoed)[0].Name);
+
+            Assert.AreEqual("int", client.CallRemoteMethod(ObjectName, nameof(Calculator.Kind), new object[] { 5 }));
+            Assert.AreEqual("long", client.CallRemoteMethod(ObjectName, nameof(Calculator.Kind), new object[] { 5L }));
+
+            var guid = Guid.NewGuid();
+            Assert.AreEqual<object>(guid, client.CallRemoteMethod(ObjectName, nameof(Calculator.Echo), new object[] { guid }));
+            Assert.AreEqual<object>(1.25m, client.CallRemoteMethod(ObjectName, nameof(Calculator.Echo), new object[] { 1.25m }));
+            Assert.IsNull(client.CallRemoteMethod(ObjectName, nameof(Calculator.Echo), new object?[] { null }));
+        }
+
+        [TestMethod]
+        public void Restricted_Argument_Types_Accept_Registered_And_Refuse_Other_Types()
+        {
+            JsonHelper.RegisterManualType<Item>("ipctest.item");
+            server.RestrictArgumentTypes = true;
+
+            var echoed = CallWhenReady(() => client.CallRemoteMethod(ObjectName, nameof(Calculator.Echo), new object[] { new Item { Name = "ok" } }));
+            Assert.AreEqual("ok", ((Item)echoed).Name);
+
+            // Circle is not registered: the server does not load it, the argument arrives as null (§110.2).
+            Assert.IsNull(client.CallRemoteMethod(ObjectName, nameof(Calculator.Echo), new object[] { new Circle { Radius = 2 } }));
+        }
+
+        /// <summary>
         /// The service registers in the background; calls before that fail.
         /// </summary>
         private static object CallWhenReady(Func<object> call)
@@ -126,6 +165,36 @@ namespace ITVComponents.InterProcessCommunication.NamedPipe.Test
             {
                 return a + b;
             }
+
+            public Shape Scale(Shape shape, double factor)
+            {
+                return shape is Circle c ? new Circle { Radius = c.Radius * factor } : shape;
+            }
+
+            public List<Item> Reverse(List<Item> items)
+            {
+                return Enumerable.Reverse(items).ToList();
+            }
+
+            public string Kind(int value) => "int";
+
+            public string Kind(long value) => "long";
+
+            public object? Echo(object? value) => value;
+        }
+
+        public abstract class Shape
+        {
+        }
+
+        public class Circle : Shape
+        {
+            public double Radius { get; set; }
+        }
+
+        public class Item
+        {
+            public string? Name { get; set; }
         }
     }
 }

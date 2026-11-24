@@ -42,7 +42,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Hub
 
         static EndPointBroker()
         {
-            MessageTranslator.RegisterMessages();
         }
 
         public Task<ServiceOperationResponseMessage> SendMessageToServer(ServerOperationMessage message, IServiceProvider services)

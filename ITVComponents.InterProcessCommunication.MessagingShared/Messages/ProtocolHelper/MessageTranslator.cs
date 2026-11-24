@@ -13,11 +13,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Messages.Proto
 {
     public static class MessageTranslator
     {
-        internal static void RegisterMessages()
-        {
-            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(TypedArray), "TypedArray");
-        }
-
         /// <summary>
         /// Tests the received message and returns it, if its the expected type or throws an exception otherwise
         /// </summary>

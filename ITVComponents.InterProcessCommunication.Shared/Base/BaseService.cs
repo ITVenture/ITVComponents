@@ -243,6 +243,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
         {
             targetObject.LocalOwner(threadsOwner);
             index = ResolveBuffers(index, services);
+            value = DropRefusedArgument(value, "The property value");
             var result = value as ProxyResult;
             if (result != null)
             {
@@ -812,12 +813,29 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
             }
         }
 
+        /// <summary>
+        /// Under the restriction to registered types (e.g. <c>MessageServer.RestrictArgumentTypes</c>) an argument whose
+        /// type was refused arrives untyped from the wire (a JsonNode). It is handed to the method as null, as documented:
+        /// the client must not be able to pass content of a type the server did not accept.
+        /// </summary>
+        private static object DropRefusedArgument(object argument, string what)
+        {
+            if (argument is System.Text.Json.Nodes.JsonNode && ManualTypeRegistry.Restricted)
+            {
+                LogEnvironment.LogEvent($"{what} has a type that is not registered; it is passed as null.", LogSeverity.Warning);
+                return null;
+            }
+
+            return argument;
+        }
+
         private Type[] GetTypeArray(object[] args, IServiceProvider services)
         {
             Type[] retVal = new Type[args.Length];
             for (int i = 0; i < retVal.Length; i++)
             {
                 LogEnvironment.LogDebugEvent($"CurrentParameter: {i}, {args[i]?.GetType()}", LogSeverity.Report);
+                args[i] = DropRefusedArgument(args[i], $"Argument {i}");
                 if (args[i] != null && !(args[i] is TypedParam))
                 {
                     var result = args[i] as ProxyResult;
@@ -831,7 +849,7 @@ namespace ITVComponents.InterProcessCommunication.Shared.Base
                 else if (args[i] is TypedParam)
                 {
                     retVal[i] = ((TypedParam) args[i]).NullType;
-                    args[i] = ((TypedParam)args[i]).GetValue(n => ResolveBuffer(n, services));
+                    args[i] = DropRefusedArgument(((TypedParam)args[i]).GetValue(n => ResolveBuffer(n, services)), $"Argument {i}");
                 }
                 else
                 {

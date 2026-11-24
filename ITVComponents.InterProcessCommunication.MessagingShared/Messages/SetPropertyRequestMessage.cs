@@ -9,7 +9,7 @@
         public object Value { get;set; }
 
         /// <summary>
-        /// The new value packed like the arguments of a method (a TypedArray with one element), so it keeps its type -
+        /// The new value packed like the arguments of a method (an argument list with one element), so it keeps its type -
         /// also a proxy. A server prefers it over <see cref="Value"/> when it is present.
         /// </summary>
         public string PackedValue { get; set; }

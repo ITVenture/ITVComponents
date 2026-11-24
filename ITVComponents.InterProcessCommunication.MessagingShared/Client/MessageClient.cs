@@ -76,7 +76,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Client
 
         static MessageClient()
         {
-            MessageTranslator.RegisterMessages();
         }
 
         public override bool IsBidirectional => isBidirectional && !string.IsNullOrEmpty(connection?.ServiceName);

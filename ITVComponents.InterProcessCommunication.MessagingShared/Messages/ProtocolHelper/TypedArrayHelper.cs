@@ -1,26 +1,23 @@
 ﻿using ITVComponents.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using ITVComponents.DataAccess.Extensions;
-using ITVComponents.Json.Contracts;
 
 namespace ITVComponents.InterProcessCommunication.MessagingShared.Messages.ProtocolHelper
 {
+    /// <summary>
+    /// Packs method arguments and results for the wire. Every element is an open place
+    /// (<see cref="SerializationTypingMode.EnvelopePolymorphism"/>): it carries its runtime type, on every level, and
+    /// primitives keep their exact type (an int parameter does not arrive as long).
+    /// </summary>
     internal static class TypedArrayHelper
     {
         public static string PackArguments(this object[] arguments)
         {
-            return JsonHelper.ToJson(new TypedArray { RawData = arguments },
-                SerializationTypingMode.AssistedPolymorphism, null);
+            // Missing arguments travel as an empty list, as with the former container: the receiver never gets null.
+            return JsonHelper.ToJson(arguments ?? System.Array.Empty<object>(), SerializationTypingMode.EnvelopePolymorphism);
         }
 
         public static object[] UnpackArguments(this string arguments)
         {
-            return JsonHelper.FromJsonString<IManualSerializer>(arguments, SerializationTypingMode.AssistedPolymorphism)
-                .Cast<TypedArray>().RawData;
+            return JsonHelper.FromJsonString<object[]>(arguments, SerializationTypingMode.EnvelopePolymorphism);
         }
     }
 }

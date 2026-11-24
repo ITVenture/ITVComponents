@@ -332,7 +332,15 @@ nicht betroffen.
    unverändert. Inhalt: neuer Modus, Factory und Converter (B), Preserve (C), Registry-Generika (D),
    versionstolerante Typnamen (D2), Brücke (E),
    `AllowOutOfOrderMetadataProperties` (A), Newtonsoft (H), Ablehnung des alten Formats. Tests im Kern.
-3. **IPC** (F).
+3. **IPC** (F). **Erledigt** (2026-11-24): Argumente als `object[]` im neuen Modus, `TypedArray` und
+   `MessageTranslator.RegisterMessages` entfallen, `TypedParam`/`ResolvableArray<T>`/`TypeDescriptor` sind POCOs
+   (`[JsonInclude]` auf den Feldern), `TypeDescriptor` löst ohne Positivliste versionstolerant auf,
+   `ResolvableArray<>` ist zugelassen. Die Zusage aus Leitfaden §110.2/§112.2 bleibt: Unter `RestrictArgumentTypes`
+   kommt ein Argument unregistrierten Typs als `null` an. Der Draht liefert dafür einen `JsonNode`, und
+   `BaseService.DropRefusedArgument` macht daraus `null` mit Warnung im Log (Methodenargumente, Werte aus
+   `TypedParam`, Property-Wert). Die Prüfungen `is not IManualSerializer` in `BaseService` bleiben für die
+   Brücken-Typen bestehen. Solution baut, Tests grün: NamedPipe 22, AgentServices 47, UpdateService 100,
+   Workflow.Plugins.Ipc 5, ITVComponents.Tests 34.
 4. **Workflow** (G).
 5. **Abbau:** `AssistedPolymorphism`, `SimpleContract`, der Zwei-Phasen-Pfad in `ManualSerializationData` und die
    `IManualSerializer`-Sonderbehandlung in `DynamicContractResolver` werden entfernt. `IManualSerializer` wird

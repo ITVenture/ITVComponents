@@ -1,19 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using ITVComponents.InterProcessCommunication.Shared.Proxying;
-using ITVComponents.Scripting.CScript.ReflectionHelpers;
-using ITVComponents.Helpers;
-using ITVComponents.Json.Contracts;
-using ITVComponents.Logging;
-using ITVComponents.TypeConversion;
-using Exception = System.Exception;
 
 namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 {
-    public class TypedParam:IManualSerializer
+    /// <summary>
+    /// An argument together with its declared type (<see cref="NullType"/>), e.g. so a null value still selects the right
+    /// overload. A plain transport object: the value is an open place and carries its runtime type itself
+    /// (<see cref="ITVComponents.Json.SerializationTypingMode.EnvelopePolymorphism"/>).
+    /// </summary>
+    public class TypedParam
     {
-       private object value;
+        [JsonInclude]
+        [JsonPropertyName("value")]
+        private object value;
 
         public TypedParam(object value)
         {
@@ -37,44 +38,16 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
 
             return retVal;
         }
-
-        public IList<ManualSerializationData> Data { get; set; }
-        public virtual void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue(nameof(value), value));
-            Data.Add(ManualSerializationData.FromValue(nameof(NullType), NullType));
-        }
-
-        public virtual void ApplyObjectData()
-        {
-            NullType = Data.GetDeserializedValue<TypeDescriptor>(nameof(NullType));
-            try
-            {
-                if (NullType != null)
-                {
-                    var meth = LambdaHelper
-                        .GetMethodInfo(() =>
-                            SerializationDataExtensions.GetDeserializedValue<object>(Data, nameof(value)))
-                        .GetGenericMethodDefinition().MakeGenericMethod(NullType);
-                    value = meth.Invoke(null, new object[] { Data, nameof(value) });
-                }
-                else
-                {
-                    value = Data.GetDeserializedValue<object>(nameof(value));
-                }
-            }
-            catch (Exception ex)
-            {
-                LogEnvironment.LogEvent($"Error converting Value to {NullType} ({ex.Message})", LogSeverity.Error);
-            }
-        }
     }
 
     [Serializable]
     public class ResolvableArray<T> : TypedParam
     {
-        List<string> proxies = new List<string>();
-        List<T> fixObjects = new List<T>();
+        [JsonInclude]
+        private List<string> proxies = new List<string>();
+
+        [JsonInclude]
+        private List<T> fixObjects = new List<T>();
 
         public ResolvableArray()
         {
@@ -112,28 +85,5 @@ namespace ITVComponents.InterProcessCommunication.Shared.Helpers
         }
 
         #endregion
-
-        public override void GetObjectData()
-        {
-            base.GetObjectData();
-            Data.Add(ManualSerializationData.FromValue(nameof(proxies), proxies));
-            Data.Add(ManualSerializationData.FromValue(nameof(fixObjects), fixObjects));
-        }
-
-        public override void ApplyObjectData()
-        {
-            base.ApplyObjectData();
-            var tmp =Data.GetDeserializedValue<List<string>>(nameof(proxies));
-            if (tmp != null)
-            {
-                proxies.AddRange(tmp);
-            }
-
-            var tmp2 = Data.GetDeserializedValue<List<T>>(nameof(fixObjects));
-            if (tmp2 != null)
-            {
-                fixObjects.AddRange(tmp2);
-            }
-        }
     }
 }

@@ -79,7 +79,6 @@ namespace ITVComponents.InterProcessCommunication.MessagingShared.Server
 
         static MessageServer()
         {
-             MessageTranslator.RegisterMessages();
         }
 
         /// <summary>
