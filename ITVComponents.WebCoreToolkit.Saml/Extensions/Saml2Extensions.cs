@@ -143,7 +143,7 @@ namespace ITVComponents.WebCoreToolkit.Saml.Extensions
         {
             try
             {
-                var cert = new X509Certificate2(pathToPfx, passwordForPfx.Secure(), X509KeyStorageFlags.PersistKeySet);
+                var cert = X509CertificateLoader.LoadPkcs12FromFile(pathToPfx, passwordForPfx, X509KeyStorageFlags.PersistKeySet);
                 providerOptions.ServiceCertificates.Add(cert);
                 SamlRequestsSigned = true;
             }

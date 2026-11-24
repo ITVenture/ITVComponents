@@ -243,11 +243,6 @@ namespace ITVComponents.ParallelProcessing
         public class ScheduleRequest
         {
             /// <summary>
-            /// sha object used to calculate task request ids
-            /// </summary>
-            private static SHA256 sha = new SHA256Managed();
-
-            /// <summary>
             /// holds a list of instructions for the current request
             /// </summary>
             [JsonInclude]
@@ -282,7 +277,7 @@ namespace ITVComponents.ParallelProcessing
                     LogSeverity.Report);
                 RequestId =
                     BitConverter.ToString(
-                        sha.ComputeHash(
+                        SHA256.HashData(
                             Encoding.UTF32.GetBytes(
                                 string.Format("{0:yyyyMMddHHmmssffff}:{1}:{2}:{3:yyyyMMddHHmmssffff}{4}", DateTime.Now,
                                               targetProcessor.GetHashCode(), task.Description, LastExecution,metaInfo))));

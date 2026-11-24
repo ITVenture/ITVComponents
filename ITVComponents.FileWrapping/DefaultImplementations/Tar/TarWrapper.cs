@@ -589,12 +589,13 @@ namespace ITVComponents.FileWrapping.DefaultImplementations.Tar
 
                 if (create)
                 {
-                    OutputStream = new TarOutputStream(parentStream);
+                    // Entry names as UTF-8 (the obsolete constructor dropped every non-ASCII character); ASCII names are unchanged.
+                    OutputStream = new TarOutputStream(parentStream, System.Text.Encoding.UTF8);
                     subStreams.Push(OutputStream);
                 }
                 else
                 {
-                    InputStream = new TarInputStream(parentStream);
+                    InputStream = new TarInputStream(parentStream, System.Text.Encoding.UTF8);
                     subStreams.Push(InputStream);
                 }
             }

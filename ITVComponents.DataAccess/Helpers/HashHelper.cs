@@ -1,24 +1,38 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
+using ITVComponents.Logging;
 
 namespace ITVComponents.DataAccess.Helpers
 {
     public static class HashHelper
     {
-        private static ConcurrentDictionary<string, HashAlgorithm> algos = new ConcurrentDictionary<string, HashAlgorithm>();
+        /// <summary>
+        /// Calculates the hash of a string (UTF-16) with the named algorithm (e.g. "SHA256", "MD5") as lower-case hex.
+        /// An unknown name falls back to SHA-1, as before.
+        /// </summary>
+        /// <remarks>
+        /// A new algorithm object per call: a <see cref="HashAlgorithm"/> instance is not thread-safe, a shared one gave
+        /// wrong hashes under parallel calls.
+        /// </remarks>
         public static string CalculateHash(string s, string hashAlgorithm)
         {
-            var algo = algos.GetOrAdd(hashAlgorithm, a => HashAlgorithm.Create(a) ?? new SHA1CryptoServiceProvider());
+            using HashAlgorithm algo = CreateAlgorithm(hashAlgorithm);
             byte[] bytes = Encoding.Unicode.GetBytes(s);
             byte[] hash = algo.ComputeHash(bytes);
-            string hashString = string.Empty;
-            hashString = string.Concat(from t in hash select $"{t:x2}");
-            return hashString;
+            return string.Concat(from t in hash select $"{t:x2}");
+        }
+
+        private static HashAlgorithm CreateAlgorithm(string hashAlgorithm)
+        {
+            if (!string.IsNullOrEmpty(hashAlgorithm) && CryptoConfig.CreateFromName(hashAlgorithm) is HashAlgorithm named)
+            {
+                return named;
+            }
+
+            LogEnvironment.LogEvent($"Hash algorithm '{hashAlgorithm}' is not known; SHA-1 is used instead.", LogSeverity.Warning);
+            return SHA1.Create();
         }
     }
 }

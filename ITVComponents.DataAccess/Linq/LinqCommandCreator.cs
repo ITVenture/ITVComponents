@@ -99,8 +99,7 @@ namespace ITVComponents.DataAccess.Linq
         private static string GetHashSha256(string text)
         {
             byte[] bytes = Encoding.Unicode.GetBytes(text);
-            SHA256Managed hashstring = new SHA256Managed();
-            byte[] hash = hashstring.ComputeHash(bytes);
+            byte[] hash = SHA256.HashData(bytes);
             string hashString = string.Empty;
             foreach (byte x in hash)
             {

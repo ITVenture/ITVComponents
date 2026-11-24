@@ -104,14 +104,12 @@ namespace ITVComponents.Security
         /// <returns>a stream that is capable for reading the decrypted data</returns>
         public static Stream GetDecryptStream(Stream targetStream, byte[] entropy, byte[] initializationVector, byte[] salt, bool leaveOpen = false)
         {
-            using (var asm = new AesManaged())
+            using (var asm = Aes.Create())
             {
-                using (Rfc2898DeriveBytes pwd = new Rfc2898DeriveBytes(entropy, salt, 10000))
-                {
-                    var key = pwd.GetBytes(32);
-                    ICryptoTransform decryptor = asm.CreateDecryptor(key, initializationVector);
-                    return new CryptoStream(targetStream, decryptor, CryptoStreamMode.Read, leaveOpen);
-                }
+                // PBKDF2 with SHA-1, 10000 iterations, 32 bytes: the parameters of the existing data - they must not change.
+                var key = Rfc2898DeriveBytes.Pbkdf2(entropy, salt, 10000, HashAlgorithmName.SHA1, 32);
+                ICryptoTransform decryptor = asm.CreateDecryptor(key, initializationVector);
+                return new CryptoStream(targetStream, decryptor, CryptoStreamMode.Read, leaveOpen);
             }
         }
 
@@ -124,15 +122,13 @@ namespace ITVComponents.Security
         /// <returns>a stream that is capable for reading the decrypted data</returns>
         public static Stream GetDecryptStream(Stream targetStream, byte[] entropy, bool leaveOpen = false)
         {
-            using (var asm = new AesManaged())
+            using (var asm = Aes.Create())
             {
                 var decorator = new CryptDecoratorStream(targetStream, leaveOpen);
-                using (Rfc2898DeriveBytes pwd = new Rfc2898DeriveBytes(entropy, decorator.Salt, 10000))
-                {
-                    var key = pwd.GetBytes(32);
-                    ICryptoTransform decryptor = asm.CreateDecryptor(key, decorator.InitializationVector);
-                    return new CryptoStream(decorator, decryptor, CryptoStreamMode.Read, false);
-                }
+                // PBKDF2 with SHA-1, 10000 iterations, 32 bytes: the parameters of the existing data - they must not change.
+                var key = Rfc2898DeriveBytes.Pbkdf2(entropy, decorator.Salt, 10000, HashAlgorithmName.SHA1, 32);
+                ICryptoTransform decryptor = asm.CreateDecryptor(key, decorator.InitializationVector);
+                return new CryptoStream(decorator, decryptor, CryptoStreamMode.Read, false);
             }
         }
 
@@ -225,16 +221,14 @@ namespace ITVComponents.Security
         public static Stream GetEncryptStream(Stream targetStream, byte[] entropy, out byte[] initializationVector,
             out byte[] salt, bool leaveOpen = false)
         {
-            using (AesManaged asm = new AesManaged())
+            using (Aes asm = Aes.Create())
             {
                 salt = RandomSalt();
-                using (Rfc2898DeriveBytes pwd = new Rfc2898DeriveBytes(entropy, salt, 10000))
-                {
-                    var key = pwd.GetBytes(32);
-                    ICryptoTransform encryptor = asm.CreateEncryptor(key, asm.IV);
-                    initializationVector = (byte[])asm.IV.Clone();
-                    return new CryptoStream(targetStream, encryptor, CryptoStreamMode.Write, leaveOpen);
-                }
+                // PBKDF2 with SHA-1, 10000 iterations, 32 bytes: the parameters of the existing data - they must not change.
+                var key = Rfc2898DeriveBytes.Pbkdf2(entropy, salt, 10000, HashAlgorithmName.SHA1, 32);
+                ICryptoTransform encryptor = asm.CreateEncryptor(key, asm.IV);
+                initializationVector = (byte[])asm.IV.Clone();
+                return new CryptoStream(targetStream, encryptor, CryptoStreamMode.Write, leaveOpen);
             }
         }
 
@@ -244,18 +238,16 @@ namespace ITVComponents.Security
             {
                 var salt = RandomSalt();
                 var decorator = new CryptDecoratorStream(targetStream, (byte[])asm.IV.Clone(), salt, leaveOpen);
-                using (Rfc2898DeriveBytes pwd = new Rfc2898DeriveBytes(entropy, salt, 10000))
-                {
-                    var key = pwd.GetBytes(32);
-                    ICryptoTransform encryptor = asm.CreateEncryptor(key, decorator.InitializationVector);
-                    return new CryptoStream(decorator, encryptor, CryptoStreamMode.Write, false);
-                }
+                // PBKDF2 with SHA-1, 10000 iterations, 32 bytes: the parameters of the existing data - they must not change.
+                var key = Rfc2898DeriveBytes.Pbkdf2(entropy, salt, 10000, HashAlgorithmName.SHA1, 32);
+                ICryptoTransform encryptor = asm.CreateEncryptor(key, decorator.InitializationVector);
+                return new CryptoStream(decorator, encryptor, CryptoStreamMode.Write, false);
             }
         }
 
         public static byte[] CreateKey()
         {
-            using (AesManaged asm = new AesManaged())
+            using (Aes asm = Aes.Create())
             {
                 asm.KeySize = 256;
                 asm.GenerateKey();

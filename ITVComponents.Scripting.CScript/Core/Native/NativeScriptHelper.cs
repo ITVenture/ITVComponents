@@ -380,17 +380,14 @@ namespace ITVComponents.Scripting.CScript.Core.Native
         private static string GetFlatString(string text)
         {
             byte[] bytes = Encoding.Unicode.GetBytes(text);
-            using (SHA256Managed hahsher = new SHA256Managed())
+            byte[] hash = SHA256.HashData(bytes);
+            StringBuilder hashString = new StringBuilder();
+            foreach (byte x in hash)
             {
-                byte[] hash = hahsher.ComputeHash(bytes);
-                StringBuilder hashString = new StringBuilder();
-                foreach (byte x in hash)
-                {
-                    hashString.AppendFormat("{0:x2}", x);
-                }
-
-                return hashString.ToString();
+                hashString.AppendFormat("{0:x2}", x);
             }
+
+            return hashString.ToString();
         }
 
         /// <summary>

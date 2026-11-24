@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using ITVComponents.WebCoreToolkit.Authentication.ApiKey.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -22,15 +23,14 @@ namespace ITVComponents.WebCoreToolkit.Authentication.ApiKey
         private static readonly JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            IgnoreNullValues = true
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
         public ApiKeyAuthenticationHandler(
             IOptionsMonitor<ApiKeyAuthenticationOptions> options,
             ILoggerFactory logger,
             UrlEncoder encoder,
-            ISystemClock clock,
-            IGetApiKeyQuery getApiKeyQuery) : base(options, logger, encoder, clock)
+            IGetApiKeyQuery getApiKeyQuery) : base(options, logger, encoder)
         {
             this.getApiKeyQuery = getApiKeyQuery ?? throw new ArgumentNullException(nameof(getApiKeyQuery));
         }

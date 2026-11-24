@@ -66,6 +66,11 @@ namespace ITVComponents.ParallelProcessing
         private Thread workerThread;
 
         /// <summary>
+        /// Signals the current worker thread that it was given up (<see cref="ITaskProcessor.KillThread"/>).
+        /// </summary>
+        private CancellationTokenSource threadAbandon;
+
+        /// <summary>
         /// Waits until the Taskprocessing thread has been activated
         /// </summary>
         private ManualResetEvent startupWait;
@@ -215,9 +220,16 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Kills the thread that is powering this processor
         /// </summary>
+        /// <remarks>
+        /// .NET cannot abort a thread (<c>Thread.Abort</c> throws <see cref="PlatformNotSupportedException"/>). The thread
+        /// is given up instead: it takes no further task and ends as soon as its current one returns.
+        /// </remarks>
         void ITaskProcessor.KillThread()
         {
-            workerThread.Abort();
+            LogEnvironment.LogEvent(
+                "The worker thread is given up: it cannot be aborted and ends as soon as its current task returns.",
+                LogSeverity.Warning);
+            threadAbandon?.Cancel();
             suspendEvent.Set();
             suspendedEvent.Reset();
             startupWait.Reset();
@@ -239,7 +251,9 @@ namespace ITVComponents.ParallelProcessing
         /// </summary>
         void ITaskProcessor.StartupThread()
         {
-            workerThread = new Thread(Work);
+            threadAbandon = new CancellationTokenSource();
+            var abandon = threadAbandon.Token;
+            workerThread = new Thread(() => Work(abandon));
             if (useAffineThread)
             {
                 workerThread.TrySetApartmentState(ApartmentState.STA);
@@ -293,7 +307,8 @@ namespace ITVComponents.ParallelProcessing
         /// <summary>
         /// Works the all working queues
         /// </summary>
-        private void Work()
+        /// <param name="abandon">set when the processor gives this thread up (<see cref="ITaskProcessor.KillThread"/>)</param>
+        private void Work(CancellationToken abandon)
         {
             startupWait.Set();
             enterprocessingLoopWait.WaitOne();
@@ -302,7 +317,7 @@ namespace ITVComponents.ParallelProcessing
                 Thread.BeginThreadAffinity();
             }
 
-            while (true)
+            while (!abandon.IsCancellationRequested)
             {
                 lastActivity = DateTime.Now;
                 bool tasksFound = false;
@@ -331,6 +346,13 @@ namespace ITVComponents.ParallelProcessing
                     {
                         TaskContainer task;
                         lastActivity = DateTime.Now;
+                        if (abandon.IsCancellationRequested)
+                        {
+                            // Given up by the processor: take no further task, a new thread works the queues.
+                            ending = true;
+                            break;
+                        }
+
                         if ((!(ending = stopEvent.WaitOne(50))) && tasks[i].TryDequeue(out task))
                         {
                             try

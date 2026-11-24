@@ -33,11 +33,5 @@ namespace ITVComponents.PowerShell
             Errors = errors;
             Results = results;
         }
-
-        protected PowerShellApiException(
-            SerializationInfo info,
-            StreamingContext context) : base(info, context)
-        {
-        }
     }
 }

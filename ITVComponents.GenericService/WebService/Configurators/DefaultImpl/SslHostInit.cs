@@ -94,12 +94,12 @@ namespace ITVComponents.GenericService.WebService.Configurators.DefaultImpl
                     {
                         if (!string.IsNullOrEmpty(certificatePassword))
                         {
-                            serverCert = new X509Certificate2(pathToCertificate,
-                                certificatePassword.Decrypt().Secure(), X509KeyStorageFlags.PersistKeySet);
+                            serverCert = X509CertificateLoader.LoadPkcs12FromFile(pathToCertificate,
+                                certificatePassword.Decrypt(), X509KeyStorageFlags.PersistKeySet);
                         }
                         else
                         {
-                            serverCert = new X509Certificate2(pathToCertificate, (SecureString)null, X509KeyStorageFlags.PersistKeySet);
+                            serverCert = X509CertificateLoader.LoadPkcs12FromFile(pathToCertificate, null, X509KeyStorageFlags.PersistKeySet);
                         }
                     }
                     else if (!string.IsNullOrEmpty(certificateSerial))

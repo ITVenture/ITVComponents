@@ -246,7 +246,7 @@ namespace ITVComponents.WebCoreToolkit.Tests
             var options = new AnonymousAssetAuthenticationOptions();
             var handler = new AnonymousAssetAuthenticationHandler(
                 new StubOptionsMonitor(options), NullLoggerFactory.Instance, UrlEncoder.Default,
-                new StubClock(), query, setup.Context);
+                query, setup.Context);
             await handler.InitializeAsync(
                 new AuthenticationScheme(AnonymousAssetAuthenticationOptions.DefaultScheme, null,
                     typeof(AnonymousAssetAuthenticationHandler)),
@@ -322,11 +322,6 @@ namespace ITVComponents.WebCoreToolkit.Tests
             public AnonymousAssetAuthenticationOptions Get(string name) => options;
 
             public IDisposable OnChange(Action<AnonymousAssetAuthenticationOptions, string> listener) => null;
-        }
-
-        private sealed class StubClock : ISystemClock
-        {
-            public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
         }
 
         private sealed class StubContextUser : IContextUserProvider

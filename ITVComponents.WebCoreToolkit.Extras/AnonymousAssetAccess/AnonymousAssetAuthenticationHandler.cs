@@ -5,6 +5,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Web;
@@ -34,16 +35,15 @@ namespace ITVComponents.WebCoreToolkit.Extras.AnonymousAssetAccess
         private static readonly JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            IgnoreNullValues = true
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
         public AnonymousAssetAuthenticationHandler(
             IOptionsMonitor<AnonymousAssetAuthenticationOptions> options,
             ILoggerFactory logger,
             UrlEncoder encoder,
-            ISystemClock clock,
             IGetAnonymousAssetQuery getApiKeyQuery,
-            ISharedAssetContext assetContext) : base(options, logger, encoder, clock)
+            ISharedAssetContext assetContext) : base(options, logger, encoder)
         {
             this.getAnonymousAssetQuery = getApiKeyQuery ?? throw new ArgumentNullException(nameof(getApiKeyQuery));
             this.assetContext = assetContext ?? throw new ArgumentNullException(nameof(assetContext));
