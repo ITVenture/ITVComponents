@@ -341,7 +341,20 @@ nicht betroffen.
    `TypedParam`, Property-Wert). Die Prüfungen `is not IManualSerializer` in `BaseService` bleiben für die
    Brücken-Typen bestehen. Solution baut, Tests grün: NamedPipe 22, AgentServices 47, UpdateService 100,
    Workflow.Plugins.Ipc 5, ITVComponents.Tests 34.
-4. **Workflow** (G).
+4. **Workflow** (G). **Erledigt** (2026-11-24): Der Variablen-Stack ist ein `Dictionary<string, object>` im neuen
+   Modus. Nicht aufloesbare Werte gehen weiter durch `Materialize`. `WorkflowVariableBag` entfaellt,
+   `IterationFailure` ist ein POCO. Das alte Format wird abgelehnt. Neue Tests stehen in `WorkflowVariableJsonTest`.
+   Auch die Definitionen sind umgezogen. Entscheid: Wo Daten auftreten koennen, die sich nicht zweifelsfrei einem Typ
+   zuordnen lassen, wird umgezogen. Das trifft zu auf `ActivityInputBinding.Literal`,
+   `AutomatedActivityNode.Configuration` und die Startwerte des zeitgesteuerten Starts. Aus dem Code, aus Importen
+   oder ueber den IPC-Katalog kamen dort `long`, `double`, `DateTime`, `Guid` und Enums verfaelscht zurueck.
+   - `WorkflowJson` behaelt seine eigenen Options. Das portable Format mit den `kind`-Diskriminatoren bleibt.
+   - Neu haengt `JsonHelper.UseEnvelopePolymorphism(options)` nur die Huelle an. Der `ObjectValueConverter` entfaellt.
+   - `WorkflowJson.Deserialize` liest unter der Positivliste.
+   - Bestehende Definitionen bleiben lesbar: Blanke Zahlen werden nach der Staffel int, long, decimal, double
+     gelesen, und Strings und Bools stehen weiter blank.
+
+   Solution baut, alle Workflow-Testprojekte gruen (756 Tests inkl. `ITVComponents.Tests`).
 5. **Abbau:** `AssistedPolymorphism`, `SimpleContract`, der Zwei-Phasen-Pfad in `ManualSerializationData` und die
    `IManualSerializer`-Sonderbehandlung in `DynamicContractResolver` werden entfernt. `IManualSerializer` wird
    `[Obsolete]`, mit Verweis auf POCO + offene Stellen.

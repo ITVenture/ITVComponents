@@ -611,6 +611,12 @@ namespace ITVComponents.Json.Strategy.Impl
             return retVal;
         }
 
+        /// <summary>The envelope converter, aware of the protocol bases with native polymorphism.</summary>
+        internal JsonConverter CreateEnvelopeConverter()
+        {
+            return new EnvelopeConverterFactory(t => nativeProtocolBases.ContainsKey(t));
+        }
+
         /// <summary>
         /// Options of <see cref="SerializationTypingMode.EnvelopePolymorphism"/>: the envelope converter instead of the
         /// manual-serializer contract, and - with references - a handler that shares one resolver across envelopes.
@@ -631,7 +637,7 @@ namespace ITVComponents.Json.Strategy.Impl
 
             retVal.TypeInfoResolverChain.Clear();
             retVal.TypeInfoResolverChain.Add(defaultContract);
-            retVal.Converters.Add(new EnvelopeConverterFactory(t => nativeProtocolBases.ContainsKey(t)));
+            retVal.Converters.Add(CreateEnvelopeConverter());
             if (preserveReferences)
             {
                 retVal.ReferenceHandler = EnvelopeReferenceHandler.Instance;

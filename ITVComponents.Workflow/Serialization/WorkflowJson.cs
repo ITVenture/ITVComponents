@@ -19,12 +19,17 @@ namespace ITVComponents.Workflow.Serialization
     /// wieder aufloest.
     /// </summary>
     /// <remarks>
-    /// Der Knackpunkt ist <c>Dictionary&lt;string,object&gt;</c> (Instanz-Variablen und
-    /// Knoten-Konfiguration): System.Text.Json liest <c>object</c>-Werte sonst als <see cref="JsonElement"/>
-    /// zurueck, wodurch aus einem <c>int</c> ein JSON-Knoten wuerde. Der <see cref="ObjectValueConverter"/>
-    /// gibt Primitive typerhaltend zurueck. Bekannte Grenze: verschachtelte Objekte/Arrays als
-    /// Variablenwert kommen als <see cref="JsonElement"/> zurueck (Workflow-Variablen sind ueblicherweise
-    /// Primitive).
+    /// Der Knackpunkt sind die offenen Stellen der Definition (<c>Literal</c> einer Bindung,
+    /// Knoten-Konfiguration, feste Startwerte): System.Text.Json kennt dort nur den deklarierten Typ
+    /// <c>object</c>. Jeder solche Wert steht deshalb in der Huelle <c>{"$type": …, "$value": …}</c>
+    /// (<see cref="JsonHelper.UseEnvelopePolymorphism"/>) - Zahlen, Datumswerte, Guids, Enums und angemeldete
+    /// Datensaetze kommen exakt zurueck. Zeichenketten und Wahrheitswerte stehen blank, wie bisher; eine blanke
+    /// Zahl (aelterer Bestand, Hand-JSON) wird nach der Staffel int, long, decimal, double gelesen.
+    /// <para>
+    /// Gelesen wird unter der Beschraenkung auf <b>angemeldete</b> Typen - eine importierte Definition laedt
+    /// keinen beliebigen .NET-Typ. Ein nicht angemeldeter Datensatz kommt untypisiert zurueck (als
+    /// <see cref="JsonNode"/>, siehe <see cref="Materialize"/>) und steht im Log.
+    /// </para>
     /// </remarks>
     public static class WorkflowJson
     {
@@ -33,16 +38,8 @@ namespace ITVComponents.Workflow.Serialization
 
         static WorkflowJson()
         {
-            // Die Ablage-Form der Variablen beim Contract-Resolver anmelden - ohne das kennt der
-            // Deserialisierer den Diskriminator nicht und der Variablen-Stack liesse sich nicht lesen.
-            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(WorkflowVariableBag),
-                WorkflowVariableBag.Discriminator);
-
             // Die Fehlerliste einer Iteration ist ein Kern-Typ der Bibliothek - sie soll ohne Zutun der
-            // Anwendung typtreu durch die Ablage kommen. Sie traegt ihre Felder einzeln (wegen des
-            // object-Feldes Item) und braucht deshalb BEIDES: den Contract und den Kurznamen.
-            DynamicContractResolver.ConfigureType(typeof(IManualSerializer), typeof(IterationFailure),
-                "wf-iteration-failure");
+            // Anwendung typtreu durch die Ablage kommen, auch unter der Beschraenkung auf angemeldete Typen.
             ManualTypeRegistry.Register<IterationFailure>("wf-iteration-failure");
         }
 
@@ -55,7 +52,15 @@ namespace ITVComponents.Workflow.Serialization
         /// <summary>Deserialisiert einen Wert; liefert <c>default</c> bei leerem Text.</summary>
         public static T Deserialize<T>(string json)
         {
-            return string.IsNullOrEmpty(json) ? default : JsonSerializer.Deserialize<T>(json, Compact);
+            if (string.IsNullOrEmpty(json))
+            {
+                return default;
+            }
+
+            using (JsonHelper.RestrictManualTypesToRegistered())
+            {
+                return JsonSerializer.Deserialize<T>(json, Compact);
+            }
         }
 
         /// <summary>
@@ -68,8 +73,9 @@ namespace ITVComponents.Workflow.Serialization
         /// zum abgelegten Format: einmal vergeben, darf er sich nicht mehr aendern; die Klasse dahinter
         /// darf dagegen umziehen und umbenannt werden. Genau darum geht es.
         /// <para>
-        /// Sammlungen brauchen keine eigene Anmeldung: eine Liste oder ein Array angemeldeter Elemente
-        /// wird ueber den Elementnamen abgelegt und kommt als <b>Array</b> zurueck.
+        /// Sammlungen brauchen keine eigene Anmeldung: eine Liste, ein Set, ein Dictionary oder ein Array
+        /// angemeldeter Elemente bekommt einen zusammengesetzten Namen (<c>list&lt;sign-item&gt;</c>,
+        /// <c>sign-item[]</c>) und kommt als <b>genau diese</b> Sammlung zurueck.
         /// </para>
         /// <example>
         /// <code>
@@ -86,16 +92,19 @@ namespace ITVComponents.Workflow.Serialization
         /// Serialisiert einen Variablen-Stack - je Variable ein Eintrag mit eigener Typkennung, damit der
         /// konkrete Typ eines Wertes den Weg in die Ablage und zurueck uebersteht.
         /// </summary>
+        /// <remarks>
+        /// Format: ein JSON-Objekt mit einer Eigenschaft je Variable; jeder Wert steht in der Huelle
+        /// <c>{"$type": …, "$value": …}</c> (<see cref="SerializationTypingMode.EnvelopePolymorphism"/>), nur
+        /// Zeichenketten und Wahrheitswerte stehen blank. Dasselbe gilt auf jeder tieferen Ebene, also auch fuer ein
+        /// <c>object</c>-Feld innerhalb eines Datensatzes.
+        /// </remarks>
         public static string SerializeVariables(IDictionary<string, object> variables)
         {
             GuardAgainstValueHandles(variables);
-            var bag = new WorkflowVariableBag
-            {
-                Values = variables == null
-                    ? new Dictionary<string, object>(StringComparer.Ordinal)
-                    : new Dictionary<string, object>(variables, StringComparer.Ordinal)
-            };
-            return JsonHelper.ToJson<IManualSerializer>(bag, SerializationTypingMode.AssistedPolymorphism);
+            var values = variables == null
+                ? new Dictionary<string, object>(StringComparer.Ordinal)
+                : new Dictionary<string, object>(variables, StringComparer.Ordinal);
+            return JsonHelper.ToJson(values, SerializationTypingMode.EnvelopePolymorphism);
         }
 
         /// <summary>
@@ -139,7 +148,8 @@ namespace ITVComponents.Workflow.Serialization
         /// <remarks>
         /// Laeuft unter der Beschraenkung auf <b>angemeldete</b> Typen: aus dieser Ablage wird kein
         /// beliebiger .NET-Typ geladen, auch wenn im Datenstrom einer benannt ist. Was sich nicht
-        /// aufloesen laesst, kommt untypisiert zurueck (und steht im Log).
+        /// aufloesen laesst, kommt untypisiert zurueck (als Liste/Dictionary/Primitive, siehe
+        /// <see cref="Materialize"/>) und steht im Log.
         /// </remarks>
         public static Dictionary<string, object> DeserializeVariables(string json)
         {
@@ -148,12 +158,25 @@ namespace ITVComponents.Workflow.Serialization
                 return new Dictionary<string, object>(StringComparer.Ordinal);
             }
 
+            Dictionary<string, object> read;
             using (JsonHelper.RestrictManualTypesToRegistered())
             {
-                var bag = JsonHelper.FromJsonString<WorkflowVariableBag>(json,
-                    SerializationTypingMode.AssistedPolymorphism);
-                return bag?.Values ?? new Dictionary<string, object>(StringComparer.Ordinal);
+                read = JsonHelper.FromJsonString<Dictionary<string, object>>(json,
+                    SerializationTypingMode.EnvelopePolymorphism);
             }
+
+            var values = new Dictionary<string, object>(StringComparer.Ordinal);
+            if (read != null)
+            {
+                foreach (KeyValuePair<string, object> pair in read)
+                {
+                    // Ein nicht aufloesbarer Typ kommt als roher Knoten - lieber als gewoehnliche Werte
+                    // weiterreichen als verlieren. Der Grund steht bereits im Log.
+                    values[pair.Key] = pair.Value is JsonNode ? Materialize(pair.Value) : pair.Value;
+                }
+            }
+
+            return values;
         }
 
         /// <summary>
@@ -274,14 +297,15 @@ namespace ITVComponents.Workflow.Serialization
         /// Primitive zu ihrem Typ. Alles andere wird unveraendert durchgereicht.
         /// </summary>
         /// <remarks>
-        /// Der Gegenzug zur bekannten Grenze des <see cref="ObjectValueConverter"/>: zusammengesetzte
-        /// Variablenwerte kommen nach einem Park (Commit + Neuladen) als <see cref="JsonElement"/>
-        /// zurueck. Ein <see cref="JsonElement"/> ist <b>kein</b> <c>IEnumerable</c> und kein
+        /// Fuer Werte, deren Typ beim Lesen nicht aufgeloest werden konnte (nicht angemeldet, umbenannt): sie
+        /// kommen als <see cref="JsonNode"/> zurueck, aeltere Quellen liefern auch <see cref="JsonElement"/>.
+        /// Ein <see cref="JsonElement"/> ist <b>kein</b> <c>IEnumerable</c> und kein
         /// Dictionary - wer damit weiterarbeiten will, laeuft ohne diese Umwandlung auf.
         /// <para>
         /// Was NICHT zurueckkommt, ist der urspruengliche .NET-Typ: aus einem Datensatz-Objekt wird ein
-        /// Dictionary, kein POCO. Dafuer braeuchte die Ablage einen Typ-Diskriminator - eine Entscheidung
-        /// mit Format- und Sicherheitsfolgen, die hier bewusst nicht getroffen wird.
+        /// Dictionary, kein POCO. Typtreu bleiben nur angemeldete Typen;
+        /// <see cref="DeserializeVariables"/> reicht einen nicht
+        /// aufloesbaren Wert selbst hier durch.
         /// </para></remarks>
         public static object Materialize(object value)
         {
@@ -290,8 +314,8 @@ namespace ITVComponents.Workflow.Serialization
                 case JsonElement element:
                     return FromElement(element);
                 case JsonNode node:
-                    // Derselbe Fall, andere Bauform: der manuelle Serialisierungs-Pfad reicht nicht
-                    // aufgeloeste Nutzlasten als JsonNode heraus.
+                    // Derselbe Fall, andere Bauform: der Variablen-Stack reicht nicht aufgeloeste
+                    // Nutzlasten als JsonNode heraus.
                     return FromElement(node.Deserialize<JsonElement>());
                 default:
                     return value;
@@ -349,64 +373,8 @@ namespace ITVComponents.Workflow.Serialization
 
         private static JsonSerializerOptions Build(bool indented)
         {
-            var options = new JsonSerializerOptions { WriteIndented = indented };
-            options.Converters.Add(new ObjectValueConverter());
-            return options;
-        }
-
-        /// <summary>Haelt Primitive typerhaltend, wenn sie als <c>object</c> serialisiert/gelesen werden.</summary>
-        private sealed class ObjectValueConverter : JsonConverter<object>
-        {
-            public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-            {
-                switch (reader.TokenType)
-                {
-                    case JsonTokenType.True:
-                        return true;
-                    case JsonTokenType.False:
-                        return false;
-                    case JsonTokenType.String:
-                        return reader.GetString();
-                    case JsonTokenType.Number:
-                        if (reader.TryGetInt32(out int i))
-                        {
-                            return i;
-                        }
-
-                        if (reader.TryGetInt64(out long l))
-                        {
-                            return l;
-                        }
-
-                        if (reader.TryGetDecimal(out decimal m))
-                        {
-                            return m;
-                        }
-
-                        return reader.GetDouble();
-                    case JsonTokenType.Null:
-                        return null;
-                    default:
-                        // Objekt/Array: als JsonElement erhalten (seltener Fall bei Variablen).
-                        using (JsonDocument document = JsonDocument.ParseValue(ref reader))
-                        {
-                            return document.RootElement.Clone();
-                        }
-                }
-            }
-
-            public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
-            {
-                if (value == null)
-                {
-                    writer.WriteNullValue();
-                    return;
-                }
-
-                // Ueber den konkreten Typ serialisieren - fuer int/string/bool greifen deren eigene
-                // Konverter, nicht erneut dieser hier (keine Rekursion).
-                JsonSerializer.Serialize(writer, value, value.GetType(), options);
-            }
+            // Eigene Options (portables Format, kind-Diskriminatoren); nur die offenen Stellen bekommen die Huelle.
+            return new JsonSerializerOptions { WriteIndented = indented }.UseEnvelopePolymorphism();
         }
     }
 }

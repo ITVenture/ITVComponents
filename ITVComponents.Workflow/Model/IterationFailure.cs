@@ -1,7 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json.Serialization;
-using ITVComponents.Json.Contracts;
 
 namespace ITVComponents.Workflow.Model
 {
@@ -23,13 +20,11 @@ namespace ITVComponents.Workflow.Model
     /// dasselbe, was man zur Diagnose braucht (Typ und Stacktrace), und ueberleben die Persistenz.
     /// </para>
     /// <para>
-    /// Der Typ traegt seine Felder <b>einzeln</b> in die Ablage (<see cref="IManualSerializer"/>). Der
-    /// Grund ist <see cref="Item"/>: ein <c>object</c>-Feld <i>innerhalb</i> einer Nutzlast bekommt keine
-    /// Typkennung und kaeme sonst als roher JSON-Knoten zurueck statt als das, was hineingelegt wurde.
-    /// Angemeldet wird der Typ von <c>WorkflowJson</c>; nicht <c>sealed</c>, weil der Contract-Resolver
-    /// Polymorphie-Optionen daran haengt.
+    /// <see cref="Item"/> ist ein <c>object</c>-Feld und traegt in der Ablage seine eigene Typkennung
+    /// (<c>SerializationTypingMode.EnvelopePolymorphism</c>) - es kommt als das zurueck, was hineingelegt
+    /// wurde. Der Typ selbst ist von <c>WorkflowJson</c> unter einem Kurznamen angemeldet.
     /// </para></remarks>
-    public class IterationFailure : IManualSerializer
+    public class IterationFailure
     {
         /// <summary>Das unveraenderte Element aus der Eingabe-Sammlung.</summary>
         public object Item { get; set; }
@@ -59,31 +54,6 @@ namespace ITVComponents.Workflow.Model
         /// <summary>Wurde eine Ausnahme geworfen (statt <c>Fail</c> gerufen)?</summary>
         [JsonIgnore]
         public bool WasThrown => ExceptionType != null;
-
-        /// <summary>Die Ablage-Form (siehe Klassen-Anmerkung). Kein Feld fuer den taeglichen Gebrauch.</summary>
-        public IList<ManualSerializationData> Data { get; set; }
-
-        /// <inheritdoc/>
-        public void GetObjectData()
-        {
-            Data.Add(ManualSerializationData.FromValue(nameof(Item), Item));
-            Data.Add(ManualSerializationData.FromValue(nameof(Index), Index));
-            Data.Add(ManualSerializationData.FromValue(nameof(Message), Message));
-            Data.Add(ManualSerializationData.FromValue(nameof(ExceptionType), ExceptionType));
-            Data.Add(ManualSerializationData.FromValue(nameof(ExceptionDetail), ExceptionDetail));
-        }
-
-        /// <inheritdoc/>
-        public void ApplyObjectData()
-        {
-            Item = Value(nameof(Item));
-            Index = Value(nameof(Index)) is int index ? index : 0;
-            Message = Value(nameof(Message)) as string;
-            ExceptionType = Value(nameof(ExceptionType)) as string;
-            ExceptionDetail = Value(nameof(ExceptionDetail)) as string;
-        }
-
-        private object Value(string name) => Data.FirstOrDefault(n => n.PropertyName == name)?.Data;
 
         /// <inheritdoc/>
         public override string ToString()

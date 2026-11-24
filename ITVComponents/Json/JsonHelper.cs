@@ -74,6 +74,29 @@ namespace ITVComponents.Json
         /// </summary>
         public static IDisposable RestrictManualTypesToRegistered() => ManualTypeRegistry.RestrictToRegisteredTypes();
 
+        /// <summary>
+        /// Adds the envelope of <see cref="SerializationTypingMode.EnvelopePolymorphism"/> to options of one's own: every
+        /// open place (<c>object</c>, abstract classes, non-collection interfaces) carries its runtime type, everything
+        /// else of the options stays as it is. For formats that keep their own settings (e.g. an export format).
+        /// </summary>
+        /// <remarks>
+        /// Reference preservation across envelopes is not available this way (it needs the scope that only the
+        /// JsonHelper calls open); do not combine it with <see cref="ReferenceHandler.Preserve"/>. Types with native
+        /// polymorphism (<see cref="JsonPolymorphicAttribute"/>, <see cref="ExtendNativeProtocolType{TProto,TExt}"/>)
+        /// are left to System.Text.Json.
+        /// </remarks>
+        /// <returns>the same options, for chaining</returns>
+        public static JsonSerializerOptions UseEnvelopePolymorphism(this JsonSerializerOptions options)
+        {
+            if (options == null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            options.Converters.Add(Strategy<DefaultJsonStrategy>(NativeStrategy).CreateEnvelopeConverter());
+            return options;
+        }
+
         public static string EncryptJsonValues(this string jsonString, string password = null, string strategy = null)
         {
             return Strategy<IJsonStrategy>(strategy).EncryptJsonValues(jsonString, password);
